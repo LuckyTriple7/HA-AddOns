@@ -2761,9 +2761,15 @@ const PRIVACY_MODULE_CANDIDATES = [
   'WAWebSetPrivacySettingsAction',
   'WAWebPrivacySettingsAction',
   'WAWebQueryPrivacySettingsJob',
-  'WAWebUserPrefsPrivacy',
-  'WAWebLastSeenPrivacy',
-  'WAWebReadReceiptsPrivacy',
+  'WAWebSetPrivacyForOneCategoryAction',
+  'WAWebSetPrivacyJob',
+  'WAWebStatusPrivacySettingAction',
+  'WAWebMexGetPrivacySetting',
+  'WAWebMexGetPrivacyList',
+  'WAWebApiPrivacyDisallowedList',
+  'WAWebQueryPrivacyDisallowedListUtil',
+  'WAWebStatusPrivacyContactsUtils',
+  'WAWebPrivacyGatingUtils',
 ];
 
 async function probePrivacyModules() {
@@ -2904,6 +2910,86 @@ app.get('/api/privacy/diag', async (req, res) => {
         }, extra);
       }
     }
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Aktueller Stand der Datenschutzeinstellungen — reines Lesen.
+// getPrivacy() liefert das, was WhatsApp Web selbst in seinen Einstellungen zeigt.
+app.get('/api/privacy', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  try {
+    const out = await client.pupPage.evaluate(async () => {
+      const safe = async (fn) => { try { return await fn(); } catch (e) { return { error: String((e && e.message) || e).slice(0, 200) }; } };
+      const settings = await safe(async () => window.require('WAWebQueryPrivacySettingsJob').getPrivacy());
+      const values = await safe(async () => {
+        const p = window.require('WAWebPrivacySettings');
+        return { visibility: p.VISIBILITY, onlineVisibility: p.ONLINE_VISIBILITY, allNone: p.ALL_NONE, allContacts: p.ALL_CONTACTS, callAdd: p.CALL_ADD };
+      });
+      return { settings, allowedValues: values };
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Der Quelltext einer Aktion steht in der Modulliste als Fabrikfunktion. Nur so
+// laesst sich ablesen, welche Parameter z.B. WAWebSetPrivacyForOneCategoryAction
+// erwartet — die exportierte Funktion selbst steckt hinter einem Babel-Mantel
+// und gibt per toString() nichts her.
+// GET /api/privacy/source?module=WAWebSetPrivacyForOneCategoryAction
+app.get('/api/privacy/source', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const name = String(req.query.module || '');
+  if (!/^[\w.]{3,120}$/.test(name)) return res.status(400).json({ error: 'module erforderlich' });
+  const max = Math.min(Math.max(parseInt(req.query.max || '8000', 10) || 8000, 500), 60000);
+  try {
+    const out = await client.pupPage.evaluate((name, max) => {
+      const pick = (obj) => {
+        if (!obj || typeof obj !== 'object') return null;
+        for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+          if (obj[key] && typeof obj[key] === 'object') return obj[key];
+        }
+        return null;
+      };
+      let reg = null;
+      try { reg = pick(window.require('__debug')); } catch (e) {}
+      if (!reg) { try { reg = pick(window.__debug); } catch (e) {} }
+      if (!reg) return { error: 'kein Registry-Modul gefunden' };
+      const entry = reg[name];
+      if (!entry) return { error: 'Modul nicht in der Liste: ' + name };
+      const out = { name, entryType: typeof entry, entryKeys: [] };
+      try { out.entryKeys = typeof entry === 'object' ? Object.keys(entry).slice(0, 40) : []; } catch (e) {}
+      // Fabrikfunktion suchen: je nach Fassung heisst sie anders
+      let factory = typeof entry === 'function' ? entry : null;
+      if (!factory) {
+        for (const k of ['factory', 'f', 'fn', 'func', 'moduleFactory']) {
+          if (entry && typeof entry[k] === 'function') { factory = entry[k]; out.factoryKey = k; break; }
+        }
+      }
+      if (factory) { try { out.source = String(factory).slice(0, max); } catch (e) { out.source = 'FEHLER: ' + String((e && e.message) || e); } }
+      // Zusaetzlich die exportierten Felder mit Signatur — manchmal reicht das schon
+      try {
+        const mod = window.require(name);
+        const exp = {};
+        for (const k of Object.keys(mod || {}).slice(0, 40)) {
+          let v; try { v = mod[k]; } catch (e) { continue; }
+          if (typeof v === 'function') {
+            const s = String(v);
+            exp[k] = 'fn(' + v.length + ') ' + s.replace(/\s+/g, ' ').slice(0, 300);
+          } else if (v && typeof v === 'object') {
+            try { exp[k] = 'obj ' + JSON.stringify(v).slice(0, 300); } catch (e) { exp[k] = 'obj'; }
+          } else exp[k] = typeof v + ' ' + String(v).slice(0, 120);
+        }
+        out.exports = exp;
+      } catch (e) { out.exports = 'FEHLER: ' + String((e && e.message) || e).slice(0, 160); }
+      return out;
+    }, name, max);
     res.json(out);
   } catch (e) {
     res.status(500).json({ error: e.message });

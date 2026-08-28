@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.16] - 2026-08-28
+- Neu: **`GET /api/privacy` liest die Datenschutzeinstellungen aus** — zuletzt online, Profilbild, Info, Status, Lesebestaetigungen, Gruppen, dazu die zulaessigen Werte (`all`, `contacts`, `contact_blacklist`, `none`, fuer „online" auch `match_last_seen`). Reines Lesen ueber `WAWebQueryPrivacySettingsJob.getPrivacy()`
+- Die Modulliste hat die Gegenstuecke zum Setzen ausgespuckt: `WAWebSetPrivacyForOneCategoryAction`, `WAWebSetPrivacyJob` und `WAWebStatusPrivacySettingAction`. Sie stehen jetzt in der Kandidatenliste der Diagnose — **aufgerufen wird davon nichts**
+- Neu: **`GET /api/privacy/source?module=<Name>` zeigt den Quelltext eines Moduls** aus der Modulliste. Die exportierten Funktionen stecken hinter einem Babel-Mantel und geben per `toString()` nichts her; die Fabrikfunktion aus der Modulliste schon. Damit laesst sich die Signatur der Setz-Funktion ablesen, statt sie zu raten
+
 ## [1.8.15] - 2026-08-28
 - `GET /api/privacy/diag` nachgeschaerft, nachdem der erste Durchgang zwei Treffer hatte: `WAWebPrivacySettings` (die zulaessigen Werte: `all`, `contacts`, `contact_blacklist`, `none`) und `WAWebQueryPrivacySettingsJob.getPrivacy()`
 - Lesende Funktionen liefern ihre Antwort asynchron — die Sonde loest die Zusage jetzt auf (8 s Deckel) und zeigt den **echten aktuellen Stand** statt nur „→ Promise"
