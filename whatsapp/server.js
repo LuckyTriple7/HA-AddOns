@@ -109,6 +109,7 @@ const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 // off       — nie melden, "zuletzt online" bleibt dann meist leer
 // temporary — nur waehrend einer Abfrage kurz verfuegbar, danach wieder abmelden
 // always    — dauerhaft verfuegbar (man erscheint durchgehend online)
+const PRESENCE_SCAN_MINUTES = Math.max(0, parseInt(process.env.PRESENCE_SCAN_MINUTES || '0', 10) || 0);
 const PRESENCE_MODE = (() => {
   const m = String(process.env.PRESENCE_MODE || '').toLowerCase();
   if (m === 'off' || m === 'temporary' || m === 'always') return m;
@@ -134,6 +135,7 @@ console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
 console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
 console.log(`[INFO]   presence_mode          = ${PRESENCE_MODE}`);
+console.log(`[INFO]   presence_scan_minutes  = ${PRESENCE_SCAN_MINUTES || 'aus'}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
@@ -1941,6 +1943,159 @@ app.get('/api/presence/:chatId', async (req, res) => {
   }
 });
 
+// ── Zuletzt-online-Übersicht ──────────────────────────────────────────────────
+// Ein Rundlauf abonniert die Praesenz aller bekannten Einzelkontakte, wartet
+// einmal auf die asynchronen Antworten und liest dann alle Modelle aus. Das ist
+// deutlich sparsamer als eine Abfrage pro Kontakt — kostet aber die eigene
+// Verfuegbarkeitsmeldung fuer die Dauer des Rundlaufs.
+const PRESENCE_FILE = '/config/presence.json';
+const PRESENCE_MAX_CONTACTS = 300;
+const presenceCache = new Map(); // chatId -> { online, lastSeen, denied, ts }
+
+try {
+  if (existsSync(PRESENCE_FILE)) {
+    const data = JSON.parse(fs.readFileSync(PRESENCE_FILE, 'utf8'));
+    for (const [id, e] of Object.entries(data)) presenceCache.set(id, e);
+    console.log(`[INFO] Loaded last-seen data for ${presenceCache.size} contacts from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadPresence:', e.message); }
+
+let presenceSaveTimer = null;
+function savePresence() {
+  if (presenceSaveTimer) clearTimeout(presenceSaveTimer);
+  presenceSaveTimer = setTimeout(() => {
+    try { fs.writeFileSync(PRESENCE_FILE, JSON.stringify(Object.fromEntries(presenceCache))); }
+    catch (e) { console.error('[ERROR] savePresence:', e.message); }
+  }, 3000);
+}
+
+// Alle Einzelkontakte, fuer die eine Praesenz sinnvoll ist: erst die mit Chat,
+// danach das restliche Adressbuch, bis die Obergrenze erreicht ist.
+function presenceCandidates() {
+  const ids = [];
+  const seen = new Set();
+  const add = (id) => {
+    if (!id || seen.has(id) || id.endsWith('@g.us') || isFilteredChat(id)) return;
+    seen.add(id); ids.push(id);
+  };
+  for (const [id, chat] of chatMap.entries()) if (!chat?.isGroup) add(id);
+  if (_contactsCache) for (const c of _contactsCache.contacts) add(c.chatId || c.id);
+  return ids.slice(0, PRESENCE_MAX_CONTACTS);
+}
+
+let _presenceScanRunning = false;
+let _presenceLastScan = 0;
+
+async function scanPresence() {
+  if (status !== 'connected' || !client.pupPage) return { scanned: 0, skipped: 'nicht verbunden' };
+  if (_presenceScanRunning) return { scanned: 0, skipped: 'laeuft bereits' };
+  const ids = presenceCandidates();
+  if (!ids.length) return { scanned: 0, skipped: 'keine Kontakte' };
+
+  _presenceScanRunning = true;
+  const announce = PRESENCE_MODE !== 'off';
+  if (announce) await holdOwnPresence();
+  try {
+    const t0 = Date.now();
+    const raw = await client.pupPage.evaluate(async (ids, waitMs, chunk) => {
+      const WF = window.require('WAWebWidFactory');
+      const PC = window.require('WAWebPresenceCollection').PresenceCollection;
+      const JOB = window.require('WAWebSendPresenceSubscriptionJob');
+      const models = [];
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        try {
+          const wid = WF.createWid(id);
+          let m = PC.get(wid);
+          if (!m) { try { m = await PC.find(wid); } catch (e) {} }
+          if (!m) continue;
+          models.push([id, m]);
+          try { await JOB.sendUserPresenceSubscription(wid); } catch (e) {}
+        } catch (e) {}
+        // In Haeppchen, damit der Socket nicht in einem Rutsch geflutet wird
+        if (chunk > 0 && (i + 1) % chunk === 0) await new Promise(r => setTimeout(r, 250));
+      }
+      // Einmal auf die asynchronen Antworten warten, dann alles auslesen
+      await new Promise(r => setTimeout(r, waitMs));
+      const out = {};
+      for (const [id, m] of models) {
+        const cs = m.chatstate || {};
+        out[id] = {
+          online: cs.type === 'available' || m.isOnline === true,
+          t: cs.t != null ? cs.t : null,
+          deny: cs.deny != null ? !!cs.deny : null,
+          hasData: !!m.hasData,
+        };
+      }
+      return out;
+    }, ids, 9000, 25);
+
+    let withData = 0;
+    const now = Date.now();
+    for (const [id, r] of Object.entries(raw || {})) {
+      let lastSeen = null;
+      if (typeof r.t === 'number' && r.t > 1000000000 && r.t < 1e12) lastSeen = r.t * 1000;
+      else if (typeof r.t === 'number' && r.t >= 1e12) lastSeen = r.t;
+      // Nichts erhalten? Alten Wert behalten statt ihn mit Leere zu ueberschreiben
+      const prev = presenceCache.get(id);
+      if (!r.hasData && lastSeen === null && r.deny === null && !r.online) {
+        if (prev) presenceCache.set(id, { ...prev, checkedAt: now });
+        continue;
+      }
+      withData++;
+      presenceCache.set(id, {
+        online: !!r.online,
+        lastSeen: lastSeen !== null ? lastSeen : (prev ? prev.lastSeen : null),
+        denied: r.deny === true,
+        ts: now,
+        checkedAt: now,
+      });
+    }
+    savePresence();
+    _presenceLastScan = now;
+    console.log(`[INFO] Praesenz-Rundlauf: ${Object.keys(raw || {}).length} Kontakt(e) abgefragt, `
+      + `${withData} mit Daten, ${Math.round((Date.now() - t0) / 1000)}s`);
+    return { scanned: Object.keys(raw || {}).length, withData };
+  } catch (e) {
+    console.warn('[WARN] scanPresence:', e.message);
+    return { scanned: 0, error: e.message };
+  } finally {
+    _presenceScanRunning = false;
+    if (announce && PRESENCE_MODE === 'temporary') releaseOwnPresence();
+  }
+}
+
+app.get('/api/presence-overview', async (req, res) => {
+  if (req.query.refresh === '1') await scanPresence();
+  const index = status === 'connected' ? buildChatIndex() : new Map();
+  const nameFor = (id) => {
+    const chat = chatMap.get(id) || chatMap.get(index.get(id) || '');
+    if (chat && chat.name) return chat.name;
+    const c = _contactsCache && _contactsCache.contacts.find(x => x.id === id || x.chatId === id);
+    return (c && c.name) || id.split('@')[0];
+  };
+  const contacts = [...presenceCache.entries()].map(([id, e]) => ({
+    id, name: nameFor(id), online: !!e.online, lastSeen: e.lastSeen || null,
+    denied: !!e.denied, checkedAt: e.checkedAt || e.ts || null,
+  }));
+  // Online zuerst, dann nach letztem Zeitpunkt, Unbekanntes ans Ende
+  contacts.sort((a, b) => (b.online - a.online) || ((b.lastSeen || 0) - (a.lastSeen || 0))
+    || a.name.localeCompare(b.name, 'de'));
+  res.json({
+    contacts,
+    total: contacts.length,
+    lastScan: _presenceLastScan || null,
+    running: _presenceScanRunning,
+    intervalMinutes: PRESENCE_SCAN_MINUTES,
+    mode: PRESENCE_MODE,
+  });
+});
+
+if (PRESENCE_SCAN_MINUTES > 0) {
+  setInterval(() => { scanPresence().catch(() => {}); }, PRESENCE_SCAN_MINUTES * 60000);
+  console.log(`[INFO] Praesenz-Rundlauf alle ${PRESENCE_SCAN_MINUTES} Minuten aktiv`);
+}
+
 app.get('/api/statuses-available', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   try {
@@ -2910,6 +3065,11 @@ app.get('/', (req, res) => {
     .status-item img, .status-item video { max-width: 100%; max-height: 180px; border-radius: 6px; display: block; cursor: zoom-in; }
     .status-item .status-text { font-size: 13px; word-break: break-word; }
     .status-item .status-time { font-size: 11px; color: #8696a0; }
+    #presence-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #presence-modal.open { display: flex; }
+    .pres-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3cdb7c; margin-right:6px; }
+    .pres-online { color:#06cf9c; font-weight:600; }
+    .pres-none { color:#8696a0; }
     #archive-overview-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
     #archive-overview-modal.open { display: flex; }
     .archive-ov-box { border-radius: 14px; padding: 18px; width: 94%; max-width: 820px; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
@@ -3566,6 +3726,22 @@ app.get('/', (req, res) => {
     </div>
   </div>
 
+  <div id="presence-modal" onclick="if(event.target===this)closePresenceOverview()">
+    <div class="archive-ov-box">
+      <div class="archive-modal-header">
+        <h3 data-i18n="presOvTitle">Zuletzt online — Übersicht</h3>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="status-archive-clear" id="pres-ov-refresh">↻ <span data-i18n="presOvRefresh">Jetzt aktualisieren</span></button>
+          <button class="archive-modal-close" onclick="closePresenceOverview()">✕</button>
+        </div>
+      </div>
+      <div class="archive-ov-body" id="pres-ov-body"></div>
+      <div class="archive-ov-foot">
+        <span id="pres-ov-foot"></span>
+      </div>
+    </div>
+  </div>
+
   <div id="archive-overview-modal" onclick="if(event.target===this)closeArchiveOverview()">
     <div class="archive-ov-box">
       <div class="archive-modal-header">
@@ -3705,6 +3881,13 @@ app.get('/', (req, res) => {
         presLoading:'zuletzt online wird geprüft…', presOnline:'online',
         presLastSeen:(w)=>'zuletzt online: '+w, presDenied:'zuletzt online: nicht sichtbar',
         presUnknown:'zuletzt online: keine Angabe',
+        presOvTitle:'Zuletzt online — Übersicht', presOvOpen:'Zuletzt online — Übersicht',
+        presOvRefresh:'Jetzt aktualisieren', presOvScanning:'Rundlauf läuft…',
+        presOvEmpty:'Noch keine Daten. „Jetzt aktualisieren" startet einen Rundlauf.',
+        presOvColName:'Kontakt', presOvColState:'Zuletzt online', presOvColChecked:'Geprüft',
+        presOvNever:'keine Angabe', presOvDenied:'nicht sichtbar', presOvOnline:'online',
+        presOvFoot:(n,when,iv)=>n+' Kontakt'+(n===1?'':'e')+(when?' · Rundlauf '+when:'')
+          +(iv?' · automatisch alle '+iv+' Min.':' · automatischer Rundlauf aus'),
         contactsFoot:(n,w)=>n+' Kontakt'+(n===1?'':'e')+' im Adressbuch · '+w+' ohne Chat',
         meProfile:'Mein Profil', meStatusSub:'Status posten · Info bearbeiten',
         msTitle:'Mein Status', msTabText:'Text', msTabMedia:'Bild / Video', msTabTemplates:'Vorlagen', msTabProfile:'Profil',
@@ -3798,6 +3981,13 @@ app.get('/', (req, res) => {
         presLoading:'checking last seen…', presOnline:'online',
         presLastSeen:(w)=>'last seen: '+w, presDenied:'last seen: not visible',
         presUnknown:'last seen: no information',
+        presOvTitle:'Last seen — overview', presOvOpen:'Last seen — overview',
+        presOvRefresh:'Refresh now', presOvScanning:'sweep running…',
+        presOvEmpty:'No data yet. "Refresh now" starts a sweep.',
+        presOvColName:'Contact', presOvColState:'Last seen', presOvColChecked:'Checked',
+        presOvNever:'no information', presOvDenied:'not visible', presOvOnline:'online',
+        presOvFoot:(n,when,iv)=>n+' contact'+(n===1?'':'s')+(when?' · sweep '+when:'')
+          +(iv?' · automatically every '+iv+' min':' · automatic sweep off'),
         contactsFoot:(n,w)=>n+' contact'+(n===1?'':'s')+' in the address book · '+w+' without a chat',
         meProfile:'My profile', meStatusSub:'Post a status · edit info',
         msTitle:'My status', msTabText:'Text', msTabMedia:'Photo / video', msTabTemplates:'Templates', msTabProfile:'Profile',
@@ -4384,7 +4574,8 @@ app.get('/', (req, res) => {
       foot.className = 'contact-list-foot';
       foot.innerHTML = '<div style="font-size:11px;color:#8696a0;margin-bottom:4px">'
         + esc(tf('contactsFoot', (_addressBook && _addressBook.total) || 0, (_addressBook && _addressBook.withoutChat) || 0)) + '</div>'
-        + '<button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button>';
+        + '<button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button>'
+        + '<button data-act="presence">🕒 ' + esc(t('presOvOpen')) + '</button>';
       list.appendChild(foot);
       bindContactFoot(list);
     }
@@ -4392,6 +4583,8 @@ app.get('/', (req, res) => {
     function bindContactFoot(list) {
       const btn = list.querySelector('.contact-list-foot button[data-act="reload"]');
       if (btn) btn.addEventListener('click', () => loadAddressBook(true));
+      const pres = list.querySelector('.contact-list-foot button[data-act="presence"]');
+      if (pres) pres.addEventListener('click', () => openPresenceOverview());
     }
 
     // ── Eigenes Profil + Status-Composer ────────────────────────────────────────
@@ -5667,6 +5860,67 @@ app.get('/', (req, res) => {
       if (b < 102400) return Math.round(b / 1024) + ' KB';
       return (b / 1048576).toFixed(1) + ' MB';
     }
+    // ── Zuletzt-online-Übersicht ──
+    let _presOvLoading = false;
+
+    function presStateCell(c) {
+      if (c.online) return '<span class="pres-online"><span class="pres-dot"></span>' + esc(t('presOvOnline')) + '</span>';
+      if (c.lastSeen) return esc(fmtDate(c.lastSeen) + ', ' + fmtTime(c.lastSeen));
+      if (c.denied) return '<span class="pres-none">' + esc(t('presOvDenied')) + '</span>';
+      return '<span class="pres-none">' + esc(t('presOvNever')) + '</span>';
+    }
+
+    async function loadPresenceOverview(refresh) {
+      if (_presOvLoading) return;
+      _presOvLoading = true;
+      const body = document.getElementById('pres-ov-body');
+      const footEl = document.getElementById('pres-ov-foot');
+      const btn = document.getElementById('pres-ov-refresh');
+      if (refresh) {
+        body.innerHTML = '<div class="no-chats">' + esc(t('presOvScanning')) + '</div>';
+        if (btn) btn.disabled = true;
+      }
+      let d = null;
+      try { d = await fetch('api/presence-overview' + (refresh ? '?refresh=1' : '')).then(apiJson); }
+      catch (e) { d = null; }
+      if (btn) btn.disabled = false;
+      _presOvLoading = false;
+      if (!d || d.error) { body.innerHTML = '<div class="no-chats">' + esc(t('contactsError')) + '</div>'; return; }
+      const list = d.contacts || [];
+      if (!list.length) {
+        body.innerHTML = '<div class="no-chats">' + esc(t('presOvEmpty')) + '</div>';
+      } else {
+        body.innerHTML = '<table class="archive-ov-table"><thead><tr>'
+          + '<th>' + esc(t('presOvColName')) + '</th>'
+          + '<th>' + esc(t('presOvColState')) + '</th>'
+          + '<th class="num">' + esc(t('presOvColChecked')) + '</th>'
+          + '</tr></thead><tbody>'
+          + list.map(c => '<tr><td>' + esc(c.name) + '</td><td>' + presStateCell(c) + '</td>'
+              + '<td class="num">' + (c.checkedAt ? esc(fmtTime(c.checkedAt)) : '—') + '</td></tr>').join('')
+          + '</tbody></table>';
+      }
+      footEl.textContent = tf('presOvFoot', d.total || 0,
+        d.lastScan ? fmtDate(d.lastScan) + ', ' + fmtTime(d.lastScan) : '',
+        d.intervalMinutes || 0);
+    }
+
+    // Das Fenster steht im HTML vor diesem Skript, der Knopf existiert also schon.
+    // Der DOMContentLoaded-Zweig ist nur die Absicherung, falls sich das mal dreht.
+    (function bindPresOvRefresh() {
+      const r = document.getElementById('pres-ov-refresh');
+      if (r) { r.addEventListener('click', () => loadPresenceOverview(true)); return; }
+      document.addEventListener('DOMContentLoaded', bindPresOvRefresh);
+    })();
+
+    function openPresenceOverview() {
+      document.getElementById('presence-modal').classList.add('open');
+      loadPresenceOverview(false);
+    }
+
+    function closePresenceOverview() {
+      document.getElementById('presence-modal').classList.remove('open');
+    }
+
     async function openArchiveOverview() {
       const body = document.getElementById('archive-ov-body');
       body.innerHTML = '<div class="archive-ov-empty">' + esc(t('archiveOverviewLoading')) + '</div>';
@@ -6232,6 +6486,7 @@ app.get('/', (req, res) => {
         lightbox.classList.remove('open');
         document.getElementById('contact-modal')?.classList.remove('open');
         document.getElementById('archive-overview-modal')?.classList.remove('open');
+        document.getElementById('presence-modal')?.classList.remove('open');
       }
     });
 

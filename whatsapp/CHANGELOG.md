@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.74] - 2026-08-28
+- Feature: **Zuletzt-online-Übersicht ueber alle Kontakte.** Im Reiter „Kontakte" fuehrt unten ein Knopf zu einer Tabelle mit Name, letztem Zeitpunkt und wann zuletzt geprueft wurde — online zuerst, dann nach Zeitpunkt sortiert. „Jetzt aktualisieren" startet einen Rundlauf von Hand
+- Ein Rundlauf abonniert die Praesenz aller bekannten Einzelkontakte (hoechstens 300, in Haeppchen zu 25), wartet einmal neun Sekunden auf die asynchronen Antworten und liest dann alle Modelle aus — eine Runde statt einer Abfrage je Kontakt
+- Neue Option **`presence_scan_minutes`** (Standard 0 = aus) fuer den automatischen Rundlauf im Hintergrund; 15 bis 60 Minuten sind sinnvolle Werte. Bewusst standardmaessig aus, weil man sich fuer die Dauer eines Rundlaufs als verfuegbar meldet und so lange fuer die Kontakte online erscheint — es sei denn, `presence_mode` steht auf `off`
+- Die Daten ueberleben einen Neustart (`/config/presence.json`). Liefert WhatsApp zu einem Kontakt nichts, bleibt der alte Zeitpunkt stehen, statt von Leere ueberschrieben zu werden
+
 ## [1.7.73] - 2026-08-28
 - Aenderung: **Die Gespraechs-Statistik ist von der Chat-Kopfzeile ins Kontaktfenster gewandert** — dorthin, wo man ueber das Profilbild hinkommt. Die Kopfzeile zeigt jetzt nur noch Name und Rufnummer, die Statistik steht unter dem Info-Text: Anzahl der Nachrichten, gesendet, empfangen, Fotos und seit wann
 - Bei Kontakten ohne Chatverlauf entfaellt die Zeile ganz, statt eine Null anzuzeigen

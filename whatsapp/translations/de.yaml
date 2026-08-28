@@ -26,6 +26,9 @@ configuration:
   presence_mode:
     name: Eigene Verfügbarkeit für "zuletzt online"
     description: "WhatsApp liefert die Präsenz anderer nur an Geräte, die sich selbst als verfügbar melden. temporary = nur während einer Abfrage kurz melden und danach wieder abmelden (Standard); always = dauerhaft melden, dann erscheinst du für deine Kontakte durchgehend online; off = nie melden, \"zuletzt online\" bleibt dann meist leer."
+  presence_scan_minutes:
+    name: Zuletzt-online-Übersicht automatisch aktualisieren (Minuten)
+    description: "Wie oft die Übersicht aller Kontakte im Hintergrund aktualisiert wird. 0 = aus (Standard), die Übersicht lässt sich dann nur von Hand aktualisieren. Sinnvoll sind 15 bis 60 Minuten. Achtung: für die Dauer eines Rundlaufs (rund 15 Sekunden) meldest du dich als verfügbar und erscheinst so lange für deine Kontakte online — es sei denn, presence_mode steht auf off."
   debug_mode:
     name: Debug-Modus
     description: Ausführliches Logging aktivieren. Nützlich für die Fehlersuche.

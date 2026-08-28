@@ -12,6 +12,7 @@ export MEDIA_MAX_MB=$(jq -r '.media_max_mb // 500' /data/options.json)
 export VIDEO_MAX_MB=$(jq -r '.video_max_mb // 50' /data/options.json)
 export DEBUG_MODE=$(jq -r 'if .debug_mode == true then "true" else "false" end' /data/options.json)
 export PRESENCE_MODE=$(jq -r '.presence_mode // "temporary"' /data/options.json)
+export PRESENCE_SCAN_MINUTES=$(jq -r '.presence_scan_minutes // 0' /data/options.json)
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
 export SESSION_DIR=/config/session

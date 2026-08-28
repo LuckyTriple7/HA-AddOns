@@ -26,6 +26,9 @@ configuration:
   presence_mode:
     name: Your own availability for "last seen"
     description: "WhatsApp only sends other people's presence to devices that announce themselves as available. temporary = announce only for the duration of a query and go back offline afterwards (default); always = announce permanently, which makes you appear online to your contacts at all times; off = never announce, \"last seen\" then usually stays empty."
+  presence_scan_minutes:
+    name: Refresh the last-seen overview automatically (minutes)
+    description: "How often the overview of all contacts is refreshed in the background. 0 = off (default), the overview can then only be refreshed by hand. 15 to 60 minutes are sensible values. Note: for the duration of a sweep (about 15 seconds) you announce yourself as available and appear online to your contacts — unless presence_mode is set to off."
   debug_mode:
     name: Debug Mode
     description: Enable verbose logging including detailed request logs. Useful for troubleshooting.
