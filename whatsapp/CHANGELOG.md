@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.18] - 2026-08-28
+- Fix: **Die Oberflaeche blieb leer — `Uncaught SyntaxError: Unexpected identifier 's'`.** Im englischen Hinweistext des neuen Datenschutz-Reiters stand ein Apostroph als `'`. Die Seite wird aus einem Template-Literal gebaut, und das macht daraus ein echtes `'` — damit endete die Zeichenkette mitten im Satz und das gesamte Skript der Seite war hin
+- Der Satz kommt jetzt ohne Apostroph aus. `node --check server.js` sieht solche Fehler grundsaetzlich nicht, weil die Escapes erst beim Ausliefern aufgeloest werden
+
 ## [1.8.17] - 2026-08-28
 - Feature: **Datenschutzeinstellungen lassen sich jetzt hier aendern** — „Mein Profil" im Kontakte-Reiter, neuer Reiter **Datenschutz**: zuletzt online, online, Profilbild, Info, Gruppen, Anrufe und Lesebestaetigungen. Auswahl aendern genuegt, gespeichert wird sofort
 - Moeglich geworden durch die Diagnose der letzten Fassungen: gelesen wird ueber `WAWebQueryPrivacySettingsJob.getPrivacy()`, gesetzt ueber `WAWebSetPrivacyForOneCategoryAction.setPrivacyForOneCategory()` — die Umrechnung auf die Server-Namen (`lastSeen` → `last`) macht WhatsApp Web selbst

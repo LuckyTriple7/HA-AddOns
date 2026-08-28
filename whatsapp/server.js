@@ -4914,7 +4914,7 @@ app.get('/', (req, res) => {
         priv_groupAdd:'Groups', priv_callAdd:'Calls', priv_readReceipts:'Read receipts',
         privVal_all:'Everyone', privVal_contacts:'My contacts', privVal_contact_blacklist:'My contacts except…',
         privVal_none:'Nobody', privVal_match_last_seen:'Same as last seen', privVal_known:'Known contacts',
-        privHint:'"My contacts except…" needs an exception list — that can only be maintained on the phone. With read receipts off you will not see anyone else\'s either (they stay on in groups).',
+        privHint:'"My contacts except…" needs an exception list — that can only be maintained on the phone. With read receipts off you will not see them from others either (they stay on in groups).',
         privNoBlacklist:'"My contacts except…" can only be set on the phone — the exception list is not maintained here.',
         privFailed:'Could not change the setting.',
         privSaved:(what, val)=>what + ' → ' + val,
