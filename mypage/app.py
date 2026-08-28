@@ -581,10 +581,21 @@ DEFAULT_SITE = {
         'name': '', 'tagline_de': '', 'tagline_en': '',
         'bio_de': '', 'bio_en': '', 'avatar': '',
         'github': '', 'email': '', 'links': [],
+        # Bis zu zwei Handlungsaufrufe im Kopfbereich. Die Sozial-Knöpfe
+        # darunter führen von der Seite weg — hier steht, was der Besucher
+        # **auf** der Seite tun soll.
+        'cta': [],
     },
     'projects': [],
     'design': {
         'accent': '#58a6ff', 'mode': 'dark', 'layout': 'cards',
+        # Kopfbereich: nebeneinander (bisher), zentriert oder mit Bannerbild.
+        # `avatar_shape` entscheidet über den Zuschnitt — ein Vereinslogo im
+        # Querformat verlor im runden Rahmen links und rechts alles.
+        'hero_layout': 'side', 'avatar_shape': 'circle', 'hero_image': '',
+        # Wer ist das hier? Bis 0.11.41 stand in den strukturierten Daten immer
+        # „Person" — für einen Verein oder ein Restaurant schlicht falsch.
+        'entity_type': 'person',
         'show_counter': True, 'show_nav': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
         'storage_subdir': '',
@@ -5715,6 +5726,17 @@ def api_profile():
                       ('github', 80), ('email', 150)):
         if k in raw:
             prof[k] = _clean_str(raw[k], maxlen)
+    if isinstance(raw.get('cta'), list):
+        prof['cta'] = [{
+            'label_de': _clean_str(e.get('label_de'), 40),
+            'label_en': _clean_str(e.get('label_en'), 40),
+            'url':      _clean_str(e.get('url'), 300),
+        } for e in raw['cta'][:2]
+            if isinstance(e, dict)
+            and (_clean_str(e.get('label_de'), 40) or _clean_str(e.get('label_en'), 40))
+            # Ziel darf eine Sprungmarke, eine eigene Adresse oder eine fremde
+            # Seite sein — aber nichts, was der Browser als Skript ausführt.
+            and _clean_str(e.get('url'), 300).startswith(('#', '/', 'http://', 'https://', 'mailto:'))]
     if 'links' in raw and isinstance(raw['links'], list):
         prof['links'] = [{'label': _clean_str(l.get('label'), 40),
                           'url':   _clean_str(l.get('url'), 500)}
@@ -5740,6 +5762,14 @@ def api_design():
         d['mode'] = raw['mode']
     if raw.get('layout') in ('cards', 'list', 'minimal'):
         d['layout'] = raw['layout']
+    if raw.get('entity_type') in ('person', 'organization', 'localbusiness'):
+        d['entity_type'] = raw['entity_type']
+    if raw.get('hero_layout') in ('side', 'center', 'banner'):
+        d['hero_layout'] = raw['hero_layout']
+    if raw.get('avatar_shape') in ('circle', 'rounded', 'free'):
+        d['avatar_shape'] = raw['avatar_shape']
+    if 'hero_image' in raw:
+        d['hero_image'] = _clean_str(raw['hero_image'], 500)
     if raw.get('font') in (set(SYSTEM_FONTS) | set(WEB_FONTS) | {'custom'}):
         d['font'] = raw['font']
     if raw.get('reveal_effect') in ('off', 'fade', 'slide', 'zoom', 'blur'):

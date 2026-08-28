@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.41
+
+Der Kopfbereich der Startseite war seit jeher dasselbe Bild: rundes Foto links, Text rechts, darunter die Sozial-Knöpfe. Sechs Änderungen:
+
+- 🎯 **Handlungsaufrufe.** Bis zu zwei Knöpfe im Kopfbereich (Profil-Reiter), der erste in der Akzentfarbe. Ziel darf eine Sprungmarke der Startseite sein („#kontakt“), eine eigene Adresse („/seite/anfahrt“), eine fremde Seite oder „mailto:“. Bisher führte von dort **jeder** Knopf von der Seite weg — es gab nichts, was den Besucher auf ihr weiterbrachte.
+- 🖼️ **Drei Fassungen des Kopfbereichs** (Design → Kopfbereich): nebeneinander wie bisher, **zentriert** (Logo über dem Namen — die übliche Form, wenn ein Verein oder eine Firma dahintersteht) oder **Bannerbild** (Bild über die volle Breite, abgedunkelt, Text darüber).
+- ⭕ **Die Form des Bildes ist wählbar.** Rund war fest verdrahtet: Ein Vereins- oder Firmenlogo im Querformat verlor links und rechts alles. Neu: rund, abgerundet oder **unbeschnitten** — letzteres behält das Seitenverhältnis.
+- 🏢 **Strukturierte Daten sagen nicht mehr immer „Person".** Neu wählbar: Person, Organisation/Verein oder lokales Geschäft. Bei „lokales Geschäft" wandern Adresse, Öffnungszeiten und Koordinaten aus dem Abschnitt „Standort" mit in die Auszeichnung — die Grundlage dafür, dass eine Suchmaschine daraus einen Eintrag mit Karte macht.
+- 🐛 **Doppelte Zeilenabstände in der Kurzvorstellung.** Der Text lief durch die Markdown-Aufbereitung, die aus einem Zeilenumbruch bereits einen Umbruch macht — und wurde zusätzlich mit `pre-line` gesetzt, was den verbliebenen Umbruch **noch einmal** anzeigte. Jede Zeile stand doppelt abgesetzt.
+- ⚡ **Schnellerer Bildaufbau.** Das Profilbild ist auf der Startseite fast immer das Bild, an dem Google die Ladezeit misst. Es bekommt jetzt feste Maße (kein Springen des Layouts beim Laden) und Vorrang beim Abruf; außerdem nutzt es wie alle anderen Bilder den gepflegten Alternativtext. Und fehlt der Name, steht jetzt der Seitentitel in der Überschrift statt „MyPage".
+
 ## 0.11.40
 
 - 🧹 **System-Reiter: einheitliche Kopfzeilen.** Drei der sechzehn Kästen trugen ein Symbol vor dem Namen (Systemzustand, Alternativtexte, Zwei-Faktor), die übrigen dreizehn nicht — beim Überfliegen sprang das ins Auge, ohne etwas zu bedeuten. Die drei Symbole sind entfernt, alle Kopfzeilen sehen jetzt gleich aus.

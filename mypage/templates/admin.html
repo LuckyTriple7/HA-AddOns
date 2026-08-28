@@ -717,6 +717,10 @@
         <p class="hint">{{ t.avatar_hint }}</p>
         <label>{{ t.field_email }}</label>
         <input type="email" id="p-email">
+        <label>{{ t.field_cta }}</label>
+        <p class="hint">{{ t.cta_hint }}</p>
+        <div id="p-cta"></div>
+        <button class="btn secondary small" id="cta-add" onclick="addCtaRow()">+ {{ t.add_entry }}</button>
         <label>{{ t.field_links }}</label>
         <div id="p-links"></div>
         <button class="btn secondary small" onclick="addLinkRow()">+ {{ t.add_link }}</button>
@@ -1625,6 +1629,45 @@
               <option value="minimal">{{ t.layout_minimal }}</option>
             </select>
           </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_entity_type }}</label>
+            <select id="d-entity_type">
+              <option value="person">{{ t.entity_person }}</option>
+              <option value="organization">{{ t.entity_org }}</option>
+              <option value="localbusiness">{{ t.entity_local }}</option>
+            </select>
+            <p class="hint">{{ t.entity_type_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_hero_layout }}</label>
+            <select id="d-hero_layout" onchange="updateHeroImageBox()">
+              <option value="side">{{ t.hero_side }}</option>
+              <option value="center">{{ t.hero_center }}</option>
+              <option value="banner">{{ t.hero_banner }}</option>
+            </select>
+            <p class="hint">{{ t.hero_layout_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_avatar_shape }}</label>
+            <select id="d-avatar_shape">
+              <option value="circle">{{ t.avatar_circle }}</option>
+              <option value="rounded">{{ t.avatar_rounded }}</option>
+              <option value="free">{{ t.avatar_free }}</option>
+            </select>
+            <p class="hint">{{ t.avatar_shape_hint }}</p>
+          </div>
+        </div>
+        <div class="opt" id="hero-image-box" style="display:none">
+          <label>{{ t.field_hero_image }}</label>
+          <div class="upload-row">
+            <input type="text" id="d-hero_image" placeholder="https://… {{ t.or_upload }}">
+            <button class="btn secondary small" onclick="browseUploads(u => { el('d-hero_image').value = u; })">{{ t.image_pick }}</button>
+          </div>
+          <p class="hint">{{ t.hero_image_hint }}</p>
         </div>
         <div class="row">
           <div class="opt">
@@ -7392,6 +7435,11 @@
       toast(T.pdf_import_done);
     }
 
+    // Das Hintergrundbild gehört nur zur Banner-Fassung — sonst stünde ein Feld
+    // da, dessen Inhalt nirgends auftaucht.
+    function updateHeroImageBox() {
+      el('hero-image-box').style.display = el('d-hero_layout').value === 'banner' ? '' : 'none';
+    }
     // ── Profil ──
     function fillProfile() {
       const p = SITE.profile;
@@ -7400,6 +7448,30 @@
       });
       el('p-links').innerHTML = '';
       (p.links || []).forEach(l => addLinkRow(l.label, l.url));
+      el('p-cta').innerHTML = '';
+      (p.cta || []).forEach(c => addCtaRow(c));
+      updateCtaAdd();
+    }
+    // Mehr als zwei Knöpfe sind keiner mehr: Der Blick sucht einen nächsten
+    // Schritt, nicht eine Auswahl. Der Server nimmt ohnehin nur zwei an.
+    function updateCtaAdd() {
+      el('cta-add').style.display = el('p-cta').children.length >= 2 ? 'none' : '';
+    }
+    function addCtaRow(c) {
+      c = c || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr 1fr auto">
+        <input type="text" class="ct-label_de" placeholder="${T.cta_label} (DE)" maxlength="40">
+        <input type="text" class="ct-label_en" placeholder="${T.cta_label} (EN)" maxlength="40">
+        <input type="text" class="ct-url" placeholder="${T.cta_url_ph}">
+        <button class="btn danger small" onclick="this.closest('.entry-row').remove(); updateCtaAdd()">✕</button>
+      </div>`;
+      div.querySelector('.ct-label_de').value = c.label_de || '';
+      div.querySelector('.ct-label_en').value = c.label_en || '';
+      div.querySelector('.ct-url').value = c.url || '';
+      el('p-cta').appendChild(div);
+      updateCtaAdd();
     }
     function addLinkRow(label, url) {
       const div = document.createElement('div');
@@ -7416,7 +7488,12 @@
         label: row.children[0].value.trim(),
         url:   row.children[1].value.trim(),
       })).filter(l => l.url);
-      const body = { links };
+      const cta = [...el('p-cta').children].map(row => ({
+        label_de: row.querySelector('.ct-label_de').value,
+        label_en: row.querySelector('.ct-label_en').value,
+        url:      row.querySelector('.ct-url').value.trim(),
+      })).filter(c => (c.label_de || c.label_en) && c.url);
+      const body = { links, cta };
       ['name','tagline_de','tagline_en','bio_de','bio_en','avatar','github','email'].forEach(k => {
         body[k] = el('p-' + k).value;
       });
@@ -7453,6 +7530,11 @@
       el('d-weekly_review').value = d.weekly_review ? '1' : '0';
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
+      el('d-entity_type').value = d.entity_type || 'person';
+      el('d-hero_layout').value = d.hero_layout || 'side';
+      el('d-avatar_shape').value = d.avatar_shape || 'circle';
+      el('d-hero_image').value = d.hero_image || '';
+      updateHeroImageBox();
       el('d-public_url').value = d.public_url || '';
       el('d-meta_description_de').value = d.meta_description_de || '';
       el('d-meta_description_en').value = d.meta_description_en || '';
@@ -7586,6 +7668,10 @@
         accent:          el('d-accent').value,
         mode:            el('d-mode').value,
         layout:          el('d-layout').value,
+        entity_type:     el('d-entity_type').value,
+        hero_layout:     el('d-hero_layout').value,
+        avatar_shape:    el('d-avatar_shape').value,
+        hero_image:      el('d-hero_image').value,
         font:            el('d-font').value,
         custom_css:      el('d-custom_css').value,
         easter_eggs:     el('d-easter_eggs').value === '1',

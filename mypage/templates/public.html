@@ -22,13 +22,25 @@
      Beitrag dann von selbst mit. #}
   <link rel="alternate" type="application/rss+xml" title="{{ site.design.site_title or site.profile.name or 'MyPage' }} Feed" href="/feed.xml">
   {% endif %}
+  {#- Der Typ entscheidet, was Suchmaschinen aus der Seite machen: eine Person
+      bekommt kein Kartenblatt mit Adresse und Öffnungszeiten, ein lokales
+      Geschäft schon. Bei „Organisation" und „Lokales Geschäft" führt der
+      Seitentitel den Namen, denn dort steht der Betrieb und nicht der Mensch. -#}
+  {%- set ent = site.design.entity_type or 'person' %}
+  {%- set ld_type = {'organization': 'Organization', 'localbusiness': 'LocalBusiness'}.get(ent, 'Person') %}
   {%- set ld = {
     '@context': 'https://schema.org',
-    '@type': 'Person',
-    'name': site.profile.name,
+    '@type': ld_type,
+    'name': (site.design.site_title or site.profile.name) if ent != 'person' else site.profile.name,
     'description': meta_desc,
     'sameAs': (['https://github.com/' + site.profile.github] if site.profile.github else [])
   } %}
+  {%- if ent == 'localbusiness' %}
+    {%- set lb = site.sections.location or {} %}
+    {%- if lb.address %}{% set _ = ld.update({'address': {'@type': 'PostalAddress', 'streetAddress': lb.address}}) %}{% endif %}
+    {%- if loc(lb, 'hours') %}{% set _ = ld.update({'openingHours': loc(lb, 'hours')}) %}{% endif %}
+    {%- if lb.lat and lb.lng %}{% set _ = ld.update({'geo': {'@type': 'GeoCoordinates', 'latitude': lb.lat, 'longitude': lb.lng}}) %}{% endif %}
+  {%- endif %}
   {%- if canonical_url %}{% set _ = ld.update({'url': canonical_url, 'mainEntityOfPage': {'@type': 'WebPage', '@id': canonical_url}}) %}{% endif %}
   {%- if site.profile.avatar %}{% set _ = ld.update({'image': site.profile.avatar|abs_url}) %}{% endif %}
   <script type="application/ld+json">{{ ld|tojson }}</script>
@@ -86,13 +98,43 @@
 
     /* Hero */
     .hero { padding: 64px 0 48px; display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+    /* Zentriert: Bild über dem Namen, alles mittig — die übliche Form für
+       Vereine und Firmen, bei denen das Logo und nicht das Gesicht führt. */
+    .hero.center { flex-direction: column; text-align: center; gap: 18px; }
+    .hero.center .social, .hero.center .hero-cta { justify-content: center; }
+    .hero.center .bio { margin-left: auto; margin-right: auto; }
+    /* Bannerbild: Bild in den Hintergrund, Text darüber. Die Überlagerung ist
+       kein Zierrat — ohne sie steht heller Text auf hellem Foto. */
+    .hero-banner { position: relative; border-radius: 14px; overflow: hidden; margin: 24px 0 8px;
+                   background-position: center; background-size: cover; }
+    .hero-banner::before { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+    .hero-banner .hero { position: relative; padding: 56px 28px; }
+    .hero-banner .hero h1, .hero-banner .hero .bio, .hero-banner .hero .social a { color: #fff; }
+    .hero-banner .hero .social a { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.35); }
     .avatar {
       width: 128px; height: 128px; border-radius: 50%; object-fit: cover;
       border: 3px solid var(--accent); flex-shrink: 0;
     }
+    /* Abgerundetes Quadrat statt Kreis — schneidet weniger vom Logo ab. */
+    .avatar.rounded { border-radius: 14px; }
+    /* Unbeschnitten: Höhe begrenzt, Breite nach Seitenverhältnis. Für breite
+       Logos die einzige Form, die nichts wegschneidet. */
+    .avatar.free { width: auto; height: 96px; max-width: 280px; border-radius: 8px;
+                   object-fit: contain; border: 0; background: transparent; }
+    /* Handlungsaufrufe: der erste trägt die Akzentfarbe und damit den Blick. */
+    .hero-cta { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .hero-cta a { display: inline-flex; align-items: center; border-radius: 8px;
+                  padding: 10px 20px; font-weight: 600; font-size: 0.92rem; }
+    .hero-cta a.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+    .hero-cta a.primary:hover { filter: brightness(1.1); text-decoration: none; }
+    .hero-cta a.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .hero-cta a.ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
     .hero h1 { font-size: 2.1rem; line-height: 1.2; margin-bottom: 6px; }
     .tagline { font-size: 1.1rem; color: var(--accent); font-weight: 500; margin-bottom: 12px; }
-    .bio { color: var(--muted); max-width: 640px; white-space: pre-line; }
+    /* Kein `white-space: pre-line`: `render_md()` macht aus einem einfachen
+       Zeilenumbruch bereits ein <br>, und das im HTML verbliebene \n käme
+       zusätzlich als Umbruch an — jede Zeile stünde doppelt abgesetzt da. */
+    .bio { color: var(--muted); max-width: 640px; }
     .social { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
     .social a {
       display: inline-flex; align-items: center; gap: 6px;
@@ -669,12 +711,31 @@
     {% if nl == 'confirmed' %}<div class="nl-banner ok">{{ t.nl_confirmed }}</div>{% endif %}
     {% if nl == 'unsubscribed' %}<div class="nl-banner ok">{{ t.nl_unsubscribed }}</div>{% endif %}
     {% if nl == 'invalidmail' %}<div class="nl-banner err">{{ t.nl_invalidmail }}</div>{% endif %}
-    <section class="hero">
-      {% if site.profile.avatar %}<img class="avatar" src="{{ site.profile.avatar }}" alt="{{ site.profile.name }}">{% endif %}
+    {%- set hero_layout = site.design.hero_layout or 'side' %}
+    {%- set hero_bg = site.design.hero_image if hero_layout == 'banner' else '' %}
+    {% if hero_bg %}<div class="hero-banner" style="background-image:url('{{ hero_bg }}')">{% endif %}
+    <section class="hero{{ ' center' if hero_layout in ('center', 'banner') else '' }}">
+      {#- Das größte Bild oberhalb der Falz und damit fast immer der Wert, an dem
+          der Browser die Ladezeit misst: feste Maße gegen den Sprung beim Laden,
+          fetchpriority, damit es vor allem anderen geholt wird. Nie `lazy`. -#}
+      {% if site.profile.avatar %}<img class="avatar {{ site.design.avatar_shape or 'circle' }}" src="{{ site.profile.avatar }}"
+           alt="{{ alt_for(site.profile.avatar, '', site.profile.name) }}"
+           width="128" height="128" fetchpriority="high" decoding="async">{% endif %}
       <div>
-        <h1>{{ site.profile.name or 'MyPage' }}</h1>
+        <h1>{{ site.profile.name or site.design.site_title or 'MyPage' }}</h1>
         {% if loc(site.profile, 'tagline') %}<div class="tagline">{{ loc(site.profile, 'tagline') }}</div>{% endif %}
         {% if bio_html %}<div class="bio">{{ bio_html|safe }}</div>{% endif %}
+        {% if site.profile.cta %}
+        <div class="hero-cta">
+          {% for c in site.profile.cta %}
+          {#- Eine fremde Adresse öffnet einen neuen Tab, eine eigene bleibt im
+              selben — sonst sammeln sich beim Blättern durch die eigene Seite
+              die Tabs. -#}
+          <a class="{{ 'primary' if loop.first else 'ghost' }}" href="{{ c.url }}"
+             {% if c.url.startswith('http') %}target="_blank" rel="noopener"{% endif %}>{{ loc(c, 'label') }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
         <div class="social">
           {% if site.profile.github %}
           <a href="https://github.com/{{ site.profile.github }}" target="_blank" rel="noopener">
@@ -736,6 +797,7 @@
         {% endif %}
       </div>
     </section>
+    {% if hero_bg %}</div>{% endif %}
 
     {% for _sec in section_order %}
     {% if _sec == 'news' %}
