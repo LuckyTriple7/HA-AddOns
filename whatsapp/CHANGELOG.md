@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.17] - 2026-08-28
+- Feature: **Datenschutzeinstellungen lassen sich jetzt hier aendern** — „Mein Profil" im Kontakte-Reiter, neuer Reiter **Datenschutz**: zuletzt online, online, Profilbild, Info, Gruppen, Anrufe und Lesebestaetigungen. Auswahl aendern genuegt, gespeichert wird sofort
+- Moeglich geworden durch die Diagnose der letzten Fassungen: gelesen wird ueber `WAWebQueryPrivacySettingsJob.getPrivacy()`, gesetzt ueber `WAWebSetPrivacyForOneCategoryAction.setPrivacyForOneCategory()` — die Umrechnung auf die Server-Namen (`lastSeen` → `last`) macht WhatsApp Web selbst
+- Nach jeder Aenderung wird der Stand **frisch von WhatsApp zurueckgelesen**. Nimmt WhatsApp den Wert nicht an, springt die Auswahl zurueck und sagt, worauf es weiterhin steht — statt einen Erfolg zu behaupten
+- **„Meine Kontakte, ausser…" bleibt dem Handy vorbehalten.** Die Einstellung braucht eine Ausnahmeliste; ohne sie wuerde ein Setzen die bestehende Liste stillschweigend leeren. Sie wird angezeigt, ist aber nicht auswaehlbar
+- `GET /api/privacy` liest, `POST /api/privacy` (`{name, value}`) aendert — Kategorien: `lastSeen`, `online`, `profilePicture`, `about`, `groupAdd`, `callAdd`, `readReceipts`
+
 ## [1.8.16] - 2026-08-28
 - Neu: **`GET /api/privacy` liest die Datenschutzeinstellungen aus** — zuletzt online, Profilbild, Info, Status, Lesebestaetigungen, Gruppen, dazu die zulaessigen Werte (`all`, `contacts`, `contact_blacklist`, `none`, fuer „online" auch `match_last_seen`). Reines Lesen ueber `WAWebQueryPrivacySettingsJob.getPrivacy()`
 - Die Modulliste hat die Gegenstuecke zum Setzen ausgespuckt: `WAWebSetPrivacyForOneCategoryAction`, `WAWebSetPrivacyJob` und `WAWebStatusPrivacySettingAction`. Sie stehen jetzt in der Kandidatenliste der Diagnose — **aufgerufen wird davon nichts**

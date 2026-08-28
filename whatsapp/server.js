@@ -2937,6 +2937,58 @@ app.get('/api/privacy', async (req, res) => {
   }
 });
 
+// Was sich setzen laesst und mit welchen Werten. Die Namen sind die, die
+// getPrivacy() zurueckgibt; WhatsApp Web rechnet sie selbst in seine
+// Server-Namen um (privacyWebNameToServerName).
+const PRIVACY_CATEGORIES = {
+  lastSeen:       ['all', 'contacts', 'contact_blacklist', 'none'],
+  online:         ['all', 'match_last_seen'],
+  profilePicture: ['all', 'contacts', 'contact_blacklist', 'none'],
+  about:          ['all', 'contacts', 'contact_blacklist', 'none'],
+  readReceipts:   ['all', 'none'],
+  groupAdd:       ['all', 'contacts', 'contact_blacklist'],
+  callAdd:        ['all', 'known', 'contacts'],
+};
+
+// Datenschutzeinstellung aendern. Body: { name, value }
+app.post('/api/privacy', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const name = String(req.body?.name || '');
+  const value = String(req.body?.value || '');
+  const allowed = PRIVACY_CATEGORIES[name];
+  if (!allowed) return res.status(400).json({ error: 'unbekannte Kategorie', allowed: Object.keys(PRIVACY_CATEGORIES) });
+  if (!allowed.includes(value)) return res.status(400).json({ error: 'unzulaessiger Wert', allowed });
+  // "Meine Kontakte ausser ..." braucht die Ausnahmeliste als WhatsApp-IDs.
+  // Die wird hier nicht gepflegt — lieber ehrlich ablehnen als eine leere Liste
+  // schicken und damit still die bestehende Ausnahmeliste loeschen.
+  if (value === 'contact_blacklist') {
+    return res.status(400).json({ error: 'contact_blacklist_unsupported',
+      hint: 'Die Ausnahmeliste laesst sich hier nicht pflegen — diese Einstellung nur am Handy aendern.' });
+  }
+  try {
+    const out = await client.pupPage.evaluate(async (name, value) => {
+      try {
+        const mod = window.require('WAWebSetPrivacyForOneCategoryAction');
+        const serverName = mod.privacyWebNameToServerName(name);
+        if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + name };
+        await mod.setPrivacyForOneCategory({ name: serverName, value }, null);
+        const settings = await window.require('WAWebQueryPrivacySettingsJob').getPrivacy();
+        return { ok: true, serverName, settings };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, name, value);
+    if (!out.ok) return res.status(500).json({ error: out.error });
+    // Ehrlich pruefen statt Erfolg zu behaupten: der neue Stand kommt frisch von WhatsApp
+    const applied = out.settings && out.settings[name];
+    _logSilent('INFO', `privacy: ${name} → ${value}${applied === value ? '' : ` (WhatsApp meldet ${applied})`}`);
+    res.json({ success: applied === value, name, value, applied, settings: out.settings });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Der Quelltext einer Aktion steht in der Modulliste als Fabrikfunktion. Nur so
 // laesst sich ablesen, welche Parameter z.B. WAWebSetPrivacyForOneCategoryAction
 // erwartet — die exportierte Funktion selbst steckt hinter einem Babel-Mantel
@@ -4214,6 +4266,10 @@ app.get('/', (req, res) => {
     .ms-pane { display: none; flex-direction: column; gap: 10px; }
     .ms-pane.active { display: flex; }
     .ms-label { font-size: 12px; font-weight: 600; opacity: 0.65; }
+    .priv-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+    .priv-row label { flex: 1; font-size: 14px; }
+    .priv-row select { width: auto; min-width: 46%; flex-shrink: 0; }
+    .priv-row select:disabled { opacity: 0.6; }
     .ms-input, .ms-area { width: 100%; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
     html.dark .ms-input, html.dark .ms-area { background: #2a3942; color: #e9edef; }
     html.light .ms-input, html.light .ms-area { background: #f0f2f5; color: #111; }
@@ -4426,6 +4482,7 @@ app.get('/', (req, res) => {
           <button id="ms-tab-media" onclick="msSetTab('media')" data-i18n="msTabMedia">Bild / Video</button>
           <button id="ms-tab-tpl" onclick="msSetTab('tpl')" data-i18n="msTabTemplates">Vorlagen</button>
           <button id="ms-tab-profile" onclick="msSetTab('profile')" data-i18n="msTabProfile">Profil</button>
+          <button id="ms-tab-priv" onclick="msSetTab('priv')" data-i18n="msTabPrivacy">Datenschutz</button>
         </div>
 
         <div id="ms-pane-text" class="ms-pane active">
@@ -4456,6 +4513,11 @@ app.get('/', (req, res) => {
             <button class="ms-btn ghost" id="ms-tpl-update" style="display:none" onclick="msSaveTemplate(true)" data-i18n="msTemplateUpdate">Vorlage aktualisieren</button>
           </div>
           <div class="ms-hint" data-i18n="msTemplateHint">Die Vorlage übernimmt Text, Farbe, Schrift und – falls gewählt – das Bild aus dem Editor.</div>
+        </div>
+
+        <div id="ms-pane-priv" class="ms-pane">
+          <div class="ms-label" data-i18n="privTitle">Wer darf was sehen</div>
+          <div id="ms-priv-list"></div>
         </div>
 
         <div id="ms-pane-profile" class="ms-pane">
@@ -4708,6 +4770,17 @@ app.get('/', (req, res) => {
         contactsFoot:(n,w)=>n+' Kontakt'+(n===1?'':'e')+' im Adressbuch · '+w+' ohne Chat',
         meProfile:'Mein Profil', meStatusSub:'Status posten · Info bearbeiten',
         msTitle:'Mein Status', msTabText:'Text', msTabMedia:'Bild / Video', msTabTemplates:'Vorlagen', msTabProfile:'Profil',
+        msTabPrivacy:'Datenschutz', privTitle:'Wer darf was sehen', privLoading:'Lade Einstellungen…',
+        privUnavailable:'WhatsApp Web gibt die Datenschutzeinstellungen gerade nicht her.',
+        priv_lastSeen:'Zuletzt online', priv_online:'Online', priv_profilePicture:'Profilbild', priv_about:'Info',
+        priv_groupAdd:'Gruppen', priv_callAdd:'Anrufe', priv_readReceipts:'Lesebestätigungen',
+        privVal_all:'Jeder', privVal_contacts:'Meine Kontakte', privVal_contact_blacklist:'Meine Kontakte, außer…',
+        privVal_none:'Niemand', privVal_match_last_seen:'Wie „Zuletzt online"', privVal_known:'Bekannte Kontakte',
+        privHint:'„Meine Kontakte, außer…" braucht eine Ausnahmeliste — die lässt sich nur am Handy pflegen. Ohne Lesebestätigungen siehst du auch bei anderen keine mehr (in Gruppen bleiben sie an).',
+        privNoBlacklist:'„Meine Kontakte, außer…" nur am Handy einstellbar — die Ausnahmeliste wird hier nicht gepflegt.',
+        privFailed:'Ändern hat nicht geklappt.',
+        privSaved:(what, val)=>what + ' → ' + val,
+        privRejected:(applied)=>'WhatsApp hat das nicht übernommen, es steht weiter auf ' + applied + '.',
         msTextPlaceholder:'Was möchtest du teilen?', msBackground:'Hintergrund', msFont:'Schrift',
         msCaption:'Text zum Bild (optional)', msCaptionPlaceholder:'Bildunterschrift…',
         msTemplatesSaved:'Gespeicherte Vorlagen', msTemplatesEmpty:'Noch keine Vorlagen gespeichert.',
@@ -4835,6 +4908,17 @@ app.get('/', (req, res) => {
         contactsFoot:(n,w)=>n+' contact'+(n===1?'':'s')+' in the address book · '+w+' without a chat',
         meProfile:'My profile', meStatusSub:'Post a status · edit info',
         msTitle:'My status', msTabText:'Text', msTabMedia:'Photo / video', msTabTemplates:'Templates', msTabProfile:'Profile',
+        msTabPrivacy:'Privacy', privTitle:'Who can see what', privLoading:'Loading settings…',
+        privUnavailable:'WhatsApp Web is not exposing the privacy settings right now.',
+        priv_lastSeen:'Last seen', priv_online:'Online', priv_profilePicture:'Profile photo', priv_about:'About',
+        priv_groupAdd:'Groups', priv_callAdd:'Calls', priv_readReceipts:'Read receipts',
+        privVal_all:'Everyone', privVal_contacts:'My contacts', privVal_contact_blacklist:'My contacts except…',
+        privVal_none:'Nobody', privVal_match_last_seen:'Same as last seen', privVal_known:'Known contacts',
+        privHint:'"My contacts except…" needs an exception list — that can only be maintained on the phone. With read receipts off you will not see anyone else\'s either (they stay on in groups).',
+        privNoBlacklist:'"My contacts except…" can only be set on the phone — the exception list is not maintained here.',
+        privFailed:'Could not change the setting.',
+        privSaved:(what, val)=>what + ' → ' + val,
+        privRejected:(applied)=>'WhatsApp did not accept it, it is still set to ' + applied + '.',
         msTextPlaceholder:'What do you want to share?', msBackground:'Background', msFont:'Font',
         msCaption:'Caption (optional)', msCaptionPlaceholder:'Caption…',
         msTemplatesSaved:'Saved templates', msTemplatesEmpty:'No templates saved yet.',
@@ -5579,7 +5663,7 @@ app.get('/', (req, res) => {
 
     function msSetTab(tab) {
       _msTab = tab;
-      ['text','media','tpl','profile'].forEach(k => {
+      ['text','media','tpl','profile','priv'].forEach(k => {
         document.getElementById('ms-tab-' + k).classList.toggle('active', k === tab);
         document.getElementById('ms-pane-' + k).classList.toggle('active', k === tab);
       });
@@ -5588,6 +5672,7 @@ app.get('/', (req, res) => {
       send.style.display = (tab === 'text' || tab === 'media') ? '' : 'none';
       if (tab === 'tpl') msRenderTemplates();
       if (tab === 'profile') msLoadLive();
+      if (tab === 'priv') msLoadPrivacy();
     }
 
     function msBuildPickers() {
@@ -5732,6 +5817,78 @@ app.get('/', (req, res) => {
       document.getElementById('ms-tpl-update').style.display = 'none';
       msBuildPickers();
       msRenderPreview();
+    }
+
+    // ── Datenschutz-Reiter ──────────────────────────────────────────────────────
+    // Reihenfolge wie in WhatsApp selbst. Die zulaessigen Werte gibt WhatsApp Web
+    // vor; "Meine Kontakte ausser ..." braucht eine Ausnahmeliste und laesst sich
+    // hier nur anzeigen, nicht setzen.
+    const PRIV_ROWS = [
+      { key: 'lastSeen',       opts: ['all','contacts','contact_blacklist','none'] },
+      { key: 'online',         opts: ['all','match_last_seen'] },
+      { key: 'profilePicture', opts: ['all','contacts','contact_blacklist','none'] },
+      { key: 'about',          opts: ['all','contacts','contact_blacklist','none'] },
+      { key: 'groupAdd',       opts: ['all','contacts','contact_blacklist'] },
+      { key: 'callAdd',        opts: ['all','known','contacts'] },
+      { key: 'readReceipts',   opts: ['all','none'] },
+    ];
+    let _privSettings = null;
+
+    async function msLoadPrivacy() {
+      const box = document.getElementById('ms-priv-list');
+      box.innerHTML = '<div class="ms-hint">' + esc(t('privLoading')) + '</div>';
+      let d = null;
+      try { d = await fetch('api/privacy').then(r => r.json()); } catch (e) {}
+      if (!d || d.error || !d.settings || d.settings.error) {
+        box.innerHTML = '<div class="ms-hint">' + esc(t('privUnavailable')) + '</div>';
+        return;
+      }
+      _privSettings = d.settings;
+      box.innerHTML = PRIV_ROWS.map(row => {
+        const cur = _privSettings[row.key] || '';
+        const opts = row.opts.map(v => {
+          // Nicht setzbar, aber der aktuelle Stand muss sichtbar bleiben
+          const locked = v === 'contact_blacklist' && cur !== 'contact_blacklist';
+          return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + (locked ? ' disabled' : '') + '>'
+            + esc(t('privVal_' + v)) + '</option>';
+        }).join('');
+        return '<div class="priv-row">'
+          + '<label for="priv-' + row.key + '">' + esc(t('priv_' + row.key)) + '</label>'
+          + '<select id="priv-' + row.key + '" data-key="' + row.key + '" class="ms-input">' + opts + '</select>'
+          + '</div>';
+      }).join('') + '<div class="ms-hint">' + esc(t('privHint')) + '</div>';
+      box.querySelectorAll('select[data-key]').forEach(sel => {
+        sel.addEventListener('change', () => msSavePrivacy(sel));
+      });
+    }
+
+    async function msSavePrivacy(sel) {
+      const key = sel.dataset.key;
+      const value = sel.value;
+      const before = _privSettings ? _privSettings[key] : '';
+      if (value === before) return;
+      sel.disabled = true;
+      try {
+        const d = await fetch('api/privacy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: key, value }),
+        }).then(r => r.json());
+        if (d.success) {
+          _privSettings = d.settings || _privSettings;
+          msShow('ok', tf('privSaved', t('priv_' + key), t('privVal_' + value)));
+        } else {
+          // Zuruecksetzen statt so tun, als haette es geklappt
+          sel.value = before;
+          const why = d.error === 'contact_blacklist_unsupported' ? t('privNoBlacklist')
+            : (d.applied ? tf('privRejected', t('privVal_' + d.applied)) : (d.error || t('privFailed')));
+          msShow('err', why);
+        }
+      } catch (e) {
+        sel.value = before;
+        msShow('err', tf('msError', e.message));
+      }
+      sel.disabled = false;
     }
 
     async function openMyStatus() {
