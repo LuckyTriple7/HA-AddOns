@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.39
+
+Ein Scanner aus einem Rechenzentrum probierte zwanzig Adressen durch — `/Blog`, `/BLOG`, `/SITE`, `/bak`, `/BACKUP`, `/old-site`, `/2021`, `/WWW` — und stand mit jeder Zeile in der 404-Liste, **trotz** gesetzter Haken „Bots ausblenden" und „Sonden ausblenden". Jede Zeile trug obendrein die Marke „eigener Link". Drei Ursachen, drei Änderungen:
+
+- 🤖 **Die 404-Liste sah nur die Browserkennung.** Der Besucherzähler stuft eine Adresse aus einem Rechenzentrum längst als Bot ein, diese Liste nicht — sie glaubte dem „Safari · iOS", das der Scanner angab. Jetzt gilt hier dieselbe Regel.
+- 🏢 **netcup fehlte in der Liste der Rechenzentren.** 118 Netze des Anbieters (AS197540) sind ergänzt, damit greift die Bot-Einstufung überhaupt erst. Betrifft auch den Besucherzähler: Zugriffe von dort zählen nicht mehr als Besuch.
+- 🕵️ **Neue Sondenmuster: die vergessene Kopie.** Als Sonde gelten jetzt auch Adressen, unter denen Scanner eine alte Fassung der Seite vermuten — `bak`, `bac`, `bk`, `backup`, `old`, `old-site`, `alt`, `site`, `sito`, `sitio`, `www`, `web`, `new`, `temp`, `tmp`, `test`, `dev`, `staging`, `beta`, `demo`, `main`, `home`, `shop`, `store`, `cms`, `portal`, `dump`, `db`, `sql` — sowie **Jahreszahlen** wie `/2021`. Nur als ganzer Pfad aus einem Stück: `/seite/mein-backup` bleibt eine normale Adresse, und Namen, die MyPage selbst vergibt (`blog`, `projekte`, `uploads`), stehen bewusst nicht auf der Liste.
+- 🔗 **„Eigener Link" nur noch, wenn es einer sein kann.** Zeigt die Verweis-Kopfzeile auf **genau die** Adresse, die gerade abgerufen wird, ist sie gefälscht — eine Seite, die es nicht gibt, kann keinen Link auf sich selbst tragen. Solche Zeilen gelten nicht mehr als eigener kaputter Verweis. Echte interne Verweise (Startseite → tote Adresse) sind davon nicht betroffen.
+
 ## 0.11.38
 
 - 🖱️ **In der Vorschau ließ sich nichts anklicken.** Navigationsleiste, Blog, jeder Link — ein Klick tat nichts. Ursache: Der Rahmen lief seit 0.11.35 vollständig abgeschottet (`sandbox`), und weil die Vorschau jedem Link einen neuen Tab mitgibt, blockierte der Browser genau diese neuen Tabs wortlos. Der Rahmen erlaubt jetzt das Öffnen neuer Tabs — ein Klick führt zur echten Seite, die dort auch wieder mit Skripten läuft. Skripte **innerhalb** der Vorschau bleiben aus, daran ändert sich nichts.

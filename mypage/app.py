@@ -3357,6 +3357,23 @@ _PROBE_PARTS = ('/wp-', '/wordpress', 'xmlrpc.php', '/.env', '/.git', '/.ssh',
 _PROBE_SUFFIXES = ('.php', '.asp', '.aspx', '.jsp', '.cgi',
                    '.sql', '.bak', '.old', '.swp', '.tar.gz')
 
+# Namen, unter denen Scanner eine vergessene Kopie der Website vermuten: die
+# alte Fassung, ein Abzug vor dem Umbau, die Baustelle daneben. Geprüft wird nur
+# der **ganze** Pfad aus einem einzigen Stück — `/bak` ist die Sonde,
+# `/seite/bak-in-der-mitte` eine ganz normale Adresse. Bewusst nicht dabei:
+# Namen, die MyPage selbst vergibt (`blog`, `projekte`, `uploads`), sonst würde
+# ein eigener kaputter Verweis als Sonde durchgehen und aus der Liste fallen.
+_PROBE_NAMES = frozenset((
+    'bak', 'bac', 'bk', 'back', 'backup', 'backups', 'bkp',
+    'old', 'olds', 'oldsite', 'old-site', 'alt', 'archiv', 'archive',
+    'site', 'sites', 'sito', 'sitio', 'sitios', 'website',
+    'www', 'www2', 'wwwroot', 'web', 'webroot', 'public_html',
+    'new', 'newsite', 'temp', 'tmp', 'test', 'testing', 'dev', 'develop',
+    'staging', 'stage', 'beta', 'demo', 'live', 'main', 'home', 'index',
+    'shop', 'store', 'cms', 'portal', 'dump', 'db', 'database', 'sql',
+))
+_PROBE_YEAR_RE = re.compile(r'^/(19|20)\d{2}/?$')
+
 
 def _is_probe(path: str) -> bool:
     """Sucht der Aufruf fremde Software statt einer Seite von hier?"""
@@ -3369,6 +3386,10 @@ def _is_probe(path: str) -> bool:
     # Ein manifest.json in irgendeinem Unterordner sucht den Ausgabeordner
     # eines fremden Baukastens. Das eigene liegt genau auf /manifest.json.
     if p.endswith('/manifest.json') and p != '/manifest.json':
+        return True
+    # `/bak`, `/old-site`, `/staging` — und `/2021`, weil die Jahreszahl
+    # derselben Vermutung folgt: hier liege die Seite von damals noch herum.
+    if p.strip('/') in _PROBE_NAMES or _PROBE_YEAR_RE.match(p):
         return True
     return p.endswith(_PROBE_SUFFIXES) or any(part in p for part in _PROBE_PARTS)
 
@@ -3396,7 +3417,13 @@ def record_notfound(req) -> None:
     e = nf.get(path) or {'n': 0, 'first': int(time.time())}
     e['n'] = e.get('n', 0) + 1
     e['last'] = int(time.time())
-    e['bot'] = bool((not ua) or any(b in ua.lower() for b in _BOT_UA))
+    ip = get_client_ip(req)
+    # Wie beim Besucherzähler zählt eine Rechenzentrums-Adresse als Bot, egal was
+    # in der Browserkennung steht: Ein Scanner gibt sich als „Safari · iOS" aus,
+    # aus einem Serverraum surft aber niemand. Bis 0.11.39 sah diese Liste nur
+    # die Kennung — und blendete den Scan deshalb trotz gesetztem Haken nicht aus.
+    e['bot'] = bool((not ua) or any(b in ua.lower() for b in _BOT_UA)
+                    or vx.is_datacenter_ip(ip))
     probe = _is_probe(path)
     # Woher kam der Aufruf? Bei einem eigenen kaputten Verweis ist die Adresse
     # gleichgültig, bei einer Sonde ist sie das Einzige, womit sich etwas
@@ -3404,7 +3431,6 @@ def record_notfound(req) -> None:
     # Gespeichert werden höchstens NOTFOUND_IPS_MAX verschiedene, neueste
     # zuerst; nur öffentliche. Das eigene Heimnetz und die internen Aufrufe von
     # Home Assistant sagen nichts, füllen aber die Liste.
-    ip = get_client_ip(req)
     if _is_public_ip(ip):
         ips = [a for a in (e.get('ips') or []) if a != ip]
         e['ips'] = [ip] + ips[:NOTFOUND_IPS_MAX - 1]
@@ -3420,7 +3446,13 @@ def record_notfound(req) -> None:
         # trug `/api/graphql` die Marke „eigener Link" und stand damit ganz
         # oben in der Liste — eine gefälschte Kopfzeile hätte den Scan über
         # jeden echten kaputten Verweis gehoben.
-        e['internal'] = _same_site_ref(ref) and not probe
+        # Zeigt der Verweis auf **genau die** Adresse, die gerade abgerufen wird,
+        # ist er gefälscht: Eine Seite, die es nicht gibt, kann keinen Link auf
+        # sich selbst tragen. Genau so trat ein Scanner auf, der `/Blog`,
+        # `/BACKUP` und `/2021` durchprobierte und jedes Mal die eigene Adresse
+        # als Verweisgeber eintrug — jede Zeile trug die Marke „eigener Link".
+        e['internal'] = (_same_site_ref(ref) and not probe
+                         and not _ref_is_self(ref, req))
     nf[path] = e
     # Begrenzen: die am längsten nicht mehr gesehenen Pfade fliegen zuerst raus.
     if len(nf) > NOTFOUND_MAX_PATHS:
@@ -3428,6 +3460,15 @@ def record_notfound(req) -> None:
             del nf[k]
     stats['notfound'] = nf
     save_stats(stats)
+
+
+def _ref_is_self(ref: str, req) -> bool:
+    """Verweist die Kopfzeile auf die gerade abgerufene Adresse selbst?"""
+    try:
+        r = urlparse(ref)
+    except ValueError:
+        return False
+    return (r.path or '/').rstrip('/') == (req.path or '/').rstrip('/')
 
 
 def _same_site_ref(ref: str) -> bool:
