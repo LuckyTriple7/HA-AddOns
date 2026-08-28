@@ -728,11 +728,21 @@
     </section>
 
     <!-- Inhalte -->
+{#- Freie Überschrift je Abschnitt: leer heißt „Standard aus den Locales".
+    Ein Paar Felder pro Modul, damit „Angebote" beim Restaurant „Speisekarte"
+    heißen kann, ohne dass das Modul umbenannt wird. -#}
+{% macro sect_title(key, ph) -%}
+        <div class="row">
+          <div><label>{{ t.sect_title_label }} (DE)</label><input type="text" class="sect-title" data-sec="{{ key }}" id="st-{{ key }}_de" maxlength="60" placeholder="{{ ph }}"></div>
+          <div><label>{{ t.sect_title_label }} (EN)</label><input type="text" class="sect-title" data-sec="{{ key }}" id="st-{{ key }}_en" maxlength="60" placeholder="{{ ph }}"></div>
+        </div>
+{%- endmacro %}
     <section class="tab" id="tab-content">
       <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }} {{ t.content_dnd_hint }}</p>
       <div id="section-acc">
       <div class="panel acc" data-key="news">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.news_heading }}</div>
+        {{ sect_title('news', t.news_heading) }}
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
       </div>
@@ -769,6 +779,7 @@
       </div>
       <div class="panel acc" data-key="tips">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tips_section }}</div>
+        {{ sect_title('tips', t.tips_heading) }}
         <p class="hint">{{ t.tips_hint }}</p>
         <div class="row">
           <div>
@@ -820,6 +831,7 @@
       </div>
       <div class="panel acc" data-key="poll">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.poll_section }}</div>
+        {{ sect_title('poll', t.poll_heading) }}
         <p class="hint">{{ t.poll_hint }}</p>
         <input type="hidden" id="pl-id">
         <div class="row">
@@ -835,34 +847,40 @@
       </div>
       <div class="panel acc" data-key="blog">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></div>
+        {{ sect_title('blog', t.blog_heading) }}
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=blog]').click()">{{ t.tab_blog }} →</button>
       </div>
       <div class="panel acc" data-key="services">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.services_heading }}</div>
+        {{ sect_title('services', t.services_heading) }}
         <p class="hint">{{ t.services_hint }}</p>
         <div id="services-list"></div>
         <button class="btn secondary small" onclick="addServiceRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="projects">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.projects }} <span class="acc-ext">↗</span></div>
+        {{ sect_title('projects', t.projects) }}
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=projects]').click()">{{ t.tab_projects }} →</button>
       </div>
       <div class="panel acc" data-key="skills">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.skills_heading }}</div>
+        {{ sect_title('skills', t.skills_heading) }}
         <label>{{ t.field_skills }}</label>
         <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
         <p class="hint">{{ t.skills_hint }}</p>
       </div>
       <div class="panel acc" data-key="testimonials">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.testimonials_heading }}</div>
+        {{ sect_title('testimonials', t.testimonials_heading) }}
         <p class="hint">{{ t.testimonials_hint }}</p>
         <div id="testimonials-list"></div>
         <button class="btn secondary small" onclick="addTestimonialRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="photos">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.albums_heading }}</div>
+        {{ sect_title('photos', t.albums_heading) }}
         <p class="hint">{{ t.albums_hint }}</p>
         <button class="btn small" onclick="openAlbumModal()" style="margin-bottom:12px">+ {{ t.new_album }}</button>
         <div class="proj-list" id="album-list"></div>
@@ -887,61 +905,60 @@
       </div>
       <div class="panel acc" data-key="library">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.library_heading }} <span class="acc-ext">↗</span></div>
+        {{ sect_title('library', t.library_heading) }}
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=library]').click()">{{ t.tab_library }} →</button>
       </div>
       <div class="panel acc" data-key="forms">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tab_forms }} <span class="acc-ext">↗</span></div>
+        {{ sect_title('forms', t.forms_heading) }}
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=forms]').click()">{{ t.tab_forms }} →</button>
       </div>
       <div class="panel acc" data-key="travel">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.trav_trips_heading }} <span class="acc-ext">↗</span></div>
+        {{ sect_title('travel', t.trav_trips_heading) }}
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=travel]').click()">{{ t.tab_travel }} →</button>
       </div>
       <div class="panel acc" data-key="team">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</div>
+        {{ sect_title('team', t.team_heading) }}
         <p class="hint">{{ t.team_hint }}</p>
         <div id="team-list"></div>
         <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="timeline">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.timeline_heading }}</div>
-        <div class="row" style="margin-top:8px">
-          <div>
-            <label>{{ t.timeline_title_label }} (DE)</label>
-            <input type="text" id="tl-title_de" maxlength="60" placeholder="{{ t.timeline_heading }}">
-          </div>
-          <div>
-            <label>{{ t.timeline_title_label }} (EN)</label>
-            <input type="text" id="tl-title_en" maxlength="60" placeholder="{{ t.timeline_heading }}">
-          </div>
-        </div>
+        {{ sect_title('timeline', t.timeline_heading) }}
         <p class="hint">{{ t.timeline_title_hint }}</p>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="events">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.events_heading }}</div>
+        {{ sect_title('events', t.events_heading) }}
         <p class="hint">{{ t.events_hint }}</p>
         <div id="events-list"></div>
         <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="links">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.links_heading }}</div>
+        {{ sect_title('links', t.links_heading) }}
         <p class="hint">{{ t.links_hint }}</p>
         <div id="links-list"></div>
         <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="faq">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.faq_heading }}</div>
+        {{ sect_title('faq', t.faq_heading) }}
         <p class="hint">{{ t.faq_hint }}</p>
         <div id="faq-list"></div>
         <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="location">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.location_heading }}</div>
+        {{ sect_title('location', t.location_heading) }}
         <p class="hint">{{ t.location_hint }}</p>
         <div class="row">
           <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
@@ -5169,14 +5186,30 @@
       else frame.removeAttribute('srcdoc');
     }
 
-    // ── Inhalte (Skills / Aktuelles / Werdegang) ──
+    // ── Inhalte (Skills / Meldungen / Zeitleiste) ──
+    // Leere Paare gar nicht erst mitschicken: der Server wirft sie ohnehin weg,
+    // und so bleibt der Datensatz klein.
+    function collectSectionTitles() {
+      const out = {};
+      document.querySelectorAll('input.sect-title').forEach(inp => {
+        const key = inp.dataset.sec, side = inp.id.endsWith('_en') ? 'en' : 'de';
+        const v = inp.value.trim();
+        if (!v) return;
+        (out[key] = out[key] || { de: '', en: '' })[side] = v;
+      });
+      return out;
+    }
     function fillSections() {
       const s = SITE.sections || {};
       el('c-skills').value = (s.skills || []).join(', ');
       el('news-list').innerHTML = '';
       (s.news || []).forEach(n => addNewsRow(n));
-      el('tl-title_de').value = s.timeline_title_de || '';
-      el('tl-title_en').value = s.timeline_title_en || '';
+      // Freie Überschriften: ein Feldpaar je Modul, gefüllt aus section_titles.
+      const st = s.section_titles || {};
+      document.querySelectorAll('input.sect-title').forEach(inp => {
+        const e = st[inp.dataset.sec] || {};
+        inp.value = (inp.id.endsWith('_en') ? e.en : e.de) || '';
+      });
       el('timeline-list').innerHTML = '';
       (s.timeline || []).forEach(e => addTimelineRow(e));
       el('links-list').innerHTML = '';
@@ -5740,7 +5773,7 @@
       };
       const r = await apiJson('api/sections', 'POST',
         { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown, freetext, poll,
-          timeline_title_de: el('tl-title_de').value, timeline_title_en: el('tl-title_en').value,
+          section_titles: collectSectionTitles(),
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();

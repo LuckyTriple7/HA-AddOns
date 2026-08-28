@@ -542,20 +542,26 @@ nach sich, als sie dieser Zielgruppe bringen.
 sind reine Sortier-Platzhalter für eigene Reiter (Blog, Projekte, Bibliothek, Formulare,
 Reiseblog). Aus der Durchsicht am 28.08.2026 sind folgende Vorhaben offen.
 
-### 1. Freie Überschrift für jedes Modul
+### 1. Freie Überschrift für jedes Modul — erledigt mit v0.11.36
 
-Heute lässt sich nur beim Werdegang die sichtbare Überschrift frei setzen
-(`sections.timeline_title_de/en`). Genau das fehlt überall sonst — und es ist der Hebel,
-der die ganze Benennungsfrage auflöst: „Angebote" heißt beim Restaurant „Speisekarte",
-beim Verein „Was wir tun", bei der Firma „Leistungen", ohne dass ein Modul umbenannt wird.
+Umgesetzt wie vorgesehen: `sections.section_titles = {<key>: {'de': '', 'en': ''}}`,
+gelesen über `section_title()`, im Admin ein Feldpaar je Modul (Makro `sect_title` in
+`admin.html`, Eingabefelder `st-<key>_de/_en` mit der Standardüberschrift als Platzhalter).
+Der alte Werdegang-Eintrag wandert beim Laden über `_migrate_section_titles()` in die neue
+Ablage; die Felder `timeline_title_de/en` bleiben als Rückfallebene bestehen und werden
+beim Speichern mitgezogen.
 
-Vorgesehen: ein gemeinsames `sections.section_titles = {<key>: {'de': '', 'en': ''}}`
-statt weiterer `<modul>_title_de/en`-Paare, dazu ein Render-Helfer, der leer auf die
-Standard-Überschrift aus den Locales zurückfällt. Der bestehende Werdegang-Eintrag muss
-beim Einlesen in die neue Ablage überführt werden, sonst verschwindet eine gesetzte
-Überschrift still.
+**Fallstricke für später:**
 
-**Zuerst bauen** — danach ist der interne Name eines Moduls fast egal.
+- Countdown und Freitext haben bereits eigene Titelfelder und stehen deshalb nicht in
+  `SECTION_TITLE_KEYS`. Wer sie aufnimmt, hat zwei konkurrierende Überschriften.
+- `/api/sections` ersetzt `section_titles` **vollständig**. Der Admin schickt immer alle
+  Felder (`collectSectionTitles()`, gefüllt aus `fillSections()` bei jedem `loadSite()`);
+  wer die Route von anderer Stelle mit einem Teil-Objekt aufruft, löscht die übrigen Titel.
+- Leere Paare werden nicht gespeichert — sonst wüchse die Ablage mit jedem Speichern um
+  20 leere Einträge.
+- Die Navigationsleiste zieht denselben Wert (`sec_titles` in der Startseiten-Route), sonst
+  stünde in der Leiste ein anderer Name als über dem Abschnitt.
 
 ### 2. Umbenennungen (reine Locale-Arbeit)
 
@@ -621,5 +627,5 @@ dazu, gehört der Dialog zu den globalen Funktionen, nicht in die Modulliste.
 
 ### Empfohlene Reihenfolge
 
-1 (freie Überschriften) → 2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → 4 (Zahlen/Fakten,
+1 (freie Überschriften, erledigt) → 2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → 4 (Zahlen/Fakten,
 Partner/Logos, Video, Downloads) → Hero-Erweiterung → CTA/Teaser als Freitext-Vorlagen.

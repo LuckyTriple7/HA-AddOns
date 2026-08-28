@@ -645,6 +645,12 @@ DEFAULT_SITE = {
         'skills': [],
         'timeline': [],
         'timeline_title_de': '', 'timeline_title_en': '',
+        # Frei gewählte Überschrift je Abschnitt: {'<key>': {'de': …, 'en': …}}.
+        # Leer heißt „Standardüberschrift aus den Locales" — so heißt „Angebote"
+        # beim Restaurant „Speisekarte" und beim Verein „Was wir tun", ohne dass
+        # ein Modul umbenannt wird. Löst die alten `timeline_title_*` ab, die
+        # `_migrate_section_titles()` beim Laden übernimmt.
+        'section_titles': {},
         'news': [],
         'links': [],
         'faq': [],
@@ -690,6 +696,42 @@ DEFAULT_SITE = {
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
 SECTION_KEYS = list(DEFAULT_SITE['section_order'])
+
+# Abschnitte mit eigener Titelzeile im Inhalt: Countdown und Freitext haben
+# bereits eigene Titelfelder, eine zweite Überschrift wäre dort eine Falle.
+SECTION_TITLE_KEYS = [k for k in SECTION_KEYS if k not in ('countdown', 'freetext')]
+
+
+def section_title(sections: dict, key: str, lang: str) -> str:
+    """Frei gewählte Überschrift eines Abschnitts, leer wenn keine gesetzt ist."""
+    entry = ((sections or {}).get('section_titles') or {}).get(key) or {}
+    if not isinstance(entry, dict):
+        return ''
+    if lang == 'en':
+        return (entry.get('en') or entry.get('de') or '').strip()
+    return (entry.get('de') or entry.get('en') or '').strip()
+
+
+def _migrate_section_titles(data: dict) -> None:
+    """Alte `timeline_title_de/en` in die gemeinsame Ablage übernehmen.
+
+    Nur im Speicher: geschrieben wird es beim nächsten Speichern der Seite. Die
+    alten Felder bleiben unangetastet — ginge die Übernahme schief, steht der
+    Wert weiterhin dort, statt still zu verschwinden.
+    """
+    sec = data.get('sections')
+    if not isinstance(sec, dict):
+        return
+    titles = sec.get('section_titles')
+    if not isinstance(titles, dict):
+        titles = {}
+        sec['section_titles'] = titles
+    if 'timeline' in titles:
+        return
+    de = (sec.get('timeline_title_de') or '').strip()
+    en = (sec.get('timeline_title_en') or '').strip()
+    if de or en:
+        titles['timeline'] = {'de': de, 'en': en}
 
 
 # ── Alternativtexte der Bilder ────────────────────────────────────────────────
@@ -1240,6 +1282,7 @@ def load_site() -> dict:
         elif isinstance(defaults, dict):
             for k, v in defaults.items():
                 data[section].setdefault(k, v)
+    _migrate_section_titles(data)
     return data
 
 
@@ -5754,6 +5797,23 @@ def api_sections():
     for k in ('timeline_title_de', 'timeline_title_en'):
         if k in raw:
             sec[k] = _clean_str(raw[k], 60)
+    if isinstance(raw.get('section_titles'), dict):
+        # Nur bekannte Abschnitte, und leere Paare fliegen raus: sonst wächst die
+        # Ablage mit jedem Speichern um leere Einträge für alle 20 Module.
+        titles = {}
+        for key, val in raw['section_titles'].items():
+            if key not in SECTION_TITLE_KEYS or not isinstance(val, dict):
+                continue
+            de = _clean_str(val.get('de'), 60)
+            en = _clean_str(val.get('en'), 60)
+            if de or en:
+                titles[key] = {'de': de, 'en': en}
+        sec['section_titles'] = titles
+        # Der Werdegang wird ab hier aus der gemeinsamen Ablage bedient. Die alten
+        # Felder mitzuziehen hält site.json widerspruchsfrei, falls doch noch
+        # etwas daraus liest.
+        tl = titles.get('timeline') or {}
+        sec['timeline_title_de'], sec['timeline_title_en'] = tl.get('de', ''), tl.get('en', '')
     if isinstance(raw.get('news'), list):
         sec['news'] = [{
             'date':    _clean_str(e.get('date'), 30),
@@ -15055,8 +15115,10 @@ def public_index():
     if not viewer_member:
         section_order = [k for k in section_order if k not in member_secs]
 
-    # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
-    timeline_title = loc(sections, 'timeline_title')
+    # Frei konfigurierbare Überschriften je Abschnitt (leer = Standard aus den Locales)
+    sec_titles = {k: section_title(sections, k, lang) for k in SECTION_TITLE_KEYS}
+    # Der Werdegang hatte sein eigenes Feld, bevor es das für alle gab.
+    timeline_title = sec_titles.get('timeline') or loc(sections, 'timeline_title')
     # Frei konfigurierbarer Name der Sammlung (leer = Standard „Bibliothek")
     library_heading = _library_label(site, loc, t)
 
@@ -15071,7 +15133,9 @@ def public_index():
             if key == 'library' and not _library(site).get('nav'):
                 continue
             if present:
-                if key == 'timeline' and timeline_title:
+                if sec_titles.get(key):
+                    label = sec_titles[key]
+                elif key == 'timeline' and timeline_title:
                     label = timeline_title
                 elif key == 'countdown' and countdown_title:
                     label = countdown_title
@@ -15122,6 +15186,7 @@ def public_index():
                            nl=_clean_str(request.args.get('nl'), 20),
                            nav_items=nav_items,
                            section_order=section_order,
+                           sec_titles=sec_titles,
                            timeline_title=timeline_title,
                            tip_of_day=tip_of_day, tips_weekly=tips_weekly,
                            poll_view=poll_view,

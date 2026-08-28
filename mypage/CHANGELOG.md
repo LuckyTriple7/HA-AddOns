@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.36
+
+- ✏️ **Jeder Abschnitt darf jetzt heißen, wie er soll.** Bisher ließ sich nur beim Werdegang die Überschrift frei setzen — alle anderen trugen den Namen, den das Add-on vorgibt. Neu hat **jedes der 18 Module** im Reiter „Inhalte" ein Feld **Eigene Überschrift** (DE und EN, oben im jeweiligen Kasten). Damit heißt „Leistungen" beim Restaurant „Speisekarte", beim Verein „Was wir tun" und bei der Firma weiterhin „Leistungen" — ohne dass am Modul selbst etwas umbenannt wird. Leer lassen heißt wie bisher: Standardüberschrift.
+- 🧭 **Die Navigationsleiste zieht mit.** Steht über dem Abschnitt „Speisekarte", steht auch in der Leiste „Speisekarte" und nicht mehr der Standardname.
+- 🔁 **Der Werdegang zieht automatisch um.** Eine dort gesetzte Überschrift wandert beim ersten Laden in die neue Ablage — nichts nachzutragen. Die beiden bisherigen Felder verschwinden aus der Oberfläche, weil sie das neue Feldpaar doppeln würden.
+- ℹ️ **Countdown und Freitext bleiben außen vor**: beide haben längst ein eigenes Titelfeld, ein zweites wäre nur eine Falle.
+
 ## 0.11.35
 
 - 🖼️ **Vorschau lädt wieder — und jetzt auch über den Ingress.** Der Rahmen holte die Seite selbst von ihrer öffentlichen Adresse. Steht davor ein Reverse Proxy mit `X-Frame-Options: sameorigin` (Klickjacking-Schutz, der bleiben soll), verweigert der Browser die Anzeige; über den Ingress kommt hinzu, dass Port 17760 unter der Home-Assistant-Adresse nicht erreichbar sein muss. Neu rendert **der Admin die Seite selbst** — im selben Prozess, ohne Netz — und reicht sie als `srcdoc` in den Rahmen. Gleiche Herkunft, also greift keine der beiden Sperren.

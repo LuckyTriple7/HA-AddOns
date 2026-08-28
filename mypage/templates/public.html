@@ -711,7 +711,7 @@
     {% for _sec in section_order %}
     {% if _sec == 'news' %}
     {% if sections.news %}
-    <h2 class="section-title" id="news">{{ t.news_heading }}</h2>
+    <h2 class="section-title" id="news">{{ sec_titles.get('news') or t.news_heading }}</h2>
     <div class="news-list">
       {% for n in sections.news %}
       <div class="news-item">
@@ -731,7 +731,7 @@
 
     {% elif _sec == 'tips' %}
     {% if tip_of_day %}
-    <h2 class="section-title" id="tips">{{ t.tips_heading_week if tips_weekly else t.tips_heading }}</h2>
+    <h2 class="section-title" id="tips">{{ sec_titles.get('tips') or (t.tips_heading_week if tips_weekly else t.tips_heading) }}</h2>
     <div class="tip-box">
       <span class="tip-icon">💡</span>
       <div class="tip-text">{{ render_md(loc(tip_of_day, 'text'))|safe }}</div>
@@ -747,7 +747,7 @@
 
     {% elif _sec == 'poll' %}
     {% if poll_view %}
-    <h2 class="section-title" id="umfrage">{{ t.poll_heading }}</h2>
+    <h2 class="section-title" id="umfrage">{{ sec_titles.get('poll') or t.poll_heading }}</h2>
     <div class="poll-box" id="poll-box">
       <p class="poll-q">{{ poll_view.question }}</p>
       <div class="poll-options" id="poll-options"{% if poll_view.voted is not none %} hidden{% endif %}>
@@ -771,7 +771,7 @@
 
     {% elif _sec == 'blog' %}
     {% if latest_posts %}
-    <h2 class="section-title" id="blog">{{ t.blog_heading }}</h2>
+    <h2 class="section-title" id="blog">{{ sec_titles.get('blog') or t.blog_heading }}</h2>
     <div class="news-list" style="padding-bottom:36px">
       {% for po in latest_posts %}
       <div class="news-item">
@@ -794,7 +794,7 @@
       <summary>📚 {{ library_heading }} <span class="lib-count">({{ library_total }})</span></summary>
       <div class="lib-collapse-body">
     {% else %}
-    <h2 class="section-title" id="library">{{ library_heading }}</h2>
+    <h2 class="section-title" id="library">{{ sec_titles.get('library') or library_heading }}</h2>
     {% endif %}
     {% if library_tags %}
     <div class="lib-tagbar" id="lib-tagbar">
@@ -835,7 +835,7 @@
 
     {% elif _sec == 'travel' %}
     {% if travel_trips %}
-    <h2 class="section-title" id="reiseblog">{{ t.trav_trips_heading }}</h2>
+    <h2 class="section-title" id="reiseblog">{{ sec_titles.get('travel') or t.trav_trips_heading }}</h2>
     <div class="trav-grid">
       {% for tr in travel_trips %}
       <a class="lib-card" href="/reiseblog/{{ tr.slug }}">
@@ -857,7 +857,7 @@
 
     {% elif _sec == 'forms' %}
     {% if form_cards %}
-    <h2 class="section-title" id="formulare">{{ t.forms_heading }}</h2>
+    <h2 class="section-title" id="formulare">{{ sec_titles.get('forms') or t.forms_heading }}</h2>
     <div class="trav-grid">
       {% for f in form_cards %}
       <a class="lib-card" href="/formular/{{ f.slug }}">
@@ -873,7 +873,7 @@
 
     {% elif _sec == 'services' %}
     {% if sections.services %}
-    <h2 class="section-title" id="services">{{ t.services_heading }}</h2>
+    <h2 class="section-title" id="services">{{ sec_titles.get('services') or t.services_heading }}</h2>
     <div class="svc-grid">
       {% for s in sections.services %}
       <div class="svc-card">
@@ -888,7 +888,7 @@
 
     {% elif _sec == 'projects' %}
     {% if projects %}
-    <h2 class="section-title" id="projects">{{ t.projects }}</h2>
+    <h2 class="section-title" id="projects">{{ sec_titles.get('projects') or t.projects }}</h2>
     {% if site.design.layout == 'minimal' %}
     <div class="min-list">
       {% for p in projects %}
@@ -972,7 +972,7 @@
 
     {% elif _sec == 'skills' %}
     {% if sections.skills %}
-    <h2 class="section-title" id="skills">{{ t.skills_heading }}</h2>
+    <h2 class="section-title" id="skills">{{ sec_titles.get('skills') or t.skills_heading }}</h2>
     <div class="skills">
       {% for s in sections.skills %}<span class="skill">{{ s }}</span>{% endfor %}
     </div>
@@ -980,7 +980,7 @@
 
     {% elif _sec == 'testimonials' %}
     {% if sections.testimonials %}
-    <h2 class="section-title" id="testimonials">{{ t.testimonials_heading }}</h2>
+    <h2 class="section-title" id="testimonials">{{ sec_titles.get('testimonials') or t.testimonials_heading }}</h2>
     <div class="tm-grid">
       {% for tm in sections.testimonials %}
       <figure class="tm-card">
@@ -996,7 +996,7 @@
 
     {% elif _sec == 'photos' %}
     {% if albums %}
-    <h2 class="section-title" id="photos">{{ t.albums_heading }}</h2>
+    <h2 class="section-title" id="photos">{{ sec_titles.get('photos') or t.albums_heading }}</h2>
     <div class="album-rail-wrap">
       <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="album-rail" id="album-rail">
@@ -1032,7 +1032,7 @@
 
     {% elif _sec == 'team' %}
     {% if sections.team %}
-    <h2 class="section-title" id="team">{{ t.team_heading }}</h2>
+    <h2 class="section-title" id="team">{{ sec_titles.get('team') or t.team_heading }}</h2>
     <div class="team-grid">
       {% for m in sections.team %}
       <div class="team-card">
@@ -1047,7 +1047,7 @@
 
     {% elif _sec == 'timeline' %}
     {% if sections.timeline %}
-    <h2 class="section-title" id="timeline">{{ timeline_title|default('') or t.timeline_heading }}</h2>
+    <h2 class="section-title" id="timeline">{{ sec_titles.get('timeline') or timeline_title|default('') or t.timeline_heading }}</h2>
     <div class="timeline">
       {% for e in sections.timeline %}
       <div class="tl-item">
@@ -1064,7 +1064,7 @@
 
     {% elif _sec == 'events' %}
     {% if sections.events %}
-    <h2 class="section-title" id="events">{{ t.events_heading }}</h2>
+    <h2 class="section-title" id="events">{{ sec_titles.get('events') or t.events_heading }}</h2>
     <div class="ev-list">
       {% for e in sections.events %}
       <div class="ev-item">
@@ -1080,7 +1080,7 @@
 
     {% elif _sec == 'links' %}
     {% if sections.links %}
-    <h2 class="section-title" id="links">{{ t.links_heading }}</h2>
+    <h2 class="section-title" id="links">{{ sec_titles.get('links') or t.links_heading }}</h2>
     <div class="links-cta">
       <p>{{ t.links_subtitle }}</p>
       <button class="links-btn" onclick="openLinks()">🔗 {{ t.links_open }}</button>
@@ -1089,7 +1089,7 @@
 
     {% elif _sec == 'faq' %}
     {% if sections.faq %}
-    <h2 class="section-title" id="faq">{{ t.faq_heading }}</h2>
+    <h2 class="section-title" id="faq">{{ sec_titles.get('faq') or t.faq_heading }}</h2>
     <div class="faq">
       {% for f in sections.faq %}
       {% set q = loc(f, 'q') %}
@@ -1106,7 +1106,7 @@
     {% elif _sec == 'location' %}
     {% set L = sections.location or {} %}
     {% if L.address or L.hours_de or L.hours_en %}
-    <h2 class="section-title" id="standort">{{ t.location_heading }}</h2>
+    <h2 class="section-title" id="standort">{{ sec_titles.get('location') or t.location_heading }}</h2>
     <div class="loc-box">
       <div class="loc-info">
         {% if L.name %}<div class="loc-name">{{ L.name }}</div>{% endif %}
