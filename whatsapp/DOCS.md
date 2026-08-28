@@ -41,6 +41,9 @@ GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines besti
 POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
 GET  /api/presence-overview          → Zuletzt online aller Kontakte; ?refresh=1 startet einen Rundlauf
+GET  /api/blocked                    → Liste der blockierten Kontakte
+POST /api/contact/:chatId/block      → Kontakt blockieren
+POST /api/contact/:chatId/unblock    → Blockierung aufheben
 GET  /api/presence/:chatId           → Zuletzt online eines Kontakts (online, lastSeen, denied); ?announce=1 erzwingt die Verfügbarkeitsmeldung, ?announce=0 unterdrückt sie
 GET  /api/me                         → Eigenes Profil (Nummer, Name, Info-Text)
 POST /api/me/about                   → Info-Text im Profil setzen
@@ -215,6 +218,9 @@ GET  /api/last-received?chat=<id>    → Last received message of a specific cha
 POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
 GET  /api/presence-overview          → Last seen of all contacts; ?refresh=1 starts a sweep
+GET  /api/blocked                    → List of blocked contacts
+POST /api/contact/:chatId/block      → Block a contact
+POST /api/contact/:chatId/unblock    → Unblock a contact
 GET  /api/presence/:chatId           → Last seen of a contact (online, lastSeen, denied); ?announce=1 forces the availability announcement, ?announce=0 suppresses it
 GET  /api/me                         → Own profile (number, name, about text)
 POST /api/me/about                   → Set the about text of your profile

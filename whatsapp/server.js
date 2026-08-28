@@ -1806,9 +1806,60 @@ app.get('/api/contact/:chatId', async (req, res) => {
       number,
       about: about || '',
       isMyContact: contact.isMyContact || false,
+      isBlocked: contact.isBlocked === true,
       hasProfilePic: !!picUrl,
     });
   } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Blockieren ────────────────────────────────────────────────────────────────
+// contact.block()/unblock() sind in der Bibliothek vorhanden und regeln die
+// LID-Umrechnung selbst. Gruppen lassen sich nicht blockieren.
+
+app.get('/api/blocked', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const list = await client.getBlockedContacts();
+    res.json({
+      contacts: list.map(c => ({
+        id: c.id?._serialized || '',
+        name: c.name || c.pushname || c.shortName || c.id?.user || '',
+        number: contactNumber(c, c.id?._serialized || ''),
+      })).filter(c => c.id),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/contact/:chatId/block', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (chatId.endsWith('@g.us')) return res.status(400).json({ error: 'Gruppen lassen sich nicht blockieren' });
+  try {
+    const contact = await client.getContactById(chatId);
+    if (!contact) throw new Error('Kontakt nicht gefunden');
+    await contact.block();
+    console.log(`[INFO] Kontakt blockiert: ${chatId}`);
+    res.json({ success: true, isBlocked: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/contact/:chatId/unblock', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (chatId.endsWith('@g.us')) return res.status(400).json({ error: 'Gruppen lassen sich nicht blockieren' });
+  try {
+    const contact = await client.getContactById(chatId);
+    if (!contact) throw new Error('Kontakt nicht gefunden');
+    await contact.unblock();
+    console.log(`[INFO] Blockierung aufgehoben: ${chatId}`);
+    res.json({ success: true, isBlocked: false });
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
@@ -3044,6 +3095,13 @@ app.get('/', (req, res) => {
     .contact-modal-stats { display: none; font-size: 12px; color: #8696a0; text-align: center; line-height: 1.6; }
     .contact-modal-stats.has-items { display: block; }
     .contact-modal-stats b { color: #00a884; font-weight: 600; }
+    .contact-modal-blocked { display: none; font-size: 12px; color: #f15c5c; font-weight: 600; }
+    .contact-modal-blocked.show { display: block; }
+    .contact-modal-block { margin-top: 4px; background: none; border: 1px solid rgba(241,92,92,0.55); color: #f15c5c; border-radius: 8px; padding: 6px 16px; font-size: 13px; cursor: pointer; }
+    .contact-modal-block:hover { background: rgba(241,92,92,0.12); }
+    .contact-modal-block.unblock { border-color: rgba(0,168,132,0.55); color: #00a884; }
+    .contact-modal-block.unblock:hover { background: rgba(0,168,132,0.12); }
+    .contact-modal-block:disabled { opacity: 0.5; cursor: default; }
     .contact-modal-presence.online { color: #06cf9c; font-weight: 600; }
     .contact-modal-status { display: none; flex-direction: column; gap: 8px; width: 100%; max-height: 240px; overflow-y: auto; }
     .contact-modal-status.has-items { display: flex; }
@@ -3652,7 +3710,9 @@ app.get('/', (req, res) => {
       <div class="contact-modal-number" id="contact-modal-number"></div>
       <div class="contact-modal-presence" id="contact-modal-presence"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
+      <div class="contact-modal-blocked" id="contact-modal-blocked" data-i18n="blkBlocked">Du hast diesen Kontakt blockiert</div>
       <div class="contact-modal-stats" id="contact-modal-stats"></div>
+      <button class="contact-modal-block" id="contact-modal-block" style="display:none"></button>
       <div class="contact-modal-status" id="contact-modal-status"></div>
       <div style="width:100%" id="contact-modal-archive"></div>
       <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
@@ -3890,6 +3950,12 @@ app.get('/', (req, res) => {
         presLoading:'zuletzt online wird geprüft…', presOnline:'online',
         presLastSeen:(w)=>'zuletzt online: '+w, presDenied:'zuletzt online: nicht sichtbar',
         presUnknown:'zuletzt online: keine Angabe',
+        blkBlocked:'Du hast diesen Kontakt blockiert',
+        blkBlock:'Kontakt blockieren', blkUnblock:'Blockierung aufheben',
+        blkConfirmBlock:(n)=>'„'+n+'" wirklich blockieren? Der Kontakt kann dir dann nicht mehr schreiben und sieht dein Profilbild und „zuletzt online" nicht mehr.',
+        blkConfirmUnblock:(n)=>'Blockierung von „'+n+'" wirklich aufheben?',
+        blkDone:'Kontakt blockiert.', blkUndone:'Blockierung aufgehoben.',
+        blkWorking:'Einen Moment…',
         presOvTitle:'Zuletzt online — Übersicht', presOvOpen:'Zuletzt online — Übersicht',
         presOvRefresh:'Jetzt aktualisieren', presOvScanning:'Rundlauf läuft…',
         presOvEmpty:'Noch keine Daten. „Jetzt aktualisieren" startet einen Rundlauf.',
@@ -3990,6 +4056,12 @@ app.get('/', (req, res) => {
         presLoading:'checking last seen…', presOnline:'online',
         presLastSeen:(w)=>'last seen: '+w, presDenied:'last seen: not visible',
         presUnknown:'last seen: no information',
+        blkBlocked:'You have blocked this contact',
+        blkBlock:'Block contact', blkUnblock:'Unblock contact',
+        blkConfirmBlock:(n)=>'Really block "'+n+'"? They will no longer be able to message you and will not see your profile picture or last seen.',
+        blkConfirmUnblock:(n)=>'Really unblock "'+n+'"?',
+        blkDone:'Contact blocked.', blkUndone:'Contact unblocked.',
+        blkWorking:'One moment…',
         presOvTitle:'Last seen — overview', presOvOpen:'Last seen — overview',
         presOvRefresh:'Refresh now', presOvScanning:'sweep running…',
         presOvEmpty:'No data yet. "Refresh now" starts a sweep.',
@@ -5683,6 +5755,39 @@ app.get('/', (req, res) => {
       renderFwdChatList(q ? allChats.filter(c => c.name.toLowerCase().includes(q)) : allChats);
     }
 
+    // Blockieren / Blockierung aufheben. Gruppen lassen sich nicht blockieren,
+    // dort bleibt der Knopf verborgen.
+    function renderBlockState(chatId, name, blocked) {
+      const note = document.getElementById('contact-modal-blocked');
+      const btn = document.getElementById('contact-modal-block');
+      if (!note || !btn) return;
+      if (String(chatId).endsWith('@g.us')) { btn.style.display = 'none'; return; }
+      note.classList.toggle('show', !!blocked);
+      btn.style.display = '';
+      btn.disabled = false;
+      btn.className = 'contact-modal-block' + (blocked ? ' unblock' : '');
+      btn.textContent = t(blocked ? 'blkUnblock' : 'blkBlock');
+      btn.onclick = () => toggleBlock(chatId, name, !!blocked);
+    }
+
+    async function toggleBlock(chatId, name, blocked) {
+      const msg = blocked ? tf('blkConfirmUnblock', name) : tf('blkConfirmBlock', name);
+      if (!confirm(msg)) return;
+      const btn = document.getElementById('contact-modal-block');
+      btn.disabled = true;
+      btn.textContent = t('blkWorking');
+      try {
+        const d = await fetch('api/contact/' + encodeURIComponent(chatId) + (blocked ? '/unblock' : '/block'),
+          { method: 'POST' }).then(apiJson);
+        if (d.error) throw new Error(d.error);
+        renderBlockState(chatId, name, !blocked);
+        alert(t(blocked ? 'blkUndone' : 'blkDone'));
+      } catch (e) {
+        renderBlockState(chatId, name, blocked);
+        alert(tf('msError', e.message || String(e)));
+      }
+    }
+
     // Zuletzt online. Ohne Abo liefert WhatsApp nichts, deshalb kann die Antwort
     // ein paar Sekunden dauern — solange steht "wird geprüft" da.
     async function loadPresence(chatId) {
@@ -5720,6 +5825,8 @@ app.get('/', (req, res) => {
       // Reset
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
+      document.getElementById('contact-modal-blocked').classList.remove('show');
+      document.getElementById('contact-modal-block').style.display = 'none';
       loadPresence(chatId);
       loadChatStats(chatId);
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
@@ -5748,6 +5855,7 @@ app.get('/', (req, res) => {
         }
         numberEl.textContent = data.number ? '+' + data.number : '';
         aboutEl.textContent = data.about || '';
+        renderBlockState(chatId, data.name || fallbackName || chatId, data.isBlocked === true);
         picEl.textContent = '';
         picEl.removeAttribute('data-avid');
         if (data.hasProfilePic) {

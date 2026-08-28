@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.1] - 2026-08-28
+- Feature: **Kontakte blockieren und entblocken.** Im Kontaktfenster — erreichbar ueber das Profilbild — steht unten ein Knopf dafuer. Ist jemand blockiert, sagt das eine rote Zeile, und der Knopf heisst „Blockierung aufheben". Beide Richtungen fragen vorher nach, mit Namen und einem Satz dazu, was das bedeutet
+- Gruppen lassen sich nicht blockieren, dort bleibt der Knopf verborgen
+- Neu: `GET /api/blocked` listet die blockierten Kontakte, `POST /api/contact/:chatId/block` und `.../unblock` schalten um. `GET /api/contact/:chatId` liefert zusaetzlich `isBlocked`
+
 ## [1.8.0] - 2026-08-28
 - Fix: **In der Konsole fehlte bei vielen Zeilen die Uhrzeit.** Die still protokollierten Debug-Zeilen (`API GET …`) trugen keinen Zeitstempel, die echten Konsolenzeilen schon — jetzt haben alle einen, und zwar in Ortszeit statt UTC
 - Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt. Der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl der Ebenen bleibt ueber einen Seitenwechsel hinweg erhalten
