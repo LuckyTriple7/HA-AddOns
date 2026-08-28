@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.64] - 2026-08-28
+- Fix: **Bild-Status meldete „Unexpected token '<', "<!DOCTYPE "... is not valid JSON".** Fehler aus Middleware — etwa Multer bei einem abgelehnten Upload — liefen in Express' HTML-Fehlerseite, im Frontend kam davon nur der Parser-Fehler an, ohne jeden Hinweis auf die Ursache. Alle `/api/`-Pfade antworten jetzt auch im Fehlerfall mit JSON, und der Grund landet zusaetzlich als `[ERROR]` im Log
+- Fix: **Vom Server abgelehnte Statusmeldungen (`ack = -1`) standen als „laufend" in der Liste.** Sie bleiben in der WhatsApp-Web-Sammlung liegen, sind aber nie bei jemandem angekommen — sie werden jetzt uebersprungen. Ebenso Eintraege mit gesetztem `revokeTimestamp`
+- Hinweis: Eine auf dem Handy geloeschte Statusmeldung kann hier weiter auftauchen, solange WhatsApp Web die Loeschung nicht mitbekommen hat — die Rohdaten tragen dann keinerlei Kennzeichnung. Sie verschwindet spaetestens nach 24 Stunden von allein; der Papierkorb in der Liste raeumt sie sofort weg
+
 ## [1.7.63] - 2026-08-28
 - Fix: **Auf dem Handy geloeschte Statusmeldungen standen weiter in „Meine laufenden Statusmeldungen".** Zurueckgezogene Eintraege (`type: revoked` bzw. `isRevoked`) werden jetzt uebersprungen, ebenso Eintraege, die aelter als 24 Stunden sind — ein Status laeuft nach dieser Zeit ohnehin ab
 - `GET /api/my-status/diag` gibt jetzt die Rohfelder der eigenen Statusmeldungen aus (Typ, Zeitstempel, Ack und alle vorhandenen Feldnamen). Falls WhatsApp eine Loeschung anders kennzeichnet als erwartet, laesst sich der Filter daran ohne Raterei nachziehen

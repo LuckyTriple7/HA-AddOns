@@ -1877,7 +1877,10 @@ async function mapStatusMsgs(raw) {
   for (const m of raw || []) {
     // Zurueckgezogene Meldungen bleiben in der WhatsApp-Web-Sammlung stehen —
     // sie gehoeren nicht in die Liste der laufenden Status
-    if (m.type === 'revoked' || m.isRevoked === true) continue;
+    if (m.type === 'revoked' || m.isRevoked === true || m.revokeTimestamp) continue;
+    // ack -1 heisst: vom WhatsApp-Server abgelehnt. Solche Eintraege bleiben in
+    // der Sammlung liegen, sind aber nie bei jemandem angekommen
+    if (typeof m.ack === 'number' && m.ack < 0) continue;
     // Nach 24 Stunden laeuft ein Status ab; aeltere Eintraege sind Karteileichen
     const ts = (m.timestamp || 0) * 1000;
     if (ts && Date.now() - ts >= MY_STATUS_MAX_AGE_MS) continue;
@@ -6011,6 +6014,22 @@ app.get('/', (req, res) => {
   </script>
 </body>
 </html>`);
+});
+
+// Fehler aus Middleware — etwa Multer bei einem zu grossen Upload — landeten
+// bisher in Express' HTML-Fehlerseite. Im Frontend kam davon nur
+// "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" an, ohne jeden
+// Hinweis auf die Ursache. API-Pfade antworten jetzt immer mit JSON.
+app.use((err, req, res, next) => {
+  const msg = String((err && err.message) || err);
+  console.error(`[ERROR] ${req.method} ${req.path}: ${msg}${err && err.code ? ' (' + err.code + ')' : ''}`);
+  if (res.headersSent) return next(err);
+  const code = (err && (err.status || err.statusCode))
+    || (err && err.code === 'LIMIT_FILE_SIZE' ? 413 : 500);
+  if (req.path.startsWith('/api/')) {
+    return res.status(code).json({ error: msg, code: (err && err.code) || null });
+  }
+  return next(err);
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
