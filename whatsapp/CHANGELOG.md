@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.60] - 2026-08-28
+- Fix: **Status-Versand brach mit `canCheckStatusRankingPosterGating is not a function` ab.** `whatsapp-web.js` ruft beim Posten eines Status `window.require('WAWebStatusGatingUtils').canCheckStatusRankingPosterGating()` auf — in aktuellen WhatsApp-Web-Versionen gibt es diese Funktion nicht mehr, und der Versand scheiterte sowohl bei Text- als auch bei Bild-Status. Vor jedem Statusversand wird `window.require` jetzt fuer genau dieses Modul umhuellt und die fehlende Funktion ergaenzt (Ergebnis `false`, entspricht dem Normalfall ohne Gating-Pruefung). Andere Module bleiben unberuehrt, der Eingriff ist idempotent und wird nach einem Reconnect erneut gesetzt. Beim ersten Mal landet eine Warnung mit den tatsaechlich vorhandenen Modul-Exporten im Log
+
 ## [1.7.59] - 2026-08-28
 - Feature: **Eigene Statusmeldungen senden.** Im Reiter „Kontakte" steht ganz oben ein neuer Eintrag „Mein Profil". Ein Klick öffnet einen Status-Editor mit vier Reitern:
   - **Text** — Text schreiben, Hintergrundfarbe aus 15 Vorschlägen oder frei per Farbwähler, eine von acht WhatsApp-Schriften, mit Live-Vorschau

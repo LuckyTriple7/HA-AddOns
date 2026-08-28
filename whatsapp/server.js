@@ -1945,6 +1945,60 @@ app.get('/api/my-status', async (req, res) => {
   }
 });
 
+// whatsapp-web.js ruft beim Status-Versand
+// window.require('WAWebStatusGatingUtils').canCheckStatusRankingPosterGating() auf.
+// In neueren WhatsApp-Web-Versionen gibt es diese Funktion (oder das ganze Modul)
+// nicht mehr, der Versand bricht dann mit "is not a function" ab. Deshalb wird
+// window.require fuer genau dieses eine Modul umhuellt und die fehlende Funktion
+// ergaenzt. Idempotent — laeuft vor jedem Statusversand, weil ein Reconnect die
+// Seite neu laedt und den Shim verwirft.
+let _statusShimLogged = false;
+async function ensureStatusShims() {
+  if (!client.pupPage) return;
+  try {
+    const info = await client.pupPage.evaluate(() => {
+      const MOD = 'WAWebStatusGatingUtils';
+      const FN = 'canCheckStatusRankingPosterGating';
+      let had = null, keys = [];
+      try {
+        const m = window.require(MOD);
+        had = m && typeof m[FN] === 'function';
+        if (m) keys = Object.keys(m);
+      } catch (e) { had = false; }
+      if (had) return { patched: false, had, keys };
+      if (!window.__waStatusGatingShim) {
+        window.__waStatusGatingShim = true;
+        const orig = window.require;
+        window.require = function (name) {
+          if (name === MOD) {
+            let mod = null;
+            try { mod = orig.apply(this, arguments); } catch (e) { mod = null; }
+            if (!mod || typeof mod[FN] !== 'function') {
+              // cannotBeRanked: false entspricht dem Normalfall ohne Gating-Pruefung
+              const stub = () => false;
+              // Erst am Originalmodul ergaenzen, damit Prototyp und Getter erhalten
+              // bleiben; nur wenn das Modul eingefroren ist, eine Kopie zurueckgeben
+              if (mod) { try { mod[FN] = stub; if (typeof mod[FN] === 'function') return mod; } catch (e) {} }
+              return Object.assign({}, mod || {}, { [FN]: stub });
+            }
+            return mod;
+          }
+          return orig.apply(this, arguments);
+        };
+      }
+      return { patched: true, had, keys };
+    });
+    if (info && info.patched && !_statusShimLogged) {
+      _statusShimLogged = true;
+      console.warn('[WARN] WAWebStatusGatingUtils.canCheckStatusRankingPosterGating fehlt in dieser '
+        + 'WhatsApp-Web-Version — Ersatzfunktion gesetzt. Vorhandene Modul-Exporte: '
+        + ((info.keys || []).join(', ') || '(keine)'));
+    }
+  } catch (e) {
+    console.warn('[WARN] ensureStatusShims:', e.message);
+  }
+}
+
 // Text-Status posten. fontStyle 0-7 und backgroundColor sind die WhatsApp-eigenen
 // Optionen fuer Text-Stories (siehe WWebJS sendStatusTextMsgAction).
 app.post('/api/my-status/text', async (req, res) => {
@@ -1954,6 +2008,7 @@ app.post('/api/my-status/text', async (req, res) => {
   const bg = /^#[0-9a-fA-F]{6}$/.test(req.body?.backgroundColor || '') ? req.body.backgroundColor : '#0a5f55';
   const font = Math.min(Math.max(parseInt(req.body?.fontStyle ?? 0, 10) || 0, 0), 7);
   try {
+    await ensureStatusShims();
     const result = await client.sendMessage(STATUS_BROADCAST_JID, text, {
       sendSeen: false,
       extra: { backgroundColor: bg, fontStyle: font },
@@ -1984,6 +2039,7 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   if (!buffer) return res.status(400).json({ error: 'file required' });
   if (!/^(image|video)\//.test(mime || '')) return res.status(400).json({ error: 'only image or video allowed' });
   try {
+    await ensureStatusShims();
     const media = new MessageMedia(mime, buffer.toString('base64'), origName);
     const result = await client.sendMessage(STATUS_BROADCAST_JID, media, {
       sendSeen: false,
