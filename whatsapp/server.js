@@ -2877,6 +2877,9 @@ app.get('/', (req, res) => {
     .contact-modal-number { font-size: 14px; color: #00a884; font-weight: 500; }
     .contact-modal-about { font-size: 13px; color: #8696a0; text-align: center; max-width: 260px; word-break: break-word; }
     .contact-modal-presence { font-size: 12px; color: #8696a0; min-height: 16px; }
+    .contact-modal-stats { display: none; font-size: 12px; color: #8696a0; text-align: center; line-height: 1.6; }
+    .contact-modal-stats.has-items { display: block; }
+    .contact-modal-stats b { color: #00a884; font-weight: 600; }
     .contact-modal-presence.online { color: #06cf9c; font-weight: 600; }
     .contact-modal-status { display: none; flex-direction: column; gap: 8px; width: 100%; max-height: 240px; overflow-y: auto; }
     .contact-modal-status.has-items { display: flex; }
@@ -2959,7 +2962,6 @@ app.get('/', (req, res) => {
     #ch-info { flex: 1; min-width: 0; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
-    #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
     #msg-search-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; margin-left: auto; }
     #msg-search-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #msg-search-btn.active { border-color: #3cdb7c; color: #3cdb7c; }
@@ -3200,7 +3202,6 @@ app.get('/', (req, res) => {
       .storage-info { font-size: 11px; }
       /* Verlauf am rechten Rand als Hinweis, dass da noch mehr kommt */
       .topbar.has-more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
-      #ch-stats { white-space: normal; font-size: 10px; }
       body.chat-open .topbar h1 { display: none; }
       body.chat-open .topbar .status-dot { display: none; }
       body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
@@ -3251,7 +3252,6 @@ app.get('/', (req, res) => {
     html.light #chat-header { background: #075e54; border-color: #075e54; }
     html.light #ch-name { color: #fff; }
     html.light #ch-phone { color: rgba(255,255,255,0.75); }
-    html.light #ch-stats { color: rgba(255,255,255,0.65); }
     html.light #welcome { color: #555; }
     html.light .bubble-wrap.in .bubble { background: #fff; color: #111; }
     html.light .bubble-wrap.out .bubble { background: #dcf8c6; color: #111; }
@@ -3420,7 +3420,6 @@ app.get('/', (req, res) => {
         <div id="ch-info">
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
-          <div id="ch-stats"></div>
         </div>
         <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
@@ -3484,6 +3483,7 @@ app.get('/', (req, res) => {
       <div class="contact-modal-number" id="contact-modal-number"></div>
       <div class="contact-modal-presence" id="contact-modal-presence"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
+      <div class="contact-modal-stats" id="contact-modal-stats"></div>
       <div class="contact-modal-status" id="contact-modal-status"></div>
       <div style="width:100%" id="contact-modal-archive"></div>
       <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
@@ -5000,19 +5000,26 @@ app.get('/', (req, res) => {
       atBottom = true;
       _pendingMentions = []; hideMentionDropdown(); // Erwähnungen vom vorherigen Chat verwerfen
       if (isGroupChat(chat.id)) ensureParticipants(chat.id); // Namen für @-Auflösung vorladen
-      document.getElementById('ch-stats').textContent = '';
       await loadMessages(chat.id);
     }
 
-    async function updateChatStats(chatId) {
-      if (chatId !== selectedChatId) return;
-      try {
-        const s = await fetch('api/stats?chat=' + encodeURIComponent(chatId)).then(r => r.json());
-        const sinceStr = s.first ? fmtDate(s.first) : '';
-        const photoStr = s.photos ? '  📷 ' + s.photos : '';
-        document.getElementById('ch-stats').textContent =
-          s.total + ' ' + t('statsMsg') + '  ↑ ' + s.sent + '  ↓ ' + s.received + photoStr + (sinceStr ? '  ' + t('statsSince') + ' ' + sinceStr : '');
-      } catch(e) {}
+    // Gespraechs-Statistik. Stand frueher in der Chat-Kopfzeile und nahm dort viel
+    // Platz weg — jetzt im Kontaktfenster, das man ueber das Profilbild oeffnet.
+    async function loadChatStats(chatId) {
+      const el = document.getElementById('contact-modal-stats');
+      if (!el) return;
+      el.className = 'contact-modal-stats';
+      el.innerHTML = '';
+      let s = null;
+      try { s = await fetch('api/stats?chat=' + encodeURIComponent(chatId)).then(apiJson); }
+      catch (e) { return; }
+      if (!document.getElementById('contact-modal').classList.contains('open')) return;
+      if (!s || !s.total) return; // ohne Chatverlauf gibt es nichts zu zeigen
+      const parts = ['<b>' + s.total + '</b> ' + esc(t('statsMsg'))
+        + '  ↑ ' + s.sent + '  ↓ ' + s.received + (s.photos ? '  📷 ' + s.photos : '')];
+      if (s.first) parts.push(esc(t('statsSince')) + ' ' + esc(fmtDate(s.first)));
+      el.innerHTML = parts.join('<br>');
+      el.className = 'contact-modal-stats has-items';
     }
 
     function closeChat() {
@@ -5031,7 +5038,7 @@ app.get('/', (req, res) => {
           .then(r => r.json());
         // Stats nur neu laden, wenn tatsächlich neue Nachrichten kamen
         if (msgs.length) {
-          renderMessages(msgs, chatId); pollReactions(); updateChatStats(chatId);
+          renderMessages(msgs, chatId); pollReactions();
           // Kontaktliste links sofort aktualisieren (Vorschau + Sortierung),
           // statt bis zum nächsten pollChats-Intervall (10 s) zu warten — gilt für
           // empfangene wie gesendete Nachrichten im offenen Chat
@@ -5512,7 +5519,9 @@ app.get('/', (req, res) => {
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
       loadPresence(chatId);
+      loadChatStats(chatId);
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
+      document.getElementById('contact-modal-stats').className = 'contact-modal-stats';
       archiveEl.innerHTML = '';
       modal.classList.add('open');
       fetch('api/status/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {

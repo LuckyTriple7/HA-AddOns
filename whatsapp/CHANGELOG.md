@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.73] - 2026-08-28
+- Aenderung: **Die Gespraechs-Statistik ist von der Chat-Kopfzeile ins Kontaktfenster gewandert** — dorthin, wo man ueber das Profilbild hinkommt. Die Kopfzeile zeigt jetzt nur noch Name und Rufnummer, die Statistik steht unter dem Info-Text: Anzahl der Nachrichten, gesendet, empfangen, Fotos und seit wann
+- Bei Kontakten ohne Chatverlauf entfaellt die Zeile ganz, statt eine Null anzuzeigen
+
 ## [1.7.72] - 2026-08-28
 - Feature: **Dauerhaft online sein ist nicht mehr noetig.** Die Verfuegbarkeit wird jetzt nur noch fuer die Dauer einer Abfrage gemeldet und danach wieder abgemeldet. Man erscheint also hoechstens fuer die paar Sekunden online, in denen man ein Kontaktfenster oeffnet
 - Die Option `presence_announce` (an/aus) weicht dafuer `presence_mode` mit drei Werten: `temporary` (Standard, kurz melden und wieder abmelden), `always` (dauerhaft, wie bisher) und `off` (nie melden — „zuletzt online" bleibt dann meist leer). Wer `presence_announce` gesetzt hatte, stellt bitte `presence_mode` neu ein
