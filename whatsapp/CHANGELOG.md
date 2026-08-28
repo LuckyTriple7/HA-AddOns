@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.7] - 2026-08-28
+- Feature: **X zum Leeren im Suchfeld der Seitenleiste.** Erscheint nur, wenn etwas drinsteht, raeumt Feld und Filter weg und laesst den Cursor im Feld — auch im Kontakte-Reiter
+
 ## [1.8.6] - 2026-08-28
 - Feature: **Pruefen, ob eine Rufnummer bei WhatsApp ist** — ohne sie zu speichern und ohne ihr zu schreiben. Das kann die WhatsApp-App nicht. Tippt man in der Seitenleiste etwas, das nach einer Rufnummer aussieht, erscheint die Zeile „📱 „…" bei WhatsApp prüfen"; im Kontakte-Reiter steht ausserdem unten ein Knopf dafuer
 - Bei einem Treffer nennt das Ergebnis die Nummer, den gespeicherten Namen (oder „nicht im Adressbuch") und den Info-Text; ein Knopf oeffnet direkt den Chat — auch wenn es bisher keinen gab

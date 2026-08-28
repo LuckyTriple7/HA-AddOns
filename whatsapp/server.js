@@ -3191,11 +3191,20 @@ app.get('/', (req, res) => {
     .contact-list-foot button:hover { background:rgba(134,150,160,0.15); }
     .chat-item .chat-preview.no-chat { font-style:italic; opacity:0.75; }
     .avatar.group-avatar { background:#25D366 !important; font-size:22px; }
+    #search-wrap { position: relative; width: 100%; }
     #search {
       width: 100%; background: #2a3942; border: none; border-radius: 8px;
-      padding: 8px 12px; color: #e9edef; font-size: 14px; outline: none;
+      padding: 8px 30px 8px 12px; color: #e9edef; font-size: 14px; outline: none;
     }
     #search::placeholder { color: #8696a0; }
+    #search-clear {
+      display: none; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #8696a0; cursor: pointer;
+      font-size: 14px; line-height: 1; padding: 4px 6px; border-radius: 50%;
+    }
+    #search-clear:hover { color: #e9edef; background: rgba(255,255,255,0.1); }
+    #search-clear.show { display: block; }
+    html.light #search-clear:hover { color: #111; background: rgba(0,0,0,0.08); }
     #chat-list { flex: 1; overflow-y: auto; }
     #chat-list::-webkit-scrollbar { width: 5px; }
     #chat-list::-webkit-scrollbar-thumb { background: #2a3942; border-radius: 3px; }
@@ -3831,8 +3840,11 @@ app.get('/', (req, res) => {
 
     <div id="sidebar">
       <div id="sidebar-header">
-        <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()"
-               onkeydown="if(event.key==='Enter'){const v=this.value.trim(); if(v.length>1) openGlobalSearch(v);}">
+        <div id="search-wrap">
+          <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()"
+                 onkeydown="if(event.key==='Enter'){const v=this.value.trim(); if(v.length>1) openGlobalSearch(v);}">
+          <button id="search-clear" onclick="clearChatSearch()" data-i18n-title="searchClear" title="Suche leeren">✕</button>
+        </div>
       </div>
       <div id="chat-filter">
         <button class="filter-tab active" data-filter="all" onclick="setFilter('all')" data-i18n="filterAll">Alle</button>
@@ -4184,6 +4196,7 @@ app.get('/', (req, res) => {
         contactsEmpty:'Keine Kontakte gefunden.', contactsNoChat:'noch kein Chat',
         contactsError:'Adressbuch konnte nicht geladen werden.',
         contactsRefresh:'Adressbuch neu laden',
+        searchClear:'Suche leeren',
         presLoading:'zuletzt online wird geprüft…', presOnline:'online',
         presLastSeen:(w)=>'zuletzt online: '+w, presDenied:'zuletzt online: nicht sichtbar',
         presUnknown:'zuletzt online: keine Angabe',
@@ -4306,6 +4319,7 @@ app.get('/', (req, res) => {
         contactsEmpty:'No contacts found.', contactsNoChat:'no chat yet',
         contactsError:'Could not load the address book.',
         contactsRefresh:'Reload address book',
+        searchClear:'Clear search',
         presLoading:'checking last seen…', presOnline:'online',
         presLastSeen:(w)=>'last seen: '+w, presDenied:'last seen: not visible',
         presUnknown:'last seen: no information',
@@ -5551,7 +5565,17 @@ app.get('/', (req, res) => {
       prependSearchAll(list);
     }
 
+    function clearChatSearch() {
+      const inp = document.getElementById('search');
+      inp.value = '';
+      inp.focus();
+      filterChats();
+    }
+
     function filterChats() {
+      // Das X nur zeigen, wenn auch etwas drinsteht
+      const inp = document.getElementById('search');
+      document.getElementById('search-clear').classList.toggle('show', !!inp.value);
       if (currentFilter === 'contacts') { renderContactList(); return; }
       renderChatList(allChats);
     }
