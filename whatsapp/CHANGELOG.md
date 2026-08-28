@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.70] - 2026-08-28
+- Feature: **„Zuletzt online" im Kontaktfenster.** `whatsapp-web.js` kann fremde Praesenz nicht lesen — nur die eigene senden. WhatsApp Web fuehrt sie aber in der `PresenceCollection`: das Modell hat `subscribe()`, `isOnline` und darunter `chatstate` mit `type`, `t` (Zeitpunkt) und `deny`. Das Add-on abonniert die Praesenz beim Oeffnen des Kontakts und zeigt eines von vier Ergebnissen: „online" (gruen), „zuletzt online: Heute, 08:53", „zuletzt online: nicht sichtbar" (der Kontakt erlaubt es nicht) oder „zuletzt online: keine Angabe"
+- Ohne Abo liefert WhatsApp nichts, und die Antwort kommt asynchron — deshalb steht bis zu dreieinhalb Sekunden „wird geprueft" da. Fuer Gruppen entfaellt die Anzeige
+- Neu: `GET /api/presence/:chatId` liefert `online`, `lastSeen` (Millisekunden) und `denied`; im Debug-Modus zusaetzlich die Rohwerte aus WhatsApp Web
+
 ## [1.7.69] - 2026-08-28
 - Feature: **„Auswahl entfernen" im Bild-Reiter.** Ein gewaehltes Bild liess sich bisher nur durch Auswahl eines anderen ersetzen. Der Knopf erscheint, sobald etwas gewaehlt ist — auch waehrend das Bild noch verkleinert wird — und raeumt Vorschau, Dateifeld und Bildunterschrift weg
 - Fix: **Der Editor merkte sich alles ueber „Abbrechen" hinweg.** Beim naechsten Oeffnen stand noch das zuletzt gewaehlte Bild da und liess sich versehentlich ein zweites Mal posten. Beim Oeffnen wird jetzt zurueckgesetzt: Text, Bild, Bildunterschrift, Farbe, Schrift und der Vorlagenname

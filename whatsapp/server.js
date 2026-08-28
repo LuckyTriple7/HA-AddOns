@@ -1793,6 +1793,72 @@ app.get('/api/contact/:chatId', async (req, res) => {
   }
 });
 
+// ── Zuletzt online ────────────────────────────────────────────────────────────
+// whatsapp-web.js kann nur die eigene Praesenz senden, fremde nicht lesen.
+// WhatsApp Web selbst fuehrt sie in der PresenceCollection: das Modell hat
+// subscribe(), isOnline und darunter chatstate mit type, t (Zeitpunkt) und deny
+// (Sichtbarkeit vom Kontakt verboten). Ohne Abo kommen keine Daten, deshalb erst
+// abonnieren, dann kurz auf die Antwort warten.
+app.get('/api/presence/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  if (chatId.endsWith('@g.us')) return res.json({ supported: false });
+  try {
+    const p = await client.pupPage.evaluate(async (chatId, waitMs) => {
+      const out = { supported: true, subscribed: false, isOnline: null, hasData: null,
+                    stale: null, type: null, t: null, deny: null, error: null };
+      try {
+        const wid = window.require('WAWebWidFactory').createWid(chatId);
+        const PC = window.require('WAWebPresenceCollection').PresenceCollection;
+        let model = PC.get(wid);
+        if (!model) { try { model = await PC.find(wid); } catch (e) {} }
+        if (!model) { out.error = 'keine Praesenz zu dieser ID'; return out; }
+        try {
+          if (typeof model.subscribe === 'function') { await model.subscribe(); out.subscribed = true; }
+        } catch (e) { out.error = 'subscribe: ' + String((e && e.message) || e); }
+
+        // Die Antwort kommt asynchron ueber den Socket — kurz darauf warten
+        const deadline = Date.now() + waitMs;
+        while (Date.now() < deadline) {
+          const cs = model.chatstate || {};
+          if (model.hasData || cs.t != null || cs.deny != null) break;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        const cs = model.chatstate || {};
+        out.isOnline = !!model.isOnline;
+        out.hasData = !!model.hasData;
+        out.stale = !!model.stale;
+        out.type = cs.type != null ? cs.type : null;
+        out.t = cs.t != null ? cs.t : null;
+        out.deny = cs.deny != null ? !!cs.deny : null;
+      } catch (e) {
+        out.error = String((e && e.message) || e);
+      }
+      return out;
+    }, chatId, 3500);
+
+    // chatstate.t kommt in Sekunden — auf Millisekunden bringen, aber nur wenn es
+    // plausibel ist (sonst lieber nichts anzeigen als eine erfundene Zeit)
+    let lastSeen = null;
+    if (typeof p.t === 'number' && p.t > 1000000000 && p.t < 1e12) lastSeen = p.t * 1000;
+    else if (typeof p.t === 'number' && p.t >= 1e12) lastSeen = p.t;
+
+    dbg(`presence(${chatId}): ${JSON.stringify(p)}`);
+    res.json({
+      supported: true,
+      online: p.type === 'available' || p.isOnline === true,
+      lastSeen,
+      denied: p.deny === true,
+      // Kein Zeitpunkt und keine Verweigerung: WhatsApp hat schlicht nichts geliefert
+      unknown: !p.deny && lastSeen === null && p.type !== 'available',
+      raw: DEBUG ? p : undefined,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/statuses-available', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   try {
@@ -2728,6 +2794,8 @@ app.get('/', (req, res) => {
     .contact-modal-pushname { font-size: 13px; color: #8696a0; }
     .contact-modal-number { font-size: 14px; color: #00a884; font-weight: 500; }
     .contact-modal-about { font-size: 13px; color: #8696a0; text-align: center; max-width: 260px; word-break: break-word; }
+    .contact-modal-presence { font-size: 12px; color: #8696a0; min-height: 16px; }
+    .contact-modal-presence.online { color: #06cf9c; font-weight: 600; }
     .contact-modal-status { display: none; flex-direction: column; gap: 8px; width: 100%; max-height: 240px; overflow-y: auto; }
     .contact-modal-status.has-items { display: flex; }
     .status-label { font-size: 12px; font-weight: 600; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -3332,6 +3400,7 @@ app.get('/', (req, res) => {
       <div class="contact-modal-name" id="contact-modal-name">…</div>
       <div class="contact-modal-pushname" id="contact-modal-pushname"></div>
       <div class="contact-modal-number" id="contact-modal-number"></div>
+      <div class="contact-modal-presence" id="contact-modal-presence"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
       <div class="contact-modal-status" id="contact-modal-status"></div>
       <div style="width:100%" id="contact-modal-archive"></div>
@@ -3551,6 +3620,9 @@ app.get('/', (req, res) => {
         contactsEmpty:'Keine Kontakte gefunden.', contactsNoChat:'noch kein Chat',
         contactsError:'Adressbuch konnte nicht geladen werden.',
         contactsRefresh:'Adressbuch neu laden',
+        presLoading:'zuletzt online wird geprüft…', presOnline:'online',
+        presLastSeen:(w)=>'zuletzt online: '+w, presDenied:'zuletzt online: nicht sichtbar',
+        presUnknown:'zuletzt online: keine Angabe',
         contactsFoot:(n,w)=>n+' Kontakt'+(n===1?'':'e')+' im Adressbuch · '+w+' ohne Chat',
         meProfile:'Mein Profil', meStatusSub:'Status posten · Info bearbeiten',
         msTitle:'Mein Status', msTabText:'Text', msTabMedia:'Bild / Video', msTabTemplates:'Vorlagen', msTabProfile:'Profil',
@@ -3641,6 +3713,9 @@ app.get('/', (req, res) => {
         contactsEmpty:'No contacts found.', contactsNoChat:'no chat yet',
         contactsError:'Could not load the address book.',
         contactsRefresh:'Reload address book',
+        presLoading:'checking last seen…', presOnline:'online',
+        presLastSeen:(w)=>'last seen: '+w, presDenied:'last seen: not visible',
+        presUnknown:'last seen: no information',
         contactsFoot:(n,w)=>n+' contact'+(n===1?'':'s')+' in the address book · '+w+' without a chat',
         meProfile:'My profile', meStatusSub:'Post a status · edit info',
         msTitle:'My status', msTabText:'Text', msTabMedia:'Photo / video', msTabTemplates:'Templates', msTabProfile:'Profile',
@@ -5317,6 +5392,31 @@ app.get('/', (req, res) => {
       renderFwdChatList(q ? allChats.filter(c => c.name.toLowerCase().includes(q)) : allChats);
     }
 
+    // Zuletzt online. Ohne Abo liefert WhatsApp nichts, deshalb kann die Antwort
+    // ein paar Sekunden dauern — solange steht "wird geprüft" da.
+    async function loadPresence(chatId) {
+      const el = document.getElementById('contact-modal-presence');
+      if (!el) return;
+      el.className = 'contact-modal-presence';
+      el.textContent = t('presLoading');
+      let d = null;
+      try { d = await fetch('api/presence/' + encodeURIComponent(chatId)).then(apiJson); }
+      catch (e) { d = null; }
+      // Fenster wurde inzwischen geschlossen oder ein anderer Kontakt geoeffnet
+      if (!document.getElementById('contact-modal').classList.contains('open')) return;
+      if (!d || d.error || d.supported === false) { el.textContent = ''; return; }
+      if (d.online) {
+        el.className = 'contact-modal-presence online';
+        el.textContent = t('presOnline');
+      } else if (d.lastSeen) {
+        el.textContent = tf('presLastSeen', fmtDate(d.lastSeen) + ', ' + fmtTime(d.lastSeen));
+      } else if (d.denied) {
+        el.textContent = t('presDenied');
+      } else {
+        el.textContent = t('presUnknown');
+      }
+    }
+
     async function openContactInfo(chatId, fallbackName) {
       const modal = document.getElementById('contact-modal');
       const picEl = document.getElementById('contact-modal-pic');
@@ -5329,6 +5429,7 @@ app.get('/', (req, res) => {
       // Reset
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
+      loadPresence(chatId);
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
       archiveEl.innerHTML = '';
       modal.classList.add('open');
