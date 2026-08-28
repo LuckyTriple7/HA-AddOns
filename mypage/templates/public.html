@@ -444,6 +444,35 @@
     .tm-author img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
     .tm-role { color: var(--muted); }
     /* Team */
+    /* Video: lädt erst auf Klick — vorher steht kein fremdes Skript auf der Seite */
+    .vid-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+    .vid-embed { position: relative; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--surf2, var(--surf)), var(--surf)); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
+    .vid-embed:hover { border-color: var(--accent); }
+    .vid-play { width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; padding-left: 4px; }
+    .vid-hint { color: var(--muted); font-size: 0.82rem; }
+    .vid-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 10px; }
+    .vid-title { font-weight: 700; margin-top: 8px; }
+    .vid-desc { color: var(--muted); font-size: 0.86rem; margin-top: 2px; }
+    /* Downloads */
+    .dl-list { display: flex; flex-direction: column; gap: 10px; }
+    .dl-item { display: flex; align-items: center; gap: 12px; background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .dl-item:hover { border-color: var(--accent); text-decoration: none; }
+    .dl-icon { font-size: 1.4rem; flex: 0 0 auto; }
+    .dl-title { font-weight: 600; }
+    .dl-desc { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+    .dl-size { color: var(--muted); font-size: 0.8rem; margin-left: auto; flex: 0 0 auto; }
+    /* Kennzahlen: die Zahl trägt den Abschnitt, alles andere ordnet sich unter */
+    .facts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; }
+    .fact-card { text-align: center; background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 18px 14px; }
+    .fact-icon { font-size: 1.6rem; line-height: 1; }
+    .fact-value { font-size: 2rem; font-weight: 800; color: var(--accent); line-height: 1.1; margin-top: 6px; word-break: break-word; }
+    .fact-label { color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
+    /* Partnerlogos: einheitliche Höhe statt Originalgrößen — sonst erschlägt ein
+       großes Logo die kleineren daneben. */
+    .partner-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: center; }
+    .partner-item { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; justify-content: center; min-width: 120px; min-height: 64px; }
+    .partner-item img { max-height: 44px; max-width: 150px; width: auto; height: auto; object-fit: contain; }
+    .partner-name { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
     .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; }
     .team-card { text-align: center; }
     .team-photo { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); }
@@ -1030,6 +1059,73 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'videos' %}
+    {% if sections.videos %}
+    <h2 class="section-title" id="videos">{{ sec_titles.get('videos') or t.videos_heading }}</h2>
+    <div class="vid-grid">
+      {% for v in sections.videos %}
+      {% set vp = parse_video(v.url) %}
+      {% if vp[1] %}
+      <div>
+        <div class="vid-embed" data-src="{{ vp[1] }}" onclick="loadVideo(this)">
+          <div class="vid-play">▶</div>
+          <span class="vid-hint">{{ t.video_load }} ({{ vp[0]|capitalize }})</span>
+        </div>
+        {% if loc(v, 'title') %}<div class="vid-title">{{ loc(v, 'title') }}</div>{% endif %}
+        {% if loc(v, 'desc') %}<div class="vid-desc">{{ loc(v, 'desc') }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'downloads' %}
+    {% if sections.downloads %}
+    <h2 class="section-title" id="downloads">{{ sec_titles.get('downloads') or t.downloads_heading }}</h2>
+    <div class="dl-list">
+      {% for d in sections.downloads %}
+      <a class="dl-item" href="/download/{{ d.file }}">
+        <span class="dl-icon" aria-hidden="true">📄</span>
+        <span>
+          <span class="dl-title">{{ loc(d, 'title') }}</span>
+          {% if loc(d, 'desc') %}<div class="dl-desc">{{ loc(d, 'desc') }}</div>{% endif %}
+        </span>
+        {% if d.size %}<span class="dl-size">{{ d.size }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'facts' %}
+    {% if sections.facts %}
+    <h2 class="section-title" id="fakten">{{ sec_titles.get('facts') or t.facts_heading }}</h2>
+    <div class="facts-grid">
+      {% for f in sections.facts %}
+      <div class="fact-card">
+        {% if f.icon %}<div class="fact-icon" aria-hidden="true">{{ f.icon }}</div>{% endif %}
+        <div class="fact-value">{{ f.value }}</div>
+        {% if loc(f, 'label') %}<div class="fact-label">{{ loc(f, 'label') }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'partners' %}
+    {% if sections.partners %}
+    <h2 class="section-title" id="partner">{{ sec_titles.get('partners') or t.partners_heading }}</h2>
+    <div class="partner-grid">
+      {% for pa in sections.partners %}
+      {#- Ohne Logo steht der Name da: ein leerer Kasten wäre schlimmer als Text. -#}
+      {% set inner %}{% if pa.logo %}<img src="{{ pa.logo }}" alt="{{ pa.name }}" loading="lazy">{% else %}<span class="partner-name">{{ pa.name }}</span>{% endif %}{% endset %}
+      {% if pa.url %}
+      <a class="partner-item" href="{{ pa.url }}" target="_blank" rel="noopener" title="{{ pa.name }}">{{ inner }}</a>
+      {% else %}
+      <div class="partner-item" title="{{ pa.name }}">{{ inner }}</div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% elif _sec == 'team' %}
     {% if sections.team %}
     <h2 class="section-title" id="team">{{ sec_titles.get('team') or t.team_heading }}</h2>
@@ -1212,6 +1308,16 @@
   </footer>
 
   <script>
+    // Das Video wird erst auf Klick geladen: vorher steht kein fremdes Skript
+    // auf der Seite, und der Besucher entscheidet, wann YouTube mitliest.
+    function loadVideo(box) {
+      const f = document.createElement('iframe');
+      f.src = box.dataset.src + (box.dataset.src.includes('?') ? '&' : '?') + 'autoplay=1';
+      f.allow = 'autoplay; fullscreen; picture-in-picture';
+      f.setAttribute('allowfullscreen', '');
+      box.innerHTML = '';
+      box.appendChild(f);
+    }
     (function(){
       const saved = localStorage.getItem('mp-public-theme');
       if (saved) {

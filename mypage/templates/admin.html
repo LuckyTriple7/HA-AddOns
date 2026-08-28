@@ -871,6 +871,13 @@
         <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
         <p class="hint">{{ t.skills_hint }}</p>
       </div>
+      <div class="panel acc" data-key="facts">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.facts_heading }}</div>
+        {{ sect_title('facts', t.facts_heading) }}
+        <p class="hint">{{ t.facts_hint }}</p>
+        <div id="facts-list"></div>
+        <button class="btn secondary small" onclick="addFactRow()">+ {{ t.add_entry }}</button>
+      </div>
       <div class="panel acc" data-key="testimonials">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.testimonials_heading }}</div>
         {{ sect_title('testimonials', t.testimonials_heading) }}
@@ -903,6 +910,13 @@
         <p class="hint">{{ t.album_protect_hint }}</p>
         <p class="hint">{{ t.img_ai_hint }}</p>
       </div>
+      <div class="panel acc" data-key="videos">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.videos_heading }}</div>
+        {{ sect_title('videos', t.videos_heading) }}
+        <p class="hint">{{ t.videos_hint }}</p>
+        <div id="videos-list"></div>
+        <button class="btn secondary small" onclick="addVideoRow()">+ {{ t.add_entry }}</button>
+      </div>
       <div class="panel acc" data-key="library">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.library_heading }} <span class="acc-ext">↗</span></div>
         {{ sect_title('library', t.library_heading) }}
@@ -914,6 +928,13 @@
         {{ sect_title('forms', t.forms_heading) }}
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=forms]').click()">{{ t.tab_forms }} →</button>
+      </div>
+      <div class="panel acc" data-key="downloads">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.downloads_heading }}</div>
+        {{ sect_title('downloads', t.downloads_heading) }}
+        <p class="hint">{{ t.downloads_hint }}</p>
+        <div id="downloads-list"></div>
+        <button class="btn secondary small" onclick="addDownloadRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="travel">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.trav_trips_heading }} <span class="acc-ext">↗</span></div>
@@ -941,6 +962,13 @@
         <p class="hint">{{ t.events_hint }}</p>
         <div id="events-list"></div>
         <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
+      </div>
+      <div class="panel acc" data-key="partners">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.partners_heading }}</div>
+        {{ sect_title('partners', t.partners_heading) }}
+        <p class="hint">{{ t.partners_hint }}</p>
+        <div id="partners-list"></div>
+        <button class="btn secondary small" onclick="addPartnerRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="links">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.links_heading }}</div>
@@ -5225,6 +5253,14 @@
       (s.services || []).forEach(x => addServiceRow(x));
       el('testimonials-list').innerHTML = '';
       (s.testimonials || []).forEach(x => addTestimonialRow(x));
+      el('videos-list').innerHTML = '';
+      (s.videos || []).forEach(x => addVideoRow(x));
+      el('downloads-list').innerHTML = '';
+      (s.downloads || []).forEach(x => addDownloadRow(x));
+      el('facts-list').innerHTML = '';
+      (s.facts || []).forEach(x => addFactRow(x));
+      el('partners-list').innerHTML = '';
+      (s.partners || []).forEach(x => addPartnerRow(x));
       el('team-list').innerHTML = '';
       (s.team || []).forEach(x => addTeamRow(x));
       el('events-list').innerHTML = '';
@@ -5566,6 +5602,125 @@
       div.querySelector('.tm-quote_en').value = tm.quote_en || '';
       el('testimonials-list').appendChild(div);
     }
+    function addVideoRow(v) {
+      v = v || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr 1fr auto">
+        <input type="text" class="vi-url" placeholder="https://youtu.be/…">
+        <input type="text" class="vi-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="vi-title_en" placeholder="${T.field_title} (EN)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="vi-desc_de" placeholder="${T.field_desc} (DE)">
+        <input type="text" class="vi-desc_en" placeholder="${T.field_desc} (EN)">
+      </div>`;
+      div.querySelector('.vi-url').value = v.url || '';
+      div.querySelector('.vi-title_de').value = v.title_de || '';
+      div.querySelector('.vi-title_en').value = v.title_en || '';
+      div.querySelector('.vi-desc_de').value = v.desc_de || '';
+      div.querySelector('.vi-desc_en').value = v.desc_en || '';
+      el('videos-list').appendChild(div);
+    }
+    // Der Dateiname bleibt in einem versteckten Feld: sichtbar wäre er eine
+    // UUID ohne Aussage, und von Hand geändert zeigte er ins Leere.
+    function addDownloadRow(d) {
+      d = d || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr auto">
+        <input type="text" class="dl-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="dl-title_en" placeholder="${T.field_title} (EN)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="dl-desc_de" placeholder="${T.field_desc} (DE)">
+        <input type="text" class="dl-desc_en" placeholder="${T.field_desc} (EN)">
+      </div>
+      <div class="upload-row" style="margin-top:8px">
+        <input type="hidden" class="dl-file">
+        <input type="file" class="dl-input" accept="application/pdf" style="display:none">
+        <button class="btn secondary small" onclick="this.closest('.entry-row').querySelector('.dl-input').click()">⬆ ${T.downloads_pick}</button>
+        <span class="hint dl-status" style="margin:0"></span>
+      </div>`;
+      div.querySelector('.dl-title_de').value = d.title_de || '';
+      div.querySelector('.dl-title_en').value = d.title_en || '';
+      div.querySelector('.dl-desc_de').value = d.desc_de || '';
+      div.querySelector('.dl-desc_en').value = d.desc_en || '';
+      div.querySelector('.dl-file').value = d.file || '';
+      div.querySelector('.dl-status').textContent = d.file ? T.downloads_ready : T.downloads_none;
+      div.querySelector('.dl-input').addEventListener('change', async ev => {
+        const f = ev.target.files[0]; ev.target.value = '';
+        if (!f) return;
+        const st = div.querySelector('.dl-status');
+        st.textContent = T.library_pdf_uploading;
+        const fd = new FormData(); fd.append('file', f);
+        const r = await fetch('api/upload-doc', { method: 'POST', body: fd, credentials: 'same-origin' });
+        if (r.ok) {
+          div.querySelector('.dl-file').value = (await r.json()).name;
+          st.textContent = T.downloads_ready;
+        } else {
+          st.textContent = '';
+          toast(T.library_pdf_upload_failed, true);
+        }
+      });
+      el('downloads-list').appendChild(div);
+    }
+    function addFactRow(f) {
+      f = f || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:80px 1fr 1fr 1fr auto">
+        <input type="text" class="fa-icon" placeholder="${T.facts_icon}" maxlength="8">
+        <input type="text" class="fa-value" placeholder="${T.facts_value}" maxlength="20">
+        <input type="text" class="fa-label_de" placeholder="${T.facts_label} (DE)" maxlength="60">
+        <input type="text" class="fa-label_en" placeholder="${T.facts_label} (EN)" maxlength="60">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>`;
+      div.querySelector('.fa-icon').value = f.icon || '';
+      div.querySelector('.fa-value').value = f.value || '';
+      div.querySelector('.fa-label_de').value = f.label_de || '';
+      div.querySelector('.fa-label_en').value = f.label_en || '';
+      el('facts-list').appendChild(div);
+    }
+    function addPartnerRow(pa) {
+      pa = pa || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr auto">
+        <input type="text" class="pt-name" placeholder="${T.field_name}" maxlength="80">
+        <input type="text" class="pt-url" placeholder="https://…">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="upload-row">
+          <input type="text" class="pt-logo" placeholder="${T.partners_logo}">
+          <button class="btn secondary small" onclick="browseUploads(u => { this.closest('.entry-row').querySelector('.pt-logo').value = u; })">${T.image_pick}</button>
+        </div>
+        <span></span>
+      </div>`;
+      div.querySelector('.pt-name').value = pa.name || '';
+      div.querySelector('.pt-url').value = pa.url || '';
+      div.querySelector('.pt-logo').value = pa.logo || '';
+      el('partners-list').appendChild(div);
+    }
     function addTeamRow(m) {
       m = m || {};
       const div = document.createElement('div');
@@ -5727,6 +5882,31 @@
         bio_de:  row.querySelector('.tg-bio_de').value,
         bio_en:  row.querySelector('.tg-bio_en').value,
       })).filter(x => x.name);
+      const videos = [...el('videos-list').children].map(row => ({
+        url:      row.querySelector('.vi-url').value.trim(),
+        title_de: row.querySelector('.vi-title_de').value,
+        title_en: row.querySelector('.vi-title_en').value,
+        desc_de:  row.querySelector('.vi-desc_de').value,
+        desc_en:  row.querySelector('.vi-desc_en').value,
+      })).filter(x => x.url);
+      const downloads = [...el('downloads-list').children].map(row => ({
+        file:     row.querySelector('.dl-file').value,
+        title_de: row.querySelector('.dl-title_de').value,
+        title_en: row.querySelector('.dl-title_en').value,
+        desc_de:  row.querySelector('.dl-desc_de').value,
+        desc_en:  row.querySelector('.dl-desc_en').value,
+      })).filter(x => x.file && (x.title_de || x.title_en));
+      const facts = [...el('facts-list').children].map(row => ({
+        icon:     row.querySelector('.fa-icon').value,
+        value:    row.querySelector('.fa-value').value,
+        label_de: row.querySelector('.fa-label_de').value,
+        label_en: row.querySelector('.fa-label_en').value,
+      })).filter(x => x.value);
+      const partners = [...el('partners-list').children].map(row => ({
+        name: row.querySelector('.pt-name').value,
+        logo: row.querySelector('.pt-logo').value,
+        url:  row.querySelector('.pt-url').value.trim(),
+      })).filter(x => x.name);
       const events = [...el('events-list').children].map(row => ({
         date:     row.querySelector('.ev-date').value,
         title_de: row.querySelector('.ev-title_de').value,
@@ -5772,7 +5952,7 @@
         })).filter(o => o.label_de || o.label_en),
       };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown, freetext, poll,
+        { skills, news, timeline, links, faq, tips, services, testimonials, facts, partners, videos, downloads, team, events, location, countdown, freetext, poll,
           section_titles: collectSectionTitles(),
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);

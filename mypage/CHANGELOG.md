@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.37
+
+- 🔢 **Neu: Zahlen & Fakten.** Kennzahlen nebeneinander — Mitglieder, Jahre, Projekte, Öffnungstage. Die Zahl darf Text sein („500+", „24/7", „~3 Mio."), Symbol und Bezeichnung sind optional.
+- 🤝 **Neu: Partner.** Logos von Partnern, Sponsoren oder Kunden, wahlweise verlinkt. Alle Logos werden auf dieselbe Höhe gebracht, damit kein großes die kleinen daneben erschlägt; ohne Logo steht der Name da.
+- 🎬 **Neu: Videos.** YouTube- und Vimeo-Videos mit Titel und Beschreibung. Das Video **lädt erst auf Klick** — vorher steht kein fremdes Skript auf der Seite. Adressen, die nicht erkannt werden, verwirft das Add-on beim Speichern, statt sie ungeprüft in einen Rahmen zu laden.
+- 📄 **Neu: Downloads.** PDFs zum Herunterladen — Satzung, Preisliste, Speisekarte, Formular. Die Datei kommt immer als Download, nie im Browser geöffnet. Ausgeliefert wird ausschließlich, was im Abschnitt steht; ist der Abschnitt ausgeblendet oder auf Mitglieder beschränkt, gilt das auch für die Dateien. Der statische Export nimmt sie mit.
+- 🧩 Alle vier verhalten sich wie die bestehenden Abschnitte: per Drag & Drop sortierbar, einzeln ausblendbar, auf Mitglieder beschränkbar, mit eigener Überschrift und eigenem Eintrag in der Navigationsleiste.
+
 ## 0.11.36
 
 - ✏️ **Jeder Abschnitt darf jetzt heißen, wie er soll.** Bisher ließ sich nur beim Werdegang die Überschrift frei setzen — alle anderen trugen den Namen, den das Add-on vorgibt. Neu hat **jedes der 18 Module** im Reiter „Inhalte" ein Feld **Eigene Überschrift** (DE und EN, oben im jeweiligen Kasten). Damit heißt „Leistungen" beim Restaurant „Speisekarte", beim Verein „Was wir tun" und bei der Firma weiterhin „Leistungen" — ohne dass am Modul selbst etwas umbenannt wird. Leer lassen heißt wie bisher: Standardüberschrift.

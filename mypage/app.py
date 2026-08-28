@@ -656,6 +656,15 @@ DEFAULT_SITE = {
         'faq': [],
         'services': [],
         'testimonials': [],
+        # Kennzahlen (Zahl + Bezeichnung) und Partnerlogos: zwei wiederkehrende
+        # Listen, die sich als Freitext jedes Mal von Hand nachbauen ließen — und
+        # dabei jedes Mal anders aussähen.
+        'facts': [],
+        'partners': [],
+        # Videos laufen erst auf Klick (dieselbe Mechanik wie im Beitrag), und
+        # Downloads liegen in derselben Ablage wie die Bibliothek-PDFs.
+        'videos': [],
+        'downloads': [],
         'team': [],
         'events': [],
         'location': {},
@@ -675,8 +684,9 @@ DEFAULT_SITE = {
         'entries': [],
     },
     'section_order': [
-        'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
-        'photos', 'library', 'travel', 'forms', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+        'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'facts',
+        'testimonials', 'photos', 'videos', 'library', 'downloads', 'travel', 'forms', 'team',
+        'timeline', 'events', 'partners', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
     'members_sections': [],
@@ -5892,6 +5902,46 @@ def api_sections():
             'url':      _clean_str(e.get('url'), 500) if _clean_str(e.get('url'), 500).startswith(('http://', 'https://')) else '',
         } for e in raw['events'][:60]
             if isinstance(e, dict) and (_clean_str(e.get('title_de'), 160) or _clean_str(e.get('title_en'), 160))]
+    if isinstance(raw.get('facts'), list):
+        # Die Zahl bleibt Text: „500+", „24/7" und „~3 Mio." sind genauso
+        # gemeint wie eine glatte Zahl, und gerechnet wird damit nirgends.
+        sec['facts'] = [{
+            'value':    _clean_str(e.get('value'), 20),
+            'label_de': _clean_str(e.get('label_de'), 60),
+            'label_en': _clean_str(e.get('label_en'), 60),
+            'icon':     _clean_str(e.get('icon'), 8),
+        } for e in raw['facts'][:12]
+            if isinstance(e, dict) and _clean_str(e.get('value'), 20)]
+    if isinstance(raw.get('partners'), list):
+        sec['partners'] = [{
+            'name': _clean_str(e.get('name'), 80),
+            'logo': _clean_str(e.get('logo'), 500),
+            'url':  _clean_str(e.get('url'), 500) if _clean_str(e.get('url'), 500).startswith(('http://', 'https://')) else '',
+        } for e in raw['partners'][:40]
+            if isinstance(e, dict) and _clean_str(e.get('name'), 80)]
+    if isinstance(raw.get('videos'), list):
+        # Nur was `parse_video()` erkennt: eine beliebige Adresse als iframe zu
+        # laden hieße, jeder fremden Seite den Rahmen zu öffnen.
+        sec['videos'] = [{
+            'url':      _clean_str(e.get('url'), 500),
+            'title_de': _clean_str(e.get('title_de'), 160),
+            'title_en': _clean_str(e.get('title_en'), 160),
+            'desc_de':  _clean_str(e.get('desc_de'), 500),
+            'desc_en':  _clean_str(e.get('desc_en'), 500),
+        } for e in raw['videos'][:20]
+            if isinstance(e, dict) and parse_video(_clean_str(e.get('url'), 500))[1]]
+    if isinstance(raw.get('downloads'), list):
+        # Der Dateiname muss dem Muster der Ablage entsprechen (UUID + Endung),
+        # sonst zeigt ein selbst gesetzter Eintrag später auf eine fremde Datei.
+        sec['downloads'] = [{
+            'file':     _clean_str(e.get('file'), 80),
+            'title_de': _clean_str(e.get('title_de'), 160),
+            'title_en': _clean_str(e.get('title_en'), 160),
+            'desc_de':  _clean_str(e.get('desc_de'), 400),
+            'desc_en':  _clean_str(e.get('desc_en'), 400),
+        } for e in raw['downloads'][:60]
+            if isinstance(e, dict) and _DOC_FILE_RE.match(_clean_str(e.get('file'), 80) or '')
+            and (_clean_str(e.get('title_de'), 160) or _clean_str(e.get('title_en'), 160))]
     if isinstance(raw.get('location'), dict):
         L = raw['location']
         def _coord(v):
@@ -10013,9 +10063,12 @@ def api_library_entry_reorder():
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/upload-doc', methods=['POST'])
 @admin_app.route('/api/library/upload-doc', methods=['POST'])
 def api_library_upload_doc():
-    """PDF-Upload für einen Bibliothek-Eintrag (getrennt von /api/upload für Bilder)."""
+    """PDF-Upload für Bibliothek und Download-Abschnitt (getrennt von /api/upload
+    für Bilder). Beide legen in derselben Ablage ab; der ältere Pfad bleibt, damit
+    eine offene Oberfläche nach dem Update weiterarbeitet."""
     err = _api_auth()
     if err:
         return err
@@ -10680,6 +10733,14 @@ def api_export():
             # exportierten HTML zeigt damit auf eine echte Datei.
             if _lib_entry_pdf_name(e) and not e.get('members_only'):
                 pages[f"bibliothek/{e['slug']}.pdf"] = f"/bibliothek/{e['slug']}.pdf"
+    # Dateien des Download-Abschnitts gehören in den Export: sonst zeigt die
+    # exportierte Seite auf Adressen, die es außerhalb des Add-ons nicht gibt.
+    if 'downloads' not in set(site.get('hidden_sections') or []) \
+            and 'downloads' not in set(site.get('members_sections') or []):
+        for d in (site.get('sections') or {}).get('downloads') or []:
+            fn = d.get('file') or ''
+            if _DOC_FILE_RE.match(fn):
+                pages[f'download/{fn}'] = f'/download/{fn}'
     trav_trips = _trav_public_trips(site)
     if trav_trips:
         pages['reiseblog/index.html'] = '/reiseblog'
@@ -15089,6 +15150,10 @@ def public_index():
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
         'projects':     ('projects',     'projects',             bool(projects)),
         'skills':       ('skills',       'skills_heading',       bool(sections.get('skills'))),
+        'facts':        ('fakten',       'facts_heading',        bool(sections.get('facts'))),
+        'videos':       ('videos',       'videos_heading',       bool(sections.get('videos'))),
+        'downloads':    ('downloads',    'downloads_heading',    bool(sections.get('downloads'))),
+        'partners':     ('partner',      'partners_heading',     bool(sections.get('partners'))),
         'testimonials': ('testimonials', 'testimonials_heading', bool(sections.get('testimonials'))),
         'photos':       ('photos',       'albums_heading',       bool(albums)),
         'library':      ('library',      'library_heading',      bool(library_entries)),
@@ -16596,6 +16661,39 @@ def library_entry_pdf(slug: str):
         abort(404)
     loc = _loc_factory(detect_language(request))
     fname = (_slugify(loc(entry, 'title')) or slug) + '.pdf'
+    resp = send_file(target, mimetype='application/pdf',
+                     as_attachment=True, download_name=fname)
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@public_app.route('/download/<name>')
+def public_download(name: str):
+    """Datei aus dem Download-Abschnitt — immer als Anhang, nie inline.
+
+    Ausgeliefert wird ausschließlich, was im Abschnitt selbst steht: der Name
+    muss in `sections.downloads` vorkommen. Ohne diese Liste wäre die Route ein
+    offener Zugriff auf die ganze Dokumentenablage, in der auch die PDFs
+    gesperrter Bibliothek-Einträge liegen.
+    """
+    site = load_site()
+    if site['design'].get('maintenance'):
+        abort(404)
+    if not _DOC_FILE_RE.match(name or ''):
+        abort(404)
+    entry = next((d for d in (site.get('sections') or {}).get('downloads') or []
+                  if d.get('file') == name), None)
+    if entry is None:
+        abort(404)
+    if 'downloads' in set(site.get('hidden_sections') or []):
+        abort(404)
+    if 'downloads' in set(site.get('members_sections') or []) and not is_member(request):
+        abort(404)
+    target = safe_under(DOCS_DIR, name)
+    if target is None or not target.is_file():
+        abort(404)
+    loc = _loc_factory(detect_language(request))
+    fname = (_slugify(loc(entry, 'title')) or 'download') + Path(name).suffix
     resp = send_file(target, mimetype='application/pdf',
                      as_attachment=True, download_name=fname)
     resp.headers['X-Content-Type-Options'] = 'nosniff'

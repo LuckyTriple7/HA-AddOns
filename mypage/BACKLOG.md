@@ -592,19 +592,35 @@ Fallstrick: `toc` schreibt IDs in bestehendes HTML. Das ist verträglich, änder
 Ausgabe aller bereits veröffentlichten Texte — vor dem Umstellen einmal gegen den
 Rauchtest laufen lassen.
 
-### 4. Neue Module — was sich lohnt und was nicht
+### 4. Neue Module — vier gebaut mit v0.11.37
 
-Echte, wiederkehrende Datenlisten mit fester Struktur verdienen ein Modul:
+Umgesetzt: **Zahlen/Fakten** (`facts`), **Partner/Logos** (`partners`), **Videos**
+(`videos`) und **Downloads** (`downloads`). Alle vier verhalten sich wie die
+bestehenden Abschnitte: sortierbar, ausblendbar, auf Mitglieder beschränkbar, mit
+eigener Überschrift aus Punkt 1.
 
-- **Zahlen/Fakten**: Zahl + Label + optionales Symbol.
-- **Partner/Logos**: Bild + Link + Alt-Text. Achtung: `LOGOS_DIR` gibt es bereits, gemeint
-  sind dort aber die Logo-Sätze des Add-ons — Partnerlogos gehören in die normale Ablage.
-- **Video** als Startseiten-Abschnitt: `parse_video()` (YouTube/Vimeo, nocookie) ist da und
-  läuft in Blog und Projekt, nur der Abschnitt fehlt.
-- **Downloads**: Datei + Beschreibung. Die Bibliothek liefert heute PDFs, der
-  Mitgliederbereich Dateien — ein schlichter Download-Abschnitt fehlt dazwischen.
+**Fallstricke für später:**
 
-Layout-Bausteine dagegen **nicht** als Module:
+- Ein neues Modul muss an **fünf** Stellen eingetragen werden, sonst fehlt es
+  irgendwo lautlos: `DEFAULT_SITE['sections']`, `DEFAULT_SITE['section_order']`
+  (daraus entsteht `SECTION_KEYS`), das Sanitizing in `/api/sections`, `section_defs`
+  in der Startseiten-Route (Anker, Locale-Key, Sichtbarkeit) und der `{% elif %}`-Zweig
+  in `public.html`. Im Admin kommen Panel, Zeilen-Bauer, `fillSections()` und
+  `saveSections()` dazu.
+- `videos` nimmt nur Adressen an, die `parse_video()` erkennt. Das ist Absicht: eine
+  beliebige Adresse als iframe zu laden hieße, jeder fremden Seite den Rahmen zu öffnen.
+- `downloads` speichert nur Dateinamen, die `_DOC_FILE_RE` entsprechen, und die
+  öffentliche Route `/download/<name>` liefert ausschließlich Dateien aus, die im
+  Abschnitt stehen. Ohne diese Liste wäre sie ein offener Zugriff auf die ganze
+  Dokumentenablage — dort liegen auch die PDFs gesperrter Bibliothek-Einträge.
+  Ausgeblendete und Mitglieder-Abschnitte sperren die Route mit.
+- Der statische Export nimmt die Download-Dateien mit (`pages['download/<datei>']`),
+  aber nur wenn der Abschnitt sichtbar und nicht auf Mitglieder beschränkt ist.
+- `/api/upload-doc` ist derselbe Endpunkt wie `/api/library/upload-doc`; beide legen in
+  `DOCS_DIR` ab. Wer den alten Pfad entfernt, bricht eine offene Oberfläche nach einem
+  Update.
+
+Layout-Bausteine dagegen weiterhin **nicht** als Module:
 
 - **Hero** ist faktisch das Profil (Name, Tagline, Bio, Avatar). Statt eines neuen Moduls
   dort Hintergrundbild und zwei Buttons ergänzen.
@@ -627,5 +643,6 @@ dazu, gehört der Dialog zu den globalen Funktionen, nicht in die Modulliste.
 
 ### Empfohlene Reihenfolge
 
-1 (freie Überschriften, erledigt) → 2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → 4 (Zahlen/Fakten,
-Partner/Logos, Video, Downloads) → Hero-Erweiterung → CTA/Teaser als Freitext-Vorlagen.
+1 (freie Überschriften, erledigt) und 4 (vier neue Module, erledigt) sind durch. Offen:
+2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → Hero-Erweiterung → CTA/Teaser als
+Freitext-Vorlagen.
