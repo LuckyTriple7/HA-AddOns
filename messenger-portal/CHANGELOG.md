@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [1.2.19] - 2026-08-28
+- Die Ampel auf der Kachel sagt jetzt mehr als „Port offen": das Portal liest den Selbsttest des jeweiligen Add-ons mit (`/api/selfcheck`) und zeigt einen **eigenen Zustand**, wenn die Verbindung zwar steht, der Anbieter aber etwas umgebaut hat — „Online – mit Einschränkung", bernsteinfarbener Punkt mit Ring
+- Der Mauszeiger auf der Ampel verrät die Einzelheiten: bei Grün „Verbunden – Selbsttest ohne Befund (16 Bausteine, 4 Antwortformen geprüft)", bei Bernstein die betroffenen Funktionen
+- Die Kachel bleibt in diesem Zustand **anklickbar** — anders als bei „nicht erreichbar" läuft der Messenger ja weiter
+- Add-ons ohne diese Route (Telegram, Signal) verhalten sich unverändert: keine Aussage ist kein Fehler
+- Ergebnisse werden 5 Minuten gemerkt, ein „kennt die Route nicht" 30 Minuten — die Statusabfrage läuft im Sekundentakt, der Selbsttest dahinter nur alle paar Stunden
+
 ## [1.2.18] - 2026-08-28
 - Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt, der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl bleibt ueber einen Seitenwechsel hinweg erhalten
 - Pythons `CRITICAL` laeuft dabei unter ERROR, `WARNING` unter WARN. Zeitstempel hatten die Zeilen hier schon — anders als bei WhatsApp, Telegram und Signal war nur der Filter nachzuruesten

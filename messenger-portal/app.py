@@ -309,6 +309,33 @@ def fetch_last_received(host: str, port: int, timeout: float = 2.0) -> dict | No
 ADDON_STATUS_OK = {'connected', 'linked', 'ready'}
 
 
+# Der Selbsttest der Add-ons laeuft dort ohnehin nur alle paar Stunden — die
+# Statusabfrage des Portals kommt aber alle paar Sekunden. Deshalb gemerkt:
+# Ergebnis 5 Minuten, "kennt die Route nicht" 30 Minuten.
+_selfcheck_cache: dict[str, tuple[float, dict | None]] = {}
+SELFCHECK_TTL_OK = 300.0
+SELFCHECK_TTL_NONE = 1800.0
+
+
+def fetch_selfcheck(host: str, port: int, timeout: float = 2.0) -> dict | None:
+    """Liest /api/selfcheck des Add-ons: prueft dessen Innereien gegen Umbauten
+    beim Anbieter. None, wenn das Add-on die Route nicht kennt — dann gibt es zu
+    dieser Frage schlicht keine Aussage, was kein Fehler ist."""
+    key = f'{host}:{port}'
+    hit = _selfcheck_cache.get(key)
+    if hit and (time.time() - hit[0]) < (SELFCHECK_TTL_NONE if hit[1] is None else SELFCHECK_TTL_OK):
+        return hit[1]
+    try:
+        url = f'http://{host}:{port}/api/selfcheck'
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+            data = data if isinstance(data, dict) and 'ok' in data else None
+    except Exception:
+        data = None
+    _selfcheck_cache[key] = (time.time(), data)
+    return data
+
+
 def fetch_addon_status(host: str, port: int, timeout: float = 2.0) -> dict | None:
     """Liest /api/status des Messenger-Add-ons. None, wenn es die Route nicht gibt."""
     try:
@@ -340,6 +367,20 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
     else:
         state = 'degraded'
 
+    # Verbunden heisst noch nicht, dass alles funktioniert: der Selbsttest des
+    # Add-ons meldet, wenn der Anbieter etwas umgebaut hat. Das ist ein eigener
+    # Zustand — die Verbindung steht ja, nur ein Teil arbeitet nicht mehr.
+    health = fetch_selfcheck(host, port) if state == 'online' else None
+    if health and health.get('ok') is False:
+        state = 'warn'
+        betroffen = [x.get('feature') for x in
+                     (health.get('broken') or []) + (health.get('changed') or []) if x.get('feature')]
+        betroffen = list(dict.fromkeys(betroffen))
+        if not detail:
+            detail = ', '.join(betroffen)
+        log.warning('Selbsttest %s:%s meldet Aenderungen beim Anbieter: %s',
+                    name, port, ', '.join(betroffen) or '?')
+
     if state == 'online':
         preview = (last or {}).get('preview', '')
         log.debug('Poll %s:%s — online last="%s"', name, port, preview[:60] if preview else '—')
@@ -357,6 +398,14 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
         'addon_status':  addon_status,
         'detail':        detail,
         'last_received': last,
+        'health':        None if health is None else {
+            'ok': bool(health.get('ok')),
+            'checked': health.get('checked'),
+            'checked_shape': health.get('checkedShape'),
+            'ts': health.get('ts'),
+            'affected': [x.get('feature') for x in
+                         (health.get('broken') or []) + (health.get('changed') or []) if x.get('feature')],
+        },
     }
 
 

@@ -302,7 +302,12 @@
       box-shadow: 0 0 6px rgba(245,158,11,.6);
       animation: pulse-dot 2.5s ease-in-out infinite;
     }
+    .status-dot.warn {
+      background: #f59e0b;
+      box-shadow: 0 0 0 2px rgba(245,158,11,.35);
+    }
     .card-status.is-degraded { color: #f59e0b; }
+    .card-status.is-warn { color: #f59e0b; }
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; }
       50%       { opacity: .45; }
@@ -516,6 +521,9 @@
     const T_OFFLINE  = {{ t.status_offline | tojson }};
     const T_PROBLEM  = {{ t.status_problem | tojson }};
     const T_PROBLEM_HINT = {{ t.status_problem_hint | tojson }};
+    const T_WARN         = {{ t.status_warn | tojson }};
+    const T_WARN_HINT    = {{ t.status_warn_hint | tojson }};
+    const T_HEALTH_OK    = {{ t.status_health_ok | tojson }};
     const T_CHECKING   = {{ t.status_checking | tojson }};
     const STATUS_URL   = {{ url_for('status') | tojson }};
 
@@ -564,12 +572,23 @@
           const state = m.state || (m.reachable ? 'online' : 'offline');
           dot.className    = 'status-dot ' + state;
           text.textContent = state === 'online' ? T_ONLINE
+                           : state === 'warn' ? T_WARN
                            : state === 'degraded' ? T_PROBLEM : T_OFFLINE;
           el.classList.toggle('is-degraded', state === 'degraded');
+          el.classList.toggle('is-warn', state === 'warn');
           if (state === 'degraded') {
             const hint   = T_PROBLEM_HINT.replace('{name}', m.name || m.icon);
             const reason = m.detail || m.addon_status || '';
             el.title = reason ? hint + ' (' + reason + ')' : hint;
+          } else if (state === 'warn') {
+            // Verbindung steht, aber der Selbsttest des Add-ons meldet Aenderungen
+            const was = (m.health && m.health.affected || []).join(', ') || m.detail || '';
+            el.title = T_WARN_HINT.replace('{name}', m.name || m.icon).replace('{what}', was);
+          } else if (state === 'online' && m.health && m.health.ok) {
+            // Gruen heisst hier mehr als "Port offen": der Selbsttest war sauber
+            el.title = T_HEALTH_OK
+              .replace('{n}', m.health.checked || 0)
+              .replace('{s}', m.health.checked_shape || 0);
           } else {
             el.removeAttribute('title');
           }
