@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.26] - 2026-08-28
+- Fix: **Im Kontakte-Reiter erschien das eigene Profil erst, wenn das Adressbuch geladen war.** Waehrenddessen stand dort nur „Lade Kontakte", obwohl das Profil davon gar nicht abhaengt. Es steht jetzt sofort oben — auch wenn das Adressbuch noch laedt oder gar nicht kommt
+- Das Profil wird ausserdem schon beim Start im Hintergrund geholt, damit Name und Bild beim ersten Klick fertig dastehen
+
 ## [1.8.25] - 2026-08-28
 - Die Rueckgabe steht jetzt fest: `{ setting: "deny-list", allowList: [], denyList: […] }`. Beide Listen bestehen **nebeneinander** — das Add-on nimmt deshalb die zum Modus passende, statt die erstbeste gefuellte. Sonst haette eine liegengebliebene Liste die falschen Namen gezeigt
 - Die Kontakte kommen hier als Rufnummern (`491713333774@c.us`), nicht als LID wie bei „Zuletzt online" — Namen sind damit direkt zuzuordnen

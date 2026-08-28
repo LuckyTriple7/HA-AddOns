@@ -5870,10 +5870,17 @@ app.get('/', (req, res) => {
 
     function renderContactList() {
       const list = document.getElementById('chat-list');
-      if (_addressBookState === 'loading') { list.innerHTML = '<div class="no-chats">' + esc(t('contactsLoading')) + '</div>'; return; }
+      // Das eigene Profil haengt nicht am Adressbuch — es gehoert sofort hin,
+      // auch waehrend das Adressbuch noch laedt oder gar nicht kommt
+      if (_addressBookState === 'loading' || _addressBookState === 'idle') {
+        list.innerHTML = '<div class="no-chats">' + esc(t('contactsLoading')) + '</div>';
+        list.insertBefore(buildMeItem(), list.firstChild);
+        return;
+      }
       if (_addressBookState === 'error') {
         list.innerHTML = '<div class="no-chats">' + esc(t('contactsError')) + '</div>'
           + '<div class="contact-list-foot"><button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button></div>';
+        list.insertBefore(buildMeItem(), list.firstChild);
         bindContactFoot(list);
         return;
       }
@@ -8421,6 +8428,9 @@ app.get('/', (req, res) => {
     refresh();
     // Intervalle pausieren, wenn der Tab im Hintergrund ist (spart Last/Requests);
     // visibilitychange unten aktualisiert sofort beim Zurückkehren
+    // Eigenes Profil vorab holen, damit der Kontakte-Reiter es beim ersten
+    // Klick fertig anzeigt statt erst nach dem Adressbuch
+    loadMyProfile().then(() => { if (currentFilter === 'contacts') renderContactList(); });
     setInterval(() => { if (!document.hidden) refresh(); }, 5000);
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
