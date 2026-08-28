@@ -43,7 +43,7 @@ curl -X POST http://<HA-IP>:17776/api/chat-media   -H 'Content-Type: application
 
 ## REST-API
 
-Das Add-on ist über Port 3000 erreichbar (`http://<HA-IP>:17776`).
+Das Add-on ist über Port 17776 erreichbar (`http://<HA-IP>:17776`).
 
 ```
 GET  /api/status                     → Verbindungsstatus (inkl. WhatsApp-Web- und Bibliotheksfassung)
@@ -249,7 +249,7 @@ curl -X POST http://<HA-IP>:17776/api/chat-media   -H 'Content-Type: application
 
 ## REST API
 
-The add-on is available on port 3000 (`http://<HA-IP>:17776`).
+The add-on is available on port 17776 (`http://<HA-IP>:17776`).
 
 ```
 GET  /api/status                     → Connection status (incl. WhatsApp Web and library version)

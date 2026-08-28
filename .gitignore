@@ -19,3 +19,6 @@ mypage/*,org
 
 # pytest
 .pytest_cache/
+
+# Node-Abhaengigkeiten (werden im Container installiert)
+node_modules/

@@ -15,6 +15,7 @@ export PRESENCE_MODE=$(jq -r '.presence_mode // "temporary"' /data/options.json)
 export PRESENCE_SCAN_MINUTES=$(jq -r '.presence_scan_minutes // 0' /data/options.json)
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
+export HA_NOTIFICATIONS_SKIP_GROUPS=$(jq -r 'if .ha_notifications_skip_groups == true then "true" else "false" end' /data/options.json)
 export SESSION_DIR=/config/session
 export PORT=17776
 

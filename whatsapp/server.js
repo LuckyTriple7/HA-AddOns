@@ -1932,6 +1932,7 @@ app.post('/api/delete-batch/:chatId', async (req, res) => {
       chat.lastMsg = '';
     }
   }
+  saveMsgs();
   console.log(`[INFO] Spam-Löschung: ${deleted}/${ids.length} gelöscht in Chat ${chatId}`);
   res.json({ deleted, failed });
 });

@@ -1,6 +1,6 @@
 ﻿# WhatsApp Add-on API Tester
 $HA_IP   = "homeassistant.local"
-$HA_PORT = 3000
+$HA_PORT = 17776
 $BASE    = "http://${HA_IP}:${HA_PORT}"
 $TIMEOUT = 5   # Sekunden
 

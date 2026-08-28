@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.29] - 2026-08-28
+- Fix: **Die Option „Gruppenbenachrichtigungen ueberspringen“ hatte keine Wirkung.** Der Wert wurde beim Start nie an das Add-on durchgereicht, es galt immer „aus“ — Gruppen loesten also weiter HA-Benachrichtigungen aus, egal wie der Schalter stand
+- Fix: **Geloeschter Spam kam nach einem Neustart zurueck.** Das Loeschen mehrerer Nachrichten aus einem Chat entfernte sie nur aus dem laufenden Betrieb, ohne den Verlauf auf die Platte zu schreiben
+- Der Container-Bau nutzt jetzt `npm ci` mit der vorhandenen `package-lock.json` statt `npm install`, und das Node-Grundabbild ist auf Fassung 24 festgelegt. Damit liefert derselbe Stand auch denselben Bau — vorher konnten sich Abhaengigkeiten zwischen zwei Bauten still verschieben
+- Aufgeraeumt: `test-api.ps1` zeigte auf Port 3000 statt 17776 und lief damit ins Leere; dieselbe Verwechslung stand auch in der Doku
+
 ## [1.8.28] - 2026-08-28
 - Der Selbsttest prueft jetzt auch, **ob WhatsApp noch antwortet wie bisher** — nicht nur, ob die Bausteine da sind. Eine Funktion kann bleiben und trotzdem etwas anderes liefern; genau so kam die Umstellung der Chats von `@c.us` auf `@lid`
 - Vier Formpruefungen, alle nur lesend: **Datenschutzeinstellungen** (sind alle Felder da, sind die Werte bekannt?), **Ausnahmeliste** (`{status, users, dhash}`, Kennungen in bekannter Form), **Status-Publikum** (`{setting, allowList, denyList}`, Modus einordenbar) und die **Kennungsformen der eigenen Chats**
