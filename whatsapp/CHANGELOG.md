@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.25] - 2026-08-28
+- Die Rueckgabe steht jetzt fest: `{ setting: "deny-list", allowList: [], denyList: […] }`. Beide Listen bestehen **nebeneinander** — das Add-on nimmt deshalb die zum Modus passende, statt die erstbeste gefuellte. Sonst haette eine liegengebliebene Liste die falschen Namen gezeigt
+- Die Kontakte kommen hier als Rufnummern (`491713333774@c.us`), nicht als LID wie bei „Zuletzt online" — Namen sind damit direkt zuzuordnen
+
 ## [1.8.24] - 2026-08-28
 - Fix: **Bei den Statusmeldungen stand „Noch niemand ausgenommen", obwohl neun Kontakte ausgenommen waren.** Der Modus wurde richtig erkannt, nur die Liste nicht: sie steht in `getStatusPrivacySettingConfig()` unter einem anderen Feldnamen als vermutet
 - Statt weiter zu raten sucht das Add-on jetzt das erste Feld, das ueberhaupt eine gefuellte Liste enthaelt, und gibt den gefundenen Feldnamen als `listKey` mit zurueck

@@ -3180,16 +3180,20 @@ app.get('/api/privacy/status', async (req, res) => {
         const act = window.require('WAWebStatusPrivacySettingAction');
         const col = window.require('WAWebCollections');
         const cfg = await act.getStatusPrivacySetting();
-        // Wo die Kontakte stehen, ist von Fassung zu Fassung verschieden —
-        // deshalb den erstbesten Feldnamen nehmen, der eine Liste enthaelt
-        let rawList = [];
-        let listKey = null;
-        for (const k of ['list', 'wids', 'contacts', 'users', 'jids', 'allowList', 'denyList', 'excluded']) {
-          if (cfg && Array.isArray(cfg[k]) && cfg[k].length) { rawList = cfg[k]; listKey = k; break; }
-        }
-        if (!rawList.length && cfg) {
-          for (const k of Object.keys(cfg)) {
-            if (Array.isArray(cfg[k]) && cfg[k].length) { rawList = cfg[k]; listKey = k; break; }
+        // Die Rueckgabe ist { setting: 'deny-list' | 'allow-list' | ..., allowList, denyList }.
+        // Beide Listen bleiben nebeneinander bestehen, deshalb die zum Modus
+        // passende nehmen — sonst zeigt eine liegengebliebene Liste falsche Namen.
+        const rawMode = String((cfg && (cfg.setting ?? cfg.type ?? cfg.mode)) ?? '');
+        const lowMode = rawMode.toLowerCase();
+        let rawList = [], listKey = null;
+        if (cfg) {
+          if (lowMode.includes('allow') && Array.isArray(cfg.allowList)) { rawList = cfg.allowList; listKey = 'allowList'; }
+          else if (lowMode.includes('deny') && Array.isArray(cfg.denyList)) { rawList = cfg.denyList; listKey = 'denyList'; }
+          else {
+            // Unbekannte Fassung: erstes Feld mit gefuellter Liste
+            for (const k of Object.keys(cfg)) {
+              if (Array.isArray(cfg[k]) && cfg[k].length) { rawList = cfg[k]; listKey = k; break; }
+            }
           }
         }
         const entries = rawList.map((w) => {
@@ -3206,11 +3210,10 @@ app.get('/api/privacy/status', async (req, res) => {
           if (!out.number && id.endsWith('@c.us')) out.number = id.split('@')[0];
           return out;
         });
-        // Der Wert des Modus kommt aus einem Enum, dessen Schreibweise sich
-        // aendern kann — deshalb roh mitgeben und zusaetzlich grob einordnen.
-        const raw = String((cfg && (cfg.setting ?? cfg.type ?? cfg.mode)) ?? '');
-        const low = raw.toLowerCase();
-        const mode = low.includes('allow') ? 'allow' : low.includes('deny') ? 'deny' : 'contacts';
+        // Der Wert des Modus kommt aus einem Enum ('deny-list'), dessen
+        // Schreibweise sich aendern kann — deshalb roh mitgeben und grob einordnen
+        const raw = rawMode;
+        const mode = lowMode.includes('allow') ? 'allow' : lowMode.includes('deny') ? 'deny' : 'contacts';
         const out = { ok: true, mode, raw, listKey, count: entries.length, entries };
         if (wantRaw) { out.cfgKeys = cfg ? Object.keys(cfg) : null; out.cfg = describe(cfg, 4); }
         return out;
