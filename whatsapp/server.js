@@ -3117,11 +3117,11 @@ app.get('/', (req, res) => {
     .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
     .avatar.has-status { box-shadow: 0 0 0 2px #25D366; animation: statusPulse 2s ease-in-out infinite; }
     .avatar.blocked::after, .contact-modal-pic.blocked::after {
-      content: '🔒'; position: absolute; left: 0; right: 0; bottom: 0; height: 17px;
+      content: '🔒'; position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      font-size: 10px; line-height: 1; background: rgba(241,92,92,0.92);
+      font-size: 22px; line-height: 1; background: rgba(0,0,0,0.6);
     }
-    .contact-modal-pic.blocked::after { height: 24px; font-size: 14px; }
+    .contact-modal-pic.blocked::after { font-size: 46px; }
     @keyframes statusPulse {
       0%, 100% { box-shadow: 0 0 0 2px #25D366; }
       50% { box-shadow: 0 0 0 2px #25D366, 0 0 0 5px rgba(37,211,102,0.4); }

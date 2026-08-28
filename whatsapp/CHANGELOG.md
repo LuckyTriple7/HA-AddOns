@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.4] - 2026-08-28
+- Aenderung: **Das Schloss bei blockierten Kontakten ist jetzt deutlich zu sehen.** Das schmale Band am unteren Rand ging auf Fotos unter — stattdessen liegt ein dunkler Schleier ueber dem ganzen Profilbild, mit grossem Schloss in der Mitte. Im Kontaktfenster entsprechend groesser
+
 ## [1.8.3] - 2026-08-28
 - Feature: **Gemeinsame Gruppen im Kontaktfenster.** Darunter stehen die Gruppen, in denen ihr beide seid — ein Klick oeffnet die jeweilige Gruppe direkt
 - Feature: **Anzahl verknuepfter Geraete.** Die zeigt die WhatsApp-App nirgends an. Ein normales Konto mit einer Web-Sitzung meldet zwei (Telefon und Web), mehr Geraete entsprechend mehr
