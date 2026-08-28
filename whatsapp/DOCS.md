@@ -41,6 +41,7 @@ GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines besti
 POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
 GET  /api/presence-overview          → Zuletzt online aller Kontakte; ?refresh=1 startet einen Rundlauf
+GET  /api/search?q=<text>            → Suche über alle Chats (eigener Verlauf + WhatsApp-Suche)
 GET  /api/contact/:chatId/extra      → Gemeinsame Gruppen und Anzahl verknüpfter Geräte
 GET  /api/blocked                    → Liste der blockierten Kontakte
 POST /api/contact/:chatId/block      → Kontakt blockieren
@@ -219,6 +220,7 @@ GET  /api/last-received?chat=<id>    → Last received message of a specific cha
 POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
 GET  /api/presence-overview          → Last seen of all contacts; ?refresh=1 starts a sweep
+GET  /api/search?q=<text>            → Search across all chats (local history + WhatsApp search)
 GET  /api/contact/:chatId/extra      → Groups in common and number of linked devices
 GET  /api/blocked                    → List of blocked contacts
 POST /api/contact/:chatId/block      → Block a contact

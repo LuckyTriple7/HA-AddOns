@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.5] - 2026-08-28
+- Feature: **Suche über alle Chats.** Tippt man in der Seitenleiste, erscheint darueber die Zeile „🔍 „…" in allen Nachrichten suchen" — ein Klick oder Enter oeffnet die Trefferliste. Jeder Treffer nennt Chat, bei Gruppen zusaetzlich den Absender, Datum und Uhrzeit sowie einen Textausschnitt mit hervorgehobenem Suchwort. Ein Klick springt in den Chat direkt zur Nachricht und hebt sie fuenf Sekunden lang hervor
+- Zwei Quellen: der eigene Nachrichtenspeicher, wo punktgenaues Anspringen moeglich ist, und **WhatsApps eigene Suche**, die auch aelteres findet, was hier nie gespeichert wurde. Solche Treffer sind als „nicht im lokalen Verlauf" gekennzeichnet und oeffnen nur den Chat. Die Fusszeile nennt beide Zahlen
+- Neu: `GET /api/search?q=<text>`; ab zwei Zeichen, hoechstens 80 Treffer (`?limit=`), `?remote=0` beschraenkt auf den eigenen Verlauf
+
 ## [1.8.4] - 2026-08-28
 - Aenderung: **Das Schloss bei blockierten Kontakten ist jetzt deutlich zu sehen.** Das schmale Band am unteren Rand ging auf Fotos unter — stattdessen liegt ein dunkler Schleier ueber dem ganzen Profilbild, mit grossem Schloss in der Mitte. Im Kontaktfenster entsprechend groesser
 

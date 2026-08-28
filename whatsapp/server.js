@@ -980,6 +980,67 @@ app.get('/api/stats', (req, res) => {
   res.json({ total: msgs.length, sent, received, photos, first });
 });
 
+// Suche ueber alle Chats. Zwei Quellen: der eigene Nachrichtenspeicher (dort
+// laesst sich anschliessend punktgenau hinspringen) und WhatsApps eigene Suche,
+// die auch aelteres findet, was hier nie gespeichert wurde — solche Treffer sind
+// als "nicht im Verlauf" gekennzeichnet und oeffnen nur den Chat.
+app.get('/api/search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ results: [], total: 0, tooShort: true });
+  const needle = q.toLowerCase();
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '80', 10) || 80, 10), 300);
+
+  const results = [];
+  const seen = new Set();
+  for (const [chatId, msgs] of messagesByChatId.entries()) {
+    if (isFilteredChat(chatId)) continue;
+    const chat = chatMap.get(chatId);
+    for (const m of msgs) {
+      if (m.deleted) continue;
+      const body = m.body || '';
+      if (!body || !body.toLowerCase().includes(needle)) continue;
+      seen.add(m.id);
+      results.push({
+        chatId, chatName: chat?.name || chatId.split('@')[0], isGroup: !!chat?.isGroup,
+        msgId: m.id, body, timestamp: m.timestamp, fromMe: !!m.fromMe,
+        contact: m.contact || '', local: true,
+      });
+    }
+  }
+  const localCount = results.length;
+
+  let remoteCount = 0, remoteError = null;
+  if (req.query.remote !== '0' && status === 'connected') {
+    try {
+      const found = await client.searchMessages(q, { page: 0, limit: 40 });
+      for (const m of found || []) {
+        const id = m.id?._serialized || '';
+        const chatId = m.id?.remote || m.from || '';
+        if (!id || !chatId || seen.has(id) || isFilteredChat(chatId)) continue;
+        seen.add(id);
+        remoteCount++;
+        const chat = chatMap.get(chatId);
+        results.push({
+          chatId, chatName: chat?.name || chatId.split('@')[0], isGroup: chatId.endsWith('@g.us'),
+          msgId: id, body: m.body || '', timestamp: (m.timestamp || 0) * 1000,
+          fromMe: !!m.fromMe, contact: '', local: false,
+        });
+      }
+    } catch (e) {
+      remoteError = e.message;
+      dbg(`searchMessages("${q}"): ${e.message}`);
+    }
+  }
+
+  results.sort((a, b) => b.timestamp - a.timestamp);
+  const total = results.length;
+  console.log(`[INFO] Suche "${q}": ${total} Treffer (${localCount} aus dem Verlauf, ${remoteCount} zusaetzlich von WhatsApp)`);
+  res.json({
+    results: results.slice(0, limit), total, truncated: total > limit,
+    localCount, remoteCount, remoteError,
+  });
+});
+
 app.get('/api/messages', (req, res) => {
   const { chat: chatId, since } = req.query;
   if (!chatId) return res.json([]);
@@ -3190,6 +3251,34 @@ app.get('/', (req, res) => {
     .status-item img, .status-item video { max-width: 100%; max-height: 180px; border-radius: 6px; display: block; cursor: zoom-in; }
     .status-item .status-text { font-size: 13px; word-break: break-word; }
     .status-item .status-time { font-size: 11px; color: #8696a0; }
+    #gsearch-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #gsearch-modal.open { display: flex; }
+    .gs-box { border-radius: 14px; width: min(680px, 94%); max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; }
+    html.dark .gs-box { background: #202c33; color: #e9edef; }
+    html.light .gs-box { background: #fff; color: #111; }
+    .gs-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(128,128,128,0.2); }
+    .gs-head input { flex: 1; border-radius: 8px; padding: 8px 12px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
+    html.dark .gs-head input { background: #2a3942; color: #e9edef; }
+    html.light .gs-head input { background: #f0f2f5; color: #111; }
+    .gs-head input:focus { outline: none; border-color: #00a884; }
+    .gs-head button { background: none; border: none; color: inherit; font-size: 18px; cursor: pointer; opacity: 0.7; }
+    .gs-head button:hover { opacity: 1; }
+    .gs-body { flex: 1; overflow-y: auto; padding: 6px; }
+    .gs-foot { padding: 8px 14px; border-top: 1px solid rgba(128,128,128,0.2); font-size: 12px; color: #8696a0; }
+    .gs-hit { display: block; width: 100%; text-align: left; background: none; border: none; color: inherit; font: inherit;
+      padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+    html.dark .gs-hit:hover { background: rgba(255,255,255,0.06); }
+    html.light .gs-hit:hover { background: rgba(0,0,0,0.05); }
+    .gs-hit-top { display: flex; align-items: baseline; gap: 8px; }
+    .gs-hit-chat { font-size: 13px; font-weight: 600; color: #00a884; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gs-hit-time { font-size: 11px; color: #8696a0; margin-left: auto; white-space: nowrap; }
+    .gs-hit-body { font-size: 13px; line-height: 1.45; word-break: break-word; margin-top: 2px; }
+    .gs-hit-body mark { background: rgba(255,214,0,0.35); color: inherit; border-radius: 3px; padding: 0 1px; }
+    .gs-hit-note { font-size: 11px; color: #8696a0; font-style: italic; }
+    .gs-empty { padding: 24px; text-align: center; color: #8696a0; font-size: 13px; }
+    .chat-list-search-all { padding: 8px 12px; cursor: pointer; font-size: 13px; color: #00a884; border-bottom: 1px solid rgba(128,128,128,0.18); }
+    html.dark .chat-list-search-all:hover { background: rgba(255,255,255,0.05); }
+    html.light .chat-list-search-all:hover { background: rgba(0,0,0,0.04); }
     #presence-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
     #presence-modal.open { display: flex; }
     .pres-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3cdb7c; margin-right:6px; }
@@ -3683,7 +3772,8 @@ app.get('/', (req, res) => {
 
     <div id="sidebar">
       <div id="sidebar-header">
-        <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()">
+        <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()"
+               onkeydown="if(event.key==='Enter'){const v=this.value.trim(); if(v.length>1) openGlobalSearch(v);}">
       </div>
       <div id="chat-filter">
         <button class="filter-tab active" data-filter="all" onclick="setFilter('all')" data-i18n="filterAll">Alle</button>
@@ -3855,6 +3945,17 @@ app.get('/', (req, res) => {
     </div>
   </div>
 
+  <div id="gsearch-modal" onclick="if(event.target===this)closeGlobalSearch()">
+    <div class="gs-box">
+      <div class="gs-head">
+        <input type="text" id="gs-input" data-i18n-pl="gsPlaceholder" placeholder="In allen Nachrichten suchen…">
+        <button onclick="closeGlobalSearch()">✕</button>
+      </div>
+      <div class="gs-body" id="gs-body"></div>
+      <div class="gs-foot" id="gs-foot"></div>
+    </div>
+  </div>
+
   <div id="presence-modal" onclick="if(event.target===this)closePresenceOverview()">
     <div class="archive-ov-box">
       <div class="archive-modal-header">
@@ -4018,6 +4119,14 @@ app.get('/', (req, res) => {
         blkWorking:'Einen Moment…',
         cgDevices:(n)=>n+' verknüpfte Geräte', cgDevice:'1 verknüpftes Gerät',
         cgGroups:(n)=>n===1?'1 gemeinsame Gruppe':n+' gemeinsame Gruppen',
+        gsTitle:'In allen Nachrichten suchen', gsPlaceholder:'In allen Nachrichten suchen…',
+        gsSearchAll:(q)=>'🔍 „'+q+'" in allen Nachrichten suchen',
+        gsSearching:'Suche läuft…', gsNoResult:'Keine Nachricht gefunden.',
+        gsTooShort:'Bitte mindestens zwei Zeichen eingeben.',
+        gsNotStored:'nicht im lokalen Verlauf — öffnet nur den Chat',
+        gsFoot:(n,local,remote)=>n+' Treffer · '+local+' aus dem Verlauf'+(remote?' · '+remote+' zusätzlich von WhatsApp':''),
+        gsTruncated:(shown,total)=>'zeige '+shown+' von '+total+' Treffern',
+        gsJumpFailed:'Die Nachricht steht nicht im geladenen Verlauf.',
         presOvTitle:'Zuletzt online — Übersicht', presOvOpen:'Zuletzt online — Übersicht',
         presOvRefresh:'Jetzt aktualisieren', presOvScanning:'Rundlauf läuft…',
         presOvEmpty:'Noch keine Daten. „Jetzt aktualisieren" startet einen Rundlauf.',
@@ -4126,6 +4235,14 @@ app.get('/', (req, res) => {
         blkWorking:'One moment…',
         cgDevices:(n)=>n+' linked devices', cgDevice:'1 linked device',
         cgGroups:(n)=>n===1?'1 group in common':n+' groups in common',
+        gsTitle:'Search all messages', gsPlaceholder:'Search all messages…',
+        gsSearchAll:(q)=>'🔍 Search all messages for "'+q+'"',
+        gsSearching:'Searching…', gsNoResult:'No message found.',
+        gsTooShort:'Please enter at least two characters.',
+        gsNotStored:'not in the local history — only opens the chat',
+        gsFoot:(n,local,remote)=>n+' hits · '+local+' from the history'+(remote?' · '+remote+' extra from WhatsApp':''),
+        gsTruncated:(shown,total)=>'showing '+shown+' of '+total+' hits',
+        gsJumpFailed:'That message is not in the loaded history.',
         presOvTitle:'Last seen — overview', presOvOpen:'Last seen — overview',
         presOvRefresh:'Refresh now', presOvScanning:'sweep running…',
         presOvEmpty:'No data yet. "Refresh now" starts a sweep.',
@@ -4742,6 +4859,7 @@ app.get('/', (req, res) => {
       }
       // Eigenes Profil bleibt immer der erste Eintrag — auch wenn die Suche nichts trifft
       list.insertBefore(buildMeItem(), list.firstChild);
+      prependSearchAll(list);
       const foot = document.createElement('div');
       foot.className = 'contact-list-foot';
       foot.innerHTML = '<div style="font-size:11px;color:#8696a0;margin-bottom:4px">'
@@ -5257,6 +5375,20 @@ app.get('/', (req, res) => {
       }
     }
 
+    // Sucht man in der Seitenleiste, bezieht sich das nur auf Chatnamen. Diese
+    // Zeile bietet an, denselben Text in allen Nachrichten zu suchen.
+    function prependSearchAll(list) {
+      // Bewusst der Rohtext aus dem Feld: der Filter arbeitet kleingeschrieben,
+      // angezeigt und weitergereicht wird aber, was der Benutzer getippt hat
+      const raw = (document.getElementById('search').value || '').trim();
+      if (raw.length < 2) return;
+      const row = document.createElement('div');
+      row.className = 'chat-list-search-all';
+      row.textContent = tf('gsSearchAll', raw);
+      row.onclick = () => openGlobalSearch(raw);
+      list.insertBefore(row, list.firstChild);
+    }
+
     function renderChatList(chats) {
       // Poll-Updates und openChat() rufen das hier unabhaengig vom aktiven Tab —
       // im Kontakte-Tab darf die Chatliste die Adressbuch-Ansicht nicht ueberschreiben
@@ -5271,6 +5403,7 @@ app.get('/', (req, res) => {
       });
       if (!filtered.length) {
         list.innerHTML = '<div class="no-chats">' + t('noChats') + '</div>';
+        prependSearchAll(list);
         return;
       }
       list.innerHTML = '';
@@ -5314,6 +5447,7 @@ app.get('/', (req, res) => {
         item.appendChild(av); item.appendChild(info); item.appendChild(meta);
         list.appendChild(item);
       }
+      prependSearchAll(list);
     }
 
     function filterChats() {
@@ -6111,6 +6245,98 @@ app.get('/', (req, res) => {
       if (b < 102400) return Math.round(b / 1024) + ' KB';
       return (b / 1048576).toFixed(1) + ' MB';
     }
+    // ── Suche über alle Chats ──
+    let _gsTimer = null, _gsSeq = 0;
+
+    function openGlobalSearch(query) {
+      const modal = document.getElementById('gsearch-modal');
+      const input = document.getElementById('gs-input');
+      modal.classList.add('open');
+      if (query !== undefined) input.value = query;
+      input.focus();
+      input.select();
+      runGlobalSearch();
+    }
+
+    function closeGlobalSearch() {
+      document.getElementById('gsearch-modal').classList.remove('open');
+    }
+
+    // Ausschnitt um den Treffer herum, damit lange Nachrichten die Liste nicht sprengen
+    function gsSnippet(body, q) {
+      const lower = body.toLowerCase(), needle = q.toLowerCase();
+      const at = lower.indexOf(needle);
+      if (at < 0) return esc(body.slice(0, 180)) + (body.length > 180 ? '…' : '');
+      const from = Math.max(0, at - 60), to = Math.min(body.length, at + needle.length + 90);
+      return (from > 0 ? '…' : '') + esc(body.slice(from, at))
+        + '<mark>' + esc(body.slice(at, at + needle.length)) + '</mark>'
+        + esc(body.slice(at + needle.length, to)) + (to < body.length ? '…' : '');
+    }
+
+    async function runGlobalSearch() {
+      const q = document.getElementById('gs-input').value.trim();
+      const body = document.getElementById('gs-body');
+      const foot = document.getElementById('gs-foot');
+      const seq = ++_gsSeq;
+      if (q.length < 2) {
+        body.innerHTML = '<div class="gs-empty">' + esc(t('gsTooShort')) + '</div>';
+        foot.textContent = '';
+        return;
+      }
+      body.innerHTML = '<div class="gs-empty">' + esc(t('gsSearching')) + '</div>';
+      let d = null;
+      try { d = await fetch('api/search?q=' + encodeURIComponent(q)).then(apiJson); }
+      catch (e) {
+        if (seq !== _gsSeq) return;
+        body.innerHTML = '<div class="gs-empty">' + esc(tf('msError', e.message || String(e))) + '</div>';
+        return;
+      }
+      if (seq !== _gsSeq) return; // eine neuere Eingabe ist schon unterwegs
+      const hits = (d && d.results) || [];
+      if (!hits.length) {
+        body.innerHTML = '<div class="gs-empty">' + esc(t('gsNoResult')) + '</div>';
+        foot.textContent = '';
+        return;
+      }
+      body.innerHTML = '';
+      for (const h of hits) {
+        const btn = document.createElement('button');
+        btn.className = 'gs-hit';
+        const who = (h.isGroup && h.contact && h.contact !== h.chatName)
+          ? esc(h.chatName) + ' · ' + esc(h.contact)
+          : esc(h.chatName);
+        btn.innerHTML = '<div class="gs-hit-top"><span class="gs-hit-chat">' + who + '</span>'
+          + '<span class="gs-hit-time">' + esc(fmtDate(h.timestamp) + ', ' + fmtTime(h.timestamp)) + '</span></div>'
+          + '<div class="gs-hit-body">' + gsSnippet(h.body || '', q) + '</div>'
+          + (h.local ? '' : '<div class="gs-hit-note">' + esc(t('gsNotStored')) + '</div>');
+        btn.onclick = () => jumpToMessage(h.chatId, h.msgId, h.local);
+        body.appendChild(btn);
+      }
+      foot.textContent = tf('gsFoot', d.total, d.localCount || 0, d.remoteCount || 0)
+        + (d.truncated ? ' · ' + tf('gsTruncated', hits.length, d.total) : '');
+    }
+
+    async function jumpToMessage(chatId, msgId, local) {
+      const chat = allChats.find(c => c.id === chatId)
+        || { id: chatId, name: chatId.split('@')[0], isGroup: chatId.endsWith('@g.us'), lastTime: 0 };
+      closeGlobalSearch();
+      await openChat(chat);
+      if (!local) return;
+      // Nach dem Oeffnen rendert die Liste asynchron — kurz auf die Blase warten
+      for (let i = 0; i < 25; i++) {
+        const wrap = [...msgList.querySelectorAll('.bubble-wrap')].find(w => w.dataset.msgid === msgId);
+        if (wrap) {
+          clearMsgHighlights();
+          const bub = wrap.querySelector('.bubble') || wrap;
+          bub.classList.add('msg-highlight-active');
+          wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => bub.classList.remove('msg-highlight-active'), 5000);
+          return;
+        }
+        await new Promise(r => setTimeout(r, 150));
+      }
+    }
+
     // ── Zuletzt-online-Übersicht ──
     let _presOvLoading = false;
 
@@ -6154,6 +6380,18 @@ app.get('/', (req, res) => {
         d.lastScan ? fmtDate(d.lastScan) + ', ' + fmtTime(d.lastScan) : '',
         d.intervalMinutes || 0);
     }
+
+    (function bindGlobalSearch() {
+      const inp = document.getElementById('gs-input');
+      if (!inp) { document.addEventListener('DOMContentLoaded', bindGlobalSearch); return; }
+      inp.addEventListener('input', () => {
+        if (_gsTimer) clearTimeout(_gsTimer);
+        _gsTimer = setTimeout(runGlobalSearch, 300);
+      });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { if (_gsTimer) clearTimeout(_gsTimer); runGlobalSearch(); }
+      });
+    })();
 
     // Das Fenster steht im HTML vor diesem Skript, der Knopf existiert also schon.
     // Der DOMContentLoaded-Zweig ist nur die Absicherung, falls sich das mal dreht.
@@ -6738,6 +6976,7 @@ app.get('/', (req, res) => {
         document.getElementById('contact-modal')?.classList.remove('open');
         document.getElementById('archive-overview-modal')?.classList.remove('open');
         document.getElementById('presence-modal')?.classList.remove('open');
+        document.getElementById('gsearch-modal')?.classList.remove('open');
       }
     });
 
