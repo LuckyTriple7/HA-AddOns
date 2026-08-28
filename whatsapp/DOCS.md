@@ -77,6 +77,8 @@ GET  /api/privacy                    → Aktuelle Datenschutzeinstellungen lesen
 POST /api/privacy                    → Einstellung ändern ({name, value}); name: lastSeen, online, profilePicture, about, groupAdd, callAdd, readReceipts
 GET  /api/privacy/disallowed?category=<c> → Ausnahmeliste „Meine Kontakte, außer…" lesen, mit Namen (lastSeen, about, profilePicture, groupAdd)
 POST /api/privacy/disallowed         → Ausnahmeliste ändern ({category, add:[...], remove:[...]}) und die Kategorie dabei auf „Meine Kontakte, außer…" stellen
+GET  /api/privacy/status             → Publikum der Statusmeldungen lesen (mode: contacts/deny/allow + Kontaktliste)
+POST /api/privacy/status             → Publikum setzen ({mode, ids:[...]}); bei deny/allow wird die Liste vollständig ersetzt
 GET  /api/privacy/source?module=<n>  → Quelltext eines WhatsApp-Web-Moduls aus der Modulliste (Diagnose, nur lesen)
 GET  /api/privacy/diag               → Diagnose: findet WhatsApp Web ein Modul für die Datenschutzeinstellungen? (?scan=1 durchsucht die Bundles nach echten Modulnamen, ?probeFound=1 probiert die Fundstellen gleich durch) — liest nur, ändert nichts
 GET  /api/export/:chatId             → Chat als HTML exportieren
@@ -279,6 +281,8 @@ GET  /api/privacy                    → Read current privacy settings (last see
 POST /api/privacy                    → Change one setting ({name, value}); name: lastSeen, online, profilePicture, about, groupAdd, callAdd, readReceipts
 GET  /api/privacy/disallowed?category=<c> → Read the "my contacts except…" list incl. names (lastSeen, about, profilePicture, groupAdd)
 POST /api/privacy/disallowed         → Change the list ({category, add:[...], remove:[...]}) and set the category to "my contacts except…"
+GET  /api/privacy/status             → Read the status audience (mode: contacts/deny/allow + contact list)
+POST /api/privacy/status             → Set the audience ({mode, ids:[...]}); for deny/allow the list is replaced as a whole
 GET  /api/privacy/source?module=<n>  → Source of a WhatsApp Web module from the module map (diagnostics, read-only)
 GET  /api/privacy/diag               → Diagnostics: does WhatsApp Web expose a privacy-settings module? (?scan=1 searches the bundles for real module names, ?probeFound=1 probes the hits) — read-only
 GET  /api/export/:chatId             → Export chat as HTML

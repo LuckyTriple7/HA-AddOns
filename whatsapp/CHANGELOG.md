@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.23] - 2026-08-28
+- Feature: **Wer die Statusmeldungen sehen darf, laesst sich jetzt auch hier einstellen** — neue Zeile „Statusmeldungen" im Datenschutz-Reiter mit allen drei Moeglichkeiten: *Meine Kontakte*, *Meine Kontakte, ausser…* und *Nur teilen mit…*. Fuer die letzten beiden oeffnet sich dieselbe Kontaktauswahl wie bei „Zuletzt online"
+- Das Status-Publikum haengt an eigenen Modulen (`WAWebStatusPrivacySettingAction`) und funktioniert anders als die uebrigen Einstellungen: die Liste wird **vollstaendig gesetzt**, nicht schrittweise ergaenzt. Die Umrechnung der Kontakte in WhatsApp-Kennungen macht `convertPrivacyListContactsToWids` — je nach Kontakt Rufnummer oder LID
+- Der Modus kommt aus einem Enum, dessen Schreibweise sich aendern kann. Das Add-on gibt ihn deshalb **roh mit** und ordnet ihn nur grob ein, statt auf eine feste Zeichenkette zu bauen
+- `GET /api/privacy/status` liest, `POST /api/privacy/status` (`{mode, ids}`) setzt
+
 ## [1.8.22] - 2026-08-28
 - Fix: In der Ausnahmeliste stand bei Kontakten ohne Namen `+491755313702@c.us` statt der blossen Rufnummer. `phoneNumber` kommt je nach Fassung als WID oder als vollstaendige Kennung — der Anhang wird jetzt abgeschnitten
 
