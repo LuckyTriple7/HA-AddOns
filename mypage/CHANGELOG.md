@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.38
+
+- 🖱️ **In der Vorschau ließ sich nichts anklicken.** Navigationsleiste, Blog, jeder Link — ein Klick tat nichts. Ursache: Der Rahmen lief seit 0.11.35 vollständig abgeschottet (`sandbox`), und weil die Vorschau jedem Link einen neuen Tab mitgibt, blockierte der Browser genau diese neuen Tabs wortlos. Der Rahmen erlaubt jetzt das Öffnen neuer Tabs — ein Klick führt zur echten Seite, die dort auch wieder mit Skripten läuft. Skripte **innerhalb** der Vorschau bleiben aus, daran ändert sich nichts.
+
 ## 0.11.37
 
 - 🔢 **Neu: Zahlen & Fakten.** Kennzahlen nebeneinander — Mitglieder, Jahre, Projekte, Öffnungstage. Die Zahl darf Text sein („500+", „24/7", „~3 Mio."), Symbol und Bezeichnung sind optional.

@@ -2078,8 +2078,15 @@
         </div>
         {#- sandbox ohne allow-scripts: die Vorschau kommt aus der eigenen
             Herkunft, Skripte darin hätten sonst Zugriff auf das Admin-Panel.
-            Bilder, Schriften und CSS laden trotzdem. -#}
-        <iframe class="preview-frame" id="preview-frame" title="Preview" sandbox=""></iframe>
+            Bilder, Schriften und CSS laden trotzdem.
+            allow-popups gehört dazu, weil jeder Link im Rahmen wegen des
+            eingefügten `<base target="_blank">` einen neuen Tab öffnet — ohne
+            die Erlaubnis blockiert der Browser das wortlos, und Klicks im
+            Rahmen täten schlicht nichts. `-to-escape-sandbox` sorgt dafür, dass
+            die echte Seite im neuen Tab dann normal läuft und nicht ihrerseits
+            ohne Skripte dasteht. -#}
+        <iframe class="preview-frame" id="preview-frame" title="Preview"
+                sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe>
         <p class="hint preview-blocked" id="preview-blocked" style="display:none">{{ t.preview_blocked }}</p>
       </div>
       <!-- Ein Speichern-Knopf fuer den ganzen Reiter: die Gruppen sind nur eine

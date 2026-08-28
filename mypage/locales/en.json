@@ -1719,7 +1719,7 @@
   "yes": "Yes",
   "no": "No",
   "preview_heading": "Preview",
-  "preview_hint": "The admin renders the page itself — so neither the reverse proxy’s frame protection nor the ingress gets in the way. Scripts do not run in the preview; links open a new tab.",
+  "preview_hint": "The admin renders the page itself — so neither the reverse proxy’s frame protection nor the ingress gets in the way. Scripts do not run in the preview; every click opens the real page in a new tab.",
   "preview_blocked": "The preview could not be built. Check the log for a message from the public site; “Open in new tab” shows whether the site is running at all.",
   "stat_total": "Total views",
   "stat_today_views": "Views today",

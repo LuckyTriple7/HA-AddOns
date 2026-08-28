@@ -1719,7 +1719,7 @@
   "yes": "Ja",
   "no": "Nein",
   "preview_heading": "Vorschau",
-  "preview_hint": "Der Admin rendert die Seite selbst — so greift weder der Rahmen-Schutz des Reverse Proxys noch die Sperre über den Ingress. Skripte laufen in der Vorschau nicht; Links öffnen einen neuen Tab.",
+  "preview_hint": "Der Admin rendert die Seite selbst — so greift weder der Rahmen-Schutz des Reverse Proxys noch die Sperre über den Ingress. Skripte laufen in der Vorschau nicht; jeder Klick öffnet die echte Seite in einem neuen Tab.",
   "preview_blocked": "Die Vorschau ließ sich nicht erzeugen. Steht im Log eine Meldung der öffentlichen Seite? „In neuem Tab öffnen“ zeigt, ob die Seite überhaupt läuft.",
   "stat_total": "Aufrufe gesamt",
   "stat_today_views": "Aufrufe heute",
