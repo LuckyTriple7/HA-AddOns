@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.35
+
+- 🖼️ **Vorschau lädt wieder — und jetzt auch über den Ingress.** Der Rahmen holte die Seite selbst von ihrer öffentlichen Adresse. Steht davor ein Reverse Proxy mit `X-Frame-Options: sameorigin` (Klickjacking-Schutz, der bleiben soll), verweigert der Browser die Anzeige; über den Ingress kommt hinzu, dass Port 17760 unter der Home-Assistant-Adresse nicht erreichbar sein muss. Neu rendert **der Admin die Seite selbst** — im selben Prozess, ohne Netz — und reicht sie als `srcdoc` in den Rahmen. Gleiche Herkunft, also greift keine der beiden Sperren.
+- 🧯 **Regression aus 0.11.33 behoben.** Seit 0.11.33 hatte die eingetragene öffentliche URL Vorrang vor `Port 17760`. Beim **direkten** Aufruf des Admin-Panels (Port 17761) hatte die Vorschau vorher funktioniert und lief damit in genau diese Sperre. Der Rahmen hängt jetzt an keiner der beiden Adressen mehr.
+- 🔒 **Ohne Skripte.** Die Vorschau läuft in einem `sandbox`-Rahmen: Skripte der öffentlichen Seite bleiben aus, damit sie aus der Admin-Herkunft heraus nichts anfassen können. Bilder, Schriften und Farben kommen weiterhin von der echten Seite (über ein eingefügtes `<base>`), Links im Rahmen öffnen einen neuen Tab. Der Besucherzähler zählt den eigenen Blick nicht mit.
+- ℹ️ Läuft Home Assistant über **https** und ist keine öffentliche URL eingetragen, bleiben die Bilder leer — eine http-Quelle lädt der Browser in einer https-Seite nicht. Text, Aufbau und Farben stehen trotzdem.
+
 ## 0.11.34
 
 - 🔤 **Hinweise nennen das Feld beim richtigen Namen.** Vorschau- und Systemzustand-Hinweis verwiesen auf „Öffentliche Adresse“ — so heißt die Zeile im Systemzustand, das Eingabefeld dagegen „Öffentliche URL (für SEO/Sitemap)“ und steht im Design-Reiter unter **Suchmaschinen**. Wer dem Hinweis folgte, suchte vergeblich. Jetzt steht überall der Weg dorthin.

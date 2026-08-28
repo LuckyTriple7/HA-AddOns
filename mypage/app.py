@@ -10544,6 +10544,52 @@ def api_storage():
                     'active': load_site()['design'].get('storage_subdir', '')})
 
 
+@admin_app.route('/api/preview')
+def api_preview():
+    """Die öffentliche Startseite als HTML für den Vorschau-Rahmen.
+
+    Ein Rahmen, der die öffentliche Adresse direkt lädt, scheitert an zwei
+    Stellen, die MyPage nicht in der Hand hat: Reverse Proxies setzen
+    `X-Frame-Options` (Klickjacking-Schutz, der so bleiben soll), und über den
+    Ingress läuft der Admin unter der Adresse von Home Assistant — Port 17760
+    ist dort nicht zwingend erreichbar, bei HTTPS lädt der Browser eine
+    http-Seite im Rahmen ohnehin nicht.
+
+    Deshalb rendert der Admin die Seite selbst (derselbe Prozess, kein Netz)
+    und reicht sie als `srcdoc` weiter: gleiche Herkunft, damit greift keine
+    der beiden Sperren. `X-MyPage-Export` verhindert wie beim statischen
+    Export, dass der Besucherzähler den eigenen Blick mitzählt.
+
+    Das eingefügte `<base>` sorgt dafür, dass Bilder und Schriften trotzdem
+    von der echten Seite kommen. Bei HTTPS muss die Basis ebenfalls HTTPS
+    sein, sonst blockiert der Browser sie als gemischten Inhalt — dann taugt
+    nur die eingetragene öffentliche URL. Sonst reicht der Nachbarport.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    base = (load_site()['design'].get('public_url') or '').rstrip('/')
+    host = (request.host or '').split(':')[0]
+    port_base = f'http://{host}:{PUBLIC_PORT}'
+    if request.scheme == 'https':
+        base = base if base.startswith('https://') else ''
+    else:
+        base = base or port_base
+    client = public_app.test_client()
+    r = client.get('/', headers={'Accept-Language': request.headers.get('Accept-Language', 'de'),
+                                 'X-MyPage-Export': '1'})
+    if r.status_code != 200:
+        return jsonify({'error': 'render_failed', 'status': r.status_code}), 502
+    html = r.get_data(as_text=True)
+    # target="_blank" gehört dazu: im Rahmen geklickte Links liefen sonst genau
+    # in die X-Frame-Options-Sperre, wegen der die Vorschau hier gerendert wird.
+    tag = f'<base href="{escape(base)}/" target="_blank">' if base else ''
+    if tag:
+        i = html.lower().find('<head>')
+        html = (html[:i + 6] + tag + html[i + 6:]) if i >= 0 else tag + html
+    return jsonify({'html': html, 'base': base})
+
+
 @admin_app.route('/api/export')
 def api_export():
     """Statischer HTML-Export der öffentlichen Seite (für z. B. GitHub Pages)."""

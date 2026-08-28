@@ -2031,7 +2031,10 @@
           <a class="btn secondary small" id="preview-open" href="#" target="_blank" rel="noopener">{{ t.preview_open }}</a>
           <span class="hint" style="margin:0" id="preview-hint">{{ t.preview_hint }}</span>
         </div>
-        <iframe class="preview-frame" id="preview-frame" title="Preview"></iframe>
+        {#- sandbox ohne allow-scripts: die Vorschau kommt aus der eigenen
+            Herkunft, Skripte darin hätten sonst Zugriff auf das Admin-Panel.
+            Bilder, Schriften und CSS laden trotzdem. -#}
+        <iframe class="preview-frame" id="preview-frame" title="Preview" sandbox=""></iframe>
         <p class="hint preview-blocked" id="preview-blocked" style="display:none">{{ t.preview_blocked }}</p>
       </div>
       <!-- Ein Speichern-Knopf fuer den ganzen Reiter: die Gruppen sind nur eine
@@ -5149,22 +5152,21 @@
       el('preview-open').href = publicUrl();
     }
     async function reloadPreview() {
-      const url = publicUrl();
-      el('preview-open').href = url;
-      // Ein leerer Rahmen sagt nicht, warum er leer ist. Der Vorabruf schlägt
-      // genau dann fehl, wenn auch der Rahmen scheitert (Port unerreichbar,
-      // gemischter Inhalt) — dann steht statt der grauen Fläche der Grund da.
-      // Geprüft wird manifest.json, damit der Besucherzähler nicht mitzählt.
-      let ok = true;
-      try {
-        await fetch(url + 'manifest.json', { mode: 'no-cors', cache: 'no-store' });
-      } catch (e) { ok = false; }
+      el('preview-open').href = publicUrl();
+      // Der Rahmen lädt die Seite nicht selbst, sondern bekommt sie vom Admin
+      // gerendert: eine öffentliche Adresse hinter einem Proxy verbietet das
+      // Laden im Rahmen (X-Frame-Options), und über den Ingress ist Port 17760
+      // nicht zwingend erreichbar.
       const frame = el('preview-frame'), blocked = el('preview-blocked');
-      frame.style.display = ok ? '' : 'none';
-      blocked.style.display = ok ? 'none' : '';
-      el('preview-hint').textContent = ok ? T.preview_hint : '';
-      if (ok) frame.src = url + '?_=' + Date.now();
-      else frame.removeAttribute('src');
+      let d = null;
+      try {
+        const r = await api('api/preview');
+        if (r.ok) d = await r.json();
+      } catch (e) { d = null; }
+      frame.style.display = d ? '' : 'none';
+      blocked.style.display = d ? 'none' : '';
+      if (d) frame.srcdoc = d.html;
+      else frame.removeAttribute('srcdoc');
     }
 
     // ── Inhalte (Skills / Aktuelles / Werdegang) ──
