@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.20] - 2026-08-28
+- Fix: `GET /api/privacy/disallowed` verschwieg ausgerechnet das Wichtigste. Die Antwort hat die Form `{status, users, dhash}`, die Beschreibung gab aber nur eine feste Feldliste aus — `users`, also die eigentliche Ausnahmeliste, fehlte darin. Jetzt werden **alle** Felder beschrieben, eine Ebene tiefer als vorher
+
 ## [1.8.19] - 2026-08-28
 - Neu: **`GET /api/privacy/disallowed?category=lastSeen` liest die Ausnahmeliste** zu „Meine Kontakte, ausser…". WhatsApp fuehrt sie pro Kategorie getrennt (`lastSeen`, `about`, `profilePicture`, `groupAdd`) — die Route fragt sie ueber `queryPrivacyDisallowedList()` ab und beschreibt die Antwort Feld fuer Feld, statt sie blind zu serialisieren
 - Der Quelltext von `WAWebSetPrivacyJob` hat gezeigt, wie das Setzen wirklich funktioniert: `setPrivacy({name, value, users, dhash})` mit `users` als Liste von `{action: 'add'|'remove', wid}`. Die Ausnahmeliste wird also **schrittweise** gepflegt, nicht am Stueck ersetzt — und ohne `users` ist der Aufruf voellig unauffaellig, genau wie bisher genutzt

@@ -3018,10 +3018,19 @@ app.get('/api/privacy/disallowed', async (req, res) => {
         if (t === 'string' || t === 'number' || t === 'boolean') return v;
         if (Array.isArray(v)) return depth <= 0 ? '[' + v.length + ' Eintraege]' : v.slice(0, 50).map(x => describe(x, depth - 1));
         if (t === 'function') return 'fn';
-        const out = { __keys: [] };
-        try { out.__keys = Object.keys(v).slice(0, 25); } catch (e) {}
-        for (const k of ['_serialized', 'user', 'server', 'device', 'agent', 'id', 'type', 'dhash', 'wid', 'lid', 'pn', 'action', 'username']) {
-          if (v[k] !== undefined) out[k] = depth <= 0 ? String(v[k]).slice(0, 80) : describe(v[k], depth - 1);
+        const out = {};
+        let own = [];
+        try { own = Object.keys(v).slice(0, 25); } catch (e) {}
+        // Erst alle eigenen Felder, dann die typischen Wid-Felder, die als
+        // Getter auf dem Prototyp haengen und in Object.keys fehlen
+        for (const k of own) {
+          try { out[k] = depth <= 0 ? String(v[k]).slice(0, 80) : describe(v[k], depth - 1); }
+          catch (e) { out[k] = 'FEHLER'; }
+        }
+        for (const k of ['_serialized', 'user', 'server', 'device', 'agent']) {
+          if (out[k] === undefined && v[k] !== undefined) {
+            try { out[k] = String(v[k]).slice(0, 80); } catch (e) {}
+          }
         }
         try { if (typeof v.toString === 'function') out.__str = String(v).slice(0, 120); } catch (e) {}
         return out;
@@ -3039,7 +3048,7 @@ app.get('/api/privacy/disallowed', async (req, res) => {
           lidMigrated: util.isPrivacyDisallowedListTypeLidMigrated(),
           resultType: Array.isArray(result) ? 'array' : typeof result,
           count: Array.isArray(result) ? result.length : undefined,
-          result: describe(result, 3),
+          result: describe(result, 4),
         };
       } catch (e) {
         return { error: String((e && e.message) || e).slice(0, 300) };
