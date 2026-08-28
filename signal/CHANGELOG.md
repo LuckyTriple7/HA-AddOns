@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.28] - 2026-08-28
+- Fix: **In der Konsole fehlte bei vielen Zeilen die Uhrzeit.** Die still protokollierten Debug-Zeilen (`API GET …`) trugen keinen Zeitstempel, die echten Konsolenzeilen schon — jetzt haben alle einen, und zwar in Ortszeit statt UTC
+- Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt. Der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl der Ebenen bleibt ueber einen Seitenwechsel hinweg erhalten
+- Gleiche Funktion wie im WhatsApp-Add-on ab 1.8.0
+
 ## [1.6.27] - 2026-08-25
 - Fix: **Status blieb `linked`, obwohl signal-cli-rest-api nicht mehr antwortete.** `checkStatus()` setzte bei einem Fehler nur `lastError`, den Status aber ausschließlich dann auf `error`, wenn er noch `starting` war. Eine bereits verlinkte Instanz meldete deshalb über `/api/status` weiterhin eine funktionierende Verbindung — im MessengerPortal erschien Signal grün als „Online", obwohl gar nichts mehr ging. Jetzt wechselt auch `linked` bei einem Fehler nach `error`; der 5-Sekunden-Poll verbindet anschließend selbstständig wieder, sobald die API antwortet
 - Fix: `lastError` wird bei einer erfolgreichen Statusprüfung geleert. Bisher blieb eine alte Fehlermeldung (z. B. `network timeout at: http://localhost:8080/v1/accounts`) dauerhaft in `/api/status` stehen, auch wenn längst wieder alles lief

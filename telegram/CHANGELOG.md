@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.6] - 2026-08-28
+- Fix: **In der Konsole fehlte bei vielen Zeilen die Uhrzeit.** Die still protokollierten Debug-Zeilen (`API GET …`) trugen keinen Zeitstempel, die echten Konsolenzeilen schon — jetzt haben alle einen, und zwar in Ortszeit statt UTC
+- Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt. Der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl der Ebenen bleibt ueber einen Seitenwechsel hinweg erhalten
+- Gleiche Funktion wie im WhatsApp-Add-on ab 1.8.0
+
 ## [1.7.5] - 2026-08-25
 - Fix: **Netzwerk-Aussetzer heilen sich jetzt von selbst.** Fiel die Verbindung zu Telegram mit einem Netzwerkfehler aus (z. B. `connect ENETUNREACH 149.154.167.50:443`), blieb das Add-on dauerhaft im Status `error` stehen und wartete auf einen manuellen Klick auf „Erneut verbinden". Ein neuer Auto-Retry-Timer prüft alle 10 Sekunden, ob der letzte Fehler ein Netzwerkfehler war (ENETUNREACH, EHOSTUNREACH, ECONNRESET, ETIMEDOUT, EAI_AGAIN, Timeout u. a.), und startet dann selbstständig einen neuen Verbindungsversuch mit exponentiellem Backoff (15 s, 30 s, 60 s … max. 5 Minuten). Nach erfolgreicher Verbindung wird der Backoff zurückgesetzt. Auth- und Konfigurationsfehler (falscher Code, fehlende `api_id`) werden bewusst **nicht** wiederholt, ebenso wenig wird erneut versucht, solange auf Code oder 2FA-Passwort gewartet wird
 
