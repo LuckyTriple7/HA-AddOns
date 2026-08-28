@@ -1,6 +1,6 @@
 # Changelog – MessengerPortal
 
-## [1.2.17] - 2026-08-28
+## [1.2.18] - 2026-08-28
 - Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt, der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl bleibt ueber einen Seitenwechsel hinweg erhalten
 - Pythons `CRITICAL` laeuft dabei unter ERROR, `WARNING` unter WARN. Zeitstempel hatten die Zeilen hier schon — anders als bei WhatsApp, Telegram und Signal war nur der Filter nachzuruesten
 - Gleiche Funktion wie im WhatsApp-Add-on ab 1.8.0
