@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.33
+
+- 🖼️ **Vorschau im Design-Reiter blieb über den Ingress grau.** Der Rahmen zeigte immer `Protokoll://<Host>:17760/` — über das Home-Assistant-Panel ist das die Adresse von Home Assistant, und dort ist Port 17760 nicht zwingend erreichbar; läuft HA über **https**, blockiert der Browser eine http-Seite im Rahmen ohnehin. Jetzt gilt: Ist unter **Design → Öffentliche Adresse** eine Adresse eingetragen, zeigt die Vorschau diese; sonst bleibt es beim Nachbarport. Dieselbe Adresse steht auch in den Slug-Hinweisen unter Seiten, Bibliothek und Formularen.
+- 💬 **Statt grauer Fläche steht der Grund da.** Vor dem Laden prüft die Vorschau die Adresse (per `manifest.json`, damit der Besucherzähler nicht mitzählt). Scheitert der Abruf, erscheint anstelle des Rahmens ein Hinweis, was zu tun ist — bisher sah man nur ein leeres Feld.
+
 ## 0.11.32
 
 - 🩺 **Systemzustand zeigt aufgeklappt alles.** Der Kasten blendete die unauffälligen Zeilen aus, bis man den Haken „alles anzeigen“ setzte — genau die Übersicht, wegen der man ihn öffnet, lag also hinter einem Klick. Jetzt gilt: zugeklappt steht in der Kopfzeile „alles in Ordnung“ bzw. die Zahl der Auffälligkeiten, aufgeklappt steht die **vollständige Liste** da. Haken und der erklärende Absatz darüber sind entfallen.
