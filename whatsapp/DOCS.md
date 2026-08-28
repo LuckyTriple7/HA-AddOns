@@ -40,7 +40,7 @@ GET  /api/last-received              → Zeitpunkt der letzten empfangenen Nachr
 GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines bestimmten Chats
 POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
-GET  /api/presence/:chatId           → Zuletzt online eines Kontakts (online, lastSeen, denied)
+GET  /api/presence/:chatId           → Zuletzt online eines Kontakts (online, lastSeen, denied); ?announce=1 meldet vorher die eigene Verfügbarkeit
 GET  /api/me                         → Eigenes Profil (Nummer, Name, Info-Text)
 POST /api/me/about                   → Info-Text im Profil setzen
 GET  /api/my-status                  → Eigene laufende Statusmeldungen (24 h)
@@ -213,7 +213,7 @@ GET  /api/last-received              → Timestamp of the last received message
 GET  /api/last-received?chat=<id>    → Last received message of a specific chat
 POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
-GET  /api/presence/:chatId           → Last seen of a contact (online, lastSeen, denied)
+GET  /api/presence/:chatId           → Last seen of a contact (online, lastSeen, denied); ?announce=1 announces your own availability first
 GET  /api/me                         → Own profile (number, name, about text)
 POST /api/me/about                   → Set the about text of your profile
 GET  /api/my-status                  → Your live status updates (24 h)

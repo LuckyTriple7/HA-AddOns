@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.71] - 2026-08-28
+- Fix: **„Zuletzt online" meldete immer „keine Angabe".** Das Debug-Log zeigte `hasData:false` bei leerem `chatstate` — es kam nie eine Praesenz-Aktualisierung. Grund: `model.subscribe()` ist im Presence-Modell nur ein `collection.find()` und sendet gar kein Abo. Das erledigt `WAWebSendPresenceSubscriptionJob.sendUserPresenceSubscription(wid)`, das jetzt aufgerufen wird; `model.subscribe()` bleibt als Rueckfall. Die Wartezeit stieg von 3,5 auf 6 Sekunden
+- Neue Option **`presence_announce`** (Standard: aus). WhatsApp liefert fremde Praesenz nur an Geraete, die sich selbst als verfuegbar melden. Die Option macht das — mit der Nebenwirkung, dass man fuer seine Kontakte als online erscheint, solange das Add-on laeuft. Deshalb bewusst abschaltbar und standardmaessig aus
+- `GET /api/presence/:chatId?announce=1` erzwingt die Meldung fuer einen einzelnen Test, `?announce=0` unterdrueckt sie
+
 ## [1.7.70] - 2026-08-28
 - Feature: **„Zuletzt online" im Kontaktfenster.** `whatsapp-web.js` kann fremde Praesenz nicht lesen — nur die eigene senden. WhatsApp Web fuehrt sie aber in der `PresenceCollection`: das Modell hat `subscribe()`, `isOnline` und darunter `chatstate` mit `type`, `t` (Zeitpunkt) und `deny`. Das Add-on abonniert die Praesenz beim Oeffnen des Kontakts und zeigt eines von vier Ergebnissen: „online" (gruen), „zuletzt online: Heute, 08:53", „zuletzt online: nicht sichtbar" (der Kontakt erlaubt es nicht) oder „zuletzt online: keine Angabe"
 - Ohne Abo liefert WhatsApp nichts, und die Antwort kommt asynchron — deshalb steht bis zu dreieinhalb Sekunden „wird geprueft" da. Fuer Gruppen entfaellt die Anzeige

@@ -106,6 +106,7 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const VIDEO_MAX_MB = Math.max(parseInt(process.env.VIDEO_MAX_MB || '50', 10), 1);
 const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
+const PRESENCE_ANNOUNCE = process.env.PRESENCE_ANNOUNCE === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
@@ -125,6 +126,7 @@ console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
 console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
 console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
+console.log(`[INFO]   presence_announce      = ${PRESENCE_ANNOUNCE}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
@@ -1804,39 +1806,67 @@ app.get('/api/presence/:chatId', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
   if (chatId.endsWith('@g.us')) return res.json({ supported: false });
+  // Ohne eigene "verfuegbar"-Meldung schickt WhatsApp keine fremde Praesenz. Das
+  // macht einen aber fuer die Kontakte sichtbar online, deshalb nur auf Wunsch.
+  const announce = req.query.announce === '1' || (req.query.announce !== '0' && PRESENCE_ANNOUNCE);
   try {
-    const p = await client.pupPage.evaluate(async (chatId, waitMs) => {
-      const out = { supported: true, subscribed: false, isOnline: null, hasData: null,
-                    stale: null, type: null, t: null, deny: null, error: null };
+    const p = await client.pupPage.evaluate(async (chatId, waitMs, announce) => {
+      const out = { supported: true, how: null, announced: false, isOnline: null, hasData: null,
+                    stale: null, isSubscribed: null, type: null, t: null, deny: null, error: null };
+      const read = (model) => {
+        const cs = model.chatstate || {};
+        out.isOnline = !!model.isOnline;
+        out.hasData = !!model.hasData;
+        out.stale = !!model.stale;
+        out.isSubscribed = !!model.isSubscribed;
+        out.type = cs.type != null ? cs.type : null;
+        out.t = cs.t != null ? cs.t : null;
+        out.deny = cs.deny != null ? !!cs.deny : null;
+      };
+      const settled = (model) => {
+        const cs = model.chatstate || {};
+        return !!model.hasData || cs.t != null || cs.deny != null || cs.type === 'available';
+      };
+      const waitFor = async (model, ms) => {
+        const deadline = Date.now() + ms;
+        while (Date.now() < deadline) {
+          if (settled(model)) return true;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        return settled(model);
+      };
       try {
         const wid = window.require('WAWebWidFactory').createWid(chatId);
         const PC = window.require('WAWebPresenceCollection').PresenceCollection;
         let model = PC.get(wid);
         if (!model) { try { model = await PC.find(wid); } catch (e) {} }
         if (!model) { out.error = 'keine Praesenz zu dieser ID'; return out; }
-        try {
-          if (typeof model.subscribe === 'function') { await model.subscribe(); out.subscribed = true; }
-        } catch (e) { out.error = 'subscribe: ' + String((e && e.message) || e); }
 
-        // Die Antwort kommt asynchron ueber den Socket — kurz darauf warten
-        const deadline = Date.now() + waitMs;
-        while (Date.now() < deadline) {
-          const cs = model.chatstate || {};
-          if (model.hasData || cs.t != null || cs.deny != null) break;
-          await new Promise(r => setTimeout(r, 200));
+        if (announce) {
+          // Eigene Verfuegbarkeit melden — sonst liefert WhatsApp nichts
+          try { window.require('WAWebContactPresenceBridge').setPresenceAvailable(); out.announced = true; }
+          catch (e) { out.error = 'setPresenceAvailable: ' + String((e && e.message) || e); }
         }
-        const cs = model.chatstate || {};
-        out.isOnline = !!model.isOnline;
-        out.hasData = !!model.hasData;
-        out.stale = !!model.stale;
-        out.type = cs.type != null ? cs.type : null;
-        out.t = cs.t != null ? cs.t : null;
-        out.deny = cs.deny != null ? !!cs.deny : null;
+
+        // Das echte Abo: model.subscribe() ist nur ein collection.find() und
+        // sendet nichts. Der Auftrag dafuer ist sendUserPresenceSubscription.
+        try {
+          await window.require('WAWebSendPresenceSubscriptionJob').sendUserPresenceSubscription(wid);
+          out.how = 'sendUserPresenceSubscription';
+        } catch (e) {
+          out.error = 'subscription: ' + String((e && e.message) || e);
+          try {
+            if (typeof model.subscribe === 'function') { await model.subscribe(); out.how = 'model.subscribe'; }
+          } catch (e2) {}
+        }
+
+        await waitFor(model, waitMs);
+        read(model);
       } catch (e) {
         out.error = String((e && e.message) || e);
       }
       return out;
-    }, chatId, 3500);
+    }, chatId, 6000, announce);
 
     // chatstate.t kommt in Sekunden — auf Millisekunden bringen, aber nur wenn es
     // plausibel ist (sonst lieber nichts anzeigen als eine erfundene Zeit)

@@ -23,6 +23,9 @@ configuration:
   keep_deleted:
     name: Keep Deleted Messages
     description: "true = Original message content stays visible with a small 🚫 badge below; forward/react/reply buttons are hidden. false = Message is replaced with a 🚫 deleted notice (default)."
+  presence_announce:
+    name: Announce your own availability
+    description: "Required for \"last seen\" to show up for contacts — WhatsApp only sends other people's presence to devices that announce themselves as available. Note: this makes you appear online to your contacts while the add-on is running. false = off (default)."
   debug_mode:
     name: Debug Mode
     description: Enable verbose logging including detailed request logs. Useful for troubleshooting.
