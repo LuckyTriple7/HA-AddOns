@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.13] - 2026-08-28
+- Fix: **Blaue Haken blieben grau.** Den blauen Haken setzte bisher nur das Live-Ereignis `message_ack` — wurde eine Nachricht gelesen, waehrend das Add-on aus oder getrennt war, kam das Ereignis nie und der Haken blieb fuer immer grau, obwohl er auf dem Handy blau war
+- Drei Stellen nachgezogen: der Start uebernimmt jetzt den aktuellen Haken-Stand auch fuer **bereits bekannte** Nachrichten (vorher verwarf `addMsg` das Duplikat samt frischem Wert), `message_ack` sichert die Aenderung sofort auf Platte (vorher nur im Arbeitsspeicher — ein Neustart holte den alten Wert zurueck), und alle 5 Minuten fragt das Add-on bei WhatsApp nach: **eigene Nachrichten der letzten 7 Tage ohne blauen Haken**, hoechstens 25 pro Durchgang, 200 ms Abstand
+- Der erste Durchgang laeuft eine Minute nach dem Start. Mit `debug_mode` steht das Ergebnis im Log: „ack-resync: 3 von 25 Haken nachgezogen"
+
 ## [1.8.12] - 2026-08-28
 - Fix: **Der Medien-Knopf in der Chat-Kopfzeile hatte gar keine eigene Optik** — ohne Regel zeichnete der Browser seinen Standardknopf mit weissem Kasten, der zwischen den anderen Knoepfen fehl am Platz wirkte. Jetzt derselbe Rahmen wie Suche, Export und Loeschen; aus ist er bernsteinfarben
 - Als Aus-Symbol steht dort nicht mehr das durchgestrichene Auge (das heisst „ausgeblendet", nicht „keine Medien"), sondern ein Bildrahmen mit Schraegstrich — bei 15 Pixeln deutlich besser zu lesen

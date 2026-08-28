@@ -379,7 +379,22 @@ function upsertChat(chatId, { name, phone, isGroup }) {
 }
 
 function addMsg(chatId, msg) {
-  if (seenIds.has(msg.id)) { dbg(`addMsg: duplicate skipped ${msg.id}`); return false; }
+  if (seenIds.has(msg.id)) {
+    // Bekannte Nachricht — aber der Haken kann inzwischen weiter sein. Beim Start
+    // liest der Loader den aktuellen Stand von WhatsApp; den hier uebernehmen,
+    // sonst bleibt ein waehrend der Auszeit gelesener Haken fuer immer grau.
+    if (typeof msg.ack === 'number' && msg.ack > 0) {
+      const stored = getChatMsgs(chatId).find(m => m.id === msg.id);
+      if (stored && stored.fromMe && msg.ack > (stored.ack || 0)) {
+        stored.ack = msg.ack;
+        stored.ackUpdatedAt = Date.now();
+        saveMsgs();
+        dbg(`addMsg: ack ${msg.id} → ${msg.ack}`);
+      }
+    }
+    dbg(`addMsg: duplicate skipped ${msg.id}`);
+    return false;
+  }
   seenIds.add(msg.id);
   dbg(`addMsg: chatId=${chatId} fromMe=${msg.fromMe} type=${msg.type} body="${(msg.body||'').slice(0,60)}"`);
   const msgs = getChatMsgs(chatId);
@@ -884,13 +899,63 @@ client.on('message_ack', (msg, ack) => {
   const msgs = messagesByChatId.get(msg.to);
   if (msgs) {
     const stored = msgs.find(m => m.id === msg.id._serialized);
-    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); return; }
+    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); saveMsgs(); return; }
   }
   for (const list of messagesByChatId.values()) {
     const stored = list.find(m => m.id === msg.id._serialized);
-    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); break; }
+    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); saveMsgs(); break; }
   }
 });
+
+// ── Haken nachziehen ──────────────────────────────────────────────────────────
+// message_ack kommt nur, solange das Add-on laeuft und verbunden ist. Wird eine
+// Nachricht gelesen, waehrend es aus war, bleibt der Haken sonst fuer immer grau,
+// obwohl er auf dem Handy blau ist. Deshalb regelmaessig direkt bei WhatsApp
+// nachfragen — nur eigene Nachrichten, nur die juengsten, nur solange nicht
+// gelesen.
+const ACK_RESYNC_MINUTES = 5;
+const ACK_RESYNC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const ACK_RESYNC_BATCH = 25;
+let _ackResyncRunning = false;
+
+async function resyncAcks() {
+  if (status !== 'connected' || _ackResyncRunning) return;
+  _ackResyncRunning = true;
+  try {
+    const cutoff = Date.now() - ACK_RESYNC_MAX_AGE_MS;
+    const pending = [];
+    for (const msgs of messagesByChatId.values()) {
+      for (const m of msgs) {
+        if (!m.fromMe || m.deleted) continue;
+        if ((m.timestamp || 0) < cutoff) continue;
+        if ((m.ack || 0) >= 3) continue; // schon gelesen/abgespielt
+        pending.push(m);
+      }
+    }
+    if (!pending.length) return;
+    pending.sort((a, b) => b.timestamp - a.timestamp);
+    let changed = 0;
+    for (const m of pending.slice(0, ACK_RESYNC_BATCH)) {
+      try {
+        const fresh = await client.getMessageById(m.id).catch(() => null);
+        if (!fresh || typeof fresh.ack !== 'number') continue;
+        if (fresh.ack > (m.ack || 0)) { m.ack = fresh.ack; m.ackUpdatedAt = Date.now(); changed++; }
+      } catch (e) { dbg('resyncAcks:', e.message); }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    if (changed) {
+      saveMsgs();
+      _logSilent('DEBUG', `ack-resync: ${changed} von ${Math.min(pending.length, ACK_RESYNC_BATCH)} Haken nachgezogen`);
+    }
+  } finally {
+    _ackResyncRunning = false;
+  }
+}
+
+// Einmal kurz nach dem Start (holt nach, was waehrend der Auszeit gelesen wurde)
+setTimeout(() => { resyncAcks().catch(e => dbg('resyncAcks:', e.message)); }, 60000);
+setInterval(() => { resyncAcks().catch(e => dbg('resyncAcks:', e.message)); }, ACK_RESYNC_MINUTES * 60000);
+
 
 client.on('call', (call) => {
   _logSilent('INFO', `Incoming call from ${call.from} — type=${call.isVideo?'video':'audio'} id=${call.id}`);
