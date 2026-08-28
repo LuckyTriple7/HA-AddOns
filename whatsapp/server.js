@@ -1087,11 +1087,25 @@ app.get('/api/search', async (req, res) => {
 });
 
 app.get('/api/messages', (req, res) => {
-  const { chat: chatId, since } = req.query;
+  const { chat: chatId, since, limit, before } = req.query;
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts) || (m.mediaUpdatedAt && m.mediaUpdatedAt > since_ts)) : msgs);
+  if (since_ts) {
+    // Laufende Aktualisierung des offenen Chats — unveraendert eine Liste
+    return res.json(msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts) || (m.mediaUpdatedAt && m.mediaUpdatedAt > since_ts)));
+  }
+
+  // Mit limit stueckweise laden: die juengsten n, aeltere spaeter ueber before.
+  // Ohne limit bleibt es bei der vollstaendigen Liste, damit vorhandene Aufrufer
+  // (Neuaufbau nach dem Loeschen) unveraendert funktionieren.
+  const lim = Math.min(Math.max(parseInt(limit || '0', 10) || 0, 0), 500);
+  if (!lim) return res.json(msgs);
+
+  const beforeTs = parseInt(before || '0', 10);
+  const pool = beforeTs ? msgs.filter(m => m.timestamp < beforeTs) : msgs;
+  const slice = pool.slice(-lim);
+  res.json({ messages: slice, more: pool.length > slice.length, total: msgs.length });
 });
 
 app.post('/api/send', async (req, res) => {
@@ -3199,6 +3213,12 @@ app.get('/', (req, res) => {
     .contact-list-foot button:hover { background:rgba(134,150,160,0.15); }
     .chat-item .chat-preview.no-chat { font-style:italic; opacity:0.75; }
     .avatar.group-avatar { background:#25D366 !important; font-size:22px; }
+    #load-older { display: block; width: calc(100% - 24px); margin: 6px 12px 10px; padding: 8px;
+      border: none; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; }
+    html.dark #load-older { background: rgba(255,255,255,0.07); color: #e9edef; }
+    html.light #load-older { background: rgba(0,0,0,0.05); color: #111; }
+    #load-older:hover { outline: 1px solid #00a884; }
+    #load-older:disabled { opacity: 0.6; cursor: default; outline: none; }
     #search-wrap { position: relative; width: 100%; }
     #search {
       width: 100%; background: #2a3942; border: none; border-radius: 8px;
@@ -4205,6 +4225,8 @@ app.get('/', (req, res) => {
         contactsError:'Adressbuch konnte nicht geladen werden.',
         contactsRefresh:'Adressbuch neu laden',
         searchClear:'Suche leeren',
+        loadOlder:'↑ Ältere Nachrichten laden', loadOlderBusy:'lädt…',
+        loadOlderCount:(n,total)=>n+' von '+total+' geladen',
         presLoading:'zuletzt online wird geprüft…', presOnline:'online',
         presLastSeen:(w)=>'zuletzt online: '+w, presDenied:'zuletzt online: nicht sichtbar',
         presUnknown:'zuletzt online: keine Angabe',
@@ -4328,6 +4350,8 @@ app.get('/', (req, res) => {
         contactsError:'Could not load the address book.',
         contactsRefresh:'Reload address book',
         searchClear:'Clear search',
+        loadOlder:'↑ Load older messages', loadOlderBusy:'loading…',
+        loadOlderCount:(n,total)=>n+' of '+total+' loaded',
         presLoading:'checking last seen…', presOnline:'online',
         presLastSeen:(w)=>'last seen: '+w, presDenied:'last seen: not visible',
         presUnknown:'last seen: no information',
@@ -4610,6 +4634,8 @@ app.get('/', (req, res) => {
     const msgList = document.getElementById('messages');
     msgList.addEventListener('scroll', () => {
       atBottom = msgList.scrollTop + msgList.clientHeight >= msgList.scrollHeight - 30;
+      // Oben angekommen: aeltere Nachrichten von selbst nachladen
+      if (msgList.scrollTop < 60 && selectedChatId) loadOlderMessages(selectedChatId);
     });
 
     const COLORS = ['#e67e22','#d35400','#27ae60','#34b7f1','#00bcd4','#9c27b0','#ff5722','#607d8b','#e91e63','#3f51b5'];
@@ -5633,7 +5659,7 @@ app.get('/', (req, res) => {
       atBottom = true;
       _pendingMentions = []; hideMentionDropdown(); // Erwähnungen vom vorherigen Chat verwerfen
       if (isGroupChat(chat.id)) ensureParticipants(chat.id); // Namen für @-Auflösung vorladen
-      await loadMessages(chat.id);
+      await loadInitialMessages(chat.id);
     }
 
     // Gespraechs-Statistik. Stand frueher in der Chat-Kopfzeile und nahm dort viel
@@ -5663,6 +5689,73 @@ app.get('/', (req, res) => {
       clearReply();
     }
 
+    // Ein Chat mit langem Verlauf kam bisher komplett auf einmal — auf dem Handy
+    // dauert der Aufbau spuerbar, und nachgeladene Bilder verschieben die Ansicht.
+    // Deshalb zuerst die juengsten Nachrichten, aeltere auf Abruf.
+    const INITIAL_MSGS = 50, OLDER_BATCH = 50;
+    let _chatBuf = {};    // chatId -> bereits geladene Nachrichten, aufsteigend
+    let _older = {};      // chatId -> { oldestTs, more, total, loading }
+
+    async function loadInitialMessages(chatId) {
+      try {
+        const d = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&limit=' + INITIAL_MSGS)
+          .then(apiJson);
+        const msgs = (d && d.messages) || [];
+        if (chatId !== selectedChatId) return;
+        _chatBuf[chatId] = msgs.slice();
+        _older[chatId] = {
+          oldestTs: msgs.length ? msgs[0].timestamp : 0,
+          more: !!(d && d.more), total: (d && d.total) || msgs.length, loading: false,
+        };
+        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
+        renderLoadOlder(chatId);
+        msgList.scrollTop = msgList.scrollHeight;
+      } catch (e) {}
+    }
+
+    function renderLoadOlder(chatId) {
+      const existing = document.getElementById('load-older');
+      if (existing) existing.remove();
+      const st = _older[chatId];
+      if (!st || !st.more) return;
+      const btn = document.createElement('button');
+      btn.id = 'load-older';
+      btn.textContent = t('loadOlder') + ' · ' + tf('loadOlderCount', (_chatBuf[chatId] || []).length, st.total);
+      btn.onclick = () => loadOlderMessages(chatId);
+      msgList.insertBefore(btn, msgList.firstChild);
+    }
+
+    async function loadOlderMessages(chatId) {
+      const st = _older[chatId];
+      if (!st || !st.more || st.loading || chatId !== selectedChatId) return false;
+      st.loading = true;
+      const btn = document.getElementById('load-older');
+      if (btn) { btn.disabled = true; btn.textContent = t('loadOlderBusy'); }
+      try {
+        const d = await fetch('api/messages?chat=' + encodeURIComponent(chatId)
+          + '&limit=' + OLDER_BATCH + '&before=' + st.oldestTs).then(apiJson);
+        const older = (d && d.messages) || [];
+        if (chatId !== selectedChatId) return false;
+        if (!older.length) { st.more = false; renderLoadOlder(chatId); return false; }
+        _chatBuf[chatId] = older.concat(_chatBuf[chatId] || []);
+        st.oldestTs = older[0].timestamp;
+        st.more = !!(d && d.more);
+        // Neu zeichnen und dabei die Blickposition halten, sonst springt die Ansicht
+        const prevHeight = msgList.scrollHeight, prevTop = msgList.scrollTop;
+        msgList.innerHTML = '';
+        renderMessages(_chatBuf[chatId], chatId);
+        renderLoadOlder(chatId);
+        msgList.scrollTop = msgList.scrollHeight - prevHeight + prevTop;
+        return true;
+      } catch (e) {
+        return false;
+      } finally {
+        st.loading = false;
+        const b = document.getElementById('load-older');
+        if (b) b.disabled = false;
+      }
+    }
+
     async function loadMessages(chatId) {
       if (!chatId) return;
       const since = lastMsgTime[chatId] || 0;
@@ -5671,6 +5764,10 @@ app.get('/', (req, res) => {
           .then(r => r.json());
         // Stats nur neu laden, wenn tatsächlich neue Nachrichten kamen
         if (msgs.length) {
+          if (_chatBuf[chatId]) {
+            const known = new Set(_chatBuf[chatId].map(m => m.id));
+            for (const m of msgs) if (!known.has(m.id)) _chatBuf[chatId].push(m);
+          }
           renderMessages(msgs, chatId); pollReactions();
           // Kontaktliste links sofort aktualisieren (Vorschau + Sortierung),
           // statt bis zum nächsten pollChats-Intervall (10 s) zu warten — gilt für
@@ -5933,6 +6030,8 @@ app.get('/', (req, res) => {
         lastMsgTime[chatId] = 0;
         atBottom = true;
         if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
+        _chatBuf[chatId] = msgs.slice();
+        _older[chatId] = { oldestTs: msgs.length ? msgs[0].timestamp : 0, more: false, total: msgs.length, loading: false };
         lastMsgTime[chatId] = msgs.reduce((max, m) => Math.max(max, m.timestamp), 0);
       } catch(e) {}
     }
@@ -6518,18 +6617,26 @@ app.get('/', (req, res) => {
       closeGlobalSearch();
       await openChat(chat);
       if (!local) return;
+      const find = () => [...msgList.querySelectorAll('.bubble-wrap')].find(w => w.dataset.msgid === msgId);
+      const show = (wrap) => {
+        clearMsgHighlights();
+        const bub = wrap.querySelector('.bubble') || wrap;
+        bub.classList.add('msg-highlight-active');
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => bub.classList.remove('msg-highlight-active'), 5000);
+      };
       // Nach dem Oeffnen rendert die Liste asynchron — kurz auf die Blase warten
       for (let i = 0; i < 25; i++) {
-        const wrap = [...msgList.querySelectorAll('.bubble-wrap')].find(w => w.dataset.msgid === msgId);
-        if (wrap) {
-          clearMsgHighlights();
-          const bub = wrap.querySelector('.bubble') || wrap;
-          bub.classList.add('msg-highlight-active');
-          wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(() => bub.classList.remove('msg-highlight-active'), 5000);
-          return;
-        }
+        const wrap = find();
+        if (wrap) { show(wrap); return; }
         await new Promise(r => setTimeout(r, 150));
+      }
+      // Nicht dabei: der Chat laedt nur die juengsten Nachrichten. Stueckweise
+      // weiter zurueckgehen, bis die Nachricht auftaucht oder nichts mehr kommt.
+      for (let i = 0; i < 30; i++) {
+        if (!(await loadOlderMessages(chatId))) break;
+        const wrap = find();
+        if (wrap) { show(wrap); return; }
       }
     }
 

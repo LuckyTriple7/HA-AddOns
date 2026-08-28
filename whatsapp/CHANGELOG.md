@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.9] - 2026-08-28
+- Fix: **Chats mit langem Verlauf brauchten lange zum Oeffnen und die Ansicht sprang herum**, besonders auf dem Handy. Der Browser holte den kompletten Verlauf und baute ihn in einem Rutsch auf — bei einem Chat mit 420 Nachrichten also alle 420. Jetzt kommen zuerst die **juengsten 50**, aeltere auf Abruf
+- Oben im Chat steht dafuer „↑ Ältere Nachrichten laden · 50 von 420 geladen"; scrollt man ohnehin nach oben, laedt der naechste Schwung von selbst nach. Dabei bleibt die Blickposition erhalten — die Nachricht, die man gerade liest, bleibt an ihrem Platz
+- Die Suche ueber alle Chats geht weiterhin punktgenau: liegt ein Treffer weiter zurueck, laedt der Sprung so lange nach, bis die Nachricht da ist
+- `GET /api/messages` versteht dafuer `?limit=n` (juengste n, Antwort mit `more` und `total`) und `?before=<ts>` (die aelteren davor). Ohne `limit` bleibt es bei der vollstaendigen Liste
+
 ## [1.8.8] - 2026-08-28
 - Feature: **Die laufende WhatsApp-Web-Fassung ist jetzt sichtbar.** Sie steht beim Verbinden im Log und in der Kopfzeile der Konsole, zusammen mit der Fassung von `whatsapp-web.js`: „⬛ CONSOLE — WhatsApp · WA Web 2.3000.… · lib 1.34.…". `GET /api/status` liefert sie als `waWeb` und `lib` mit
 - Nuetzlich, weil sich daran festmachen laesst, wann ein Umbau bei WhatsApp etwas hier zerlegt hat — genau das war heute mehrfach die Ursache
