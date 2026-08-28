@@ -3093,6 +3093,9 @@ app.post('/api/privacy/disallowed', async (req, res) => {
         const resolve = (id) => {
           try { const c = col.Contact.get(id); if (c && c.id) return c.id; } catch (e) {}
           try { const c = col.Chat.get(id); if (c && c.id) return c.id; } catch (e) {}
+          // Kontakt nicht in den Sammlungen: Kennung selbst bauen (dieselbe
+          // Fabrik, die die Praesenz-Abfrage schon nutzt)
+          try { const w = window.require('WAWebWidFactory').createWid(id); if (w) return w; } catch (e) {}
           return null;
         };
         const unresolved = [];
@@ -3135,6 +3138,106 @@ app.post('/api/privacy/disallowed', async (req, res) => {
     if (!out.ok) return res.status(500).json(out);
     _logSilent('INFO', `privacy-list: ${category} +${out.added.length} -${out.removed.length} → ${out.list.length} Eintrag/Eintraege`);
     res.json({ success: true, category, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Selbsttest: haelt WhatsApp Web noch, worauf wir bauen? ────────────────────
+// Das Add-on greift an mehreren Stellen in die Innereien von WhatsApp Web. Die
+// benennt WhatsApp bei Umbauten gern um — dann bricht ein Teil weg, waehrend der
+// Rest weiterlaeuft, und man merkt es erst, wenn man die Stelle zufaellig nutzt.
+// Der Selbsttest prueft alle diese Stellen auf einmal und meldet, was fehlt.
+// Aufgerufen wird dabei nichts — nur nachgesehen, ob es da ist.
+const WA_INTERNALS = [
+  { mod: 'WAWebCollections',                 need: ['Contact', 'Chat', 'Status'],                        feature: 'Kontakte, Chats, Status' },
+  { mod: 'WAWebWidFactory',                  need: ['createWid'],                                        feature: 'Kennungen bauen' },
+  { mod: 'WAWebLidMigrationUtils',           need: ['toLid', 'toPn'],                                    feature: 'LID/Rufnummer-Umrechnung' },
+  { mod: 'WAWebPresenceCollection',          need: ['PresenceCollection'],                               feature: 'Zuletzt online' },
+  { mod: 'WAWebSendPresenceSubscriptionJob', need: ['sendUserPresenceSubscription'],                     feature: 'Zuletzt online' },
+  { mod: 'WAWebContactPresenceBridge',       need: ['setPresenceAvailable', 'setPresenceUnavailable'],   feature: 'eigene Verfuegbarkeit' },
+  { mod: 'WAWebSendStatusMsgAction',         need: ['sendStatusTextMsgAction', 'sendStatusMediaMsgAction'], feature: 'Status posten' },
+  { mod: 'WAWebStatusGatingUtils',           need: [],                                                   feature: 'Status-Schalter des Kontos', optional: true },
+  { mod: 'WAWebQueryPrivacySettingsJob',     need: ['getPrivacy'],                                       feature: 'Datenschutz lesen' },
+  { mod: 'WAWebSetPrivacyForOneCategoryAction', need: ['privacyWebNameToServerName', 'setPrivacyForOneCategory'], feature: 'Datenschutz aendern' },
+  { mod: 'WAWebPrivacySettings',             need: ['VISIBILITY', 'ONLINE_VISIBILITY', 'CALL_ADD'],      feature: 'zulaessige Datenschutz-Werte' },
+  { mod: 'WAWebSchemaPrivacyDisallowedList', need: ['PrivacyDisallowedListType'],                        feature: 'Ausnahmeliste' },
+  { mod: 'WAWebQueryPrivacyDisallowedListUtil', need: ['queryPrivacyDisallowedList', 'isPrivacyDisallowedListTypeLidMigrated'], feature: 'Ausnahmeliste lesen' },
+  { mod: 'WAWebStatusPrivacySettingAction',  need: ['getStatusPrivacySetting', 'setStatusPrivacyAllowList', 'setStatusPrivacyDenyList', 'setStatusPrivacyContact'], feature: 'Status-Publikum' },
+  { mod: 'WAWebStatusPrivacyContactsUtils',  need: ['convertPrivacyListContactsToWids'],                 feature: 'Status-Publikum' },
+  { mod: '__debug',                          need: [],                                                   feature: 'Modulliste (Diagnose)', optional: true },
+];
+
+const WAWEB_STATE_FILE = '/config/waweb_state.json';
+let _lastSelfCheck = null;
+
+async function runSelfCheck() {
+  if (status !== 'connected' || !client.pupPage) return null;
+  const result = await client.pupPage.evaluate((specs) => {
+    const out = [];
+    for (const spec of specs) {
+      let mod = null, err = null;
+      try { mod = window.require(spec.mod); } catch (e) { err = String((e && e.message) || e).slice(0, 120); }
+      if (!mod) { out.push({ ...spec, ok: false, reason: err ? 'Modul-Fehler: ' + err : 'Modul fehlt' }); continue; }
+      const missing = spec.need.filter((k) => {
+        try { return mod[k] === undefined || mod[k] === null; } catch (e) { return true; }
+      });
+      out.push({ ...spec, ok: missing.length === 0, missing });
+    }
+    return out;
+  }, WA_INTERNALS);
+
+  const broken = result.filter(r => !r.ok && !r.optional);
+  const degraded = result.filter(r => !r.ok && r.optional);
+  _lastSelfCheck = {
+    ts: Date.now(),
+    waWeb: waWebVersion,
+    lib: WA_VERSION,
+    ok: broken.length === 0,
+    checked: result.length,
+    broken: broken.map(r => ({ mod: r.mod, feature: r.feature, missing: r.missing, reason: r.reason })),
+    degraded: degraded.map(r => ({ mod: r.mod, feature: r.feature, missing: r.missing, reason: r.reason })),
+  };
+  if (broken.length) {
+    console.warn(`[WARN] Selbsttest: ${broken.length} von ${result.length} Bausteinen fehlen — `
+      + 'WhatsApp Web hat vermutlich umgebaut. Betroffen: '
+      + broken.map(r => `${r.feature} (${r.mod}${r.missing && r.missing.length ? ': ' + r.missing.join(', ') : ''})`).join(' | '));
+  } else {
+    console.log(`[INFO] Selbsttest: alle ${result.length} WhatsApp-Web-Bausteine vorhanden`
+      + (degraded.length ? ` (${degraded.length} optionale fehlen)` : ''));
+  }
+  return _lastSelfCheck;
+}
+
+// Eine neue WhatsApp-Web-Fassung ist der Moment, in dem etwas wegbrechen kann —
+// deshalb wird sie gemerkt und ein Wechsel deutlich ins Log geschrieben.
+function noteWaWebVersion() {
+  if (!waWebVersion) return;
+  let prev = null;
+  try {
+    if (existsSync(WAWEB_STATE_FILE)) prev = JSON.parse(fs.readFileSync(WAWEB_STATE_FILE, 'utf8'));
+  } catch (e) { dbg('noteWaWebVersion (lesen):', e.message); }
+  if (prev && prev.waWeb && prev.waWeb !== waWebVersion) {
+    console.log(`[INFO] WhatsApp Web hat sich geaendert: ${prev.waWeb} → ${waWebVersion} `
+      + '— der Selbsttest sagt gleich, ob noch alles sitzt');
+  }
+  try {
+    fs.writeFileSync(WAWEB_STATE_FILE, JSON.stringify({ waWeb: waWebVersion, lib: WA_VERSION, seen: Date.now() }));
+  } catch (e) { dbg('noteWaWebVersion (schreiben):', e.message); }
+}
+
+// Kurz nach dem Start und danach alle sechs Stunden
+setTimeout(() => { noteWaWebVersion(); runSelfCheck().catch(e => dbg('runSelfCheck:', e.message)); }, 90000);
+setInterval(() => { runSelfCheck().catch(e => dbg('runSelfCheck:', e.message)); }, 6 * 60 * 60 * 1000);
+
+// GET /api/selfcheck        — letztes Ergebnis (oder frisch, wenn noch keins da ist)
+// GET /api/selfcheck?run=1  — jetzt pruefen
+app.get('/api/selfcheck', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  try {
+    const data = (req.query.run === '1' || !_lastSelfCheck) ? await runSelfCheck() : _lastSelfCheck;
+    if (!data) return res.status(503).json({ error: 'keine Browser-Seite' });
+    res.json(data);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -4569,6 +4672,9 @@ app.get('/', (req, res) => {
     .priv-row label { flex: 1; font-size: 14px; }
     .priv-row select { width: auto; min-width: 46%; flex-shrink: 0; }
     .priv-row select:disabled { opacity: 0.6; }
+    #wa-health { background: #7a4a00; color: #ffe9c7; font-size: 12.5px; padding: 7px 14px; line-height: 1.45; flex-shrink: 0; }
+    html.light #wa-health { background: #ffe9c7; color: #6b3f00; }
+    #wa-health b { font-weight: 600; }
     .priv-list { font-size: 12px; color: #8696a0; padding: 0 0 8px 2px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
     .priv-list .priv-edit { background: none; border: none; color: #3cdb7c; cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; }
     #priv-picker-modal { display: none; position: fixed; inset: 0; z-index: 460; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
@@ -4672,6 +4778,8 @@ app.get('/', (req, res) => {
     <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:13px;padding:0 8px;font-weight:500;">DE</button>
     <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="confirmLogout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
+
+  <div id="wa-health" style="display:none;"></div>
 
   <div id="main" style="display:none;">
 
@@ -5104,6 +5212,8 @@ app.get('/', (req, res) => {
         privVal_none:'Niemand', privVal_match_last_seen:'Wie „Zuletzt online"', privVal_known:'Bekannte Kontakte',
         privHint:'Bei „Meine Kontakte, außer…" wählst du die Ausnahmen direkt hier aus. Ohne Lesebestätigungen siehst du auch bei anderen keine mehr (in Gruppen bleiben sie an).',
         privNoBlacklist:'Für diese Einstellung führt WhatsApp keine Ausnahmeliste.',
+        healthTitle:'WhatsApp Web hat umgebaut.',
+        healthBody:(what)=>'Diese Funktionen sind davon betroffen und arbeiten gerade nicht: '+what+'. Der Rest läuft weiter. Einzelheiten unter /api/selfcheck.',
         priv_statusAudience:'Statusmeldungen',
         privStatus_contacts:'Meine Kontakte', privStatus_deny:'Meine Kontakte, außer…', privStatus_allow:'Nur teilen mit…',
         privStatusSaved:'Status-Publikum gespeichert',
@@ -5253,6 +5363,8 @@ app.get('/', (req, res) => {
         privVal_none:'Nobody', privVal_match_last_seen:'Same as last seen', privVal_known:'Known contacts',
         privHint:'For "My contacts except…" you pick the exceptions right here. With read receipts off you will not see them from others either (they stay on in groups).',
         privNoBlacklist:'WhatsApp keeps no exception list for this setting.',
+        healthTitle:'WhatsApp Web has changed.',
+        healthBody:(what)=>'These features are affected and are not working right now: '+what+'. Everything else keeps running. Details at /api/selfcheck.',
         priv_statusAudience:'Status updates',
         privStatus_contacts:'My contacts', privStatus_deny:'My contacts except…', privStatus_allow:'Only share with…',
         privStatusSaved:'Status audience saved',
@@ -8428,6 +8540,22 @@ app.get('/', (req, res) => {
     refresh();
     // Intervalle pausieren, wenn der Tab im Hintergrund ist (spart Last/Requests);
     // visibilitychange unten aktualisiert sofort beim Zurückkehren
+    // Meldet sich nur, wenn etwas fehlt: WhatsApp Web baut regelmaessig um, und
+    // dann faellt ein einzelner Teil aus, waehrend der Rest weiterlaeuft
+    async function checkWaHealth() {
+      const bar = document.getElementById('wa-health');
+      if (!bar) return;
+      let d = null;
+      try { d = await fetch('api/selfcheck').then(r => r.json()); } catch (e) { return; }
+      if (!d || d.error || d.ok) { bar.style.display = 'none'; return; }
+      const parts = [...new Set((d.broken || []).map(b => b.feature))];
+      bar.innerHTML = '<b>' + esc(t('healthTitle')) + '</b> ' + esc(tf('healthBody', parts.join(', ')))
+        + (d.waWeb ? ' <span style="opacity:0.75">(WA Web ' + esc(d.waWeb) + ')</span>' : '');
+      bar.style.display = 'block';
+    }
+    setTimeout(checkWaHealth, 4000);
+    setInterval(checkWaHealth, 30 * 60 * 1000);
+
     // Eigenes Profil vorab holen, damit der Kontakte-Reiter es beim ersten
     // Klick fertig anzeigt statt erst nach dem Adressbuch
     loadMyProfile().then(() => { if (currentFilter === 'contacts') renderContactList(); });

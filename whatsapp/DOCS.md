@@ -77,6 +77,7 @@ GET  /api/privacy                    → Aktuelle Datenschutzeinstellungen lesen
 POST /api/privacy                    → Einstellung ändern ({name, value}); name: lastSeen, online, profilePicture, about, groupAdd, callAdd, readReceipts
 GET  /api/privacy/disallowed?category=<c> → Ausnahmeliste „Meine Kontakte, außer…" lesen, mit Namen (lastSeen, about, profilePicture, groupAdd)
 POST /api/privacy/disallowed         → Ausnahmeliste ändern ({category, add:[...], remove:[...]}) und die Kategorie dabei auf „Meine Kontakte, außer…" stellen
+GET  /api/selfcheck                  → Selbsttest: sitzen alle WhatsApp-Web-Bausteine noch? (?run=1 prueft sofort)
 GET  /api/privacy/status             → Publikum der Statusmeldungen lesen (mode: contacts/deny/allow + Kontaktliste)
 POST /api/privacy/status             → Publikum setzen ({mode, ids:[...]}); bei deny/allow wird die Liste vollständig ersetzt
 GET  /api/privacy/source?module=<n>  → Quelltext eines WhatsApp-Web-Moduls aus der Modulliste (Diagnose, nur lesen)
@@ -281,6 +282,7 @@ GET  /api/privacy                    → Read current privacy settings (last see
 POST /api/privacy                    → Change one setting ({name, value}); name: lastSeen, online, profilePicture, about, groupAdd, callAdd, readReceipts
 GET  /api/privacy/disallowed?category=<c> → Read the "my contacts except…" list incl. names (lastSeen, about, profilePicture, groupAdd)
 POST /api/privacy/disallowed         → Change the list ({category, add:[...], remove:[...]}) and set the category to "my contacts except…"
+GET  /api/selfcheck                  → Self-check: are all WhatsApp Web internals still there? (?run=1 checks now)
 GET  /api/privacy/status             → Read the status audience (mode: contacts/deny/allow + contact list)
 POST /api/privacy/status             → Set the audience ({mode, ids:[...]}); for deny/allow the list is replaced as a whole
 GET  /api/privacy/source?module=<n>  → Source of a WhatsApp Web module from the module map (diagnostics, read-only)

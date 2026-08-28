@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.27] - 2026-08-28
+- Feature: **Selbsttest gegen Umbauten bei WhatsApp.** Das Add-on greift an 16 Stellen in die Innereien von WhatsApp Web — Praesenz, Status posten, Datenschutz, Ausnahmelisten. Benennt WhatsApp eines dieser Module um, faellt bisher genau dieser Teil still aus, waehrend der Rest weiterlaeuft; gemerkt hat man es erst beim naechsten Benutzen
+- Der Selbsttest sieht alle Stellen auf einmal nach: **Modul vorhanden? Die benoetigten Funktionen darin vorhanden?** Aufgerufen wird nichts. Er laeuft 90 Sekunden nach dem Start und danach alle sechs Stunden
+- Faellt etwas weg, steht es **als Warnleiste oben in der Oberflaeche** („WhatsApp Web hat umgebaut — diese Funktionen arbeiten gerade nicht: …") und als Warnung im Log, mit Nennung der betroffenen Funktion und des fehlenden Bausteins
+- Die laufende WhatsApp-Web-Fassung wird in `/config/waweb_state.json` gemerkt. Wechselt sie, steht das im Log — genau dann brechen solche Sachen naemlich
+- `GET /api/selfcheck` liefert das letzte Ergebnis, `?run=1` prueft sofort
+- Nebenbei: laesst sich ein Kontakt fuer die Ausnahmeliste nicht in den Sammlungen finden, wird seine Kennung jetzt ueber `WAWebWidFactory` gebaut, statt ihn zu ueberspringen
+
 ## [1.8.26] - 2026-08-28
 - Fix: **Im Kontakte-Reiter erschien das eigene Profil erst, wenn das Adressbuch geladen war.** Waehrenddessen stand dort nur „Lade Kontakte", obwohl das Profil davon gar nicht abhaengt. Es steht jetzt sofort oben — auch wenn das Adressbuch noch laedt oder gar nicht kommt
 - Das Profil wird ausserdem schon beim Start im Hintergrund geholt, damit Name und Bild beim ersten Klick fertig dastehen
