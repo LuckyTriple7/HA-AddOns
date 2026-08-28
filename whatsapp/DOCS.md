@@ -41,6 +41,7 @@ GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines besti
 POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
 GET  /api/presence-overview          → Zuletzt online aller Kontakte; ?refresh=1 startet einen Rundlauf
+GET  /api/contact/:chatId/extra      → Gemeinsame Gruppen und Anzahl verknüpfter Geräte
 GET  /api/blocked                    → Liste der blockierten Kontakte
 POST /api/contact/:chatId/block      → Kontakt blockieren
 POST /api/contact/:chatId/unblock    → Blockierung aufheben
@@ -218,6 +219,7 @@ GET  /api/last-received?chat=<id>    → Last received message of a specific cha
 POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
 GET  /api/presence-overview          → Last seen of all contacts; ?refresh=1 starts a sweep
+GET  /api/contact/:chatId/extra      → Groups in common and number of linked devices
 GET  /api/blocked                    → List of blocked contacts
 POST /api/contact/:chatId/block      → Block a contact
 POST /api/contact/:chatId/unblock    → Unblock a contact

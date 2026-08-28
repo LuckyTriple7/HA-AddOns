@@ -1814,6 +1814,36 @@ app.get('/api/contact/:chatId', async (req, res) => {
   }
 });
 
+// Zusatzangaben zu einem Kontakt, die WhatsApp Web kennt, die App aber nicht
+// (Geraetezahl) oder die eigene Aufrufe kosten (gemeinsame Gruppen). Bewusst ein
+// eigener Endpunkt, damit das Kontaktfenster nicht langsamer aufgeht.
+app.get('/api/contact/:chatId/extra', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (chatId.endsWith('@g.us')) return res.json({ commonGroups: [], deviceCount: null });
+  const out = { commonGroups: [], deviceCount: null };
+  try {
+    const groups = await client.getCommonGroups(chatId).catch(() => []);
+    for (const g of groups || []) {
+      const id = g?._serialized || g?.id?._serialized || (typeof g === 'string' ? g : '');
+      if (!id) continue;
+      let name = chatMap.get(id)?.name || '';
+      if (!name) {
+        const chat = await client.getChatById(id).catch(() => null);
+        name = chat?.name || id.split('@')[0];
+      }
+      out.commonGroups.push({ id, name });
+    }
+    out.commonGroups.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  } catch (e) { dbg(`commonGroups(${chatId}): ${e.message}`); }
+  try {
+    // Ein normales Konto mit einer Web-Sitzung meldet 2 (Telefon + Web)
+    const n = await client.getContactDeviceCount(chatId);
+    if (typeof n === 'number' && n > 0) out.deviceCount = n;
+  } catch (e) { dbg(`deviceCount(${chatId}): ${e.message}`); }
+  res.json(out);
+});
+
 // ── Blockieren ────────────────────────────────────────────────────────────────
 // contact.block()/unblock() sind in der Bibliothek vorhanden und regeln die
 // LID-Umrechnung selbst. Gruppen lassen sich nicht blockieren.
@@ -3113,6 +3143,16 @@ app.get('/', (req, res) => {
     .contact-modal-stats { display: none; font-size: 12px; color: #8696a0; text-align: center; line-height: 1.6; }
     .contact-modal-stats.has-items { display: block; }
     .contact-modal-stats b { color: #00a884; font-weight: 600; }
+    .contact-modal-devices { display: none; font-size: 12px; color: #8696a0; }
+    .contact-modal-devices.show { display: block; }
+    .contact-modal-groups { display: none; width: 100%; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
+    .contact-modal-groups.show { display: flex; }
+    .contact-modal-groups .cg-label { font-size: 12px; font-weight: 600; opacity: 0.6; }
+    .contact-modal-groups button { text-align: left; background: none; border: none; color: inherit; font: inherit;
+      font-size: 13px; padding: 5px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    html.dark .contact-modal-groups button { background: rgba(255,255,255,0.05); }
+    html.light .contact-modal-groups button { background: rgba(0,0,0,0.04); }
+    .contact-modal-groups button:hover { outline: 1px solid #00a884; }
     .contact-modal-blocked { display: none; font-size: 12px; color: #f15c5c; font-weight: 600; }
     .contact-modal-blocked.show { display: block; }
     .contact-modal-block { margin-top: 4px; background: none; border: 1px solid rgba(241,92,92,0.55); color: #f15c5c; border-radius: 8px; padding: 6px 16px; font-size: 13px; cursor: pointer; }
@@ -3730,6 +3770,8 @@ app.get('/', (req, res) => {
       <div class="contact-modal-about" id="contact-modal-about"></div>
       <div class="contact-modal-blocked" id="contact-modal-blocked" data-i18n="blkBlocked">Du hast diesen Kontakt blockiert</div>
       <div class="contact-modal-stats" id="contact-modal-stats"></div>
+      <div class="contact-modal-devices" id="contact-modal-devices"></div>
+      <div class="contact-modal-groups" id="contact-modal-groups"></div>
       <button class="contact-modal-block" id="contact-modal-block" style="display:none"></button>
       <div class="contact-modal-status" id="contact-modal-status"></div>
       <div style="width:100%" id="contact-modal-archive"></div>
@@ -3974,6 +4016,8 @@ app.get('/', (req, res) => {
         blkConfirmUnblock:(n)=>'Blockierung von „'+n+'" wirklich aufheben?',
         blkDone:'Kontakt blockiert.', blkUndone:'Blockierung aufgehoben.',
         blkWorking:'Einen Moment…',
+        cgDevices:(n)=>n+' verknüpfte Geräte', cgDevice:'1 verknüpftes Gerät',
+        cgGroups:(n)=>n===1?'1 gemeinsame Gruppe':n+' gemeinsame Gruppen',
         presOvTitle:'Zuletzt online — Übersicht', presOvOpen:'Zuletzt online — Übersicht',
         presOvRefresh:'Jetzt aktualisieren', presOvScanning:'Rundlauf läuft…',
         presOvEmpty:'Noch keine Daten. „Jetzt aktualisieren" startet einen Rundlauf.',
@@ -4080,6 +4124,8 @@ app.get('/', (req, res) => {
         blkConfirmUnblock:(n)=>'Really unblock "'+n+'"?',
         blkDone:'Contact blocked.', blkUndone:'Contact unblocked.',
         blkWorking:'One moment…',
+        cgDevices:(n)=>n+' linked devices', cgDevice:'1 linked device',
+        cgGroups:(n)=>n===1?'1 group in common':n+' groups in common',
         presOvTitle:'Last seen — overview', presOvOpen:'Last seen — overview',
         presOvRefresh:'Refresh now', presOvScanning:'sweep running…',
         presOvEmpty:'No data yet. "Refresh now" starts a sweep.',
@@ -5801,6 +5847,44 @@ app.get('/', (req, res) => {
       renderFwdChatList(q ? allChats.filter(c => c.name.toLowerCase().includes(q)) : allChats);
     }
 
+    // Gemeinsame Gruppen und Geraetezahl. Beides kostet eigene Aufrufe in der
+    // Seite, deshalb nachgelagert und nicht im Hauptaufruf des Kontaktfensters.
+    async function loadContactExtra(chatId) {
+      const devEl = document.getElementById('contact-modal-devices');
+      const grpEl = document.getElementById('contact-modal-groups');
+      devEl.className = 'contact-modal-devices'; devEl.textContent = '';
+      grpEl.className = 'contact-modal-groups'; grpEl.innerHTML = '';
+      if (String(chatId).endsWith('@g.us')) return;
+      let d = null;
+      try { d = await fetch('api/contact/' + encodeURIComponent(chatId) + '/extra').then(apiJson); }
+      catch (e) { return; }
+      if (!document.getElementById('contact-modal').classList.contains('open')) return;
+      if (!d || d.error) return;
+
+      if (d.deviceCount) {
+        devEl.textContent = d.deviceCount === 1 ? t('cgDevice') : tf('cgDevices', d.deviceCount);
+        devEl.className = 'contact-modal-devices show';
+      }
+      const groups = d.commonGroups || [];
+      if (groups.length) {
+        const label = document.createElement('div');
+        label.className = 'cg-label';
+        label.textContent = tf('cgGroups', groups.length);
+        grpEl.appendChild(label);
+        for (const g of groups) {
+          const btn = document.createElement('button');
+          btn.textContent = g.name;
+          btn.onclick = () => {
+            const chat = allChats.find(c => c.id === g.id);
+            closeContactModal();
+            openChat(chat || { id: g.id, name: g.name, isGroup: true, lastTime: 0 });
+          };
+          grpEl.appendChild(btn);
+        }
+        grpEl.className = 'contact-modal-groups show';
+      }
+    }
+
     // Blockieren / Blockierung aufheben. Gruppen lassen sich nicht blockieren,
     // dort bleibt der Knopf verborgen.
     function renderBlockState(chatId, name, blocked) {
@@ -5877,6 +5961,7 @@ app.get('/', (req, res) => {
       picEl.classList.remove('blocked');
       loadPresence(chatId);
       loadChatStats(chatId);
+      loadContactExtra(chatId);
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
       document.getElementById('contact-modal-stats').className = 'contact-modal-stats';
       archiveEl.innerHTML = '';

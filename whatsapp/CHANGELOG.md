@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.3] - 2026-08-28
+- Feature: **Gemeinsame Gruppen im Kontaktfenster.** Darunter stehen die Gruppen, in denen ihr beide seid — ein Klick oeffnet die jeweilige Gruppe direkt
+- Feature: **Anzahl verknuepfter Geraete.** Die zeigt die WhatsApp-App nirgends an. Ein normales Konto mit einer Web-Sitzung meldet zwei (Telefon und Web), mehr Geraete entsprechend mehr
+- Beides laeuft ueber einen eigenen Endpunkt `GET /api/contact/:chatId/extra` und wird nachgelagert geladen, damit das Kontaktfenster genauso schnell aufgeht wie bisher. Bei Gruppen und ohne Treffer bleiben die Zeilen ausgeblendet
+
 ## [1.8.2] - 2026-08-28
 - Feature: **Blockierte Kontakte sind auf einen Blick zu erkennen.** In der Chat- und in der Kontaktliste traegt das Profilbild ein rotes Band mit Schloss am unteren Rand, im Kontaktfenster ebenso. Die Liste der blockierten Kontakte wird beim Verbinden geladen, danach alle fuenf Minuten aufgefrischt und sofort nach jedem Blockieren oder Aufheben
 - Der Abgleich laeuft ueber ID **und** Rufnummer: WhatsApp fuehrt blockierte Kontakte unter der Adressbuch-ID, die Chats teils unter `@lid` — ohne den zweiten Weg fehlte das Schloss genau dort, wo es hingehoert
