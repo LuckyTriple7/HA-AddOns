@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.12] - 2026-08-28
+- Fix: **Der Medien-Knopf in der Chat-Kopfzeile hatte gar keine eigene Optik** — ohne Regel zeichnete der Browser seinen Standardknopf mit weissem Kasten, der zwischen den anderen Knoepfen fehl am Platz wirkte. Jetzt derselbe Rahmen wie Suche, Export und Loeschen; aus ist er bernsteinfarben
+- Als Aus-Symbol steht dort nicht mehr das durchgestrichene Auge (das heisst „ausgeblendet", nicht „keine Medien"), sondern ein Bildrahmen mit Schraegstrich — bei 15 Pixeln deutlich besser zu lesen
+
 ## [1.8.11] - 2026-08-28
 - Feature: **Medien lassen sich jetzt fuer einzelne Chats abschalten.** `download_media` gilt weiter fuer alle Chats, das Bild-Symbol in der Chat-Kopfzeile nimmt einen einzelnen Chat davon aus — nuetzlich bei Gruppen, die staendig grosse Videos schicken
 - Aus heisst: nichts Neues wird geladen (Fotos, Sprachnachrichten, Videos) und vorhandene Medien bleiben in diesem Chat **nur ausgeblendet — geloescht wird nichts**. Ein Klick zurueck auf AN zeigt sie sofort wieder an und laedt im Hintergrund nach, was in der Zwischenzeit liegengeblieben ist

@@ -3239,6 +3239,7 @@ const _SVG = {
   imageOff:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
   archive:    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
   trash:      '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  imageSlash: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="4.5" y1="19.5" x2="19.5" y2="4.5"/></svg>',
   chevUp:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
   chevDown:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
   chevLeft:   '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
@@ -3302,7 +3303,10 @@ app.get('/', (req, res) => {
     body.hide-photos .photo-placeholder, body.chat-media-off .photo-placeholder { display: inline; }
     body.hide-photos video, body.chat-media-off video { display: none !important; }
     body.hide-photos .wa-video-placeholder, body.chat-media-off .wa-video-placeholder { display: none !important; }
-    #chat-media-btn.off { color: #f0a500; }
+    #chat-media-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s, border-color 0.15s; }
+    #chat-media-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
+    #chat-media-btn.off, #chat-media-btn.off:hover { border-color: #f0a500; color: #f0a500; }
+    html.light #chat-media-btn:hover { border-color: #25d366; color: #25d366; }
 
     /* Main two-panel layout */
     #main { flex: 1; display: flex; overflow: hidden; }
@@ -4850,7 +4854,7 @@ app.get('/', (req, res) => {
       if (!btn) return;
       btn.style.display = selectedChatId ? '' : 'none';
       btn.classList.toggle('off', off);
-      btn.innerHTML = off ? '${_SVG.imageOff}' : '${_SVG.imageOn}';
+      btn.innerHTML = off ? '${_SVG.imageSlash}' : '${_SVG.imageOn}';
       btn.title = off ? t('ttChatMediaOff') : t('ttChatMediaOn');
     }
 
