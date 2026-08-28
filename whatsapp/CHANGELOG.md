@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.28] - 2026-08-28
+- Der Selbsttest prueft jetzt auch, **ob WhatsApp noch antwortet wie bisher** — nicht nur, ob die Bausteine da sind. Eine Funktion kann bleiben und trotzdem etwas anderes liefern; genau so kam die Umstellung der Chats von `@c.us` auf `@lid`
+- Vier Formpruefungen, alle nur lesend: **Datenschutzeinstellungen** (sind alle Felder da, sind die Werte bekannt?), **Ausnahmeliste** (`{status, users, dhash}`, Kennungen in bekannter Form), **Status-Publikum** (`{setting, allowList, denyList}`, Modus einordenbar) und die **Kennungsformen der eigenen Chats**
+- Taucht ein unbekannter Wert auf — etwa eine neue Datenschutz-Stufe oder eine Chat-Kennung, die weder `@c.us` noch `@lid` noch `@g.us` ist — steht das im Log und als Leiste in der Oberflaeche: „WhatsApp antwortet anders als bisher". Das ist der Fall, in dem etwas falsch angezeigt oder falsch gesetzt werden koennte
+- Die zweite Stufe laeuft nur, wenn die erste sauber war — fehlt ein Modul, meldet sonst beides dasselbe
+
 ## [1.8.27] - 2026-08-28
 - Feature: **Selbsttest gegen Umbauten bei WhatsApp.** Das Add-on greift an 16 Stellen in die Innereien von WhatsApp Web — Praesenz, Status posten, Datenschutz, Ausnahmelisten. Benennt WhatsApp eines dieser Module um, faellt bisher genau dieser Teil still aus, waehrend der Rest weiterlaeuft; gemerkt hat man es erst beim naechsten Benutzen
 - Der Selbsttest sieht alle Stellen auf einmal nach: **Modul vorhanden? Die benoetigten Funktionen darin vorhanden?** Aufgerufen wird nichts. Er laeuft 90 Sekunden nach dem Start und danach alle sechs Stunden

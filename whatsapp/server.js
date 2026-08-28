@@ -3168,6 +3168,90 @@ const WA_INTERNALS = [
   { mod: '__debug',                          need: [],                                                   feature: 'Modulliste (Diagnose)', optional: true },
 ];
 
+// ── Zweite Stufe: sieht das Ergebnis noch aus wie erwartet? ───────────────────
+// Ein Modul kann da sein und trotzdem etwas anderes liefern als frueher — genau
+// so kam damals die Umstellung von @c.us auf @lid bei den Chats. Deshalb hier
+// nicht nur nachsehen, ob es die Funktion gibt, sondern sie lesend aufrufen und
+// die Form der Antwort pruefen. Aufgerufen werden ausschliesslich Leser.
+const KNOWN_JID_SUFFIXES = ['c.us', 'g.us', 'lid', 'broadcast', 'newsletter', 'bot', 'call', 's.whatsapp.net'];
+
+async function runShapeCheck() {
+  if (status !== 'connected' || !client.pupPage) return [];
+  const inPage = await client.pupPage.evaluate(async (categories) => {
+    const res = [];
+    const add = (name, feature, ok, note) => res.push({ name, feature, ok, note });
+    const jidOk = (id) => /@(c\.us|lid|g\.us)$/.test(String(id || ''));
+
+    // 1) Datenschutzeinstellungen: erwartete Schluessel und bekannte Werte
+    try {
+      const cfg = await window.require('WAWebQueryPrivacySettingsJob').getPrivacy();
+      if (!cfg || typeof cfg !== 'object') {
+        add('privacySettings', 'Datenschutz lesen', false, 'getPrivacy() liefert kein Objekt');
+      } else {
+        const fehlend = Object.keys(categories).filter(k => cfg[k] === undefined);
+        const fremd = [];
+        for (const [k, erlaubt] of Object.entries(categories)) {
+          const v = cfg[k];
+          if (v !== undefined && !erlaubt.includes(v)) fremd.push(k + '=' + v);
+        }
+        add('privacySettings', 'Datenschutz lesen', fehlend.length === 0 && fremd.length === 0,
+          [fehlend.length ? 'fehlende Felder: ' + fehlend.join(', ') : '',
+           fremd.length ? 'unbekannte Werte: ' + fremd.join(', ') : ''].filter(Boolean).join(' · '));
+      }
+    } catch (e) { add('privacySettings', 'Datenschutz lesen', false, String((e && e.message) || e).slice(0, 140)); }
+
+    // 2) Ausnahmeliste: {status, users, dhash} mit Kennungen in bekannter Form
+    try {
+      const schema = window.require('WAWebSchemaPrivacyDisallowedList');
+      const type = schema.PrivacyDisallowedListType.LastSeen;
+      const r = await window.require('WAWebQueryPrivacyDisallowedListUtil').queryPrivacyDisallowedList(type);
+      if (!r || typeof r !== 'object') {
+        add('disallowedList', 'Ausnahmeliste', false, 'Antwort ist kein Objekt');
+      } else if (!Array.isArray(r.users)) {
+        add('disallowedList', 'Ausnahmeliste', false, 'Feld users fehlt — Antwort hat jetzt: ' + Object.keys(r).join(', '));
+      } else {
+        const schlecht = r.users.filter(w => !jidOk(w && (w._serialized || String(w)))).length;
+        add('disallowedList', 'Ausnahmeliste', schlecht === 0,
+          schlecht ? schlecht + ' Eintrag/Eintraege in unbekannter Kennungsform' : '');
+      }
+    } catch (e) { add('disallowedList', 'Ausnahmeliste', false, String((e && e.message) || e).slice(0, 140)); }
+
+    // 3) Status-Publikum: {setting, allowList, denyList}
+    try {
+      const cfg = await window.require('WAWebStatusPrivacySettingAction').getStatusPrivacySetting();
+      if (!cfg || typeof cfg !== 'object') {
+        add('statusPrivacy', 'Status-Publikum', false, 'Antwort ist kein Objekt');
+      } else {
+        const modus = String(cfg.setting ?? '');
+        const listenDa = Array.isArray(cfg.allowList) && Array.isArray(cfg.denyList);
+        const modusBekannt = /contact|deny|allow/i.test(modus);
+        add('statusPrivacy', 'Status-Publikum', listenDa && modusBekannt,
+          [!listenDa ? 'allowList/denyList fehlen — vorhanden: ' + Object.keys(cfg).join(', ') : '',
+           !modusBekannt ? 'unbekannter Modus: ' + (modus || '(leer)') : ''].filter(Boolean).join(' · '));
+      }
+    } catch (e) { add('statusPrivacy', 'Status-Publikum', false, String((e && e.message) || e).slice(0, 140)); }
+
+    return res;
+  }, PRIVACY_CATEGORIES);
+
+  // 4) Kennungsformen der eigenen Daten — hier faellt auf, wenn WhatsApp die
+  //    Chats auf ein neues Format umstellt, so wie damals von @c.us auf @lid
+  const suffixe = {};
+  for (const id of chatMap.keys()) {
+    const m = String(id).split('@')[1];
+    if (m) suffixe[m] = (suffixe[m] || 0) + 1;
+  }
+  const unbekannt = Object.keys(suffixe).filter(x => !KNOWN_JID_SUFFIXES.includes(x));
+  inPage.push({
+    name: 'chatIdFormats',
+    feature: 'Chat- und Kontaktkennungen',
+    ok: unbekannt.length === 0,
+    note: unbekannt.length ? 'neue Kennungsform: ' + unbekannt.join(', ') : '',
+    detail: suffixe,
+  });
+  return inPage;
+}
+
 const WAWEB_STATE_FILE = '/config/waweb_state.json';
 let _lastSelfCheck = null;
 
@@ -3189,21 +3273,38 @@ async function runSelfCheck() {
 
   const broken = result.filter(r => !r.ok && !r.optional);
   const degraded = result.filter(r => !r.ok && r.optional);
+
+  // Zweite Stufe nur, wenn die Bausteine ueberhaupt da sind — sonst scheitert
+  // sie zwangslaeufig und meldet dasselbe Problem ein zweites Mal
+  let shape = [];
+  if (!broken.length) {
+    try { shape = await runShapeCheck(); }
+    catch (e) { dbg('runShapeCheck:', e.message); }
+  }
+  const changed = shape.filter(r => !r.ok);
+
   _lastSelfCheck = {
     ts: Date.now(),
     waWeb: waWebVersion,
     lib: WA_VERSION,
-    ok: broken.length === 0,
+    ok: broken.length === 0 && changed.length === 0,
     checked: result.length,
+    checkedShape: shape.length,
     broken: broken.map(r => ({ mod: r.mod, feature: r.feature, missing: r.missing, reason: r.reason })),
     degraded: degraded.map(r => ({ mod: r.mod, feature: r.feature, missing: r.missing, reason: r.reason })),
+    changed: changed.map(r => ({ name: r.name, feature: r.feature, note: r.note })),
+    shape,
   };
   if (broken.length) {
     console.warn(`[WARN] Selbsttest: ${broken.length} von ${result.length} Bausteinen fehlen — `
       + 'WhatsApp Web hat vermutlich umgebaut. Betroffen: '
       + broken.map(r => `${r.feature} (${r.mod}${r.missing && r.missing.length ? ': ' + r.missing.join(', ') : ''})`).join(' | '));
+  } else if (changed.length) {
+    console.warn('[WARN] Selbsttest: Bausteine sind alle da, aber WhatsApp antwortet anders als erwartet — '
+      + changed.map(r => `${r.feature}: ${r.note}`).join(' | '));
   } else {
     console.log(`[INFO] Selbsttest: alle ${result.length} WhatsApp-Web-Bausteine vorhanden`
+      + (shape.length ? `, ${shape.length} Antwortformen unveraendert` : '')
       + (degraded.length ? ` (${degraded.length} optionale fehlen)` : ''));
   }
   return _lastSelfCheck;
@@ -5213,6 +5314,8 @@ app.get('/', (req, res) => {
         privHint:'Bei „Meine Kontakte, außer…" wählst du die Ausnahmen direkt hier aus. Ohne Lesebestätigungen siehst du auch bei anderen keine mehr (in Gruppen bleiben sie an).',
         privNoBlacklist:'Für diese Einstellung führt WhatsApp keine Ausnahmeliste.',
         healthTitle:'WhatsApp Web hat umgebaut.',
+        healthTitleShape:'WhatsApp antwortet anders als bisher.',
+        healthBodyShape:(what)=>'Betroffen: '+what+'. Die Bausteine sind noch da, ihre Antworten haben aber eine andere Form — hier kann etwas falsch angezeigt oder falsch gesetzt werden. Einzelheiten unter /api/selfcheck.',
         healthBody:(what)=>'Diese Funktionen sind davon betroffen und arbeiten gerade nicht: '+what+'. Der Rest läuft weiter. Einzelheiten unter /api/selfcheck.',
         priv_statusAudience:'Statusmeldungen',
         privStatus_contacts:'Meine Kontakte', privStatus_deny:'Meine Kontakte, außer…', privStatus_allow:'Nur teilen mit…',
@@ -5364,6 +5467,8 @@ app.get('/', (req, res) => {
         privHint:'For "My contacts except…" you pick the exceptions right here. With read receipts off you will not see them from others either (they stay on in groups).',
         privNoBlacklist:'WhatsApp keeps no exception list for this setting.',
         healthTitle:'WhatsApp Web has changed.',
+        healthTitleShape:'WhatsApp is answering differently than before.',
+        healthBodyShape:(what)=>'Affected: '+what+'. The internals are still there, but their answers have a different shape — things may be shown or set incorrectly. Details at /api/selfcheck.',
         healthBody:(what)=>'These features are affected and are not working right now: '+what+'. Everything else keeps running. Details at /api/selfcheck.',
         priv_statusAudience:'Status updates',
         privStatus_contacts:'My contacts', privStatus_deny:'My contacts except…', privStatus_allow:'Only share with…',
@@ -8548,8 +8653,10 @@ app.get('/', (req, res) => {
       let d = null;
       try { d = await fetch('api/selfcheck').then(r => r.json()); } catch (e) { return; }
       if (!d || d.error || d.ok) { bar.style.display = 'none'; return; }
-      const parts = [...new Set((d.broken || []).map(b => b.feature))];
-      bar.innerHTML = '<b>' + esc(t('healthTitle')) + '</b> ' + esc(tf('healthBody', parts.join(', ')))
+      const parts = [...new Set([...(d.broken || []), ...(d.changed || [])].map(b => b.feature))];
+      const nurForm = !(d.broken || []).length;
+      bar.innerHTML = '<b>' + esc(t(nurForm ? 'healthTitleShape' : 'healthTitle')) + '</b> '
+        + esc(tf(nurForm ? 'healthBodyShape' : 'healthBody', parts.join(', ')))
         + (d.waWeb ? ' <span style="opacity:0.75">(WA Web ' + esc(d.waWeb) + ')</span>' : '');
       bar.style.display = 'block';
     }
