@@ -1827,6 +1827,262 @@ app.get('/api/status/:chatId', async (req, res) => {
   }
 });
 
+// ── Eigenes Profil + eigener Status ───────────────────────────────────────────
+// WhatsApp kennt zwei verschiedene "Status": den 24h-Status (Story, laeuft ueber
+// den Pseudo-Chat status@broadcast) und den Info-Text im Profil (setStatus).
+// Beides haengt hier am selben "Mein Profil"-Eintrag im Kontakte-Reiter.
+
+const STATUS_BROADCAST_JID = 'status@broadcast';
+const STATUS_TEMPLATES_FILE = '/config/status_templates.json';
+const STATUS_TPL_DIR = '/config/status_templates';
+let statusTemplates = [];
+
+try { fs.mkdirSync(STATUS_TPL_DIR, { recursive: true }); } catch (e) {}
+try {
+  if (existsSync(STATUS_TEMPLATES_FILE)) {
+    const data = JSON.parse(fs.readFileSync(STATUS_TEMPLATES_FILE, 'utf8'));
+    if (Array.isArray(data)) statusTemplates = data;
+    console.log(`[INFO] Loaded ${statusTemplates.length} status template(s) from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadStatusTemplates:', e.message); }
+
+function saveStatusTemplates() {
+  try {
+    fs.writeFileSync(STATUS_TEMPLATES_FILE, JSON.stringify(statusTemplates));
+  } catch (e) { console.error('[ERROR] saveStatusTemplates:', e.message); }
+}
+
+// Absoluter Pfad einer Vorlagendatei, oder null wenn der Name aus dem Verzeichnis ausbricht
+function templateMediaPath(name) {
+  if (!name || !/^[\w.-]+$/.test(name)) return null;
+  const fp = path.resolve(STATUS_TPL_DIR, name);
+  return fp.startsWith(path.resolve(STATUS_TPL_DIR) + path.sep) ? fp : null;
+}
+
+function myJid() {
+  const wid = client.info?.wid?._serialized;
+  if (wid) return wid;
+  return connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
+}
+
+// Wandelt Broadcast-Nachrichten in das Format der Statusliste im Frontend um
+async function mapStatusMsgs(raw) {
+  const msgs = [];
+  for (const m of raw || []) {
+    const isImage = m.type === 'image';
+    const isVideo = m.type === 'video';
+    let mediaFile = null;
+    if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
+      mediaFile = await downloadWAMedia(m, m.id._serialized || m.id.id).catch(() => null);
+    }
+    msgs.push({
+      id: m.id._serialized || m.id.id,
+      type: isImage ? 'photo' : isVideo ? 'video' : 'text',
+      body: m.body || '',
+      timestamp: m.timestamp * 1000,
+      mediaFile,
+    });
+  }
+  return msgs.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+app.get('/api/me', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const jid = myJid();
+  try {
+    let about = '', name = '';
+    if (jid) {
+      const contact = await client.getContactById(jid).catch(() => null);
+      if (contact) {
+        name = contact.pushname || contact.name || '';
+        about = await contact.getAbout().catch(() => null) || '';
+      }
+    }
+    res.json({
+      jid,
+      number: connectedPhone || (jid ? jid.split('@')[0] : ''),
+      name: name || client.info?.pushname || '',
+      about,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Info-Text im Profil (nicht die 24h-Story)
+app.post('/api/me/about', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const about = typeof req.body?.about === 'string' ? req.body.about.slice(0, 139) : null;
+  if (about === null) return res.status(400).json({ error: 'about required' });
+  try {
+    await client.setStatus(about);
+    res.json({ success: true, about });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Eigene laufende Statusmeldungen (24h)
+app.get('/api/my-status', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const jid = myJid();
+  if (!jid) return res.json({ msgs: [] });
+  try {
+    let raw = [];
+    const b = await client.getBroadcastById(jid).catch(() => null);
+    if (b && b.msgs && b.msgs.length) raw = b.msgs;
+    else {
+      // Fallback: eigene ID taucht in der Sammelliste evtl. unter einem anderen
+      // Format auf (@lid statt @c.us) — ueber die Rufnummer suchen
+      const user = jid.split('@')[0];
+      const all = await client.getBroadcasts().catch(() => []);
+      const mine = all.find(x => x.id?.user === user || x.id?._serialized === jid);
+      if (mine && mine.msgs) raw = mine.msgs;
+    }
+    res.json({ msgs: await mapStatusMsgs(raw) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Text-Status posten. fontStyle 0-7 und backgroundColor sind die WhatsApp-eigenen
+// Optionen fuer Text-Stories (siehe WWebJS sendStatusTextMsgAction).
+app.post('/api/my-status/text', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!text) return res.status(400).json({ error: 'text required' });
+  const bg = /^#[0-9a-fA-F]{6}$/.test(req.body?.backgroundColor || '') ? req.body.backgroundColor : '#0a5f55';
+  const font = Math.min(Math.max(parseInt(req.body?.fontStyle ?? 0, 10) || 0, 0), 7);
+  try {
+    const result = await client.sendMessage(STATUS_BROADCAST_JID, text, {
+      sendSeen: false,
+      extra: { backgroundColor: bg, fontStyle: font },
+    });
+    if (!result) throw new Error('sendMessage returned no result');
+    if (result.__logged !== undefined) result.__logged = true;
+    console.log(`[INFO] Eigener Text-Status gepostet (${text.length} Zeichen, Farbe ${bg}, Font ${font})`);
+    res.json({ success: true, id: result.id?._serialized || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Bild-/Video-Status posten (optional mit Bildunterschrift)
+app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const caption = typeof req.body?.caption === 'string' ? req.body.caption : '';
+  let buffer = req.file?.buffer, mime = req.file?.mimetype, origName = req.file?.originalname;
+  // Alternativ ein bereits gespeichertes Vorlagenbild verwenden
+  if (!buffer && req.body?.templateFile) {
+    const fp = templateMediaPath(req.body.templateFile);
+    if (!fp || !existsSync(fp)) return res.status(400).json({ error: 'template media not found' });
+    buffer = fs.readFileSync(fp);
+    const ext = req.body.templateFile.split('.').pop().toLowerCase();
+    mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'mp4' ? 'video/mp4' : 'image/jpeg';
+    origName = req.body.templateFile;
+  }
+  if (!buffer) return res.status(400).json({ error: 'file required' });
+  if (!/^(image|video)\//.test(mime || '')) return res.status(400).json({ error: 'only image or video allowed' });
+  try {
+    const media = new MessageMedia(mime, buffer.toString('base64'), origName);
+    const result = await client.sendMessage(STATUS_BROADCAST_JID, media, {
+      sendSeen: false,
+      ...(caption ? { caption } : {}),
+    });
+    if (!result) throw new Error('sendMessage returned no result — Medientyp fuer Status nicht unterstuetzt?');
+    console.log(`[INFO] Eigener Medien-Status gepostet (${mime}, ${Math.round(buffer.length / 1024)} KB)`);
+    res.json({ success: true, id: result.id?._serialized || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Eigenen Status wieder zurueckziehen
+app.post('/api/my-status/revoke', deleteRateLimit, async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const id = typeof req.body?.id === 'string' ? req.body.id : '';
+  if (!id) return res.status(400).json({ error: 'id required' });
+  try {
+    await client.revokeStatusMessage(id);
+    console.log(`[INFO] Eigener Status ${id} zurueckgezogen`);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// ── Status-Vorlagen ───────────────────────────────────────────────────────────
+
+app.get('/api/status-templates', (req, res) => {
+  res.json({ templates: statusTemplates });
+});
+
+app.post('/api/status-templates', upload.single('file'), (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 80);
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const id = String(req.body?.id || '').trim();
+  const existing = id ? statusTemplates.find(t => t.id === id) : null;
+  if (id && !existing) return res.status(404).json({ error: 'template not found' });
+  if (!existing && statusTemplates.length >= 100) return res.status(400).json({ error: 'too many templates' });
+
+  const tpl = existing || { id: 'tpl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), createdAt: Date.now() };
+  tpl.name = name;
+  tpl.text = String(req.body?.text || '').slice(0, 700);
+  tpl.backgroundColor = /^#[0-9a-fA-F]{6}$/.test(req.body?.backgroundColor || '') ? req.body.backgroundColor : '#0a5f55';
+  tpl.fontStyle = Math.min(Math.max(parseInt(req.body?.fontStyle ?? 0, 10) || 0, 0), 7);
+  tpl.updatedAt = Date.now();
+
+  if (req.file) {
+    if (!/^(image|video)\//.test(req.file.mimetype || '')) return res.status(400).json({ error: 'only image or video allowed' });
+    if (req.file.size > 16 * 1024 * 1024) return res.status(400).json({ error: 'file too large (max 16 MB)' });
+    const ext = req.file.mimetype === 'image/png' ? 'png'
+      : req.file.mimetype === 'image/webp' ? 'webp'
+      : req.file.mimetype.startsWith('video/') ? 'mp4' : 'jpg';
+    const fname = `${tpl.id}_${Date.now().toString(36)}.${ext}`;
+    const fp = templateMediaPath(fname);
+    if (!fp) return res.status(400).json({ error: 'invalid path' });
+    try {
+      fs.writeFileSync(fp, req.file.buffer);
+      const old = tpl.mediaFile ? templateMediaPath(tpl.mediaFile) : null;
+      if (old && old !== fp) { try { fs.unlinkSync(old); } catch (e) {} }
+      tpl.mediaFile = fname;
+      tpl.mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'photo';
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else if (req.body?.removeMedia === '1' && tpl.mediaFile) {
+    const old = templateMediaPath(tpl.mediaFile);
+    if (old) { try { fs.unlinkSync(old); } catch (e) {} }
+    tpl.mediaFile = null;
+    tpl.mediaType = null;
+  }
+
+  if (!existing) statusTemplates.push(tpl);
+  saveStatusTemplates();
+  res.json({ success: true, template: tpl });
+});
+
+app.post('/api/status-templates/:id/delete', deleteRateLimit, (req, res) => {
+  const idx = statusTemplates.findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'template not found' });
+  const [tpl] = statusTemplates.splice(idx, 1);
+  if (tpl.mediaFile) {
+    const fp = templateMediaPath(tpl.mediaFile);
+    if (fp) { try { fs.unlinkSync(fp); } catch (e) {} }
+  }
+  saveStatusTemplates();
+  res.json({ success: true });
+});
+
+app.get('/api/status-template-media/:filename', (req, res) => {
+  const fp = templateMediaPath(req.params.filename);
+  if (!fp || !existsSync(fp)) return res.status(404).end();
+  const ext = req.params.filename.split('.').pop().toLowerCase();
+  res.setHeader('Content-Type', ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.sendFile(fp);
+});
+
 const STATUS_EXPIRY_MS = 24 * 60 * 60 * 1000;
 app.get('/api/status-archive/:chatId', (req, res) => {
   const entries = statusArchiveByChatId.get(req.params.chatId) || [];
@@ -2573,6 +2829,83 @@ app.get('/', (req, res) => {
     .ob-reload { background:#2a3942; border:1px solid #3d5259; color:#e9edef; border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
     .ob-reload:hover { background:#3d5259; border-color:#5a7a87; }
     @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── Eigenes Profil + Status-Composer ── */
+    .chat-item.me-item { border-bottom: 1px solid rgba(128,128,128,0.22); }
+    html.dark .chat-item.me-item { background: rgba(0,168,132,0.10); }
+    html.light .chat-item.me-item { background: rgba(0,168,132,0.08); }
+    .me-item .chat-preview { color: #00a884 !important; }
+    #mystatus-modal { display: none; position: fixed; inset: 0; z-index: 460; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
+    #mystatus-modal.open { display: flex; }
+    .ms-box { border-radius: 16px; width: min(520px, 94%); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; }
+    html.dark .ms-box { background: #202c33; color: #e9edef; }
+    html.light .ms-box { background: #fff; color: #111; }
+    .ms-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid rgba(128,128,128,0.2); }
+    .ms-head h3 { font-size: 15px; font-weight: 600; margin: 0; flex: 1; }
+    .ms-head .ms-close { background: none; border: none; color: inherit; font-size: 18px; cursor: pointer; opacity: 0.7; }
+    .ms-head .ms-close:hover { opacity: 1; }
+    .ms-body { padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .ms-tabs { display: flex; gap: 4px; }
+    .ms-tabs button { flex: 1; background: none; border: none; border-radius: 10px; padding: 7px 6px; font-size: 13px; color: #8696a0; cursor: pointer; }
+    html.dark .ms-tabs button.active { background: #2a3942; color: #e9edef; }
+    html.light .ms-tabs button.active { background: #e9edef; color: #111; }
+    .ms-pane { display: none; flex-direction: column; gap: 10px; }
+    .ms-pane.active { display: flex; }
+    .ms-label { font-size: 12px; font-weight: 600; opacity: 0.65; }
+    .ms-input, .ms-area { width: 100%; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
+    html.dark .ms-input, html.dark .ms-area { background: #2a3942; color: #e9edef; }
+    html.light .ms-input, html.light .ms-area { background: #f0f2f5; color: #111; }
+    .ms-area { resize: vertical; min-height: 70px; }
+    .ms-preview { border-radius: 12px; min-height: 150px; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: #fff; word-break: break-word; overflow: hidden; }
+    .ms-preview .ms-preview-text { font-size: 22px; line-height: 1.35; white-space: pre-wrap; max-height: 220px; overflow: hidden; }
+    .ms-font-0 { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .ms-font-1 { font-family: Georgia, 'Times New Roman', serif; }
+    .ms-font-2 { font-family: 'Segoe Script', 'Brush Script MT', cursive; }
+    .ms-font-3 { font-family: 'Comic Sans MS', 'Segoe Print', cursive; }
+    .ms-font-4 { font-family: 'Arial Narrow', 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 1px; }
+    .ms-font-5 { font-family: Impact, 'Haettenschweiler', sans-serif; letter-spacing: 0.5px; }
+    .ms-font-6 { font-family: 'Courier New', monospace; }
+    .ms-font-7 { font-family: 'Trebuchet MS', sans-serif; font-weight: 700; }
+    .ms-colors { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .ms-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+    .ms-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px #00a884; }
+    .ms-colors input[type=color] { width: 30px; height: 28px; border: none; background: none; padding: 0; cursor: pointer; }
+    .ms-fonts { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ms-fonts button { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer; background: none; color: inherit; }
+    .ms-fonts button.active { border-color: #00a884; color: #00a884; }
+    .ms-media-preview { border-radius: 10px; max-height: 220px; display: none; margin: 0 auto; }
+    .ms-media-preview.show { display: block; max-width: 100%; }
+    .ms-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid rgba(128,128,128,0.2); }
+    .ms-btn { border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
+    .ms-btn.primary { background: #00a884; color: #fff; }
+    .ms-btn.primary:hover { background: #06cf9c; }
+    .ms-btn.primary:disabled { opacity: 0.5; cursor: default; }
+    html.dark .ms-btn.ghost { background: #2a3942; color: #e9edef; }
+    html.light .ms-btn.ghost { background: #f0f2f5; color: #111; }
+    .ms-btn.ghost:hover { opacity: 0.85; }
+    .ms-hint { font-size: 12px; color: #8696a0; flex: 1; align-self: center; }
+    .ms-tpl-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+    .ms-tpl { display: flex; align-items: center; gap: 10px; border-radius: 8px; padding: 7px 9px; cursor: pointer; }
+    html.dark .ms-tpl { background: rgba(255,255,255,0.05); }
+    html.light .ms-tpl { background: rgba(0,0,0,0.04); }
+    .ms-tpl:hover { outline: 1px solid #00a884; }
+    .ms-tpl-thumb { width: 38px; height: 38px; border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; overflow: hidden; }
+    .ms-tpl-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .ms-tpl-info { flex: 1; min-width: 0; }
+    .ms-tpl-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ms-tpl-sub { font-size: 12px; color: #8696a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ms-tpl-del { background: none; border: none; color: #f15c5c; font-size: 14px; cursor: pointer; padding: 4px 6px; }
+    .ms-live { display: flex; flex-direction: column; gap: 8px; }
+    .ms-live-item { display: flex; align-items: center; gap: 10px; border-radius: 8px; padding: 7px 9px; }
+    html.dark .ms-live-item { background: rgba(255,255,255,0.05); }
+    html.light .ms-live-item { background: rgba(0,0,0,0.04); }
+    .ms-live-item img, .ms-live-item video { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+    .ms-live-body { flex: 1; min-width: 0; font-size: 13px; word-break: break-word; }
+    .ms-live-time { font-size: 11px; color: #8696a0; }
+    .ms-msg { font-size: 13px; border-radius: 8px; padding: 7px 10px; display: none; }
+    .ms-msg.show { display: block; }
+    .ms-msg.ok { background: rgba(0,168,132,0.18); color: #06cf9c; }
+    .ms-msg.err { background: rgba(241,92,92,0.18); color: #f15c5c; }
   </style>
 </head>
 <body>
@@ -2707,6 +3040,66 @@ app.get('/', (req, res) => {
     </div>
   </div>
 
+  <div id="mystatus-modal" onclick="if(event.target===this)closeMyStatus()">
+    <div class="ms-box">
+      <div class="ms-head">
+        <h3 data-i18n="msTitle">Mein Status</h3>
+        <button class="ms-close" onclick="closeMyStatus()">✕</button>
+      </div>
+      <div class="ms-body">
+        <div id="ms-msg" class="ms-msg"></div>
+
+        <div class="ms-tabs">
+          <button id="ms-tab-text" class="active" onclick="msSetTab('text')" data-i18n="msTabText">Text</button>
+          <button id="ms-tab-media" onclick="msSetTab('media')" data-i18n="msTabMedia">Bild / Video</button>
+          <button id="ms-tab-tpl" onclick="msSetTab('tpl')" data-i18n="msTabTemplates">Vorlagen</button>
+          <button id="ms-tab-profile" onclick="msSetTab('profile')" data-i18n="msTabProfile">Profil</button>
+        </div>
+
+        <div id="ms-pane-text" class="ms-pane active">
+          <div class="ms-preview" id="ms-preview"><div class="ms-preview-text ms-font-0" id="ms-preview-text"></div></div>
+          <textarea id="ms-text" class="ms-area" maxlength="700" data-i18n-pl="msTextPlaceholder" placeholder="Was möchtest du teilen?" oninput="msRenderPreview()"></textarea>
+          <div class="ms-label" data-i18n="msBackground">Hintergrund</div>
+          <div class="ms-colors" id="ms-colors"></div>
+          <div class="ms-label" data-i18n="msFont">Schrift</div>
+          <div class="ms-fonts" id="ms-fonts"></div>
+        </div>
+
+        <div id="ms-pane-media" class="ms-pane">
+          <input type="file" id="ms-file" accept="image/*,video/*" class="ms-input" onchange="msFilePicked()">
+          <img id="ms-media-preview" class="ms-media-preview" alt="">
+          <div id="ms-media-note" class="ms-hint"></div>
+          <div class="ms-label" data-i18n="msCaption">Text zum Bild (optional)</div>
+          <textarea id="ms-caption" class="ms-area" maxlength="700" data-i18n-pl="msCaptionPlaceholder" placeholder="Bildunterschrift…"></textarea>
+        </div>
+
+        <div id="ms-pane-tpl" class="ms-pane">
+          <div class="ms-label" data-i18n="msTemplatesSaved">Gespeicherte Vorlagen</div>
+          <div class="ms-tpl-list" id="ms-tpl-list"></div>
+          <div class="ms-label" data-i18n="msTemplateSaveLbl">Aktuellen Entwurf als Vorlage speichern</div>
+          <input type="text" id="ms-tpl-name" class="ms-input" maxlength="80" data-i18n-pl="msTemplateNamePlaceholder" placeholder="Name der Vorlage…">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ms-btn ghost" onclick="msSaveTemplate()" data-i18n="msTemplateSave">Vorlage speichern</button>
+            <button class="ms-btn ghost" id="ms-tpl-update" style="display:none" onclick="msSaveTemplate(true)" data-i18n="msTemplateUpdate">Vorlage aktualisieren</button>
+          </div>
+          <div class="ms-hint" data-i18n="msTemplateHint">Die Vorlage übernimmt Text, Farbe, Schrift und – falls gewählt – das Bild aus dem Editor.</div>
+        </div>
+
+        <div id="ms-pane-profile" class="ms-pane">
+          <div class="ms-label" data-i18n="msAboutLbl">Info-Text im Profil</div>
+          <input type="text" id="ms-about" class="ms-input" maxlength="139" data-i18n-pl="msAboutPlaceholder" placeholder="Hey! Ich benutze WhatsApp.">
+          <button class="ms-btn ghost" onclick="msSaveAbout()" data-i18n="msAboutSave">Info speichern</button>
+          <div class="ms-label" data-i18n="msLiveTitle">Meine laufenden Statusmeldungen</div>
+          <div class="ms-live" id="ms-live"></div>
+        </div>
+      </div>
+      <div class="ms-actions">
+        <span class="ms-hint" id="ms-foot"></span>
+        <button class="ms-btn ghost" onclick="closeMyStatus()" data-i18n="btnCancel">Abbrechen</button>
+        <button class="ms-btn primary" id="ms-send" onclick="msSend()" data-i18n="msSend">An Status senden</button>
+      </div>
+    </div>
+  </div>
   <div id="archive-modal" onclick="if(event.target===this)closeArchiveModal()">
     <div class="archive-modal-box">
       <div class="archive-modal-header">
@@ -2859,6 +3252,30 @@ app.get('/', (req, res) => {
         contactsError:'Adressbuch konnte nicht geladen werden.',
         contactsRefresh:'Adressbuch neu laden',
         contactsFoot:(n,w)=>n+' Kontakt'+(n===1?'':'e')+' im Adressbuch · '+w+' ohne Chat',
+        meProfile:'Mein Profil', meStatusSub:'Status posten · Info bearbeiten',
+        msTitle:'Mein Status', msTabText:'Text', msTabMedia:'Bild / Video', msTabTemplates:'Vorlagen', msTabProfile:'Profil',
+        msTextPlaceholder:'Was möchtest du teilen?', msBackground:'Hintergrund', msFont:'Schrift',
+        msCaption:'Text zum Bild (optional)', msCaptionPlaceholder:'Bildunterschrift…',
+        msTemplatesSaved:'Gespeicherte Vorlagen', msTemplatesEmpty:'Noch keine Vorlagen gespeichert.',
+        msTemplateSaveLbl:'Aktuellen Entwurf als Vorlage speichern', msTemplateNamePlaceholder:'Name der Vorlage…',
+        msTemplateSave:'Vorlage speichern', msTemplateUpdate:'Vorlage aktualisieren',
+        msTemplateHint:'Die Vorlage übernimmt Text, Farbe, Schrift und – falls gewählt – das Bild aus dem Editor.',
+        msTemplateNameMissing:'Bitte einen Namen für die Vorlage eingeben.',
+        msTemplateSaved:'Vorlage gespeichert.', msTemplateDeleted:'Vorlage gelöscht.',
+        msTemplateDeleteConfirm:(n)=>'Vorlage „'+n+'“ wirklich löschen?',
+        msTemplateLoaded:(n)=>'Vorlage „'+n+'“ geladen.',
+        msTplText:'Text', msTplImage:'Bild', msTplVideo:'Video',
+        msAboutLbl:'Info-Text im Profil', msAboutPlaceholder:'Hey! Ich benutze WhatsApp.',
+        msAboutSave:'Info speichern', msAboutSaved:'Info gespeichert.',
+        msLiveTitle:'Meine laufenden Statusmeldungen', msLiveEmpty:'Zurzeit kein eigener Status aktiv.',
+        msLiveLoading:'Lade…', msLiveDelete:'Zurückziehen',
+        msLiveDeleteConfirm:'Diesen Status wirklich zurückziehen?', msLiveDeleted:'Status zurückgezogen.',
+        msSend:'An Status senden', msSending:'Wird gesendet…',
+        msSentText:'Text-Status gepostet.', msSentMedia:'Medien-Status gepostet.',
+        msNeedText:'Bitte erst einen Text eingeben.', msNeedFile:'Bitte erst ein Bild oder Video auswählen.',
+        msFileTooBig:'Datei zu groß (max. 16 MB).', msVideoNoPreview:'Video ausgewählt – keine Vorschau.',
+        msTplFileNote:(n)=>'Bild aus Vorlage: '+n,
+        msError:(e)=>'Fehler: '+e,
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2919,6 +3336,30 @@ app.get('/', (req, res) => {
         contactsError:'Could not load the address book.',
         contactsRefresh:'Reload address book',
         contactsFoot:(n,w)=>n+' contact'+(n===1?'':'s')+' in the address book · '+w+' without a chat',
+        meProfile:'My profile', meStatusSub:'Post a status · edit info',
+        msTitle:'My status', msTabText:'Text', msTabMedia:'Photo / video', msTabTemplates:'Templates', msTabProfile:'Profile',
+        msTextPlaceholder:'What do you want to share?', msBackground:'Background', msFont:'Font',
+        msCaption:'Caption (optional)', msCaptionPlaceholder:'Caption…',
+        msTemplatesSaved:'Saved templates', msTemplatesEmpty:'No templates saved yet.',
+        msTemplateSaveLbl:'Save the current draft as a template', msTemplateNamePlaceholder:'Template name…',
+        msTemplateSave:'Save template', msTemplateUpdate:'Update template',
+        msTemplateHint:'The template keeps text, colour, font and – if picked – the image from the editor.',
+        msTemplateNameMissing:'Please enter a name for the template.',
+        msTemplateSaved:'Template saved.', msTemplateDeleted:'Template deleted.',
+        msTemplateDeleteConfirm:(n)=>'Really delete the template "'+n+'"?',
+        msTemplateLoaded:(n)=>'Template "'+n+'" loaded.',
+        msTplText:'Text', msTplImage:'Image', msTplVideo:'Video',
+        msAboutLbl:'About text in your profile', msAboutPlaceholder:'Hey there! I am using WhatsApp.',
+        msAboutSave:'Save about', msAboutSaved:'About saved.',
+        msLiveTitle:'My live status updates', msLiveEmpty:'No status of your own is active right now.',
+        msLiveLoading:'Loading…', msLiveDelete:'Revoke',
+        msLiveDeleteConfirm:'Really revoke this status?', msLiveDeleted:'Status revoked.',
+        msSend:'Post to status', msSending:'Sending…',
+        msSentText:'Text status posted.', msSentMedia:'Media status posted.',
+        msNeedText:'Please enter some text first.', msNeedFile:'Please pick a photo or video first.',
+        msFileTooBig:'File too large (max. 16 MB).', msVideoNoPreview:'Video selected – no preview.',
+        msTplFileNote:(n)=>'Image from template: '+n,
+        msError:(e)=>'Error: '+e,
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3391,7 +3832,12 @@ app.get('/', (req, res) => {
     function setFilter(f) {
       currentFilter = f;
       document.querySelectorAll('.filter-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === f));
-      if (f === 'contacts') { renderContactList(); if (_addressBookState === 'idle') loadAddressBook(); return; }
+      if (f === 'contacts') {
+        renderContactList();
+        if (_addressBookState === 'idle') loadAddressBook();
+        if (!_myProfile) loadMyProfile().then(() => { if (currentFilter === 'contacts') renderContactList(); });
+        return;
+      }
       renderChatList(allChats);
     }
 
@@ -3463,6 +3909,8 @@ app.get('/', (req, res) => {
         }
         queueAvatars(filtered.slice(0, 30));
       }
+      // Eigenes Profil bleibt immer der erste Eintrag — auch wenn die Suche nichts trifft
+      list.insertBefore(buildMeItem(), list.firstChild);
       const foot = document.createElement('div');
       foot.className = 'contact-list-foot';
       foot.innerHTML = '<div style="font-size:11px;color:#8696a0;margin-bottom:4px">'
@@ -3475,6 +3923,397 @@ app.get('/', (req, res) => {
     function bindContactFoot(list) {
       const btn = list.querySelector('.contact-list-foot button[data-act="reload"]');
       if (btn) btn.addEventListener('click', () => loadAddressBook(true));
+    }
+
+    // ── Eigenes Profil + Status-Composer ────────────────────────────────────────
+    // WhatsApp unterscheidet zwei Dinge, die beide "Status" heissen: die 24h-Story
+    // (status@broadcast) und den Info-Text im Profil. Der Composer kann beides.
+    const MS_COLORS = ['#0a5f55','#128c7e','#25d366','#34b7f1','#4a6cf7','#7f5af0',
+                       '#b5179e','#e63946','#f4772b','#f2b705','#6d4c41','#5c6bc0',
+                       '#607d8b','#263238','#1b1b1b'];
+    const MS_FONTS = [
+      { i: 0, label: 'Aa' }, { i: 1, label: 'Aa' }, { i: 2, label: 'Aa' }, { i: 3, label: 'Aa' },
+      { i: 4, label: 'Aa' }, { i: 5, label: 'Aa' }, { i: 6, label: 'Aa' }, { i: 7, label: 'Aa' },
+    ];
+    let _myProfile = null;
+    let _msTab = 'text';
+    let _msColor = MS_COLORS[0];
+    let _msFont = 0;
+    let _msFile = null;          // File aus dem Datei-Dialog
+    let _msTplFile = null;       // Dateiname eines Vorlagenbildes (statt Upload)
+    let _msTemplates = [];
+    let _msEditingTpl = null;    // id der gerade geladenen Vorlage
+    let _msBusy = false;
+
+    async function loadMyProfile(force) {
+      if (_myProfile && !force) return _myProfile;
+      try {
+        const d = await fetch('api/me').then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        _myProfile = d;
+      } catch (e) { _myProfile = null; }
+      return _myProfile;
+    }
+
+    // Eintrag "Mein Profil" ganz oben im Kontakte-Reiter
+    function buildMeItem() {
+      const item = document.createElement('div');
+      item.className = 'chat-item me-item';
+      item.onclick = () => openMyStatus();
+
+      const name = (_myProfile && _myProfile.name) || t('meProfile');
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.style.background = avatarColor(name);
+      av.textContent = avatarInitials(name);
+      if (_myProfile && _myProfile.jid) {
+        av.setAttribute('data-avid', _myProfile.jid);
+        if (_avatarState.get(_myProfile.jid) === 'loaded') applyAvatar(av, _myProfile.jid);
+        else queueAvatars([{ id: _myProfile.jid, isGroup: false }]);
+      }
+
+      const info = document.createElement('div');
+      info.className = 'chat-info';
+      info.innerHTML = '<div class="chat-name">' + esc(name) + '</div>'
+        + '<div class="chat-preview">' + esc(t('meStatusSub')) + '</div>';
+
+      item.appendChild(av); item.appendChild(info);
+      return item;
+    }
+
+    function msShow(kind, text) {
+      const el = document.getElementById('ms-msg');
+      el.className = 'ms-msg show ' + (kind === 'err' ? 'err' : 'ok');
+      el.textContent = text;
+      if (kind !== 'err') setTimeout(() => { if (el.textContent === text) el.className = 'ms-msg'; }, 4000);
+    }
+    function msClearMsg() { document.getElementById('ms-msg').className = 'ms-msg'; }
+
+    function msSetTab(tab) {
+      _msTab = tab;
+      ['text','media','tpl','profile'].forEach(k => {
+        document.getElementById('ms-tab-' + k).classList.toggle('active', k === tab);
+        document.getElementById('ms-pane-' + k).classList.toggle('active', k === tab);
+      });
+      // Der Senden-Knopf gehoert nur zu Text und Medien
+      const send = document.getElementById('ms-send');
+      send.style.display = (tab === 'text' || tab === 'media') ? '' : 'none';
+      if (tab === 'tpl') msRenderTemplates();
+      if (tab === 'profile') msLoadLive();
+    }
+
+    function msBuildPickers() {
+      const cw = document.getElementById('ms-colors');
+      cw.innerHTML = '';
+      for (const c of MS_COLORS) {
+        const b = document.createElement('button');
+        b.className = 'ms-swatch' + (c === _msColor ? ' active' : '');
+        b.style.background = c;
+        b.dataset.color = c;
+        b.onclick = () => { _msColor = c; msBuildPickers(); msRenderPreview(); };
+        cw.appendChild(b);
+      }
+      const free = document.createElement('input');
+      free.type = 'color';
+      free.value = _msColor;
+      free.oninput = (e) => { _msColor = e.target.value; msRenderPreview(); cw.querySelectorAll('.ms-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === _msColor)); };
+      cw.appendChild(free);
+
+      const fw = document.getElementById('ms-fonts');
+      fw.innerHTML = '';
+      for (const f of MS_FONTS) {
+        const b = document.createElement('button');
+        b.className = 'ms-font-' + f.i + (f.i === _msFont ? ' active' : '');
+        b.textContent = f.label;
+        b.onclick = () => { _msFont = f.i; msBuildPickers(); msRenderPreview(); };
+        fw.appendChild(b);
+      }
+    }
+
+    function msRenderPreview() {
+      const txt = document.getElementById('ms-text').value;
+      const prev = document.getElementById('ms-preview');
+      const inner = document.getElementById('ms-preview-text');
+      prev.style.background = _msColor;
+      inner.className = 'ms-preview-text ms-font-' + _msFont;
+      inner.textContent = txt;
+    }
+
+    function msFilePicked() {
+      const inp = document.getElementById('ms-file');
+      const img = document.getElementById('ms-media-preview');
+      const note = document.getElementById('ms-media-note');
+      _msTplFile = null;
+      _msFile = inp.files && inp.files[0] ? inp.files[0] : null;
+      img.classList.remove('show'); img.removeAttribute('src');
+      note.textContent = '';
+      if (!_msFile) return;
+      if (_msFile.size > 16 * 1024 * 1024) { _msFile = null; inp.value = ''; msShow('err', t('msFileTooBig')); return; }
+      if (_msFile.type.startsWith('image/')) {
+        img.src = URL.createObjectURL(_msFile);
+        img.classList.add('show');
+      } else {
+        note.textContent = t('msVideoNoPreview');
+      }
+    }
+
+    async function openMyStatus() {
+      msClearMsg();
+      _msEditingTpl = null;
+      document.getElementById('ms-tpl-update').style.display = 'none';
+      document.getElementById('mystatus-modal').classList.add('open');
+      msBuildPickers();
+      msRenderPreview();
+      msSetTab('text');
+      msLoadTemplates();
+      const p = await loadMyProfile(true);
+      const foot = document.getElementById('ms-foot');
+      foot.textContent = p ? ((p.name ? p.name + ' · ' : '') + (p.number ? '+' + p.number : '')) : '';
+      document.getElementById('ms-about').value = (p && p.about) || '';
+    }
+
+    function closeMyStatus() {
+      document.getElementById('mystatus-modal').classList.remove('open');
+    }
+
+    async function msSend() {
+      if (_msBusy) return;
+      const btn = document.getElementById('ms-send');
+      const setBusy = (b) => { _msBusy = b; btn.disabled = b; btn.textContent = b ? t('msSending') : t('msSend'); };
+      try {
+        if (_msTab === 'text') {
+          const text = document.getElementById('ms-text').value.trim();
+          if (!text) { msShow('err', t('msNeedText')); return; }
+          setBusy(true);
+          const d = await fetch('api/my-status/text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, backgroundColor: _msColor, fontStyle: _msFont }),
+          }).then(r => r.json());
+          if (d.error) throw new Error(d.error);
+          msShow('ok', t('msSentText'));
+        } else {
+          if (!_msFile && !_msTplFile) { msShow('err', t('msNeedFile')); return; }
+          setBusy(true);
+          const fd = new FormData();
+          if (_msFile) fd.append('file', _msFile);
+          else fd.append('templateFile', _msTplFile);
+          const cap = document.getElementById('ms-caption').value;
+          if (cap) fd.append('caption', cap);
+          const d = await fetch('api/my-status/media', { method: 'POST', body: fd }).then(r => r.json());
+          if (d.error) throw new Error(d.error);
+          msShow('ok', t('msSentMedia'));
+        }
+        msLoadLive();
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    // ── Vorlagen ──
+    async function msLoadTemplates() {
+      try {
+        const d = await fetch('api/status-templates').then(r => r.json());
+        _msTemplates = d.templates || [];
+      } catch (e) { _msTemplates = []; }
+      if (_msTab === 'tpl') msRenderTemplates();
+    }
+
+    function msRenderTemplates() {
+      const box = document.getElementById('ms-tpl-list');
+      box.innerHTML = '';
+      if (!_msTemplates.length) {
+        box.innerHTML = '<div class="ms-hint">' + esc(t('msTemplatesEmpty')) + '</div>';
+        return;
+      }
+      for (const tpl of _msTemplates) {
+        const row = document.createElement('div');
+        row.className = 'ms-tpl';
+        row.onclick = () => msApplyTemplate(tpl.id);
+
+        const thumb = document.createElement('div');
+        thumb.className = 'ms-tpl-thumb';
+        if (tpl.mediaFile && tpl.mediaType !== 'video') {
+          const i = document.createElement('img');
+          i.src = 'api/status-template-media/' + encodeURIComponent(tpl.mediaFile);
+          thumb.appendChild(i);
+        } else {
+          thumb.style.background = tpl.backgroundColor || '#0a5f55';
+          thumb.textContent = tpl.mediaFile ? '🎬' : 'Aa';
+        }
+
+        const info = document.createElement('div');
+        info.className = 'ms-tpl-info';
+        const kind = tpl.mediaFile ? (tpl.mediaType === 'video' ? t('msTplVideo') : t('msTplImage')) : t('msTplText');
+        const preview = (tpl.text || '').replace(/\\s+/g, ' ').slice(0, 60);
+        info.innerHTML = '<div class="ms-tpl-name">' + esc(tpl.name) + '</div>'
+          + '<div class="ms-tpl-sub">' + esc(kind + (preview ? ' · ' + preview : '')) + '</div>';
+
+        const del = document.createElement('button');
+        del.className = 'ms-tpl-del';
+        del.textContent = '🗑';
+        del.onclick = (e) => { e.stopPropagation(); msDeleteTemplate(tpl.id); };
+
+        row.appendChild(thumb); row.appendChild(info); row.appendChild(del);
+        box.appendChild(row);
+      }
+    }
+
+    function msApplyTemplate(id) {
+      const tpl = _msTemplates.find(x => x.id === id);
+      if (!tpl) return;
+      _msEditingTpl = tpl.id;
+      document.getElementById('ms-tpl-update').style.display = '';
+      document.getElementById('ms-tpl-name').value = tpl.name;
+      _msColor = tpl.backgroundColor || MS_COLORS[0];
+      _msFont = tpl.fontStyle || 0;
+      msBuildPickers();
+      if (tpl.mediaFile) {
+        _msFile = null;
+        _msTplFile = tpl.mediaFile;
+        document.getElementById('ms-file').value = '';
+        document.getElementById('ms-caption').value = tpl.text || '';
+        const img = document.getElementById('ms-media-preview');
+        if (tpl.mediaType === 'video') {
+          img.classList.remove('show');
+          document.getElementById('ms-media-note').textContent = t('msVideoNoPreview');
+        } else {
+          img.src = 'api/status-template-media/' + encodeURIComponent(tpl.mediaFile);
+          img.classList.add('show');
+          document.getElementById('ms-media-note').textContent = tf('msTplFileNote', tpl.name);
+        }
+        msSetTab('media');
+      } else {
+        _msTplFile = null;
+        document.getElementById('ms-text').value = tpl.text || '';
+        msRenderPreview();
+        msSetTab('text');
+      }
+      msShow('ok', tf('msTemplateLoaded', tpl.name));
+    }
+
+    async function msSaveTemplate(update) {
+      const name = document.getElementById('ms-tpl-name').value.trim();
+      if (!name) { msShow('err', t('msTemplateNameMissing')); return; }
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('backgroundColor', _msColor);
+      fd.append('fontStyle', String(_msFont));
+      if (update && _msEditingTpl) fd.append('id', _msEditingTpl);
+      // Bild-Vorlage, wenn im Medien-Reiter eine Datei gewaehlt wurde
+      if (_msFile) {
+        fd.append('file', _msFile);
+        fd.append('text', document.getElementById('ms-caption').value);
+      } else {
+        fd.append('text', document.getElementById('ms-text').value);
+        if (!_msTplFile) fd.append('removeMedia', '1');
+      }
+      try {
+        const d = await fetch('api/status-templates', { method: 'POST', body: fd }).then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        _msEditingTpl = d.template.id;
+        document.getElementById('ms-tpl-update').style.display = '';
+        await msLoadTemplates();
+        msRenderTemplates();
+        msShow('ok', t('msTemplateSaved'));
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
+    }
+
+    async function msDeleteTemplate(id) {
+      const tpl = _msTemplates.find(x => x.id === id);
+      if (!tpl) return;
+      if (!confirm(tf('msTemplateDeleteConfirm', tpl.name))) return;
+      try {
+        const d = await fetch('api/status-templates/' + encodeURIComponent(id) + '/delete', { method: 'POST' }).then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        if (_msEditingTpl === id) { _msEditingTpl = null; document.getElementById('ms-tpl-update').style.display = 'none'; }
+        await msLoadTemplates();
+        msRenderTemplates();
+        msShow('ok', t('msTemplateDeleted'));
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
+    }
+
+    // ── Profil-Reiter: Info-Text und laufende eigene Status ──
+    async function msSaveAbout() {
+      const about = document.getElementById('ms-about').value;
+      try {
+        const d = await fetch('api/me/about', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ about }),
+        }).then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        if (_myProfile) _myProfile.about = about;
+        msShow('ok', t('msAboutSaved'));
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
+    }
+
+    async function msLoadLive() {
+      const box = document.getElementById('ms-live');
+      box.innerHTML = '<div class="ms-hint">' + esc(t('msLiveLoading')) + '</div>';
+      let msgs = [];
+      try {
+        const d = await fetch('api/my-status').then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        msgs = d.msgs || [];
+      } catch (e) {
+        box.innerHTML = '<div class="ms-hint">' + esc(tf('msError', e.message || String(e))) + '</div>';
+        return;
+      }
+      box.innerHTML = '';
+      if (!msgs.length) {
+        box.innerHTML = '<div class="ms-hint">' + esc(t('msLiveEmpty')) + '</div>';
+        return;
+      }
+      for (const m of msgs) {
+        const row = document.createElement('div');
+        row.className = 'ms-live-item';
+        if (m.mediaFile && m.type === 'photo') {
+          const i = document.createElement('img');
+          i.src = 'api/media/' + encodeURIComponent(m.mediaFile);
+          i.onclick = () => openLightbox(i.src);
+          row.appendChild(i);
+        } else if (m.mediaFile && m.type === 'video') {
+          const v = document.createElement('video');
+          v.src = 'api/media/' + encodeURIComponent(m.mediaFile);
+          row.appendChild(v);
+        }
+        const body = document.createElement('div');
+        body.className = 'ms-live-body';
+        body.innerHTML = (m.body ? esc(m.body) : '<span style="opacity:0.6">' + (m.type === 'photo' ? '📷' : m.type === 'video' ? '📹' : '…') + '</span>')
+          + '<div class="ms-live-time">' + esc(fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp)) + '</div>';
+        const del = document.createElement('button');
+        del.className = 'ms-tpl-del';
+        del.textContent = '🗑';
+        del.title = t('msLiveDelete');
+        del.onclick = () => msRevoke(m.id);
+        row.appendChild(body); row.appendChild(del);
+        box.appendChild(row);
+      }
+    }
+
+    async function msRevoke(id) {
+      if (!confirm(t('msLiveDeleteConfirm'))) return;
+      try {
+        const d = await fetch('api/my-status/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        }).then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        msShow('ok', t('msLiveDeleted'));
+        msLoadLive();
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
     }
 
     function renderChatList(chats) {

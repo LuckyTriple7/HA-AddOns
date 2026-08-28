@@ -40,6 +40,15 @@ GET  /api/last-received              → Zeitpunkt der letzten empfangenen Nachr
 GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines bestimmten Chats
 POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
+GET  /api/me                         → Eigenes Profil (Nummer, Name, Info-Text)
+POST /api/me/about                   → Info-Text im Profil setzen
+GET  /api/my-status                  → Eigene laufende Statusmeldungen (24 h)
+POST /api/my-status/text             → Text-Status posten (text, backgroundColor, fontStyle 0-7)
+POST /api/my-status/media            → Bild-/Video-Status posten (file oder templateFile, caption)
+POST /api/my-status/revoke           → Eigenen Status zurückziehen (id)
+GET  /api/status-templates           → Gespeicherte Status-Vorlagen
+POST /api/status-templates           → Vorlage anlegen oder ändern (id zum Ändern)
+POST /api/status-templates/:id/delete → Vorlage löschen
 GET  /api/export/:chatId             → Chat als HTML exportieren
 DELETE /api/messages/:chatId/:msgId  → Nachricht für alle löschen
 POST /api/logout                     → Abmelden
@@ -203,6 +212,15 @@ GET  /api/last-received              → Timestamp of the last received message
 GET  /api/last-received?chat=<id>    → Last received message of a specific chat
 POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
+GET  /api/me                         → Own profile (number, name, about text)
+POST /api/me/about                   → Set the about text of your profile
+GET  /api/my-status                  → Your live status updates (24 h)
+POST /api/my-status/text             → Post a text status (text, backgroundColor, fontStyle 0-7)
+POST /api/my-status/media            → Post a photo/video status (file or templateFile, caption)
+POST /api/my-status/revoke           → Revoke one of your own status updates (id)
+GET  /api/status-templates           → Saved status templates
+POST /api/status-templates           → Create or update a template (id to update)
+POST /api/status-templates/:id/delete → Delete a template
 GET  /api/export/:chatId             → Export chat as HTML
 DELETE /api/messages/:chatId/:msgId  → Delete message for everyone
 POST /api/logout                     → Log out

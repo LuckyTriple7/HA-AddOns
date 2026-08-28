@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.59] - 2026-08-28
+- Feature: **Eigene Statusmeldungen senden.** Im Reiter „Kontakte" steht ganz oben ein neuer Eintrag „Mein Profil". Ein Klick öffnet einen Status-Editor mit vier Reitern:
+  - **Text** — Text schreiben, Hintergrundfarbe aus 15 Vorschlägen oder frei per Farbwähler, eine von acht WhatsApp-Schriften, mit Live-Vorschau
+  - **Bild / Video** — Datei hochladen (max. 16 MB), Vorschau, optionaler Text zum Bild
+  - **Vorlagen** — Entwürfe mit Namen speichern, später laden, ändern und löschen; eine Vorlage merkt sich Text, Farbe, Schrift und – bei Bildvorlagen – die Bilddatei
+  - **Profil** — Info-Text des Profils bearbeiten und die eigenen laufenden Statusmeldungen sehen und einzeln zurückziehen
+- Feature: Neue REST-Endpunkte `GET /api/me`, `POST /api/me/about`, `GET /api/my-status`, `POST /api/my-status/text`, `POST /api/my-status/media`, `POST /api/my-status/revoke` sowie `GET/POST /api/status-templates` und `POST /api/status-templates/:id/delete` — damit lassen sich Statusmeldungen auch aus Home-Assistant-Automationen heraus posten
+- Vorlagen liegen in `/config/status_templates.json`, Vorlagenbilder in `/config/status_templates/`
+
 ## [1.7.58] - 2026-08-25
 - Fix: **Stille Verbindungsabbrüche fielen bis zu 10 Minuten lang nicht auf.** Der Keep-alive prüfte `client.getState()` nur alle 600 Sekunden — bis dahin meldete `/api/status` weiter `connected`, das MessengerPortal zeigte grün „Online" und Sendeversuche liefen ins Leere. Intervall auf 60 Sekunden verkürzt
 - Fix: `client.getState()` lief ohne Timeout. Bei eingefrorenem Puppeteer kehrte der Aufruf nie zurück, der Keep-alive-Durchlauf endete nie und der Ausfall blieb dauerhaft unbemerkt. Jetzt bricht ein `Promise.race` nach 30 Sekunden ab und löst einen Reconnect aus
