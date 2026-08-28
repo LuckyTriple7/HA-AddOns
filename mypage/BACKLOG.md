@@ -533,3 +533,93 @@ Sichtbarkeit, dann die großen Bauten 4 und 8.
 **Bewusst nicht vorgesehen:** ein Erweiterungssystem nach Art der WordPress-Plugins,
 ein Shop und Mehrsprachigkeit über DE/EN hinaus. Alle drei ziehen mehr Wartung
 nach sich, als sie dieser Zielgruppe bringen.
+
+---
+
+## Inhaltsmodule — Benennung, freie Überschriften, neue Bausteine
+
+**Stand:** Der Reiter „Inhalte" führt 20 Module (`section_order` in `app.py`), fünf davon
+sind reine Sortier-Platzhalter für eigene Reiter (Blog, Projekte, Bibliothek, Formulare,
+Reiseblog). Aus der Durchsicht am 28.08.2026 sind folgende Vorhaben offen.
+
+### 1. Freie Überschrift für jedes Modul
+
+Heute lässt sich nur beim Werdegang die sichtbare Überschrift frei setzen
+(`sections.timeline_title_de/en`). Genau das fehlt überall sonst — und es ist der Hebel,
+der die ganze Benennungsfrage auflöst: „Angebote" heißt beim Restaurant „Speisekarte",
+beim Verein „Was wir tun", bei der Firma „Leistungen", ohne dass ein Modul umbenannt wird.
+
+Vorgesehen: ein gemeinsames `sections.section_titles = {<key>: {'de': '', 'en': ''}}`
+statt weiterer `<modul>_title_de/en`-Paare, dazu ein Render-Helfer, der leer auf die
+Standard-Überschrift aus den Locales zurückfällt. Der bestehende Werdegang-Eintrag muss
+beim Einlesen in die neue Ablage überführt werden, sonst verschwindet eine gesetzte
+Überschrift still.
+
+**Zuerst bauen** — danach ist der interne Name eines Moduls fast egal.
+
+### 2. Umbenennungen (reine Locale-Arbeit)
+
+Die internen Keys sind bereits generisch (`news`, `services`, `timeline`), betroffen sind
+also nur die sichtbaren Bezeichnungen in `de.json`/`en.json`:
+
+- „Leistungen" → **Angebote** (`services_heading`): passt dann auch für Verein, Restaurant,
+  Dienstleister; die Felder (Symbol, Preis, Text) bleiben unverändert.
+- „Aktuelles" → **Meldungen** (`news_heading`): weniger auf einen Seitentyp festgelegt.
+  „News" bewusst nicht — im deutschen Locale ist „Meldungen" das genauere Wort.
+- „Werdegang" → **Zeitleiste** als Admin-Label (`timeline_heading`): der interne Name ist
+  schon `timeline`, die öffentliche Überschrift bleibt frei wählbar (siehe 1).
+
+Keine Migration nötig, da keine Schlüssel wandern.
+
+### 3. Inhaltsverzeichnis aus den Markdown-Überschriften
+
+`render_md()` läuft mit `nl2br, sane_lists, tables, fenced_code` — **ohne** `toc`. Deshalb
+bekommen Überschriften keine `id`, es gibt also keine Sprungziele. Die Extension nachrüsten
+liefert beides: IDs und ein fertiges Verzeichnis.
+
+**Kein eigenes Modul.** Ein Verzeichnis ohne den zugehörigen Text ist sinnlos, und auf einer
+Startseite mit 20 Abschnitten wäre unklar, worüber es führt. Richtiger Ort ist eine
+Checkbox „Inhaltsverzeichnis voranstellen" bei Freien Seiten, Freitext und
+Bibliothekseinträgen.
+
+Fallstrick: `toc` schreibt IDs in bestehendes HTML. Das ist verträglich, ändert aber die
+Ausgabe aller bereits veröffentlichten Texte — vor dem Umstellen einmal gegen den
+Rauchtest laufen lassen.
+
+### 4. Neue Module — was sich lohnt und was nicht
+
+Echte, wiederkehrende Datenlisten mit fester Struktur verdienen ein Modul:
+
+- **Zahlen/Fakten**: Zahl + Label + optionales Symbol.
+- **Partner/Logos**: Bild + Link + Alt-Text. Achtung: `LOGOS_DIR` gibt es bereits, gemeint
+  sind dort aber die Logo-Sätze des Add-ons — Partnerlogos gehören in die normale Ablage.
+- **Video** als Startseiten-Abschnitt: `parse_video()` (YouTube/Vimeo, nocookie) ist da und
+  läuft in Blog und Projekt, nur der Abschnitt fehlt.
+- **Downloads**: Datei + Beschreibung. Die Bibliothek liefert heute PDFs, der
+  Mitgliederbereich Dateien — ein schlichter Download-Abschnitt fehlt dazwischen.
+
+Layout-Bausteine dagegen **nicht** als Module:
+
+- **Hero** ist faktisch das Profil (Name, Tagline, Bio, Avatar). Statt eines neuen Moduls
+  dort Hintergrundbild und zwei Buttons ergänzen.
+- **Call-to-Action** und **Teaser/Karten** lassen sich als **Blockvorlagen** im
+  Freitext-Abschnitt lösen (Markdown mit Bildern kann er bereits). Das spart je ein Modul,
+  einen Schema-Zweig und eine Übersetzungsrunde.
+- **Galerie** und **Banner/Hinweis** sind bereits vorhanden (Fotoalben mit Diashow;
+  `design.banner_*` samt `_banner.html`, wegklickbar über localStorage).
+
+### 5. Bewusst global, nicht als Modul
+
+Navigation, Footer, Impressum/Datenschutz, SEO-Titel und Meta-Description, Open Graph,
+Favicon, 404-Seite, Weiterleitungen, Rollen, Backup/Revisionen, Sitemap, robots.txt,
+DE/EN, Dark Mode und Custom CSS bleiben Website-Funktionen — alle sind bereits so gebaut.
+
+**Cookie-Einwilligung ist nicht vorgesehen:** Der Besucherzähler arbeitet mit einem Hash
+statt einem Tracking-Cookie, die Karte ist OpenStreetMap, Videos laufen über die
+nocookie-Variante. Es gibt nichts einzuwilligen. Kommt später etwas Einwilligungspflichtiges
+dazu, gehört der Dialog zu den globalen Funktionen, nicht in die Modulliste.
+
+### Empfohlene Reihenfolge
+
+1 (freie Überschriften) → 2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → 4 (Zahlen/Fakten,
+Partner/Logos, Video, Downloads) → Hero-Erweiterung → CTA/Teaser als Freitext-Vorlagen.
