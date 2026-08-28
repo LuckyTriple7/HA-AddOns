@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.11] - 2026-08-28
+- Feature: **Medien lassen sich jetzt fuer einzelne Chats abschalten.** `download_media` gilt weiter fuer alle Chats, das Bild-Symbol in der Chat-Kopfzeile nimmt einen einzelnen Chat davon aus — nuetzlich bei Gruppen, die staendig grosse Videos schicken
+- Aus heisst: nichts Neues wird geladen (Fotos, Sprachnachrichten, Videos) und vorhandene Medien bleiben in diesem Chat **nur ausgeblendet — geloescht wird nichts**. Ein Klick zurueck auf AN zeigt sie sofort wieder an und laedt im Hintergrund nach, was in der Zwischenzeit liegengeblieben ist
+- Die Ausnahmen stehen in `/config/chatmedia.json` und ueberstehen Neustarts; `GET /api/chat-media` und `POST /api/chat-media` (`{chatId, enabled}`) machen dasselbe ueber die API
+- Fix: **Die Knoepfe in der Status-Archiv-Gesamtuebersicht waren winzig und kaum zu erkennen.** Statt der Emoji-Zeichen 🗄 ⬇ 🗑 stehen dort jetzt dieselben Symbole wie im Rest der Oberflaeche, in 34x34 grossen Feldern mit Rahmen; Loeschen ist rot
+
 ## [1.8.10] - 2026-08-28
 - Fix: **`downloadWAMedia: no data for …` kam bei jedem Start aufs Neue.** Schlug der Medien-Download fehl, blieb `mediaFile` leer — und der naechste Start versuchte dieselbe Nachricht wieder. Bei einem Medium, das WhatsApp serverseitig nicht mehr ausliefert (bei aelteren Nachrichten der Normalfall), konnte das nie gelingen und wiederholte sich monatelang
 - Fehlversuche werden jetzt an der Nachricht gezaehlt und nach drei Anlaeufen nicht mehr wiederholt. Nachrichten ohne Medienanhang oder mit verschwundener Vorlage gelten sofort als erledigt. Beim Start steht dann nur noch eine ruhige Zeile: „2 Nachricht(en) ohne abrufbares Medium — nach 3 Versuchen wird es nicht erneut probiert"

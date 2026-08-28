@@ -14,7 +14,7 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 | Option | Standard | Beschreibung |
 |--------|----------|--------------|
 | `dark_mode` | `true` | Dunkles Theme in der Web-UI |
-| `download_media` | `false` | Empfangene Fotos automatisch herunterladen und anzeigen |
+| `download_media` | `false` | Empfangene Fotos automatisch herunterladen und anzeigen (pro Chat abschaltbar, siehe unten) |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (z.B. HA-Webhook) |
 | `initial_chats` | `30` | Anzahl Chats die beim Start geladen werden (Empfehlung: 20–50) |
 | `initial_messages` | `20` | Nachrichten pro Chat beim Start (Empfehlung: 20–50) |
@@ -26,6 +26,20 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 ### HA-Benachrichtigungen einrichten
 
 Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automatisch den vom Supervisor bereitgestellten Zugriff auf die Home-Assistant-API (`homeassistant_api`); ein manuell erstellter Access Token ist nicht mehr nötig.
+
+### Medien pro Chat abschalten
+
+`download_media` gilt fuer alle Chats. Einzelne Chats lassen sich davon ausnehmen: in der Chat-Kopfzeile auf das Bild-Symbol klicken.
+
+- **AUS**: In diesem Chat werden keine Fotos, Sprachnachrichten und Videos mehr geladen, und vorhandene Medien bleiben ausgeblendet. **Geloescht wird nichts.**
+- **Wieder AN**: Die vorhandenen Medien sind sofort wieder sichtbar, und was waehrend der abgeschalteten Zeit liegengeblieben ist, laedt das Add-on im Hintergrund nach (soweit WhatsApp es noch ausliefert).
+
+Die Ausnahmen stehen in `/config/chatmedia.json` und ueberleben Neustarts. Ueber die API:
+
+```bash
+curl http://<HA-IP>:17776/api/chat-media
+curl -X POST http://<HA-IP>:17776/api/chat-media   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
+```
 
 ## REST-API
 
@@ -195,7 +209,7 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 | Option | Default | Description |
 |--------|---------|-------------|
 | `dark_mode` | `true` | Dark theme in the Web UI |
-| `download_media` | `false` | Automatically download and display received photos |
+| `download_media` | `false` | Automatically download and display received photos (can be turned off per chat, see below) |
 | `webhook_incoming` | — | URL for incoming messages (e.g. HA webhook) |
 | `initial_chats` | `30` | Number of chats loaded on startup (recommended: 20–50) |
 | `initial_messages` | `20` | Messages per chat on startup (recommended: 20–50) |
@@ -207,6 +221,20 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 ### Setting up HA notifications
 
 Just enable `ha_notifications` — nothing else. The add-on automatically uses the Home Assistant API access provided by the Supervisor (`homeassistant_api`); a manually created access token is no longer required.
+
+### Turning media off per chat
+
+`download_media` applies to every chat. Individual chats can be excluded: click the image icon in the chat header.
+
+- **OFF**: no photos, voice messages or videos are downloaded for that chat any more, and existing media stay hidden. **Nothing is deleted.**
+- **ON again**: existing media show up right away, and whatever was missed while it was off is fetched in the background (as far as WhatsApp still serves it).
+
+The exceptions live in `/config/chatmedia.json` and survive restarts. Via the API:
+
+```bash
+curl http://<HA-IP>:17776/api/chat-media
+curl -X POST http://<HA-IP>:17776/api/chat-media   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
+```
 
 ## REST API
 

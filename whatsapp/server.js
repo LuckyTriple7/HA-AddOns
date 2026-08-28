@@ -237,6 +237,34 @@ try {
   }
 } catch (e) { console.error('[ERROR] loadStatusArchive:', e.message); }
 
+// ── Medien pro Chat abschalten ────────────────────────────────────────────────
+// download_media gilt fuer alle Chats. Einzelne Chats (Werbe-Gruppen, Chats mit
+// vielen grossen Videos) lassen sich hier davon ausnehmen — gemerkt wird nur,
+// wer ausgenommen ist, damit ein neuer Chat automatisch der globalen Regel folgt.
+const CHAT_MEDIA_FILE = '/config/chatmedia.json';
+const mediaOffChats = new Set();
+
+try {
+  if (existsSync(CHAT_MEDIA_FILE)) {
+    const data = JSON.parse(fs.readFileSync(CHAT_MEDIA_FILE, 'utf8'));
+    const list = Array.isArray(data) ? data : (data.off || []);
+    for (const id of list) if (typeof id === 'string' && id) mediaOffChats.add(id);
+    if (mediaOffChats.size) console.log(`[INFO] Media download disabled for ${mediaOffChats.size} chat(s)`);
+  }
+} catch (e) { console.error('[ERROR] loadChatMedia:', e.message); }
+
+function saveChatMedia() {
+  try {
+    fs.writeFileSync(CHAT_MEDIA_FILE, JSON.stringify([...mediaOffChats]));
+  } catch (e) { console.error('[ERROR] saveChatMedia:', e.message); }
+}
+
+// Darf fuer diesen Chat ueberhaupt etwas geladen werden? Der globale Schalter
+// bleibt die Obergrenze, der Chat-Schalter kann nur zusaetzlich abschalten.
+function mediaAllowed(chatId) {
+  return DOWNLOAD_MEDIA && !mediaOffChats.has(chatId);
+}
+
 try {
   let best = null;
   for (const [chatId, msgs] of messagesByChatId.entries()) {
@@ -564,6 +592,7 @@ client.on('ready', async () => {
         // versucht der Start es jedes Mal erneut — deshalb Fehlversuche zaehlen.
         let giveUp = 0;
         for (const [chatId, msgs] of messagesByChatId) {
+          if (!mediaAllowed(chatId)) continue; // Chat mit abgeschalteten Medien
           for (const m of msgs) {
             if (m.type === 'photo' || m.type === 'voice') {
               if (m.mediaFile) { if (m.type === 'photo') cachedPhotos++; else cachedVoice++; }
@@ -660,13 +689,14 @@ client.on('message', async (msg) => {
   let type = 'text', mediaFile = null, filename = null, locLat = null, locLng = null, locName = '';
   if (isImage) {
     type = 'photo';
-    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    if (mediaAllowed(chatId)) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
   } else if (isPtt) {
     type = 'voice';
-    mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    // Sprachnachrichten kommen sonst immer mit — ausser der Chat ist ausgenommen
+    if (!mediaOffChats.has(chatId)) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   } else if (isLocation) {
     type = 'location';
     locLat = msg.location?.latitude ?? null;
@@ -701,7 +731,7 @@ client.on('message', async (msg) => {
   });
   _logSilent('DEBUG', `msg_in: from=${contactName} chat=${chatId} type=${type}${msg.body?' body="'+msg.body.slice(0,60)+'"':''}`);
   // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
-  if (added && type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+  if (added && type === 'photo' && mediaAllowed(chatId) && !mediaFile) {
     ensureMediaLater(chatId, msg.id._serialized);
   }
   if (added) {
@@ -745,7 +775,7 @@ client.on('message_create', async (msg) => {
   let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';
-    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    if (mediaAllowed(chatId)) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
@@ -777,7 +807,7 @@ client.on('message_create', async (msg) => {
     quotedMsg: quotedMsgDataOut,
   });
   // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
-  if (type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+  if (type === 'photo' && mediaAllowed(chatId) && !mediaFile) {
     ensureMediaLater(chatId, msg.id._serialized);
   }
 });
@@ -1651,6 +1681,64 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Medien pro Chat: Stand abfragen und umschalten ────────────────────────────
+app.get('/api/chat-media', (req, res) => {
+  res.json({ global: DOWNLOAD_MEDIA, off: [...mediaOffChats] });
+});
+
+// Laeuft nach dem Wiedereinschalten im Hintergrund: holt nach, was waehrend der
+// abgeschalteten Zeit liegengeblieben ist.
+const _backfillRunning = new Set();
+async function backfillChatMedia(chatId) {
+  if (_backfillRunning.has(chatId)) return;
+  _backfillRunning.add(chatId);
+  try {
+    const msgs = messagesByChatId.get(chatId) || [];
+    const pending = msgs.filter(m => (m.type === 'photo' || m.type === 'voice') && !m.mediaFile && !m.deleted);
+    if (!pending.length) return;
+    console.log(`[INFO] chat-media: Lade ${pending.length} Medium/Medien in ${chatId} nach`);
+    let count = 0;
+    for (const m of pending) {
+      if (mediaOffChats.has(chatId)) break; // zwischenzeitlich wieder abgeschaltet
+      try {
+        const fullMsg = await client.getMessageById(m.id).catch(() => null);
+        if (!fullMsg || !fullMsg.hasMedia) { m.mediaTries = MEDIA_MAX_TRIES; continue; }
+        const file = await downloadWAMedia(fullMsg, m.id);
+        if (file) { m.mediaFile = file; m.mediaTries = 0; count++; }
+        else m.mediaTries = (m.mediaTries || 0) + 1;
+      } catch (e) {
+        m.mediaTries = (m.mediaTries || 0) + 1;
+        dbg(`backfillChatMedia: ${m.id}: ${e.message}`);
+      }
+      await new Promise(r => setTimeout(r, 600));
+    }
+    saveMsgs();
+    console.log(`[INFO] chat-media: ${count}/${pending.length} Medium/Medien in ${chatId} nachgeladen`);
+  } finally {
+    _backfillRunning.delete(chatId);
+  }
+}
+
+app.post('/api/chat-media', (req, res) => {
+  const chatId = String(req.body?.chatId || '');
+  if (!chatId) return res.status(400).json({ error: 'chatId required' });
+  const enabled = req.body?.enabled !== false;
+  if (enabled) {
+    const wasOff = mediaOffChats.delete(chatId);
+    saveChatMedia();
+    // Nur nachladen, wenn der Chat wirklich ausgenommen war — sonst laeuft der
+    // Nachlauf bei jedem Klick los
+    if (wasOff && DOWNLOAD_MEDIA && status === 'connected') {
+      backfillChatMedia(chatId).catch(e => dbg('backfillChatMedia:', e.message));
+    }
+  } else {
+    mediaOffChats.add(chatId);
+    saveChatMedia();
+  }
+  _logSilent('INFO', `chat-media: ${chatId} → ${enabled ? 'an' : 'aus'}`);
+  res.json({ success: true, chatId, enabled, global: DOWNLOAD_MEDIA });
 });
 
 app.post('/api/fetch-video', async (req, res) => {
@@ -3210,10 +3298,11 @@ app.get('/', (req, res) => {
     .scroll-btn { background: none; border: 1px solid #8696a0; color: #e9edef; padding: 4px 8px; border-radius: 6px; cursor: pointer; opacity: 0.55; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
     .scroll-btn:hover { opacity: 0.8; }
     .photo-placeholder { display: none; }
-    body.hide-photos .msg-img { display: none !important; }
-    body.hide-photos .photo-placeholder { display: inline; }
-    body.hide-photos video { display: none !important; }
-    body.hide-photos .wa-video-placeholder { display: none !important; }
+    body.hide-photos .msg-img, body.chat-media-off .msg-img { display: none !important; }
+    body.hide-photos .photo-placeholder, body.chat-media-off .photo-placeholder { display: inline; }
+    body.hide-photos video, body.chat-media-off video { display: none !important; }
+    body.hide-photos .wa-video-placeholder, body.chat-media-off .wa-video-placeholder { display: none !important; }
+    #chat-media-btn.off { color: #f0a500; }
 
     /* Main two-panel layout */
     #main { flex: 1; display: flex; overflow: hidden; }
@@ -3424,10 +3513,18 @@ app.get('/', (req, res) => {
     .archive-ov-name { font-weight: 500; word-break: break-word; }
     .archive-ov-sub { font-size: 11px; color: #8696a0; }
     .archive-ov-warn { color: #f0b232; }
-    .archive-ov-acts { display: flex; gap: 4px; justify-content: flex-end; }
-    .archive-ov-acts button { background: none; border: none; color: inherit; opacity: 0.7; cursor: pointer; font-size: 14px; padding: 3px 5px; border-radius: 6px; }
-    .archive-ov-acts button:hover:not(:disabled) { opacity: 1; background: rgba(128,128,128,0.18); }
-    .archive-ov-acts button:disabled { opacity: 0.25; cursor: default; }
+    .archive-ov-acts { display: flex; gap: 6px; justify-content: flex-end; }
+    .archive-ov-acts button {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; padding: 0; border-radius: 8px; cursor: pointer;
+      background: rgba(128,128,128,0.14); border: 1px solid rgba(128,128,128,0.35);
+      color: inherit; opacity: 1;
+    }
+    .archive-ov-acts button svg { width: 17px; height: 17px; }
+    .archive-ov-acts button:hover:not(:disabled) { background: rgba(128,128,128,0.3); }
+    .archive-ov-acts button[data-act="clear"] { color: #f15c5c; border-color: rgba(241,92,92,0.45); }
+    .archive-ov-acts button[data-act="clear"]:hover:not(:disabled) { background: rgba(241,92,92,0.18); }
+    .archive-ov-acts button:disabled { opacity: 0.3; cursor: default; }
     .archive-ov-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; font-size: 12px; color: #8696a0; }
     .archive-ov-empty { padding: 24px 8px; text-align: center; color: #8696a0; font-size: 13px; }
     .contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
@@ -3923,6 +4020,7 @@ app.get('/', (req, res) => {
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
         </div>
+        ${DOWNLOAD_MEDIA ? `<button id="chat-media-btn" onclick="toggleChatMedia()" title="Medien in diesem Chat: AN">${_SVG.imageOn}</button>` : ''}
         <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
         <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">${_SVG.trash}</button>
@@ -4205,6 +4303,8 @@ app.get('/', (req, res) => {
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
         btnBack:'Zurück',
         ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'Spam löschen',
+        ttChatMediaOn:'Medien in diesem Chat: AN — Klick schaltet sie aus (nichts wird gelöscht)',
+        ttChatMediaOff:'Medien in diesem Chat: AUS — vorhandene sind nur ausgeblendet, Klick schaltet sie wieder an',
         ttMsgSearch:'Nachrichten durchsuchen', msgSearchPlaceholder:'Suchen…', msgSearchNoResult:'Keine Treffer',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', btnLocation:'Standort senden', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
@@ -4330,6 +4430,8 @@ app.get('/', (req, res) => {
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
         btnBack:'Back',
         ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'Delete Spam',
+        ttChatMediaOn:'Media in this chat: ON — click to turn off (nothing gets deleted)',
+        ttChatMediaOff:'Media in this chat: OFF — existing files are only hidden, click to turn back on',
         ttMsgSearch:'Search messages', msgSearchPlaceholder:'Search…', msgSearchNoResult:'No results',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
         btnEmoji:'Emoji', btnAttach:'Attach file', btnLocation:'Send location', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
@@ -4457,6 +4559,7 @@ app.get('/', (req, res) => {
       if (lb) lb.textContent = lang === 'de' ? 'DE' : 'EN';
       const ptb = document.getElementById('photo-toggle');
       if (ptb) ptb.title = document.body.classList.contains('hide-photos') ? t('photosOff') : t('photosOn');
+      if (typeof applyChatMediaState === 'function') applyChatMediaState();
     }
     function switchLang() {
       lang = lang === 'de' ? 'en' : 'de';
@@ -4726,6 +4829,54 @@ app.get('/', (req, res) => {
         : (q.type==='image'||q.type==='photo' ? t('photo') : q.type==='ptt'||q.type==='audio' ? t('voiceMsg') : t('mediaGeneric'));
       return '<div class="quoted-block"><div class="quoted-sender">' + esc(q.contact||'') + '</div><div class="quoted-text">' + esc(preview) + '</div></div>';
     }
+    // ── Medien pro Chat ─────────────────────────────────────────────────────────
+    // Aus heisst: nichts Neues wird geladen und vorhandene Bilder/Videos bleiben
+    // in diesem Chat ausgeblendet. Geloescht wird nichts — wieder AN zeigt alles
+    // wieder an und holt nach, was in der Zwischenzeit liegengeblieben ist.
+    let _mediaOffChats = new Set();
+
+    async function loadChatMediaPrefs() {
+      try {
+        const d = await fetch('api/chat-media').then(r => r.json());
+        _mediaOffChats = new Set(d.off || []);
+      } catch(e) {}
+      applyChatMediaState();
+    }
+
+    function applyChatMediaState() {
+      const btn = document.getElementById('chat-media-btn');
+      const off = !!selectedChatId && _mediaOffChats.has(selectedChatId);
+      document.body.classList.toggle('chat-media-off', off);
+      if (!btn) return;
+      btn.style.display = selectedChatId ? '' : 'none';
+      btn.classList.toggle('off', off);
+      btn.innerHTML = off ? '${_SVG.imageOff}' : '${_SVG.imageOn}';
+      btn.title = off ? t('ttChatMediaOff') : t('ttChatMediaOn');
+    }
+
+    async function toggleChatMedia() {
+      if (!selectedChatId) return;
+      const chatId = selectedChatId;
+      const enable = _mediaOffChats.has(chatId);
+      if (enable) _mediaOffChats.delete(chatId); else _mediaOffChats.add(chatId);
+      applyChatMediaState();
+      try {
+        await fetch('api/chat-media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, enabled: enable }),
+        }).then(r => r.json());
+      } catch(e) {
+        // Server hat es nicht angenommen — Anzeige zurueckdrehen
+        if (enable) _mediaOffChats.add(chatId); else _mediaOffChats.delete(chatId);
+        applyChatMediaState();
+        return;
+      }
+      // Beim Einschalten laedt der Server im Hintergrund nach — kurz danach neu holen
+      if (enable) setTimeout(() => { if (selectedChatId === chatId) reloadMessages(chatId); }, 4000);
+    }
+    loadChatMediaPrefs();
+
     async function loadStorage() {
       try {
         const d = await fetch('api/storage').then(r => r.json());
@@ -5680,6 +5831,7 @@ app.get('/', (req, res) => {
       const ph = chat.phone || '';
       document.getElementById('ch-phone').textContent = /^\\d{7,15}$/.test(ph) ? '+' + ph : '';
 
+      applyChatMediaState();
       lastSeenTime[chat.id] = chat.lastTime || Date.now();
       renderChatList(allChats);
       msgList.innerHTML = '';
@@ -5711,6 +5863,7 @@ app.get('/', (req, res) => {
 
     function closeChat() {
       document.body.classList.remove('chat-open'); // mobile: back to chat list
+      document.body.classList.remove('chat-media-off');
       selectedChatId = null;
       selectedChatPhone = null;
       document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
@@ -6808,9 +6961,9 @@ app.get('/', (req, res) => {
           + '<td class="num">' + size + '</td>'
           + '<td class="archive-ov-sub">' + period + '</td>'
           + '<td><div class="archive-ov-acts">'
-            + '<button data-act="open" title="' + esc(c.expired ? t('archiveOpenTitle') : t('archiveOpenNone')) + '"' + (c.expired ? '' : ' disabled') + '>🗄</button>'
-            + '<button data-act="export" title="' + esc(t('archiveExportTitle')) + '">⬇</button>'
-            + '<button data-act="clear" title="' + esc(t('archiveDeleteTitle')) + '">🗑</button>'
+            + '<button data-act="open" title="' + esc(c.expired ? t('archiveOpenTitle') : t('archiveOpenNone')) + '"' + (c.expired ? '' : ' disabled') + '>${_SVG.archive}</button>'
+            + '<button data-act="export" title="' + esc(t('archiveExportTitle')) + '">${_SVG.download}</button>'
+            + '<button data-act="clear" title="' + esc(t('archiveDeleteTitle')) + '">${_SVG.trash}</button>'
           + '</div></td>'
           + '</tr>';
       }).join('');

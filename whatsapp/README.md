@@ -11,7 +11,7 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 
 - **QR-Login**: Einmalig QR-Code scannen, Session bleibt dauerhaft erhalten
 - **Web-UI**: Chat-Liste, Konversationen, Nachrichten senden/empfangen direkt in der HA-Sidebar
-- **Fotos**: Empfangene Bilder anzeigen (optional, siehe `download_media`)
+- **Fotos**: Empfangene Bilder anzeigen (optional, siehe `download_media`) — pro Chat ueber das Bild-Symbol in der Chat-Kopfzeile abschaltbar
 - **Datei-Upload**: 📎-Button zum Senden von Bildern und Dokumenten aus dem Browser (max. 64 MB)
 - **Chat-Filter**: Tabs „Alle / Privat / Gruppen" in der Sidebar; Gruppen mit 👥-Avatar
 - **Chat-Export**: 💾-Button im Chat-Header — exportiert alle Nachrichten als HTML-Datei (Bilder inline eingebettet)
@@ -187,7 +187,7 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 
 - **QR Login**: Scan the QR code once, session persists permanently
 - **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
-- **Photos**: Display received images (optional, see `download_media`)
+- **Photos**: Display received images (optional, see `download_media`) — can be switched off per chat via the image icon in the chat header
 - **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
 - **Chat filter**: Tabs "All / Private / Groups" in the sidebar; groups with 👥 avatar
 - **Chat export**: 💾 button in the chat header — exports all messages as an HTML file (images embedded inline)
