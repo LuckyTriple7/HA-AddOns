@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.65] - 2026-08-28
+- Diagnose: **„Unexpected token '<', "<!DOCTYPE "..." beim Bild-Status verriet nichts.** Im Add-on-Log taucht dazu kein einziger Eintrag auf — die Anfrage erreicht das Add-on also gar nicht, die HTML-Antwort kommt von einer Stelle davor (Ingress-Proxy). Der Status-Editor wertet Antworten jetzt so aus, dass er bei Nicht-JSON den echten Statuscode, den Inhaltstyp und den Anfang der Antwort anzeigt, bei Uploads zusaetzlich die Dateigroesse. Statt des Parser-Fehlers steht dort dann z.B. `HTTP 413 Payload Too Large [text/html] …`
+
 ## [1.7.64] - 2026-08-28
 - Fix: **Bild-Status meldete „Unexpected token '<', "<!DOCTYPE "... is not valid JSON".** Fehler aus Middleware — etwa Multer bei einem abgelehnten Upload — liefen in Express' HTML-Fehlerseite, im Frontend kam davon nur der Parser-Fehler an, ohne jeden Hinweis auf die Ursache. Alle `/api/`-Pfade antworten jetzt auch im Fehlerfall mit JSON, und der Grund landet zusaetzlich als `[ERROR]` im Log
 - Fix: **Vom Server abgelehnte Statusmeldungen (`ack = -1`) standen als „laufend" in der Liste.** Sie bleiben in der WhatsApp-Web-Sammlung liegen, sind aber nie bei jemandem angekommen — sie werden jetzt uebersprungen. Ebenso Eintraege mit gesetztem `revokeTimestamp`

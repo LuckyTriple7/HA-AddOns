@@ -4324,6 +4324,20 @@ app.get('/', (req, res) => {
       document.getElementById('mystatus-modal').classList.remove('open');
     }
 
+    // Antwortet nicht das Add-on, sondern etwas davor (Ingress-Proxy, Gateway),
+    // kommt HTML zurueck und JSON.parse scheitert mit "Unexpected token '<'".
+    // Diese Huelle zeigt stattdessen Statuscode und Anfang der echten Antwort.
+    async function msJson(r) {
+      const txt = await r.text();
+      try { return JSON.parse(txt); }
+      catch (e) {
+        const kind = (r.headers.get('content-type') || '').split(';')[0] || '?';
+        const snippet = txt.replace(/\\s+/g, ' ').trim().slice(0, 160);
+        throw new Error('HTTP ' + r.status + ' ' + (r.statusText || '') + ' [' + kind + '] '
+          + (snippet || '(leere Antwort)'));
+      }
+    }
+
     async function msSend() {
       if (_msBusy) return;
       const btn = document.getElementById('ms-send');
@@ -4337,7 +4351,7 @@ app.get('/', (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, backgroundColor: _msColor, fontStyle: _msFont }),
-          }).then(r => r.json());
+          }).then(msJson);
           if (d.error) throw new Error(d.error);
           msShow('ok', t('msSentText'));
         } else {
@@ -4348,7 +4362,11 @@ app.get('/', (req, res) => {
           else fd.append('templateFile', _msTplFile);
           const cap = document.getElementById('ms-caption').value;
           if (cap) fd.append('caption', cap);
-          const d = await fetch('api/my-status/media', { method: 'POST', body: fd }).then(r => r.json());
+          // Groesse mitnennen: bricht der Upload vor dem Add-on ab, ist sie die erste Spur
+          const kb = _msFile ? Math.round(_msFile.size / 1024) : 0;
+          const d = await fetch('api/my-status/media', { method: 'POST', body: fd })
+            .then(msJson)
+            .catch(err => { throw new Error(err.message + (kb ? ' (Upload ' + kb + ' KB)' : '')); });
           if (d.error) throw new Error(d.error);
           msShow('ok', t('msSentMedia'));
         }
@@ -4459,7 +4477,7 @@ app.get('/', (req, res) => {
         if (!_msTplFile) fd.append('removeMedia', '1');
       }
       try {
-        const d = await fetch('api/status-templates', { method: 'POST', body: fd }).then(r => r.json());
+        const d = await fetch('api/status-templates', { method: 'POST', body: fd }).then(msJson);
         if (d.error) throw new Error(d.error);
         _msEditingTpl = d.template.id;
         document.getElementById('ms-tpl-update').style.display = '';
@@ -4495,7 +4513,7 @@ app.get('/', (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ about }),
-        }).then(r => r.json());
+        }).then(msJson);
         if (d.error) throw new Error(d.error);
         if (_myProfile) _myProfile.about = about;
         msShow('ok', t('msAboutSaved'));
@@ -4509,7 +4527,7 @@ app.get('/', (req, res) => {
       box.innerHTML = '<div class="ms-hint">' + esc(t('msLiveLoading')) + '</div>';
       let msgs = [];
       try {
-        const d = await fetch('api/my-status').then(r => r.json());
+        const d = await fetch('api/my-status').then(msJson);
         if (d.error) throw new Error(d.error);
         msgs = d.msgs || [];
       } catch (e) {
@@ -4555,7 +4573,7 @@ app.get('/', (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id }),
-        }).then(r => r.json());
+        }).then(msJson);
         if (d.error) throw new Error(d.error);
         msShow('ok', t('msLiveDeleted'));
         msLoadLive();
