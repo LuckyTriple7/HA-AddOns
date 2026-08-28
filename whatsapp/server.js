@@ -2767,7 +2767,7 @@ const PRIVACY_MODULE_CANDIDATES = [
 ];
 
 async function probePrivacyModules() {
-  return client.pupPage.evaluate((names) => {
+  return client.pupPage.evaluate(async (names) => {
     const sig = (fn) => {
       try {
         const s = String(fn);
@@ -2791,12 +2791,15 @@ async function probePrivacyModules() {
         if (typeof v === 'function') {
           entry.values[k] = 'fn ' + sig(v);
           // Nur eindeutig lesende, parameterlose Funktionen wirklich aufrufen
-          if (/^(get|is|has|read)/.test(k) && v.length === 0) {
+          if (/^(get|is|has|read|query)/.test(k) && v.length === 0) {
             try {
-              const r = v.call(mod);
-              if (r && typeof r.then === 'function') entry.values[k] += ' → Promise';
-              else entry.values[k] += ' → ' + JSON.stringify(r).slice(0, 200);
-            } catch (e) { entry.values[k] += ' → FEHLER: ' + String((e && e.message) || e).slice(0, 80); }
+              let r = v.call(mod);
+              // getPrivacy() & Co. antworten asynchron — den Wert wirklich holen
+              if (r && typeof r.then === 'function') {
+                r = await Promise.race([r, new Promise(res2 => setTimeout(() => res2('ZEITUEBERSCHREITUNG'), 8000))]);
+              }
+              entry.values[k] += ' → ' + JSON.stringify(r).slice(0, 1500);
+            } catch (e) { entry.values[k] += ' → FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
           }
         } else if (v && typeof v === 'object') {
           try { entry.values[k] = 'obj ' + JSON.stringify(v).slice(0, 200); }
@@ -2816,8 +2819,30 @@ async function probePrivacyModules() {
   }, PRIVACY_MODULE_CANDIDATES);
 }
 
-// Die echten Modulnamen stehen in den geladenen Bundles. Raten bringt nichts —
-// WhatsApp benennt sie bei Umbauten um. Diese Sonde liest sie direkt heraus.
+// Der zuverlaessige Weg an die echten Modulnamen: WhatsApp Web fuehrt seine
+// Modulliste im Registry-Modul '__debug'. Der Bundle-Scan darunter bleibt als
+// Ausweichweg, falls das Registry-Modul mal verschwindet.
+async function listPrivacyModuleNames() {
+  return client.pupPage.evaluate(() => {
+    const pick = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+        if (obj[key] && typeof obj[key] === 'object') return obj[key];
+      }
+      return null;
+    };
+    let reg = null, via = null;
+    try { reg = pick(window.require('__debug')); if (reg) via = "require('__debug')"; } catch (e) {}
+    if (!reg) { try { reg = pick(window.__debug); if (reg) via = 'window.__debug'; } catch (e) {} }
+    if (!reg) return { via: null, total: 0, names: [], error: 'kein Registry-Modul gefunden' };
+    let all = [];
+    try { all = Object.keys(reg); } catch (e) { return { via, total: 0, names: [], error: String((e && e.message) || e) }; }
+    const re = /privacy|lastseen|last_seen|readreceipt|read_receipt|profilepic|groupadd|group_add|onlinevisib/i;
+    return { via, total: all.length, names: all.filter(n => re.test(n)).sort().slice(0, 200) };
+  });
+}
+
+// Ausweichweg: die echten Namen aus den geladenen Bundles fischen.
 async function scanPrivacyModuleNames() {
   return client.pupPage.evaluate(async () => {
     const deadline = Date.now() + 45000;
@@ -2851,16 +2876,28 @@ app.get('/api/privacy/diag', async (req, res) => {
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
   try {
     const out = { lib: WA_VERSION, waWeb: waWebVersion, modules: await probePrivacyModules() };
-    if (req.query.scan === '1') {
-      out.scan = await scanPrivacyModuleNames();
-      if (req.query.probeFound === '1' && out.scan.names?.length) {
-        const extra = out.scan.names.filter(n => !PRIVACY_MODULE_CANDIDATES.includes(n)).slice(0, 25);
+    out.registry = await listPrivacyModuleNames();
+    if (req.query.scan === '1') out.scan = await scanPrivacyModuleNames();
+    {
+      const found = [...(out.registry.names || []), ...((out.scan && out.scan.names) || [])];
+      if (req.query.probeFound === '1' && found.length) {
+        const extra = [...new Set(found)].filter(n => !PRIVACY_MODULE_CANDIDATES.includes(n)).slice(0, 40);
         out.probedFromScan = await client.pupPage.evaluate((names) => {
+          const sig = (fn) => {
+            try { const s = String(fn); const i = s.indexOf(')'); return s.slice(0, i > 0 ? i + 1 : 120).replace(/\s+/g, ' ').slice(0, 160); }
+            catch (e) { return null; }
+          };
           const out = {};
           for (const name of names) {
             try {
               const mod = window.require(name);
-              out[name] = mod ? Object.keys(mod).slice(0, 40) : 'leer';
+              if (!mod) { out[name] = 'leer'; continue; }
+              const entry = {};
+              for (const k of Object.keys(mod).slice(0, 40)) {
+                let v; try { v = mod[k]; } catch (e) { continue; }
+                entry[k] = typeof v === 'function' ? 'fn ' + sig(v) : typeof v;
+              }
+              out[name] = entry;
             } catch (e) { out[name] = 'FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
           }
           return out;

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.15] - 2026-08-28
+- `GET /api/privacy/diag` nachgeschaerft, nachdem der erste Durchgang zwei Treffer hatte: `WAWebPrivacySettings` (die zulaessigen Werte: `all`, `contacts`, `contact_blacklist`, `none`) und `WAWebQueryPrivacySettingsJob.getPrivacy()`
+- Lesende Funktionen liefern ihre Antwort asynchron — die Sonde loest die Zusage jetzt auf (8 s Deckel) und zeigt den **echten aktuellen Stand** statt nur „→ Promise"
+- Der Bundle-Scan lief ins Leere (der `performance`-Puffer einer lang laufenden Seite ist leer). Die Modulnamen kommen deshalb jetzt aus der Modulliste von WhatsApp Web selbst (`require('__debug')`), gefiltert auf `privacy`, `lastseen`, `readreceipt`, `profilepic`, `groupadd`. Der Bundle-Scan bleibt als Ausweichweg unter `?scan=1`
+- `?probeFound=1` listet zu jedem gefundenen Modul jetzt die Felder **mit Signatur**, nicht nur die Namen — daran ist die Setz-Funktion zu erkennen
+
 ## [1.8.14] - 2026-08-28
 - Neu: **`GET /api/privacy/diag` sagt, ob sich die Datenschutzeinstellungen ueberhaupt steuern lassen** („wer sieht meinen Status / zuletzt online / Profilbild"). `whatsapp-web.js` hat dafuer keine API — die Sonde schaut in der laufenden Sitzung nach, ob WhatsApp Web selbst ein passendes Modul mitbringt
 - Die Route **liest nur**: aufgerufen werden ausschliesslich Funktionen, deren Name mit `get`/`is`/`has`/`read` beginnt und die keine Parameter nehmen. Geaendert wird nichts
