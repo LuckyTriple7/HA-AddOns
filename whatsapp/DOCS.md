@@ -45,16 +45,21 @@ curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <Toke
 
 ### Zwei Ports, zwei Sicherheitsstufen
 
-| Port | Was liegt dort | Schutz |
-|------|----------------|--------|
-| 17776 | Weboberfläche **und** REST-API | keiner — wer den Port erreicht, kann mitlesen und senden |
-| 17786 | nur REST-API (`/api/*`), keine Oberfläche | Token-Pflicht |
+| Port | Was liegt dort | Schutz | Standard |
+|------|----------------|--------|----------|
+| 17776 | Weboberfläche **und** REST-API | keiner — wer den Port erreicht, kann mitlesen und senden | **zu** |
+| 17786 | nur REST-API (`/api/*`), keine Oberfläche | Token-Pflicht | zu |
 
 Port 17776 kennt bewusst keine Anmeldung: die Weboberfläche ruft ihre eigenen
 `/api/`-Routen aus dem Browser auf, eine Token-Pflicht würde sie lahmlegen. Sein
-Schutz ist deshalb, ihn **nicht freizugeben** — dann bleibt der Zugang über
-HA-Ingress (Anmeldung durch Home Assistant) oder das MessengerPortal.
-Gibst du 17776 unter *Netzwerk* frei, steht alles offen, was hier beschrieben ist.
+Schutz ist deshalb, dass er **seit 1.8.31 nicht mehr freigegeben** ist. Der
+Zugang zur Oberfläche läuft über HA-Ingress (Anmeldung durch Home Assistant)
+oder das MessengerPortal — beides unverändert, beide gehen nicht über den
+Host-Port.
+
+Gibst du 17776 unter *Netzwerk* wieder frei, steht alles offen, was hier
+beschrieben ist: mitlesen, senden, Medien holen, Kontakte blockieren, ohne
+Passwort, für jedes Gerät im Netz.
 
 Port 17786 ist der Weg für Skripte und fremde Geräte. Er braucht zwei Schalter:
 
@@ -289,16 +294,20 @@ curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <toke
 
 ### Two ports, two security levels
 
-| Port | What it serves | Protection |
-|------|----------------|------------|
-| 17776 | web interface **and** REST API | none — anyone who reaches it can read and send |
-| 17786 | REST API only (`/api/*`), no interface | token required |
+| Port | What it serves | Protection | Default |
+|------|----------------|------------|---------|
+| 17776 | web interface **and** REST API | none — anyone who reaches it can read and send | **closed** |
+| 17786 | REST API only (`/api/*`), no interface | token required | closed |
 
 Port 17776 deliberately has no login: the web interface calls its own `/api/`
 routes from the browser, so requiring a token would break it. Its protection is
-therefore **not publishing it** — access then goes through HA Ingress
-(authenticated by Home Assistant) or the MessengerPortal. Publish 17776 under
-*Network* and everything described here is wide open.
+therefore that it is **no longer published as of 1.8.31**. The interface is
+reached through HA Ingress (authenticated by Home Assistant) or the
+MessengerPortal — both unchanged, neither goes through the host port.
+
+Publish 17776 under *Network* again and everything described here is wide open:
+reading, sending, fetching media, blocking contacts, without a password, for
+any device on the network.
 
 Port 17786 is the path for scripts and other machines. It needs two switches:
 

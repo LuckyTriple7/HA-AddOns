@@ -1,6 +1,6 @@
 name: WhatsApp
 description: WhatsApp Web als persistente Session mit REST-API und Webhook für Home Assistant
-version: "1.8.30"
+version: "1.8.31"
 image: "ghcr.io/luckytriple7/whatsapp"
 slug: whatsapp
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -12,7 +12,7 @@ arch:
 startup: application
 boot: manual
 init: true
-watchdog: "tcp://[HOST]:[PORT:17776]"
+watchdog: "tcp://[HOST]:17776"
 
 map:
   - app_config:rw
@@ -23,14 +23,14 @@ panel_icon: mdi:whatsapp
 panel_title: WhatsApp
 
 ports:
-  17776/tcp: 17776
+  17776/tcp: null
   17786/tcp: null
 
 ports_description:
   17776/tcp: >-
     Web-UI und REST-API ohne Authentifizierung - wer den Port erreicht, kann
-    mitlesen und senden. Nur in einem Netz freigeben, dem du vertraust;
-    sonst leer lassen und ueber Ingress oder das MessengerPortal gehen.
+    mitlesen und senden. Ab 1.8.31 standardmaessig zu; der Zugang laeuft ueber
+    Ingress oder das MessengerPortal. Nur freigeben, wenn du weisst warum.
   17786/tcp: >-
     REST-API mit Token - nur /api/*, keine Oberflaeche. Braucht zusaetzlich
     die Optionen "REST-API auf eigenem Port" und "API-Token".

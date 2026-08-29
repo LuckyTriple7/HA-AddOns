@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.31] - 2026-08-29
+- **Breaking Change: Port 17776 wird nicht mehr veroeffentlicht.** Er gab Weboberflaeche und REST-API ohne jede Anmeldung an das ganze LAN heraus — wer die Adresse kannte, konnte mitlesen, senden, Medien holen und Kontakte blockieren. Das Mapping steht jetzt auf `null`
+- **Unveraendert erreichbar:** die Oberflaeche ueber das HA-Panel (Ingress, Anmeldung durch Home Assistant) und ueber das MessengerPortal. Das Portal spricht das Add-on seit **1.2.20** ueber seinen Container-Namen an und braucht den Host-Port nicht mehr
+- **Was bricht:** alles, was `http://<HA-IP>:17776/api/...` oder `http://localhost:17776/api/...` aufruft — eigene Skripte, `rest_command`, `rest`-Sensoren. Umstellen auf Port **17786** mit `Authorization: Bearer <Token>` (Optionen `api_enabled` und `api_token`, Port unter *Netzwerk* freigeben). Beispiele stehen in DOCS.md
+- Wer 17776 unbedingt braucht, kann das Mapping unter *Netzwerk* von Hand wieder eintragen. Dann gilt aber wieder: kein Passwort, fuer jedes Geraet im Netz
+- Der Watchdog laeuft jetzt ueber `tcp://[HOST]:17776` statt `tcp://[HOST]:[PORT:17776]`. Die alte Form loeste den **Host**-Port auf und waere ohne Mapping ins Leere gelaufen — das Add-on haette sich selbst als tot gemeldet und im Kreis neu gestartet
+
 ## [1.8.30] - 2026-08-29
 - **REST-API auf eigenem Port mit Token-Pflicht.** Neue Optionen `api_enabled` (Standard: aus) und `api_token` starten einen zweiten Listener auf **17786**, der ausschliesslich `/api/*` bedient und jeden Aufruf ohne `Authorization: Bearer <Token>` mit `401` abweist
 - Hintergrund: Port 17776 gibt Weboberflaeche **und** REST-API ohne jede Anmeldung heraus. Wer ihn im LAN erreicht, kann mitlesen, senden, Medien holen und Kontakte blockieren. Beides liegt auf demselben Express-Server, ein Schalter fuer „nur API" existierte nicht
