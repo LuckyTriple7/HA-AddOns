@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.109.1
+
+- ⏱️ **Perplexity brach bei größeren Vergleichen mit „Read timed out" ab.** Das Zeitlimit von 90 Sekunden stammte noch aus der Sonar-Zeit, als eine Anfrage ein einzelner Aufruf war. Eine Stufe der Agent API führt dagegen eine mehrstufige Recherche aus — genau das ist ihr Vorteil — und braucht dafür laut Perplexity bei den gründlichen Stufen Minuten. Standard ist jetzt 5 Minuten.
+- ⚙️ Neue Option **„Perplexity: Zeitlimit je Anfrage"** (60–900 s). Höher setzen, wenn Vergleiche über viele Ziele weiterhin abbrechen; niedriger, wenn lieber früh abgebrochen werden soll.
+
 ## 0.109.0
 
 - 🔧 **Perplexity funktioniert wieder.** Die Umstellung auf die Agent API in 0.106.0 schickte weiter die Sonar-Modellnamen mit — die gibt es dort aber bis auf das Basismodell nicht mehr, jeder Aufruf endete in „400 Bad Request". Betroffen war auch der Standard.

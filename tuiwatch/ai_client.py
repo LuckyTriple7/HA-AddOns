@@ -159,6 +159,26 @@ def _ai_request_messages(api_key: str, model: str, messages: list[dict], *, max_
                                           output_schema=output_schema)
 
 
+def _perplexity_timeout() -> int:
+    """Zeitlimit einer Perplexity-Anfrage in Sekunden (Option `perplexity_timeout`).
+
+    Die frühere feste Grenze von 90 s stammte aus der Sonar-Zeit: das war ein
+    einzelner Chat-Completion-Aufruf. Eine Agent-API-Stufe fährt dagegen eine
+    mehrstufige Recherche — genau das ist ihr Vorteil gegenüber Sonar — und
+    Perplexity selbst nennt für die gründlichen Stufen Laufzeiten im
+    Minutenbereich. 90 s waren dafür schlicht zu knapp; Vergleiche über mehrere
+    Ziele liefen regelmäßig in „Read timed out".
+
+    Bewusst eine Option und kein fester Wert: wie lange ein Lauf braucht, hängt
+    an Stufe und Frage, und ein Zeitlimit, das man nicht hochsetzen kann, macht
+    die gründlichen Stufen unbenutzbar."""
+    try:
+        val = int(A.load_config().get('perplexity_timeout') or 300)
+    except (TypeError, ValueError):
+        return 300
+    return min(max(val, 60), 900)
+
+
 def _perplexity_error_detail(exc: requests.RequestException) -> str:
     """Antwortkoerper eines fehlgeschlagenen Perplexity-Aufrufs, gekuerzt, als
     Anhang fuer die Log-Zeile.
@@ -262,7 +282,7 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
         resp = requests.post(
             _PERPLEXITY_API_URL,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload, timeout=90,
+            json=payload, timeout=_perplexity_timeout(),
         )
         resp.raise_for_status()
         data = resp.json()

@@ -177,6 +177,30 @@ def test_perplexity_truncation_is_logged(app_mod, monkeypatch, caplog):
     assert "abgeschnitten" in " ".join(r.getMessage() for r in caplog.records)
 
 
+def test_perplexity_timeout_defaults_to_five_minutes(app_mod, monkeypatch):
+    """90 s stammten aus der Sonar-Zeit (ein einzelner Aufruf). Eine Agent-Stufe
+    recherchiert mehrstufig und braucht laut Perplexity Minuten."""
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
+    app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
+    assert captured[0]["timeout"] == 300
+
+
+def test_perplexity_timeout_is_configurable(app_mod, monkeypatch):
+    _write_options(app_mod, perplexity_api_key="p-key", perplexity_timeout=600)
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
+    app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
+    assert captured[0]["timeout"] == 600
+
+
+def test_perplexity_timeout_is_clamped(app_mod, monkeypatch):
+    """Unbrauchbare Werte duerfen die Anfrage nicht sofort abwuergen oder ewig
+    haengen lassen."""
+    _write_options(app_mod, perplexity_api_key="p-key", perplexity_timeout=99999)
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
+    app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
+    assert captured[0]["timeout"] == 900
+
+
 def test_perplexity_usage_mapping(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         input_tokens=1573, output_tokens=239, web_searches=3)))
