@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.2.23] - 2026-08-29
+- Fix: nginx meldete bei jedem Start `duplicate MIME type "text/html"` — einmal je Messenger und Listener, zuletzt also sechsmal. `sub_filter_types` fuehrte `text/html` auf, das nginx ohnehin immer filtert. Der Eintrag entfaellt, gefiltert wird unveraendert
+- Bestaetigt im Betrieb: das Portal spricht die Add-ons jetzt tatsaechlich ueber ihren Container-Namen an (`/proxy/whatsapp/ -> http://3d588fb4-whatsapp:17776/`), und die Kopfzeilen-Umgehung aus 1.2.21 ist von aussen nicht mehr moeglich — `/status`, `/api/logs` und `/proxy/<messenger>/` antworten mit und ohne `X-Ingress-Path` gleich
+
 ## [1.2.22] - 2026-08-29
 - Fix: Das Portal fragte beim Start `GET /addons` ab und hinterliess dabei jedes Mal zwei Zeilen im Supervisor-Log — `no role for <slug>` und `Invalid token for access /addons`. Die Rolle `default` darf diese Route nicht, und `hassio_role: manager` dafuer zu vergeben (duerfte dann Add-ons starten, stoppen, installieren) waere ein schlechter Tausch gewesen. Der Aufruf entfaellt ersatzlos; der Repository-Praefix kommt weiterhin aus `GET /addons/self/info`, das die Default-Rolle immer darf
 - Die Statuszeile im Log nennt jetzt den tatsaechlich benutzten Zielhost: `Poll WhatsApp 3d588fb4-whatsapp:17776 — online`. Vorher stand dort nur der Port, und ob der Container-Name oder der HA-Host benutzt wurde, war nach dem Start nicht mehr nachvollziehbar
