@@ -5157,7 +5157,30 @@ def _lib_pdf_fetcher(url: str, lang: str = 'de'):
 
 
 # Bei jeder Änderung an _lib_pdf_html hochzählen — erzwingt Neuaufbau der PDFs.
-_LIB_PDF_LAYOUT = 3
+_LIB_PDF_LAYOUT = 4
+
+_PDF_TABLE_RE = re.compile(r'(<table\b[^>]*>)(.*?)</table>', re.I | re.S)
+
+
+def _pdf_mark_tables(html: str) -> str:
+    """Hängt jeder Tabelle ihre Spaltenzahl als Klasse an (`t-c6`).
+
+    Das PDF-CSS setzt `table-layout: fixed`, sonst laufen breite Tabellen über
+    den Seitenrand hinaus und werden abgeschnitten. Feste Spaltenbreiten teilen
+    die Seite aber gleichmäßig auf — ab fünf Spalten wird der Text darin
+    unlesbar schmal, wenn die Schrift nicht mitschrumpft. CSS kann Spalten
+    nicht zählen, also passiert das hier.
+    """
+    def repl(m):
+        tag, inner = m.group(1), m.group(2)
+        rows = re.findall(r'<tr\b.*?</tr>', inner, re.I | re.S)
+        n = max((len(re.findall(r'<t[hd]\b', r, re.I)) for r in rows), default=1)
+        n = min(max(n, 1), 9)
+        if re.search(r'\bclass\s*=', tag, re.I):
+            return m.group(0)
+        return f'{tag[:-1]} class="t-c{n}">{inner}</table>'
+
+    return _PDF_TABLE_RE.sub(repl, html)
 
 
 def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
@@ -5178,26 +5201,43 @@ def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
 @page {{ size: A4; margin: 20mm 18mm 18mm;
   @bottom-center {{ content: "{escape(page_label)} " counter(page) " / " counter(pages);
                     font-size: 9pt; color: #666; }} }}
-body {{ font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; line-height: 1.55; color: #111; }}
+body {{ font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; line-height: 1.55; color: #111;
+        hyphens: auto; }}
 h1.doc-title {{ font-size: 20pt; margin: 0 0 2mm; color: {escape(accent)}; }}
 .doc-sub {{ font-size: 9pt; color: #666; margin-bottom: 8mm;
             border-bottom: 1px solid #ddd; padding-bottom: 3mm; }}
 h1, h2, h3 {{ line-height: 1.25; margin: 6mm 0 2mm; page-break-after: avoid; }}
 h2 {{ font-size: 14pt; }} h3 {{ font-size: 12pt; }}
-p {{ margin: 0 0 3mm; }} ul, ol {{ margin: 0 0 3mm 6mm; }}
+p {{ margin: 0 0 3mm; orphans: 2; widows: 2; }} ul, ol {{ margin: 0 0 3mm 6mm; }}
+li {{ orphans: 2; widows: 2; }}
 img {{ max-width: 100%; }}
+a {{ overflow-wrap: anywhere; }}
 blockquote {{ border-left: 2pt solid {escape(accent)}; margin: 3mm 0; padding: 0 4mm; color: #444; }}
 pre {{ background: #f4f4f4; padding: 3mm; border-radius: 2mm; white-space: pre-wrap;
        font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
 code {{ font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
-table {{ border-collapse: collapse; width: 100%; margin: 3mm 0; page-break-inside: avoid; }}
-th, td {{ border: 0.5pt solid #bbb; padding: 1.5mm 2mm; text-align: left; font-size: 9.5pt; }}
+/* `table-layout: fixed` ist Pflicht: bei `auto` bemisst WeasyPrint die Spalten
+   am Inhalt und schiebt breite Tabellen über den Seitenrand — der Überhang
+   wird beim Drucken schlicht abgeschnitten. Und `page-break-inside: avoid`
+   gehört auf die Zeile, nicht auf die Tabelle: eine Tabelle, die länger als
+   eine Seite ist, wandert sonst komplett auf die nächste und lässt den Rest
+   der vorigen Seite leer. */
+table {{ border-collapse: collapse; width: 100%; margin: 3mm 0; table-layout: fixed; }}
+thead {{ display: table-header-group; }}
+tr {{ page-break-inside: avoid; }}
+th, td {{ border: 0.5pt solid #bbb; padding: 1.5mm 2mm; text-align: left; font-size: 9.5pt;
+          vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }}
 th {{ background: #f0f0f0; }}
+table.t-c4 th, table.t-c4 td {{ font-size: 8.5pt; padding: 1.2mm 1.5mm; }}
+table.t-c5 th, table.t-c5 td {{ font-size: 8pt; padding: 1mm 1.2mm; line-height: 1.4; }}
+table.t-c6 th, table.t-c6 td, table.t-c7 th, table.t-c7 td,
+table.t-c8 th, table.t-c8 td, table.t-c9 th, table.t-c9 td
+  {{ font-size: 7pt; padding: 0.8mm 1mm; line-height: 1.3; }}
 hr {{ border: none; border-top: 0.5pt solid #ccc; margin: 5mm 0; }}
 </style></head><body>
 <h1 class="doc-title">{escape(loc(entry, 'title'))}</h1>
 {f'<div class="doc-sub">{escape(subtitle)}</div>' if subtitle else ''}
-{_overlay_html_images(render_md(loc(entry, 'body')))}
+{_pdf_mark_tables(_overlay_html_images(render_md(loc(entry, 'body'))))}
 </body></html>"""
 
 

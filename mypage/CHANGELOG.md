@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.42
+
+- 🐛 **PDF der Bibliothek: abgeschnittene Tabellen.** Breite Tabellen (ab etwa fünf Spalten) liefen über den rechten Seitenrand hinaus und wurden dort schlicht abgeschnitten — gemessen bis 752 pt auf einer 595 pt breiten A4-Seite. Ursache war die automatische Spaltenbemessung, die sich am Inhalt orientiert statt an der Seitenbreite. Tabellen bekommen jetzt feste Spaltenbreiten, umbrechen lange Wörter und Adressen und setzen ihre Schrift ab vier Spalten gestaffelt kleiner.
+- 🐛 **PDF der Bibliothek: halbleere Seiten mittendrin.** Eine Tabelle durfte nicht über einen Seitenumbruch hinweg gesetzt werden. War sie länger als eine Seite, wanderte sie komplett auf die nächste — und die vorige blieb nach der Überschrift leer. Jetzt gilt das nur noch je Tabellenzeile; die Kopfzeile wird auf jeder Folgeseite wiederholt. Im Testdokument fielen dadurch fünf Seiten weg.
+- ✨ **Sauberere Umbrüche im Fließtext.** Silbentrennung, Schutz gegen einzeln stehende Anfangs- und Schlusszeilen von Absätzen und Listenpunkten, umbrechende Links.
+
 ## 0.11.41
 
 Der Kopfbereich der Startseite war seit jeher dasselbe Bild: rundes Foto links, Text rechts, darunter die Sozial-Knöpfe. Sechs Änderungen:
