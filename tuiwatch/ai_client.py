@@ -21,6 +21,10 @@ import app as A
 
 _PERPLEXITY_API_URL = "https://api.perplexity.ai/v1/agent"
 _PERPLEXITY_CITATION_RE = re.compile(r'\[(\d+)\](?!\()')
+# Die Agent API setzt Quellenverweise auch in der Form `[web:94]` in den Text —
+# ein Format, das Sonar nicht kannte. Unbehandelt blieb es als sinnloser Rest
+# („[web:94]") in der Antwort stehen.
+_PERPLEXITY_WEB_MARKER_RE = re.compile(r'\[web:(\d+)\]')
 
 
 def _perplexity_output_text(data: dict):
@@ -90,9 +94,32 @@ def _perplexity_linkify_citations(text: str, urls: list | None, *, log_ctx: str 
     verlinkt, `[58]` nicht). Geraten wird dort nichts; ein Link auf die falsche
     Quelle wäre schlimmer als gar keiner. Das Ausmaß landet im Log, sonst wäre
     nicht zu unterscheiden, ob die Verlinkung ausfällt oder die Liste zu kurz ist."""
-    if not urls:
-        return text
     missing = set()
+
+    def _web_sub(m):
+        """`[web:94]` -> Link, wenn die Quelle vorliegt, sonst weg.
+
+        Anders als bei `[n]` wird ein unauflösbarer Marker hier **entfernt**:
+        „[web:94]" ist erkennbar ein Maschinen-Artefakt und in keinem Fall
+        gewollter Fließtext, während eine nackte `[3]` durchaus zum Text gehören
+        kann und deshalb stehen bleibt."""
+        n = int(m.group(1))
+        if urls and 1 <= n <= len(urls) and urls[n - 1]:
+            return f'[{n}]({urls[n - 1]})'
+        missing.add(n)
+        return ''
+
+    # Immer laufen lassen, auch ohne Quellenliste — sonst bliebe der Marker stehen.
+    text = _PERPLEXITY_WEB_MARKER_RE.sub(_web_sub, text)
+    # Doppelte Leerzeichen, die durch das Entfernen entstehen konnten, einziehen.
+    text = re.sub(r' {2,}', ' ', text)
+    text = re.sub(r' +([.,;:!?])', r'', text)
+    text = re.sub(r'[ 	]+$', '', text, flags=re.M)
+    if not urls:
+        if missing:
+            A.log.info("Perplexity (%s): %d web-Marker ohne Quelle entfernt",
+                       log_ctx or 'KI-Antwort', len(missing))
+        return text
 
     def _sub(m):
         n = int(m.group(1))

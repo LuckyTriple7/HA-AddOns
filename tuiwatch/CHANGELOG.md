@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.109.2
+
+- 🧹 **„[web:94]" verschwindet aus den Antworten.** Die Agent API setzt Quellenverweise auch in dieser Form in den Text — ein Format, das Sonar nicht kannte und das deshalb als sinnloser Rest stehen blieb. Ist die Quelle bekannt, wird jetzt ein anklickbarer Link daraus, sonst wird der Marker entfernt.
+- 🐛 **Im Wiederholen-Fenster stand Programmcode statt eines Symbols.** Bei Regionen-Vergleich und Portfolio-Frage steckte das Symbol mit in der Beschriftung; wo die als reiner Text gesetzt wurde, stand es wörtlich auf dem Bildschirm. Betraf auch das Verlauf-Detail und die Suche im KI-Verlauf, die im unsichtbaren Markup mitsuchte.
+- ℹ️ **Hinweis bei abgebrochener Verbindung:** Rechnet die KI länger, als die Verbindung zum Browser offen bleibt, meldet das Fenster einen Fehler — der Server rechnet aber zu Ende und legt die Antwort im KI-Verlauf ab. Darauf wird jetzt hingewiesen, statt den Eindruck zu hinterlassen, die Anfrage sei verloren.
+
 ## 0.109.1
 
 - ⏱️ **Perplexity brach bei größeren Vergleichen mit „Read timed out" ab.** Das Zeitlimit von 90 Sekunden stammte noch aus der Sonar-Zeit, als eine Anfrage ein einzelner Aufruf war. Eine Stufe der Agent API führt dagegen eine mehrstufige Recherche aus — genau das ist ihr Vorteil — und braucht dafür laut Perplexity bei den gründlichen Stufen Minuten. Standard ist jetzt 5 Minuten.

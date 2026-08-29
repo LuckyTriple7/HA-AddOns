@@ -4706,7 +4706,7 @@
             {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_dest' ? 'Kein Reiseziel gewählt.' : aiErrorMsg(d.error);
@@ -4989,10 +4989,18 @@
     function aiRetryable(err){ return err==='ai_failed' || err==='ai_refused' || err==='ai_empty' || err==null; }
     let _aiRetryFn = null;
     function aiRetry(){ if(_aiRetryFn) _aiRetryFn(); }
-    function aiErrorBlock(msg, retryable){
+    function aiErrorBlock(msg, retryable, note){
       const btn = retryable ? ' <button class="btn sec" onclick="aiRetry()"><svg class="i"><use href="#i-refresh"/></svg> Erneut versuchen</button>' : '';
-      return '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+btn+'</div>';
+      // `note`: Zusatzzeile für den Fall, dass der Abbruch nur die Verbindung
+      // betraf und die Antwort serverseitig trotzdem fertig geworden ist.
+      const extra = note ? '<div class="hint" style="margin-top:6px">'+esc(note)+'</div>' : '';
+      return '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+btn+extra+'</div>';
     }
+    // Bei den gründlichen Perplexity-Stufen kann die Recherche länger laufen, als
+    // die Verbindung zum Browser offen bleibt. Der Server rechnet dann zu Ende und
+    // legt das Ergebnis im KI-Verlauf ab — die Anfrage war also nicht umsonst,
+    // auch wenn hier ein Fehler steht.
+    const AI_MAYBE_IN_HISTORY = 'Falls die KI lange gerechnet hat: die Antwort kann trotzdem fertig geworden sein und im KI-Verlauf stehen.';
     // ── KI-Prompt-Vorschau (Option „KI-Prompt vor dem Senden anzeigen") ────────
     // Ist die Add-on-Option aktiv, antwortet der Server statt mit dem Ergebnis
     // mit {prompt_preview} (siehe ai_routes._prompt_preview_response). Zeigt den
@@ -5221,7 +5229,7 @@
           const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, aiProviderName()+' berechnet den Buchungsscore…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_price' ? 'Noch kein Preis für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
@@ -5251,7 +5259,7 @@
             body: JSON.stringify({region: r.region})}, aiProviderName()+' schätzt die Destination ein…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_data' ? 'Noch zu wenig Markttrend-Daten für diese Destination.' : aiErrorMsg(d.error);
@@ -5282,7 +5290,7 @@
           const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, aiProviderName()+' fasst die Kalenderpreise zusammen…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_data' ? 'Noch keine Kalenderdaten für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
@@ -5337,7 +5345,7 @@
             body: JSON.stringify(hotelFacts(r))}, aiProviderName()+' durchsucht das Web nach Bewertungen…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           if(aiStale(aiGen)) return;
@@ -5396,7 +5404,7 @@
             body: JSON.stringify({hotels: facts})}, aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           if(aiStale(aiGen)) return;
@@ -5543,7 +5551,7 @@
             body: JSON.stringify({regions, month})}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Regionen-Vergleich fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Regionen-Vergleich fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           if(aiStale(aiGen)) return;
@@ -6009,14 +6017,23 @@
         closePromptCfg();
       } catch(e){ toast('Speichern fehlgeschlagen'); }
     }
+    // Reiner Text — landet auch in textContent-Zielen und im Verlauf-Filter.
+    // Vorher steckte bei zwei Arten ein <svg> mit in der Beschriftung; wo sie per
+    // textContent gesetzt wurde (Wiederholen-Fenster, Verlauf-Detail), stand das
+    // Markup wörtlich auf dem Bildschirm, und der Filter suchte darin mit.
     function aiKindLabel(kind){
-      return kind==='compare' ? 'Vergleich' : kind==='ask' ? '<svg class="i"><use href="#i-bookmark"/></svg> Portfolio-Frage'
+      return kind==='compare' ? 'Vergleich' : kind==='ask' ? 'Portfolio-Frage'
         : kind==='ask_general' ? 'Reisefrage'
         : kind==='search_advice' ? 'Reisezeit-Check'
         : kind==='advisor' ? 'TripPilot' : kind==='booking_score' ? 'Buchungsscore'
         : kind==='region_outlook' ? 'Region-Ausblick'
-        : kind==='region_compare' ? '<svg class="i"><use href="#i-chart"/></svg> Regionen-Vergleich'
+        : kind==='region_compare' ? 'Regionen-Vergleich'
         : kind==='calendar_outlook' ? 'Kalender-Analyse' : 'Fazit';
+    }
+    // Symbol getrennt davon — nur dort einsetzen, wo wirklich HTML gerendert wird.
+    function aiKindIcon(kind){
+      const id = kind==='ask' ? 'i-bookmark' : kind==='region_compare' ? 'i-chart' : '';
+      return id ? '<svg class="i"><use href="#'+id+'"/></svg> ' : '';
     }
     function renderAiHistory(items){
       if(!items.length){
@@ -6026,7 +6043,7 @@
       }
       $('#aihist-body').innerHTML = items.map(it => `<div class="aihist-item">
           <div class="aihist-main" onclick="openAiHistoryItem(${it.id})">
-            <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
+            <div class="aihist-title">${aiKindIcon(it.kind)}${esc(aiKindLabel(it.kind))} · ${esc(it.title)}</div>
             <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
           </div>
           ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit anderer KI wiederholen"><svg class="i"><use href="#i-repeat"/></svg></button>` : ''}
@@ -6064,7 +6081,7 @@
       const it = _aiHistItems.find(x=>x.id===id); if(!it) return;
       closeAiHistory();
       $('#ai-title').textContent = 'Wiederholen';
-      $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;
+      $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;   // beides reiner Text
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
       let avail = {};
@@ -6089,7 +6106,7 @@
             headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider})}, 'Wird wiederholt…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_prompt' ? (d.note||'Kein Prompt gespeichert.') : aiErrorMsg(d.error);
@@ -6157,7 +6174,7 @@
           const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q, scope})}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_offers'
@@ -6331,7 +6348,7 @@
             headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, aiProviderName()+' sucht passende Ziele…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true, AI_MAYBE_IN_HISTORY); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
