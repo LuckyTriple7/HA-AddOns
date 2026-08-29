@@ -5196,6 +5196,14 @@ def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
         entry.get('updated') or '',
     ] if x)
     page_label = t.get('pdf_page', 'Seite')
+    # Zwei Regeln im Stylesheet unten sind nicht offensichtlich:
+    # `table-layout: fixed` ist Pflicht — bei `auto` bemisst WeasyPrint die
+    # Spalten am Inhalt und schiebt breite Tabellen über den Seitenrand, der
+    # Überhang wird abgeschnitten. Und `page-break-inside: avoid` gehört auf
+    # die Zeile, nicht auf die Tabelle: eine Tabelle, die länger als eine Seite
+    # ist, wandert sonst komplett auf die nächste und lässt den Rest der vorigen
+    # Seite leer. `word-break: break-word` gibt es nicht — WeasyPrint verwirft
+    # es mit einer Warnung; `overflow-wrap: anywhere` ist die gültige Form.
     return f"""<!DOCTYPE html><html lang="{escape(lang)}"><head><meta charset="utf-8">
 <title>{escape(loc(entry, 'title'))}</title><style>
 @page {{ size: A4; margin: 20mm 18mm 18mm;
@@ -5216,17 +5224,11 @@ blockquote {{ border-left: 2pt solid {escape(accent)}; margin: 3mm 0; padding: 0
 pre {{ background: #f4f4f4; padding: 3mm; border-radius: 2mm; white-space: pre-wrap;
        font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
 code {{ font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
-/* `table-layout: fixed` ist Pflicht: bei `auto` bemisst WeasyPrint die Spalten
-   am Inhalt und schiebt breite Tabellen über den Seitenrand — der Überhang
-   wird beim Drucken schlicht abgeschnitten. Und `page-break-inside: avoid`
-   gehört auf die Zeile, nicht auf die Tabelle: eine Tabelle, die länger als
-   eine Seite ist, wandert sonst komplett auf die nächste und lässt den Rest
-   der vorigen Seite leer. */
 table {{ border-collapse: collapse; width: 100%; margin: 3mm 0; table-layout: fixed; }}
 thead {{ display: table-header-group; }}
 tr {{ page-break-inside: avoid; }}
 th, td {{ border: 0.5pt solid #bbb; padding: 1.5mm 2mm; text-align: left; font-size: 9.5pt;
-          vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }}
+          vertical-align: top; overflow-wrap: anywhere; }}
 th {{ background: #f0f0f0; }}
 table.t-c4 th, table.t-c4 td {{ font-size: 8.5pt; padding: 1.2mm 1.5mm; }}
 table.t-c5 th, table.t-c5 td {{ font-size: 8pt; padding: 1mm 1.2mm; line-height: 1.4; }}

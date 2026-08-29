@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.43
+
+- 🐛 **Warnung beim PDF-Bau.** `word-break: break-word` stand im Stylesheet der Bibliothek-PDFs, existiert aber nicht — gültige Werte sind nur `normal`, `break-all` und `keep-all`. WeasyPrint verwarf die Regel und schrieb "Ignored word-break: break-word at 30:57, invalid value." ins Log. Da `overflow-wrap: anywhere` daneben steht und die Arbeit ohnehin allein macht, ist die Zeile ersatzlos raus — am Ergebnis ändert sich nichts, das Log ist wieder sauber.
+- 🧹 Der lange Erklärtext zu den Tabellenregeln stand als CSS-Kommentar in jedem erzeugten Dokument. Er gehört in den Quelltext und steht jetzt dort.
+
 ## 0.11.42
 
 - 🐛 **PDF der Bibliothek: abgeschnittene Tabellen.** Breite Tabellen (ab etwa fünf Spalten) liefen über den rechten Seitenrand hinaus und wurden dort schlicht abgeschnitten — gemessen bis 752 pt auf einer 595 pt breiten A4-Seite. Ursache war die automatische Spaltenbemessung, die sich am Inhalt orientiert statt an der Seitenbreite. Tabellen bekommen jetzt feste Spaltenbreiten, umbrechen lange Wörter und Adressen und setzen ihre Schrift ab vier Spalten gestaffelt kleiner.
