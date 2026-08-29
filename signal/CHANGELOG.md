@@ -8,6 +8,7 @@
 - Die Weboberflaeche wird ueber 17787 auch mit gueltigem Token **nicht** ausgeliefert (`404`) — sonst waere der Port ein zweiter, gleichwertiger Weg auf alles. Ist `api_enabled` an, aber kein Token gesetzt, startet der Port gar nicht
 - Der Vergleich laeuft ueber `crypto.timingSafeEqual` statt `===`, damit die Laufzeit den Token nicht verraet. Abgewiesene Zugriffe landen mit Pfad und IP als WARN in der Konsole des Add-ons
 - Der Watchdog laeuft jetzt ueber `tcp://[HOST]:17777` statt `tcp://[HOST]:[PORT:17777]`. Die alte Form loeste den **Host**-Port auf und waere ohne Mapping ins Leere gelaufen — das Add-on haette sich selbst als tot gemeldet und im Kreis neu gestartet
+- Neu: **`test-api.ps1`** — kleines PowerShell-Menue zum Ausprobieren der API (Status, Chats, Senden, letzte empfangene Nachricht). Spricht 17787 an und schickt den Token mit; der steht **nicht** im Skript, es liest `$env:SIGNAL_API_TOKEN` oder fragt beim Start danach. Host und Port lassen sich ueber `SIGNAL_HOST` und `SIGNAL_API_PORT` uebersteuern. WhatsApp und Telegram hatten so ein Skript schon, Signal bisher nicht
 - Gleiches Muster wie im WhatsApp-Add-on ab 1.8.31
 
 ## [1.6.28] - 2026-08-28
