@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.113.0
+
+- ⬇️ **Markdown-Export für KI-Antworten.** Neuer Knopf neben PDF und E-Mail: speichert die Antwort als `.md`-Datei, so wie die KI sie geliefert hat — Überschriften, Tabellen und Quellen-Links bleiben als Markdown erhalten statt in Druck-HTML zu landen. Zum Weiterverarbeiten in Obsidian, Notion, Git oder eigenen Notizen.
+- ℹ️ Folgefragen sind mit drin, jede unter einer eigenen Überschrift. Der Dateiname entsteht aus Titel, Untertitel und Datum (`regionen-vergleich-mauritius-malediven-20260829.md`). Verfügbar überall dort, wo es auch PDF-Export und E-Mail gibt — inklusive der Detailansicht im KI-Verlauf.
+
 ## 0.112.0
 
 - 🗺️ **TripPilot prüft jetzt auch Informationsfreiheit und LGBTQ-Rechte.** Zu jedem vorgeschlagenen Ziel kommen ein bis zwei Stichpunkte zu Internetzensur, blockierten Diensten, VPN-Lage und rechtlichen Risiken bei Onlineäußerungen sowie zur Rechtslage und Alltagssituation für LGBTQ-Reisende. Gravierendes wird als **mögliches KO-Kriterium** gekennzeichnet.

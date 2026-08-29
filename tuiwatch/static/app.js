@@ -5305,6 +5305,12 @@
         + aiFollowupBoxHtml();
       $('#ai-foot').style.display = 'flex';
       aiCurrentId = result.id != null ? result.id : null;
+      // Konversationen (mit Folgefragen) als Frage/Antwort-Folge, sonst die
+      // Antwort selbst. Beides ist bereits Markdown, wie es die KI geliefert hat.
+      _aiMdParts = Array.isArray(conv) && conv.length > 2
+        ? conv.filter(m => m && m.content).map(m =>
+            (m.role === 'user' ? '### Frage\n\n' : '') + m.content)
+        : [result.summary || ''];
     }
     async function submitAiFollowup(){
       const input = $('#ai-followup-q');
@@ -5342,6 +5348,7 @@
         return;
       }
       thread.innerHTML += aiMdLite(d.summary);
+      _aiMdParts.push('### Frage\n\n' + q, d.summary || '');
       status.innerHTML = '';
       const usageWrap = $('#ai-usage-line-wrap');
       if(usageWrap) usageWrap.innerHTML = aiUsageLine(d.usage, false, d.totals);
@@ -5480,6 +5487,48 @@
       };
       attempt();
     }
+    // Markdown der aktuell gezeigten Antwort. Wird in renderAiResult gesetzt und
+    // bei jeder Folgefrage erweitert.
+    let _aiMdParts = [];
+
+    // Dateiname aus Titel und Untertitel: „Regionen-Vergleich · Malediven · …"
+    // -> „regionen-vergleich-malediven-….md". Umlaute werden ersetzt statt
+    // entfernt, sonst wird aus „Ägypten" ein „gypten".
+    function aiExportFilename(title, sub){
+      const map = {'ä':'ae','ö':'oe','ü':'ue','Ä':'ae','Ö':'oe','Ü':'ue','ß':'ss'};
+      const slug = (title + ' ' + sub)
+        .replace(/[äöüÄÖÜß]/g, c => map[c])
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+      const d = new Date();
+      const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0')
+                  + String(d.getDate()).padStart(2,'0');
+      return (slug || 'ki-antwort') + '-' + stamp + '.md';
+    }
+
+    function exportAiMarkdown(){
+      const md = (_aiMdParts || []).filter(Boolean).join('\n\n');
+      if(!md){ toast('Nichts zum Exportieren'); return; }
+      const title = $('#ai-title').textContent, sub = $('#ai-sub').textContent;
+      const head = '# ' + title + (sub ? '\n\n*' + sub + '*' : '')
+                 + '\n\n<!-- TUIWatch, ' + new Date().toLocaleString('de-DE') + ' -->\n\n';
+      // Ueber ein Blob statt eines data:-Links: der Text enthaelt Umlaute und kann
+      // mehrere hundert KB gross werden, beides vertraegt eine URL schlecht.
+      const blob = new Blob([head + md + '\n'], {type: 'text/markdown;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = aiExportFilename(title, sub);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Erst nach dem Klick freigeben, sonst bricht der Download in manchen
+      // Browsern ab, bevor er begonnen hat.
+      setTimeout(()=>URL.revokeObjectURL(url), 10000);
+    }
+
     function exportAiPdf(){
       const w = window.open('', '_blank');
       if(!w){ toast('Pop-up blockiert – bitte für TUIWatch erlauben'); return; }

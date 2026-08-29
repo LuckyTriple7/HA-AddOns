@@ -374,6 +374,14 @@ versteckt, `ai_provider` wird ignoriert).
   separater Admin-API-Key nötig.
 - **📄 PDF exportieren** — öffnet eine druckoptimierte Ansicht in neuem Tab, aus
   der sich der Browser-Druckdialog direkt als PDF speichern lässt.
+- **⬇ Markdown** — speichert die Antwort als `.md`-Datei, so wie die KI sie
+  geliefert hat: Überschriften, Tabellen und die Quellen-Links bleiben als
+  Markdown erhalten statt in Druck-HTML zu landen. Gedacht zum Weiterverarbeiten
+  (Obsidian, Notion, Git, eigene Notizen). Folgefragen sind mit drin, jede unter
+  einer eigenen Überschrift „Frage". Der Dateiname entsteht aus Titel und
+  Untertitel plus Datum, z. B. `regionen-vergleich-mauritius-malediven-20260829.md`.
+  Steht überall dort zur Verfügung, wo auch PDF-Export und E-Mail angeboten werden
+  — inklusive der Detailansicht im KI-Verlauf.
 - **🤖 KI-Verlauf** (Button oben neben „Alle prüfen") — alle bisherigen Fazits/
   Vergleiche bleiben **dauerhaft** gespeichert (unabhängig vom 24h-Cache, bis zu
   300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar (löscht auch
