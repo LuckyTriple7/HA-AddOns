@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.109.0
+
+- 🔧 **Perplexity funktioniert wieder.** Die Umstellung auf die Agent API in 0.106.0 schickte weiter die Sonar-Modellnamen mit — die gibt es dort aber bis auf das Basismodell nicht mehr, jeder Aufruf endete in „400 Bad Request". Betroffen war auch der Standard.
+- ✨ **Statt Modellen wählst du jetzt eine Gründlichkeitsstufe:** `pplx-fast`, `pplx-low` (Standard), `pplx-medium`, `pplx-high`, `pplx-xhigh`. Das sind Perplexitys Presets, der offizielle Nachfolger der Sonar-Modelle — laut deren Benchmarks durchgehend genauer als das jeweils ersetzte Modell, bei `pplx-high` oft sogar günstiger als Sonar Deep Research. **Deine bestehende Auswahl wird automatisch übernommen** (sonar-pro wird pplx-low usw.), du musst nichts umstellen.
+- ℹ️ Die Websuche gehört fest zu einer Stufe und lässt sich nicht mehr abschalten. Die in 0.106.0 angekündigte Ersparnis bei Aufgaben ohne Recherchebedarf (Auto-Tags, Kalender-Analyse, Feld-Vorschläge) gibt es damit nicht — das war ein Irrtum meinerseits und ist in der Doku korrigiert.
+
 ## 0.108.1
 
 - 🔍 **Fehlgeschlagene Perplexity-Aufrufe schreiben jetzt die Antwort der API ins Log.** Bisher stand dort bei einem Fehler nur „400 Client Error: Bad Request" — welches Feld die API beanstandet, sagt allein der Antwortkörper. Ohne ihn war so ein Fehler nicht zu diagnostizieren.

@@ -74,7 +74,7 @@ def _agent_payload(text="Antwort", status="completed", input_tokens=100,
         usage["cost"] = cost
     return {
         "id": "resp_test", "object": "response", "status": status,
-        "model": "perplexity/sonar-pro", "output": output, "usage": usage,
+        "model": "preset-low", "output": output, "usage": usage,
     }
 
 
@@ -91,36 +91,37 @@ def _patch_requests(monkeypatch, response, captured=None):
 
 def test_ai_config_reads_perplexity_options(app_mod):
     _write_options(app_mod, ai_provider="perplexity", perplexity_api_key="p-key",
-                   perplexity_model="sonar")
+                   perplexity_model="pplx-fast")
     api_key, model = app_mod._ai_config()
     assert api_key == "p-key"
-    assert model == "sonar"
+    assert model == "pplx-fast"
 
 
 def test_ai_config_falls_back_to_flagship_on_invalid_perplexity_model(app_mod):
     _write_options(app_mod, ai_provider="perplexity", perplexity_api_key="p-key",
                    perplexity_model="not-a-real-model")
     _api_key, model = app_mod._ai_config()
-    assert model == "sonar-pro"
+    assert model == "pplx-low"
 
 
 def test_ai_config_for_perplexity_explicit(app_mod):
     _write_options(app_mod, perplexity_api_key="p-key")
     api_key, model = app_mod._ai_config_for("perplexity")
     assert api_key == "p-key"
-    assert model == "sonar-pro"
+    assert model == "pplx-low"
 
 
 def test_ai_request_dispatches_perplexity_by_model_name(app_mod, monkeypatch):
     captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
-    text, usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    text, usage, err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                            max_tokens=200, log_ctx="Test")
     assert err is None
     assert text == "Antwort"
     assert captured[0]["url"].endswith("/v1/agent")
-    # Modell-ID bleibt intern `sonar-pro` (Optionen, Preistabelle, Zähler); das
-    # Provider-Präfix kommt erst im Payload dazu.
-    assert captured[0]["json"]["model"] == "perplexity/sonar-pro"
+    # Gesendet wird das Preset ohne unser `pplx-`-Präfix; die Sonar-Modelle
+    # existieren in der Agent API nicht mehr.
+    assert captured[0]["json"]["preset"] == "low"
+    assert "model" not in captured[0]["json"]
     assert captured[0]["headers"]["Authorization"] == "Bearer p-key"
 
 
@@ -128,7 +129,7 @@ def test_perplexity_pins_low_search_context_size(app_mod, monkeypatch):
     """Muss explizit gesetzt werden — sonst weicht die tatsächlich abgerechnete
     Request-Gebühr vom in _AI_PERPLEXITY_REQUEST_FEE hinterlegten Wert ab."""
     captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
-    app_mod._ai_request("p-key", "sonar-pro", "Prompt", max_tokens=200, log_ctx="Test")
+    app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
     assert captured[0]["json"]["tools"] == [{"type": "web_search",
                                              "search_context_size": "low"}]
 
@@ -136,7 +137,7 @@ def test_perplexity_pins_low_search_context_size(app_mod, monkeypatch):
 def test_perplexity_prompt_becomes_input_message(app_mod, monkeypatch):
     """Agent API nimmt `input` statt `messages`, je Eintrag mit `type: message`."""
     captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
-    app_mod._ai_request("p-key", "sonar-pro", "Prompt", max_tokens=200, log_ctx="Test")
+    app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
     assert captured[0]["json"]["input"] == [
         {"type": "message", "role": "user", "content": "Prompt"}]
     assert captured[0]["json"]["max_output_tokens"] == 200
@@ -144,21 +145,33 @@ def test_perplexity_prompt_becomes_input_message(app_mod, monkeypatch):
     assert "max_tokens" not in captured[0]["json"]
 
 
-def test_perplexity_omits_web_search_tool_when_disabled(app_mod, monkeypatch):
-    """Ohne das Tool sucht die Agent API gar nicht — anders als bei Sonar, wo der
-    Schalter folgenlos war. Spart die Suchgebühr bei Aufrufen ohne Recherchebedarf
-    (Auto-Tags, PDF-Fallback, Feld-Vorschläge)."""
+def test_perplexity_always_searches_regardless_of_the_flag(app_mod, monkeypatch):
+    """`use_web_search=False` hat bei Perplexity keine Wirkung: ein Preset bringt
+    die Websuche mit, und Tools werden je Werkzeug zusammengeführt statt ersetzt —
+    das Weglassen nimmt sie dem Preset also nicht. Ein Schalter dafür ist nicht
+    dokumentiert. Festgehalten, damit die Kostenrechnung nicht von einer
+    Ersparnis ausgeht, die es nicht gibt."""
     captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
-    app_mod._ai_request("p-key", "sonar-pro", "Prompt", max_tokens=200, log_ctx="Test",
+    app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test",
                         use_web_search=False)
-    assert "tools" not in captured[0]["json"]
+    assert captured[0]["json"]["tools"] == [{"type": "web_search",
+                                             "search_context_size": "low"}]
+
+
+def test_old_sonar_choice_is_lifted_to_its_preset(app_mod):
+    """Bestehende Konfigurationen dürfen ihre eingestellte Gründlichkeit nicht
+    verlieren, nur weil die Sonar-Namen weg sind."""
+    _write_options(app_mod, ai_provider="perplexity", perplexity_api_key="p-key",
+                   perplexity_model="sonar-deep-research")
+    _api_key, model = app_mod._ai_config()
+    assert model == "pplx-high"
 
 
 def test_perplexity_truncation_is_logged(app_mod, monkeypatch, caplog):
     """`status: incomplete` ersetzt Sonars `finish_reason: length`."""
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(status="incomplete")))
     with caplog.at_level("WARNING"):
-        text, _usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+        text, _usage, err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                                 max_tokens=200, log_ctx="Test")
     assert err is None and text == "Antwort"
     assert "abgeschnitten" in " ".join(r.getMessage() for r in caplog.records)
@@ -167,7 +180,7 @@ def test_perplexity_truncation_is_logged(app_mod, monkeypatch, caplog):
 def test_perplexity_usage_mapping(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         input_tokens=1573, output_tokens=239, web_searches=3)))
-    _text, usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    _text, usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert usage["input_tokens"] == 1573
     assert usage["output_tokens"] == 239
@@ -182,7 +195,7 @@ def test_perplexity_output_schema_passed_through(app_mod, monkeypatch):
               "additionalProperties": False}
     captured = _patch_requests(monkeypatch,
                                _FakeResponse(payload=_agent_payload(text='{"tags": ["a"]}')))
-    text, _usage, err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
+    text, _usage, err = app_mod._ai_request("p-key", "pplx-fast", "Prompt", max_tokens=200,
                                             log_ctx="Test", output_schema=schema)
     assert err is None
     assert text == '{"tags": ["a"]}'
@@ -193,7 +206,7 @@ def test_perplexity_output_schema_passed_through(app_mod, monkeypatch):
 
 def test_perplexity_empty_text_returns_empty_code(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(text="")))
-    _text, _usage, err = app_mod._ai_request("p-key", "sonar", "Prompt",
+    _text, _usage, err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert err == "empty"
 
@@ -202,7 +215,7 @@ def test_perplexity_http_error_returns_failed_code(app_mod, monkeypatch):
     response = _FakeResponse(status_code=401,
                              raise_exc=requests.HTTPError("401 Unauthorized"))
     _patch_requests(monkeypatch, response)
-    _text, _usage, err = app_mod._ai_request("bad-key", "sonar", "Prompt",
+    _text, _usage, err = app_mod._ai_request("bad-key", "pplx-fast", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert err == "failed"
 
@@ -217,7 +230,7 @@ def test_perplexity_http_error_logs_the_response_body(app_mod, monkeypatch, capl
     exc.response = err_resp
     _patch_requests(monkeypatch, _FakeResponse(status_code=400, raise_exc=exc))
     with caplog.at_level("WARNING"):
-        _text, _usage, code = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+        _text, _usage, code = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                                   max_tokens=200, log_ctx="Test")
     assert code == "failed"
     assert "unknown field: preset" in " ".join(r.getMessage() for r in caplog.records)
@@ -230,7 +243,7 @@ def test_perplexity_error_without_a_body_still_logs(app_mod, monkeypatch, caplog
         raise requests.ConnectionError("keine Verbindung")
     monkeypatch.setattr(requests, "post", fake_post)
     with caplog.at_level("WARNING"):
-        _text, _usage, code = app_mod._ai_request("p-key", "sonar", "Prompt",
+        _text, _usage, code = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                                   max_tokens=200, log_ctx="Test")
     assert code == "failed"
     assert "keine Verbindung" in " ".join(r.getMessage() for r in caplog.records)
@@ -240,7 +253,7 @@ def test_perplexity_connection_error_returns_failed_code(app_mod, monkeypatch):
     def fake_post(*a, **kw):
         raise requests.ConnectionError("boom")
     monkeypatch.setattr(requests, "post", fake_post)
-    _text, _usage, err = app_mod._ai_request("p-key", "sonar", "Prompt",
+    _text, _usage, err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert err == "failed"
 
@@ -249,7 +262,7 @@ def test_perplexity_malformed_response_returns_failed_not_uncaught(app_mod, monk
     """Regression analog zum Gemini-Fall: eine unerwartete Antwortstruktur darf nicht
     mit einer unbehandelten Exception bis zu Flask durchschlagen."""
     _patch_requests(monkeypatch, _FakeResponse(payload={"unexpected": "shape"}))
-    text, usage, err = app_mod._ai_request("p-key", "sonar", "Prompt",
+    text, usage, err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                            max_tokens=200, log_ctx="Test")
     assert err == "failed"
     assert text is None and usage is None
@@ -333,7 +346,7 @@ def test_perplexity_linkifies_citations_from_search_results(app_mod, monkeypatch
         text="Traumhafter Strand.[1][3]",
         results=_sources("https://a.example/1", "https://b.example/2",
                          "https://c.example/3"))))
-    text, _usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    text, _usage, err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                             max_tokens=200, log_ctx="Test")
     assert err is None
     assert text == "Traumhafter Strand.[1](https://a.example/1)[3](https://c.example/3)"
@@ -345,7 +358,7 @@ def test_perplexity_falls_back_to_result_order_without_ids(app_mod, monkeypatch)
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         text="Klares Wasser.[2]",
         results=[{"url": "https://x.example"}, {"url": "https://y.example"}])))
-    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == "Klares Wasser.[2](https://y.example)"
 
@@ -353,14 +366,14 @@ def test_perplexity_falls_back_to_result_order_without_ids(app_mod, monkeypatch)
 def test_perplexity_leaves_unmatched_citation_number_unchanged(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         text="Siehe [9].", results=_sources("https://x.example"))))
-    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == "Siehe [9]."
 
 
 def test_perplexity_no_citations_text_unchanged(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(text="Kein Zitat hier.")))
-    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == "Kein Zitat hier."
 
@@ -373,7 +386,7 @@ def test_perplexity_skips_linkify_for_structured_output(app_mod, monkeypatch):
               "required": ["score"], "additionalProperties": False}
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         text='{"score": 1}', results=_sources("https://x.example"))))
-    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt", max_tokens=200,
                                              log_ctx="Test", output_schema=schema)
     assert text == '{"score": 1}'
 
@@ -389,14 +402,14 @@ def test_ai_md_to_html_renders_citation_link(app_mod):
 def test_ai_call_cost_includes_perplexity_request_fee(app_mod):
     usage = {"input_tokens": 0, "output_tokens": 0, "cache_creation_input_tokens": 0,
              "cache_read_input_tokens": 0}
-    assert app_mod._ai_call_cost("sonar-pro", usage) == pytest.approx(0.006)
+    assert app_mod._ai_call_cost("pplx-low", usage) == pytest.approx(0.0025)
 
 
 def test_ai_call_cost_perplexity_adds_fee_on_top_of_tokens(app_mod):
     usage = {"input_tokens": 1_000_000, "output_tokens": 0,
              "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
-    # sonar: $1/1M input + $0.005 Request-Gebühr
-    assert app_mod._ai_call_cost("sonar", usage) == pytest.approx(1.005)
+    # pplx-fast: $0.20/1M input + $0.0025 Suchgebühr
+    assert app_mod._ai_call_cost("pplx-fast", usage) == pytest.approx(0.2025)
 
 
 def test_ai_call_cost_no_request_fee_for_claude(app_mod):
@@ -406,11 +419,11 @@ def test_ai_call_cost_no_request_fee_for_claude(app_mod):
 
 
 def test_ai_usage_calc_multiplies_perplexity_fee_by_calls(app_mod):
-    models = {"sonar-pro": {"input_tokens": 0, "output_tokens": 0,
+    models = {"pplx-low": {"input_tokens": 0, "output_tokens": 0,
                             "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
                             "calls": 3}}
     result = app_mod._ai_usage_calc(models)
-    assert result["estimated_usd"] == pytest.approx(0.018)  # 3 × 0.006
+    assert result["estimated_usd"] == pytest.approx(0.0075)  # 3 × 0.0025
 
 
 # -- Echte Kosten aus der Agent API statt Schaetzung ------------------------
@@ -421,11 +434,11 @@ def test_perplexity_reports_real_cost_in_usage(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(cost={
         "currency": "USD", "input_cost": 0.00409, "output_cost": 0.01316,
         "cache_read_cost": 0.00045, "tool_calls_cost": 0.0025, "total_cost": 0.0202})))
-    _text, usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    _text, usage, err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                             max_tokens=200, log_ctx="Test")
     assert err is None
     assert usage["cost_usd"] == pytest.approx(0.0202)
-    assert app_mod._ai_call_cost("sonar-pro", usage) == pytest.approx(0.0202)
+    assert app_mod._ai_call_cost("pplx-low", usage) == pytest.approx(0.0202)
 
 
 def test_perplexity_without_cost_block_falls_back_to_estimate(app_mod, monkeypatch):
@@ -433,10 +446,10 @@ def test_perplexity_without_cost_block_falls_back_to_estimate(app_mod, monkeypat
     die alte Schaetzung greifen statt eine Luecke zu hinterlassen."""
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         input_tokens=1_000_000, output_tokens=0)))
-    _text, usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+    _text, usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert "cost_usd" not in usage
-    assert app_mod._ai_call_cost("sonar", usage) == pytest.approx(1.005)
+    assert app_mod._ai_call_cost("pplx-fast", usage) == pytest.approx(0.2025)
 
 
 def test_perplexity_ignores_cost_in_other_currency(app_mod, monkeypatch):
@@ -444,7 +457,7 @@ def test_perplexity_ignores_cost_in_other_currency(app_mod, monkeypatch):
     uebernehmen waere schlicht ein falscher Betrag."""
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         cost={"currency": "EUR", "total_cost": 0.5})))
-    _text, usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    _text, usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert "cost_usd" not in usage
 
@@ -452,7 +465,7 @@ def test_perplexity_ignores_cost_in_other_currency(app_mod, monkeypatch):
 def test_perplexity_ignores_unusable_total_cost(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         cost={"currency": "USD", "total_cost": None})))
-    _text, usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    _text, usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert "cost_usd" not in usage
 
@@ -463,17 +476,17 @@ def test_ai_call_cost_prefers_reported_over_estimate(app_mod):
     usage = {"input_tokens": 1_000_000, "output_tokens": 0,
              "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
              "cost_usd": 0.0202}
-    assert app_mod._ai_call_cost("sonar", usage) == pytest.approx(0.0202)
+    assert app_mod._ai_call_cost("pplx-fast", usage) == pytest.approx(0.0202)
 
 
 def test_usage_bucket_records_the_settled_share(app_mod):
     """Der Bucket merkt sich, welche Aufrufe und Tokens schon abgerechnet sind —
     ohne das wuerden sie in _ai_usage_calc ein zweites Mal geschaetzt."""
-    app_mod._record_ai_usage("sonar-pro", {
+    app_mod._record_ai_usage("pplx-low", {
         "input_tokens": 1000, "output_tokens": 200,
         "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
         "cost_usd": 0.02})
-    stored = json.loads(app_mod._meta_get("ai_usage_totals"))["sonar-pro"]
+    stored = json.loads(app_mod._meta_get("ai_usage_totals"))["pplx-low"]
     assert stored["calls"] == 1 and stored["cost_calls"] == 1
     assert stored["cost_usd"] == pytest.approx(0.02)
     assert stored["cost_input_tokens"] == 1000
@@ -481,7 +494,7 @@ def test_usage_bucket_records_the_settled_share(app_mod):
 
 
 def test_usage_calc_uses_real_cost_for_settled_calls(app_mod):
-    models = {"sonar-pro": {"input_tokens": 1000, "output_tokens": 200,
+    models = {"pplx-low": {"input_tokens": 1000, "output_tokens": 200,
                             "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
                             "calls": 1, "cost_usd": 0.02, "cost_calls": 1,
                             "cost_input_tokens": 1000, "cost_output_tokens": 200,
@@ -494,24 +507,24 @@ def test_usage_calc_uses_real_cost_for_settled_calls(app_mod):
 def test_usage_calc_mixes_settled_and_estimated_calls(app_mod):
     """Ein ueber die Umstellung hinweg gewachsener Zaehler enthaelt beides. Der
     abgerechnete Teil zaehlt echt, der Rest wird weiter geschaetzt."""
-    models = {"sonar": {"input_tokens": 1_000_000 + 500, "output_tokens": 0,
+    models = {"pplx-fast": {"input_tokens": 1_000_000 + 500, "output_tokens": 0,
                         "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
                         "calls": 2, "cost_usd": 0.01, "cost_calls": 1,
                         "cost_input_tokens": 500, "cost_output_tokens": 0,
                         "cost_cache_creation_input_tokens": 0,
                         "cost_cache_read_input_tokens": 0}}
-    # 0.01 echt + Schaetzung fuer den Rest (1M input = $1 + 0.005 Gebuehr).
-    assert app_mod._ai_usage_calc(models)["estimated_usd"] == pytest.approx(1.015)
+    # 0.01 echt + Schaetzung fuer den Rest (1M input = $0.20 + 0.0025 Gebuehr).
+    assert app_mod._ai_usage_calc(models)["estimated_usd"] == pytest.approx(0.2125)
 
 
 def test_usage_calc_unchanged_for_legacy_buckets(app_mod):
     """Buckets von vor der Umstellung haben keine cost_*-Felder — sie muessen sich
     exakt wie bisher verhalten."""
-    models = {"sonar-pro": {"input_tokens": 1_000_000, "output_tokens": 1_000_000,
+    models = {"pplx-low": {"input_tokens": 1_000_000, "output_tokens": 1_000_000,
                             "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
                             "calls": 1}}
-    # $3 input + $15 output + 0.006 Gebuehr
-    assert app_mod._ai_usage_calc(models)["estimated_usd"] == pytest.approx(18.006)
+    # $0.20 input + $1.20 output + 0.0025 Gebuehr
+    assert app_mod._ai_usage_calc(models)["estimated_usd"] == pytest.approx(1.4025)
 
 
 def test_history_repeat_accepts_perplexity_provider(app_mod, monkeypatch):
@@ -519,7 +532,7 @@ def test_history_repeat_accepts_perplexity_provider(app_mod, monkeypatch):
     with app_mod.db() as con:
         con.execute("INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) "
                     "VALUES (?,?,?,?,?,?,?)",
-                    ("single", "Test", "sonar-pro", "alt", "{}", 0, "Alter Prompt"))
+                    ("single", "Test", "pplx-low", "alt", "{}", 0, "Alter Prompt"))
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(text="Neue Antwort")))
     c = app_mod.app.test_client()
     r = c.post("/api/ai/history/1/repeat", headers=ING, json={"provider": "perplexity"})
@@ -536,7 +549,7 @@ def test_perplexity_merges_search_results_across_steps(app_mod, monkeypatch):
         extra_steps=[{"type": "search_results",
                       "results": _sources("https://schritt2.example/2",
                                           "https://schritt2.example/3", start_id=2)}])))
-    text, _usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == ("Vergleich.[1](https://schritt1.example/1)"
                     "[3](https://schritt2.example/3)")
@@ -549,7 +562,7 @@ def test_perplexity_aligns_on_ids_not_position(app_mod, monkeypatch):
         text="Luecke.[1][2][3]",
         results=[{"id": 1, "url": "https://eins.example"},
                  {"id": 3, "url": "https://drei.example"}])))
-    text, _usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == "Luecke.[1](https://eins.example)[2][3](https://drei.example)"
 
@@ -561,7 +574,7 @@ def test_perplexity_logs_how_many_markers_stayed_unlinked(app_mod, monkeypatch, 
         text="Nightlife.[9][58][74]",
         results=_sources(*[f"https://x.example/{i}" for i in range(10)]))))
     with caplog.at_level("INFO"):
-        text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+        text, _usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt",
                                                  max_tokens=200, log_ctx="Regionen-Vergleich")
     assert "[58]" in text and "[74]" in text, "unauflösbare Marker bleiben unverändert"
     msg = " ".join(r.getMessage() for r in caplog.records)
@@ -576,6 +589,6 @@ def test_perplexity_structured_output_passes_the_source_list(app_mod, monkeypatc
     _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         text='{"score": 1}',
         results=_sources("https://a.example", "https://b.example"))))
-    _text, usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
+    _text, usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt", max_tokens=200,
                                              log_ctx="Test", output_schema=schema)
     assert usage["citation_urls"] == ["https://a.example", "https://b.example"]

@@ -222,36 +222,38 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
     """Perplexity-Variante von `_ai_request_anthropic_messages` — gleiche Rückgabe-
     Signatur (text, usage, error_code), siehe `A._ai_request_messages`. Spricht die
     Agent API (`/v1/agent`) an; die alte Sonar-Chat-Completions-API wird laut
-    docs.perplexity.ai nur noch bis 27.09.2026 unterstützt. Die Sonar-Modelle
-    selbst bleiben nutzbar, sie heißen dort `perplexity/<name>` — deshalb bleiben
-    unsere Modell-IDs (`sonar-pro` …) in den Optionen, der Preistabelle und den
-    gespeicherten Nutzungszählern unverändert, das Präfix kommt erst hier dazu.
+    docs.perplexity.ai nur noch bis 27.09.2026 unterstützt.
+
+    Gesendet wird ein `preset` (fast/low/medium/high/xhigh), nicht ein `model`.
+    Die Sonar-Modelle gibt es in der Agent API bis auf `perplexity/sonar` nicht
+    mehr — sie werden mit „model ... is not supported" abgelehnt. Die Presets
+    sind Perplexitys eigener Nachfolgepfad dafür (Zuordnung in
+    `A._PERPLEXITY_PRESET_FOR_SONAR`); ein Preset bündelt Modell, Systemprompt
+    und Suchparameter, und welches Modell dahinter läuft, pflegt Perplexity.
 
     Unser rollenbasiertes `messages`-Schema ('user'/'assistant') geht 1:1 ins
     `input`-Array, nur mit `type: message` je Eintrag — keine Umwandlung wie bei
-    Gemini. Die Websuche ist anders als bei Sonar kein Automatismus mehr, sondern
-    ein Tool, das mitgeschickt werden muss; ohne diesen Eintrag sucht das Modell
-    gar nicht. Damit wirkt `use_web_search=False` hier jetzt tatsächlich (bei Sonar
-    war der Schalter folgenlos) und spart die Suchgebühr bei den Aufrufen, die
-    ohnehin nichts nachschlagen sollen (Auto-Tags, PDF-Fallback, Feld-Vorschläge).
+    Gemini. Mitgeschickte Felder überschreiben die Voreinstellung des Presets;
+    `tools` ist die Ausnahme, dort wird je Werkzeug zusammengeführt statt ersetzt.
 
-    `search_context_size` wird explizit auf 'low' gepinnt (statt dem API-Default zu
-    überlassen) — hält die zusätzliche, gestaffelte Request-Gebühr auf der
-    günstigsten Stufe UND macht sie überhaupt erst planbar:
-    `ai_routes.py::_AI_PERPLEXITY_REQUEST_FEE` rechnet genau diese Stufe in die
-    Kostenanzeige mit ein, ohne dieses Pinning wäre die Gebühr unvorhersehbar
-    (API könnte 'medium' o. Ä. als Default nutzen) und die Schätzung stimmt nicht
-    mehr. Bei `use_web_search=False` fällt sie gar nicht an, die Schätzung liegt
-    dort also einen Zehntelcent zu hoch — bewusst in Kauf genommen, lieber zu
-    hoch geschätzt als zu niedrig."""
+    Genau deshalb hat `use_web_search=False` hier **keine** Wirkung — wie schon
+    zu Sonar-Zeiten: ein Preset bringt die Websuche mit, und das Weglassen des
+    Tools nimmt sie ihm nicht, weil Tools gemergt und nicht ersetzt werden. Ein
+    dokumentierter Schalter dafür existiert nicht. Der Parameter bleibt in der
+    Signatur, weil Claude und Gemini ihn brauchen.
+
+    `search_context_size` wird explizit auf 'low' gepinnt statt dem Preset-Default
+    zu überlassen: das hält die Suchgebühr auf der günstigsten Stufe. Für die
+    Kostenanzeige ist das nicht mehr entscheidend — die Agent API meldet die
+    tatsächlichen Kosten mit (siehe `_perplexity_reported_cost`) —, für die
+    Rechnung beim Anbieter schon."""
     payload = {
-        "model": f"perplexity/{model}",
+        "preset": model.removeprefix('pplx-'),
         "input": [{"type": "message", "role": m.get("role"), "content": m.get("content")}
                   for m in messages],
         "max_output_tokens": max_tokens,
+        "tools": [{"type": "web_search", "search_context_size": "low"}],
     }
-    if use_web_search:
-        payload["tools"] = [{"type": "web_search", "search_context_size": "low"}]
     if output_schema is not None:
         payload["response_format"] = {"type": "json_schema",
                                       "json_schema": {"name": "tuiwatch_result",

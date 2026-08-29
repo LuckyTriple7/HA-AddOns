@@ -95,7 +95,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.108.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.109.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -190,7 +190,28 @@ _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten 
 _CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
 _AI_MODELS = ('claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
 _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash')
-_PERPLEXITY_MODELS = ('sonar', 'sonar-pro', 'sonar-reasoning-pro', 'sonar-deep-research')
+# Perplexity-Auswahl = die Presets der Agent API, nicht mehr die Sonar-Modelle.
+# Von denen existiert dort nur noch `perplexity/sonar`; sonar-pro,
+# sonar-reasoning-pro und sonar-deep-research lehnt die API mit
+# „model ... is not supported" ab. Perplexity benennt die Presets selbst als
+# Nachfolge (siehe _PERPLEXITY_PRESET_FOR_SONAR) und weist für sie in eigenen
+# Benchmarks bessere Ergebnisse aus, für die Deep-Research-Stufe zudem
+# niedrigere Kosten je Anfrage.
+# Das `pplx-`-Präfix ist unsere Kennung, gesendet wird nur der Teil dahinter:
+# ohne Präfix stünde in Nutzungsstatistik und KI-Verlauf ein nichtssagendes
+# „low"/„high" in der Modellspalte, und `_provider_for_model` müsste solche
+# Allerweltsnamen sicher einem Anbieter zuordnen.
+_PERPLEXITY_MODELS = ('pplx-fast', 'pplx-low', 'pplx-medium', 'pplx-high', 'pplx-xhigh')
+
+# Umzug bestehender Konfigurationen: die Zuordnung stammt aus Perplexitys
+# Migrations-Tabelle (Sonar Chat Completions -> Agent API preset), damit eine
+# eingestellte Gründlichkeit erhalten bleibt statt auf den Standard zu fallen.
+_PERPLEXITY_PRESET_FOR_SONAR = {
+    'sonar': 'pplx-fast',
+    'sonar-pro': 'pplx-low',
+    'sonar-reasoning-pro': 'pplx-medium',
+    'sonar-deep-research': 'pplx-high',
+}
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
 # einfache Login-Drossel

@@ -276,18 +276,33 @@ sie komplett ausgeblendet).
   `gemini-3.6-flash`). Websuche über
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
-- **Perplexity:** `perplexity_model` (Standard `sonar-pro`; auch `sonar`,
-  `sonar-reasoning-pro`, `sonar-deep-research` wählbar). Angesprochen wird die
-  Agent API (`/v1/agent`); die alte Sonar-Chat-API läuft laut Perplexity am
-  27.09.2026 aus, die Modelle selbst bleiben. Die Websuche ist dort ein Werkzeug,
-  das TUIWatch gezielt mitschickt: Auswertungen mit Rechercheanteil suchen, rein
-  interne Aufgaben (Auto-Tags, PDF-Nachbearbeitung, Feld-Vorschläge) nicht mehr —
-  das spart die Suchgebühr. Ein Äquivalent zu `ai_max_web_searches` gibt es
-  weiterhin nicht, Perplexity entscheidet selbst, wie oft es sucht; pro
-  recherchierendem Aufruf fallen Token- **und** feste Request-Kosten an (siehe
-  Warnhinweis oben). Zitat-Marker wie `[1][5]` in der Antwort sind anklickbare
-  Links zur jeweiligen Quelle (hochgestellte Zahl) — in Web-UI, PDF-Export und
-  E-Mail.
+- **Perplexity:** `perplexity_model` wählt die **Gründlichkeitsstufe** (Standard
+  `pplx-low`). Angesprochen wird die Agent API (`/v1/agent`); die alte
+  Sonar-Chat-API läuft am 27.09.2026 aus, und die Sonar-**Modelle** gibt es in der
+  Agent API bis auf das Basismodell schon jetzt nicht mehr. An ihre Stelle treten
+  Perplexitys Presets, die Modell, Systemprompt und Suchparameter bündeln:
+
+  | Stufe | ersetzt | gut für |
+  |---|---|---|
+  | `pplx-fast` | Sonar | einzelne Fakten, Definitionen, kurze Zusammenfassungen |
+  | `pplx-low` | Sonar Pro | alltägliche Recherchefragen mit aktuellen Informationen |
+  | `pplx-medium` | Sonar Reasoning Pro | mehrstufiges Browsen, breite Auswertung vieler Quellen |
+  | `pplx-high` | Sonar Deep Research | Expertenniveau, erschöpfende Quellenabdeckung |
+  | `pplx-xhigh` | — | wie `high`, mit größerem Budget |
+
+  Eine bestehende Sonar-Auswahl wird beim Start automatisch auf die passende Stufe
+  gehoben — es ist nichts umzustellen. Perplexity weist für die Presets in eigenen
+  Benchmarks durchgehend bessere Ergebnisse aus als für das jeweils ersetzte
+  Sonar-Modell, bei `high` zudem oft geringere Kosten je Anfrage als Sonar Deep
+  Research.
+
+  Ein Äquivalent zu `ai_max_web_searches` gibt es nicht; Perplexity entscheidet
+  selbst, wie oft es sucht. Die Websuche lässt sich auch **nicht abschalten**: sie
+  gehört fest zum Preset, und das Weglassen des Werkzeugs nimmt sie ihm nicht
+  (Werkzeuge werden zusammengeführt, nicht ersetzt). Anders als bei Claude und
+  Gemini sucht Perplexity daher auch bei Aufgaben ohne Recherchebedarf.
+  Zitat-Marker wie `[1][5]` in der Antwort sind anklickbare Links zur jeweiligen
+  Quelle (hochgestellte Zahl) — in Web-UI, PDF-Export und E-Mail.
 
 Sind **mindestens 2 der 3** API-Keys hinterlegt, erscheint im Footer ein
 Umschalter („🤖 Claude aktiv" / „✨ Gemini aktiv" / „🔎 Perplexity aktiv") —
@@ -715,8 +730,9 @@ unveränderten Tagen). Darauf aufbauend:
   KI-Key): fasst die Monatsdurchschnittspreise und, falls vorhanden, die größten
   Preisänderungen zusammen und empfiehlt günstige/teure Reisemonate. Reiner
   Markdown-Text ohne Websuche (nur die bereits abgerufenen Kalenderdaten), läuft
-  dadurch identisch mit Claude, Gemini und Perplexity und verursacht keine
-  zusätzlichen Websuche-Kosten. 6h je Angebot gecacht.
+  dadurch bei Claude und Gemini ohne zusätzliche Websuche-Kosten. Bei Perplexity
+  gilt das nicht: die Websuche gehört fest zum Preset und lässt sich nicht
+  abschalten, die Suchgebühr fällt daher auch hier an. 6h je Angebot gecacht.
 
 Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
 Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im

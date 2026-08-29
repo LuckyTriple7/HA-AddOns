@@ -328,32 +328,31 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
     'gemini-3.6-flash': {'input': 1.5,  'output': 7.5},
     'gemini-3.5-flash': {'input': 1.5,  'output': 9.0},
     'gemini-2.5-flash': {'input': 0.3,  'output': 2.5},
-    # Perplexity-Listenpreise (docs.perplexity.ai, Stand Juli 2026). Die
-    # zusätzliche Request-Gebühr (siehe _AI_PERPLEXITY_REQUEST_FEE) ist HIER
-    # bewusst nicht mit drin — sie wird separat pro Aufruf addiert, weil sie
-    # nicht pro Token, sondern pauschal je Anfrage anfällt.
-    'sonar':                {'input': 1.0, 'output': 1.0},
-    'sonar-pro':             {'input': 3.0, 'output': 15.0},
-    'sonar-reasoning-pro':   {'input': 2.0, 'output': 8.0},
-    'sonar-deep-research':   {'input': 2.0, 'output': 8.0},
+    # Perplexity-Presets der Agent API. Die Preise sind die des Modells, das
+    # hinter dem Preset steckt (fast/low/medium = openai/gpt-5.6-luna,
+    # high/xhigh = openai/gpt-5.6-sol), jeweils die günstigere Kontext-Stufe.
+    #
+    # Das ist hier nur noch der **Rückfallweg**: die Agent API meldet die
+    # tatsächlichen Kosten je Aufruf mit (`usage.cost.total_cost`, seit v0.107.0),
+    # und die schlagen diese Schätzung. Gebraucht wird die Tabelle, wenn eine
+    # Antwort den Kostenblock einmal nicht mitliefert. Welches Modell Perplexity
+    # hinter einem Preset betreibt, ändert sich zudem ohne unser Zutun — noch ein
+    # Grund, sich auf die gemeldete Zahl zu verlassen und nicht auf diese hier.
+    'pplx-fast':    {'input': 0.20, 'output': 1.20},
+    'pplx-low':     {'input': 0.20, 'output': 1.20},
+    'pplx-medium':  {'input': 0.20, 'output': 1.20},
+    'pplx-high':    {'input': 5.00, 'output': 30.00},
+    'pplx-xhigh':   {'input': 5.00, 'output': 30.00},
 }
 
-# USD pro 1000 Anfragen, gestaffelt nach `search_context_size` (siehe
-# ai_client.py::_ai_request_perplexity) — wir fragen dort immer 'low' an (die
-# günstigste Stufe), daher hier ebenfalls nur die 'low'-Preise. Sonar Deep
-# Research hat keine Kontext-Stufen, sondern eine feste Gebühr je 1000
-# Suchanfragen; wird hier gleich behandelt. In USD pro Aufruf (bereits /1000).
-# Seit der Umstellung auf die Agent API fällt die Gebühr nur an, wenn das
-# web_search-Tool mitgeschickt wurde (use_web_search=True). Hier wird sie
-# trotzdem pauschal je Aufruf addiert: die gespeicherten Zähler halten nur
-# `calls`, nicht wie viele davon gesucht haben — die Schätzung liegt bei
-# such-freien Aufrufen also minimal zu hoch, was besser ist als zu niedrig.
-_AI_PERPLEXITY_REQUEST_FEE = {
-    'sonar':                0.005,
-    'sonar-pro':             0.006,
-    'sonar-reasoning-pro':   0.006,
-    'sonar-deep-research':   0.005,
-}
+# Gebühr je Websuche der Agent API, in USD pro Aufruf. Ebenfalls nur der
+# Rückfallweg neben der gemeldeten `usage.cost.total_cost` (dort ist die Gebühr
+# bereits enthalten). Ein Preset sucht bei jeder Anfrage mindestens einmal;
+# mehrstufige Recherchen suchen öfter, das kann diese Pauschale nicht abbilden
+# und unterschätzt die gründlicheren Stufen — die gemeldete Zahl tut es nicht.
+_AI_PERPLEXITY_REQUEST_FEE = {p: 0.0025 for p in
+                              ('pplx-fast', 'pplx-low', 'pplx-medium',
+                               'pplx-high', 'pplx-xhigh')}
 
 
 def _ai_estimated_call_cost(model: str, input_tokens: int, output_tokens: int,
@@ -601,9 +600,13 @@ def _ai_config_for(provider: str) -> tuple[str, str]:
         return api_key, model
     if provider == 'perplexity':
         api_key = (cfg.get('perplexity_api_key') or '').strip()
-        model = cfg.get('perplexity_model') or 'sonar-pro'
+        model = cfg.get('perplexity_model') or ''
+        # Alte Sonar-Auswahl auf das entsprechende Preset heben, statt sie als
+        # ungültig zu verwerfen — sonst landete jede bestehende Installation
+        # kommentarlos auf dem Standard und verlöre die eingestellte Stufe.
+        model = A._PERPLEXITY_PRESET_FOR_SONAR.get(model, model)
         if model not in A._PERPLEXITY_MODELS:
-            model = 'sonar-pro'
+            model = 'pplx-low'
         return api_key, model
     api_key = (cfg.get('anthropic_api_key') or '').strip()
     model = cfg.get('anthropic_model') or 'claude-opus-5'
