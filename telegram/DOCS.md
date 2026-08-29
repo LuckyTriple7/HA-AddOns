@@ -36,7 +36,38 @@ Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automat
 
 ## REST-API
 
-Das Add-on ist über Port 17778 erreichbar (`http://<HA-IP>:17778`).
+### Zwei Ports, zwei Sicherheitsstufen
+
+| Port | Was liegt dort | Schutz | Standard |
+|------|----------------|--------|----------|
+| 17778 | Weboberfläche **und** REST-API | keiner — wer den Port erreicht, kann mitlesen und senden | **zu** |
+| 17788 | nur REST-API (`/api/*`), keine Oberfläche | Token-Pflicht | zu |
+
+Port 17778 kennt bewusst keine Anmeldung: die Weboberfläche ruft ihre eigenen
+`/api/`-Routen aus dem Browser auf, eine Token-Pflicht würde sie lahmlegen. Sein
+Schutz ist deshalb, dass er **nicht freigegeben** ist. Der Zugang zur Oberfläche
+läuft über HA-Ingress (Anmeldung durch Home Assistant) oder das
+MessengerPortal — beides geht nicht über den Host-Port.
+
+Gibst du 17778 unter *Netzwerk* frei, steht alles offen, was hier beschrieben
+ist: mitlesen und senden, ohne Passwort, für jedes Gerät im Netz.
+
+Port 17788 ist der Weg für Skripte und fremde Geräte. Er braucht zwei Schalter:
+
+1. Option **REST-API auf eigenem Port** (`api_enabled`) einschalten und einen
+   **API-Token** (`api_token`) setzen — ohne Token startet der Port nicht
+2. Port 17788 unter *Netzwerk* freigeben, wenn er aus dem LAN erreichbar sein soll
+
+Jeder Aufruf braucht dann die Kopfzeile `Authorization: Bearer <Token>`; ohne sie
+antwortet der Port mit `401`. Die Weboberfläche gibt es dort auch mit gültigem
+Token nicht — sie wäre sonst ein zweiter, gleichwertiger Weg auf alles.
+
+Token erzeugen:
+
+```bash
+openssl rand -hex 32
+```
+
 
 ```
 GET  /api/status                  → Verbindungsstatus
@@ -70,7 +101,9 @@ POST /api/logout                  → Abmelden
 sensor:
   - platform: rest
     name: Telegram letzte Nachricht
-    resource: http://localhost:17778/api/last-received
+    resource: http://localhost:17788/api/last-received
+    headers:
+      Authorization: !secret telegram_api_token
     value_template: "{{ value_json.iso }}"
     json_attributes:
       - chatName
@@ -79,10 +112,16 @@ sensor:
     scan_interval: 30
 ```
 
+`secrets.yaml`:
+```yaml
+telegram_api_token: "Bearer <Token>"
+```
+
 ### Nachricht senden
 
 ```bash
-curl -X POST http://<HA-IP>:17778/api/send \
+curl -X POST http://<HA-IP>:17788/api/send \
+  -H "Authorization: Bearer <Token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "123456789", "message": "Hallo aus HA!"}'
 ```
@@ -126,10 +165,17 @@ actions:
 ```yaml
 rest_command:
   telegram_send:
-    url: http://localhost:17778/api/send
+    url: http://localhost:17788/api/send
+    headers:
+      Authorization: !secret telegram_api_token
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
+```
+
+`secrets.yaml`:
+```yaml
+telegram_api_token: "Bearer <Token>"
 ```
 
 ## Updates
@@ -177,7 +223,38 @@ Just enable `ha_notifications` — nothing else. The add-on automatically uses t
 
 ## REST API
 
-The add-on is available on port 17778 (`http://<HA-IP>:17778`).
+### Two ports, two security levels
+
+| Port | What it serves | Protection | Default |
+|------|----------------|------------|---------|
+| 17778 | web interface **and** REST API | none — anyone who reaches it can read and send | **closed** |
+| 17788 | REST API only (`/api/*`), no interface | token required | closed |
+
+Port 17778 deliberately has no login: the web interface calls its own `/api/`
+routes from the browser, so requiring a token would break it. Its protection is
+therefore that it is **not published**. The interface is reached through HA
+Ingress (authenticated by Home Assistant) or the MessengerPortal — neither
+goes through the host port.
+
+Publish 17778 under *Network* and everything described here is wide open:
+reading and sending, without a password, for any device on the network.
+
+Port 17788 is the path for scripts and other machines. It needs two switches:
+
+1. Turn on **REST API on a separate port** (`api_enabled`) and set an
+   **API token** (`api_token`) — without a token the port does not start
+2. Publish port 17788 under *Network* if it should be reachable from the LAN
+
+Every call then needs the header `Authorization: Bearer <token>`; without it the
+port answers `401`. The web interface is not served there even with a valid
+token — it would just be a second, equally powerful way in.
+
+Generate a token:
+
+```bash
+openssl rand -hex 32
+```
+
 
 ```
 GET  /api/status                  → Connection status
@@ -211,7 +288,9 @@ POST /api/logout                  → Log out
 sensor:
   - platform: rest
     name: Telegram Last Message
-    resource: http://localhost:17778/api/last-received
+    resource: http://localhost:17788/api/last-received
+    headers:
+      Authorization: !secret telegram_api_token
     value_template: "{{ value_json.iso }}"
     json_attributes:
       - chatName
@@ -220,10 +299,16 @@ sensor:
     scan_interval: 30
 ```
 
+`secrets.yaml`:
+```yaml
+telegram_api_token: "Bearer <token>"
+```
+
 ### Send a Message
 
 ```bash
-curl -X POST http://<HA-IP>:17778/api/send \
+curl -X POST http://<HA-IP>:17788/api/send \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "123456789", "message": "Hello from HA!"}'
 ```

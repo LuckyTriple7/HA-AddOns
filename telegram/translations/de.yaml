@@ -1,4 +1,10 @@
 configuration:
+  api_enabled:
+    name: REST-API auf eigenem Port
+    description: "Startet die REST-API zusätzlich auf Port 17788. Dort gilt Token-Pflicht und es gibt keine Weboberfläche — anders als auf Port 17778, der beides ohne Anmeldung herausgibt. Ohne gesetzten API-Token startet der Port nicht. Für Zugriff aus dem LAN muss er zusätzlich unter Netzwerk freigegeben werden. Standard: aus."
+  api_token:
+    name: API-Token
+    description: "Geheimnis für die REST-API auf Port 17788. Der Aufrufer schickt es als Kopfzeile Authorization mit dem Wert Bearer und dem Token mit. Lang und zufällig wählen, etwa mit openssl rand -hex 32."
   api_id:
     name: API ID
     description: Numerische API-ID von my.telegram.org → API development tools. Erforderlich für die Verbindung mit Telegram.

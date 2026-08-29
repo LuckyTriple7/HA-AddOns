@@ -42,6 +42,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
@@ -2613,3 +2614,38 @@ app.listen(PORT, () => {
   console.log(`[INFO] Signal UI listening on port ${PORT}`);
   init();
 });
+
+// ── REST-API auf eigenem Port ────────────────────────────────────────
+// Der UI-Port bedient Oberflaeche und API gemeinsam und kennt keine
+// Authentifizierung — die Weboberflaeche ruft ihre eigenen /api/-Routen ja aus
+// dem Browser auf. Sein Schutz ist deshalb, dass er nicht veroeffentlicht wird:
+// Zugriff ueber HA-Ingress oder das MessengerPortal.
+//
+// Wer die REST-API von aussen braucht, bekommt sie hier — und nur hier:
+// ausschliesslich /api/*, ausschliesslich mit Token. Die Oberflaeche gibt es
+// ueber diesen Port auch mit gueltigem Token nicht, sonst waere er wieder ein
+// zweiter, gleichwertiger Weg auf alles.
+const API_PORT    = parseInt(process.env.API_PORT || '17787', 10);
+const API_ENABLED = process.env.API_ENABLED === 'true';
+const API_TOKEN   = process.env.API_TOKEN || '';
+
+if (API_ENABLED && !API_TOKEN) {
+  console.error(`[ERROR] api_enabled ist gesetzt, aber api_token ist leer — die REST-API auf Port ${API_PORT} startet nicht. Ein offener Port ohne Token waere genau die Luecke, die dieser Port schliessen soll.`);
+} else if (API_ENABLED) {
+  const expected = Buffer.from(`Bearer ${API_TOKEN}`);
+  const apiApp = express();
+  apiApp.set('trust proxy', 1);
+  apiApp.use((req, res, next) => {
+    if (!req.path.startsWith('/api/')) return res.status(404).json({ error: 'not_found' });
+    const got = Buffer.from(req.headers.authorization || '');
+    // timingSafeEqual wirft bei ungleicher Laenge — deshalb erst vergleichen,
+    // dann pruefen. Kein ===, das verraet ueber die Laufzeit den Token.
+    if (got.length !== expected.length || !crypto.timingSafeEqual(got, expected)) {
+      _logSilent('WARN', `REST-API: Zugriff ohne gueltigen Token abgelehnt (${req.method} ${req.path}, ${req.ip})`);
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    next();
+  });
+  apiApp.use(app);
+  apiApp.listen(API_PORT, () => console.log(`[INFO] REST-API auf Port ${API_PORT} (Token erforderlich)`));
+}

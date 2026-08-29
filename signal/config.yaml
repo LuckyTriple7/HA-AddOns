@@ -1,6 +1,6 @@
 name: Signal
 description: Signal Messenger mit persistenter Session, Web-UI, REST-API und Webhook für Home Assistant
-version: "1.6.28"
+version: "1.6.29"
 image: "ghcr.io/luckytriple7/signal"
 slug: signal
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -12,7 +12,7 @@ arch:
 startup: application
 boot: manual
 init: true
-watchdog: "tcp://[HOST]:[PORT:17777]"
+watchdog: "tcp://[HOST]:17777"
 
 map:
   - app_config:rw
@@ -23,14 +23,23 @@ panel_icon: phu:signal
 panel_title: Signal
 
 ports:
-  17777/tcp: 17777
+  17777/tcp: null
+  17787/tcp: null
 
 ports_description:
-  17777/tcp: Signal Web-UI und REST-API
+  17777/tcp: >-
+    Web-UI und REST-API ohne Authentifizierung - wer den Port erreicht, kann
+    mitlesen und senden. Standardmaessig zu; der Zugang laeuft ueber Ingress
+    oder das MessengerPortal. Nur freigeben, wenn du weisst warum.
+  17787/tcp: >-
+    REST-API mit Token - nur /api/*, keine Oberflaeche. Braucht zusaetzlich
+    die Optionen "REST-API auf eigenem Port" und "API-Token".
 
 homeassistant_api: true
 
 options:
+  api_enabled: false
+  api_token: ""
   dark_mode: false
   native_mode: true
   download_media: false
@@ -42,6 +51,8 @@ options:
   ha_notifications_privacy: false
 
 schema:
+  api_enabled: bool
+  api_token: password?
   dark_mode: bool
   native_mode: bool
   download_media: bool

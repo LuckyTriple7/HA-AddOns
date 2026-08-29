@@ -1,8 +1,42 @@
 ﻿# Telegram Add-on API Tester
-$HA_IP   = "homeassistant.local"
-$HA_PORT = 17778
+#
+# Spricht den Token-Port an (Standard 17788), nicht mehr 17778. Auf 17778
+# liegen Weboberflaeche und API ohne jede Anmeldung - dieser Port wird
+# nicht mehr veroeffentlicht.
+#
+# Voraussetzungen im Add-on: Option "REST-API auf eigenem Port" an,
+# "API-Token" gesetzt, Port 17788 unter Netzwerk freigegeben.
+#
+# Den Token nicht hier eintragen - die Datei liegt in git. Entweder vorher
+#   $env:TELEGRAM_API_TOKEN = "..."
+# setzen oder beim Start eingeben.
+
+$HA_IP   = if ($env:TELEGRAM_HOST) { $env:TELEGRAM_HOST } else { "homeassistant.local" }
+$HA_PORT = if ($env:TELEGRAM_API_PORT) { $env:TELEGRAM_API_PORT } else { 17788 }
 $BASE    = "http://${HA_IP}:${HA_PORT}"
 $TIMEOUT = 5   # Sekunden
+
+$TOKEN = $env:TELEGRAM_API_TOKEN
+if (-not $TOKEN) {
+    $TOKEN = Read-Host "API-Token (Option api_token im Add-on)"
+}
+if (-not $TOKEN) {
+    Write-Host "Ohne Token antwortet der Port nur mit 401. Abbruch." -ForegroundColor Red
+    exit 1
+}
+$HEADERS = @{ Authorization = "Bearer $TOKEN" }
+
+function Show-Fehler($e) {
+    $code = $null
+    if ($e.Exception.Response) { $code = [int]$e.Exception.Response.StatusCode }
+    if ($code -eq 401) {
+        Write-Host "401 - Token abgelehnt. Stimmt er mit der Option api_token ueberein?" -ForegroundColor Red
+    } elseif ($code -eq 404) {
+        Write-Host "404 - auf diesem Port gibt es nur /api/*, keine Oberflaeche." -ForegroundColor Red
+    } else {
+        Write-Host "Fehler: $e" -ForegroundColor Red
+    }
+}
 
 function Show-Menu {
     Write-Host ""
@@ -21,7 +55,7 @@ function Show-Menu {
 function Get-Status {
     Write-Host "Verbinde mit $BASE/api/status ..." -ForegroundColor DarkGray
     try {
-        $r = Invoke-RestMethod -Uri "$BASE/api/status" -Method GET -TimeoutSec $TIMEOUT
+        $r = Invoke-RestMethod -Uri "$BASE/api/status" -Method GET -Headers $HEADERS -TimeoutSec $TIMEOUT
         Write-Host ""
         Write-Host "Status : " -NoNewline
         $color = if ($r.status -eq 'connected') { 'Green' } elseif ($r.status -eq 'starting') { 'Yellow' } else { 'Red' }
@@ -30,14 +64,14 @@ function Get-Status {
         if ($r.id)   { Write-Host "ID     : $($r.id)" }
         if ($r.error) { Write-Host "Fehler : $($r.error)" -ForegroundColor Red }
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 
 function Get-Chats {
     Write-Host "Lade Chats ..." -ForegroundColor DarkGray
     try {
-        $chats = Invoke-RestMethod -Uri "$BASE/api/chats" -Method GET -TimeoutSec $TIMEOUT
+        $chats = Invoke-RestMethod -Uri "$BASE/api/chats" -Method GET -Headers $HEADERS -TimeoutSec $TIMEOUT
         if ($chats.Count -eq 0) {
             Write-Host "Keine Chats gefunden." -ForegroundColor Yellow
             return
@@ -54,7 +88,7 @@ function Get-Chats {
         }
         return $chats
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 
@@ -79,14 +113,14 @@ function Send-Message {
     try {
         $body = @{ to = $to; message = $msg } | ConvertTo-Json
         $r = Invoke-RestMethod -Uri "$BASE/api/send" -Method POST `
-             -ContentType "application/json" -Body $body -TimeoutSec $TIMEOUT
+             -ContentType "application/json" -Body $body -Headers $HEADERS -TimeoutSec $TIMEOUT
         if ($r.success) {
             Write-Host "Gesendet!" -ForegroundColor Green
         } else {
             Write-Host "Fehler: $($r.error)" -ForegroundColor Red
         }
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 
@@ -96,11 +130,11 @@ function Submit-Code {
     try {
         $body = @{ code = $code } | ConvertTo-Json
         $r = Invoke-RestMethod -Uri "$BASE/api/submit-code" -Method POST `
-             -ContentType "application/json" -Body $body -TimeoutSec $TIMEOUT
+             -ContentType "application/json" -Body $body -Headers $HEADERS -TimeoutSec $TIMEOUT
         if ($r.ok) { Write-Host "Code akzeptiert." -ForegroundColor Green }
         else        { Write-Host "Fehler: $($r.error)" -ForegroundColor Red }
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 
@@ -112,11 +146,11 @@ function Submit-Password {
     try {
         $body = @{ password = $plain } | ConvertTo-Json
         $r = Invoke-RestMethod -Uri "$BASE/api/submit-password" -Method POST `
-             -ContentType "application/json" -Body $body -TimeoutSec $TIMEOUT
+             -ContentType "application/json" -Body $body -Headers $HEADERS -TimeoutSec $TIMEOUT
         if ($r.ok) { Write-Host "Passwort akzeptiert." -ForegroundColor Green }
         else        { Write-Host "Fehler: $($r.error)" -ForegroundColor Red }
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 
