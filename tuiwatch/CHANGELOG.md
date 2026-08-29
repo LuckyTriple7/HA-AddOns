@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.110.0
+
+- ⏳ **Lange KI-Recherchen brechen nicht mehr ab.** Die gründlichen Perplexity-Stufen (`pplx-high`, `pplx-xhigh`) rechnen minutenlang. Bisher hing die Antwort so lange in einer offenen Verbindung, dass der Browser vorher aufgab — das Fenster meldete „fehlgeschlagen", während der Server in Ruhe zu Ende rechnete und das Ergebnis nur noch im KI-Verlauf auftauchte. Bezahlt und fertig, aber als Fehler dargestellt.
+- ⚙️ **Zwei Stellen umgebaut:** TUIWatch startet den Lauf bei Perplexity jetzt im Hintergrund und fragt das Ergebnis ab, statt zu warten; und das Fenster im Browser bekommt sofort eine Auftragsnummer und holt die Antwort damit ab. Dadurch kann weder ein Browser- noch ein Proxy-Zeitlimit eine laufende Recherche abschneiden.
+- ℹ️ Betrifft alle interaktiven KI-Funktionen (Fazit, Vergleich, Buchungsscore, Kalender-Analyse, Region-Ausblick, Klima, Reiseführer, Reisezeit-Check, Portfolio-Frage, TripPilot, Regionen-Vergleich, Wiederholen, Folgefrage) und gilt für alle Anbieter — spürbar ist es vor allem bei Perplexity.
+
 ## 0.109.2
 
 - 🧹 **„[web:94]" verschwindet aus den Antworten.** Die Agent API setzt Quellenverweise auch in dieser Form in den Text — ein Format, das Sonar nicht kannte und das deshalb als sinnloser Rest stehen blieb. Ist die Quelle bekannt, wird jetzt ein anklickbarer Link daraus, sonst wird der Marker entfernt.

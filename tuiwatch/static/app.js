@@ -5012,10 +5012,55 @@
     // Aufrufer-spezifisch — großes Modal vs. kleine Folgefrage-Box) und liefert
     // den editierten Text oder null bei Abbruch. `onConfirmed()` rendert den
     // Lade-Zustand für den zweiten (echten) Aufruf.
+    // Wie lange auf einen Hintergrundauftrag gewartet wird, bevor das Fenster
+    // aufgibt. Grosszuegig, weil die gruendlichen Perplexity-Stufen minutenlang
+    // recherchieren; der Server hat dafuer sein eigenes, einstellbares Limit.
+    const AI_JOB_MAX_WAIT_MS = 15 * 60 * 1000;
+    const AI_JOB_POLL_MS = 2000;
+
+    // Ergaenzt den Request um `_async: true`. Der Server fuehrt die Route dann in
+    // einem Thread aus und antwortet sofort mit einer Auftragsnummer, statt die
+    // Verbindung minutenlang offen zu halten — die schnitt vorher der Browser bzw.
+    // der Ingress-Proxy durch, obwohl die Antwort serverseitig fertig wurde.
+    function aiAsyncOpts(opts){
+      let body = {};
+      if(opts && opts.body){ try { body = JSON.parse(opts.body); } catch(e){ return opts; } }
+      body._async = true;
+      return Object.assign({}, opts, {
+        method: 'POST', body: JSON.stringify(body),
+        headers: Object.assign({'Content-Type':'application/json'}, (opts&&opts.headers)||{}),
+      });
+    }
+
+    // Antwortete der Server mit {job}, hier warten, bis das Ergebnis vorliegt, und
+    // dann so tun, als waere es direkt gekommen — die Aufrufer merken nichts davon.
+    async function aiAwaitJob(resp, d){
+      if(!(resp.status===202 && d && d.job)) return {resp, d};
+      const until = Date.now() + AI_JOB_MAX_WAIT_MS;
+      while(Date.now() < until){
+        await new Promise(r=>setTimeout(r, AI_JOB_POLL_MS));
+        let r2, d2;
+        try {
+          r2 = await fetch(api('/api/ai/job/'+encodeURIComponent(d.job)));
+          d2 = await r2.json();
+        } catch(e){
+          // Kurzer Netz-Aussetzer: der Auftrag laeuft serverseitig weiter, also
+          // weiterfragen statt aufgeben.
+          continue;
+        }
+        if(r2.status===202 && d2 && d2.job_status==='running') continue;
+        return {resp:r2, d:d2};
+      }
+      throw new Error('ai job timeout');
+    }
+
     async function aiFetchPreviewCore(url, opts, onPreview, onConfirmed){
       opts = opts || {};
-      let resp = await fetch(url, opts);
+      let resp = await fetch(url, aiAsyncOpts(opts));
       let d = await resp.json();
+      // Die Prompt-Vorschau kommt sofort und ohne Auftrag zurueck — erst der
+      // bestaetigte zweite Aufruf laeuft wirklich lange.
+      if(resp.status===202 && d && d.job) ({resp, d} = await aiAwaitJob(resp, d));
       if(resp.ok && d && d.prompt_preview){
         const edited = await onPreview(d.prompt_preview);
         if(edited === null) return {cancelled:true};
@@ -5023,12 +5068,14 @@
         if(opts.body){ try { body = JSON.parse(opts.body); } catch(e){} }
         body._prompt_confirmed = true;
         body._prompt_override = edited;
+        body._async = true;
         if(onConfirmed) onConfirmed();
         resp = await fetch(url, Object.assign({}, opts, {
           method: 'POST', body: JSON.stringify(body),
           headers: Object.assign({'Content-Type':'application/json'}, opts.headers||{}),
         }));
         d = await resp.json();
+        if(resp.status===202 && d && d.job) ({resp, d} = await aiAwaitJob(resp, d));
       }
       return {resp, d};
     }

@@ -3,10 +3,13 @@ Kosten-Zähler, KI-Verlauf und alle /api/ai-Routen — ausgelagert aus app.py
 (Backlog #12, 3. Tranche). Geteilte Primitiven über `import app as A` mit
 spätem Attribut-Zugriff (monkeypatch-sicher, zyklenfrei).
 """
+import functools
 import hashlib
 import json
 import re
+import threading
 import time
+import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -547,6 +550,119 @@ _AI_PROVIDER_KEY_FIELDS = {'anthropic': 'anthropic_api_key', 'gemini': 'gemini_a
 def _configured_ai_providers(cfg: dict) -> list[str]:
     """Provider mit hinterlegtem API-Key, in fester Anzeige-/Fallback-Reihenfolge."""
     return [p for p in _AI_PROVIDERS if (cfg.get(_AI_PROVIDER_KEY_FIELDS[p]) or '').strip()]
+
+
+# ── Hintergrund-Aufträge ───────────────────────────────────────────────────
+# Eine gründliche Perplexity-Stufe recherchiert minutenlang. Bleibt die Antwort
+# so lange in einer offenen HTTP-Verbindung hängen, gibt der Browser (bzw. der
+# Ingress-Proxy davor) vorher auf: der Nutzer sieht „fehlgeschlagen", während der
+# Server in Ruhe zu Ende rechnet und das Ergebnis im KI-Verlauf ablegt. Bezahlt,
+# fertig — und trotzdem als Fehler dargestellt.
+#
+# Deshalb: Schickt der Aufrufer `_async: true` mit, läuft die Route in einem
+# Thread und die Anfrage kommt sofort mit einer Auftragsnummer zurück. Das
+# Ergebnis holt das Frontend über `/api/ai/job/<id>` ab. Die Routen selbst müssen
+# dafür nichts wissen — der Dekorator `ai_async` erledigt es.
+_AI_JOBS: dict = {}
+_AI_JOBS_LOCK = threading.Lock()
+_AI_JOB_TTL = 3600          # fertige Ergebnisse so lange zum Abholen bereithalten
+_AI_JOB_MAX = 50            # Obergrenze, damit vergessene Aufträge nicht auflaufen
+
+
+def _ai_jobs_prune(now: float) -> None:
+    """Abgelaufene Aufträge wegräumen (nur unter gehaltenem Lock aufrufen).
+
+    Zusätzlich zur Frist eine harte Obergrenze: ein Frontend, das ein Ergebnis nie
+    abholt (Tab geschlossen), soll den Speicher nicht langsam volllaufen lassen."""
+    for jid in [j for j, v in _AI_JOBS.items() if now - v['ts'] > _AI_JOB_TTL]:
+        _AI_JOBS.pop(jid, None)
+    if len(_AI_JOBS) > _AI_JOB_MAX:
+        for jid in sorted(_AI_JOBS, key=lambda j: _AI_JOBS[j]['ts'])[:-_AI_JOB_MAX]:
+            _AI_JOBS.pop(jid, None)
+
+
+def ai_async(fn):
+    """Route wahlweise im Hintergrund ausführen (`_async: true` im Request-JSON).
+
+    Ohne das Feld verhält sich die Route unverändert — ältere Frontends und die
+    Tests laufen also weiter wie bisher.
+
+    Der Thread braucht einen eigenen Request-Kontext: die Routen lesen
+    `request.get_json()` und prüfen die Anmeldung über Header/Cookie
+    (`A._require_api`). Beides wird vor dem Start eingesammelt und im Thread mit
+    `test_request_context` originalgetreu nachgebaut — sonst liefe die Route dort
+    ohne Anfrage und ohne Anmeldung."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        data = request.get_json(silent=True) or {}
+        if not data.get('_async'):
+            return fn(*args, **kwargs)
+        jid = uuid.uuid4().hex
+        path, headers = request.path, dict(request.headers)
+        root = request.script_root
+
+        def run():
+            try:
+                # SCRIPT_NAME muss mit: `_is_ingress()` prueft `request.script_root`,
+                # und im Thread laeuft die Ingress-Middleware nicht mit, die ihn
+                # sonst aus dem X-Ingress-Path-Header setzt. Ohne ihn antwortet die
+                # Route mit 401, obwohl der urspruengliche Aufruf angemeldet war.
+                # `environ_overrides` statt `environ_base`, weil der Builder
+                # SCRIPT_NAME sonst aus dem Pfad neu berechnet und ueberschreibt.
+                with A.app.test_request_context(
+                        path, method='POST', json=data, headers=headers,
+                        environ_overrides={'SCRIPT_NAME': root} if root else None):
+                    # Cookies stecken bereits im Cookie-Header aus `headers` —
+                    # `request.cookies` selbst ist unveraenderlich.
+                    rv = fn(*args, **kwargs)
+                    body, code = _ai_job_normalize(rv)
+            except Exception as e:                      # noqa: BLE001 — Thread-Ende
+                A.log.error("KI-Hintergrundauftrag fehlgeschlagen (%s): %s: %s",
+                            path, type(e).__name__, e)
+                body, code = json.dumps({'error': 'failed'}), 500
+            with _AI_JOBS_LOCK:
+                _AI_JOBS[jid] = {'ts': time.time(), 'done': True,
+                                 'body': body, 'code': code}
+
+        with _AI_JOBS_LOCK:
+            _ai_jobs_prune(time.time())
+            _AI_JOBS[jid] = {'ts': time.time(), 'done': False, 'body': None, 'code': None}
+        A._spawn(run)
+        return jsonify({'job': jid}), 202
+    return wrapper
+
+
+def _ai_job_normalize(rv):
+    """Rückgabewert einer Route in (JSON-Text, Statuscode) übersetzen — Flask lässt
+    `Response`, `(Response, code)` und `(dict, code)` gleichermaßen zu."""
+    code = 200
+    if isinstance(rv, tuple):
+        rv, code = rv[0], (rv[1] if len(rv) > 1 else 200)
+    if hasattr(rv, 'get_data'):
+        return rv.get_data(as_text=True), code
+    return json.dumps(rv), code
+
+
+@bp.route('/api/ai/job/<job_id>', methods=['GET'])
+def api_ai_job(job_id):
+    """Ergebnis eines Hintergrundauftrags abholen.
+
+    Solange er läuft: `{'job_status': 'running'}` mit 202 — der Aufrufer fragt
+    später erneut. Ist er fertig, kommt exakt die Antwort, die die Route selbst
+    erzeugt hätte (Text und Statuscode unverändert durchgereicht), und der Auftrag
+    wird verworfen: er ist abgeholt, ein zweites Mal braucht ihn niemand."""
+    if (err := A._require_api()):
+        return err
+    with _AI_JOBS_LOCK:
+        job = _AI_JOBS.get(job_id)
+        if job and job['done']:
+            _AI_JOBS.pop(job_id, None)
+    if not job:
+        return jsonify({'error': 'not_found'}), 404
+    if not job['done']:
+        return jsonify({'job_status': 'running'}), 202
+    return A.app.response_class(job['body'], status=job['code'],
+                                mimetype='application/json')
 
 
 def _provider_for_model(model: str) -> str:
@@ -1155,6 +1271,7 @@ def _hotel_summary_prompt(hotel: dict, instructions: str) -> str:
 
 
 @bp.route('/api/ai/hotel-summary', methods=['POST'])
+@ai_async
 def api_ai_hotel_summary():
     """Ausführliche KI-Einschätzung zu einem Hotel aus den Suchergebnissen (Lage,
     Zimmer, Gastronomie, Pool, Ausstattung, Fazit) — Claude durchsucht dafür live
@@ -1221,6 +1338,7 @@ def _ai_score_request(prompt: str, model: str, api_key: str, log_ctx: str):
 
 
 @bp.route('/api/ai/calendar-outlook/<int:offer_id>', methods=['POST'])
+@ai_async
 def api_ai_calendar_outlook(offer_id: int):
     """KI-Zusammenfassung des Preiskalenders eines Angebots (günstige/teure Monate,
     Preisänderungen) — reiner Markdown-Fließtext, keine Websuche (nur lokale
@@ -1262,6 +1380,7 @@ def api_ai_calendar_outlook(offer_id: int):
 
 
 @bp.route('/api/ai/booking-score/<int:offer_id>', methods=['POST'])
+@ai_async
 def api_ai_booking_score(offer_id: int):
     """KI-Buchungsscore für ein einzelnes getracktes Angebot — auf Anfrage (kostet
     Websuche-Aufrufe), 6h je Angebot gecacht."""
@@ -1312,6 +1431,7 @@ def api_ai_booking_score(offer_id: int):
 
 
 @bp.route('/api/ai/region-outlook', methods=['POST'])
+@ai_async
 def api_ai_region_outlook():
     """KI-Einschätzung für eine ganze Destination (kein bestimmtes Hotel) aus deren
     Markttrend/-index — auf Anfrage, 6h je Region gecacht."""
@@ -1461,6 +1581,7 @@ def api_climate_get(giata: int):
 
 
 @bp.route('/api/ai/climate', methods=['POST'])
+@ai_async
 def api_ai_climate():
     """Klimatabelle für ein Reiseziel per KI erzeugen und dauerhaft speichern.
 
@@ -1722,6 +1843,7 @@ def api_guide_get(giata: int):
 
 
 @bp.route('/api/ai/guide', methods=['POST'])
+@ai_async
 def api_ai_guide():
     """Reiseführer per KI erzeugen und dauerhaft speichern. Liegt er vor, kommt er
     unverändert zurück; `refresh: true` erzwingt eine Neuerstellung."""
@@ -1898,6 +2020,7 @@ def _search_advice_prompt(d: dict) -> str:
 
 
 @bp.route('/api/ai/search-advice', methods=['POST'])
+@ai_async
 def api_ai_search_advice():
     """Reisezeit-Check direkt aus der Suchmaske: Klima/Saison zum gewählten Zeitraum,
     Schnäppchenmonate und ähnliche Alternativziele. Die Eckdaten kommen vom Frontend
@@ -1973,6 +2096,7 @@ def _ai_ask_general(question: str, data: dict, api_key: str, model: str):
 
 
 @bp.route('/api/ai/ask', methods=['POST'])
+@ai_async
 def api_ai_ask():
     """Freitext-Frage. Zwei Ausprägungen über `scope`:
 
@@ -2325,6 +2449,7 @@ def api_trippilot_editor():
 
 
 @bp.route('/api/ai/travel-advisor', methods=['POST'])
+@ai_async
 def api_ai_travel_advisor():
     """KI-Reiseberater: aus einem kurzen Profil (Region, Interessen, Reiseart,
     Budget, Reisezeit, Wetterwünsche) schlägt Claude 3 passende Ziele vor — freie
@@ -2392,6 +2517,7 @@ def _compare_prompt(hotels: list[dict], instructions: str) -> str:
 
 
 @bp.route('/api/ai/hotel-compare', methods=['POST'])
+@ai_async
 def api_ai_hotel_compare():
     """Vergleicht 2–5 Hotels aus den Suchergebnissen in einem KI-Aufruf: gleiche
     Kriterien wie beim Einzel-Fazit, plus Vergleichstabelle und Empfehlung, welches
@@ -2452,6 +2578,7 @@ def _region_compare_prompt(regions: list[dict], month: str, instructions: str) -
 
 
 @bp.route('/api/ai/region-compare', methods=['POST'])
+@ai_async
 def api_ai_region_compare():
     """Vergleicht 2–5 Reiseziele/Regionen für einen gewählten Monat: Wetter,
     Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/
@@ -2678,6 +2805,7 @@ _AI_RETRY_MARKDOWN_CONFIG = {
 
 
 @bp.route('/api/ai/history/<int:aid>/repeat', methods=['POST'])
+@ai_async
 def api_ai_history_repeat(aid: int):
     """Wiederholt einen gespeicherten KI-Verlaufseintrag mit gewähltem Provider —
     schickt den eingefrorenen Prompt erneut, speichert das Ergebnis als NEUEN
@@ -2748,6 +2876,7 @@ def _ai_followup_messages(row) -> list[dict]:
 
 
 @bp.route('/api/ai/history/<int:aid>/followup', methods=['POST'])
+@ai_async
 def api_ai_history_followup(aid: int):
     """Stellt eine Folgefrage zu einem bestehenden KI-Verlaufseintrag — echte
     Konversation (bisheriger Prompt + Antwort(en) + neue Frage), anders als

@@ -296,6 +296,15 @@ sie komplett ausgeblendet).
   Sonar-Modell, bei `high` zudem oft geringere Kosten je Anfrage als Sonar Deep
   Research.
 
+  **Lange Läufe:** Die gründlichen Stufen recherchieren mehrstufig und brauchen
+  dafür Minuten. TUIWatch startet sie deshalb als Hintergrund-Lauf bei Perplexity
+  und fragt das Ergebnis danach ab, statt eine Verbindung offen zu halten; das
+  Fenster im Browser holt es seinerseits über einen Auftrag ab. Dadurch schneidet
+  weder der Browser noch der Ingress-Proxy eine laufende Recherche ab — vorher
+  meldete das Fenster „fehlgeschlagen", während der Server in Ruhe zu Ende rechnete
+  und das Ergebnis nur noch im KI-Verlauf auftauchte. Wie lange insgesamt gewartet
+  wird, steht in der Option „Perplexity: Zeitlimit je Anfrage".
+
   Ein Äquivalent zu `ai_max_web_searches` gibt es nicht; Perplexity entscheidet
   selbst, wie oft es sucht. Die Websuche lässt sich auch **nicht abschalten**: sie
   gehört fest zum Preset, und das Weglassen des Werkzeugs nimmt sie ihm nicht

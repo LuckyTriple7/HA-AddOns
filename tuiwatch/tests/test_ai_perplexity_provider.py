@@ -177,28 +177,76 @@ def test_perplexity_truncation_is_logged(app_mod, monkeypatch, caplog):
     assert "abgeschnitten" in " ".join(r.getMessage() for r in caplog.records)
 
 
-def test_perplexity_timeout_defaults_to_five_minutes(app_mod, monkeypatch):
-    """90 s stammten aus der Sonar-Zeit (ein einzelner Aufruf). Eine Agent-Stufe
-    recherchiert mehrstufig und braucht laut Perplexity Minuten."""
+def test_perplexity_starts_a_background_run(app_mod, monkeypatch):
+    """Der Lauf wird im Hintergrund gestartet, statt eine Verbindung minutenlang
+    offen zu halten — sonst schneidet irgendein Zeitlimit dazwischen die
+    Recherche ab, fuer die wir bereits bezahlt haben."""
     captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
     app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
-    assert captured[0]["timeout"] == 300
+    assert captured[0]["json"]["background"] is True
 
 
-def test_perplexity_timeout_is_configurable(app_mod, monkeypatch):
+def test_perplexity_single_request_timeout_is_short(app_mod, monkeypatch):
+    """Die einzelne HTTP-Anfrage darf knapp sein: im Hintergrund-Modus antwortet
+    die API sofort. Die Wartezeit steckt zwischen den Abfragen, nicht in einer
+    offenen Verbindung — deshalb ist `perplexity_timeout` hier NICHT das
+    Socket-Limit."""
     _write_options(app_mod, perplexity_api_key="p-key", perplexity_timeout=600)
     captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
     app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
-    assert captured[0]["timeout"] == 600
+    assert captured[0]["timeout"] == 30
 
 
-def test_perplexity_timeout_is_clamped(app_mod, monkeypatch):
-    """Unbrauchbare Werte duerfen die Anfrage nicht sofort abwuergen oder ewig
-    haengen lassen."""
+def test_perplexity_total_wait_defaults_to_five_minutes(app_mod):
+    ai_client = importlib.import_module("ai_client")
+    assert ai_client._perplexity_timeout() == 300
+
+
+def test_perplexity_total_wait_is_configurable_and_clamped(app_mod):
+    ai_client = importlib.import_module("ai_client")
+    _write_options(app_mod, perplexity_api_key="p-key", perplexity_timeout=600)
+    assert ai_client._perplexity_timeout() == 600
     _write_options(app_mod, perplexity_api_key="p-key", perplexity_timeout=99999)
-    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
-    app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200, log_ctx="Test")
-    assert captured[0]["timeout"] == 900
+    assert ai_client._perplexity_timeout() == 900
+
+
+def test_perplexity_polls_until_the_run_is_done(app_mod, monkeypatch):
+    """Antwortet der Start mit einem Zwischenstatus, wird das Ergebnis ueber
+    GET /v1/agent/<id> abgeholt statt aufgegeben."""
+    import requests as rq
+    monkeypatch.setattr(ai_client_mod(), "_PERPLEXITY_POLL_INTERVAL", 0)
+    monkeypatch.setattr(rq, "post", lambda *a, **kw: _FakeResponse(
+        payload={"id": "run_1", "status": "in_progress", "output": []}))
+    gets = []
+
+    def fake_get(url, headers=None, timeout=None):
+        gets.append(url)
+        status = "in_progress" if len(gets) < 3 else "completed"
+        payload = _agent_payload() if status == "completed" else {"id": "run_1",
+                                                                  "status": status}
+        return _FakeResponse(payload=payload)
+
+    monkeypatch.setattr(rq, "get", fake_get)
+    text, _usage, err = app_mod._ai_request("p-key", "pplx-high", "Prompt",
+                                            max_tokens=200, log_ctx="Test")
+    assert err is None and text == "Antwort"
+    assert gets and gets[0].endswith("/v1/agent/run_1")
+
+
+def test_perplexity_gives_up_after_the_total_wait(app_mod, monkeypatch):
+    """Laeuft der Lauf ewig, muss die Gesamtfrist greifen — sonst haengt der
+    Aufruf unbegrenzt."""
+    import requests as rq
+    _write_options(app_mod, perplexity_api_key="p-key", perplexity_timeout=60)
+    monkeypatch.setattr(ai_client_mod(), "_PERPLEXITY_POLL_INTERVAL", 0)
+    monkeypatch.setattr(ai_client_mod(), "_perplexity_timeout", lambda: 0)
+    monkeypatch.setattr(rq, "post", lambda *a, **kw: _FakeResponse(
+        payload={"id": "run_1", "status": "queued", "output": []}))
+    monkeypatch.setattr(rq, "get", lambda *a, **kw: _FakeResponse(
+        payload={"id": "run_1", "status": "in_progress"}))
+    _text, _usage, err = app_mod._ai_request("p-key", "pplx-high", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert err == "failed"
 
 
 def test_perplexity_usage_mapping(app_mod, monkeypatch):
@@ -306,6 +354,10 @@ def test_anthropic_dispatch_unaffected_by_perplexity(app_mod, monkeypatch):
 
 
 ING = {"X-Ingress-Path": "/test"}
+
+
+def ai_client_mod():
+    return importlib.import_module("ai_client")
 
 
 def test_active_provider_only_perplexity_key_set(app_mod):

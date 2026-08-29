@@ -8,6 +8,7 @@ Add-on-Abhängigkeit) gegen die Agent API (`/v1/agent`).
 """
 import logging
 import re
+import time
 
 from flask import jsonify
 
@@ -20,6 +21,16 @@ from google.genai import types as genai_types
 import app as A
 
 _PERPLEXITY_API_URL = "https://api.perplexity.ai/v1/agent"
+# Endzustände eines Laufs (docs.perplexity.ai). Alles andere ('queued',
+# 'in_progress') heißt: weiter warten.
+_PERPLEXITY_DONE = ('completed', 'failed', 'cancelled', 'incomplete')
+# Zeitlimit einer **einzelnen** HTTP-Anfrage. Im Hintergrund-Modus antwortet die
+# API sofort mit der Lauf-ID, und jede Abfrage danach ist ebenfalls kurz — die
+# eigentliche Wartezeit steckt zwischen den Abfragen, nicht in einer offenen
+# Verbindung. Deshalb darf das hier knapp sein, unabhängig davon, wie lange die
+# Recherche insgesamt dauert.
+_PERPLEXITY_HTTP_TIMEOUT = 30
+_PERPLEXITY_POLL_INTERVAL = 3
 _PERPLEXITY_CITATION_RE = re.compile(r'\[(\d+)\](?!\()')
 # Die Agent API setzt Quellenverweise auch in der Form `[web:94]` in den Text —
 # ein Format, das Sonar nicht kannte. Unbehandelt blieb es als sinnloser Rest
@@ -187,14 +198,14 @@ def _ai_request_messages(api_key: str, model: str, messages: list[dict], *, max_
 
 
 def _perplexity_timeout() -> int:
-    """Zeitlimit einer Perplexity-Anfrage in Sekunden (Option `perplexity_timeout`).
+    """Wie lange insgesamt auf das Ergebnis eines Laufs gewartet wird, in Sekunden
+    (Option `perplexity_timeout`).
 
-    Die frühere feste Grenze von 90 s stammte aus der Sonar-Zeit: das war ein
-    einzelner Chat-Completion-Aufruf. Eine Agent-API-Stufe fährt dagegen eine
-    mehrstufige Recherche — genau das ist ihr Vorteil gegenüber Sonar — und
-    Perplexity selbst nennt für die gründlichen Stufen Laufzeiten im
-    Minutenbereich. 90 s waren dafür schlicht zu knapp; Vergleiche über mehrere
-    Ziele liefen regelmäßig in „Read timed out".
+    Das ist seit der Umstellung auf Hintergrund-Läufe **keine** Socket-Grenze
+    mehr, sondern eine Gesamtfrist über alle Abfragen hinweg: die frühere feste
+    Grenze von 90 s stammte aus der Sonar-Zeit, als eine Anfrage ein einzelner
+    Chat-Completion-Aufruf war. Eine Agent-API-Stufe fährt eine mehrstufige
+    Recherche und braucht laut Perplexity bei den gründlichen Stufen Minuten.
 
     Bewusst eine Option und kein fester Wert: wie lange ein Lauf braucht, hängt
     an Stufe und Frage, und ein Zeitlimit, das man nicht hochsetzen kann, macht
@@ -204,6 +215,56 @@ def _perplexity_timeout() -> int:
     except (TypeError, ValueError):
         return 300
     return min(max(val, 60), 900)
+
+
+def _perplexity_await_run(data, headers: dict, *, log_ctx: str):
+    """Auf das Ende eines Hintergrund-Laufs warten und die fertige Antwort liefern
+    (oder `None`, wenn er scheitert bzw. die Gesamtfrist reißt).
+
+    Startet die API den Lauf, kommt sofort eine Antwort mit `id` und einem
+    Zwischenstatus zurück; das Ergebnis wird danach über `GET /v1/agent/<id>`
+    abgeholt. Kommt gleich ein Endzustand (kurze Läufe), wird gar nicht erst
+    abgefragt.
+
+    Bewusst nur Wartezeit begrenzen, nicht die einzelne Verbindung: genau daran
+    scheiterte die vorige Fassung: die Recherche lief weiter, während unser
+    Socket-Timeout zuschlug, und wir warfen ein bereits bezahltes Ergebnis weg."""
+    if not isinstance(data, dict):
+        return None
+    if data.get('status') in _PERPLEXITY_DONE:
+        return data
+    run_id = data.get('id')
+    if not run_id:
+        # Kein Endzustand und keine ID: daraus lässt sich nichts mehr abholen.
+        A.log.error("KI-Antwort (%s): Lauf ohne id, status=%s", log_ctx, data.get('status'))
+        return None
+    url = f"{_PERPLEXITY_API_URL}/{run_id}"
+    deadline = time.monotonic() + _perplexity_timeout()
+    while True:
+        if time.monotonic() >= deadline:
+            A.log.warning("KI-Anfrage (%s) nach %d s noch nicht fertig (Lauf %s, "
+                          "zuletzt status=%s) — abgebrochen. Zeitlimit steht in den "
+                          "Einstellungen unter „Perplexity: Zeitlimit je Anfrage\".",
+                          log_ctx, _perplexity_timeout(), run_id, data.get('status'))
+            return None
+        time.sleep(min(_PERPLEXITY_POLL_INTERVAL, max(deadline - time.monotonic(), 0)))
+        try:
+            resp = requests.get(url, headers=headers, timeout=_PERPLEXITY_HTTP_TIMEOUT)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as e:
+            # Ein einzelner Fehlschlag beendet den Lauf nicht — er läuft bei
+            # Perplexity weiter, und die nächste Abfrage kann ihn wieder erreichen.
+            # Erst die Gesamtfrist oben bricht ab.
+            A.log.info("KI-Abfrage (%s) fehlgeschlagen, wird wiederholt: %s", log_ctx, e)
+            continue
+        except ValueError as e:
+            A.log.error("KI-Abfrage (%s) kein gültiges JSON: %s", log_ctx, e)
+            return None
+        if not isinstance(data, dict):
+            return None
+        if data.get('status') in _PERPLEXITY_DONE:
+            return data
 
 
 def _perplexity_error_detail(exc: requests.RequestException) -> str:
@@ -293,24 +354,29 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
     zu überlassen: das hält die Suchgebühr auf der günstigsten Stufe. Für die
     Kostenanzeige ist das nicht mehr entscheidend — die Agent API meldet die
     tatsächlichen Kosten mit (siehe `_perplexity_reported_cost`) —, für die
-    Rechnung beim Anbieter schon."""
+    Rechnung beim Anbieter schon.
+
+    Der Lauf wird als **Hintergrund-Lauf** gestartet (`background: true`) und das
+    Ergebnis danach abgefragt, statt eine Verbindung minutenlang offen zu halten.
+    Perplexity empfiehlt das ausdrücklich für Läufe „die Minuten dauern", und es
+    macht die Sache unabhängig von jedem Zwischen-Timeout: eine einzelne Anfrage
+    ist immer kurz, gewartet wird zwischen den Abfragen."""
     payload = {
         "preset": model.removeprefix('pplx-'),
         "input": [{"type": "message", "role": m.get("role"), "content": m.get("content")}
                   for m in messages],
         "max_output_tokens": max_tokens,
         "tools": [{"type": "web_search", "search_context_size": "low"}],
+        "background": True,
     }
     if output_schema is not None:
         payload["response_format"] = {"type": "json_schema",
                                       "json_schema": {"name": "tuiwatch_result",
                                                       "schema": output_schema}}
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     try:
-        resp = requests.post(
-            _PERPLEXITY_API_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload, timeout=_perplexity_timeout(),
-        )
+        resp = requests.post(_PERPLEXITY_API_URL, headers=headers, json=payload,
+                             timeout=_PERPLEXITY_HTTP_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
@@ -319,6 +385,9 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
         return None, None, 'failed'
     except ValueError as e:
         A.log.error("KI-Antwort (%s) kein gültiges JSON: %s", log_ctx, e)
+        return None, None, 'failed'
+    data = _perplexity_await_run(data, headers, log_ctx=log_ctx)
+    if data is None:
         return None, None, 'failed'
     if not isinstance(data, dict):
         A.log.error("KI-Antwort (%s) unerwartete Struktur: %s statt Objekt",
