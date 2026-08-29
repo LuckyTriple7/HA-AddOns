@@ -6,15 +6,22 @@ Start, und sobald ein Add-on seinen Host-Port nicht mehr veroeffentlicht, ist
 der Umweg ueber den HA-Host ohnehin zu. Der Hostname (z. B. 424ccef4-whatsapp)
 bleibt stabil und funktioniert im internen hassio-Netz ohne Port-Mapping.
 
-Zwei Wege, absichtlich in dieser Reihenfolge:
+Gefragt wird nur GET /addons/self/info. Daraus laesst sich der
+Repository-Praefix des Portals ableiten ("424ccef4-messenger-portal" minus dem
+eigenen Slug) und damit der Hostname der Geschwister-Add-ons bilden - sie
+stammen aus demselben Repository.
 
-1. GET /addons listet alle installierten Add-ons mit ihrem Hostnamen. Das ist
-   die genaue Auskunft, verlangt aber je nach Supervisor-Fassung eine hoehere
-   Rolle als die Voreinstellung. Scheitert der Aufruf, ist das kein Fehler.
-2. GET /addons/self/info darf die Default-Rolle immer. Daraus laesst sich der
-   Repository-Praefix des Portals ableiten ("424ccef4-messenger-portal" minus
-   dem eigenen Slug) und damit der Hostname der Geschwister-Add-ons bilden.
-   Gilt, solange sie aus demselben Repository stammen - hier der Fall.
+GET /addons waere die genauere Auskunft, listet naemlich jedes Add-on mit
+seinem Hostnamen. Die Rolle "default" darf ihn aber nicht, und jeder Versuch
+hinterlaesst zwei Zeilen im Supervisor-Log:
+
+    WARNING [supervisor.api.middleware.security] /addons no role for <slug>
+    ERROR   [supervisor.api.middleware.security] Invalid token for access /addons
+
+Dem Portal dafuer hassio_role: manager zu geben (duerfte dann Add-ons starten,
+stoppen, installieren) waere ein schlechter Tausch. Wer ein Messenger-Add-on
+aus einem anderen Repository betreibt, traegt den Host von Hand in
+internal_host ein.
 
 Der Praefix ist der Hash des Repositories und unterscheidet sich pro
 Installation. Er darf nirgends fest verdrahtet werden.
@@ -28,8 +35,8 @@ SUPERVISOR = 'http://supervisor'
 _CACHE_TTL_OK = 600.0   # Hostnamen aendern sich praktisch nie
 _CACHE_TTL_ERR = 30.0   # Fehlschlag: bald erneut versuchen
 
-# (Zeitpunkt, {slug: hostname}, Praefix oder '')
-_cache: tuple[float, dict[str, str], str] | None = None
+# (Zeitpunkt, Praefix oder '')
+_cache: tuple[float, str] | None = None
 
 
 def _get(path: str) -> dict:
@@ -47,17 +54,6 @@ def _short(slug: str) -> str:
     return (slug.split('_', 1)[1] if '_' in slug else slug).lower()
 
 
-def _from_list() -> dict[str, str]:
-    data = (_get('/addons').get('data') or {}).get('addons') or []
-    hosts: dict[str, str] = {}
-    for addon in data:
-        slug = str(addon.get('slug') or '')
-        hostname = str(addon.get('hostname') or '')
-        if slug and hostname:
-            hosts.setdefault(_short(slug), hostname)
-    return hosts
-
-
 def _own_prefix() -> str:
     """Repository-Praefix aus dem eigenen Hostnamen, z. B. "424ccef4"."""
     info = _get('/addons/self/info').get('data') or {}
@@ -69,51 +65,35 @@ def _own_prefix() -> str:
     return hostname[:-len(suffix)] if hostname.endswith(suffix) else ''
 
 
-def _load() -> tuple[dict[str, str], str]:
-    hosts: dict[str, str] = {}
-    prefix = ''
-    try:
-        hosts = _from_list()
-    except Exception:
-        pass
-    try:
-        prefix = _own_prefix()
-    except Exception:
-        pass
-    return hosts, prefix
-
-
-def lookup(force: bool = False) -> tuple[dict[str, str], str]:
-    """({Kurz-Slug: Hostname}, Repository-Praefix). Beides kann leer sein."""
+def lookup(force: bool = False) -> str:
+    """Repository-Praefix des Portals, oder '' wenn nicht ermittelbar."""
     global _cache
     now = time.time()
     if not force and _cache is not None:
-        ts, hosts, prefix = _cache
-        ttl = _CACHE_TTL_OK if (hosts or prefix) else _CACHE_TTL_ERR
-        if now - ts < ttl:
-            return hosts, prefix
-    hosts, prefix = _load()
-    _cache = (now, hosts, prefix)
-    return hosts, prefix
+        ts, prefix = _cache
+        if now - ts < (_CACHE_TTL_OK if prefix else _CACHE_TTL_ERR):
+            return prefix
+    try:
+        prefix = _own_prefix()
+    except Exception:
+        prefix = ''
+    _cache = (now, prefix)
+    return prefix
 
 
 def resolve_host(slug: str, fallback: str, override: str = '') -> str:
     """Zielhost fuer ein Add-on.
 
-    Reihenfolge: ausdruecklich gesetzter internal_host, exakter Hostname aus
-    der Add-on-Liste, aus dem eigenen Praefix gebildeter Name, HA-Host.
+    Reihenfolge: ausdruecklich gesetzter internal_host, aus dem eigenen
+    Praefix gebildeter Container-Name, HA-Host als Notnagel.
     """
     if override:
         return override
     slug = slug.lower()
     if not slug:
         return fallback
-    hosts, prefix = lookup()
-    if slug in hosts:
-        return hosts[slug]
-    if prefix:
-        return f'{prefix}-{slug}'
-    return fallback
+    prefix = lookup()
+    return f'{prefix}-{slug}' if prefix else fallback
 
 
 def nameservers(default: str = '172.30.32.3') -> str:

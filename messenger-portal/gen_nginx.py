@@ -164,14 +164,12 @@ def main():
     # Bevorzugt wird der Container-Hostname aus der Supervisor-API: der bleibt
     # auch dann erreichbar, wenn das Add-on seinen Host-Port nicht mehr
     # veroeffentlicht. Der HA-Host bleibt Notnagel.
-    hostnames, prefix = addon_hosts.lookup()
-    if hostnames:
-        print(f'[INFO] Supervisor-API: {len(hostnames)} Add-on-Hostnamen bekannt')
-    elif prefix:
-        print(f'[INFO] Supervisor-API: Add-on-Liste nicht zugaenglich, '
-              f'bilde Hostnamen aus Praefix "{prefix}"')
+    prefix = addon_hosts.lookup()
+    if prefix:
+        print(f'[INFO] Add-on-Praefix "{prefix}" - Messenger werden ueber ihren '
+              f'Container-Namen angesprochen')
     else:
-        print('[WARN] Supervisor-API liefert nichts - benutze den HA-Host')
+        print('[WARN] Kein Add-on-Praefix vom Supervisor - benutze den HA-Host')
 
     messengers = [m for m in config.get('messengers', []) if m.get('enabled', True)]
     targets = [

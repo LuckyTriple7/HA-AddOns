@@ -406,12 +406,12 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
 
     if state == 'online':
         preview = (last or {}).get('preview', '')
-        log.debug('Poll %s:%s — online last="%s"', name, port, preview[:60] if preview else '—')
+        log.debug('Poll %s %s:%s — online last="%s"', name, host, port, preview[:60] if preview else '—')
     elif state == 'degraded':
-        log.warning('Poll %s:%s — erreichbar, aber nicht verbunden (status=%s error=%s)',
-                    name, port, addon_status or '?', detail or '—')
+        log.warning('Poll %s %s:%s — erreichbar, aber nicht verbunden (status=%s error=%s)',
+                    name, host, port, addon_status or '?', detail or '—')
     else:
-        log.debug('Poll %s:%s — nicht erreichbar', name, port)
+        log.debug('Poll %s %s:%s — nicht erreichbar', name, host, port)
 
     return {
         'icon':          m['icon'].lower(),

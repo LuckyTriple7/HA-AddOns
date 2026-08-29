@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.22] - 2026-08-29
+- Fix: Das Portal fragte beim Start `GET /addons` ab und hinterliess dabei jedes Mal zwei Zeilen im Supervisor-Log — `no role for <slug>` und `Invalid token for access /addons`. Die Rolle `default` darf diese Route nicht, und `hassio_role: manager` dafuer zu vergeben (duerfte dann Add-ons starten, stoppen, installieren) waere ein schlechter Tausch gewesen. Der Aufruf entfaellt ersatzlos; der Repository-Praefix kommt weiterhin aus `GET /addons/self/info`, das die Default-Rolle immer darf
+- Die Statuszeile im Log nennt jetzt den tatsaechlich benutzten Zielhost: `Poll WhatsApp 3d588fb4-whatsapp:17776 — online`. Vorher stand dort nur der Port, und ob der Container-Name oder der HA-Host benutzt wurde, war nach dem Start nicht mehr nachvollziehbar
+- Wer ein Messenger-Add-on aus einem **anderen** Repository betreibt, traegt dessen Host von Hand in `internal_host` ein — der abgeleitete Praefix passt dann nicht
+
 ## [1.2.21] - 2026-08-29
 - **Sicherheitsfix: die Anmeldung liess sich mit einer selbstgesetzten Kopfzeile umgehen.** Das Portal erkannte HA-Ingress allein am Header `X-Ingress-Path` und sprang dann ueber die Passwortpruefung. Den Header setzt aber der Aufrufer, nicht der Supervisor — ein `curl -H 'X-Ingress-Path: /x' http://<HA-IP>:17770/status` aus dem LAN kam ohne Passwort durch, ebenso auf `/proxy/whatsapp/` und damit auf die komplette Oberflaeche und REST-API des jeweiligen Messengers
 - Ursache: Ingress und LAN trafen auf denselben Listener, also gab es kein faelschungssicheres Unterscheidungsmerkmal. Jetzt lauscht nginx auf **zwei getrennten Ports**: 8099 nur fuer den Supervisor (neuer `ingress_port`, bewusst nicht unter `ports:` gemappt und damit von aussen nicht erreichbar) und 17770 fuer alles andere. Nur der Ingress-Block reicht `X-Ingress-Path` weiter, der LAN-Block leert ihn — dort gilt ausnahmslos Cookie-Anmeldung
