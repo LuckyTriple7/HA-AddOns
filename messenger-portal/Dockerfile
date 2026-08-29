@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY gen_nginx.py .
+COPY addon_hosts.py .
 COPY templates/ templates/
 COPY static/ static/
 COPY icon-192.png static/icon-192.png

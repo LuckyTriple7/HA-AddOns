@@ -13,7 +13,7 @@ configuration:
     description: How often status and last message are refreshed. Minimum 5 seconds, default 30 seconds.
   internal_host:
     name: Internal Host IP
-    description: IP address of the HA host on the internal Docker network (default 172.30.32.2). Used by the nginx reverse proxy to reach the messenger ports.
+    description: Only needed as a fallback. The portal reaches the messenger add-ons by their container name, which works even without a published port. Setting a value here forces the old path via the HA host (e.g. 172.30.32.2) and its port mappings instead.
   messengers:
     name: Messengers
     description: List of configured messengers with name, icon type, port and enabled state.

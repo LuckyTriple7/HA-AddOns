@@ -1,6 +1,6 @@
 name: MessengerPortal
 description: Zentrale, passwortgeschützte Startseite für WhatsApp, Telegram und Signal Add-ons
-version: "1.2.19"
+version: "1.2.20"
 slug: messenger-portal
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/messenger-portal"
@@ -22,6 +22,8 @@ ingress_stream: true
 
 map:
   - app_config:rw
+
+hassio_api: true
 
 webui: http://[HOST]:[PORT:17770]
 

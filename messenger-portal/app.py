@@ -16,6 +16,8 @@ from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import addon_hosts
+
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
 # Werkzeug HTTP-Access-Logs unterdrücken – nginx übernimmt das
@@ -271,19 +273,40 @@ def get_client_ip(req) -> str:
     return req.remote_addr or 'unknown'
 
 
+_gateway_cache: str = ''
+
+
 def get_internal_host() -> str:
+    """Notnagel-Ziel: der HA-Host. Nur noch relevant, wenn die Supervisor-API
+    keinen Container-Hostnamen liefert (siehe messenger_host)."""
+    global _gateway_cache
     configured = load_config().get('internal_host', '').strip()
     if configured:
         return configured
+    if _gateway_cache:
+        return _gateway_cache
+    _gateway_cache = '172.30.32.2'
     try:
         out = subprocess.check_output(['ip', 'route', 'show', 'default'],
                                       text=True, stderr=subprocess.DEVNULL)
         for token, value in zip(out.split(), out.split()[1:]):
             if token == 'via':
-                return value
+                _gateway_cache = value
+                break
     except Exception:
         pass
-    return '172.30.32.2'
+    return _gateway_cache
+
+
+def messenger_host(m: dict) -> str:
+    """Zielhost eines Messenger-Add-ons.
+
+    Container-Hostname aus der Supervisor-API zuerst — der funktioniert auch
+    ohne veroeffentlichten Host-Port. Ein ausdruecklich gesetzter
+    internal_host hat weiterhin Vorrang.
+    """
+    override = load_config().get('internal_host', '').strip()
+    return addon_hosts.resolve_host(m.get('icon', ''), get_internal_host(), override)
 
 
 def check_port(host: str, port: int, timeout: float = 2.0) -> bool:
@@ -464,11 +487,11 @@ def status():
     if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
         return '', 401
     config = load_config()
-    host = get_internal_host()
     messengers = [m for m in config.get('messengers', [])
                   if m.get('enabled', True) and m.get('icon') and m.get('port')]
     with ThreadPoolExecutor(max_workers=len(messengers) or 1) as ex:
-        result = list(ex.map(lambda m: fetch_messenger_status(host, m), messengers))
+        result = list(ex.map(lambda m: fetch_messenger_status(messenger_host(m), m),
+                             messengers))
     for r in result:
         r['last_opened'] = read_state.get(r['icon'], 0)
     return jsonify(result)

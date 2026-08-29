@@ -1,5 +1,13 @@
 # Changelog – MessengerPortal
 
+## [1.2.20] - 2026-08-29
+- Das Portal erreicht die Messenger-Add-ons jetzt über ihren **Container-Hostnamen** (z. B. `424ccef4-whatsapp`) statt über den HA-Host und dessen veröffentlichten Port (neu: `hassio_api: true`). Der Hash davor ist der des Repositories, unterscheidet sich pro Installation und ist deshalb nicht fest verdrahtet
+- Der Name wird zweistufig ermittelt: `GET /addons` liefert die genaue Liste, verlangt aber je nach Supervisor-Fassung eine höhere Rolle. Scheitert das, reicht `GET /addons/self/info` — das darf die Default-Rolle immer, und aus dem eigenen Hostnamen lässt sich der Präfix für die Geschwister-Add-ons ableiten. Dem Portal `hassio_role: manager` zu geben (dürfte dann Add-ons starten, stoppen, installieren) war der Auskunft nicht wert
+- Damit funktioniert das Portal auch dann noch, wenn ein Messenger-Add-on seinen Port nicht mehr im LAN veröffentlicht. Das ist die Voraussetzung dafür, die ungeschützten Direktports abschalten zu können
+- nginx löst den Namen erst beim Request auf (Variable in `proxy_pass` plus `resolver` aus `/etc/resolv.conf`). Mit einem festen Namen hätte nginx den Start verweigert, solange ein Add-on aus ist — und alle Messenger stehen auf `boot: manual`. Ein gestopptes Add-on landet weiterhin auf der gewohnten „nicht erreichbar“-Seite
+- Die Option `internal_host` behält Vorrang: wer sie gesetzt hat, merkt keinen Unterschied. Ohne Supervisor-Antwort fällt das Portal auf den bisherigen Weg über den HA-Host zurück
+- Der Gateway-Aufruf (`ip route`) wird gemerkt statt bei jeder Statusabfrage neu ausgeführt
+
 ## [1.2.19] - 2026-08-28
 - Die Ampel auf der Kachel sagt jetzt mehr als „Port offen": das Portal liest den Selbsttest des jeweiligen Add-ons mit (`/api/selfcheck`) und zeigt einen **eigenen Zustand**, wenn die Verbindung zwar steht, der Anbieter aber etwas umgebaut hat — „Online – mit Einschränkung", bernsteinfarbener Punkt mit Ring
 - Der Mauszeiger auf der Ampel verrät die Einzelheiten: bei Grün „Verbunden – Selbsttest ohne Befund (16 Bausteine, 4 Antwortformen geprüft)", bei Bernstein die betroffenen Funktionen

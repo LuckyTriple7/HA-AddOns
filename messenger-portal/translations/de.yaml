@@ -13,7 +13,7 @@ configuration:
     description: Wie oft der Status und die letzte Nachricht abgefragt werden. Minimum 5 Sekunden, Standard 30 Sekunden.
   internal_host:
     name: Interne Host-IP
-    description: IP-Adresse des HA-Hosts im internen Docker-Netzwerk (Standard 172.30.32.2). Wird für den nginx Reverse Proxy zu den Messenger-Ports benötigt.
+    description: Nur noch als Notnagel nötig. Das Portal spricht die Messenger-Add-ons über ihren Container-Namen an und kommt damit auch ohne veröffentlichten Port aus. Wer hier etwas einträgt, erzwingt stattdessen den alten Weg über den HA-Host (z. B. 172.30.32.2) und dessen Port-Freigaben.
   messengers:
     name: Messenger
     description: Liste der konfigurierten Messenger mit Name, Icon-Typ, Port und Aktivierungsstatus.
