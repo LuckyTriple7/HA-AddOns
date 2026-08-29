@@ -247,9 +247,11 @@ Wechsel der Flugvariante den Preis springen lässt, wie beim Zimmerwechsel.
 > **kein echtes Guthaben** und keine Abbuchung durch TUIWatch selbst; das
 > tatsächliche Guthaben/die Abrechnung zeigt nur die jeweilige
 > Anbieter-Console. Perplexity berechnet zusätzlich eine Request-Gebühr pro
-> Anfrage, gestaffelt nach Such-Kontextgröße — TUIWatch fragt dafür immer die
-> günstigste Stufe (`low`) an und rechnet genau diese feste Gebühr mit in die
-> Kostenschätzung ein.
+> Anfrage **mit** Websuche, gestaffelt nach Such-Kontextgröße — TUIWatch fragt
+> dafür immer die günstigste Stufe (`low`) an und rechnet genau diese feste
+> Gebühr mit in die Kostenschätzung ein. Aufrufe ohne Websuche kosten die Gebühr
+> nicht; die Schätzung zieht sie dort trotzdem ab, liegt also eher etwas zu hoch
+> als zu niedrig.
 
 Mit hinterlegtem API-Key (`anthropic_api_key`, `gemini_api_key` oder
 `perplexity_api_key`, je nach `ai_provider`) erscheinen zusätzliche
@@ -273,12 +275,17 @@ sie komplett ausgeblendet).
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
 - **Perplexity:** `perplexity_model` (Standard `sonar-pro`; auch `sonar`,
-  `sonar-reasoning-pro`, `sonar-deep-research` wählbar). Sonar-Modelle
-  durchsuchen bei **jeder** Anfrage automatisch das Web — kein Schalter,
-  kein Äquivalent zu `ai_max_web_searches`, dafür pro Aufruf teurer
-  (Token- **und** feste Request-Kosten, siehe Warnhinweis oben). Zitat-Marker
-  wie `[1][5]` in der Antwort sind anklickbare Links zur jeweiligen Quelle
-  (hochgestellte Zahl) — in Web-UI, PDF-Export und E-Mail.
+  `sonar-reasoning-pro`, `sonar-deep-research` wählbar). Angesprochen wird die
+  Agent API (`/v1/agent`); die alte Sonar-Chat-API läuft laut Perplexity am
+  27.09.2026 aus, die Modelle selbst bleiben. Die Websuche ist dort ein Werkzeug,
+  das TUIWatch gezielt mitschickt: Auswertungen mit Rechercheanteil suchen, rein
+  interne Aufgaben (Auto-Tags, PDF-Nachbearbeitung, Feld-Vorschläge) nicht mehr —
+  das spart die Suchgebühr. Ein Äquivalent zu `ai_max_web_searches` gibt es
+  weiterhin nicht, Perplexity entscheidet selbst, wie oft es sucht; pro
+  recherchierendem Aufruf fallen Token- **und** feste Request-Kosten an (siehe
+  Warnhinweis oben). Zitat-Marker wie `[1][5]` in der Antwort sind anklickbare
+  Links zur jeweiligen Quelle (hochgestellte Zahl) — in Web-UI, PDF-Export und
+  E-Mail.
 
 Sind **mindestens 2 der 3** API-Keys hinterlegt, erscheint im Footer ein
 Umschalter („🤖 Claude aktiv" / „✨ Gemini aktiv" / „🔎 Perplexity aktiv") —
@@ -706,10 +713,8 @@ unveränderten Tagen). Darauf aufbauend:
   KI-Key): fasst die Monatsdurchschnittspreise und, falls vorhanden, die größten
   Preisänderungen zusammen und empfiehlt günstige/teure Reisemonate. Reiner
   Markdown-Text ohne Websuche (nur die bereits abgerufenen Kalenderdaten), läuft
-  dadurch identisch mit Claude und Gemini und verursacht bei diesen beiden keine
-  zusätzlichen Websuche-Kosten. Bei Perplexity gilt das nicht: Sonar-Modelle
-  durchsuchen das Web bei **jeder** Anfrage (kein Abschalten möglich), auch hier
-  fällt daher die Perplexity-Request-Gebühr an. 6h je Angebot gecacht.
+  dadurch identisch mit Claude, Gemini und Perplexity und verursacht keine
+  zusätzlichen Websuche-Kosten. 6h je Angebot gecacht.
 
 Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
 Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im

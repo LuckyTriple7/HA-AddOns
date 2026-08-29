@@ -4,7 +4,7 @@ Geteilte Primitiven über `import app as A` (spät gebunden, monkeypatch-
 sicher); anthropic/genai sind dieselben Modul-Objekte wie in app.py —
 Test-Patches auf app_mod.genai.Client wirken daher auch hier. Perplexity hat
 kein offizielles Python-SDK — reiner REST-Aufruf über `requests` (bereits
-Add-on-Abhängigkeit), OpenAI-kompatibles Chat-Completions-Schema.
+Add-on-Abhängigkeit) gegen die Agent API (`/v1/agent`).
 """
 import logging
 import re
@@ -19,29 +19,69 @@ from google.genai import types as genai_types
 
 import app as A
 
-_PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
+_PERPLEXITY_API_URL = "https://api.perplexity.ai/v1/agent"
 _PERPLEXITY_CITATION_RE = re.compile(r'\[(\d+)\](?!\()')
 
 
+def _perplexity_output_text(data: dict):
+    """Antworttext aus dem typisierten `output`-Array der Agent API.
+
+    Das rohe JSON hat kein `output_text` — das ist eine Bequemlichkeit der SDKs,
+    und wir sprechen die API direkt per `requests` an. Der Text steckt im
+    `message`-Schritt, dessen `content` ein Array von Teilen (`output_text`) ist
+    und nicht wie bei Sonar ein String; ein blanker String wird trotzdem
+    akzeptiert, das kostet nichts und deckt schlichtere Antworten mit ab.
+
+    Rückgabe `None` heißt „kein message-Schritt gefunden" (unerwartete Struktur,
+    der Aufrufer meldet 'failed'), `''` heißt „Schritt da, aber leer" ('empty') —
+    diese beiden Fälle dürfen nicht zusammenfallen."""
+    for item in (data.get('output') or []):
+        if not isinstance(item, dict) or item.get('type') != 'message':
+            continue
+        content = item.get('content')
+        if isinstance(content, str):
+            return content
+        return ''.join(p.get('text') or '' for p in (content or [])
+                       if isinstance(p, dict) and p.get('type') in ('output_text', 'text'))
+    return None
+
+
 def _perplexity_citation_urls(data: dict) -> list:
-    """Quellenliste einer Perplexity-Antwort, 1-basiert indiziert.
+    """Quellenliste einer Agent-API-Antwort, 1-basiert indiziert.
 
-    `search_results` ist die reichere Struktur (mit Titel/Datum), `citations` die
-    nackte URL-Liste — welche von beiden die **längere** ist, schwankt je nach
-    Modell und Anfrage. Genommen wird deshalb die längere: die Zitat-Nummern im
-    Text zählen gegen die vollständige Quellenmenge, und mit der kürzeren Liste
-    bliebe alles darüber unverlinkt."""
-    urls = [r.get('url') for r in (data.get('search_results') or [])
-            if isinstance(r, dict) and r.get('url')]
-    cites = [u for u in (data.get('citations') or []) if u]
-    return cites if len(cites) > len(urls) else urls
+    Die Quellen stehen nicht mehr in den Top-Level-Feldern `search_results`/
+    `citations` (so war es bei Sonar), sondern in den `search_results`-Schritten
+    des `output`-Arrays. Eine mehrstufige Recherche kann mehrere davon enthalten
+    — alle werden zusammengeführt.
+
+    Die Zitat-Marker im Text zählen gegen die `id` eines Treffers, nicht gegen
+    seine Position. Solange die IDs lückenlos bei 1 beginnen, ist beides dasselbe;
+    fehlt eine ID oder klafft eine Lücke, wird an den IDs ausgerichtet und die
+    Lücke bleibt leer (`None`) — ein Link auf die falsche Quelle wäre schlimmer
+    als gar keiner. Liefert kein Treffer eine ID, bleibt nur die Reihenfolge."""
+    by_id = {}
+    positional = []
+    for item in (data.get('output') or []):
+        if not isinstance(item, dict) or item.get('type') != 'search_results':
+            continue
+        for r in (item.get('results') or []):
+            if not isinstance(r, dict) or not r.get('url'):
+                continue
+            positional.append(r['url'])
+            n = r.get('id')
+            if isinstance(n, int) and not isinstance(n, bool) and n >= 1:
+                by_id.setdefault(n, r['url'])
+    if not by_id:
+        return positional
+    return [by_id.get(n) for n in range(1, max(by_id) + 1)]
 
 
-def _perplexity_linkify_citations(text: str, data: dict, *, log_ctx: str = '') -> str:
+def _perplexity_linkify_citations(text: str, urls: list | None, *, log_ctx: str = '') -> str:
     """Ersetzt Perplexitys nackte Zitat-Marker `[1]`/`[5]` im Fließtext durch
     Markdown-Links `[1](url)` auf die zugehörige Quelle — macht sie im Frontend
     (aiMdLite/aiInline) anklickbar statt als toter Text stehen zu bleiben.
-    Nummerierung ist 1-basiert wie im Original. `(?!\\()` verhindert
+    `urls` ist die 1-basierte Liste aus `_perplexity_citation_urls`; Lücken darin
+    (`None`) gelten wie eine fehlende Quelle. `(?!\\()` verhindert
     Doppel-Verlinkung, falls im Text ausnahmsweise schon `[n](url)` steht.
 
     Zahlen ohne passende Quelle bleiben unverändert stehen — Perplexity nummeriert
@@ -50,14 +90,13 @@ def _perplexity_linkify_citations(text: str, data: dict, *, log_ctx: str = '') -
     verlinkt, `[58]` nicht). Geraten wird dort nichts; ein Link auf die falsche
     Quelle wäre schlimmer als gar keiner. Das Ausmaß landet im Log, sonst wäre
     nicht zu unterscheiden, ob die Verlinkung ausfällt oder die Liste zu kurz ist."""
-    urls = _perplexity_citation_urls(data)
     if not urls:
         return text
     missing = set()
 
     def _sub(m):
         n = int(m.group(1))
-        if 1 <= n <= len(urls):
+        if 1 <= n <= len(urls) and urls[n - 1]:
             return f'[{n}]({urls[n - 1]})'
         missing.add(n)
         return m.group(0)
@@ -133,27 +172,42 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
                                     max_tokens: int, log_ctx: str, use_web_search: bool = True,
                                     output_schema: dict | None = None):
     """Perplexity-Variante von `_ai_request_anthropic_messages` — gleiche Rückgabe-
-    Signatur (text, usage, error_code), siehe `A._ai_request_messages`. Perplexitys
-    `messages`-Format entspricht bereits 1:1 unserem provider-übergreifenden
-    Rollen-Schema ('user'/'assistant') — keine Umwandlung nötig, anders als bei
-    Gemini. Sonar-Modelle durchsuchen das Web bei JEDER Anfrage automatisch (kein
-    separates Tool wie bei Claude/Gemini) — `use_web_search=False` hat hier keine
-    Wirkung, es gibt keinen Schalter dafür. `search_context_size` wird explizit auf
-    'low' gepinnt (statt dem API-Default zu überlassen) — hält die zusätzliche,
-    gestaffelte Request-Gebühr auf der günstigsten Stufe UND macht sie überhaupt
-    erst planbar: `ai_routes.py::_AI_PERPLEXITY_REQUEST_FEE` rechnet genau diese
-    Stufe in die Kostenanzeige mit ein, ohne dieses Pinning wäre die Gebühr
-    unvorhersehbar (API könnte 'medium' o. Ä. als Default nutzen) und die
-    Schätzung stimmt nicht mehr."""
+    Signatur (text, usage, error_code), siehe `A._ai_request_messages`. Spricht die
+    Agent API (`/v1/agent`) an; die alte Sonar-Chat-Completions-API wird laut
+    docs.perplexity.ai nur noch bis 27.09.2026 unterstützt. Die Sonar-Modelle
+    selbst bleiben nutzbar, sie heißen dort `perplexity/<name>` — deshalb bleiben
+    unsere Modell-IDs (`sonar-pro` …) in den Optionen, der Preistabelle und den
+    gespeicherten Nutzungszählern unverändert, das Präfix kommt erst hier dazu.
+
+    Unser rollenbasiertes `messages`-Schema ('user'/'assistant') geht 1:1 ins
+    `input`-Array, nur mit `type: message` je Eintrag — keine Umwandlung wie bei
+    Gemini. Die Websuche ist anders als bei Sonar kein Automatismus mehr, sondern
+    ein Tool, das mitgeschickt werden muss; ohne diesen Eintrag sucht das Modell
+    gar nicht. Damit wirkt `use_web_search=False` hier jetzt tatsächlich (bei Sonar
+    war der Schalter folgenlos) und spart die Suchgebühr bei den Aufrufen, die
+    ohnehin nichts nachschlagen sollen (Auto-Tags, PDF-Fallback, Feld-Vorschläge).
+
+    `search_context_size` wird explizit auf 'low' gepinnt (statt dem API-Default zu
+    überlassen) — hält die zusätzliche, gestaffelte Request-Gebühr auf der
+    günstigsten Stufe UND macht sie überhaupt erst planbar:
+    `ai_routes.py::_AI_PERPLEXITY_REQUEST_FEE` rechnet genau diese Stufe in die
+    Kostenanzeige mit ein, ohne dieses Pinning wäre die Gebühr unvorhersehbar
+    (API könnte 'medium' o. Ä. als Default nutzen) und die Schätzung stimmt nicht
+    mehr. Bei `use_web_search=False` fällt sie gar nicht an, die Schätzung liegt
+    dort also einen Zehntelcent zu hoch — bewusst in Kauf genommen, lieber zu
+    hoch geschätzt als zu niedrig."""
     payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "web_search_options": {"search_context_size": "low"},
+        "model": f"perplexity/{model}",
+        "input": [{"type": "message", "role": m.get("role"), "content": m.get("content")}
+                  for m in messages],
+        "max_output_tokens": max_tokens,
     }
+    if use_web_search:
+        payload["tools"] = [{"type": "web_search", "search_context_size": "low"}]
     if output_schema is not None:
         payload["response_format"] = {"type": "json_schema",
-                                      "json_schema": {"schema": output_schema}}
+                                      "json_schema": {"name": "tuiwatch_result",
+                                                      "schema": output_schema}}
     try:
         resp = requests.post(
             _PERPLEXITY_API_URL,
@@ -168,28 +222,42 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
     except ValueError as e:
         A.log.error("KI-Antwort (%s) kein gültiges JSON: %s", log_ctx, e)
         return None, None, 'failed'
-    try:
-        choice = data["choices"][0]
-        text = (choice["message"]["content"] or "").strip()
-        finish_reason = choice.get("finish_reason")
-        u = data.get("usage") or {}
-    except (KeyError, IndexError, TypeError) as e:
-        A.log.error("KI-Antwort (%s) unerwartete Struktur: %s: %s", log_ctx, type(e).__name__, e)
+    if not isinstance(data, dict):
+        A.log.error("KI-Antwort (%s) unerwartete Struktur: %s statt Objekt",
+                    log_ctx, type(data).__name__)
         return None, None, 'failed'
-    if finish_reason == 'length':
-        A.log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_tokens, "
+    status = data.get('status')
+    text = _perplexity_output_text(data)
+    if text is None:
+        # Kein `message`-Schritt im `output`-Array: entweder ein API-Fehler mit
+        # status=failed oder eine Struktur, die wir nicht kennen. Beides ist für
+        # den Aufrufer dasselbe — nur der Log unterscheidet die Fälle.
+        A.log.error("KI-Antwort (%s) ohne message-Schritt: status=%s, error=%s",
+                    log_ctx, status, (data.get('error') or {}) if
+                    isinstance(data.get('error'), dict) else data.get('error'))
+        return None, None, 'failed'
+    text = text.strip()
+    if status == 'incomplete':
+        A.log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_output_tokens, "
                     "%d Zeichen erhalten)", log_ctx, len(text))
     if not text:
-        A.log.warning("KI-Antwort (%s) leer: finish_reason=%s", log_ctx, finish_reason)
+        A.log.warning("KI-Antwort (%s) leer: status=%s", log_ctx, status)
         return None, None, 'empty'
+    u = data.get('usage') or {}
+    tools = u.get('tool_calls_details') or {}
     if output_schema is None:
         # Nur bei Freitext verlinken — bei Structured Output ist `text` ein
         # JSON-String, den ein Aufrufer parst; Markdown-Syntax würde ihn zerstören.
-        text = _perplexity_linkify_citations(text, data, log_ctx=log_ctx)
-    usage = {'input_tokens': u.get('prompt_tokens', 0) or 0,
-             'output_tokens': u.get('completion_tokens', 0) or 0,
+        text = _perplexity_linkify_citations(text, _perplexity_citation_urls(data),
+                                             log_ctx=log_ctx)
+    # Die Cache-Zähler bleiben bewusst 0: Perplexity meldet gecachte Eingabe-Token
+    # in `input_tokens_details`, zählt sie aber bereits in `input_tokens` mit —
+    # durchgereicht würden sie in `_ai_call_cost` ein zweites Mal berechnet.
+    usage = {'input_tokens': u.get('input_tokens', 0) or 0,
+             'output_tokens': u.get('output_tokens', 0) or 0,
              'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0,
-             'web_search_requests': u.get('num_search_queries', 0) or 0}
+             'web_search_requests': (tools.get('web_search', 0) or 0)
+             if isinstance(tools, dict) else 0}
     # Quellen-URLs durchreichen: bei Structured Output stecken Perplexitys nackte
     # Marker („[7][11]") in den JSON-Strings und lassen sich erst nach dem Parsen
     # verlinken — ohne die Liste bliebe dort toter Text stehen.

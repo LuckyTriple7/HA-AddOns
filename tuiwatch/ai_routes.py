@@ -343,6 +343,11 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
 # günstigste Stufe), daher hier ebenfalls nur die 'low'-Preise. Sonar Deep
 # Research hat keine Kontext-Stufen, sondern eine feste Gebühr je 1000
 # Suchanfragen; wird hier gleich behandelt. In USD pro Aufruf (bereits /1000).
+# Seit der Umstellung auf die Agent API fällt die Gebühr nur an, wenn das
+# web_search-Tool mitgeschickt wurde (use_web_search=True). Hier wird sie
+# trotzdem pauschal je Aufruf addiert: die gespeicherten Zähler halten nur
+# `calls`, nicht wie viele davon gesucht haben — die Schätzung liegt bei
+# such-freien Aufrufen also minimal zu hoch, was besser ist als zu niedrig.
 _AI_PERPLEXITY_REQUEST_FEE = {
     'sonar':                0.005,
     'sonar-pro':             0.006,
@@ -1362,13 +1367,12 @@ def _linkify_citations_in_place(result: dict, urls: list | None) -> None:
     if not urls:
         return
     from ai_client import _perplexity_linkify_citations
-    data = {'citations': urls}
     if isinstance(result.get('zusammenfassung'), str):
         result['zusammenfassung'] = _perplexity_linkify_citations(
-            result['zusammenfassung'], data)
+            result['zusammenfassung'], urls)
     for m in (result.get('months') or []):
         if isinstance(m, dict) and isinstance(m.get('hinweis'), str):
-            m['hinweis'] = _perplexity_linkify_citations(m['hinweis'], data)
+            m['hinweis'] = _perplexity_linkify_citations(m['hinweis'], urls)
 
 
 def _climate_load(giata: int):
@@ -1620,10 +1624,9 @@ def _guide_linkify_in_place(result: dict, urls: list | None) -> None:
     if not urls:
         return
     from ai_client import _perplexity_linkify_citations
-    data = {'citations': urls}
 
     def lk(s):
-        return _perplexity_linkify_citations(s, data) if isinstance(s, str) else s
+        return _perplexity_linkify_citations(s, urls) if isinstance(s, str) else s
 
     result['zusammenfassung'] = [lk(s) for s in (result.get('zusammenfassung') or [])]
     for sec in (result.get('sections') or []):

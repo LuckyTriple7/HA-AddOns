@@ -1,10 +1,13 @@
 """Tests für Perplexity als dritten KI-Anbieter: `_ai_config()`/`_ai_config_for()`
 lesen die Perplexity-Optionen korrekt, `_ai_request()` dispatcht anhand des
 Modellnamens an `_ai_request_perplexity`, das Usage-Mapping (Tokens,
-Websuchen-Anzahl aus `num_search_queries`) stimmt, und `_ai_active_provider()`/
-`/api/ai/provider` funktionieren mit 3 statt 2 möglichen Providern. Kein echter
-API-Key nötig (Fake-`requests.post`, gemocktes Modul ist dasselbe Objekt wie in
-app.py — siehe ai_client.py-Docstring).
+Websuchen-Anzahl aus `usage.tool_calls_details.web_search`) stimmt, und
+`_ai_active_provider()`/`/api/ai/provider` funktionieren mit 3 statt 2 möglichen
+Providern. Kein echter API-Key nötig (Fake-`requests.post`, gemocktes Modul ist
+dasselbe Objekt wie in app.py — siehe ai_client.py-Docstring).
+
+Antwortformat ist die Agent API (`/v1/agent`): typisiertes `output`-Array statt
+`choices`, Quellen im `search_results`-Schritt statt in Top-Level-`citations`.
 """
 import importlib
 import json
@@ -48,19 +51,29 @@ class _FakeResponse:
         return self._payload
 
 
-def _chat_payload(text="Antwort", finish_reason="stop", prompt_tokens=100,
-                  completion_tokens=50, num_search_queries=0, citations=None,
-                  search_results=None):
-    payload = {
-        "choices": [{"message": {"content": text}, "finish_reason": finish_reason}],
-        "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
-                  "num_search_queries": num_search_queries},
+def _sources(*urls, start_id=1):
+    """`search_results`-Treffer wie die Agent API sie liefert (1-basierte `id`)."""
+    return [{"id": start_id + i, "url": u, "title": f"Quelle {start_id + i}"}
+            for i, u in enumerate(urls)]
+
+
+def _agent_payload(text="Antwort", status="completed", input_tokens=100,
+                   output_tokens=50, web_searches=0, results=None,
+                   extra_steps=()):
+    """Agent-API-Antwort: `output` ist ein Array typisierter Schritte, der Text
+    steckt als `output_text`-Teil im `message`-Schritt."""
+    output = [{"type": "message", "role": "assistant", "status": "completed",
+               "content": [{"type": "output_text", "text": text, "annotations": []}]}]
+    if results is not None:
+        output.append({"type": "search_results", "results": results})
+    output.extend(extra_steps)
+    return {
+        "id": "resp_test", "object": "response", "status": status,
+        "model": "perplexity/sonar-pro", "output": output,
+        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens,
+                  "total_tokens": input_tokens + output_tokens,
+                  "tool_calls_details": {"web_search": web_searches}},
     }
-    if citations is not None:
-        payload["citations"] = citations
-    if search_results is not None:
-        payload["search_results"] = search_results
-    return payload
 
 
 def _patch_requests(monkeypatch, response, captured=None):
@@ -97,26 +110,61 @@ def test_ai_config_for_perplexity_explicit(app_mod):
 
 
 def test_ai_request_dispatches_perplexity_by_model_name(app_mod, monkeypatch):
-    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload()))
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
     text, usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
                                            max_tokens=200, log_ctx="Test")
     assert err is None
     assert text == "Antwort"
-    assert captured[0]["json"]["model"] == "sonar-pro"
+    assert captured[0]["url"].endswith("/v1/agent")
+    # Modell-ID bleibt intern `sonar-pro` (Optionen, Preistabelle, Zähler); das
+    # Provider-Präfix kommt erst im Payload dazu.
+    assert captured[0]["json"]["model"] == "perplexity/sonar-pro"
     assert captured[0]["headers"]["Authorization"] == "Bearer p-key"
 
 
 def test_perplexity_pins_low_search_context_size(app_mod, monkeypatch):
     """Muss explizit gesetzt werden — sonst weicht die tatsächlich abgerechnete
     Request-Gebühr vom in _AI_PERPLEXITY_REQUEST_FEE hinterlegten Wert ab."""
-    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload()))
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
     app_mod._ai_request("p-key", "sonar-pro", "Prompt", max_tokens=200, log_ctx="Test")
-    assert captured[0]["json"]["web_search_options"] == {"search_context_size": "low"}
+    assert captured[0]["json"]["tools"] == [{"type": "web_search",
+                                             "search_context_size": "low"}]
+
+
+def test_perplexity_prompt_becomes_input_message(app_mod, monkeypatch):
+    """Agent API nimmt `input` statt `messages`, je Eintrag mit `type: message`."""
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
+    app_mod._ai_request("p-key", "sonar-pro", "Prompt", max_tokens=200, log_ctx="Test")
+    assert captured[0]["json"]["input"] == [
+        {"type": "message", "role": "user", "content": "Prompt"}]
+    assert captured[0]["json"]["max_output_tokens"] == 200
+    assert "messages" not in captured[0]["json"]
+    assert "max_tokens" not in captured[0]["json"]
+
+
+def test_perplexity_omits_web_search_tool_when_disabled(app_mod, monkeypatch):
+    """Ohne das Tool sucht die Agent API gar nicht — anders als bei Sonar, wo der
+    Schalter folgenlos war. Spart die Suchgebühr bei Aufrufen ohne Recherchebedarf
+    (Auto-Tags, PDF-Fallback, Feld-Vorschläge)."""
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
+    app_mod._ai_request("p-key", "sonar-pro", "Prompt", max_tokens=200, log_ctx="Test",
+                        use_web_search=False)
+    assert "tools" not in captured[0]["json"]
+
+
+def test_perplexity_truncation_is_logged(app_mod, monkeypatch, caplog):
+    """`status: incomplete` ersetzt Sonars `finish_reason: length`."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(status="incomplete")))
+    with caplog.at_level("WARNING"):
+        text, _usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                                max_tokens=200, log_ctx="Test")
+    assert err is None and text == "Antwort"
+    assert "abgeschnitten" in " ".join(r.getMessage() for r in caplog.records)
 
 
 def test_perplexity_usage_mapping(app_mod, monkeypatch):
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
-        prompt_tokens=1573, completion_tokens=239, num_search_queries=3)))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        input_tokens=1573, output_tokens=239, web_searches=3)))
     _text, usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert usage["input_tokens"] == 1573
@@ -131,17 +179,18 @@ def test_perplexity_output_schema_passed_through(app_mod, monkeypatch):
               "items": {"type": "string"}}}, "required": ["tags"],
               "additionalProperties": False}
     captured = _patch_requests(monkeypatch,
-                               _FakeResponse(payload=_chat_payload(text='{"tags": ["a"]}')))
+                               _FakeResponse(payload=_agent_payload(text='{"tags": ["a"]}')))
     text, _usage, err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
                                             log_ctx="Test", output_schema=schema)
     assert err is None
     assert text == '{"tags": ["a"]}'
-    assert captured[0]["json"]["response_format"] == {"type": "json_schema",
-                                                        "json_schema": {"schema": schema}}
+    assert captured[0]["json"]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "tuiwatch_result", "schema": schema}}
 
 
 def test_perplexity_empty_text_returns_empty_code(app_mod, monkeypatch):
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(text="")))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(text="")))
     _text, _usage, err = app_mod._ai_request("p-key", "sonar", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert err == "empty"
@@ -249,36 +298,37 @@ def test_provider_route_post_rejects_configured_provider_missing_key(app_mod):
 # ── Zitat-Verlinkung ([n] -> [n](url)) ──────────────────────────────────────
 
 def test_perplexity_linkifies_citations_from_search_results(app_mod, monkeypatch):
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         text="Traumhafter Strand.[1][3]",
-        search_results=[{"url": "https://a.example/1"}, {"url": "https://b.example/2"},
-                        {"url": "https://c.example/3"}])))
+        results=_sources("https://a.example/1", "https://b.example/2",
+                         "https://c.example/3"))))
     text, _usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
                                             max_tokens=200, log_ctx="Test")
     assert err is None
     assert text == "Traumhafter Strand.[1](https://a.example/1)[3](https://c.example/3)"
 
 
-def test_perplexity_linkifies_citations_from_bare_citations_list(app_mod, monkeypatch):
-    """Fallback, falls die Antwort kein `search_results` liefert (ältere/leichtere
-    Sonar-Antworten haben nur die schlichte `citations`-URL-Liste)."""
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
-        text="Klares Wasser.[2]", citations=["https://x.example", "https://y.example"])))
+def test_perplexity_falls_back_to_result_order_without_ids(app_mod, monkeypatch):
+    """Ohne `id` am Treffer bleibt nur die Reihenfolge — dann zaehlen die Marker
+    positionsbasiert, wie frueher gegen die nackte `citations`-Liste."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Klares Wasser.[2]",
+        results=[{"url": "https://x.example"}, {"url": "https://y.example"}])))
     text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == "Klares Wasser.[2](https://y.example)"
 
 
 def test_perplexity_leaves_unmatched_citation_number_unchanged(app_mod, monkeypatch):
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
-        text="Siehe [9].", citations=["https://x.example"])))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Siehe [9].", results=_sources("https://x.example"))))
     text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == "Siehe [9]."
 
 
 def test_perplexity_no_citations_text_unchanged(app_mod, monkeypatch):
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(text="Kein Zitat hier.")))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(text="Kein Zitat hier.")))
     text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert text == "Kein Zitat hier."
@@ -290,8 +340,8 @@ def test_perplexity_skips_linkify_for_structured_output(app_mod, monkeypatch):
     (untypisch) Zitat-Marker im JSON-Text unterbringt."""
     schema = {"type": "object", "properties": {"score": {"type": "integer"}},
               "required": ["score"], "additionalProperties": False}
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
-        text='{"score": 1}', citations=["https://x.example"])))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text='{"score": 1}', results=_sources("https://x.example"))))
     text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
                                              log_ctx="Test", output_schema=schema)
     assert text == '{"score": 1}'
@@ -338,44 +388,46 @@ def test_history_repeat_accepts_perplexity_provider(app_mod, monkeypatch):
         con.execute("INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) "
                     "VALUES (?,?,?,?,?,?,?)",
                     ("single", "Test", "sonar-pro", "alt", "{}", 0, "Alter Prompt"))
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(text="Neue Antwort")))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(text="Neue Antwort")))
     c = app_mod.app.test_client()
     r = c.post("/api/ai/history/1/repeat", headers=ING, json={"provider": "perplexity"})
     assert r.status_code == 200
     assert r.get_json()["summary"] == "Neue Antwort"
 
 
-def test_perplexity_prefers_the_longer_source_list(app_mod, monkeypatch):
-    """Welche der beiden Listen vollständiger ist, schwankt je nach Modell und
-    Anfrage. Ist `citations` länger, muss sie gewinnen — sonst bliebe alles über
-    der Länge von `search_results` unverlinkt, obwohl die URL vorliegt."""
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+def test_perplexity_merges_search_results_across_steps(app_mod, monkeypatch):
+    """Eine mehrstufige Recherche legt mehrere `search_results`-Schritte ins
+    `output`-Array — die Marker zaehlen gegen alle zusammen, nicht nur den ersten."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
         text="Vergleich.[1][3]",
-        search_results=[{"url": "https://kurz.example/1"}],
-        citations=["https://lang.example/1", "https://lang.example/2",
-                   "https://lang.example/3"])))
+        results=_sources("https://schritt1.example/1"),
+        extra_steps=[{"type": "search_results",
+                      "results": _sources("https://schritt2.example/2",
+                                          "https://schritt2.example/3", start_id=2)}])))
     text, _usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
                                              max_tokens=200, log_ctx="Test")
-    assert text == "Vergleich.[1](https://lang.example/1)[3](https://lang.example/3)"
+    assert text == ("Vergleich.[1](https://schritt1.example/1)"
+                    "[3](https://schritt2.example/3)")
 
 
-def test_perplexity_keeps_the_richer_list_when_equally_long(app_mod, monkeypatch):
-    """Bei Gleichstand bleibt `search_results` die Quelle — sonst würde eine
-    identisch lange `citations`-Liste die reichere Struktur grundlos verdrängen."""
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
-        text="Text.[1]",
-        search_results=[{"url": "https://reich.example/1"}],
-        citations=["https://nackt.example/1"])))
+def test_perplexity_aligns_on_ids_not_position(app_mod, monkeypatch):
+    """Die Marker verweisen auf die `id` des Treffers. Klafft eine Luecke, darf die
+    Nummerierung nicht verrutschen — sonst zeigte `[3]` auf die falsche Quelle."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Luecke.[1][2][3]",
+        results=[{"id": 1, "url": "https://eins.example"},
+                 {"id": 3, "url": "https://drei.example"}])))
     text, _usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
                                              max_tokens=200, log_ctx="Test")
-    assert text == "Text.[1](https://reich.example/1)"
+    assert text == "Luecke.[1](https://eins.example)[2][3](https://drei.example)"
 
 
 def test_perplexity_logs_how_many_markers_stayed_unlinked(app_mod, monkeypatch, caplog):
     """Ohne diese Zeile im Log wäre nicht zu unterscheiden, ob die Verlinkung
     kaputt ist oder die gelieferte Quellenliste schlicht zu kurz war."""
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
-        text="Nightlife.[9][58][74]", citations=["https://x.example"] * 10)))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Nightlife.[9][58][74]",
+        results=_sources(*[f"https://x.example/{i}" for i in range(10)]))))
     with caplog.at_level("INFO"):
         text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
                                                  max_tokens=200, log_ctx="Regionen-Vergleich")
@@ -384,14 +436,14 @@ def test_perplexity_logs_how_many_markers_stayed_unlinked(app_mod, monkeypatch, 
     assert "2 Zitat-Nummern ohne Quelle" in msg and "höchste: 74" in msg
 
 
-def test_perplexity_structured_output_passes_the_longer_list(app_mod, monkeypatch):
+def test_perplexity_structured_output_passes_the_source_list(app_mod, monkeypatch):
     """Bei Structured Output werden die URLs nur durchgereicht (verlinkt wird erst
-    nach dem Parsen) — dieselbe Auswahlregel muss auch dort gelten."""
+    nach dem Parsen) — dieselbe Ausrichtung an den IDs muss auch dort gelten."""
     schema = {"type": "object", "properties": {"score": {"type": "integer"}},
               "required": ["score"], "additionalProperties": False}
-    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
-        text='{"score": 1}', search_results=[{"url": "https://kurz.example/1"}],
-        citations=["https://a.example", "https://b.example"])))
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text='{"score": 1}',
+        results=_sources("https://a.example", "https://b.example"))))
     _text, usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
                                              log_ctx="Test", output_schema=schema)
     assert usage["citation_urls"] == ["https://a.example", "https://b.example"]

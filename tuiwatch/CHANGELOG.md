@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.106.0
+
+- ✨ **Perplexity läuft jetzt über die Agent API.** Die bisher genutzte Sonar-Schnittstelle wird von Perplexity nur noch bis zum 27.09.2026 unterstützt — danach hätten alle KI-Funktionen mit Perplexity-Key aufgehört zu arbeiten. Die Modellauswahl (`sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`), die Kostenanzeige und die gespeicherte Nutzungsstatistik bleiben unverändert; es ist nichts umzustellen.
+- 💰 **Weniger Perplexity-Kosten bei Aufgaben ohne Recherche.** Sonar durchsuchte bisher bei jeder einzelnen Anfrage das Web, auch wenn es gar nichts nachzuschlagen gab. In der Agent API ist die Websuche zuschaltbar, und TUIWatch lässt sie bei den rein internen Aufgaben weg: Auto-Tags, KI-Analyse im Kalender, Wochenüberblick, PDF-Nachbearbeitung und Feld-Vorschläge sparen damit die Such-Gebühr.
+- 🔗 **Quellen-Links bleiben verlässlich.** Die Zitat-Marker (`[1]`, `[5]`) richten sich jetzt an der Nummer aus, die Perplexity dem Treffer selbst gibt, und berücksichtigen mehrstufige Recherchen. Führt eine Nummer ins Leere, bleibt sie unverlinkt statt auf die falsche Quelle zu zeigen.
+
 ## 0.105.2
 
 - 🩹 **Chrome füllt auch das Suchfeld nicht mehr mit den Login-Daten.** Das Feld ist jetzt ein echtes Suchfeld (`type=search`), damit scheidet es aus Chromes Anmelde-Erkennung aus. Zusätzlich sind die beiden Passwortfelder im Einstellungen-Dialog bis zum Antippen schreibgeschützt — dadurch hält Chrome die Seite gar nicht mehr für ein Anmeldeformular und sucht sich kein Benutzernamen-Feld.

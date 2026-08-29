@@ -161,8 +161,11 @@ class _FakePerplexityResponse:
 
 def _patch_perplexity(app_mod, monkeypatch, text="Klar, hier die Vertiefung."):
     captured = []
-    payload = {"choices": [{"message": {"content": text}, "finish_reason": "stop"}],
-              "usage": {"prompt_tokens": 10, "completion_tokens": 5, "num_search_queries": 0}}
+    payload = {"status": "completed",
+               "output": [{"type": "message", "role": "assistant",
+                           "content": [{"type": "output_text", "text": text}]}],
+               "usage": {"input_tokens": 10, "output_tokens": 5,
+                         "tool_calls_details": {"web_search": 0}}}
 
     def fake_post(url, headers=None, json=None, timeout=None):
         captured.append({"url": url, "headers": headers, "json": json})
@@ -181,7 +184,9 @@ def test_perplexity_messages_passed_through_unchanged(app_mod, monkeypatch):
                                                       max_tokens=200, log_ctx="Test")
     assert err is None
     assert text == "Klar, hier die Vertiefung."
-    assert captured[0]["json"]["messages"] == messages
+    # Agent API: `input`-Array mit `type: message` je Eintrag; Rollen und Reihen-
+    # folge bleiben unveraendert, es kommt nur das Typ-Feld dazu.
+    assert captured[0]["json"]["input"] == [dict(m, type="message") for m in messages]
 
 
 def test_ai_call_messages_wraps_failure_as_jsonify_tuple(app_mod, monkeypatch):
