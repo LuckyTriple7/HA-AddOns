@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.7.7] - 2026-08-29
+- **REST-API auf eigenem Port mit Token-Pflicht.** Neue Optionen `api_enabled` (Standard: aus) und `api_token` starten einen zweiten Listener auf **17788**, der ausschliesslich `/api/*` bedient und jeden Aufruf ohne `Authorization: Bearer <Token>` mit `401` abweist
+- **Breaking Change: Port 17778 wird nicht mehr veroeffentlicht.** Er gab Weboberflaeche und REST-API ohne jede Anmeldung an das ganze LAN heraus — wer die Adresse kannte, konnte mitlesen und senden. Beides liegt auf demselben Express-Server, und der UI-Port kann keinen Token verlangen: die Oberflaeche ruft ihre eigenen `/api/`-Routen aus dem Browser auf. Sein Schutz kann deshalb nur sein, ihn nicht freizugeben
+- **Unveraendert erreichbar:** die Oberflaeche ueber das HA-Panel (Ingress, Anmeldung durch Home Assistant) und ueber das MessengerPortal, das das Add-on seit **1.2.20** ueber seinen Container-Namen anspricht und den Host-Port nicht mehr braucht
+- **Was bricht:** alles, was `http://<HA-IP>:17778/api/...` oder `http://localhost:17778/api/...` aufruft. Umstellen auf **17788** mit Token; Beispiele stehen in DOCS.md. Wer 17778 unbedingt braucht, kann das Mapping unter *Netzwerk* von Hand wieder eintragen — dann aber wieder ohne Passwort fuer jedes Geraet im Netz
+- Die Weboberflaeche wird ueber 17788 auch mit gueltigem Token **nicht** ausgeliefert (`404`) — sonst waere der Port ein zweiter, gleichwertiger Weg auf alles. Ist `api_enabled` an, aber kein Token gesetzt, startet der Port gar nicht
+- Der Vergleich laeuft ueber `crypto.timingSafeEqual` statt `===`, damit die Laufzeit den Token nicht verraet. Abgewiesene Zugriffe landen mit Pfad und IP als WARN in der Konsole des Add-ons
+- Der Watchdog laeuft jetzt ueber `tcp://[HOST]:17778` statt `tcp://[HOST]:[PORT:17778]`. Die alte Form loeste den **Host**-Port auf und waere ohne Mapping ins Leere gelaufen — das Add-on haette sich selbst als tot gemeldet und im Kreis neu gestartet
+- `test-api.ps1` spricht jetzt 17788 an und schickt den Token mit. Er steht **nicht** im Skript — es liest `$env:TELEGRAM_API_TOKEN` oder fragt beim Start danach; Host und Port lassen sich ueber `TELEGRAM_HOST` und `TELEGRAM_API_PORT` uebersteuern
+- Gleiches Muster wie im WhatsApp-Add-on ab 1.8.31
+
+## [1.7.6] - 2026-08-28
+- Fix: **In der Konsole fehlte bei vielen Zeilen die Uhrzeit.** Die still protokollierten Debug-Zeilen (`API GET …`) trugen keinen Zeitstempel, die echten Konsolenzeilen schon — jetzt haben alle einen, und zwar in Ortszeit statt UTC
+- Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt. Der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl der Ebenen bleibt ueber einen Seitenwechsel hinweg erhalten
+- Gleiche Funktion wie im WhatsApp-Add-on ab 1.8.0
+
+## [1.7.5] - 2026-08-25
+- Fix: **Netzwerk-Aussetzer heilen sich jetzt von selbst.** Fiel die Verbindung zu Telegram mit einem Netzwerkfehler aus (z. B. `connect ENETUNREACH 149.154.167.50:443`), blieb das Add-on dauerhaft im Status `error` stehen und wartete auf einen manuellen Klick auf „Erneut verbinden". Ein neuer Auto-Retry-Timer prüft alle 10 Sekunden, ob der letzte Fehler ein Netzwerkfehler war (ENETUNREACH, EHOSTUNREACH, ECONNRESET, ETIMEDOUT, EAI_AGAIN, Timeout u. a.), und startet dann selbstständig einen neuen Verbindungsversuch mit exponentiellem Backoff (15 s, 30 s, 60 s … max. 5 Minuten). Nach erfolgreicher Verbindung wird der Backoff zurückgesetzt. Auth- und Konfigurationsfehler (falscher Code, fehlende `api_id`) werden bewusst **nicht** wiederholt, ebenso wenig wird erneut versucht, solange auf Code oder 2FA-Passwort gewartet wird
+
 ## [1.7.4] - 2026-08-13
 - Neu: **Gesendete Nachrichten erscheinen sofort in der Chat-Ansicht** (optimistisches Rendern). Bisher wurde die Bubble erst gezeichnet, nachdem `client.sendMessage()` samt Telegram-Roundtrip fertig war und `loadMessages()` neu geladen hatte — je nach Verbindung mehrere Sekunden Verzögerung. Jetzt legt `sendMsg()` die Nachricht direkt in eine chatbezogene Pending-Liste (`_pendingSend`), die `renderMessages()` ausgegraut (55 % Deckkraft, 🕓 statt Häkchen, keine Antworten-/Weiterleiten-Buttons) ans Ende der Liste hängt; das Eingabefeld wird sofort geleert. Nach der Server-Antwort wird der Eintrag entfernt und die echte Nachricht per `loadMessages(chatId, true)` nachgeladen. Schlägt der Versand fehl, verschwindet der Platzhalter und der Text landet wieder im Eingabefeld. Gilt für normale Nachrichten und Antworten (inkl. Zitat-Block); Medienversand unverändert
 

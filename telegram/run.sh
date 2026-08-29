@@ -15,6 +15,10 @@ export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFY_SKIP_BOTS=$(jq -r 'if .ha_notifications_skip_bots == true then "true" else "false" end' /data/options.json)
 export PORT=17778
+# Zweiter Listener: nur /api/*, nur mit Token (siehe server.js)
+export API_PORT=17788
+export API_ENABLED=$(jq -r 'if .api_enabled == true then "true" else "false" end' /data/options.json)
+export API_TOKEN=$(jq -r '.api_token // ""' /data/options.json)
 
 mkdir -p /config
 

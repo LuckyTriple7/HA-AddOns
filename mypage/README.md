@@ -26,12 +26,12 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 - 🔒 **Mitglieder-Bereich**: passwortgeschützter Dateibereich pro Benutzer (optional auf SMB-Share), optionale **Selbst-Registrierung** (E-Mail-Bestätigung + Admin-Freigabe), **Self-Service-Passwort-Reset** und je Mitglied **abschaltbare Spiele**
 - 📨 **Kontaktformular** mit Spam-Schutz (Honeypot + Captcha + Rate-Limit) und Benachrichtigung per Telegram/E-Mail sowie **Home Assistant**
 - 🧭 **Navigationsleiste** im Kopf mit Sprungmarken zu den vorhandenen Bereichen
-- 📈 **Home-Assistant-Sensoren & -Benachrichtigungen**, RSS, PWA, SEO (Sitemap/robots.txt), Backup & statischer Export
+- 📈 **Home-Assistant-Sensoren & -Benachrichtigungen**, RSS, PWA, SEO (Sitemap/robots.txt), Backup, **frühere Stände zum Zurückholen** & statischer Export
 
 ## Schnellstart
 
 1. Add-on installieren und starten
-2. In den Add-on-Optionen `username` und `password` setzen
+2. In den Add-on-Optionen `username` und `password` setzen (alles Weitere im Admin-Panel unter **Einstellungen**)
 3. Admin-Panel öffnen (Seitenleiste oder `http://<host>:17761`)
 4. Profil ausfüllen, Inhalte pflegen, Design wählen
 5. Öffentliche Seite läuft auf `http://<host>:17760` — z. B. über einen Cloudflare Tunnel veröffentlichen

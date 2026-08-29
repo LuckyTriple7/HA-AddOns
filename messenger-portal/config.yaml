@@ -1,6 +1,6 @@
 name: MessengerPortal
 description: Zentrale, passwortgeschützte Startseite für WhatsApp, Telegram und Signal Add-ons
-version: "1.2.14"
+version: "1.2.24"
 slug: messenger-portal
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/messenger-portal"
@@ -17,11 +17,13 @@ panel_icon: mdi:message-badge
 panel_title: MessengerPortal
 
 ingress: true
-ingress_port: 17770
+ingress_port: 8099
 ingress_stream: true
 
 map:
   - app_config:rw
+
+hassio_api: true
 
 webui: http://[HOST]:[PORT:17770]
 
@@ -37,6 +39,7 @@ options:
   session_hours: 24
   poll_interval: 30
   internal_host: ""
+  ingress_trusted: ""
   messengers:
     - name: WhatsApp
       icon: whatsapp
@@ -57,6 +60,7 @@ schema:
   session_hours: int
   poll_interval: int?
   internal_host: str?
+  ingress_trusted: str?
   messengers:
     - name: str
       icon: str

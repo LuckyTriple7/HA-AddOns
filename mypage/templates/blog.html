@@ -11,6 +11,29 @@
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   {% include '_seo.html' %}
+  {%- if pager.prev_url %}<link rel="prev" href="{{ pager.prev_url }}">{% endif %}
+  {%- if pager.next_url %}<link rel="next" href="{{ pager.next_url }}">{% endif %}
+  {#- Strukturierte Daten. Nur bei erlaubter Indexierung, wie `canonical` und
+      `hreflang` in `_seo.html`: über eine Seite, die nicht in den Index soll,
+      gibt es einer Suchmaschine auch nichts zu erzählen. Aufgeführt wird nur,
+      was diese Seite tatsächlich zeigt — sonst behauptete Seite 3 der
+      Übersicht, sie enthalte den ganzen Bestand. #}
+  {%- if site.design.allow_indexing %}
+  {%- set ld = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    'name': t.blog_heading,
+    'inLanguage': lang,
+    'numberOfItems': posts|length,
+    'itemListElement': []
+  } %}
+  {%- for p in posts %}
+  {%- set _ = ld.itemListElement.append({
+       '@type': 'ListItem', 'position': pager.offset + loop.index,
+       'name': loc(p, 'title'), 'url': ('/blog/' ~ p.id)|abs_url}) %}
+  {%- endfor %}
+  <script type="application/ld+json">{{ ld|tojson }}</script>
+  {%- endif %}
   <meta name="theme-color" content="#0d1117">
   <style>
     :root {
@@ -63,6 +86,15 @@
     .post-tags { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
     .post-tags span { font-size: 0.7rem; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
     .blog-empty { color: var(--muted); font-size: 0.9rem; padding: 20px 0; }
+    .pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 22px; }
+    .pager a, .pager span {
+      font-size: 0.82rem; padding: 6px 11px; border-radius: 8px; color: var(--muted);
+      background: var(--surf); border: 1px solid var(--border); transition: border-color .15s;
+    }
+    .pager a:hover { border-color: var(--accent); text-decoration: none; }
+    .pager .current { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+    .pager .gap { border: none; background: none; padding: 6px 2px; }
+    .pager .count { border: none; background: none; margin-left: auto; }
     .nl-banner { padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 18px; }
     .nl-banner.ok { background: rgba(46,160,67,.14); border: 1px solid #2ea043; color: #3fb950; }
     .nl-banner.err { background: rgba(207,34,46,.12); border: 1px solid #cf222e; color: #f85149; }
@@ -118,6 +150,19 @@
     {% else %}
     <p class="blog-empty">{{ t.blog_no_results }}</p>
     {% endfor %}
+
+    {% if pager.pages > 1 %}
+    <nav class="pager" aria-label="{{ t.blog_pager_label }}">
+      {% if pager.prev_url %}<a href="{{ pager.prev_url }}" rel="prev">&larr; {{ t.blog_pager_prev }}</a>{% endif %}
+      {% for it in pager['items'] %}
+        {% if it.gap %}<span class="gap">…</span>
+        {% elif it.current %}<span class="current" aria-current="page">{{ it.n }}</span>
+        {% else %}<a href="{{ it.url }}">{{ it.n }}</a>{% endif %}
+      {% endfor %}
+      {% if pager.next_url %}<a href="{{ pager.next_url }}" rel="next">{{ t.blog_pager_next }} &rarr;</a>{% endif %}
+      <span class="count">{{ t.blog_pager_of|replace('{page}', pager.page|string)|replace('{pages}', pager.pages|string) }}</span>
+    </nav>
+    {% endif %}
 
     {% if newsletter_open %}
     <div class="nl-box">

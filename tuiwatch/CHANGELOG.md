@@ -1,5 +1,274 @@
 # Changelog
 
+## 0.113.1
+
+- 🧹 **„cite[16][19]" im Reiseführer und in der Klimatabelle ist weg.** Die Bereinigung hängte an der Quellenliste: lieferte eine Antwort keine Quellen mit, blieben die Marker unangetastet im Text stehen. Sie werden jetzt **immer** entfernt, unabhängig davon, ob Quellen dabei sind — und bei strukturierten Antworten (Reiseführer, Klimatabelle) schon im Rohtext, bevor irgendeine Anzeige sie zu sehen bekommt.
+
+## 0.113.0
+
+- ⬇️ **Markdown-Export für KI-Antworten.** Neuer Knopf neben PDF und E-Mail: speichert die Antwort als `.md`-Datei, so wie die KI sie geliefert hat — Überschriften, Tabellen und Quellen-Links bleiben als Markdown erhalten statt in Druck-HTML zu landen. Zum Weiterverarbeiten in Obsidian, Notion, Git oder eigenen Notizen.
+- ℹ️ Folgefragen sind mit drin, jede unter einer eigenen Überschrift. Der Dateiname entsteht aus Titel, Untertitel und Datum (`regionen-vergleich-mauritius-malediven-20260829.md`). Verfügbar überall dort, wo es auch PDF-Export und E-Mail gibt — inklusive der Detailansicht im KI-Verlauf.
+
+## 0.112.0
+
+- 🗺️ **TripPilot prüft jetzt auch Informationsfreiheit und LGBTQ-Rechte.** Zu jedem vorgeschlagenen Ziel kommen ein bis zwei Stichpunkte zu Internetzensur, blockierten Diensten, VPN-Lage und rechtlichen Risiken bei Onlineäußerungen sowie zur Rechtslage und Alltagssituation für LGBTQ-Reisende. Gravierendes wird als **mögliches KO-Kriterium** gekennzeichnet.
+- ℹ️ **Ein Ziel wird deswegen nicht aussortiert.** Ob das ein Ausschlussgrund ist, entscheidest du — die KI legt es nur offen. Anders als die Reisewarnungs-Prüfung steht dieser Teil im editierbaren Bereich unter „KI-Prompts": wer ihn nicht braucht, nimmt ihn heraus.
+
+## 0.111.2
+
+- 🚨 **Alle KI-Funktionen liefen sofort auf einen Fehler.** Beim Umbau der KI-Anzeige in 0.111.1 wurden zwei Konstanten mit herausgeschnitten, die weiterhin benutzt wurden. Jeder Aufruf brach dadurch im Browser ab, bevor überhaupt etwas passierte — deshalb stand auch nichts im Log. Behoben.
+- ✅ Ein neuer Test prüft `app.js` darauf, dass jede benutzte Konstante auch deklariert ist. Genau diese Fehlerart fällt weder beim Syntax-Check noch in den übrigen Tests auf.
+- 🧹 Der Hinweis „Falls die KI lange gerechnet hat…" unter Fehlermeldungen ist raus. Er stammte aus der Zeit vor den Hintergrund-Aufträgen; heute meldet sich ein fertiger Lauf von selbst.
+
+## 0.111.1
+
+- ✂️ **Regionen-Vergleich brach mitten in der Auswertung ab.** Bei fünf Reisezielen endete die Antwort nach dem dritten — das Ausgabe-Limit lag fest bei 8.192 Tokens und reichte für neun Kriterien mal fünf Ziele nicht. Das Budget wächst jetzt mit der Anzahl der Ziele (bei fünf rund 26.000 Tokens). Es kostet nichts extra: abgerechnet wird, was tatsächlich erzeugt wird.
+- ⚠️ **Abgeschnittene Antworten werden als solche gekennzeichnet.** Sie hören einfach mittendrin auf; ohne Hinweis hält man sie für vollständig. Jetzt steht unter der Antwort eine Warnung.
+- 🧹 **„cite[36][web:AP2Q…]" verschwindet aus den Antworten.** Die Agent API schreibt Quellenverweise in dieser Form mitten in den Text; die Kennung hinter `web:` ist eine opake ID, die sich nicht in einen Link auflösen lässt. Der ganze Marker wird jetzt entfernt — bisher blieb er als Zeichensalat stehen. Steckt eine auflösbare Nummer darin, wird sie verlinkt.
+- ⏱️ **Die KI-Anzeige zeigt jetzt die verstrichene Zeit** statt nur zu kreisen — bei den gründlichen Stufen dauert es Minuten, und ein bloßes Kreisen sagt nicht, ob noch etwas passiert.
+- 🔄 **Laufende Anfragen überleben ein Neuladen der Seite.** Bisher war nach F5 die Anzeige weg und die Antwort tauchte nur noch im KI-Verlauf auf. Die Aufträge werden jetzt gemerkt, nach dem Laden weiterverfolgt und beim Fertigwerden gemeldet.
+
+## 0.111.0
+
+- 🌍 **Regionen-Vergleich bewertet jetzt auch Informationsfreiheit und LGBTQ-Rechte.** Neben Wetter, Sicherheit, Preis, Strand, Familien- und Nightlife-Eignung kommen zwei Kriterien dazu: digitaler Alltag (Internetzensur, blockierte Dienste, VPN-Lage, rechtliche Risiken bei Onlineäußerungen) und die Lage für LGBTQ-Reisende (Rechtslage, Durchsetzung, Akzeptanz, Risiken außerhalb des Resorts). Beide können als **KO-Kriterium** gelten, das gute Noten bei Strand oder Wetter nicht ausgleichen dürfen.
+- 📖 **Der Reiseführer hat für beide Themen je einen eigenen Abschnitt** — bisher stand dazu nichts drin.
+- ✏️ **Klimatabelle und Reiseführer sind jetzt unter „KI-Prompts" editierbar.** Beide Prompts waren fest im Code verdrahtet. Das Reiseziel bleibt fest, ebenso die Vorgabe „alle zwölf Monate" bei der Klimatabelle — die Tabelle rechnet damit.
+- 📏 **Platz für längere Vorlagen:** das Limit steigt von 6.000 auf 16.000 Zeichen. Der neue Regionen-Vergleich-Standard allein braucht über 10.000 — mit dem alten Limit hätte das Speichern ihn stillschweigend abgeschnitten.
+- 🔄 **KI-Anzeige neben dem Logo:** läuft eine KI-Anfrage, kreist dort das KI-Symbol; ist sie fertig, blinkt es kurz grün und verschwindet von selbst. Klick öffnet den KI-Verlauf. So sieht man auch dann, dass noch etwas läuft, wenn man das KI-Fenster zwischenzeitlich geschlossen hat.
+- 📦 Die eigenen Prompt-Vorlagen für Regionen-Vergleich, Klimatabelle und Reiseführer wandern ins Backup — die des Regionen-Vergleichs fehlte dort bisher.
+
+## 0.110.0
+
+- ⏳ **Lange KI-Recherchen brechen nicht mehr ab.** Die gründlichen Perplexity-Stufen (`pplx-high`, `pplx-xhigh`) rechnen minutenlang. Bisher hing die Antwort so lange in einer offenen Verbindung, dass der Browser vorher aufgab — das Fenster meldete „fehlgeschlagen", während der Server in Ruhe zu Ende rechnete und das Ergebnis nur noch im KI-Verlauf auftauchte. Bezahlt und fertig, aber als Fehler dargestellt.
+- ⚙️ **Zwei Stellen umgebaut:** TUIWatch startet den Lauf bei Perplexity jetzt im Hintergrund und fragt das Ergebnis ab, statt zu warten; und das Fenster im Browser bekommt sofort eine Auftragsnummer und holt die Antwort damit ab. Dadurch kann weder ein Browser- noch ein Proxy-Zeitlimit eine laufende Recherche abschneiden.
+- ℹ️ Betrifft alle interaktiven KI-Funktionen (Fazit, Vergleich, Buchungsscore, Kalender-Analyse, Region-Ausblick, Klima, Reiseführer, Reisezeit-Check, Portfolio-Frage, TripPilot, Regionen-Vergleich, Wiederholen, Folgefrage) und gilt für alle Anbieter — spürbar ist es vor allem bei Perplexity.
+
+## 0.109.2
+
+- 🧹 **„[web:94]" verschwindet aus den Antworten.** Die Agent API setzt Quellenverweise auch in dieser Form in den Text — ein Format, das Sonar nicht kannte und das deshalb als sinnloser Rest stehen blieb. Ist die Quelle bekannt, wird jetzt ein anklickbarer Link daraus, sonst wird der Marker entfernt.
+- 🐛 **Im Wiederholen-Fenster stand Programmcode statt eines Symbols.** Bei Regionen-Vergleich und Portfolio-Frage steckte das Symbol mit in der Beschriftung; wo die als reiner Text gesetzt wurde, stand es wörtlich auf dem Bildschirm. Betraf auch das Verlauf-Detail und die Suche im KI-Verlauf, die im unsichtbaren Markup mitsuchte.
+- ℹ️ **Hinweis bei abgebrochener Verbindung:** Rechnet die KI länger, als die Verbindung zum Browser offen bleibt, meldet das Fenster einen Fehler — der Server rechnet aber zu Ende und legt die Antwort im KI-Verlauf ab. Darauf wird jetzt hingewiesen, statt den Eindruck zu hinterlassen, die Anfrage sei verloren.
+
+## 0.109.1
+
+- ⏱️ **Perplexity brach bei größeren Vergleichen mit „Read timed out" ab.** Das Zeitlimit von 90 Sekunden stammte noch aus der Sonar-Zeit, als eine Anfrage ein einzelner Aufruf war. Eine Stufe der Agent API führt dagegen eine mehrstufige Recherche aus — genau das ist ihr Vorteil — und braucht dafür laut Perplexity bei den gründlichen Stufen Minuten. Standard ist jetzt 5 Minuten.
+- ⚙️ Neue Option **„Perplexity: Zeitlimit je Anfrage"** (60–900 s). Höher setzen, wenn Vergleiche über viele Ziele weiterhin abbrechen; niedriger, wenn lieber früh abgebrochen werden soll.
+
+## 0.109.0
+
+- 🔧 **Perplexity funktioniert wieder.** Die Umstellung auf die Agent API in 0.106.0 schickte weiter die Sonar-Modellnamen mit — die gibt es dort aber bis auf das Basismodell nicht mehr, jeder Aufruf endete in „400 Bad Request". Betroffen war auch der Standard.
+- ✨ **Statt Modellen wählst du jetzt eine Gründlichkeitsstufe:** `pplx-fast`, `pplx-low` (Standard), `pplx-medium`, `pplx-high`, `pplx-xhigh`. Das sind Perplexitys Presets, der offizielle Nachfolger der Sonar-Modelle — laut deren Benchmarks durchgehend genauer als das jeweils ersetzte Modell, bei `pplx-high` oft sogar günstiger als Sonar Deep Research. **Deine bestehende Auswahl wird automatisch übernommen** (sonar-pro wird pplx-low usw.), du musst nichts umstellen.
+- ℹ️ Die Websuche gehört fest zu einer Stufe und lässt sich nicht mehr abschalten. Die in 0.106.0 angekündigte Ersparnis bei Aufgaben ohne Recherchebedarf (Auto-Tags, Kalender-Analyse, Feld-Vorschläge) gibt es damit nicht — das war ein Irrtum meinerseits und ist in der Doku korrigiert.
+
+## 0.108.1
+
+- 🔍 **Fehlgeschlagene Perplexity-Aufrufe schreiben jetzt die Antwort der API ins Log.** Bisher stand dort bei einem Fehler nur „400 Client Error: Bad Request" — welches Feld die API beanstandet, sagt allein der Antwortkörper. Ohne ihn war so ein Fehler nicht zu diagnostizieren.
+
+## 0.108.0
+
+- 📦 **Das Backup war nicht so vollständig, wie es hieß.** Gespeicherte Suchen verloren ihr komplettes Suchabo (beobachten ja/nein, Schwellenpreis, bereits gemeldete Hotels), der Preisverlauf seinen Preis-Split und die Verfügbarkeitsprüfung, der KI-Verlauf seine Zuordnung zum Angebot (und damit den Buchungsscore-Verlauf). Anhänge und Packlisten von Reisen **ohne Buchungsnummer** fielen ganz heraus. Alles davon ist jetzt drin.
+- 📦 **Klimatabellen, Reiseführer, öffentliche Links und Kommentare werden jetzt mitgesichert.** Klimatabellen und Reiseführer sind KI-Ergebnisse, deren Neuerzeugung beim Anbieter Geld kostet; ein Share-Token steckt in bereits verschickten Links und lässt sich nicht neu erzeugen. Was bewusst **nicht** gesichert wird (reine Caches), steht jetzt ausdrücklich in der Doku.
+- 🛡️ **Wiederherstellung prüft die entpackte Größe des Archivs.** Das Upload-Limit deckelt nur die komprimierte Datei — ein stark komprimiertes ZIP darunter konnte sich beim Entpacken auf ein Vielfaches aufblähen und dem Add-on den Speicher nehmen. Jetzt sind Dateianzahl, Einzel- und Gesamtgröße begrenzt: eine einzelne zu große Datei wird übersprungen, ein insgesamt aufgeblähtes Archiv abgelehnt.
+- 🔗 **Datenbank erzwingt jetzt ihre Fremdschlüssel.** Die ON-DELETE-CASCADE-Regeln waren vorhanden, aber ohne das nötige SQLite-Pragma wirkungslos — Kindzeilen (Preisverlauf, Marker, Kalender-Historie) konnten unbemerkt ohne ihr Angebot zurückbleiben. Bestehende Daten bleiben unverändert.
+- ✅ Neuer Roundtrip-Test vergleicht die Tabelleninhalte vor und nach einer Wiederherstellung. Eine künftig vergessene Spalte fällt damit im Test auf statt beim Wiederherstellen.
+
+## 0.107.0
+
+- 💰 **Perplexity-Kosten sind jetzt der echte Betrag statt einer Schätzung.** Die Agent API rechnet jeden Aufruf selbst ab und liefert die Summe aus Token-, Cache- und Suchkosten mit — TUIWatch zeigt diese Zahl unverändert an, statt sie aus der Preisliste hochzurechnen. Bei Claude und Gemini bleibt es bei der Schätzung, dort liefert die API keine Kosten mit.
+- 📊 **Tages-, Monats- und Gesamtsumme rechnen gemischt korrekt.** Zähler, die über die Umstellung hinweg gewachsen sind, enthalten beides: abgerechnete und geschätzte Aufrufe. TUIWatch merkt sich jetzt, welcher Teil schon abgerechnet ist, und schätzt nur noch den Rest — sonst würden die echten Kosten ein zweites Mal obendrauf geschätzt. Bestehende Zähler bleiben gültig, nichts wird zurückgesetzt.
+
+## 0.106.0
+
+- ✨ **Perplexity läuft jetzt über die Agent API.** Die bisher genutzte Sonar-Schnittstelle wird von Perplexity nur noch bis zum 27.09.2026 unterstützt — danach hätten alle KI-Funktionen mit Perplexity-Key aufgehört zu arbeiten. Die Modellauswahl (`sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`), die Kostenanzeige und die gespeicherte Nutzungsstatistik bleiben unverändert; es ist nichts umzustellen.
+- 💰 **Weniger Perplexity-Kosten bei Aufgaben ohne Recherche.** Sonar durchsuchte bisher bei jeder einzelnen Anfrage das Web, auch wenn es gar nichts nachzuschlagen gab. In der Agent API ist die Websuche zuschaltbar, und TUIWatch lässt sie bei den rein internen Aufgaben weg: Auto-Tags, KI-Analyse im Kalender, Wochenüberblick, PDF-Nachbearbeitung und Feld-Vorschläge sparen damit die Such-Gebühr.
+- 🔗 **Quellen-Links bleiben verlässlich.** Die Zitat-Marker (`[1]`, `[5]`) richten sich jetzt an der Nummer aus, die Perplexity dem Treffer selbst gibt, und berücksichtigen mehrstufige Recherchen. Führt eine Nummer ins Leere, bleibt sie unverlinkt statt auf die falsche Quelle zu zeigen.
+
+## 0.105.2
+
+- 🩹 **Chrome füllt auch das Suchfeld nicht mehr mit den Login-Daten.** Das Feld ist jetzt ein echtes Suchfeld (`type=search`), damit scheidet es aus Chromes Anmelde-Erkennung aus. Zusätzlich sind die beiden Passwortfelder im Einstellungen-Dialog bis zum Antippen schreibgeschützt — dadurch hält Chrome die Seite gar nicht mehr für ein Anmeldeformular und sucht sich kein Benutzernamen-Feld.
+- ℹ️ Bereits von Chrome gespeicherte Einträge bleiben erhalten — die löscht man unter `chrome://password-manager/passwords`.
+
+## 0.105.1
+
+- 🩹 **Chrome trägt beim Neuladen keinen Benutzernamen mehr ins URL-Feld.** Weil auf der Seite Passwortfelder liegen, hielt der Browser das erste Textfeld („TUI-Angebots-URL einfügen“) für ein Anmeldefeld und füllte es aus. Das Feld ist jetzt als URL-Feld ausgewiesen und vom Ausfüllen ausgenommen.
+- 🎨 **Automatisch ausgefüllte Felder bleiben dunkel** statt hellblau — falls der Browser doch einmal etwas einträgt, ist es weiter lesbar.
+
+## 0.105.0
+
+- 🔍 **Filterfeld in den Übersichten von Klimatabellen und Reiseführern.** Über der Liste steht ein Eingabefeld: „Mad“ zeigt sofort nur noch Madeira. Gesucht wird ohne Rücksicht auf Groß-/Kleinschreibung und Akzente, mehrere Wörter dürfen in beliebiger Reihenfolge stehen. Am Rechner springt der Cursor beim Öffnen gleich ins Feld, auf dem Handy nicht — sonst schiebe die Tastatur die Liste weg.
+
+## 0.104.5
+
+- 🩹 **Klimatabelle als Markdown: der Stern bleibt beim Monatsnamen.** Bei langen Monatsnamen wie „September“ rutschte die Markierung des besten Reisemonats beim Rendern in eine zweite Zeile — jetzt hält ein geschütztes Leerzeichen beides zusammen.
+
+## 0.104.4
+
+- 🩹 **Menü „Mehr" zeigt bei Reiseführer und Klimatabellen wieder die Übersicht.** Nach dem Erstellen eines Reiseführers aus der Suche heraus öffnete der Menü-Eintrag stattdessen genau dieses eine Ziel — die beiden Einträge fielen auf das zuletzt in der Suche gewählte Reiseziel zurück, bis die Seite neu geladen wurde. Die Buttons in der Suchleiste beziehen sich weiterhin auf das dort gewählte Ziel.
+
+## 0.104.3
+
+- 🛡️ **Fehlermeldungen der Schlüssel-Funktionen sagen nicht mehr, was intern schiefging.** Die Routen gaben den Text der Ausnahme direkt zurück (CodeQL: *Information exposure through an exception*). Übersetzt wird jetzt in feste Codes — an den Meldungen im Browser ändert sich nichts.
+
+## 0.104.2
+
+- 🔑 **Schlüssel sichern — neu im Einstellungen-Dialog.** `settings.key` liegt bewusst nicht im TUIWatch-Backup; damit ein Restore auf einer frischen Installation trotzdem alle Zugangsdaten zurückbringt, lässt er sich jetzt einzeln herunterladen — verpackt mit einer **Passphrase**, die du eingibst (scrypt, 32 MB je Rateversuch). Ohne Passphrase ist die Datei wertlos, sie darf also neben dem Backup liegen. Zurückspielen geht über denselben Bereich.
+- 🛡️ **Vor Export und Import wird das Login-Passwort erneut abgefragt**, nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt. Einen Klartext-Download ohne Passphrase gibt es bewusst nicht.
+- 🩹 **Kein Zufallsschlüssel mehr beim bloßen Lesen** — sonst hätte der erste Lesezugriff nach einem Restore einen fremden Schlüssel angelegt und den echten Import blockiert.
+
+## 0.104.1
+
+- 🧹 **Die alten Optionen sind aus der HA-Konfigurationsseite verschwunden.** Sie standen in 0.104.0 nur noch da, damit der Supervisor sie nicht wegwirft, bevor die einmalige Übernahme sie lesen konnte. Das ist erledigt — übrig bleiben `username`, `password` und `session_hours` als Notzugang. Alles andere: Zahnrad neben *Alle prüfen*.
+
+## 0.104.0
+
+- ⚙️ **Einstellungen direkt in der Oberfläche.** Das Zahnrad rechts neben *Alle prüfen* öffnet einen Dialog mit allen 63 Einstellungen in 13 Gruppen — Prüfintervall, Benachrichtigungen, Telegram, SMTP, Nextcloud, KI-Anbieter und -Keys, Zusatzmodule, öffentliche Links, Backup. Die Erklärungen sind dieselben wie bisher auf der HA-Konfigurationsseite. Kein Umweg mehr über Home Assistant, kein Neustart für den Großteil der Werte.
+- 🔐 **Tokens und Passwörter liegen jetzt verschlüsselt.** Gespeichert wird in `settings.json`, die geheimen Felder (Telegram-Token, SMTP-Passwort, Nextcloud-App-Passwort, Anthropic-/Gemini-/Perplexity-Key) mit einem eigenen Schlüssel (`settings.key`). Der Browser bekommt sie nie zu sehen — nur „gesetzt"/„nicht gesetzt"; ein leeres Feld heißt „unverändert lassen". Bisher standen sie im Klartext in `options.json` und damit in jedem HA-Backup.
+- 💾 **Das TUIWatch-Backup enthält `settings.json`, aber nicht `settings.key`.** Aus einem Backup sind die Zugangsdaten damit nicht lesbar. Beim Wiederherstellen wird eine vorhandene Konfiguration nicht überschrieben — wie beim übrigen Restore.
+- 🔁 **Die bisherigen Optionen werden beim ersten Start automatisch übernommen.** In der HA-Konfiguration bleiben nur `username`, `password` und `session_hours` als Notzugang, falls man sich über die Oberfläche aussperrt.
+- ⚡ **Sofort wirksam**, ohne Neustart — nur `enable_public_share` und `public_port` brauchen einen, weil der zweite Webserver einmalig beim Start gebunden wird. Der Dialog sagt es.
+
+## [0.103.1] - 2026-08-25
+
+### Changed
+- **Preis-Benachrichtigungen nennen den automatischen Zimmerwechsel.** Springt der
+  Preis, weil das bisher guenstigste Zimmer ausgebucht ist, stand in der Meldung
+  bisher nur "1.759 EUR -> 2.221 EUR" — sie las sich wie eine reine Preiserhoehung.
+  Jetzt haengt eine Zeile "Zimmer gewechselt: ... -> ..." an, in Home Assistant wie
+  in Telegram, bei der Preisaenderungs- und der Wunschpreis-Meldung. Ohne Wechsel
+  bleibt die Meldung unveraendert.
+
+### Fixed
+- **Zimmernamen werden fuer Telegram escapet.** Ein Name mit `<` oder `&` haette den
+  HTML-Modus zerlegt und die Meldung gar nicht ankommen lassen.
+
+## [0.103.0] - 2026-08-25
+
+### Added
+- **Hinweis im Verlauf, wenn das Zimmer automatisch gewechselt hat.** Ein Angebot
+  ohne fixiertes Zimmer verfolgt immer das guenstigste; ist das ausgebucht, rueckt
+  das naechstteurere nach und der Preis springt, ohne dass sich am Markt etwas
+  bewegt haette. Bisher stand dieser Wechsel nirgends — der Sprung sah in der
+  Verlaufstabelle wie eine reine Preiserhoehung aus (real gesehen: +444 € bei einem
+  Angebot, weil die guenstigen Zimmer weg waren). Jeder Check vergleicht den
+  gelieferten Zimmertyp jetzt mit dem gespeicherten und haelt einen Wechsel als
+  Ereignis fest: in der Verlaufstabelle als Hinweiszeile direkt unter dem
+  betroffenen Preis, im Verlaufsdiagramm als Faehnchen mit Mouseover.
+
+### Fixed
+- **Markttrend zaehlte den automatischen Zimmerwechsel als Marktbewegung.** Nur der
+  von Hand gewaehlte Zimmerwechsel war davon bisher ausgenommen; der automatische
+  ging als Preissprung in `price_moves` ein. Betroffene Altdaten laesst
+  **Neu berechnen** im Markttrend-Fenster verschwinden — der Backfill kennt beide
+  Ereignistypen.
+
+### Technical
+- Automatischer Wechsel wird als `offer_events`-Typ `room_auto` gefuehrt (von Hand
+  gewaehlt bleibt `room`) und traegt den Zeitstempel seines Messpunkts, damit die
+  Verlaufstabelle ihn dem richtigen Preis zuordnet. `_log_event()` nimmt dafuer
+  einen optionalen `ts`.
+
+## [0.102.1] - 2026-08-25
+
+### Fixed
+- **ESC schloss die Flugplan-Fenster nicht.** Keines der Flugplan-Fenster stand in
+  der ESC-Liste — betraf STR, FRA, MUC, FKB, die Flughafen-Auswahl, „Flugziel
+  ueberall suchen" und die beiden Flugdetail-Fenster. Jetzt schliesst ESC immer
+  nur die oberste Ebene: erst das Detail-Fenster, dann der Flugplan darunter.
+
+### Changed
+- **Flughafen-Auswahl: alle Flughaefen in einer Reihe.** Der vierte Knopf (FKB)
+  brach bisher in eine zweite Zeile um, weil jede Kachel eine feste Mindestbreite
+  hatte; die Kacheln teilen sich die Zeile jetzt gleichmaessig. FKB steht neben
+  Stuttgart, danach Frankfurt und Muenchen. Auf schmalen Displays (< 560 px)
+  bleiben es bewusst zwei Reihen statt vier Schnipsel.
+
+## [0.102.0] - 2026-08-25
+
+### Added
+- **Vierter Flugplan: Karlsruhe/Baden-Baden (FKB, „Baden-Airpark").** Neue Option
+  `enable_fkb_flights` (Standard aus) ergaenzt den Flugplan-Knopf um den
+  Saisonflugplan des Baden-Airpark: rund 1.000 Verbindungen (Abfluege + Ankuenfte)
+  mit Wochentagen, Zeiten, Airline, Gueltigkeitszeitraum und Flugzeugtyp
+  (Sitzplaetze im Tooltip). Anders als Muenchen deckt die Quelle **alle
+  veroeffentlichten Saisons** ab, nicht nur die laufende — Sommer- und
+  Winterflugplan des laufenden und naechsten Jahres. Der Plan liegt sechs Stunden
+  im Speicher und laesst sich im Fenster sofort neu laden. FKB zaehlt auch in der
+  kombinierten Suche „Flugziel ueberall suchen" und in der Gesamtliste aller
+  Flugziele mit.
+
+### Technical
+- `fkb_flights_client.py` holt den Plan ueber den WordPress-AJAX-Endpunkt der
+  Flughafen-Website (`admin-ajax.php?action=flightmap`). Zwei Fallstricke, beide
+  live ermittelt und in [SCRAPING_FKB.md](SCRAPING_FKB.md) dokumentiert: die
+  Anfrage muss ein **POST mit JSON-Body** sein (dieselben Werte als GET-Query
+  liefern kommentarlos `posts: "empty"`), und `type` muss ein **String** sein
+  (als Liste antwortet die Seite mit `success: false` und einer PHP-Fehlermeldung).
+  Die Antwort enthaelt fertig gerendertes HTML statt Daten; geparst wird je Zelle
+  ueber deren CSS-Klasse, nicht ueber die Spaltenreihenfolge — der tagesaktuelle
+  Flugplan derselben Seite nutzt dieselben Klassen in anderer Reihenfolge.
+- Ein Land nennt der Saisonplan nicht; `country` bleibt leer und wird in der
+  kombinierten Zielliste aus den anderen Flugplaenen ergaenzt.
+
+## [0.101.5] - 2026-08-25
+
+### Added
+- **Badge „Nur Erwachsene" in den Suchtreffern.** Adults-only-Hotels (z. B. Riu Cabo
+  Verde) tragen jetzt dieselbe Art Schild wie „Direkt am Strand" oder „Sandstrand".
+  Grundlage ist der globalTypes-Code `GT03/TUI-G0978` aus dem Suchtreffer selbst — live
+  gegen die TUI-Such-API geprueft: alle 34 Adults-only-Treffer zweier Regionen tragen
+  ihn, und ungefiltert tragen ihn genau die Hotels, die der Filter
+  `facilityAttributes=13` liefert. Der naheliegendere Code `GT03-ADON` waere unzu-
+  verlaessig gewesen (fehlte bei 5 von 29 Adults-only-Hotels auf Gran Canaria).
+
+## [0.101.4] - 2026-08-25
+
+### Fixed
+- **Oberflaeche blieb bei abgelaufener Cloudflare-Access-Sitzung still leer.**
+  Laeuft TUIWatch hinter Cloudflare Access und dessen Sitzung ab, beantwortet
+  Cloudflare jeden `/api/`-Aufruf mit einem 302 auf den Login unter
+  `*.cloudflareaccess.com`. Ein `fetch()` sieht davon nur einen CORS-Fehler, die
+  Suche und alle anderen Aktionen scheiterten daher wortlos — es half nur ein
+  Reload von Hand (Strg+R), weil eine Navigation dem Redirect folgen darf. Das
+  Frontend erkennt den Fall jetzt selbst: nach einem fehlgeschlagenen Aufruf
+  fragt es einmal `/health` mit `redirect: 'manual'` nach und laedt nur dann neu,
+  wenn der Server wirklich mit einer Umleitung antwortet (hoechstens ein Reload
+  pro 30 Sekunden). Ohne Cloudflare — ueber Ingress oder im LAN — sowie bei
+  echtem Verbindungsverlust aendert sich das Verhalten nicht.
+- **Service Worker cachte API-Antworten.** Sie unterscheiden sich pro Aufruf,
+  und bei abgelaufener Access-Sitzung landete der Login-Redirect im Cache. Der
+  Worker laesst `/api/`-Requests und fremde Origins jetzt unangetastet durch.
+
+## [0.101.3] - 2026-08-23
+
+### Fixed
+- **Störungsliste bot „Pausieren" an, obwohl schon pausiert.**
+  Nach drei Fehlschlaegen in Folge legt der Ausverkauft-Alarm ein Angebot selbst
+  still und meldet das per Benachrichtigung („Wurde automatisch pausiert"). Der
+  Eintrag in der Störungsliste wusste davon nichts und zeigte weiter den Knopf
+  „Pausieren", der dann nichts Sichtbares mehr tat. `/api/issues` liefert jetzt
+  je Eintrag mit, ob das Bezugsobjekt (Angebot bzw. Suchabo) bereits stillliegt;
+  die Liste zeigt dann „automatisch pausiert" und bietet „Wieder aktivieren" an.
+
+## [0.101.2] - 2026-08-23
+
+### Fixed
+- **Störungs-Schild neben dem Logo sass nicht mittig.**
+  Die Zahl im Schild bleibt leer, solange es nur eine einzelne Störung gibt —
+  der leere `<span>` zaehlte im Flex-Layout aber weiter mit und liess den 5px-Gap
+  als Luft rechts stehen. Das Warndreieck rutschte dadurch nach links. Ein leerer
+  Zaehler wird jetzt ausgeblendet.
+
+## [0.101.1] - 2026-08-22
+
+### Fixed
+- **Preisverlauf: Markup statt Symbol an den Linien.**
+  An der Linie fuer den gebuchten Preis und an der Wunschpreis-Linie stand
+  `<svg class="i"><use href="#i-bookmark"/></svg> 1.686 €` im Diagramm. Die
+  Beschriftungen werden mit `fillText` ins Canvas gemalt, und ein Canvas kennt
+  kein HTML — der SVG-Baustein aus der Icon-Umstellung landete daher Zeichen fuer
+  Zeichen als Text neben dem Betrag. Beide Symbole werden jetzt direkt mit
+  Canvas-Mitteln gezeichnet (Lesezeichen bzw. Zielscheibe).
+
 ## [0.101.0] - 2026-08-21
 
 ### Added

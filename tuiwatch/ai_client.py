@@ -4,10 +4,11 @@ Geteilte Primitiven über `import app as A` (spät gebunden, monkeypatch-
 sicher); anthropic/genai sind dieselben Modul-Objekte wie in app.py —
 Test-Patches auf app_mod.genai.Client wirken daher auch hier. Perplexity hat
 kein offizielles Python-SDK — reiner REST-Aufruf über `requests` (bereits
-Add-on-Abhängigkeit), OpenAI-kompatibles Chat-Completions-Schema.
+Add-on-Abhängigkeit) gegen die Agent API (`/v1/agent`).
 """
 import logging
 import re
+import time
 
 from flask import jsonify
 
@@ -19,29 +20,120 @@ from google.genai import types as genai_types
 
 import app as A
 
-_PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
+_PERPLEXITY_API_URL = "https://api.perplexity.ai/v1/agent"
+# Endzustände eines Laufs (docs.perplexity.ai). Alles andere ('queued',
+# 'in_progress') heißt: weiter warten.
+_PERPLEXITY_DONE = ('completed', 'failed', 'cancelled', 'incomplete')
+# Zeitlimit einer **einzelnen** HTTP-Anfrage. Im Hintergrund-Modus antwortet die
+# API sofort mit der Lauf-ID, und jede Abfrage danach ist ebenfalls kurz — die
+# eigentliche Wartezeit steckt zwischen den Abfragen, nicht in einer offenen
+# Verbindung. Deshalb darf das hier knapp sein, unabhängig davon, wie lange die
+# Recherche insgesamt dauert.
+_PERPLEXITY_HTTP_TIMEOUT = 30
+_PERPLEXITY_POLL_INTERVAL = 3
 _PERPLEXITY_CITATION_RE = re.compile(r'\[(\d+)\](?!\()')
+# Die Agent API setzt Quellenverweise in Formen in den Fliesstext, die Sonar
+# nicht kannte — unbehandelt bleiben sie als sinnloser Rest stehen:
+#   cite[36][web:AP2QHPgnj4BqitwjUF7EcRM3]
+# Die Kennung hinter `web:` ist dabei in aller Regel **keine** Zahl, sondern
+# eine opake ID, die sich gegen unsere positionsbasierte Quellenliste nicht
+# auflösen lässt. Solche Marker werden entfernt.
+#
+# `cite` samt aller unmittelbar folgenden Klammergruppen zählt als EIN Marker.
+# Sonst bliebe von `cite[36][web:…]` nach dem Entfernen des web-Teils ein
+# einsames `cite[36]` stehen — die 36 ist eine interne Nummer, die zu unserer
+# Quellenliste meist gar nicht passt.
+_PERPLEXITY_CITE_RE = re.compile(r'\bcite(?:\[[^\]\s]*\])+')
+# Dieselben Marker kommen auch ohne das vorangestellte `cite` vor.
+_PERPLEXITY_WEB_MARKER_RE = re.compile(r'\[web:[^\]\s]*\]')
+
+
+def _perplexity_output_text(data: dict):
+    """Antworttext aus dem typisierten `output`-Array der Agent API.
+
+    Das rohe JSON hat kein `output_text` — das ist eine Bequemlichkeit der SDKs,
+    und wir sprechen die API direkt per `requests` an. Der Text steckt im
+    `message`-Schritt, dessen `content` ein Array von Teilen (`output_text`) ist
+    und nicht wie bei Sonar ein String; ein blanker String wird trotzdem
+    akzeptiert, das kostet nichts und deckt schlichtere Antworten mit ab.
+
+    Rückgabe `None` heißt „kein message-Schritt gefunden" (unerwartete Struktur,
+    der Aufrufer meldet 'failed'), `''` heißt „Schritt da, aber leer" ('empty') —
+    diese beiden Fälle dürfen nicht zusammenfallen."""
+    for item in (data.get('output') or []):
+        if not isinstance(item, dict) or item.get('type') != 'message':
+            continue
+        content = item.get('content')
+        if isinstance(content, str):
+            return content
+        return ''.join(p.get('text') or '' for p in (content or [])
+                       if isinstance(p, dict) and p.get('type') in ('output_text', 'text'))
+    return None
 
 
 def _perplexity_citation_urls(data: dict) -> list:
-    """Quellenliste einer Perplexity-Antwort, 1-basiert indiziert.
+    """Quellenliste einer Agent-API-Antwort, 1-basiert indiziert.
 
-    `search_results` ist die reichere Struktur (mit Titel/Datum), `citations` die
-    nackte URL-Liste — welche von beiden die **längere** ist, schwankt je nach
-    Modell und Anfrage. Genommen wird deshalb die längere: die Zitat-Nummern im
-    Text zählen gegen die vollständige Quellenmenge, und mit der kürzeren Liste
-    bliebe alles darüber unverlinkt."""
-    urls = [r.get('url') for r in (data.get('search_results') or [])
-            if isinstance(r, dict) and r.get('url')]
-    cites = [u for u in (data.get('citations') or []) if u]
-    return cites if len(cites) > len(urls) else urls
+    Die Quellen stehen nicht mehr in den Top-Level-Feldern `search_results`/
+    `citations` (so war es bei Sonar), sondern in den `search_results`-Schritten
+    des `output`-Arrays. Eine mehrstufige Recherche kann mehrere davon enthalten
+    — alle werden zusammengeführt.
+
+    Die Zitat-Marker im Text zählen gegen die `id` eines Treffers, nicht gegen
+    seine Position. Solange die IDs lückenlos bei 1 beginnen, ist beides dasselbe;
+    fehlt eine ID oder klafft eine Lücke, wird an den IDs ausgerichtet und die
+    Lücke bleibt leer (`None`) — ein Link auf die falsche Quelle wäre schlimmer
+    als gar keiner. Liefert kein Treffer eine ID, bleibt nur die Reihenfolge."""
+    by_id = {}
+    positional = []
+    for item in (data.get('output') or []):
+        if not isinstance(item, dict) or item.get('type') != 'search_results':
+            continue
+        for r in (item.get('results') or []):
+            if not isinstance(r, dict) or not r.get('url'):
+                continue
+            positional.append(r['url'])
+            n = r.get('id')
+            if isinstance(n, int) and not isinstance(n, bool) and n >= 1:
+                by_id.setdefault(n, r['url'])
+    if not by_id:
+        return positional
+    return [by_id.get(n) for n in range(1, max(by_id) + 1)]
 
 
-def _perplexity_linkify_citations(text: str, data: dict, *, log_ctx: str = '') -> str:
+def _perplexity_strip_markers(text: str) -> str:
+    """Entfernt Perplexitys Maschinen-Marker (`cite[16][19]`, `[web:AP2Q…]`) aus
+    einem Text, ohne etwas zu verlinken.
+
+    Gedacht für **Structured Output**: dort ist `text` ein JSON-String, den ein
+    Aufrufer erst noch parst. Links einzusetzen wäre dort riskant (eine URL mit
+    Anführungszeichen zerlegte das JSON), reines Löschen dagegen kann die
+    Struktur nicht beschädigen — es fallen nur Zeichen innerhalb von
+    String-Werten weg.
+
+    Läuft bewusst **immer**, auch wenn die Antwort gar keine Quellen mitgeliefert
+    hat. Genau daran scheiterte es vorher: die Verlinkung hing an einer
+    Quellenliste, und ohne sie blieben die Marker unangetastet im Text stehen."""
+    if not text:
+        return text
+    text = _PERPLEXITY_CITE_RE.sub('', text)
+    text = _PERPLEXITY_WEB_MARKER_RE.sub('', text)
+    return _perplexity_tidy_spacing(text)
+
+
+def _perplexity_tidy_spacing(text: str) -> str:
+    """Leerzeichen einziehen, die durch das Entfernen von Markern entstehen."""
+    text = re.sub(r' {2,}', ' ', text)
+    text = re.sub(r' +([.,;:!?])', r'\1', text)
+    return re.sub(r'[ \t]+$', '', text, flags=re.M)
+
+
+def _perplexity_linkify_citations(text: str, urls: list | None, *, log_ctx: str = '') -> str:
     """Ersetzt Perplexitys nackte Zitat-Marker `[1]`/`[5]` im Fließtext durch
     Markdown-Links `[1](url)` auf die zugehörige Quelle — macht sie im Frontend
     (aiMdLite/aiInline) anklickbar statt als toter Text stehen zu bleiben.
-    Nummerierung ist 1-basiert wie im Original. `(?!\\()` verhindert
+    `urls` ist die 1-basierte Liste aus `_perplexity_citation_urls`; Lücken darin
+    (`None`) gelten wie eine fehlende Quelle. `(?!\\()` verhindert
     Doppel-Verlinkung, falls im Text ausnahmsweise schon `[n](url)` steht.
 
     Zahlen ohne passende Quelle bleiben unverändert stehen — Perplexity nummeriert
@@ -50,14 +142,41 @@ def _perplexity_linkify_citations(text: str, data: dict, *, log_ctx: str = '') -
     verlinkt, `[58]` nicht). Geraten wird dort nichts; ein Link auf die falsche
     Quelle wäre schlimmer als gar keiner. Das Ausmaß landet im Log, sonst wäre
     nicht zu unterscheiden, ob die Verlinkung ausfällt oder die Liste zu kurz ist."""
-    urls = _perplexity_citation_urls(data)
-    if not urls:
-        return text
     missing = set()
+
+    def _marker_sub(m):
+        """Einen Marker durch seine Links ersetzen — oder ersatzlos streichen.
+
+        Verlinkt wird nur, was sich auflösen lässt: eine reine Zahl innerhalb der
+        Quellenliste. Alles andere (opake `web:`-Kennungen, Nummern jenseits der
+        gelieferten Quellen) fällt weg. Anders als bei einer nackten `[3]`, die
+        stehen bleibt, ist hier nichts zu retten: `cite[36][web:AP2Q…]` ist
+        erkennbar ein Maschinen-Artefakt und in keinem Fall gewollter Fließtext."""
+        out = []
+        for raw in re.findall(r'\[([^\]]*)\]', m.group(0)):
+            key = raw[4:] if raw.startswith('web:') else raw
+            if not key.isdigit():
+                continue
+            n = int(key)
+            if urls and 1 <= n <= len(urls) and urls[n - 1]:
+                out.append(f'[{n}]({urls[n - 1]})')
+            else:
+                missing.add(n)
+        return ''.join(out)
+
+    # Immer laufen lassen, auch ohne Quellenliste — sonst blieben die Marker stehen.
+    text = _PERPLEXITY_CITE_RE.sub(_marker_sub, text)
+    text = _PERPLEXITY_WEB_MARKER_RE.sub(_marker_sub, text)
+    text = _perplexity_tidy_spacing(text)
+    if not urls:
+        if missing:
+            A.log.info("Perplexity (%s): %d web-Marker ohne Quelle entfernt",
+                       log_ctx or 'KI-Antwort', len(missing))
+        return text
 
     def _sub(m):
         n = int(m.group(1))
-        if 1 <= n <= len(urls):
+        if 1 <= n <= len(urls) and urls[n - 1]:
             return f'[{n}]({urls[n - 1]})'
         missing.add(n)
         return m.group(0)
@@ -120,6 +239,124 @@ def _ai_request_messages(api_key: str, model: str, messages: list[dict], *, max_
                                           output_schema=output_schema)
 
 
+def _perplexity_timeout() -> int:
+    """Wie lange insgesamt auf das Ergebnis eines Laufs gewartet wird, in Sekunden
+    (Option `perplexity_timeout`).
+
+    Das ist seit der Umstellung auf Hintergrund-Läufe **keine** Socket-Grenze
+    mehr, sondern eine Gesamtfrist über alle Abfragen hinweg: die frühere feste
+    Grenze von 90 s stammte aus der Sonar-Zeit, als eine Anfrage ein einzelner
+    Chat-Completion-Aufruf war. Eine Agent-API-Stufe fährt eine mehrstufige
+    Recherche und braucht laut Perplexity bei den gründlichen Stufen Minuten.
+
+    Bewusst eine Option und kein fester Wert: wie lange ein Lauf braucht, hängt
+    an Stufe und Frage, und ein Zeitlimit, das man nicht hochsetzen kann, macht
+    die gründlichen Stufen unbenutzbar."""
+    try:
+        val = int(A.load_config().get('perplexity_timeout') or 300)
+    except (TypeError, ValueError):
+        return 300
+    return min(max(val, 60), 900)
+
+
+def _perplexity_await_run(data, headers: dict, *, log_ctx: str):
+    """Auf das Ende eines Hintergrund-Laufs warten und die fertige Antwort liefern
+    (oder `None`, wenn er scheitert bzw. die Gesamtfrist reißt).
+
+    Startet die API den Lauf, kommt sofort eine Antwort mit `id` und einem
+    Zwischenstatus zurück; das Ergebnis wird danach über `GET /v1/agent/<id>`
+    abgeholt. Kommt gleich ein Endzustand (kurze Läufe), wird gar nicht erst
+    abgefragt.
+
+    Bewusst nur Wartezeit begrenzen, nicht die einzelne Verbindung: genau daran
+    scheiterte die vorige Fassung: die Recherche lief weiter, während unser
+    Socket-Timeout zuschlug, und wir warfen ein bereits bezahltes Ergebnis weg."""
+    if not isinstance(data, dict):
+        return None
+    if data.get('status') in _PERPLEXITY_DONE:
+        return data
+    run_id = data.get('id')
+    if not run_id:
+        # Kein Endzustand und keine ID: daraus lässt sich nichts mehr abholen.
+        A.log.error("KI-Antwort (%s): Lauf ohne id, status=%s", log_ctx, data.get('status'))
+        return None
+    url = f"{_PERPLEXITY_API_URL}/{run_id}"
+    deadline = time.monotonic() + _perplexity_timeout()
+    while True:
+        if time.monotonic() >= deadline:
+            A.log.warning("KI-Anfrage (%s) nach %d s noch nicht fertig (Lauf %s, "
+                          "zuletzt status=%s) — abgebrochen. Zeitlimit steht in den "
+                          "Einstellungen unter „Perplexity: Zeitlimit je Anfrage\".",
+                          log_ctx, _perplexity_timeout(), run_id, data.get('status'))
+            return None
+        time.sleep(min(_PERPLEXITY_POLL_INTERVAL, max(deadline - time.monotonic(), 0)))
+        try:
+            resp = requests.get(url, headers=headers, timeout=_PERPLEXITY_HTTP_TIMEOUT)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as e:
+            # Ein einzelner Fehlschlag beendet den Lauf nicht — er läuft bei
+            # Perplexity weiter, und die nächste Abfrage kann ihn wieder erreichen.
+            # Erst die Gesamtfrist oben bricht ab.
+            A.log.info("KI-Abfrage (%s) fehlgeschlagen, wird wiederholt: %s", log_ctx, e)
+            continue
+        except ValueError as e:
+            A.log.error("KI-Abfrage (%s) kein gültiges JSON: %s", log_ctx, e)
+            return None
+        if not isinstance(data, dict):
+            return None
+        if data.get('status') in _PERPLEXITY_DONE:
+            return data
+
+
+def _perplexity_error_detail(exc: requests.RequestException) -> str:
+    """Antwortkoerper eines fehlgeschlagenen Perplexity-Aufrufs, gekuerzt, als
+    Anhang fuer die Log-Zeile.
+
+    Ohne ihn steht bei einem 400 nur „Bad Request for url: ..." im Log — welches
+    Feld die API beanstandet, sagt allein der Koerper. Der Koerper enthaelt nur
+    die Fehlerbeschreibung der API (kein Schluessel; der steckt im Header), er
+    darf daher ins Log."""
+    resp = getattr(exc, 'response', None)
+    if resp is None:
+        return ''
+    try:
+        body = (resp.text or '').strip()
+    except (ValueError, UnicodeDecodeError, OSError):
+        return ''
+    if not body:
+        return ''
+    return ' — Antwort: ' + (body[:800] + '…' if len(body) > 800 else body)
+
+
+def _perplexity_reported_cost(usage_obj: dict, *, log_ctx: str = ''):
+    """Tatsaechliche Kosten dieses Aufrufs in USD aus `usage.cost.total_cost`,
+    oder `None`, wenn die Antwort keine brauchbare Zahl liefert.
+
+    `total_cost` deckt laut Doku Ein-/Ausgabe-Token, Cache UND Tool-Aufrufe ab
+    (im Beispiel dort: 0.00409 + 0.01316 + 0.00045 + 0.0025 = 0.0202) — es ist
+    also der volle Aufruf inklusive Suchgebuehr und nicht nur der Token-Anteil.
+    Perplexity garantiert das Feld nirgends fuer jedes Modell, deshalb ist es
+    optional behandelt statt vorausgesetzt.
+
+    Eine andere Waehrung als USD wird verworfen statt umgerechnet: die gesamte
+    Kostenanzeige ist in USD, ein ungepruefter Zahlenwert waere schlicht falsch."""
+    cost = usage_obj.get('cost')
+    if not isinstance(cost, dict):
+        return None
+    currency = cost.get('currency')
+    if currency is not None and str(currency).upper() != 'USD':
+        A.log.warning("Perplexity (%s) meldet Kosten in %s statt USD — "
+                      "Schaetzung wird beibehalten", log_ctx or 'KI-Antwort', currency)
+        return None
+    total = cost.get('total_cost')
+    if isinstance(total, bool) or not isinstance(total, (int, float)):
+        return None
+    if total < 0:
+        return None
+    return float(total)
+
+
 def _ai_request_perplexity(api_key: str, model: str, prompt: str, *, max_tokens: int,
                            log_ctx: str, use_web_search: bool = True,
                            output_schema: dict | None = None):
@@ -133,63 +370,121 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
                                     max_tokens: int, log_ctx: str, use_web_search: bool = True,
                                     output_schema: dict | None = None):
     """Perplexity-Variante von `_ai_request_anthropic_messages` — gleiche Rückgabe-
-    Signatur (text, usage, error_code), siehe `A._ai_request_messages`. Perplexitys
-    `messages`-Format entspricht bereits 1:1 unserem provider-übergreifenden
-    Rollen-Schema ('user'/'assistant') — keine Umwandlung nötig, anders als bei
-    Gemini. Sonar-Modelle durchsuchen das Web bei JEDER Anfrage automatisch (kein
-    separates Tool wie bei Claude/Gemini) — `use_web_search=False` hat hier keine
-    Wirkung, es gibt keinen Schalter dafür. `search_context_size` wird explizit auf
-    'low' gepinnt (statt dem API-Default zu überlassen) — hält die zusätzliche,
-    gestaffelte Request-Gebühr auf der günstigsten Stufe UND macht sie überhaupt
-    erst planbar: `ai_routes.py::_AI_PERPLEXITY_REQUEST_FEE` rechnet genau diese
-    Stufe in die Kostenanzeige mit ein, ohne dieses Pinning wäre die Gebühr
-    unvorhersehbar (API könnte 'medium' o. Ä. als Default nutzen) und die
-    Schätzung stimmt nicht mehr."""
+    Signatur (text, usage, error_code), siehe `A._ai_request_messages`. Spricht die
+    Agent API (`/v1/agent`) an; die alte Sonar-Chat-Completions-API wird laut
+    docs.perplexity.ai nur noch bis 27.09.2026 unterstützt.
+
+    Gesendet wird ein `preset` (fast/low/medium/high/xhigh), nicht ein `model`.
+    Die Sonar-Modelle gibt es in der Agent API bis auf `perplexity/sonar` nicht
+    mehr — sie werden mit „model ... is not supported" abgelehnt. Die Presets
+    sind Perplexitys eigener Nachfolgepfad dafür (Zuordnung in
+    `A._PERPLEXITY_PRESET_FOR_SONAR`); ein Preset bündelt Modell, Systemprompt
+    und Suchparameter, und welches Modell dahinter läuft, pflegt Perplexity.
+
+    Unser rollenbasiertes `messages`-Schema ('user'/'assistant') geht 1:1 ins
+    `input`-Array, nur mit `type: message` je Eintrag — keine Umwandlung wie bei
+    Gemini. Mitgeschickte Felder überschreiben die Voreinstellung des Presets;
+    `tools` ist die Ausnahme, dort wird je Werkzeug zusammengeführt statt ersetzt.
+
+    Genau deshalb hat `use_web_search=False` hier **keine** Wirkung — wie schon
+    zu Sonar-Zeiten: ein Preset bringt die Websuche mit, und das Weglassen des
+    Tools nimmt sie ihm nicht, weil Tools gemergt und nicht ersetzt werden. Ein
+    dokumentierter Schalter dafür existiert nicht. Der Parameter bleibt in der
+    Signatur, weil Claude und Gemini ihn brauchen.
+
+    `search_context_size` wird explizit auf 'low' gepinnt statt dem Preset-Default
+    zu überlassen: das hält die Suchgebühr auf der günstigsten Stufe. Für die
+    Kostenanzeige ist das nicht mehr entscheidend — die Agent API meldet die
+    tatsächlichen Kosten mit (siehe `_perplexity_reported_cost`) —, für die
+    Rechnung beim Anbieter schon.
+
+    Der Lauf wird als **Hintergrund-Lauf** gestartet (`background: true`) und das
+    Ergebnis danach abgefragt, statt eine Verbindung minutenlang offen zu halten.
+    Perplexity empfiehlt das ausdrücklich für Läufe „die Minuten dauern", und es
+    macht die Sache unabhängig von jedem Zwischen-Timeout: eine einzelne Anfrage
+    ist immer kurz, gewartet wird zwischen den Abfragen."""
     payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "web_search_options": {"search_context_size": "low"},
+        "preset": model.removeprefix('pplx-'),
+        "input": [{"type": "message", "role": m.get("role"), "content": m.get("content")}
+                  for m in messages],
+        "max_output_tokens": max_tokens,
+        "tools": [{"type": "web_search", "search_context_size": "low"}],
+        "background": True,
     }
     if output_schema is not None:
         payload["response_format"] = {"type": "json_schema",
-                                      "json_schema": {"schema": output_schema}}
+                                      "json_schema": {"name": "tuiwatch_result",
+                                                      "schema": output_schema}}
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     try:
-        resp = requests.post(
-            _PERPLEXITY_API_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload, timeout=90,
-        )
+        resp = requests.post(_PERPLEXITY_API_URL, headers=headers, json=payload,
+                             timeout=_PERPLEXITY_HTTP_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        A.log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
+        A.log.warning("KI-Anfrage fehlgeschlagen (%s): %s%s", log_ctx, e,
+                      _perplexity_error_detail(e))
         return None, None, 'failed'
     except ValueError as e:
         A.log.error("KI-Antwort (%s) kein gültiges JSON: %s", log_ctx, e)
         return None, None, 'failed'
-    try:
-        choice = data["choices"][0]
-        text = (choice["message"]["content"] or "").strip()
-        finish_reason = choice.get("finish_reason")
-        u = data.get("usage") or {}
-    except (KeyError, IndexError, TypeError) as e:
-        A.log.error("KI-Antwort (%s) unerwartete Struktur: %s: %s", log_ctx, type(e).__name__, e)
+    data = _perplexity_await_run(data, headers, log_ctx=log_ctx)
+    if data is None:
         return None, None, 'failed'
-    if finish_reason == 'length':
-        A.log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_tokens, "
-                    "%d Zeichen erhalten)", log_ctx, len(text))
+    if not isinstance(data, dict):
+        A.log.error("KI-Antwort (%s) unerwartete Struktur: %s statt Objekt",
+                    log_ctx, type(data).__name__)
+        return None, None, 'failed'
+    status = data.get('status')
+    text = _perplexity_output_text(data)
+    if text is None:
+        # Kein `message`-Schritt im `output`-Array: entweder ein API-Fehler mit
+        # status=failed oder eine Struktur, die wir nicht kennen. Beides ist für
+        # den Aufrufer dasselbe — nur der Log unterscheidet die Fälle.
+        A.log.error("KI-Antwort (%s) ohne message-Schritt: status=%s, error=%s",
+                    log_ctx, status, (data.get('error') or {}) if
+                    isinstance(data.get('error'), dict) else data.get('error'))
+        return None, None, 'failed'
+    text = text.strip()
+    truncated = status == 'incomplete'
+    if truncated:
+        A.log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_output_tokens=%d, "
+                    "%d Zeichen erhalten) — die Antwort ist unvollstaendig",
+                    log_ctx, max_tokens, len(text))
     if not text:
-        A.log.warning("KI-Antwort (%s) leer: finish_reason=%s", log_ctx, finish_reason)
+        A.log.warning("KI-Antwort (%s) leer: status=%s", log_ctx, status)
         return None, None, 'empty'
+    u = data.get('usage') or {}
+    tools = u.get('tool_calls_details') or {}
     if output_schema is None:
         # Nur bei Freitext verlinken — bei Structured Output ist `text` ein
         # JSON-String, den ein Aufrufer parst; Markdown-Syntax würde ihn zerstören.
-        text = _perplexity_linkify_citations(text, data, log_ctx=log_ctx)
-    usage = {'input_tokens': u.get('prompt_tokens', 0) or 0,
-             'output_tokens': u.get('completion_tokens', 0) or 0,
+        text = _perplexity_linkify_citations(text, _perplexity_citation_urls(data),
+                                             log_ctx=log_ctx)
+    else:
+        # Bei Structured Output werden die Marker hier schon aus dem Rohtext
+        # entfernt — verlinkt wird erst nach dem Parsen. Das muss an dieser Stelle
+        # passieren und nicht erst beim Anzeigen: die Anzeige-Helfer sahen die
+        # Marker nur, wenn die Antwort auch Quellen mitbrachte, und ohne Quellen
+        # blieb „cite[16][19]" mitten im Reiseführer stehen.
+        text = _perplexity_strip_markers(text)
+    # Die Cache-Zähler bleiben bewusst 0: Perplexity meldet gecachte Eingabe-Token
+    # in `input_tokens_details`, zählt sie aber bereits in `input_tokens` mit —
+    # durchgereicht würden sie in `_ai_call_cost` ein zweites Mal berechnet.
+    usage = {'input_tokens': u.get('input_tokens', 0) or 0,
+             'output_tokens': u.get('output_tokens', 0) or 0,
              'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0,
-             'web_search_requests': u.get('num_search_queries', 0) or 0}
+             'web_search_requests': (tools.get('web_search', 0) or 0)
+             if isinstance(tools, dict) else 0}
+    # Die Agent API rechnet den Aufruf selbst ab und liefert das Ergebnis mit —
+    # `total_cost` enthaelt neben den Token- auch die Tool-/Suchkosten. Damit
+    # ersetzt eine gemeldete Zahl unsere Schaetzung aus Preistabelle plus
+    # pauschaler Request-Gebuehr (siehe `ai_routes.py::_ai_call_cost`). Fehlt das
+    # Feld oder ist es unbrauchbar, bleibt es bei der Schaetzung — deshalb hier
+    # streng pruefen und im Zweifel gar nichts setzen.
+    reported = _perplexity_reported_cost(u, log_ctx=log_ctx)
+    if reported is not None:
+        usage['cost_usd'] = reported
     # Quellen-URLs durchreichen: bei Structured Output stecken Perplexitys nackte
     # Marker („[7][11]") in den JSON-Strings und lassen sich erst nach dem Parsen
     # verlinken — ohne die Liste bliebe dort toter Text stehen.
@@ -197,6 +492,11 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
         srcs = _perplexity_citation_urls(data)
         if srcs:
             usage['citation_urls'] = srcs
+    # Abgeschnittene Antworten sind auf den ersten Blick nicht als solche zu
+    # erkennen — sie hoeren einfach mittendrin auf. Das Kennzeichen wandert mit,
+    # damit die Oberflaeche darauf hinweisen kann.
+    if truncated:
+        usage['truncated'] = True
     return text, usage, None
 
 

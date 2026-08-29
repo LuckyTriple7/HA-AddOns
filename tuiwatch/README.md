@@ -25,24 +25,20 @@ Fällt eine API aus, schaltet TUIWatch automatisch auf das langsamere Auslesen p
 > Getrackt wird immer **genau diese eine Konfiguration**. Für eine andere
 > Reisedauer/Belegung einfach eine zweite URL hinzufügen.
 
-## Optionen
+## Einstellungen
+
+In der HA-Konfiguration stehen nur noch die Login-Daten:
 
 | Option | Bedeutung |
 |---|---|
 | `username` / `password` | Login beim Direktzugriff (über Ingress nicht nötig) |
 | `session_hours` | Gültigkeit der Anmeldung in Stunden |
-| `poll_interval` | Prüfintervall in Sekunden (Standard 21600 = 6 h, min. 600) |
-| `anthropic_api_key` | Anthropic API-Key — aktiviert das KI-Fazit (leer = aus) |
-| `anthropic_model` | Claude-Modell fürs KI-Fazit (Opus/Sonnet/Haiku/Fable) |
-| `ai_provider` | KI-Anbieter für alle KI-Features: `anthropic` (Standard), `gemini` oder `perplexity` |
-| `gemini_api_key` / `gemini_model` | Nur relevant bei `ai_provider: gemini` |
-| `perplexity_api_key` / `perplexity_model` | Nur relevant bei `ai_provider: perplexity` |
-| `verbose_log` | Ausführlichere Logs |
 
-Es gibt weitere Optionen für **Benachrichtigungen** (Preisänderung, günstigerer
-Termin, „günstiger als gebucht", API-Ausfall, Wochenüberblick), **Home-Assistant-
-Sensoren** (`ha_sensors`) sowie **Telegram** und **SMTP/E-Mail** — Details in
-[DOCS.md](DOCS.md).
+Alles andere — Prüfintervall, Benachrichtigungen, Telegram, SMTP, Nextcloud,
+KI-Anbieter und -Keys, Zusatzmodule, öffentliche Links, Backup — stellst du seit
+**0.104.0** direkt in der Oberfläche ein: **Zahnrad rechts neben „Alle prüfen"**.
+Gespeichert wird verschlüsselt in `settings.json`; die bisherigen Werte werden
+beim ersten Start automatisch übernommen. Details in [DOCS.md](DOCS.md).
 
 ## KI-Fazit (optional)
 

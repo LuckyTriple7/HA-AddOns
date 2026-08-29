@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.6.29] - 2026-08-29
+- **REST-API auf eigenem Port mit Token-Pflicht.** Neue Optionen `api_enabled` (Standard: aus) und `api_token` starten einen zweiten Listener auf **17787**, der ausschliesslich `/api/*` bedient und jeden Aufruf ohne `Authorization: Bearer <Token>` mit `401` abweist
+- **Breaking Change: Port 17777 wird nicht mehr veroeffentlicht.** Er gab Weboberflaeche und REST-API ohne jede Anmeldung an das ganze LAN heraus — wer die Adresse kannte, konnte mitlesen und senden. Beides liegt auf demselben Express-Server, und der UI-Port kann keinen Token verlangen: die Oberflaeche ruft ihre eigenen `/api/`-Routen aus dem Browser auf. Sein Schutz kann deshalb nur sein, ihn nicht freizugeben
+- **Unveraendert erreichbar:** die Oberflaeche ueber das HA-Panel (Ingress, Anmeldung durch Home Assistant) und ueber das MessengerPortal, das das Add-on seit **1.2.20** ueber seinen Container-Namen anspricht und den Host-Port nicht mehr braucht
+- **Was bricht:** alles, was `http://<HA-IP>:17777/api/...` oder `http://localhost:17777/api/...` aufruft. Umstellen auf **17787** mit Token; Beispiele stehen in DOCS.md. Wer 17777 unbedingt braucht, kann das Mapping unter *Netzwerk* von Hand wieder eintragen — dann aber wieder ohne Passwort fuer jedes Geraet im Netz
+- Die Weboberflaeche wird ueber 17787 auch mit gueltigem Token **nicht** ausgeliefert (`404`) — sonst waere der Port ein zweiter, gleichwertiger Weg auf alles. Ist `api_enabled` an, aber kein Token gesetzt, startet der Port gar nicht
+- Der Vergleich laeuft ueber `crypto.timingSafeEqual` statt `===`, damit die Laufzeit den Token nicht verraet. Abgewiesene Zugriffe landen mit Pfad und IP als WARN in der Konsole des Add-ons
+- Der Watchdog laeuft jetzt ueber `tcp://[HOST]:17777` statt `tcp://[HOST]:[PORT:17777]`. Die alte Form loeste den **Host**-Port auf und waere ohne Mapping ins Leere gelaufen — das Add-on haette sich selbst als tot gemeldet und im Kreis neu gestartet
+- Neu: **`test-api.ps1`** — kleines PowerShell-Menue zum Ausprobieren der API (Status, Chats, Senden, letzte empfangene Nachricht). Spricht 17787 an und schickt den Token mit; der steht **nicht** im Skript, es liest `$env:SIGNAL_API_TOKEN` oder fragt beim Start danach. Host und Port lassen sich ueber `SIGNAL_HOST` und `SIGNAL_API_PORT` uebersteuern. WhatsApp und Telegram hatten so ein Skript schon, Signal bisher nicht
+- Gleiches Muster wie im WhatsApp-Add-on ab 1.8.31
+
+## [1.6.28] - 2026-08-28
+- Fix: **In der Konsole fehlte bei vielen Zeilen die Uhrzeit.** Die still protokollierten Debug-Zeilen (`API GET …`) trugen keinen Zeitstempel, die echten Konsolenzeilen schon — jetzt haben alle einen, und zwar in Ortszeit statt UTC
+- Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt. Der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl der Ebenen bleibt ueber einen Seitenwechsel hinweg erhalten
+- Gleiche Funktion wie im WhatsApp-Add-on ab 1.8.0
+
+## [1.6.27] - 2026-08-25
+- Fix: **Status blieb `linked`, obwohl signal-cli-rest-api nicht mehr antwortete.** `checkStatus()` setzte bei einem Fehler nur `lastError`, den Status aber ausschließlich dann auf `error`, wenn er noch `starting` war. Eine bereits verlinkte Instanz meldete deshalb über `/api/status` weiterhin eine funktionierende Verbindung — im MessengerPortal erschien Signal grün als „Online", obwohl gar nichts mehr ging. Jetzt wechselt auch `linked` bei einem Fehler nach `error`; der 5-Sekunden-Poll verbindet anschließend selbstständig wieder, sobald die API antwortet
+- Fix: `lastError` wird bei einer erfolgreichen Statusprüfung geleert. Bisher blieb eine alte Fehlermeldung (z. B. `network timeout at: http://localhost:8080/v1/accounts`) dauerhaft in `/api/status` stehen, auch wenn längst wieder alles lief
+
 ## [1.6.26] - 2026-08-17
 
 - Doku: signal-cli steht unter der GPL-3.0 und libsignal unter der AGPL-3.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die Bestandteile, ihre Lizenzen und Bezugsquellen und stellt klar, dass die Chat-Oberfläche nur über HTTP mit ihnen spricht

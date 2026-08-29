@@ -15,7 +15,9 @@ Zeilen werden als Tupel gehalten, nicht als dict: eine Monatsdatei kann
 sechsstellig viele Zeilen haben, und 200 000 dicts wären ein paar hundert MB.
 """
 import csv
+import functools
 import hashlib
+import ipaddress
 import threading
 from collections import Counter, deque
 from datetime import datetime
@@ -44,6 +46,143 @@ _CSV_COLS = 11
 
 # Aufbau einer geparsten Zeile (Tupel-Indizes)
 TS, IP, UA, PATH, REF, LANG, COUNTRY, BOT, NEW, BROWSER, SYSTEM = range(11)
+
+
+# ── Rechenzentrums-Adressen ──────────────────────────────────────────────────
+
+# Netze der großen Cloud-Anbieter. Ein Aufruf von hier kommt nicht von einem
+# Menschen mit Browser, egal was in der Browserkennung steht: Scanner setzen
+# reihenweise „Safari/iOS" oder „Edge/Windows" ein, damit die übliche
+# Textsuche in der Kennung (_BOT_UA in app.py) sie durchlässt.
+#
+# Die Liste ist bewusst grob (große Blöcke statt exakter Anbieter-Präfixe) und
+# nicht vollständig — sie soll die Masse der Scan-Netze treffen, nicht ein
+# Register führen. Folge einer zu groben Angabe ist harmlos: der Aufruf wird im
+# Explorer als Bot einsortiert und ist über den Bot-Schalter weiter sichtbar.
+# Eigene Ergänzungen kommen über die Option `visit_bot_nets` dazu.
+_DATACENTER_CIDRS = (
+    # Amazon AWS
+    '3.0.0.0/8', '13.32.0.0/12', '15.177.0.0/16', '18.32.0.0/11',
+    '18.128.0.0/9', '34.192.0.0/10', '35.152.0.0/13', '44.192.0.0/10',
+    '52.0.0.0/11', '52.32.0.0/11', '52.64.0.0/12', '52.84.0.0/14',
+    '52.88.0.0/13', '52.192.0.0/10', '54.64.0.0/10', '54.144.0.0/12',
+    '54.160.0.0/11', '54.192.0.0/10',
+    # Microsoft Azure
+    '13.64.0.0/11', '20.0.0.0/8', '40.64.0.0/10', '52.224.0.0/11',
+    '104.40.0.0/13',
+    # Google Cloud
+    '34.64.0.0/10', '35.184.0.0/13', '35.192.0.0/12', '35.208.0.0/12',
+    '35.224.0.0/12', '35.240.0.0/13',
+    # Tencent Cloud — Herkunft der meisten „Safari · iOS"-Einzelaufrufe
+    '43.128.0.0/10', '119.28.0.0/16', '129.226.0.0/16', '150.109.0.0/16',
+    '170.106.0.0/16',
+    # Alibaba Cloud
+    '8.208.0.0/12', '47.74.0.0/15', '47.76.0.0/14', '47.235.0.0/16',
+    '47.236.0.0/14', '47.240.0.0/14', '198.11.128.0/18',
+    # Oracle Cloud
+    '129.146.0.0/15', '132.145.0.0/16', '140.238.0.0/16', '141.147.0.0/16',
+    '143.47.0.0/16', '150.230.0.0/16', '152.67.0.0/16', '158.101.0.0/16',
+    '168.138.0.0/16', '193.122.0.0/16',
+    # DigitalOcean
+    '104.131.0.0/16', '138.68.0.0/16', '143.110.0.0/16', '157.245.0.0/16',
+    '159.65.0.0/16', '164.90.0.0/16', '165.22.0.0/16', '167.71.0.0/16',
+    '167.99.0.0/16', '174.138.0.0/16', '178.62.0.0/16', '188.166.0.0/16',
+    # Hetzner
+    '5.9.0.0/16', '78.46.0.0/15', '88.99.0.0/16', '94.130.0.0/16',
+    '116.202.0.0/16', '128.140.0.0/17', '135.181.0.0/16', '138.201.0.0/16',
+    '142.132.0.0/16', '144.76.0.0/16', '148.251.0.0/16', '157.90.0.0/16',
+    '159.69.0.0/16', '162.55.0.0/16', '167.235.0.0/16', '168.119.0.0/16',
+    '176.9.0.0/16', '178.63.0.0/16', '188.40.0.0/16', '195.201.0.0/16',
+    '213.239.192.0/18',
+    # OVH
+    '51.68.0.0/14', '51.75.0.0/16', '51.83.0.0/16', '51.89.0.0/16',
+    '51.91.0.0/16', '137.74.0.0/16', '141.94.0.0/16', '145.239.0.0/16',
+    '146.59.0.0/16', '147.135.0.0/16', '149.202.0.0/16', '151.80.0.0/16',
+    '158.69.0.0/16', '164.132.0.0/16', '167.114.0.0/16', '176.31.0.0/16',
+    '178.32.0.0/15', '188.165.0.0/16', '192.99.0.0/16', '213.32.0.0/16',
+    '217.182.0.0/16',
+    # Linode / Akamai
+    '45.33.0.0/16', '45.56.0.0/16', '45.79.0.0/16', '50.116.0.0/16',
+    '139.162.0.0/16', '172.104.0.0/15', '176.58.96.0/19', '178.79.128.0/17',
+    '198.58.96.0/19', '212.71.232.0/21',
+    # Vultr
+    '45.32.0.0/16', '45.63.0.0/16', '45.76.0.0/16', '45.77.0.0/16',
+    '95.179.128.0/17', '104.156.224.0/19', '108.61.0.0/16', '136.244.64.0/18',
+    '149.28.0.0/16', '155.138.128.0/17', '207.148.0.0/17', '216.128.128.0/17',
+    # Scaleway / Online.net
+    '51.15.0.0/16', '51.158.0.0/15', '62.210.0.0/16', '163.172.0.0/16',
+    '195.154.0.0/16', '212.83.128.0/19',
+    # netcup (AS197540). Von dort kam ein Scanner, der die Liste mit
+    # Groß-/Kleinschreibungsvarianten und Backup-Namen füllte, ohne als Bot
+    # zu gelten. Präfixe am 28.08.2026 aus den RIPE-Ankündigungen des AS,
+    # zusammengefasst — deshalb die vielen /22.
+    '2.56.96.0/22', '5.45.96.0/20', '5.181.48.0/22', '5.182.200.0/24',
+    '5.182.202.0/23', '5.252.224.0/22', '37.120.160.0/19',
+    '37.221.192.0/21', '45.9.60.0/22', '45.83.104.0/22', '45.90.4.0/22',
+    '45.129.180.0/22', '45.132.244.0/22', '45.136.28.0/22',
+    '45.142.176.0/22', '45.157.176.0/22', '46.38.224.0/19',
+    '46.232.248.0/22', '77.90.156.0/23', '81.16.16.0/22', '85.209.48.0/22',
+    '85.235.64.0/22', '89.58.0.0/18', '91.132.144.0/22', '91.204.44.0/22',
+    '92.60.36.0/22', '93.177.64.0/22', '94.16.30.0/23', '94.16.104.0/21',
+    '94.16.112.0/21', '94.16.120.0/22', '152.53.0.0/22', '152.53.5.0/24',
+    '152.53.12.0/22', '152.53.16.0/21', '152.53.32.0/22', '152.53.42.0/23',
+    '152.53.44.0/22', '152.53.48.0/22', '152.53.60.0/23', '152.53.64.0/22',
+    '152.53.84.0/22', '152.53.92.0/22', '152.53.100.0/22',
+    '152.53.104.0/21', '152.53.112.0/20', '152.53.128.0/19',
+    '152.53.160.0/22', '152.53.172.0/22', '152.53.176.0/20',
+    '152.53.196.0/22', '152.53.200.0/24', '152.53.202.0/24',
+    '152.53.204.0/22', '152.53.224.0/21', '152.53.236.0/22',
+    '152.53.244.0/22', '152.53.248.0/21', '152.89.104.0/22',
+    '159.195.1.0/24', '159.195.4.0/22', '159.195.8.0/22', '159.195.20.0/22',
+    '159.195.24.0/21', '159.195.32.0/19', '159.195.64.0/20',
+    '159.195.80.0/21', '159.195.88.0/23', '159.195.96.0/21',
+    '159.195.104.0/23', '159.195.106.0/24', '159.195.108.0/22',
+    '159.195.112.0/22', '159.195.118.0/23', '159.195.120.0/21',
+    '159.195.128.0/21', '159.195.136.0/22', '159.195.140.0/23',
+    '159.195.143.0/24', '159.195.144.0/21', '159.195.152.0/23',
+    '159.195.154.0/24', '159.195.156.0/22', '159.195.192.0/20',
+    '159.195.208.0/21', '159.195.216.0/22', '159.195.224.0/21',
+    '159.195.240.0/20', '185.16.60.0/22', '185.48.228.0/22',
+    '185.158.212.0/22', '185.162.248.0/22', '185.163.116.0/22',
+    '185.170.112.0/22', '185.183.156.0/22', '185.194.140.0/22',
+    '185.207.104.0/22', '185.216.176.0/22', '185.228.136.0/22',
+    '185.232.68.0/22', '185.233.104.0/22', '185.243.8.0/22',
+    '185.244.192.0/22', '188.68.32.0/19', '188.172.228.0/23',
+    '192.145.44.0/22', '193.26.156.0/22', '193.30.120.0/22',
+    '193.31.24.0/22', '193.102.202.0/24', '194.13.80.0/22',
+    '194.36.144.0/22', '194.55.12.0/22', '194.59.204.0/22',
+    '195.128.100.0/22', '202.61.192.0/20', '202.61.224.0/19',
+    '213.109.160.0/22',
+)
+
+_dc_nets = [ipaddress.ip_network(c) for c in _DATACENTER_CIDRS]
+
+
+def set_extra_bot_nets(cidrs) -> None:
+    """Zusätzliche Netze aus der Option `visit_bot_nets` übernehmen.
+
+    Unbrauchbare Einträge werden still übergangen: eine vertippte Zeile in den
+    Add-on-Optionen darf den Besucherzähler nicht anhalten.
+    """
+    global _dc_nets
+    nets = [ipaddress.ip_network(c) for c in _DATACENTER_CIDRS]
+    for raw in (cidrs or ()):
+        try:
+            nets.append(ipaddress.ip_network(str(raw).strip(), strict=False))
+        except ValueError:
+            continue
+    _dc_nets = nets
+    is_datacenter_ip.cache_clear()
+
+
+@functools.lru_cache(maxsize=4096)
+def is_datacenter_ip(value: str) -> bool:
+    """Ob die Adresse in einem der bekannten Rechenzentrums-Netze liegt."""
+    try:
+        addr = ipaddress.ip_address((value or '').strip())
+    except ValueError:
+        return False
+    return any(addr in net for net in _dc_nets)
 
 
 # ── Datei lesen ──────────────────────────────────────────────────────────────
@@ -217,6 +356,30 @@ def _finish(s: dict, gap: int, gap_start: float) -> None:
         f"{s['ip']}|{s['ua']}|{s['start']}".encode(), usedforsecurity=False
     ).hexdigest()[:8]
     del s['_last']
+
+
+def is_scanner_session(s) -> bool:
+    """Ob eine Sitzung jedes Merkmal eines echten Browsers vermissen lässt.
+
+    Drei Dinge zusammen: **ein** Aufruf, **kein** Referrer und **keine**
+    Sprachangabe. Jeder Browser schickt `Accept-Language` mit — es steht in den
+    Einstellungen und lässt sich nicht abschalten. Wer ohne Sprache genau eine
+    Seite abholt und nie wiederkommt, hat keine Seite angesehen, sondern eine
+    Adresse abgeklopft.
+
+    Die Herkunft spielt bewusst keine Rolle: Scanner mieten sich auch in
+    Mobilfunknetzen ein, und dort hilft keine Liste von Rechenzentrums-Netzen
+    weiter (siehe `is_datacenter_ip`).
+    """
+    return (s['views'] == 1
+            and not (s['ref'] or '').strip()
+            and not (s['lang'] or '').strip())
+
+
+def drop_scanners(sessions) -> tuple:
+    """Sitzungen ohne Browser-Merkmale aussortieren → `(sessions, entfernt)`."""
+    kept = [s for s in sessions if not is_scanner_session(s)]
+    return kept, len(sessions) - len(kept)
 
 
 def strip_steps(sessions) -> list:

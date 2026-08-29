@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY gen_nginx.py .
+COPY addon_hosts.py .
 COPY templates/ templates/
 COPY static/ static/
 COPY icon-192.png static/icon-192.png
@@ -25,7 +26,7 @@ COPY locales/ locales/
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-EXPOSE 17770
+EXPOSE 17770 8099
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -sf http://localhost:17770/health || exit 1

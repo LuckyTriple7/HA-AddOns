@@ -1,12 +1,21 @@
 'use strict';
 const _logBuffer = [];
 const _LOG_MAX = 300;
+// Ortszeit, nicht UTC — die Konsole liest ein Mensch
+const _ts = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+       + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
 function _logSilent(level, msg) {
-  _logBuffer.push({ ts: Date.now(), level: level||'DEBUG', msg: '['+(level||'DEBUG')+'] '+msg });
+  const lvl = level || 'DEBUG';
+  // Gleiche Form wie die echten Konsolenzeilen, damit in der Weboberflaeche
+  // nicht die eine Haelfte einen Zeitstempel hat und die andere nicht
+  _logBuffer.push({ ts: Date.now(), level: lvl, msg: '[' + lvl + '] [' + _ts() + '] ' + msg });
   if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
 }
 (function () {
-  const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
   const _lmap = { log:'INFO', warn:'WARN', error:'ERROR' };
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
@@ -33,6 +42,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
@@ -166,6 +176,7 @@ async function checkStatus() {
       ? accounts.map(a => (typeof a === 'string' ? a : a.number)).filter(Boolean)
       : [];
 
+    lastError = '';
     if (list.length === 0) { status = 'not-linked'; return; }
 
     if (!PHONE_NUMBER) PHONE_NUMBER = normPhone(list[0]);
@@ -181,7 +192,9 @@ async function checkStatus() {
       loadGroups();
     }
   } catch (e) {
-    if (status === 'starting') status = 'error';
+    // Auch aus 'linked' heraus auf Fehler gehen — sonst meldet /api/status weiter
+    // eine Verbindung, obwohl signal-cli-rest-api nicht mehr antwortet
+    if (status === 'starting' || status === 'linked') status = 'error';
     lastError = String(e.message || e);
   }
 }
@@ -2412,6 +2425,16 @@ applyLang();
     #sig-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
     #sig-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
     #sig-console-close:hover{color:#f85149;}
+    #sig-console-filter{display:flex;align-items:center;gap:4px;padding:4px 8px;background:#0f1319;border-bottom:1px solid #30363d;flex-shrink:0;flex-wrap:wrap;}
+    #sig-console-filter button{background:none;border:1px solid #30363d;color:#6e7681;font:inherit;font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;letter-spacing:.04em;}
+    #sig-console-filter button:hover{border-color:#6e7681;}
+    #sig-console-filter button.on[data-lvl=ERROR]{color:#f85149;border-color:#f85149;}
+    #sig-console-filter button.on[data-lvl=WARN]{color:#d29922;border-color:#d29922;}
+    #sig-console-filter button.on[data-lvl=INFO]{color:#3fb950;border-color:#3fb950;}
+    #sig-console-filter button.on[data-lvl=DEBUG]{color:#8b949e;border-color:#8b949e;}
+    #sig-console-search{flex:1;min-width:70px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;font:inherit;font-size:10px;padding:2px 6px;border-radius:4px;}
+    #sig-console-search:focus{outline:none;border-color:#6e7681;}
+    #sig-console-count{color:#6e7681;font-size:10px;white-space:nowrap;}
     #sig-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
     #sig-console-body::-webkit-scrollbar{width:5px;}#sig-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
     .sgc-info{color:#3fb950;}.sgc-warn{color:#d29922;}.sgc-error{color:#f85149;}.sgc-debug{color:#6e7681;}
@@ -2421,6 +2444,14 @@ applyLang();
     <div id="sig-console-header">
       <span id="sig-console-title">⬛ CONSOLE — Signal · signal-cli</span>
       <button id="sig-console-close" onclick="sigConsoleToggle()">✕</button>
+    </div>
+    <div id="sig-console-filter">
+      <button data-lvl="ERROR" class="on">ERROR</button>
+      <button data-lvl="WARN" class="on">WARN</button>
+      <button data-lvl="INFO" class="on">INFO</button>
+      <button data-lvl="DEBUG" class="on">DEBUG</button>
+      <input id="sig-console-search" type="text" placeholder="Text filtern…">
+      <span id="sig-console-count"></span>
     </div>
     <div id="sig-console-body"></div>
   </div>
@@ -2450,17 +2481,61 @@ applyLang();
       }
       window.sigConsoleToggle=sigConsoleToggle;
       function _cls(l){return l==='WARN'?'sgc-warn':l==='ERROR'?'sgc-error':l==='DEBUG'?'sgc-debug':'sgc-info';}
+
+      // Alle Zeilen aufheben, damit ein Filterwechsel auch auf bereits
+      // eingetroffene Meldungen wirkt und nicht erst auf die naechsten
+      var _all=[],_MAXKEEP=1500;
+      var _levels={ERROR:true,WARN:true,INFO:true,DEBUG:true};
+      try{
+        var saved=JSON.parse(localStorage.getItem('sig_console_levels')||'null');
+        if(saved)['ERROR','WARN','INFO','DEBUG'].forEach(function(l){if(l in saved)_levels[l]=!!saved[l];});
+      }catch(e){}
+      var _search='';
+      var searchEl=document.getElementById('sig-console-search');
+      var countEl=document.getElementById('sig-console-count');
+
+      function _matches(e){
+        if(!_levels[e.level])return false;
+        if(_search&&e.msg.toLowerCase().indexOf(_search)<0)return false;
+        return true;
+      }
+      function _render(){
+        var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+        body.textContent='';
+        var shown=0;
+        _all.forEach(function(e){
+          if(!_matches(e))return;
+          shown++;
+          var line=document.createElement('div');
+          line.className=_cls(e.level);
+          line.textContent=e.msg;
+          body.appendChild(line);
+        });
+        countEl.textContent=shown+'/'+_all.length;
+        if(atBottom)body.scrollTop=body.scrollHeight;
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('#sig-console-filter button'),function(btn){
+        var lvl=btn.dataset.lvl;
+        btn.classList.toggle('on',!!_levels[lvl]);
+        btn.addEventListener('click',function(){
+          _levels[lvl]=!_levels[lvl];
+          btn.classList.toggle('on',_levels[lvl]);
+          try{localStorage.setItem('sig_console_levels',JSON.stringify(_levels));}catch(e){}
+          _render();
+        });
+      });
+      searchEl.addEventListener('input',function(){_search=searchEl.value.trim().toLowerCase();_render();});
+
       async function _poll(){
         try{
           var entries=await fetch(api('/api/logs')+'?since='+_lastTs).then(function(r){return r.json();});
           if(!entries.length)return;
-          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
           entries.forEach(function(e){
             _lastTs=Math.max(_lastTs,e.ts);
-            var line=document.createElement('div');line.className=_cls(e.level);line.textContent=e.msg;body.appendChild(line);
+            _all.push(e);
           });
-          if(atBottom)body.scrollTop=body.scrollHeight;
-          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+          if(_all.length>_MAXKEEP)_all.splice(0,_all.length-_MAXKEEP);
+          _render();
         }catch(e){}
       }
     })();
@@ -2539,3 +2614,38 @@ app.listen(PORT, () => {
   console.log(`[INFO] Signal UI listening on port ${PORT}`);
   init();
 });
+
+// ── REST-API auf eigenem Port ────────────────────────────────────────
+// Der UI-Port bedient Oberflaeche und API gemeinsam und kennt keine
+// Authentifizierung — die Weboberflaeche ruft ihre eigenen /api/-Routen ja aus
+// dem Browser auf. Sein Schutz ist deshalb, dass er nicht veroeffentlicht wird:
+// Zugriff ueber HA-Ingress oder das MessengerPortal.
+//
+// Wer die REST-API von aussen braucht, bekommt sie hier — und nur hier:
+// ausschliesslich /api/*, ausschliesslich mit Token. Die Oberflaeche gibt es
+// ueber diesen Port auch mit gueltigem Token nicht, sonst waere er wieder ein
+// zweiter, gleichwertiger Weg auf alles.
+const API_PORT    = parseInt(process.env.API_PORT || '17787', 10);
+const API_ENABLED = process.env.API_ENABLED === 'true';
+const API_TOKEN   = process.env.API_TOKEN || '';
+
+if (API_ENABLED && !API_TOKEN) {
+  console.error(`[ERROR] api_enabled ist gesetzt, aber api_token ist leer — die REST-API auf Port ${API_PORT} startet nicht. Ein offener Port ohne Token waere genau die Luecke, die dieser Port schliessen soll.`);
+} else if (API_ENABLED) {
+  const expected = Buffer.from(`Bearer ${API_TOKEN}`);
+  const apiApp = express();
+  apiApp.set('trust proxy', 1);
+  apiApp.use((req, res, next) => {
+    if (!req.path.startsWith('/api/')) return res.status(404).json({ error: 'not_found' });
+    const got = Buffer.from(req.headers.authorization || '');
+    // timingSafeEqual wirft bei ungleicher Laenge — deshalb erst vergleichen,
+    // dann pruefen. Kein ===, das verraet ueber die Laufzeit den Token.
+    if (got.length !== expected.length || !crypto.timingSafeEqual(got, expected)) {
+      _logSilent('WARN', `REST-API: Zugriff ohne gueltigen Token abgelehnt (${req.method} ${req.path}, ${req.ip})`);
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    next();
+  });
+  apiApp.use(app);
+  apiApp.listen(API_PORT, () => console.log(`[INFO] REST-API auf Port ${API_PORT} (Token erforderlich)`));
+}

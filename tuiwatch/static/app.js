@@ -3,6 +3,65 @@
 // kleinen Inline-Script im Template — NUR dort steckt Jinja.
 // Cache-Busting über ?v=<APP_VERSION> im <script src>.
 
+// ── Abgelaufene Cloudflare-Access-Sitzung automatisch abfangen ──
+// Laeuft die Seite hinter Cloudflare Access und dessen Sitzung ab, beantwortet
+// Cloudflare jeden /api/-Aufruf mit einem 302 auf den Login unter
+// *.cloudflareaccess.com. Ein fetch() sieht davon nur einen CORS-Fehler
+// (TypeError); die Oberflaeche blieb dadurch still leer, bis von Hand Strg+R
+// gedrueckt wurde — eine Navigation darf dem Redirect folgen und holt sich
+// dabei eine frische Access-Sitzung.
+// Erkennung: nach einem fehlgeschlagenen fetch einmal /health mit
+// redirect:'manual' nachfragen. Antwortet der Server mit 3xx, liefert fetch
+// eine Response vom Typ 'opaqueredirect' — nur dann wird neu geladen. Ohne
+// Cloudflare (Ingress, LAN) kommt ein normales 200 zurueck, bei echtem
+// Verbindungsverlust wirft die Probe selbst: in beiden Faellen passiert nichts.
+(function(){
+  const origFetch = window.fetch.bind(window);
+  let reloading = false, probe = null;
+
+  function reloadForAccess(){
+    if (reloading) return;
+    // Reload-Schleife verhindern, falls Access dauerhaft klemmt: hoechstens
+    // ein automatischer Reload pro 30 Sekunden.
+    try {
+      const last = +(sessionStorage.getItem('tw-access-reload') || 0);
+      if (Date.now() - last < 30000) return;
+      sessionStorage.setItem('tw-access-reload', String(Date.now()));
+    } catch(_){ }
+    reloading = true;
+    const n = document.createElement('div');
+    n.textContent = 'Sitzung abgelaufen — Seite wird neu geladen \u2026';
+    n.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:10px;'
+                    + 'text-align:center;font:14px system-ui;background:#b45309;color:#fff';
+    (document.body || document.documentElement).appendChild(n);
+    setTimeout(function(){ location.reload(); }, 600);
+  }
+
+  // Mehrere gleichzeitig scheiternde Aufrufe teilen sich eine Probe.
+  function accessRedirectPending(){
+    if (probe) return probe;
+    probe = origFetch(((window.G && window.G.base) || '') + '/health',
+                      { method:'GET', cache:'no-store', redirect:'manual' })
+      .then(function(r){ return r.type === 'opaqueredirect'; },
+            function(){ return false; });   // wirklich offline — kein Reload
+    probe.then(function(){ setTimeout(function(){ probe = null; }, 3000); });
+    return probe;
+  }
+
+  window.fetch = async function(input, init){
+    try {
+      const res = await origFetch(input, init);
+      if (res.type === 'opaqueredirect') reloadForAccess();
+      return res;
+    } catch(err){
+      if (!reloading && err instanceof TypeError && await accessRedirectPending()) {
+        reloadForAccess();
+      }
+      throw err;
+    }
+  };
+})();
+
 // ── Hintergrund-Konsole ──
   (function(){
     var _open=false,_seen=0,_timer=null;
@@ -876,14 +935,29 @@
         const ty=Y(opts.target);
         ctx.save(); ctx.strokeStyle=amber; ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
         ctx.beginPath(); ctx.moveTo(padL,ty); ctx.lineTo(w-padR,ty); ctx.stroke(); ctx.restore();
-        if(full){ ctx.fillStyle=amber; ctx.font='10px sans-serif'; ctx.fillText('<svg class="i"><use href="#i-target"/></svg> '+Math.round(opts.target).toLocaleString('de-DE')+' €', padL+3, ty-3); }
+        if(full){
+          // Zielscheibe zeichnen — Canvas kennt kein HTML, ein <svg>-String landet sonst als Text im Bild
+          ctx.save(); ctx.strokeStyle=amber; ctx.fillStyle=amber; ctx.lineWidth=1.2;
+          ctx.beginPath(); ctx.arc(padL+7, ty-7, 4, 0, 7); ctx.stroke();
+          ctx.beginPath(); ctx.arc(padL+7, ty-7, 1.4, 0, 7); ctx.fill(); ctx.restore();
+          ctx.fillStyle=amber; ctx.font='10px sans-serif';
+          ctx.fillText(Math.round(opts.target).toLocaleString('de-DE')+' €', padL+14, ty-3);
+        }
       }
       // Gebuchter-Preis-Linie (gezahlter Preis seit Buchung)
       if(opts.booked){
         const by=Y(opts.booked); const violet='#a371f7';
         ctx.save(); ctx.strokeStyle=violet; ctx.setLineDash([2,3]); ctx.lineWidth=1.4;
         ctx.beginPath(); ctx.moveTo(padL,by); ctx.lineTo(w-padR,by); ctx.stroke(); ctx.restore();
-        if(full){ ctx.fillStyle=violet; ctx.font='10px sans-serif'; ctx.fillText('<svg class="i"><use href="#i-bookmark"/></svg> '+Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+3, by+11); }
+        if(full){
+          // Lesezeichen zeichnen statt <svg>-Markup in fillText zu stecken
+          const gx=padL+3, gy=by+4;
+          ctx.save(); ctx.fillStyle=violet; ctx.beginPath();
+          ctx.moveTo(gx,gy); ctx.lineTo(gx+7,gy); ctx.lineTo(gx+7,gy+8);
+          ctx.lineTo(gx+3.5,gy+5.5); ctx.lineTo(gx,gy+8); ctx.closePath(); ctx.fill(); ctx.restore();
+          ctx.fillStyle=violet; ctx.font='10px sans-serif';
+          ctx.fillText(Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+14, by+11);
+        }
       }
       // Änderungs-Marker (Events): senkrechte Linie + Fähnchen; Trefferflächen für Tooltip
       cv._events = [];
@@ -940,9 +1014,27 @@
           fbox.style.display = 'block';
         } else fbox.style.display = 'none';
       }
+      // Zimmerwechsel als eigene Hinweiszeile in den Verlauf einblenden: ein
+      // Angebot ohne fixiertes Zimmer verfolgt immer das günstigste — ist das
+      // ausgebucht, rückt das nächstteurere nach und der Preis springt, ohne dass
+      // sich am Markt etwas bewegt hätte. Ohne diesen Hinweis sah der Sprung in
+      // der Tabelle wie eine reine Preiserhöhung aus.
+      // Jedes Ereignis hängt am jüngsten Messpunkt, der nicht nach ihm liegt — beim
+      // automatischen Wechsel ist das exakt der Messpunkt mit dem gesprungenen Preis
+      // (gleicher Zeitstempel), bei von Hand gewähltem Zimmer der davor. Ereignisse
+      // vor dem ersten Messpunkt hängen am ersten.
+      const notesFor = new Map();
+      (hd.events||[]).filter(e=>e.type==='room'||e.type==='room_auto').forEach(e=>{
+        let idx = 0;
+        for(let j=0;j<hist.length;j++){ if(hist[j].ts<=e.ts) idx = j; else break; }
+        if(!notesFor.has(idx)) notesFor.set(idx, []);
+        notesFor.get(idx).push(e);
+      });
       const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
-        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
+        const evHtml = (notesFor.get(i)||[]).map(e=>
+          `<tr class="hist-note"><td colspan="4"><svg class="i"><use href="#i-warn"/></svg> ${esc(e.text)}</td></tr>`).join('');
+        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> ${esc(h.note||'fehlgeschlagen')}</td></tr>`+evHtml};
         const prev = hist[i-1];
         let diff = '', unchanged = false;
         if(prev && prev.ok && prev.price!=null){
@@ -953,11 +1045,16 @@
         }
         // unveränderte Preise ausblenden (Rauschen) — außer dem jüngsten Eintrag,
         // der zeigt, wann zuletzt geprüft wurde
-        const keep = !unchanged || i === hist.length - 1;
+        // Hinweiszeilen halten ihren Messpunkt fest, auch wenn dessen Preis sich
+        // nicht geändert hat (sonst verschwände der Zimmerwechsel mit der Zeile).
+        const keep = !unchanged || i === hist.length - 1 || !!evHtml;
         // Aufschlüsselung Hotel/Flüge (vacancy-check), sofern für den Messpunkt vorhanden
         const split = (h.price_hotel!=null || h.price_flight_out!=null || h.price_flight_ret!=null)
           ? `${eur(h.price_hotel)} / ${eur(h.price_flight_out)} / ${eur(h.price_flight_ret)}` : '';
-        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td><td class="split-muted">${split}</td></tr>`;
+        // Die Tabelle steht neueste Zeile oben; der Hinweis kommt deshalb UNTER
+        // seinen Messpunkt — genau an die Stelle zwischen altem und neuem Preis,
+        // an der der Sprung passiert ist.
+        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td><td class="split-muted">${split}</td></tr>`+evHtml;
         return {keep, html};
       }).filter(r=>r.keep).map(r=>r.html).reverse().join('');
       $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th><th title="Aufschlüsselung aus dem Buchungssystem">Hotel / Hin / Rück</th></tr>${rows}</table>`:'';
@@ -1886,12 +1983,13 @@
     // ohne Zwischenschritt direkt dorthin.
     function openFlightPlan(){
       const on = [G.strFlights && openStrFlights, G.fraFlights && openFraFlights,
-                  G.mucFlights && openMucFlights].filter(Boolean);
+                  G.mucFlights && openMucFlights, G.fkbFlights && openFkbFlights].filter(Boolean);
       if(on.length > 1){
         // Nur die freigeschalteten Flughäfen zur Wahl stellen
         $('#fpick-str').style.display = G.strFlights ? '' : 'none';
         $('#fpick-fra').style.display = G.fraFlights ? '' : 'none';
         $('#fpick-muc').style.display = G.mucFlights ? '' : 'none';
+        $('#fpick-fkb').style.display = G.fkbFlights ? '' : 'none';
         $('#fpick-bg').classList.add('show');
         return;
       }
@@ -1928,9 +2026,9 @@
       }
       renderAllFlights(data);
     }
-    const ALLF_LABEL = {str:'Stuttgart (STR)', fra:'Frankfurt (FRA)', muc:'München (MUC)'};
+    const ALLF_LABEL = {str:'Stuttgart (STR)', fra:'Frankfurt (FRA)', muc:'München (MUC)', fkb:'Karlsruhe/Baden-Baden (FKB)'};
     function renderAllFlights(data){
-      const present = ['str','fra','muc'].filter(k => data[k]);
+      const present = ['str','fra','muc','fkb'].filter(k => data[k]);
       if(!present.length){ $('#allf-body').innerHTML = '<div class="hint">Kein Flughafen freigeschaltet.</div>'; return; }
       $('#allf-body').innerHTML = present.map(k =>
         `<div style="margin-top:14px"><h3 style="margin:0 0 4px">${ALLF_LABEL[k]}</h3>
@@ -1940,11 +2038,12 @@
         if(res.error){ $(sel).innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Nicht erreichbar.</div>'; return; }
         if(k==='str') renderStrFlights(res.rows||[], sel);
         else if(k==='fra') renderFraFlights(res, sel, true);
+        else if(k==='fkb') renderFkbFlights(res, sel);
         else renderMucFlights(res, sel);
       });
     }
 
-    // Gesamtliste aller tatsächlich angeflogenen Ziele (nur STR + MUC — siehe
+    // Gesamtliste aller tatsächlich angeflogenen Ziele (STR + MUC + FKB — siehe
     // api_flights_destinations()). Einmal geladen, danach aus dem Cache des
     // Servers — kein erneuter Abruf bei jedem Modal-Öffnen.
     async function loadAllfDestinations(){
@@ -1958,7 +2057,7 @@
       }
       renderAllfDestinations(data.destinations || []);
     }
-    const ALLF_AP_SHORT = {str:'STR', muc:'MUC'};
+    const ALLF_AP_SHORT = {str:'STR', muc:'MUC', fkb:'FKB'};
     const ALLF_FRA_TITLE = 'Näherung: Frankfurt hat keine amtliche Gesamtliste (Drehkreuz), dieses Ziel stammt aus einem rollierend gesammelten Tagesbord einer Drittseite — kann bei sehr seltenen Verbindungen fehlen oder veraltet sein.';
     function renderAllfDestinations(dest){
       if(!dest.length){ $('#allf-dest-body').innerHTML = '<div class="hint">Keine Ziele gefunden.</div>'; return; }
@@ -1968,8 +2067,8 @@
         <td class="hint">${esc(d.country)}</td>
         <td class="hint">${(d.airports||[]).map(a=>a==='fra'?`<span title="${ALLF_FRA_TITLE}">FRA*</span>`:(ALLF_AP_SHORT[a]||a)).join(', ')}</td>
       </tr>`).join('');
-      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart + München vollständig erfasst. Frankfurt (FRA*) nur genähert aus einem Drittseiten-Tagesbord, siehe Spalten-Tooltip. Zeile anklicken für Verbindungen.</div>
-        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="STR/MUC: vollständiger Saison-Fahrplan. FRA*: Näherung aus einem Drittseiten-Tagesbord, kein amtlicher Fahrplan — kann einzelne selten fliegende Ziele verpassen.">Ab ⓘ</th></tr>${rowsHtml}</table></div>`;
+      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart, München und Karlsruhe/Baden-Baden vollständig erfasst. Frankfurt (FRA*) nur genähert aus einem Drittseiten-Tagesbord, siehe Spalten-Tooltip. Zeile anklicken für Verbindungen.</div>
+        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="STR/MUC/FKB: vollständiger Saison-Fahrplan. FRA*: Näherung aus einem Drittseiten-Tagesbord, kein amtlicher Fahrplan — kann einzelne selten fliegende Ziele verpassen.">Ab ⓘ</th></tr>${rowsHtml}</table></div>`;
     }
     function allfPickDestination(code){
       $('#allf-q').value = code;
@@ -2060,6 +2159,61 @@
         <div class="hint" style="margin-top:10px">Quelle: Flughafen Frankfurt — Planung, Gate und Schalter können sich kurzfristig ändern.</div>`;
       $('#fraf-detail-bg').style.zIndex = 60;
       $('#fraf-detail-bg').classList.add('show');
+    }
+
+    // ── FKB-Flugplan (Saisonstrecken des Baden-Airpark) ───────────────────────
+    let fkbfTimer = null;
+    function openFkbFlights(){ $('#fkbf-bg').classList.add('show'); $('#fkbf-q').focus(); }
+    function closeFkbFlights(){ $('#fkbf-bg').classList.remove('show'); }
+    $('#fkbf-bg').addEventListener('click', e=>{ if(e.target.id==='fkbf-bg') closeFkbFlights(); });
+    $('#fkbf-q').addEventListener('input', ()=>{ clearTimeout(fkbfTimer); fkbfTimer = setTimeout(fkbFlightsSearch, 350); });
+    $('#fkbf-von').addEventListener('change', fkbFlightsSearch);
+    $('#fkbf-bis').addEventListener('change', fkbFlightsSearch);
+    async function fkbFlightsSearch(){
+      const q = $('#fkbf-q').value.trim();
+      const type = $('#fkbf-type').value;
+      const von = $('#fkbf-von').value, bis = $('#fkbf-bis').value;
+      if(q.length < 2){
+        $('#fkbf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Ryanair".</div>';
+        return;
+      }
+      $('#fkbf-body').innerHTML = progBar('Suche…');
+      let data;
+      try {
+        data = await fetch(api('/api/fkbflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#fkbf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderFkbFlights(data);
+    }
+    function renderFkbFlights(data, bodySel){
+      bodySel = bodySel || '#fkbf-body';
+      const rows = data.rows || [];
+      const foot = `<div class="hint" style="margin-top:8px">${(data.count||0).toLocaleString('de-DE')} Verbindungen im Plan (Abflug + Ankunft, alle veröffentlichten Saisons)</div>`;
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'+foot; return; }
+      const rowsHtml = rows.map(r => `<tr class="fkbf-row">
+          <td title="${r.direction==='departure'?'Abflug ab FKB':'Ankunft in FKB'}">${r.direction==='departure'?'<svg class="i"><use href="#i-takeoff"/></svg>':'<svg class="i"><use href="#i-landing"/></svg>'}</td>
+          <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+          <td>${esc(r.airline_name||r.airline_code)} ${esc(r.flight_no)}</td>
+          <td>${esc(r.weekdays_short)}</td>
+          <td>${esc(r.departure)}–${esc(r.arrival)}</td>
+          <td class="hint">${esc(deDate(r.date_from))}–${esc(deDate(r.date_till))}</td>
+          <td class="hint" title="${esc(r.season)}${r.seats?' · '+esc(r.seats):''}">${esc(r.plane)}</td>
+        </tr>`).join('');
+      const more = data.total > rows.length ? ` (von ${data.total}, Zeitraum oder Suchbegriff eingrenzen)` : '';
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'}${more}</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th><th title="Flugzeugtyp — Saison und Sitzplätze im Tooltip">Flugzeug ⓘ</th></tr>${rowsHtml}</table></div>${foot}`;
+    }
+    async function fkbFlightsRefresh(){
+      $('#fkbf-body').innerHTML = progBar('Saisonflugplan wird neu geladen…');
+      try {
+        const r = await fetch(api('/api/fkbflights/refresh'), {method:'POST'}).then(x=>x.json());
+        toast(r.error ? 'Flugplan nicht abrufbar' : 'Saisonflugplan neu geladen');
+      } catch(e){ toast('Flugplan nicht abrufbar'); }
+      fkbFlightsSearch();
     }
 
     // ── MUC-Flugplan (Saisonstrecken aus dem Flugplan-PDF des Flughafens) ──────
@@ -2680,12 +2834,24 @@
       ['regcmp-bg', closeRegionCompare],
       ['reiseb-bg', closeAdvisor],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
+      ['settings-bg', closeSettings],
       ['promptcfg-bg', closePromptCfg],
       ['aktion-bg', closeAktion],
       ['basket-bg', closeBasket],   // liegt über dem Markttrend, daher davor prüfen
       ['trend-bg', closeMarketTrend],
       ['trips-summary-bg', closeTripsSummary],
       ['trips-bg', closeTrips],
+      // Flugplan-Fenster: die beiden Detail-Fenster (Zeilenklick) liegen über
+      // ihrem Plan-Fenster, die Flughafen-Auswahl schließt sich schon beim
+      // Öffnen eines Plans — Reihenfolge deshalb Detail → Plan → Auswahl.
+      ['strf-detail-bg', closeStrFlightDetail],
+      ['fraf-detail-bg', closeFraFlightDetail],
+      ['strf-bg', closeStrFlights],
+      ['fraf-bg', closeFraFlights],
+      ['mucf-bg', closeMucFlights],
+      ['fkbf-bg', closeFkbFlights],
+      ['allf-bg', closeAllFlights],
+      ['fpick-bg', closeFlightPick],
     ];
     document.addEventListener('keydown', e=>{
       if(e.key!=='Escape') return;
@@ -3864,7 +4030,9 @@
       const head = ['Monat','Tag','Nacht','Wasser','Sonne','Regentage']
         .concat(hasNote ? ['Hinweis'] : []);
       const rows = (months||[]).slice().sort((a,b2)=>(a.monat||0)-(b2.monat||0)).map(m=>{
-        const name = (MONTHS_DE[(m.monat||1)-1] || m.monat) + (b.has(m.monat) ? ' ★' : '');
+        // Geschuetztes Leerzeichen: mit normalem Blank bricht der Stern im
+        // gerenderten Markdown in die naechste Zeile, hinter den Monatsnamen.
+        const name = (MONTHS_DE[(m.monat||1)-1] || m.monat) + (b.has(m.monat) ? ' ★' : '');
         const cells = [name, mdNum(m.temp_tag,' °C'), mdNum(m.temp_nacht,' °C'),
                        m.wasser ? mdNum(m.wasser,' °C') : '–',
                        mdNum(m.sonnenstunden,' h'), mdNum(m.regentage)];
@@ -4029,6 +4197,43 @@
     }
     loadClimateLabels();
 
+    // ── Uebersichtslisten Klima/Reisefuehrer: gleiche Tabelle, gleiche Suche ──
+    // Beide Dialoge zeigen dieselben Spalten und unterscheiden sich nur in den
+    // Aktionen, deshalb hier einmal gebaut. Die Suche laeuft rein im Browser
+    // ueber die bereits geladene Liste — kein zweiter Server-Aufruf je Tastendruck.
+    function destListNorm(v){
+      return String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    function destListFilter(items, q){
+      const t = destListNorm(q).trim();
+      if(!t) return items;
+      // Jedes Wort muss vorkommen, Reihenfolge egal ("mad port" findet auch
+      // "Portugal · Madeira").
+      const words = t.split(/\s+/);
+      return items.filter(it => { const l = destListNorm(it.label); return words.every(w => l.includes(w)); });
+    }
+    function destListFilterBox(id, val){
+      return `<input type="text" id="${id}-search" class="list-filter" autocomplete="off"`
+        + ` placeholder="Reiseziel filtern (z. B. „Mad“ für Madeira)…"`
+        + ` value="${esc(val || '')}" oninput="${id === 'guide' ? 'guideListSearch' : 'climateListSearch'}(this.value)">`;
+    }
+    function destListTable(items, openFn, delFn, delTitle){
+      return '<table class="hist">'
+        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
+        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
+            + `${openFn}(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
+          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
+          + `<td><button class="btn sec" onclick="${delFn}(${it.giata},${esc(JSON.stringify(it.label))})" `
+          + `title="${delTitle}"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
+        + '</table>';
+    }
+    // Nach dem Aufbau der Liste in das Suchfeld springen — aber nicht auf dem
+    // Handy, dort schoebe die eingeblendete Tastatur die Liste sofort weg.
+    function destListFocus(id){
+      const el = $('#' + id + '-search');
+      if(el && !matchMedia('(pointer:coarse)').matches) el.focus();
+    }
+
     // Von der Hauptseite ohne Reiseziel: Liste der bereits gespeicherten Tabellen.
     // Neue Ziele entstehen über die Suche — dort gibt es einen Ziel-Picker, hier
     // nicht, und ein zweiter Picker nur fürs Klima wäre doppelte Bedienung.
@@ -4047,14 +4252,18 @@
           + 'Sie entsteht automatisch, sobald du in der <b>Suche</b> ein Reiseziel wählst und suchst.</div>';
         return;
       }
-      $('#climate-body').innerHTML = '<table class="hist">'
-        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
-        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
-            + `openClimate(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
-          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
-          + `<td><button class="btn sec" onclick="deleteClimate(${it.giata},${esc(JSON.stringify(it.label))})" `
-          + `title="Gespeicherte Tabelle löschen"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
-        + '</table>';
+      _climateListItems = items;
+      $('#climate-body').innerHTML = destListFilterBox('climate', _climateListFilter)
+        + '<div id="climate-list"></div>';
+      renderClimateListRows();
+      destListFocus('climate');
+    }
+    function climateListSearch(v){ _climateListFilter = v; renderClimateListRows(); }
+    function renderClimateListRows(){
+      const hits = destListFilter(_climateListItems, _climateListFilter);
+      $('#climate-list').innerHTML = hits.length
+        ? destListTable(hits, 'openClimate', 'deleteClimate', 'Gespeicherte Tabelle löschen')
+        : '<div class="cmp-load">Kein gespeichertes Reiseziel passt zur Suche.</div>';
     }
     async function deleteClimate(giata, label){
       if(!confirm(`Klimatabelle für „${label}" löschen?`)) return;
@@ -4062,6 +4271,14 @@
       catch(e){ toast('Löschen fehlgeschlagen'); return; }
       if(climateData && climateData.giata === giata) climateData = null;
       loadClimateLabels();   // Marke am Angebot wieder entfernen
+      renderClimateList();
+    }
+    // Siehe openGuideList: Menue-Eintrag zeigt immer die Uebersicht.
+    function openClimateList(){
+      climateTarget = null;
+      climateFromSearch = false;
+      _climateListFilter = '';   // siehe openGuideList
+      $('#climate-bg').classList.add('show');
       renderClimateList();
     }
     // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
@@ -4142,6 +4359,8 @@
     // schlimmsten Fall fehlt der Rahmen und der Klick liefert trotzdem den
     // gespeicherten Reiseführer.
     let guideLabels = new Set();
+    let _guideListItems = [], _guideListFilter = '';
+    let _climateListItems = [], _climateListFilter = '';
     function offerHasGuide(o){
       const k = String((o && (o.region || o.country)) || '').trim().toLowerCase();
       return !!k && guideLabels.has(k);
@@ -4301,14 +4520,18 @@
           + 'Er entsteht über den Knopf <b>Reiseführer</b> an einem Angebot oder in der <b>Suche</b>.</div>';
         return;
       }
-      $('#guide-body').innerHTML = '<table class="hist">'
-        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
-        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
-            + `openGuide(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
-          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
-          + `<td><button class="btn sec" onclick="deleteGuide(${it.giata},${esc(JSON.stringify(it.label))})" `
-          + `title="Gespeicherten Reiseführer löschen"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
-        + '</table>';
+      _guideListItems = items;
+      $('#guide-body').innerHTML = destListFilterBox('guide', _guideListFilter)
+        + '<div id="guide-list"></div>';
+      renderGuideListRows();
+      destListFocus('guide');
+    }
+    function guideListSearch(v){ _guideListFilter = v; renderGuideListRows(); }
+    function renderGuideListRows(){
+      const hits = destListFilter(_guideListItems, _guideListFilter);
+      $('#guide-list').innerHTML = hits.length
+        ? destListTable(hits, 'openGuide', 'deleteGuide', 'Gespeicherten Reiseführer löschen')
+        : '<div class="cmp-load">Kein gespeichertes Reiseziel passt zur Suche.</div>';
     }
     async function deleteGuide(giata, label){
       if(!confirm(`Reiseführer für „${label}" löschen?`)) return;
@@ -4319,6 +4542,15 @@
       renderGuideList();
     }
 
+    // Aus dem Menue „Mehr": immer die Uebersicht. Ohne diese eigene Funktion
+    // griffe openGuide() auf srchDest zurueck und zeigte das zuletzt in der Suche
+    // gewaehlte Ziel — bis zum naechsten Neuladen der Seite.
+    function openGuideList(){
+      guideTarget = null;
+      _guideListFilter = '';   // frisch aus dem Menue: ungefiltert zeigen
+      $('#guide-bg').classList.add('show');
+      renderGuideList();
+    }
     // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
     async function openGuide(giata, label){
       if(giata == null && srchDest){ giata = srchDest.giata; label = srchDest.label; }
@@ -4757,9 +4989,12 @@
     function aiRetryable(err){ return err==='ai_failed' || err==='ai_refused' || err==='ai_empty' || err==null; }
     let _aiRetryFn = null;
     function aiRetry(){ if(_aiRetryFn) _aiRetryFn(); }
-    function aiErrorBlock(msg, retryable){
+    function aiErrorBlock(msg, retryable, note){
       const btn = retryable ? ' <button class="btn sec" onclick="aiRetry()"><svg class="i"><use href="#i-refresh"/></svg> Erneut versuchen</button>' : '';
-      return '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+btn+'</div>';
+      // `note`: Zusatzzeile für den Fall, dass der Abbruch nur die Verbindung
+      // betraf und die Antwort serverseitig trotzdem fertig geworden ist.
+      const extra = note ? '<div class="hint" style="margin-top:6px">'+esc(note)+'</div>' : '';
+      return '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+btn+extra+'</div>';
     }
     // ── KI-Prompt-Vorschau (Option „KI-Prompt vor dem Senden anzeigen") ────────
     // Ist die Add-on-Option aktiv, antwortet der Server statt mit dem Ergebnis
@@ -4772,10 +5007,181 @@
     // Aufrufer-spezifisch — großes Modal vs. kleine Folgefrage-Box) und liefert
     // den editierten Text oder null bei Abbruch. `onConfirmed()` rendert den
     // Lade-Zustand für den zweiten (echten) Aufruf.
+    // ── KI-Aktivitaetsanzeige neben dem Logo ─────────────────────────────────
+    // Ein blosses Kreisen sagt nicht, ob noch etwas passiert oder ob es haengt —
+    // gerade bei den gruendlichen Perplexity-Stufen, die Minuten brauchen. Die
+    // Anzeige nennt deshalb die verstrichene Zeit.
+    //
+    // `_aiActive` haelt je laufender Anfrage den Startzeitpunkt. Schluessel ist
+    // bei Anfragen aus diesem Fenster eine laufende Nummer, bei nach einem
+    // Neuladen wieder aufgenommenen Auftraegen die Auftragsnummer selbst.
+    const _aiActive = new Map();
+    let _aiKeySeq = 0, _aiDoneTimer = null, _aiTick = null;
+    const AI_BADGE_DONE_MS = 20000;
+
+    function aiFmtElapsed(ms){
+      const sec = Math.max(0, Math.round(ms / 1000));
+      return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    }
+    function aiBadgeRender(){
+      const el = $('#ai-badge'); if(!el) return;
+      const n = $('#ai-badge-n');
+      if(_aiActive.size > 0){
+        clearTimeout(_aiDoneTimer); _aiDoneTimer = null;
+        const oldest = Math.min(...[..._aiActive.values()].map(v => v.ts));
+        el.style.display = '';
+        el.className = 'ai-badge running';
+        el.title = 'KI arbeitet — klicken für den KI-Verlauf';
+        if(n) n.textContent = (_aiActive.size > 1 ? _aiActive.size + ' · ' : '')
+                            + aiFmtElapsed(Date.now() - oldest);
+        if(!_aiTick) _aiTick = setInterval(aiBadgeRender, 1000);
+      } else {
+        if(_aiTick){ clearInterval(_aiTick); _aiTick = null; }
+        if(_aiDoneTimer){
+          el.style.display = '';
+          el.className = 'ai-badge done';
+          el.title = 'KI-Antwort fertig — klicken für den KI-Verlauf';
+          if(n) n.textContent = 'fertig';
+        } else {
+          el.style.display = 'none';
+          el.className = 'ai-badge';
+          if(n) n.textContent = '';
+        }
+      }
+    }
+    function aiBadgeAdd(key, ts){
+      _aiActive.set(key, {ts: ts || Date.now()});
+      aiBadgeRender();
+    }
+    function aiBadgeDrop(key){
+      if(!_aiActive.delete(key)) return;
+      if(_aiActive.size === 0){
+        clearTimeout(_aiDoneTimer);
+        _aiDoneTimer = setTimeout(()=>{ _aiDoneTimer = null; aiBadgeRender(); },
+                                  AI_BADGE_DONE_MS);
+      }
+      aiBadgeRender();
+    }
+    function aiBadgeStart(){ const k = 'req' + (++_aiKeySeq); aiBadgeAdd(k); return k; }
+    function aiBadgeEnd(key){ aiBadgeDrop(key); }
+
+    // ── Auftraege ueber ein Neuladen retten ──────────────────────────────────
+    // Ein laufender Auftrag lebt serverseitig weiter, das Fenster wusste davon
+    // nach F5 aber nichts mehr: die Anzeige war weg, das Ergebnis tauchte nur
+    // noch im KI-Verlauf auf. Die Auftragsnummern liegen deshalb im
+    // localStorage und werden beim Laden wieder aufgenommen.
+    const AI_JOBS_KEY = 'tuiwatch_ai_jobs';
+    const AI_JOB_KEEP_MS = 60 * 60 * 1000;   // so lange haelt der Server sie vor
+    function aiJobsRead(){
+      try {
+        const v = JSON.parse(localStorage.getItem(AI_JOBS_KEY) || '[]');
+        return Array.isArray(v) ? v.filter(j => j && j.id) : [];
+      } catch(e){ return []; }
+    }
+    function aiJobsWrite(list){
+      try { localStorage.setItem(AI_JOBS_KEY, JSON.stringify(list)); } catch(e){}
+    }
+    function aiJobRemember(id, label){
+      aiJobsWrite(aiJobsRead().filter(j => j.id !== id).concat([{id, label: label || '', ts: Date.now()}]));
+    }
+    function aiJobForget(id){
+      aiJobsWrite(aiJobsRead().filter(j => j.id !== id));
+    }
+
+    // Nach dem Laden alle noch offenen Auftraege weiterverfolgen. Das Ergebnis
+    // wird hier NICHT gerendert — das Fenster dazu ist ja weg —, sondern nur
+    // gemeldet: die Anzeige blinkt und ein Hinweis verweist auf den KI-Verlauf.
+    async function aiResumePendingJobs(){
+      const now = Date.now();
+      for (const job of aiJobsRead()){
+        if(now - (job.ts || 0) > AI_JOB_KEEP_MS){ aiJobForget(job.id); continue; }
+        aiBadgeAdd(job.id, job.ts);
+        (async () => {
+          try {
+            const {resp} = await aiAwaitJob({status:202}, {job: job.id}, {resumed:true});
+            if(resp && resp.status === 404) return;   // schon abgeholt oder abgelaufen
+            toast('KI-Antwort fertig' + (job.label ? ' · ' + job.label : '')
+                  + ' — im KI-Verlauf');
+          } catch(e){
+            // Nichts weiter zu tun: der Auftrag ist entweder abgelaufen oder das
+            // Warten wurde zu lang. Der KI-Verlauf hat das Ergebnis trotzdem.
+          } finally {
+            aiJobForget(job.id);
+            aiBadgeDrop(job.id);
+          }
+        })();
+      }
+    }
+
+    // Wie lange das Fenster auf einen Hintergrundauftrag wartet, bevor es aufgibt,
+    // und in welchem Abstand es nachfragt. Grosszuegig, weil die gruendlichen
+    // Perplexity-Stufen minutenlang recherchieren; der Server hat dafuer sein
+    // eigenes, einstellbares Limit.
+    const AI_JOB_MAX_WAIT_MS = 15 * 60 * 1000;
+    const AI_JOB_POLL_MS = 2000;
+
+    // Notbremse: auf false gesetzt laufen alle KI-Aufrufe wieder direkt wie bis
+    // 0.109.2 (Server versteht `_async` weiterhin, es wird nur nicht geschickt).
+    // Bleibt drin, weil der Auftragsweg die einzige Stelle ist, an der ein Fehler
+    // dazu fuehrt, dass gar nichts mehr im Fenster ankommt.
+    const AI_ASYNC_JOBS = true;
+    function aiAsyncOpts(opts){
+      if(!AI_ASYNC_JOBS) return opts;
+      let body = {};
+      if(opts && opts.body){ try { body = JSON.parse(opts.body); } catch(e){ return opts; } }
+      body._async = true;
+      return Object.assign({}, opts, {
+        method: 'POST', body: JSON.stringify(body),
+        headers: Object.assign({'Content-Type':'application/json'}, (opts&&opts.headers)||{}),
+      });
+    }
+
+    // Antwortete der Server mit {job}, hier warten, bis das Ergebnis vorliegt, und
+    // dann so tun, als waere es direkt gekommen — die Aufrufer merken nichts davon.
+    async function aiAwaitJob(resp, d, opts){
+      if(!(resp.status===202 && d && d.job)) return {resp, d};
+      const resumed = !!(opts && opts.resumed);
+      // Merken, bevor gewartet wird: schliesst der Nutzer waehrenddessen den Tab
+      // oder laedt neu, findet ihn `aiResumePendingJobs` beim naechsten Start
+      // wieder. Beim bereits wieder aufgenommenen Auftrag entfaellt das.
+      if(!resumed) aiJobRemember(d.job, $('#ai-sub') ? $('#ai-sub').textContent : '');
+      const until = Date.now() + AI_JOB_MAX_WAIT_MS;
+      try {
+        while(Date.now() < until){
+          await new Promise(r=>setTimeout(r, AI_JOB_POLL_MS));
+          let r2, d2;
+          try {
+            r2 = await fetch(api('/api/ai/job/'+encodeURIComponent(d.job)));
+            d2 = await r2.json();
+          } catch(e){
+            // Kurzer Netz-Aussetzer: der Auftrag laeuft serverseitig weiter, also
+            // weiterfragen statt aufgeben.
+            continue;
+          }
+          if(r2.status===202 && d2 && d2.job_status==='running') continue;
+          return {resp:r2, d:d2};
+        }
+      } finally {
+        if(!resumed) aiJobForget(d.job);
+      }
+      throw new Error('ai job timeout');
+    }
+
     async function aiFetchPreviewCore(url, opts, onPreview, onConfirmed){
       opts = opts || {};
-      let resp = await fetch(url, opts);
+      const key = aiBadgeStart();
+      try {
+        return await aiFetchPreviewInner(url, opts, onPreview, onConfirmed);
+      } finally {
+        aiBadgeEnd(key);
+      }
+    }
+    async function aiFetchPreviewInner(url, opts, onPreview, onConfirmed){
+      let resp = await fetch(url, aiAsyncOpts(opts));
       let d = await resp.json();
+      // Die Prompt-Vorschau kommt sofort und ohne Auftrag zurueck — erst der
+      // bestaetigte zweite Aufruf laeuft wirklich lange.
+      if(resp.status===202 && d && d.job) ({resp, d} = await aiAwaitJob(resp, d));
       if(resp.ok && d && d.prompt_preview){
         const edited = await onPreview(d.prompt_preview);
         if(edited === null) return {cancelled:true};
@@ -4783,12 +5189,14 @@
         if(opts.body){ try { body = JSON.parse(opts.body); } catch(e){} }
         body._prompt_confirmed = true;
         body._prompt_override = edited;
+        if(AI_ASYNC_JOBS) body._async = true;
         if(onConfirmed) onConfirmed();
         resp = await fetch(url, Object.assign({}, opts, {
           method: 'POST', body: JSON.stringify(body),
           headers: Object.assign({'Content-Type':'application/json'}, opts.headers||{}),
         }));
         d = await resp.json();
+        if(resp.status===202 && d && d.job) ({resp, d} = await aiAwaitJob(resp, d));
       }
       return {resp, d};
     }
@@ -4838,6 +5246,14 @@
         if(usage.estimated_usd != null) parts.push('≈ '+fmtUsd(usage.estimated_usd));
         html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)"><svg class="i"><use href="#i-hash"/></svg> '
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
+        // Eine abgeschnittene Antwort hoert einfach mittendrin auf — ohne Hinweis
+        // haelt man sie fuer vollstaendig. Das war bei fuenf Reisezielen der Fall:
+        // die Auswertung endete nach dem dritten Ziel.
+        if(usage.truncated){
+          html += '<div class="hint" style="margin-top:6px;color:var(--amber)">'
+            + '<svg class="i"><use href="#i-warn"/></svg> Die Antwort wurde am Token-Limit '
+            + 'abgeschnitten und ist unvollständig.</div>';
+        }
       }
       if(totals && totals.calls){
         html += '<div class="hint" style="margin-top:4px">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
@@ -4889,6 +5305,12 @@
         + aiFollowupBoxHtml();
       $('#ai-foot').style.display = 'flex';
       aiCurrentId = result.id != null ? result.id : null;
+      // Konversationen (mit Folgefragen) als Frage/Antwort-Folge, sonst die
+      // Antwort selbst. Beides ist bereits Markdown, wie es die KI geliefert hat.
+      _aiMdParts = Array.isArray(conv) && conv.length > 2
+        ? conv.filter(m => m && m.content).map(m =>
+            (m.role === 'user' ? '### Frage\n\n' : '') + m.content)
+        : [result.summary || ''];
     }
     async function submitAiFollowup(){
       const input = $('#ai-followup-q');
@@ -4926,6 +5348,7 @@
         return;
       }
       thread.innerHTML += aiMdLite(d.summary);
+      _aiMdParts.push('### Frage\n\n' + q, d.summary || '');
       status.innerHTML = '';
       const usageWrap = $('#ai-usage-line-wrap');
       if(usageWrap) usageWrap.innerHTML = aiUsageLine(d.usage, false, d.totals);
@@ -5064,6 +5487,48 @@
       };
       attempt();
     }
+    // Markdown der aktuell gezeigten Antwort. Wird in renderAiResult gesetzt und
+    // bei jeder Folgefrage erweitert.
+    let _aiMdParts = [];
+
+    // Dateiname aus Titel und Untertitel: „Regionen-Vergleich · Malediven · …"
+    // -> „regionen-vergleich-malediven-….md". Umlaute werden ersetzt statt
+    // entfernt, sonst wird aus „Ägypten" ein „gypten".
+    function aiExportFilename(title, sub){
+      const map = {'ä':'ae','ö':'oe','ü':'ue','Ä':'ae','Ö':'oe','Ü':'ue','ß':'ss'};
+      const slug = (title + ' ' + sub)
+        .replace(/[äöüÄÖÜß]/g, c => map[c])
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+      const d = new Date();
+      const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0')
+                  + String(d.getDate()).padStart(2,'0');
+      return (slug || 'ki-antwort') + '-' + stamp + '.md';
+    }
+
+    function exportAiMarkdown(){
+      const md = (_aiMdParts || []).filter(Boolean).join('\n\n');
+      if(!md){ toast('Nichts zum Exportieren'); return; }
+      const title = $('#ai-title').textContent, sub = $('#ai-sub').textContent;
+      const head = '# ' + title + (sub ? '\n\n*' + sub + '*' : '')
+                 + '\n\n<!-- TUIWatch, ' + new Date().toLocaleString('de-DE') + ' -->\n\n';
+      // Ueber ein Blob statt eines data:-Links: der Text enthaelt Umlaute und kann
+      // mehrere hundert KB gross werden, beides vertraegt eine URL schlecht.
+      const blob = new Blob([head + md + '\n'], {type: 'text/markdown;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = aiExportFilename(title, sub);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Erst nach dem Klick freigeben, sonst bricht der Download in manchen
+      // Browsern ab, bevor er begonnen hat.
+      setTimeout(()=>URL.revokeObjectURL(url), 10000);
+    }
+
     function exportAiPdf(){
       const w = window.open('', '_blank');
       if(!w){ toast('Pop-up blockiert – bitte für TUIWatch erlauben'); return; }
@@ -5412,6 +5877,179 @@
         : 'Störungen';
     }
 
+
+    // ── Einstellungen (settings.json) ──────────────────────────────────────────
+    // Der Dialog baut sich aus der Feldbeschreibung, die /api/settings liefert —
+    // so muss eine neue Einstellung nur in settings.py stehen und taucht hier
+    // von allein auf. Geheime Felder kommen nie im Klartext zurueck: der Server
+    // meldet lediglich „gesetzt". Ein leeres Feld heisst deshalb „unveraendert",
+    // geleert wird ausschliesslich ueber den Loeschen-Knopf.
+    const SET_CLEAR = new Set();
+
+    function openSettings(){
+      $('#settings-bg').classList.add('show');
+      loadSettings();
+      loadKeyState();
+      return false;
+    }
+    function closeSettings(){ $('#settings-bg').classList.remove('show'); }
+
+    function setFieldHtml(f){
+      const id = 'set-f-' + f.key;
+      const hint = f.hint ? `<div class="hint">${esc(f.hint)}${f.restart ? ' <b>Neustart nötig.</b>' : ''}</div>` : '';
+      if(f.secret){
+        return `<div class="set-row">
+          <label class="set-lbl" for="${id}">${esc(f.label)}
+            <span class="set-state" id="set-state-${f.key}">${f.set ? 'gesetzt' : 'nicht gesetzt'}</span></label>
+          <div class="set-secret-row">
+            <input type="password" id="${id}" data-set="${f.key}" data-secret autocomplete="new-password"
+                   placeholder="${f.set ? 'gesetzt — leer lassen heißt unverändert' : 'nicht gesetzt'}">
+            <button class="btn sec" type="button" data-clear="${f.key}">Löschen</button>
+          </div>${hint}</div>`;
+      }
+      if(f.kind === 'bool'){
+        return `<div class="set-row set-bool"><label class="set-lbl" for="${id}">
+            <input type="checkbox" id="${id}" data-set="${f.key}" ${f.value ? 'checked' : ''}>
+            ${esc(f.label)}</label>${hint}</div>`;
+      }
+      if(f.kind === 'choice'){
+        const opts = (f.choices || []).map(c =>
+          `<option value="${esc(c)}"${String(f.value) === String(c) ? ' selected' : ''}>${esc(c)}</option>`).join('');
+        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+          <select id="${id}" data-set="${f.key}">${opts}</select>${hint}</div>`;
+      }
+      if(f.kind === 'int' || f.kind === 'float'){
+        const step = f.kind === 'float' ? ' step="0.1"' : '';
+        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+          <input type="number" id="${id}" data-set="${f.key}" min="${f.min}" max="${f.max}"${step}
+                 value="${esc(f.value)}">${hint}</div>`;
+      }
+      return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+        <input type="text" id="${id}" data-set="${f.key}" value="${esc(f.value)}" autocomplete="off">${hint}</div>`;
+    }
+
+    async function loadSettings(){
+      const body = $('#settings-body');
+      body.innerHTML = '<div class="cmp-load">lädt…</div>';
+      SET_CLEAR.clear();
+      let d;
+      try {
+        const r = await fetch(api('/api/settings'));
+        if(!r.ok) throw 0;
+        d = await r.json();
+      } catch(e){ body.innerHTML = '<div class="cmp-load">Einstellungen konnten nicht geladen werden.</div>'; return; }
+      $('#set-crypto-warn').style.display = d.crypto ? 'none' : '';
+      body.innerHTML = (d.groups || []).map(g =>
+        `<div class="set-group"><h3>${esc(g.title)}</h3>${(g.items || []).map(setFieldHtml).join('')}</div>`).join('');
+      body.querySelectorAll('[data-clear]').forEach(b =>
+        b.addEventListener('click', () => clearSecret(b.dataset.clear)));
+    }
+
+    function clearSecret(key){
+      if(!confirm('Diesen Zugang beim nächsten Speichern entfernen?')) return;
+      SET_CLEAR.add(key);
+      const inp = $(`#settings-body [data-set="${key}"]`);
+      if(inp) inp.value = '';
+      const st = $('#set-state-' + key);
+      if(st) st.textContent = 'wird beim Speichern gelöscht';
+    }
+
+    async function saveSettings(btn){
+      const values = {};
+      $('#settings-body').querySelectorAll('[data-set]').forEach(inp => {
+        const k = inp.dataset.set;
+        if(inp.hasAttribute('data-secret')){ if(inp.value) values[k] = inp.value; return; }
+        values[k] = inp.type === 'checkbox' ? inp.checked : inp.value;
+      });
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/settings'), {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ values, clear: [...SET_CLEAR] }),
+        });
+        if(!r.ok){ toast('Speichern fehlgeschlagen'); return; }
+        const d = await r.json();
+        toast(!d.changed.length ? 'Nichts geändert'
+              : d.restart ? 'Gespeichert — für die öffentlichen Angebots-Links das Add-on neu starten'
+              : 'Gespeichert');
+        await loadSettings();
+      } catch(e){ toast('Speichern fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+
+
+    // Schlüssel sichern: verlaesst das Add-on nur mit einer Passphrase verpackt,
+    // und erst nach erneuter Eingabe des Login-Passworts.
+    const KEY_ERR = {
+      auth: 'Passwort falsch', locked: 'Zu viele Fehlversuche — bitte 5 Minuten warten',
+      passphrase_short: 'Passphrase zu kurz (mindestens 10 Zeichen)',
+      wrong_passphrase: 'Falsche Passphrase — die Datei lässt sich nicht öffnen',
+      invalid_file: 'Das ist keine gültige Schlüsseldatei',
+      no_key: 'Es gibt noch keinen Schlüssel zum Sichern',
+      crypto_unavailable: 'Verschlüsselung nicht verfügbar',
+    };
+    async function loadKeyState(){
+      try {
+        const r = await fetch(api('/api/settings/key'));
+        if(!r.ok) return;
+        const d = await r.json();
+        $('#set-key-state').textContent = d.key
+          ? 'Ein Schlüssel ist vorhanden.'
+          : 'Noch kein Schlüssel angelegt — er entsteht, sobald du das erste Passwort oder Token speicherst.';
+      } catch(e){}
+    }
+    function keyClearInputs(){ $('#set-key-pass').value=''; $('#set-key-admin').value=''; }
+    async function exportKey(btn){
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/settings/key/export'), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ passphrase: $('#set-key-pass').value, password: $('#set-key-admin').value }),
+        });
+        if(!r.ok){ const d = await r.json().catch(()=>({})); toast(KEY_ERR[d.error] || 'Export fehlgeschlagen'); return; }
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'tuiwatch-settings-key.json';
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+        keyClearInputs();
+        toast('Schlüssel heruntergeladen — sicher aufbewahren');
+      } catch(e){ toast('Export fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function importKey(file, overwrite){
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('passphrase', $('#set-key-pass').value);
+      fd.append('password', $('#set-key-admin').value);
+      if(overwrite) fd.append('overwrite','1');
+      let r, d;
+      try { r = await fetch(api('/api/settings/key/import'), { method:'POST', body: fd }); d = await r.json().catch(()=>({})); }
+      catch(e){ toast('Einspielen fehlgeschlagen'); return; }
+      if(r.ok){
+        keyClearInputs();
+        toast('Schlüssel eingespielt — ' + d.readable + ' Zugangsdaten wieder lesbar');
+        loadKeyState(); loadSettings();
+        return;
+      }
+      if(d.error === 'exists' && !overwrite){
+        if(confirm('Es liegt bereits ein anderer Schlüssel, mit dem gespeicherte Zugangsdaten verschlüsselt sind. '
+                 + 'Wird er ersetzt, sind diese Daten unwiderruflich unlesbar. Trotzdem fortfahren?')){
+          return importKey(file, true);
+        }
+        return;
+      }
+      toast(KEY_ERR[d.error] || 'Einspielen fehlgeschlagen');
+    }
+    document.addEventListener('change', e => {
+      if(e.target && e.target.id === 'set-key-file'){
+        const f = e.target.files[0];
+        e.target.value = '';
+        if(f) importKey(f, false);
+      }
+    });
+
     function openIssues(){
       $('#issues-bg').classList.add('show');
       loadIssues();
@@ -5439,17 +6077,21 @@
         const col = it.severity==='error' ? 'var(--red)' : 'var(--amber)';
         const seit = new Date((it.first_ts||0)*1000).toLocaleDateString('de-DE');
         const zul  = new Date((it.last_ts||0)*1000).toLocaleString('de-DE');
-        return `<div class="issue-row${it.muted?' muted':''}">
+        // target_paused: das Add-on hat selbst stillgelegt (Ausverkauft-Alarm).
+        // Dann darf hier kein „Pausieren" mehr stehen — es ist schon pausiert.
+        const off = !!(it.muted || it.target_paused);
+        const chip = it.muted ? 'pausiert' : it.target_paused ? 'automatisch pausiert' : '';
+        return `<div class="issue-row${off?' muted':''}">
           <div class="issue-head">
             <svg class="i" style="color:${col}"><use href="#i-warn"/></svg>
             <b>${esc(it.title)}</b>
             <span class="issue-kind">${esc(it.kind_label)}</span>
-            ${it.muted?'<span class="issue-kind">pausiert</span>':''}
+            ${chip?`<span class="issue-kind">${chip}</span>`:''}
           </div>
           <div class="hint" style="margin-top:3px">${esc(it.detail)}</div>
           <div class="hint">${it.streak}× in Folge · ${it.total}× insgesamt · seit ${seit} · zuletzt ${zul}</div>
           <div class="issue-acts">
-            ${it.muted
+            ${off
               ? `<button class="btn sec" onclick="issueMute(${it.id},false)"><svg class="i"><use href="#i-play"/></svg> Wieder aktivieren</button>`
               : `<button class="btn sec" onclick="issueMute(${it.id},true)"><svg class="i"><use href="#i-pause"/></svg> Pausieren</button>`}
             <button class="btn sec" onclick="issueDismiss(${it.id})" title="Nur den Eintrag entfernen — tritt die Störung wieder auf, kommt sie zurück"><svg class="i"><use href="#i-close"/></svg> Ausblenden</button>
@@ -5563,16 +6205,39 @@
     function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
     $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
 
-    // ── KI-Prompt-Einstellungen (eigene Prompt-Vorlagen für Reiseberater/Vergleich) ──
+    // ── KI-Prompt-Einstellungen (eigene Prompt-Vorlagen) ──────────────────────
+    // Schlüssel, Symbol und Überschrift je anpassbarer Vorlage. Der Schlüssel muss
+    // zu _PROMPT_FEATURES in ai_routes.py passen; die Blöcke im Dialog entstehen
+    // daraus, statt im HTML zu stehen.
+    const PROMPTCFG_FEATURES = [
+      ['advisor',        'i-map',    'TripPilot'],
+      ['compare',        'i-hotel',  'Hotelvergleich'],
+      ['summary',        'i-ai',     'KI-Fazit'],
+      ['daytrip',        'i-car',    'Tagesausflug'],
+      ['region_compare', 'i-chart',  'Regionen-Vergleich'],
+      ['climate',        'i-climate', 'Klimatabelle'],
+      ['guide',          'i-compass', 'Reiseführer'],
+    ];
+    const PROMPTCFG_MAX = 16000;
     let promptCfgData = null;
+    function promptcfgRender(){
+      $('#promptcfg-list').innerHTML = PROMPTCFG_FEATURES.map(([f, icon, title], i) => `
+        <h3 style="margin:${i ? 20 : 14}px 0 6px"><svg class="i"><use href="#${icon}"/></svg> ${esc(title)}</h3>
+        <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-${f}-enabled"> Eigenen Prompt verwenden</label>
+        <textarea id="promptcfg-${f}-text" class="promptcfg-text" rows="10" maxlength="${PROMPTCFG_MAX}" oninput="promptcfgCount('${f}')" style="margin-top:6px"></textarea>
+        <div class="hint" id="promptcfg-${f}-count" style="text-align:right"></div>
+        <button class="btn sec" onclick="promptcfgReset('${f}')" style="margin-top:4px">Zurücksetzen auf Standard</button>`).join('');
+    }
     async function openPromptCfg(){
       $('#promptcfg-bg').classList.add('show');
+      promptcfgRender();
       try {
         const resp = await fetch(api('/api/ai/prompt-settings'));
         promptCfgData = await resp.json();
       } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
-      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
+      for (const [f] of PROMPTCFG_FEATURES){
         const d = promptCfgData[f];
+        if(!d) continue;                       // Vorlage kennt der Server (noch) nicht
         $(`#promptcfg-${f}-enabled`).checked = d.enabled;
         $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
         promptcfgCount(f);
@@ -5585,11 +6250,12 @@
       promptcfgCount(f);
     }
     function promptcfgCount(f){
-      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 6000 Zeichen';
+      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / ' + PROMPTCFG_MAX + ' Zeichen';
     }
     async function savePromptCfg(){
       const body = {};
-      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
+      for (const [f] of PROMPTCFG_FEATURES){
+        if(!promptCfgData || !promptCfgData[f]) continue;
         body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
       }
       try {
@@ -5600,14 +6266,23 @@
         closePromptCfg();
       } catch(e){ toast('Speichern fehlgeschlagen'); }
     }
+    // Reiner Text — landet auch in textContent-Zielen und im Verlauf-Filter.
+    // Vorher steckte bei zwei Arten ein <svg> mit in der Beschriftung; wo sie per
+    // textContent gesetzt wurde (Wiederholen-Fenster, Verlauf-Detail), stand das
+    // Markup wörtlich auf dem Bildschirm, und der Filter suchte darin mit.
     function aiKindLabel(kind){
-      return kind==='compare' ? 'Vergleich' : kind==='ask' ? '<svg class="i"><use href="#i-bookmark"/></svg> Portfolio-Frage'
+      return kind==='compare' ? 'Vergleich' : kind==='ask' ? 'Portfolio-Frage'
         : kind==='ask_general' ? 'Reisefrage'
         : kind==='search_advice' ? 'Reisezeit-Check'
         : kind==='advisor' ? 'TripPilot' : kind==='booking_score' ? 'Buchungsscore'
         : kind==='region_outlook' ? 'Region-Ausblick'
-        : kind==='region_compare' ? '<svg class="i"><use href="#i-chart"/></svg> Regionen-Vergleich'
+        : kind==='region_compare' ? 'Regionen-Vergleich'
         : kind==='calendar_outlook' ? 'Kalender-Analyse' : 'Fazit';
+    }
+    // Symbol getrennt davon — nur dort einsetzen, wo wirklich HTML gerendert wird.
+    function aiKindIcon(kind){
+      const id = kind==='ask' ? 'i-bookmark' : kind==='region_compare' ? 'i-chart' : '';
+      return id ? '<svg class="i"><use href="#'+id+'"/></svg> ' : '';
     }
     function renderAiHistory(items){
       if(!items.length){
@@ -5617,7 +6292,7 @@
       }
       $('#aihist-body').innerHTML = items.map(it => `<div class="aihist-item">
           <div class="aihist-main" onclick="openAiHistoryItem(${it.id})">
-            <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
+            <div class="aihist-title">${aiKindIcon(it.kind)}${esc(aiKindLabel(it.kind))} · ${esc(it.title)}</div>
             <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
           </div>
           ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit anderer KI wiederholen"><svg class="i"><use href="#i-repeat"/></svg></button>` : ''}
@@ -5655,7 +6330,7 @@
       const it = _aiHistItems.find(x=>x.id===id); if(!it) return;
       closeAiHistory();
       $('#ai-title').textContent = 'Wiederholen';
-      $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;
+      $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;   // beides reiner Text
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
       let avail = {};
@@ -6975,6 +7650,8 @@
         if(d.settings) parts.push(d.settings+' KI-Einstellungen');
         toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
         loadOffers();
+      } else if(r.status===413){
+        toast('Backup-Datei zu groß bzw. verdächtig stark komprimiert');
       } else toast('Wiederherstellung fehlgeschlagen');
     }
 
@@ -7240,3 +7917,4 @@
       } catch(e){ toast('Umschalten fehlgeschlagen'); }
     }
     loadAiProviderFooter();
+    aiResumePendingJobs();

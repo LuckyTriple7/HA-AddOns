@@ -10,6 +10,8 @@
   "error_locked": "Too many failed attempts. Please try again in 15 minutes.",
   "status_online": "Online",
   "status_offline": "Offline",
+  "status_problem": "Connection problem",
+  "status_problem_hint": "Add-on is running but not connected to {name}",
   "status_checking": "Checking...",
   "no_messengers": "No messengers configured.",
   "offline_title": "Unreachable",
@@ -37,5 +39,8 @@
   "notif_new_msg_from": "from {sender}",
   "banner_offline_title": "Connection lost",
   "banner_offline_sub": "Reconnecting…",
-  "banner_offline_reload": "Reload"
+  "banner_offline_reload": "Reload",
+  "status_warn": "Online – with limitations",
+  "status_warn_hint": "{name} is connected, but the self-check reports changes on the provider side. Affected: {what}. Everything else keeps running.",
+  "status_health_ok": "Connected – self-check clean ({n} internals, {s} response shapes checked)"
 }

@@ -1,4 +1,10 @@
 configuration:
+  api_enabled:
+    name: REST-API auf eigenem Port
+    description: "Startet die REST-API zusätzlich auf Port 17787. Dort gilt Token-Pflicht und es gibt keine Weboberfläche — anders als auf Port 17777, der beides ohne Anmeldung herausgibt. Ohne gesetzten API-Token startet der Port nicht. Für Zugriff aus dem LAN muss er zusätzlich unter Netzwerk freigegeben werden. Standard: aus."
+  api_token:
+    name: API-Token
+    description: "Geheimnis für die REST-API auf Port 17787. Der Aufrufer schickt es als Kopfzeile Authorization mit dem Wert Bearer und dem Token mit. Lang und zufällig wählen, etwa mit openssl rand -hex 32."
   dark_mode:
     name: Dunkles Theme
     description: Dunkles Theme in der Web-UI aktivieren.

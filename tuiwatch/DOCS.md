@@ -11,33 +11,39 @@ Angebots-URLs und zeigt den Verlauf mit Hoch/Runter-Anzeige.
 
 ## Konfiguration
 
+Seit **0.104.0** stellst du alles im Zahnrad rechts neben **Alle prüfen** ein — nicht mehr in den Add-on-Optionen. Vorteile: Es geht ohne den Umweg über die HA-Konfigurationsseite (und damit auch ohne Home Assistant), und Tokens sowie Passwörter liegen **verschlüsselt** in `settings.json` statt im Klartext in `options.json`.
+
+Beim ersten Start nach dem Update übernimmt TUIWatch die bisherigen Optionen automatisch — du musst nichts abtippen.
+
+### Add-on-Optionen (Home Assistant)
+
+Hier stehen nur noch die Login-Daten. Sie bleiben bewusst in Home Assistant: Damit kommst du auch dann wieder hinein, wenn du dich über die Oberfläche aussperrst.
+
 ```yaml
 username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
-poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
-poll_gap: 10             # Pause in Sekunden zwischen zwei Hintergrund-Abrufen (0 = aus)
-ha_notify_service: ""    # optional: notify-Dienst(e) für Push, z. B. mobile_app_mein_handy
-notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
-notify_unavailable: true # Alarm, wenn das Buchungssystem ein Angebot nicht mehr bestätigt
-notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
-booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
-digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
-digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
-market_basket_enabled: true   # Markttrend aus den täglich neu ausgeführten Suchen
-market_basket_lead_days: 91   # Ersatz-Abreise, nur wenn kein echtes Datum vorliegt
-market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Messreihen (1…50)
-booking_window_enabled: true   # Buchungszeitpunkt-Ampel aus der Booking-Kurve
-anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
-anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
-ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
-gemini_api_key: ""       # nur relevant bei ai_provider: gemini
-gemini_model: gemini-3.1-pro  # oder gemini-3.6-flash / gemini-3.5-flash / gemini-2.5-flash
-perplexity_api_key: ""   # nur relevant bei ai_provider: perplexity
-perplexity_model: sonar-pro  # oder sonar / sonar-reasoning-pro / sonar-deep-research
-ai_max_web_searches: 12  # Limit Websuchen/Aufruf, gilt nur bei Anthropic
-verbose_log: false       # ausführliche Logs
 ```
+
+Die übrigen Optionen sind seit **0.104.1** aus dem Schema entfernt und tauchen in der HA-Konfigurationsseite nicht mehr auf. Beim Update auf 0.104.0 wurden ihre Werte bereits einmalig nach `settings.json` übernommen.
+
+### Zahnrad → **Einstellungen**
+
+Gespeichert wird in `settings.json` im privaten Datenverzeichnis des Add-ons (`/data`, neben `options.json`), in 13 Gruppen von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
+
+* **Geheime Felder** (Telegram-Token, SMTP-Passwort, Nextcloud-App-Passwort, Anthropic-/Gemini-/Perplexity-Key) werden mit `settings.key` verschlüsselt und nie an den Browser zurückgegeben — er sieht nur „gesetzt"/„nicht gesetzt". Ein **leeres Feld heißt „unverändert lassen"**; zum Entfernen den Knopf **Löschen** benutzen.
+* Fast alles greift **sofort**, ohne Neustart. Ausnahme: `enable_public_share` und `public_port` — der zweite Webserver für die öffentlichen Angebots-Links wird einmalig beim Start gebunden. Der Dialog weist darauf hin.
+* Das TUIWatch-Backup enthält `settings.json`, aber **nicht** den Schlüssel `settings.key`. Zugangsdaten sind aus diesem ZIP also nicht lesbar; nach einem Restore auf einer frischen Installation müssen sie einmal neu eingetragen werden.
+* Das **Home-Assistant-Add-on-Backup** sichert dagegen `/data` komplett und enthält damit auch den Schlüssel. Es schützt die Zugangsdaten nur, wenn das HA-Backup selbst verschlüsselt (mit Passwort) angelegt wird.
+
+#### Schlüssel sichern
+
+Im Einstellungen-Dialog ganz unten. Der Export verpackt `settings.key` mit einer **Passphrase**, die du eingibst — die Datei darf deshalb neben dem Backup liegen, ohne Passphrase ist sie wertlos (scrypt zur Ableitung, 32 MB Speicher je Rateversuch). Damit lässt sich ein TUIWatch-Backup auf einer frischen Installation samt Zugangsdaten zurückholen.
+
+* Vor Export **und** Import fragt TUIWatch das **Login-Passwort** erneut ab. Nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt.
+* Die Passphrase wird nirgends gespeichert. Geht sie verloren, ist der Export wertlos.
+* Liegt bereits ein **anderer** Schlüssel mit nutzbaren Daten, kommt vor dem Ersetzen eine Warnung — die damit verschlüsselten Zugangsdaten wären danach unwiderruflich unlesbar.
+* Werte außerhalb des erlaubten Bereichs werden auf die Grenze gezogen (z. B. `poll_interval` nie unter 600 Sekunden).
 
 ## Reise hinzufügen
 
@@ -200,6 +206,13 @@ Button **Verlauf** (Diagramm auf den Verlauf gezoomt + volle Historie als Tabell
 Diagramm markieren **Fähnchen** wichtige Änderungen (Zimmerwechsel, gebuchter Preis,
 Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung.
 
+**Automatischer Zimmerwechsel:** Ein Angebot ohne fixiertes Zimmer verfolgt immer das
+**günstigste**. Ist das ausgebucht, rückt das nächstteurere nach — der Preis springt,
+obwohl sich am Markt nichts bewegt hat. Die Verlaufstabelle zeigt an dieser Stelle
+jetzt eine Hinweiszeile („Zimmer gewechselt: … → …") direkt unter dem betroffenen
+Preis, im Diagramm steht ein Fähnchen und die Preis-Benachrichtigung nennt den Wechsel
+mit. Dieser Preisschritt fließt außerdem **nicht** in den Markttrend ein (siehe dort).
+
 > Der Preis wird seit v0.3.0 direkt aus der TUI-JSON-API gelesen (schnell und
 > robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere
 > Browser-Auslesen um. Details: [SCRAPING.md](SCRAPING.md).
@@ -233,10 +246,14 @@ Wechsel der Flugvariante den Preis springen lässt, wie beim Zimmerwechsel.
 > Add-on-Start an — das ist eine Schätzung auf Basis der Token-Zahlen,
 > **kein echtes Guthaben** und keine Abbuchung durch TUIWatch selbst; das
 > tatsächliche Guthaben/die Abrechnung zeigt nur die jeweilige
-> Anbieter-Console. Perplexity berechnet zusätzlich eine Request-Gebühr pro
-> Anfrage, gestaffelt nach Such-Kontextgröße — TUIWatch fragt dafür immer die
-> günstigste Stufe (`low`) an und rechnet genau diese feste Gebühr mit in die
-> Kostenschätzung ein.
+> Anbieter-Console. **Bei Perplexity ist es keine Schätzung mehr:** die Agent
+> API rechnet jeden Aufruf selbst ab und liefert den Betrag mit (Token-, Cache-
+> und Suchkosten zusammen) — TUIWatch übernimmt diese Zahl unverändert. Nur
+> falls Perplexity sie einmal nicht mitschickt, greift ersatzweise die alte
+> Schätzung: Preistabelle plus die feste Request-Gebühr, die pro Anfrage **mit**
+> Websuche anfällt (gestaffelt nach Such-Kontextgröße, TUIWatch fragt immer die
+> günstigste Stufe `low` an). Diese Ersatzschätzung liegt eher etwas zu hoch als
+> zu niedrig, weil sie die Gebühr auch bei Aufrufen ohne Websuche ansetzt.
 
 Mit hinterlegtem API-Key (`anthropic_api_key`, `gemini_api_key` oder
 `perplexity_api_key`, je nach `ai_provider`) erscheinen zusätzliche
@@ -259,13 +276,42 @@ sie komplett ausgeblendet).
   `gemini-3.6-flash`). Websuche über
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
-- **Perplexity:** `perplexity_model` (Standard `sonar-pro`; auch `sonar`,
-  `sonar-reasoning-pro`, `sonar-deep-research` wählbar). Sonar-Modelle
-  durchsuchen bei **jeder** Anfrage automatisch das Web — kein Schalter,
-  kein Äquivalent zu `ai_max_web_searches`, dafür pro Aufruf teurer
-  (Token- **und** feste Request-Kosten, siehe Warnhinweis oben). Zitat-Marker
-  wie `[1][5]` in der Antwort sind anklickbare Links zur jeweiligen Quelle
-  (hochgestellte Zahl) — in Web-UI, PDF-Export und E-Mail.
+- **Perplexity:** `perplexity_model` wählt die **Gründlichkeitsstufe** (Standard
+  `pplx-low`). Angesprochen wird die Agent API (`/v1/agent`); die alte
+  Sonar-Chat-API läuft am 27.09.2026 aus, und die Sonar-**Modelle** gibt es in der
+  Agent API bis auf das Basismodell schon jetzt nicht mehr. An ihre Stelle treten
+  Perplexitys Presets, die Modell, Systemprompt und Suchparameter bündeln:
+
+  | Stufe | ersetzt | gut für |
+  |---|---|---|
+  | `pplx-fast` | Sonar | einzelne Fakten, Definitionen, kurze Zusammenfassungen |
+  | `pplx-low` | Sonar Pro | alltägliche Recherchefragen mit aktuellen Informationen |
+  | `pplx-medium` | Sonar Reasoning Pro | mehrstufiges Browsen, breite Auswertung vieler Quellen |
+  | `pplx-high` | Sonar Deep Research | Expertenniveau, erschöpfende Quellenabdeckung |
+  | `pplx-xhigh` | — | wie `high`, mit größerem Budget |
+
+  Eine bestehende Sonar-Auswahl wird beim Start automatisch auf die passende Stufe
+  gehoben — es ist nichts umzustellen. Perplexity weist für die Presets in eigenen
+  Benchmarks durchgehend bessere Ergebnisse aus als für das jeweils ersetzte
+  Sonar-Modell, bei `high` zudem oft geringere Kosten je Anfrage als Sonar Deep
+  Research.
+
+  **Lange Läufe:** Die gründlichen Stufen recherchieren mehrstufig und brauchen
+  dafür Minuten. TUIWatch startet sie deshalb als Hintergrund-Lauf bei Perplexity
+  und fragt das Ergebnis danach ab, statt eine Verbindung offen zu halten; das
+  Fenster im Browser holt es seinerseits über einen Auftrag ab. Dadurch schneidet
+  weder der Browser noch der Ingress-Proxy eine laufende Recherche ab — vorher
+  meldete das Fenster „fehlgeschlagen", während der Server in Ruhe zu Ende rechnete
+  und das Ergebnis nur noch im KI-Verlauf auftauchte. Wie lange insgesamt gewartet
+  wird, steht in der Option „Perplexity: Zeitlimit je Anfrage".
+
+  Ein Äquivalent zu `ai_max_web_searches` gibt es nicht; Perplexity entscheidet
+  selbst, wie oft es sucht. Die Websuche lässt sich auch **nicht abschalten**: sie
+  gehört fest zum Preset, und das Weglassen des Werkzeugs nimmt sie ihm nicht
+  (Werkzeuge werden zusammengeführt, nicht ersetzt). Anders als bei Claude und
+  Gemini sucht Perplexity daher auch bei Aufgaben ohne Recherchebedarf.
+  Zitat-Marker wie `[1][5]` in der Antwort sind anklickbare Links zur jeweiligen
+  Quelle (hochgestellte Zahl) — in Web-UI, PDF-Export und E-Mail.
 
 Sind **mindestens 2 der 3** API-Keys hinterlegt, erscheint im Footer ein
 Umschalter („🤖 Claude aktiv" / „✨ Gemini aktiv" / „🔎 Perplexity aktiv") —
@@ -328,6 +374,14 @@ versteckt, `ai_provider` wird ignoriert).
   separater Admin-API-Key nötig.
 - **📄 PDF exportieren** — öffnet eine druckoptimierte Ansicht in neuem Tab, aus
   der sich der Browser-Druckdialog direkt als PDF speichern lässt.
+- **⬇ Markdown** — speichert die Antwort als `.md`-Datei, so wie die KI sie
+  geliefert hat: Überschriften, Tabellen und die Quellen-Links bleiben als
+  Markdown erhalten statt in Druck-HTML zu landen. Gedacht zum Weiterverarbeiten
+  (Obsidian, Notion, Git, eigene Notizen). Folgefragen sind mit drin, jede unter
+  einer eigenen Überschrift „Frage". Der Dateiname entsteht aus Titel und
+  Untertitel plus Datum, z. B. `regionen-vergleich-mauritius-malediven-20260829.md`.
+  Steht überall dort zur Verfügung, wo auch PDF-Export und E-Mail angeboten werden
+  — inklusive der Detailansicht im KI-Verlauf.
 - **🤖 KI-Verlauf** (Button oben neben „Alle prüfen") — alle bisherigen Fazits/
   Vergleiche bleiben **dauerhaft** gespeichert (unabhängig vom 24h-Cache, bis zu
   300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar (löscht auch
@@ -482,14 +536,32 @@ Drei Dinge sind wichtig:
 ## Eigene KI-Prompts
 
 Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für
-**TripPilot**, **Hotelvergleich**, **KI-Fazit**, **Tagesausflug** und
-**Regionen-Vergleich** einsehen und über die Checkbox „Eigenen Prompt
-verwenden" durch einen eigenen Text ersetzen (max. 6000 Zeichen,
-„Zurücksetzen auf Standard" jederzeit möglich).
+**TripPilot**, **Hotelvergleich**, **KI-Fazit**, **Tagesausflug**,
+**Regionen-Vergleich**, **Klimatabelle** und **Reiseführer** einsehen und über die
+Checkbox „Eigenen Prompt verwenden" durch einen eigenen Text ersetzen
+(max. 16.000 Zeichen, „Zurücksetzen auf Standard" jederzeit möglich).
 
 - Bei TripPilot bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
   Reisewarnungs-Check, TUI-Verfügbarkeit, Reise-DNA-Kontext) immer fix
   erhalten — nur der Recherche-/Format-/Ton-Teil des Prompts ist editierbar.
+- Das jeweilige **Ziel bzw. Hotel** steht nie im editierbaren Teil: es kommt aus
+  deiner Auswahl und wäre in einer Vorlage ein Fehler. Bei der **Klimatabelle**
+  bleibt außerdem die Vorgabe „alle zwölf Monate" fest — die Tabelle im Fenster
+  rechnet mit genau zwölf Einträgen.
+- Der Standardtext für den **Regionen-Vergleich** bewertet neben Wetter,
+  Sicherheit, Preisniveau, bester Reisezeit, Strand/Natur, Familien- und
+  Nightlife-Eignung auch **Informationsfreiheit und digitalen Alltag**
+  (Internetzensur, blockierte Dienste, VPN-Lage, rechtliche Risiken bei
+  Onlineäußerungen) sowie die Lage für **LGBTQ-Reisende** (Rechtslage,
+  Durchsetzung, gesellschaftliche Akzeptanz, Risiken im öffentlichen Raum
+  gegenüber der abgeschirmten Lage im Resort). Beide Punkte können als
+  **KO-Kriterium** gekennzeichnet werden, das gute Noten bei Strand oder Wetter
+  nicht rechnerisch ausgleichen dürfen. Der **Reiseführer** hat für beide Themen
+  je einen eigenen Abschnitt, und **TripPilot** prüft sie zu jedem vorgeschlagenen
+  Ziel mit. Dort wird ein Ziel deswegen aber **nicht aussortiert** — ob das ein
+  Ausschlussgrund ist, entscheidest du, nicht die KI. Anders als die
+  Reisewarnungs-Prüfung steht dieser Teil im editierbaren Bereich: wer ihn nicht
+  braucht, nimmt ihn heraus.
 - Ergebnisse werden je nach aktivem Prompt-Text separat zwischengespeichert —
   ein geänderter Prompt liefert sofort ein neues Ergebnis statt eines
   veralteten 24h-Cache-Treffers.
@@ -539,7 +611,11 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
 - Pro Angebot kannst du im UI einen **Wunschpreis** setzen. Fällt der Preis auf
   oder unter diesen Wert, wirst du benachrichtigt.
 - Bei **jeder Preisänderung** (steigt/fällt) kommt ebenfalls eine Meldung
-  (abschaltbar über `notify_price_change`).
+  (abschaltbar über `notify_price_change`). Steckt hinter dem Sprung ein
+  **automatischer Zimmerwechsel** (das bisher günstigste Zimmer ist ausgebucht,
+  das nächstteurere rückt nach), nennt die Meldung ihn mit: „🛏️ Zimmer gewechselt:
+  … → …“ — sonst läse sie sich wie eine reine Preiserhöhung. Gilt für die
+  Wunschpreis-Meldung genauso.
 - **Push aufs Handy** (`ha_notify_service`): standardmäßig erscheinen HA-Meldungen
   als persistente Benachrichtigung in der HA-Oberfläche. Trägst du hier einen
   notify-Dienst ein (z. B. `mobile_app_mein_handy` — Companion-App), geht jede
@@ -689,10 +765,9 @@ unveränderten Tagen). Darauf aufbauend:
   KI-Key): fasst die Monatsdurchschnittspreise und, falls vorhanden, die größten
   Preisänderungen zusammen und empfiehlt günstige/teure Reisemonate. Reiner
   Markdown-Text ohne Websuche (nur die bereits abgerufenen Kalenderdaten), läuft
-  dadurch identisch mit Claude und Gemini und verursacht bei diesen beiden keine
-  zusätzlichen Websuche-Kosten. Bei Perplexity gilt das nicht: Sonar-Modelle
-  durchsuchen das Web bei **jeder** Anfrage (kein Abschalten möglich), auch hier
-  fällt daher die Perplexity-Request-Gebühr an. 6h je Angebot gecacht.
+  dadurch bei Claude und Gemini ohne zusätzliche Websuche-Kosten. Bei Perplexity
+  gilt das nicht: die Websuche gehört fest zum Preset und lässt sich nicht
+  abschalten, die Suchgebühr fällt daher auch hier an. 6h je Angebot gecacht.
 
 Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
 Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im
@@ -719,16 +794,16 @@ tui.com (`/aktionscode/`) — **ohne Login** — und benachrichtigt dich bei **n
 ## Flugplan (✈️)
 
 Eigenständige Flugplan-Suche ohne Bezug zu deinen getrackten Angeboten — Daten
-kommen direkt von den Flughäfen, es sind **keine** Pauschalreise-Preise. Zwei
+kommen direkt von den Flughäfen, es sind **keine** Pauschalreise-Preise. Vier
 Flughäfen, je ein eigener Schalter:
 
-| | **Stuttgart (STR)**, `enable_str_flights` | **Frankfurt (FRA)**, `enable_fra_flights` | **München (MUC)**, `enable_muc_flights` |
-|---|---|---|---|
-| Quelle | offenes JSON des Flughafens | offenes JSON des Flughafens | offizielles **Flugplan-PDF** (kein API vorhanden) |
-| Datenmodell | **Saisonstrecken**: Verbindung mit Wochentagen und Gültigkeit von–bis | **Einzelflüge je Datum** | **Saisonstrecken** wie STR |
-| Horizont | Saison/Inventar des Flughafens | Monate im Voraus (rollierend) | **nur die laufende Saison** (Sommer bzw. Winter) |
-| Zeigt | Airline + Flugnummer, Wochentage, Zeiten, Saisonzeitraum, Zwischenstopp | Datum, Zeiten, Flugdauer, Airline + Flugnummer, Terminal/Halle/Gate, Check-in-Schalter, Flugzeugtyp + Kennzeichen, Codeshares | Airline + Flugnummer, Wochentage, Zeiten (± Vor-/Folgetag), Gültigkeitszeitraum, Terminal, Zwischenstopp |
-| Zeilenklick | Flugdetails über adsbdb.com (Standardroute) | Detailfenster aus den Flugdaten selbst | – |
+| | **Stuttgart (STR)**, `enable_str_flights` | **Frankfurt (FRA)**, `enable_fra_flights` | **München (MUC)**, `enable_muc_flights` | **Karlsruhe/Baden-Baden (FKB)**, `enable_fkb_flights` |
+|---|---|---|---|---|
+| Quelle | offenes JSON des Flughafens | offenes JSON des Flughafens | offizielles **Flugplan-PDF** (kein API vorhanden) | Saisonflugplan der Website (gerendertes HTML, kein Daten-API) |
+| Datenmodell | **Saisonstrecken**: Verbindung mit Wochentagen und Gültigkeit von–bis | **Einzelflüge je Datum** | **Saisonstrecken** wie STR | **Saisonstrecken** wie STR |
+| Horizont | Saison/Inventar des Flughafens | Monate im Voraus (rollierend) | **nur die laufende Saison** (Sommer bzw. Winter) | **alle veröffentlichten Saisons** (Sommer + Winter, laufendes und nächstes Jahr) |
+| Zeigt | Airline + Flugnummer, Wochentage, Zeiten, Saisonzeitraum, Zwischenstopp | Datum, Zeiten, Flugdauer, Airline + Flugnummer, Terminal/Halle/Gate, Check-in-Schalter, Flugzeugtyp + Kennzeichen, Codeshares | Airline + Flugnummer, Wochentage, Zeiten (± Vor-/Folgetag), Gültigkeitszeitraum, Terminal, Zwischenstopp | Airline + Flugnummer, Wochentage, Zeiten, Gültigkeitszeitraum, Flugzeugtyp (Sitzplätze im Tooltip) |
+| Zeilenklick | Flugdetails über adsbdb.com (Standardroute) | Detailfenster aus den Flugdaten selbst | – | – |
 
 Sind **mehrere** aktiv, fragt der ✈️-Knopf zuerst nach dem Flughafen (nur die
 freigeschalteten stehen zur Wahl); ist nur einer aktiv, öffnet er direkt dessen
@@ -744,7 +819,13 @@ erzwingt es sofort.
 > Frankfurt hat kein Datumsfilter im Backend und liefert feste 25 Treffer je
 > Seite; TUIWatch sucht die passende Seite deshalb per Binärsuche und begrenzt
 > auf 300 Flüge je Abfrage. Steht „weitere vorhanden", grenze den Zeitraum ein.
-> Technische Details: [SCRAPING_STR.md](SCRAPING_STR.md) / [SCRAPING_FRA.md](SCRAPING_FRA.md) / [SCRAPING_MUC.md](SCRAPING_MUC.md).
+> Technische Details: [SCRAPING_STR.md](SCRAPING_STR.md) / [SCRAPING_FRA.md](SCRAPING_FRA.md) / [SCRAPING_MUC.md](SCRAPING_MUC.md) / [SCRAPING_FKB.md](SCRAPING_FKB.md).
+
+Der Plan von Karlsruhe/Baden-Baden umfasst rund 1.000 Verbindungen (Abflug +
+Ankunft) über alle veröffentlichten Saisons und liegt sechs Stunden im Speicher;
+**„🔄 Flugplan neu laden"** im Fenster holt ihn sofort neu. Ein Land nennt diese
+Quelle nicht — in der Gesamtliste „Alle Flugziele" füllt es sich aus den anderen
+Flugplänen, sofern das Ziel dort ebenfalls vorkommt.
 
 ## Home-Assistant-Sensoren
 
@@ -830,8 +911,9 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
   Zeitfenster, damit eine langsame Bewegung (z. B. mehrere Preisschritte über Wochen
   verteilt, dazwischen ruhige Phasen) nicht aus dem 14-Tage-Fenster herausfällt und
   unsichtbar bleibt.
-- **Zimmerwechsel:** wählt man für ein Angebot ein anderes Zimmer, kann sich der Preis
-  allein dadurch sprunghaft ändern — das ist keine Marktbewegung. Dieser eine
+- **Zimmerwechsel:** wählt man für ein Angebot ein anderes Zimmer — oder rückt
+  automatisch das nächstteurere nach, weil das günstigste ausgebucht ist —, kann sich
+  der Preis allein dadurch sprunghaft ändern; das ist keine Marktbewegung. Dieser eine
   Preisschritt fließt daher **nicht** in den Markttrend ein; die Zählung setzt direkt
   danach wieder neu an. Für bereits gesammelte Daten (z. B. ein Zimmerwechsel, der vor
   dieser Korrektur mitgezählt wurde) hilft **🔄 Neu berechnen** im Markttrend-Fenster:
@@ -1080,23 +1162,52 @@ landen dauerhaft im **KI-Verlauf**.
   Adressbuch-URL, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet),
   `nc_user` und `nc_app_password` in den Add-on-Optionen eintragen. Freitext bleibt
   ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
-- **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
-  Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
-  Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
-  Vergleiche/TripPilot-Ergebnisse), die **KI-Einstellungen** (Reise-DNA,
-  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen) sowie die
-  **Markttrend-Datenpunkte** samt der **Barometer-Tagesbewegungen** (überleben so
-  einen Umzug auf ein anderes Add-on, auch wenn die ursprünglichen Angebote dort nicht
-  mehr existieren; die Roh-Snapshots der Messreihe sind nicht dabei, die entstehen
-  täglich neu). Die
-  Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
-  arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten
-  (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
-  gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler werden nie durch
-  ältere Backup-Werte zurückgesetzt) — nichts wird gelöscht oder doppelt angelegt. (Reine
-  Caches wie Vergleich/Kalender-Snapshot werden nicht gesichert, sie entstehen automatisch
-  neu — die Kalender-**Trend-Historie** je Angebot dagegen schon, siehe Abschnitt
-  „Preiskalender".)
+- **KI-Anzeige neben dem Logo** — läuft gerade eine KI-Anfrage, erscheint dort ein
+  kreisendes KI-Symbol; bei mehreren gleichzeitig steht die Anzahl daneben. Ist die
+  letzte fertig, blinkt es kurz grün und verschwindet dann von selbst. Ein Klick
+  öffnet den KI-Verlauf. Gedacht für die gründlichen Perplexity-Stufen, die
+  minutenlang recherchieren — man sieht so auch dann, dass noch etwas läuft, wenn
+  man das KI-Fenster zwischenzeitlich geschlossen hat.
+- **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP** (Formatversion 8).
+  Enthalten ist alles, was du selbst angelegt oder was TUIWatch dauerhaft erhoben hat:
+
+  - alle getrackten **Angebote inkl. Preisverlauf** (mit **Preis-Split** Hotel/Hin-/
+    Rückflug und dem Ergebnis der Verfügbarkeitsprüfung) und Diagramm-Markern,
+  - **„Meine Reisen" inkl. der Original-PDFs**, **Zusatz-Anhänge und Packlisten** —
+    auch bei Reisen **ohne Buchungsnummer**,
+  - die **gespeicherten Suchen inkl. Suchabo** (beobachten ja/nein, Schwellenpreis,
+    bereits gemeldete Hotels, letzte Treffer),
+  - der **dauerhafte KI-Verlauf** (Fazits/Vergleiche/TripPilot-Ergebnisse) **samt der
+    Zuordnung zum jeweiligen Angebot**, Grundlage des Buchungsscore-Verlaufs,
+  - die **Klimatabellen** und **Reiseführer** je Reiseziel — KI-Ergebnisse, deren
+    Neuerzeugung beim Anbieter Geld kostet,
+  - die **öffentlichen Angebots-Links** samt **Besucherkommentaren** (der Token steckt
+    in bereits verschickten Links und lässt sich nicht neu erzeugen),
+  - die **KI-Einstellungen** (Reise-DNA, kumulierte Kosten-Zähler heute/Monat/gesamt,
+    eigene KI-Prompt-Vorlagen),
+  - die **Markttrend-Datenpunkte** samt der **Barometer-Tagesbewegungen** (überleben so
+    einen Umzug auf ein anderes Add-on, auch wenn die ursprünglichen Angebote dort nicht
+    mehr existieren).
+
+  **Bewusst nicht gesichert** — alles, was sich beim nächsten Abruf von selbst wieder
+  füllt: Vergleichs-, Kalender- und Nächte-Cache, die Roh-Snapshots der
+  Barometer-Messreihe (entstehen täglich neu und werden nach 120 Tagen ohnehin
+  verworfen), Melde-Zustände und das Benachrichtigungs-Protokoll. Ausnahme: die
+  Kalender-**Trend-Historie** je Angebot ist kein Cache und wandert mit, siehe Abschnitt
+  „Preiskalender". Ebenfalls nicht im ZIP: der Schlüssel `settings.key` (siehe oben).
+
+  Die Wiederherstellung liest die ZIP (ältere Backup-Versionen und das alte reine JSON
+  werden weiterhin akzeptiert) und arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt,
+  Bestehendes bleibt erhalten (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/
+  Kosten-Zähler werden nur gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler
+  werden nie durch ältere Backup-Werte zurückgesetzt). Ein hier bereits **laufendes Suchabo**
+  bleibt aus demselben Grund unangetastet: sonst würden längst gemeldete Hotels erneut
+  gemeldet. Nichts wird gelöscht oder doppelt angelegt.
+
+  Beim Einspielen wird die **entpackte** Größe des Archivs begrenzt (Dateianzahl,
+  Einzel- und Gesamtgröße). Das Upload-Limit greift nur auf die komprimierte Datei — ein
+  stark komprimiertes ZIP darunter kann sich sonst auf ein Vielfaches aufblähen. Eine
+  einzelne zu große Datei wird übersprungen, ein insgesamt aufgeblähtes Archiv abgelehnt.
 - **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
   (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
   ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt

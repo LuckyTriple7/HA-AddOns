@@ -36,6 +36,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from datetime import time as dtime
 from pathlib import Path
 from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
@@ -43,6 +44,7 @@ import markdown as md_lib
 from markupsafe import Markup, escape
 
 import pdfimport
+import settings as settings_store
 import travelblog as tb
 import visitexplorer as vx
 try:
@@ -73,7 +75,7 @@ except Exception:
     _HAS_GENAI = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
-                   send_file, g, has_request_context)
+                   send_file, g, has_request_context, Response)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -109,7 +111,16 @@ _BASE = os.environ.get('MYPAGE_BASE', '/app')
 _DATA = os.environ.get('MYPAGE_DATA', '/config')
 _OPTS = os.environ.get('MYPAGE_OPTIONS', '/data')
 
-CONFIG_PATH   = _OPTS + '/options.json'
+CONFIG_PATH   = _OPTS + '/options.json'   # Home Assistant: Login-Notzugang
+# Alle übrigen Einstellungen pflegt der Admin selbst (settings.json + settings.key).
+# Der Schlüssel liegt unter Home Assistant bewusst NICHT bei den Daten: /config ist
+# dort der über den Samba-Share einsehbare Add-on-Konfigurationsordner, und Schloss
+# und Schlüssel nebeneinander wären keine Verschlüsselung. Standalone bleibt er bei
+# den Daten — dort ist /data nur containerintern und wäre nach einem Neuaufbau weg.
+_KEY_DIR = _OPTS if os.environ.get('SUPERVISOR_TOKEN') else _DATA
+settings_store.init(_DATA, _KEY_DIR)
+SETTINGS_PATH = settings_store.path()
+SETTINGS_KEY_PATH = settings_store.key_path()
 SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'
@@ -122,6 +133,99 @@ AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Model
 AI_DRAFTS_PATH = _DATA + '/ai_drafts.json'  # gespeicherte Entwürfe des Text-Studios
 AI_PROMPTS_PATH = _DATA + '/ai_prompts.json'  # Prompt-Bibliothek des Bild-Studios
 UPLOADS_META_PATH = _DATA + '/uploads_meta.json'  # Alternativtexte je Bilddatei
+# Letzte Störung je Bereich, für die Zustandsanzeige im Admin. Bewusst eine
+# eigene Datei und NICHT im Backup: Ein zurückgespielter Stand brächte sonst
+# Warnungen von vorgestern mit, die längst behoben sind.
+HEALTH_PATH = _DATA + '/health.json'
+# Die letzten Warnungen und Fehler, damit sie im Admin sichtbar sind. Ebenfalls
+# nicht im Backup: ein Protokoll von vorgestern gehört nicht in einen
+# wiederhergestellten Stand.
+LOGBUF_PATH = _DATA + '/logbuf.json'
+
+
+class _AdminLogHandler(logging.Handler):
+    """Hält die letzten Warnungen und Fehler für die Anzeige im Admin fest.
+
+    Bisher gingen alle Meldungen ausschließlich nach `stdout` und damit ins
+    Add-on-Protokoll von Home Assistant — wer dort nicht nachsieht, erfährt von
+    einer misslungenen Bildverkleinerung oder einer beschädigten Datei nie.
+
+    Gehalten wird im Speicher; auf die Platte geht der Puffer nur alle paar
+    Sekunden, damit ein Schwall gleichartiger Meldungen nicht zum Dauerschreiben
+    wird. Wiederholungen derselben Zeile erhöhen einen Zähler, statt den Puffer
+    zu füllen — sonst verdrängt eine Meldung im Sekundentakt alles andere.
+
+    Ein Protokoll darf nie etwas auslösen: alles hier ist in `try` gefasst, und
+    im Fehlerfall passiert schlicht nichts.
+    """
+
+    KEEP = 300
+    FLUSH_SECONDS = 5
+
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.entries: list[dict] = []
+        self._lock = threading.Lock()
+        self._last_write = 0.0
+
+    def emit(self, record):
+        try:
+            msg = record.getMessage()[:400]
+            with self._lock:
+                last = self.entries[-1] if self.entries else None
+                if last and last['msg'] == msg and last['level'] == record.levelname:
+                    last['n'] += 1
+                    last['ts'] = int(record.created)
+                else:
+                    self.entries.append({'ts': int(record.created),
+                                         'level': record.levelname,
+                                         'msg': msg, 'n': 1})
+                    del self.entries[:-self.KEEP]
+                due = time.time() - self._last_write >= self.FLUSH_SECONDS
+                if due:
+                    self._last_write = time.time()
+                    data = list(self.entries)
+            if due:
+                _atomic_write_json(LOGBUF_PATH, data, indent=0)
+        except Exception:
+            pass        # ein Protokoll darf nie den Aufrufer mitreissen
+
+    def flush_now(self) -> None:
+        """Sofort auf die Platte — beim Beenden und vor dem Ausliefern."""
+        try:
+            with self._lock:
+                data = list(self.entries)
+                self._last_write = time.time()
+            _atomic_write_json(LOGBUF_PATH, data, indent=0)
+        except Exception:
+            pass
+
+    def load(self):
+        """Beim Start den letzten Stand zurückholen."""
+        try:
+            with open(LOGBUF_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                with self._lock:
+                    self.entries = [e for e in data if isinstance(e, dict)][-self.KEEP:]
+        except Exception:
+            pass
+
+    def snapshot(self) -> list:
+        with self._lock:
+            return list(self.entries)
+
+    def clear(self) -> None:
+        with self._lock:
+            self.entries = []
+        try:
+            _atomic_write_json(LOGBUF_PATH, [], indent=0)
+        except Exception:
+            pass
+
+
+admin_log_buffer = _AdminLogHandler()
+logging.getLogger().addHandler(admin_log_buffer)
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -232,29 +336,122 @@ public_app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
 public_app.config['MAX_FORM_MEMORY_SIZE'] = 2 * 1024 * 1024
 
 
+# Netz des Home-Assistant-Supervisors. Aus diesem Netz — und nur daher —
+# kommen echte Ingress-Anfragen; der Supervisor selbst sitzt auf 172.30.32.2.
+INGRESS_NET_DEFAULT = '172.30.32.0/23'
+
+
+def _ingress_nets() -> list:
+    """Vertrauenswürdige Absendernetze für Ingress.
+
+    Abweichende Aufbauten (HA Supervised in einem eigenen Docker-Netz) lassen
+    sich über die Option `ingress_trust_net` nachziehen, ohne dass es eine neue
+    Fassung braucht. Ein unbrauchbarer Eintrag wird still übergangen: eine
+    vertippte Zeile in den Optionen darf hier nicht dazu führen, dass plötzlich
+    jedes Netz als Supervisor gilt.
+    """
+    nets = [ipaddress.ip_network(INGRESS_NET_DEFAULT)]
+    try:
+        extra = (load_config().get('ingress_trust_net') or '').strip()
+    except Exception:      # noqa: BLE001 — vor dem ersten Laden der Optionen
+        extra = ''
+    for raw in extra.replace(',', ' ').split():
+        try:
+            nets.append(ipaddress.ip_network(raw, strict=False))
+        except ValueError:
+            pass
+    return nets
+
+
+def _ingress_peer(addr: str) -> bool:
+    """Kommt die Verbindung tatsächlich vom Supervisor?"""
+    try:
+        ip = ipaddress.ip_address((addr or '').strip())
+    except ValueError:
+        return False
+    return any(ip in net for net in _ingress_nets())
+
+
+class _PeerMiddleware:
+    """Hält die echte Gegenstelle fest, bevor ProxyFix zugreift.
+
+    ProxyFix ersetzt REMOTE_ADDR durch den letzten Eintrag aus
+    X-Forwarded-For — richtig für die Anzeige, unbrauchbar für jede
+    Sicherheitsentscheidung, denn die Kette schreibt der Absender. Wer den
+    Port direkt erreicht, steht hier unverfälscht.
+    """
+    def __init__(self, wsgi_app):
+        self._app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        environ['mypage.peer'] = environ.get('REMOTE_ADDR', '')
+        return self._app(environ, start_response)
+
+
 class _IngressMiddleware:
     """Liest X-Ingress-Path vom HA Supervisor und setzt SCRIPT_NAME,
-    damit url_for() hinter dem Ingress-Proxy korrekte URLs erzeugt."""
+    damit url_for() hinter dem Ingress-Proxy korrekte URLs erzeugt.
+
+    **Sicherheitskritisch.** Hinter dem Ingress übernimmt Home Assistant die
+    Anmeldung, MyPage lässt eine solche Anfrage deshalb ohne eigene Sitzung
+    durch (`_is_ingress`). Bis 0.11.28 genügte dafür die Kopfzeile allein — und
+    die kann jeder mitschicken, der Port 17761 erreicht. Ein `curl` mit
+    `X-Ingress-Path: /x` bekam damit vollen Admin-Zugriff ohne Anmeldung.
+
+    Maßgeblich ist deshalb die **Absenderadresse**, nicht die Kopfzeile: Hier,
+    vor ProxyFix, steht in REMOTE_ADDR noch der echte Gegenüber; die
+    X-Forwarded-For-Kette wird erst danach ausgewertet und ist damit für diese
+    Entscheidung wirkungslos. Passt die Adresse nicht, gilt die Anfrage als
+    gewöhnlicher Zugriff auf Port 17761 — dann greift der normale Login. Ein
+    Fehlurteil führt also zu „bitte anmelden", nie zu „darf alles".
+    """
     def __init__(self, wsgi_app):
         self._app = wsgi_app
 
     def __call__(self, environ, start_response):
         prefix = environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
-        if prefix:
+        trusted = bool(prefix) and _ingress_peer(environ.get('REMOTE_ADDR', ''))
+        environ['mypage.ingress'] = trusted
+        if trusted:
             environ['SCRIPT_NAME'] = prefix
             path = environ.get('PATH_INFO', '')
             if path.startswith(prefix):
                 environ['PATH_INFO'] = path[len(prefix):] or '/'
+        elif prefix:
+            _log_ingress_reject(environ.get('REMOTE_ADDR', ''))
         return self._app(environ, start_response)
 
 
-admin_app.wsgi_app  = _IngressMiddleware(ProxyFix(admin_app.wsgi_app,  x_for=1, x_proto=1, x_host=1))
-public_app.wsgi_app = ProxyFix(public_app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+_ingress_warned: dict = {}
+
+
+def _log_ingress_reject(addr: str) -> None:
+    """Abgewiesene Ingress-Kopfzeile melden — je Adresse höchstens stündlich.
+
+    Zwei Fälle sehen gleich aus und beide gehören ins Protokoll: ein Aufbau, in
+    dem der Supervisor aus einem anderen Netz kommt (dann fehlt die Option
+    `ingress_trust_net`), und jemand, der die Anmeldung umgehen wollte.
+    """
+    now = time.time()
+    if now - _ingress_warned.get(addr, 0) < 3600:
+        return
+    _ingress_warned[addr] = now
+    log.warning("Ingress-Kopfzeile von %s abgewiesen — nicht aus dem "
+                "Supervisor-Netz (%s). Bei abweichendem Aufbau die Option "
+                "ingress_trust_net setzen.", addr or '?', INGRESS_NET_DEFAULT)
+
+
+admin_app.wsgi_app  = _PeerMiddleware(
+    _IngressMiddleware(ProxyFix(admin_app.wsgi_app, x_for=1, x_proto=1, x_host=1)))
+public_app.wsgi_app = _PeerMiddleware(
+    ProxyFix(public_app.wsgi_app, x_for=1, x_proto=1, x_host=1))
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
 _config_cache: dict | None = None
 _config_mtime: float = 0.0
+_merged_cache: dict | None = None
+_merged_stamp: tuple | None = None
 sessions: dict[str, float] = {}
 
 _site_lock  = threading.Lock()
@@ -296,9 +493,18 @@ MESSAGES_MAX = 200
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips:     dict[str, float]       = {}
 _failed_login_times: list[float]         = []   # alle Fehlversuche (rollierend, für 24h-Sensor)
+# Zweiter Zähler auf die echte Gegenstelle. Die Sperre oben zählt je gemeldeter
+# Besucheradresse; hinter einem Proxy stammt die aus einer Kopfzeile, und wer
+# sie pro Versuch weiterdreht, läuft nie in die Sperre. Die Verbindung selbst
+# lässt sich nicht weiterdrehen. Die Schwelle liegt höher, weil hinter einem
+# Proxy alle Anmeldungen dieselbe Gegenstelle haben: Ein Vertipper des
+# Betreibers darf niemanden aussperren, vierzig Versuche in zehn Minuten schon.
+_failed_peers: dict[str, list[float]] = defaultdict(list)
+_blocked_peers: dict[str, float] = {}
 RATE_LIMIT_MAX    = 5
 RATE_LIMIT_WINDOW = 10 * 60
 RATE_LIMIT_BLOCK  = 15 * 60
+RATE_LIMIT_PEER_MAX = 20
 
 
 def failed_logins_24h() -> int:
@@ -375,10 +581,21 @@ DEFAULT_SITE = {
         'name': '', 'tagline_de': '', 'tagline_en': '',
         'bio_de': '', 'bio_en': '', 'avatar': '',
         'github': '', 'email': '', 'links': [],
+        # Bis zu zwei Handlungsaufrufe im Kopfbereich. Die Sozial-Knöpfe
+        # darunter führen von der Seite weg — hier steht, was der Besucher
+        # **auf** der Seite tun soll.
+        'cta': [],
     },
     'projects': [],
     'design': {
         'accent': '#58a6ff', 'mode': 'dark', 'layout': 'cards',
+        # Kopfbereich: nebeneinander (bisher), zentriert oder mit Bannerbild.
+        # `avatar_shape` entscheidet über den Zuschnitt — ein Vereinslogo im
+        # Querformat verlor im runden Rahmen links und rechts alles.
+        'hero_layout': 'side', 'avatar_shape': 'circle', 'hero_image': '',
+        # Wer ist das hier? Bis 0.11.41 stand in den strukturierten Daten immer
+        # „Person" — für einen Verein oder ein Restaurant schlicht falsch.
+        'entity_type': 'person',
         'show_counter': True, 'show_nav': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
         'storage_subdir': '',
@@ -426,6 +643,7 @@ DEFAULT_SITE = {
         'reveal_effect': 'off', 'reveal_stagger': True,
         'card_deck': 'knoll',
         'meta_description_de': '', 'meta_description_en': '',
+        'ai_address': 'sie',
     },
     'posts': [],
     'pages': [],
@@ -438,11 +656,26 @@ DEFAULT_SITE = {
         'skills': [],
         'timeline': [],
         'timeline_title_de': '', 'timeline_title_en': '',
+        # Frei gewählte Überschrift je Abschnitt: {'<key>': {'de': …, 'en': …}}.
+        # Leer heißt „Standardüberschrift aus den Locales" — so heißt „Angebote"
+        # beim Restaurant „Speisekarte" und beim Verein „Was wir tun", ohne dass
+        # ein Modul umbenannt wird. Löst die alten `timeline_title_*` ab, die
+        # `_migrate_section_titles()` beim Laden übernimmt.
+        'section_titles': {},
         'news': [],
         'links': [],
         'faq': [],
         'services': [],
         'testimonials': [],
+        # Kennzahlen (Zahl + Bezeichnung) und Partnerlogos: zwei wiederkehrende
+        # Listen, die sich als Freitext jedes Mal von Hand nachbauen ließen — und
+        # dabei jedes Mal anders aussähen.
+        'facts': [],
+        'partners': [],
+        # Videos laufen erst auf Klick (dieselbe Mechanik wie im Beitrag), und
+        # Downloads liegen in derselben Ablage wie die Bibliothek-PDFs.
+        'videos': [],
+        'downloads': [],
         'team': [],
         'events': [],
         'location': {},
@@ -462,8 +695,9 @@ DEFAULT_SITE = {
         'entries': [],
     },
     'section_order': [
-        'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
-        'photos', 'library', 'travel', 'forms', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+        'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'facts',
+        'testimonials', 'photos', 'videos', 'library', 'downloads', 'travel', 'forms', 'team',
+        'timeline', 'events', 'partners', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
     'members_sections': [],
@@ -484,6 +718,42 @@ DEFAULT_SITE = {
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
 SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 
+# Abschnitte mit eigener Titelzeile im Inhalt: Countdown und Freitext haben
+# bereits eigene Titelfelder, eine zweite Überschrift wäre dort eine Falle.
+SECTION_TITLE_KEYS = [k for k in SECTION_KEYS if k not in ('countdown', 'freetext')]
+
+
+def section_title(sections: dict, key: str, lang: str) -> str:
+    """Frei gewählte Überschrift eines Abschnitts, leer wenn keine gesetzt ist."""
+    entry = ((sections or {}).get('section_titles') or {}).get(key) or {}
+    if not isinstance(entry, dict):
+        return ''
+    if lang == 'en':
+        return (entry.get('en') or entry.get('de') or '').strip()
+    return (entry.get('de') or entry.get('en') or '').strip()
+
+
+def _migrate_section_titles(data: dict) -> None:
+    """Alte `timeline_title_de/en` in die gemeinsame Ablage übernehmen.
+
+    Nur im Speicher: geschrieben wird es beim nächsten Speichern der Seite. Die
+    alten Felder bleiben unangetastet — ginge die Übernahme schief, steht der
+    Wert weiterhin dort, statt still zu verschwinden.
+    """
+    sec = data.get('sections')
+    if not isinstance(sec, dict):
+        return
+    titles = sec.get('section_titles')
+    if not isinstance(titles, dict):
+        titles = {}
+        sec['section_titles'] = titles
+    if 'timeline' in titles:
+        return
+    de = (sec.get('timeline_title_de') or '').strip()
+    en = (sec.get('timeline_title_en') or '').strip()
+    if de or en:
+        titles['timeline'] = {'de': de, 'en': en}
+
 
 # ── Alternativtexte der Bilder ────────────────────────────────────────────────
 #
@@ -495,28 +765,183 @@ SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 # jede Datei mit Alternativtext als benutzt und „Speicher aufräumen" fände nie
 # wieder eine Waise.
 
-def _uploads_meta_load() -> dict:
-    with _uploads_meta_lock:
-        try:
-            with open(UPLOADS_META_PATH, encoding='utf-8') as f:
+# In der Datei stehen zwei getrennte Karten, beide nach Dateiname:
+#   `alts`  — Alternativtexte je Sprache
+#   `files` — Herkunftsname und Etiketten für die Medienverwaltung
+# Wer eine dritte hinzufügt, muss sie in `_uploads_meta_forget()` mit
+# aufräumen, sonst bleiben Einträge zu längst gelöschten Dateien liegen.
+
+# ── Zustandsanzeige ───────────────────────────────────────────────────────────
+#
+# `app.py` schreibt an über hundert Stellen Warnungen ins Log, und niemand liest
+# ein Add-on-Log. Ein abgelaufener GitHub-Token, ein stiller Mailversand, ein
+# ausgefallenes Backup — alles unsichtbar, bis es jemandem auffällt.
+#
+# Instrumentiert wird bewusst NICHT jede der Log-Stellen, sondern die Handvoll,
+# bei der ein Ausfall dem Betreiber wirklich etwas kostet. Jede meldet über
+# `health_note()` ihre letzte Störung; ein Erfolg löscht den Eintrag wieder.
+
+_health_lock = threading.Lock()
+
+HEALTH_KEEP = 20        # mehr Bereiche gibt es nicht
+
+
+def health_note(key: str, msg: str = '', *, ok: bool = False) -> None:
+    """Störung eines Bereichs festhalten — oder mit `ok=True` als behoben löschen.
+
+    Darf nie etwas auslösen: die Aufrufer stecken in Hintergrundschleifen und im
+    Mailversand, und eine kaputte Zustandsdatei wäre der schlechteste Grund,
+    einen Newsletter scheitern zu lassen.
+    """
+    try:
+        with _health_lock:
+            try:
+                with open(HEALTH_PATH, encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            if ok:
+                if data.pop(key, None) is None:
+                    return          # war nichts gemeldet: keine Schreiblast
+            else:
+                prev = data.get(key) or {}
+                data[key] = {'ts': int(time.time()), 'msg': str(msg)[:300],
+                             'n': int(prev.get('n', 0)) + 1,
+                             'since': prev.get('since') or int(time.time())}
+            for k in sorted(data, key=lambda k: (data[k] or {}).get('ts', 0))[:-HEALTH_KEEP]:
+                del data[k]
+            _atomic_write_json(HEALTH_PATH, data, indent=2)
+    except Exception as e:      # niemals den Aufrufer mitreißen
+        log.debug("Zustand '%s' konnte nicht festgehalten werden: %s", key, e)
+
+
+def health_notes() -> dict:
+    try:
+        with _health_lock:
+            with open(HEALTH_PATH, encoding='utf-8') as f:
                 data = json.load(f)
-        except FileNotFoundError:
-            return {}
-        except Exception as e:
-            _quarantine_corrupt(UPLOADS_META_PATH, e)
-            return {}
-    alts = data.get('alts') if isinstance(data, dict) else None
-    return {k: v for k, v in alts.items() if isinstance(v, dict)} if isinstance(alts, dict) else {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
-def _uploads_meta_save(alts: dict) -> bool:
+def _uploads_meta_read_locked() -> dict:
+    """Ganze Datei — nur aufrufen, wer `_uploads_meta_lock` schon hält."""
+    try:
+        with open(UPLOADS_META_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        _quarantine_corrupt(UPLOADS_META_PATH, e)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _uploads_meta_update(change) -> bool:
+    """Lesen, ändern, schreiben — am Stück unter dem Schloss.
+
+    Nur so bleiben die beiden Karten unabhängig voneinander änderbar: wer die
+    Datei erst lädt, dann ändert und dann speichert, überschreibt zwischendurch
+    Geschriebenes der jeweils anderen Karte.
+    """
     with _uploads_meta_lock:
+        data = _uploads_meta_read_locked()
+        change(data)
         try:
-            _atomic_write_json(UPLOADS_META_PATH, {'alts': alts}, indent=2)
+            _atomic_write_json(UPLOADS_META_PATH, data, indent=2)
             return True
         except Exception as e:
             log.error("uploads_meta.json konnte nicht gespeichert werden: %s", e)
             return False
+
+
+def _uploads_meta_map(key: str) -> dict:
+    with _uploads_meta_lock:
+        part = _uploads_meta_read_locked().get(key)
+    return ({k: v for k, v in part.items() if isinstance(v, dict)}
+            if isinstance(part, dict) else {})
+
+
+def _uploads_meta_load() -> dict:
+    """Alternativtexte: Dateiname -> {'de': …, 'en': …}."""
+    return _uploads_meta_map('alts')
+
+
+def _uploads_meta_save(alts: dict) -> bool:
+    return _uploads_meta_update(lambda d: d.update({'alts': alts}))
+
+
+def _uploads_files_load() -> dict:
+    """Verwaltungsangaben: Dateiname -> {'orig': …, 'tags': [...]}."""
+    return _uploads_meta_map('files')
+
+
+def _uploads_files_save(files: dict) -> bool:
+    return _uploads_meta_update(lambda d: d.update({'files': files}))
+
+
+UPLOAD_TAG_MAX = 8
+UPLOAD_TAGS_LEN = 30
+
+
+def _upload_tags_clean(raw) -> list:
+    """Etiketten säubern: getrimmt, ohne Doppelte, begrenzt in Zahl und Länge."""
+    if isinstance(raw, str):
+        raw = raw.split(',')
+    seen, out = set(), []
+    for t in (raw or []):
+        t = _clean_str(t, UPLOAD_TAGS_LEN).strip()
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out[:UPLOAD_TAG_MAX]
+
+
+UPLOAD_FOLDER_LEN = 40
+
+
+def _upload_folder_clean(raw) -> str:
+    """Ordnername säubern — eine Ebene, kein Pfad.
+
+    Der Ordner ist reine Anzeige im Admin; im Dateisystem wandert nichts. Die
+    Schrägstriche fliegen trotzdem raus: sie legten eine Verschachtelung nahe,
+    die es nicht gibt, und ließen den Namen wie einen Pfad aussehen.
+    """
+    return _clean_str(str(raw or '').replace('/', ' ').replace('\\', ' '),
+                      UPLOAD_FOLDER_LEN).strip()
+
+
+def _uploads_file_meta_set(name: str, orig: str | None = None,
+                           tags: list | None = None,
+                           folder: str | None = None) -> bool:
+    """Herkunftsname, Etiketten und/oder Ordner einer Datei setzen.
+
+    `None` heißt „unverändert lassen"; eine leere Liste bzw. ein leerer Text
+    löscht den jeweiligen Wert. Ein Eintrag ohne Inhalt wird entfernt statt leer
+    gespeichert — sonst sammelt die Ablage Karteileichen für jede je angefasste
+    Datei.
+    """
+    def change(data: dict) -> None:
+        files = data.get('files')
+        if not isinstance(files, dict):
+            files = {}
+        entry = dict(files.get(name) or {})
+        if orig is not None:
+            entry['orig'] = _clean_str(orig, 120)
+        if tags is not None:
+            entry['tags'] = _upload_tags_clean(tags)
+        if folder is not None:
+            entry['folder'] = _upload_folder_clean(folder)
+        entry = {k: v for k, v in entry.items() if v}
+        if entry:
+            files[name] = entry
+        else:
+            files.pop(name, None)
+        data['files'] = files
+    return _uploads_meta_update(change)
 
 
 def _uploads_meta_forget(names) -> None:
@@ -524,10 +949,13 @@ def _uploads_meta_forget(names) -> None:
     names = {n for n in names if n}
     if not names:
         return
-    alts = _uploads_meta_load()
-    rest = {k: v for k, v in alts.items() if k not in names}
-    if len(rest) != len(alts):
-        _uploads_meta_save(rest)
+
+    def change(data: dict) -> None:
+        for key in ('alts', 'files'):
+            part = data.get(key)
+            if isinstance(part, dict):
+                data[key] = {k: v for k, v in part.items() if k not in names}
+    _uploads_meta_update(change)
 
 
 def _req_lang() -> str:
@@ -813,7 +1241,8 @@ def _quarantine_corrupt(path: str, exc: Exception) -> None:
         notification_id=f'mypage_corrupt_{name}')
 
 
-def load_config() -> dict:
+def load_options() -> dict:
+    """Rohe Add-on-Optionen (Home Assistant schreibt sie, Standalone mountet sie)."""
     global _config_cache, _config_mtime
     try:
         mtime = os.path.getmtime(CONFIG_PATH)
@@ -824,6 +1253,35 @@ def load_config() -> dict:
     except Exception:
         pass
     return _config_cache or {}
+
+
+def load_config() -> dict:
+    """Wirksame Einstellungen: Standardwerte < options.json < settings.json.
+
+    options.json liefert nur noch den Login-Notzugang (username/password/
+    session_hours) und – solange nicht migriert – die alten Werte. Alles, was
+    der Admin in der Oberfläche pflegt, steht in settings.json und gewinnt.
+    """
+    global _merged_cache, _merged_stamp
+    opts = load_options()
+    try:
+        s_mtime = os.path.getmtime(SETTINGS_PATH)
+    except OSError:
+        s_mtime = -1.0
+    stamp = (_config_mtime, s_mtime)
+    if _merged_cache is None or stamp != _merged_stamp:
+        merged = {k: (list(spec[1]) if isinstance(spec[1], list) else spec[1])
+                  for k, spec in settings_store.FIELDS.items()}
+        merged.update(opts)
+        merged.update(settings_store.load())
+        _merged_cache, _merged_stamp = merged, stamp
+    return _merged_cache
+
+
+def _settings_changed() -> None:
+    """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
+    global _merged_cache, _merged_stamp
+    _merged_cache, _merged_stamp = None, None
 
 
 def load_site() -> dict:
@@ -845,11 +1303,119 @@ def load_site() -> dict:
         elif isinstance(defaults, dict):
             for k, v in defaults.items():
                 data[section].setdefault(k, v)
+    _migrate_section_titles(data)
     return data
+
+
+# ── Versionsstand von site.json (Revisionen) ────────────────────────
+# Vor jedem Schreiben wandert der bisherige Stand nach revisions/. Damit ist ein
+# versehentlich geleertes Feld oder ein zerschossener Text zurückholbar, ohne
+# ein ganzes Backup einzuspielen — die Revision enthält ausschließlich
+# site.json, also Seiteninhalte. Mitglieder, Nachrichten, Reiseblog und
+# Statistik liegen in eigenen Dateien und bleiben von einer Rückkehr unberührt.
+REVISIONS_DIR = Path(_DATA) / 'revisions'
+REVISION_KEEP_DEFAULT = 20
+_REVISION_RE = re.compile(r'^site-(\d{8}-\d{6})\.json$')
+# Ein Admin-Speichern löst je nach Reiter mehrere save_site()-Aufrufe aus, und
+# wer länger an einer Seite arbeitet, speichert im Minutentakt. Ohne
+# Zusammenfassen bestünde die Liste aus Ständen, die Sekunden auseinander
+# liegen, und der brauchbare Stand von gestern wäre längst rausrotiert.
+# Gesichert wird immer der Stand VOR der Änderung — der erste Schnappschuss
+# einer solchen Serie ist deshalb der richtige.
+REVISION_COALESCE = 90        # Sekunden
+# Diese Schlüssel ändern sich durch bloßes Besuchen der Seite: der Slot-Jackpot
+# zählt bei jedem Dreh hoch, die Tipp-Statistik bei der ersten Anzeige des
+# Tages. Eine Revision nur dafür wäre Rauschen und würde echte Änderungen
+# aus der Liste drängen.
+REVISION_IGNORE = {'slot_jackpot', 'tips_stats'}
+
+
+def _revision_keep() -> int:
+    try:
+        return max(0, int(load_config().get('revision_keep', REVISION_KEEP_DEFAULT) or 0))
+    except (TypeError, ValueError):
+        return REVISION_KEEP_DEFAULT
+
+
+def _site_changed_keys(old: dict, new: dict) -> list:
+    """Geänderte Abschnitte auf oberster Ebene — ohne die flüchtigen Zähler."""
+    keys = set(old) | set(new)
+    out = [k for k in keys - REVISION_IGNORE
+           if json.dumps(old.get(k), sort_keys=True, ensure_ascii=False)
+           != json.dumps(new.get(k), sort_keys=True, ensure_ascii=False)]
+    return sorted(out)
+
+
+def list_revisions() -> list:
+    """Vorhandene Revisionen, neueste zuerst. Namen tragen den Zeitpunkt."""
+    try:
+        files = [f for f in REVISIONS_DIR.iterdir()
+                 if f.is_file() and _REVISION_RE.match(f.name)]
+    except OSError:
+        return []
+    out = []
+    for f in sorted(files, key=lambda x: x.name, reverse=True):
+        try:
+            out.append({'name': f.name, 'size': f.stat().st_size, 'ts': f.name[5:20]})
+        except OSError:
+            continue
+    return out
+
+
+def _rotate_revisions(keep: int) -> None:
+    for old in list_revisions()[keep:]:
+        try:
+            (REVISIONS_DIR / old['name']).unlink()
+        except OSError as e:
+            log.warning("Alte Revision %s konnte nicht entfernt werden: %s", old['name'], e)
+
+
+def _snapshot_site(new_data: dict | None = None, *, force: bool = False) -> None:
+    """Aktuellen Stand von site.json nach revisions/ sichern.
+
+    Wird aus save_site() heraus aufgerufen und läuft dort bereits unter
+    `_site_lock`. Fehler bleiben folgenlos: eine fehlende Revision darf das
+    Speichern selbst niemals verhindern.
+    """
+    keep = _revision_keep()
+    if keep <= 0:
+        return
+    try:
+        with open(SITE_PATH, encoding='utf-8') as f:
+            raw = f.read()
+    except OSError:
+        return                     # noch keine site.json — nichts zu sichern
+    if new_data is not None:
+        try:
+            old = json.loads(raw)
+        except ValueError:
+            old = None
+        # Beschädigte site.json immer sichern: sie ist gleich überschrieben.
+        if old is not None and not _site_changed_keys(old, new_data):
+            return
+    existing = list_revisions()
+    if not force and existing:
+        try:
+            age = time.time() - (REVISIONS_DIR / existing[0]['name']).stat().st_mtime
+            if age < REVISION_COALESCE:
+                return
+        except OSError:
+            pass
+    REVISIONS_DIR.mkdir(parents=True, exist_ok=True)
+    name = 'site-' + datetime.now().strftime('%Y%m%d-%H%M%S') + '.json'
+    tmp = REVISIONS_DIR / (name + '.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(raw)
+    os.replace(tmp, REVISIONS_DIR / name)
+    _rotate_revisions(keep)
 
 
 def save_site(data: dict) -> None:
     with _site_lock:
+        try:
+            _snapshot_site(data)
+        except Exception as e:
+            log.warning("Revision konnte nicht angelegt werden: %s", e)
         try:
             _atomic_write_json(SITE_PATH, data, indent=2)
         except Exception as e:
@@ -1597,8 +2163,10 @@ def send_email(subject: str, html_body: str, to: str | None = None,
                     s.login(user, password)
                 s.sendmail(sender, [to], msg.as_string())
         log.info("E-Mail an '%s' gesendet (Absender: %s)", to, sender)
+        health_note('smtp', ok=True)
     except Exception as e:
         log.error("E-Mail senden fehlgeschlagen: %s", e)
+        health_note('smtp', str(e)[:200])
 
 
 def _email_html(title: str, lines: list[str]) -> str:
@@ -1609,6 +2177,22 @@ def _email_html(title: str, lines: list[str]) -> str:
         f'<h3 style="margin:0 0 12px;color:#58a6ff">{title}</h3>'
         f'{body}</div>'
     )
+
+
+def _cookie_secure() -> bool:
+    """`Secure` setzen, wenn die Anfrage über HTTPS kam.
+
+    Ohne das Flag schickt der Browser das Sitzungs-Token auch über eine
+    unverschlüsselte Verbindung — ein einziger versehentlicher http-Aufruf gibt
+    es damit im Klartext preis. Fest auf True lässt es sich nicht setzen: Im
+    Heimnetz läuft der Admin oft über http, und ein `Secure`-Cookie käme dort
+    nie zurück. `is_secure` stammt hinter einem Proxy aus X-Forwarded-Proto —
+    fälscht das jemand auf einer http-Verbindung, sperrt er nur sich selbst aus.
+    """
+    try:
+        return bool(request.is_secure)
+    except Exception:      # noqa: BLE001 — ausserhalb eines Anfragekontexts
+        return False
 
 
 def save_sessions() -> None:
@@ -1660,6 +2244,44 @@ def _is_public_ip(value: str) -> bool:
                 or addr.is_reserved or addr.is_multicast or addr.is_unspecified)
 
 
+def _peer_addr(req) -> str:
+    """Die tatsächliche Gegenstelle der Verbindung (vor ProxyFix)."""
+    return (req.environ.get('mypage.peer') or req.remote_addr or '').strip()
+
+
+def _trusted_proxy_nets() -> list:
+    """Netze, deren Weiterleitungs-Kopfzeilen geglaubt werden.
+
+    Leer (Standard): alle privaten Adressen gelten als Zwischenglied — dort
+    steht in jedem realen Aufbau der Reverse Proxy, der Cloudflare-Tunnel oder
+    das Docker-Gateway. Ist die Option gesetzt, zählen ausschließlich die
+    genannten Netze; damit lässt sich auch das eigene LAN ausschließen.
+    """
+    out = []
+    try:
+        raw = (load_config().get('trusted_proxies') or '').strip()
+    except Exception:      # noqa: BLE001 — vor dem ersten Laden der Optionen
+        raw = ''
+    for part in raw.replace(',', ' ').split():
+        try:
+            out.append(ipaddress.ip_network(part, strict=False))
+        except ValueError:
+            pass
+    return out
+
+
+def _proxy_headers_trusted(req) -> bool:
+    """Darf man den Weiterleitungs-Kopfzeilen dieser Verbindung glauben?"""
+    try:
+        ip = ipaddress.ip_address(_peer_addr(req))
+    except ValueError:
+        return False
+    nets = _trusted_proxy_nets()
+    if nets:
+        return any(ip in n for n in nets)
+    return bool(ip.is_private or ip.is_loopback or ip.is_link_local)
+
+
 def get_client_ip(req) -> str:
     """Beste verfügbare Besucher-IP.
 
@@ -1668,15 +2290,24 @@ def get_client_ip(req) -> str:
     für alle Besucher dieselbe. Deshalb zuerst die Kopfzeilen auswerten, in denen
     die echte Adresse steht, und dabei die erste **öffentliche** nehmen: die
     Zwischenglieder hängen ihre eigenen (privaten) Adressen an die Kette an.
+
+    **Nur von einem Zwischenglied.** Bis 0.11.29 wurden die Kopfzeilen von jedem
+    Absender übernommen. Wer den Port direkt erreichte, konnte sich damit jede
+    beliebige Adresse geben — und weil die Login-Sperre je Adresse zählt, war
+    sie durch Weiterdrehen der Kopfzeile wirkungslos: zwölf Fehlversuche mit
+    zwölf erfundenen Adressen lösten keine Sperre aus. Bei direkter Verbindung
+    zählt deshalb ausschließlich die echte Gegenstelle.
     """
-    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
-        value = (req.headers.get(header) or '').strip()
-        if _is_public_ip(value):
-            return value
-    for part in (req.headers.get('X-Forwarded-For') or '').split(','):
-        if _is_public_ip(part):
-            return part.strip()
-    return req.remote_addr or 'unknown'
+    if _proxy_headers_trusted(req):
+        for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
+            value = (req.headers.get(header) or '').strip()
+            if _is_public_ip(value):
+                return value
+        for part in (req.headers.get('X-Forwarded-For') or '').split(','):
+            if _is_public_ip(part):
+                return part.strip()
+        return req.remote_addr or 'unknown'
+    return _peer_addr(req) or 'unknown'
 
 
 _PROXY_IP_HEADERS = ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP', 'X-Forwarded-For')
@@ -1701,23 +2332,40 @@ def _warn_missing_client_ip(req, ip: str) -> None:
         "nicht durch. Vorhandene Kopfzeilen: %s. Betroffene Aufrufe erscheinen nicht "
         "im Besucher-Log; Aufrufzähler laufen weiter.",
         ip, ', '.join(seen) or 'keine')
+    health_note('client_ip', f"{ip} — Kopfzeilen: {', '.join(seen) or 'keine'}")
+
+
+def _clear_ip_warning() -> None:
+    global _last_ip_warning
+    if _last_ip_warning:
+        _last_ip_warning = 0.0
+        health_note('client_ip', ok=True)
 
 
 # ── Brute-Force-Schutz ────────────────────────────────────────────────────────
 
-def is_rate_limited(ip: str) -> bool:
+def is_rate_limited(ip: str, peer: str = '') -> bool:
     now = time.time()
-    if ip in _blocked_ips:
-        if now < _blocked_ips[ip]:
-            return True
-        del _blocked_ips[ip]
+    for key, blocked in ((ip, _blocked_ips), (peer, _blocked_peers)):
+        if key and key in blocked:
+            if now < blocked[key]:
+                return True
+            del blocked[key]
     _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
     return False
 
 
-def record_failed_attempt(ip: str) -> None:
+def record_failed_attempt(ip: str, peer: str = '') -> None:
     now = time.time()
     _failed_login_times.append(now)
+    if peer:
+        _failed_peers[peer] = [t for t in _failed_peers[peer]
+                               if now - t < RATE_LIMIT_WINDOW] + [now]
+        if len(_failed_peers[peer]) >= RATE_LIMIT_PEER_MAX:
+            _blocked_peers[peer] = now + RATE_LIMIT_BLOCK
+            log.warning("Verbindung von %s für %d Minuten gesperrt "
+                        "(%d Fehlversuche, gemeldete Adressen wechselnd)",
+                        peer, RATE_LIMIT_BLOCK // 60, len(_failed_peers[peer]))
     _failed_attempts[ip].append(now)
     recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
     _failed_attempts[ip] = recent
@@ -1732,9 +2380,12 @@ def record_failed_attempt(ip: str) -> None:
             notification_id=f'mypage_bruteforce_{ip}')
 
 
-def clear_failed_attempts(ip: str) -> None:
+def clear_failed_attempts(ip: str, peer: str = '') -> None:
     _failed_attempts.pop(ip, None)
     _blocked_ips.pop(ip, None)
+    if peer:
+        _failed_peers.pop(peer, None)
+        _blocked_peers.pop(peer, None)
 
 
 # ── Zwei-Faktor-Authentifizierung (Admin, nur Direkt-Login) ───────────────────
@@ -2628,8 +3279,12 @@ def count_visit(req) -> None:
     if req.headers.get('X-MyPage-Export'):
         return  # interner Abruf für den statischen Export
     ua = req.headers.get('User-Agent') or ''
-    is_bot = (not ua) or any(b in ua.lower() for b in _BOT_UA)
     ip = get_client_ip(req)
+    # Rechenzentrums-Adressen zählen unabhängig von der Browserkennung als Bot:
+    # Scanner geben sich als „Safari · iOS" aus und rutschen sonst als echter
+    # Besucher durch (ein Aufruf, keine Verweildauer).
+    is_bot = ((not ua) or any(b in ua.lower() for b in _BOT_UA)
+              or vx.is_datacenter_ip(ip))
     today = date.today().isoformat()
     if today != _seen_day:
         _seen_day = today
@@ -2650,6 +3305,10 @@ def count_visit(req) -> None:
     if not _is_public_ip(ip):
         _warn_missing_client_ip(req, ip)
     else:
+        # Kommt wieder eine echte Adresse an, ist der Proxy repariert — die
+        # Meldung gehört weg. Nur dann anfassen, wenn überhaupt eine steht:
+        # sonst läge bei jedem Seitenaufruf ein Dateizugriff auf dem Weg.
+        _clear_ip_warning()
         entry = {
             'ts':   int(time.time()),
             'ip':   ip,
@@ -2680,6 +3339,168 @@ def count_visit(req) -> None:
         for k in sorted(stats['days'])[:-STATS_KEEP_DAYS]:
             del stats['days'][k]
     save_stats(stats)
+
+
+NOTFOUND_MAX_PATHS = 200      # so viele verschiedene Pfade werden gemerkt
+NOTFOUND_IPS_MAX = 5          # so viele verschiedene Adressen je Pfad
+
+
+# Pfade, die es auf dieser Website nie gab und nie geben wird: Sonden auf
+# fremde Software. `.php` und `wp-` suchen WordPress, `.env`, `.git/` und
+# `.ssh` suchen ausgeplauderte Zugangsdaten, `asset-manifest.json` und
+# `/api/graphql` fragen ab, ob hinter der Adresse eine React-App mit
+# Schnittstelle steckt. Erkannt wird am Pfad, nicht an der Browserkennung:
+# Die faelscht jeder Scanner, den Pfad braucht er echt.
+_PROBE_PARTS = ('/wp-', '/wordpress', 'xmlrpc.php', '/.env', '/.git', '/.ssh',
+                '/.aws', '/vendor/', '/phpmyadmin', '/pma/', '/cgi-bin/',
+                '/asset-manifest.json', '/api/graphql', '/graphql',
+                '/config.json', '/telescope/', '/actuator/', '/solr/',
+                '/owa/', '/autodiscover/', '/wp-json',
+                # Ausgabeordner der ueblichen JavaScript-Baukaesten. MyPage legt
+                # nichts davon an: Eigene Dateien liegen unter /static, /uploads
+                # und /fonts.
+                '/dist/', '/assets/', '/build/', '/node_modules/',
+                '/package.json', '/composer.json', '/server-status')
+
+# Verrutschte Sicherungen und Editorreste — hier gibt es sie nicht, gesucht
+# werden sie trotzdem. `.zip` steht bewusst nicht dabei: Eine Mitgliederdatei
+# darf so heissen, und die liegt unter einer echten Adresse.
+_PROBE_SUFFIXES = ('.php', '.asp', '.aspx', '.jsp', '.cgi',
+                   '.sql', '.bak', '.old', '.swp', '.tar.gz')
+
+# Namen, unter denen Scanner eine vergessene Kopie der Website vermuten: die
+# alte Fassung, ein Abzug vor dem Umbau, die Baustelle daneben. Geprüft wird nur
+# der **ganze** Pfad aus einem einzigen Stück — `/bak` ist die Sonde,
+# `/seite/bak-in-der-mitte` eine ganz normale Adresse. Bewusst nicht dabei:
+# Namen, die MyPage selbst vergibt (`blog`, `projekte`, `uploads`), sonst würde
+# ein eigener kaputter Verweis als Sonde durchgehen und aus der Liste fallen.
+_PROBE_NAMES = frozenset((
+    'bak', 'bac', 'bk', 'back', 'backup', 'backups', 'bkp',
+    'old', 'olds', 'oldsite', 'old-site', 'alt', 'archiv', 'archive',
+    'site', 'sites', 'sito', 'sitio', 'sitios', 'website',
+    'www', 'www2', 'wwwroot', 'web', 'webroot', 'public_html',
+    'new', 'newsite', 'temp', 'tmp', 'test', 'testing', 'dev', 'develop',
+    'staging', 'stage', 'beta', 'demo', 'live', 'main', 'home', 'index',
+    'shop', 'store', 'cms', 'portal', 'dump', 'db', 'database', 'sql',
+))
+_PROBE_YEAR_RE = re.compile(r'^/(19|20)\d{2}/?$')
+
+
+def _is_probe(path: str) -> bool:
+    """Sucht der Aufruf fremde Software statt einer Seite von hier?"""
+    p = (path or '').lower()
+    # Alles, was mit einem Punkt beginnt: /.env, /.git/config, /.ssh/id_rsa,
+    # /.DS_Store — und Kuriositaeten wie /.bod/.ll/. Eine Adresse dieser Form
+    # vergibt MyPage nirgends, /.well-known beantwortet der Proxy davor.
+    if p.startswith('/.'):
+        return True
+    # Ein manifest.json in irgendeinem Unterordner sucht den Ausgabeordner
+    # eines fremden Baukastens. Das eigene liegt genau auf /manifest.json.
+    if p.endswith('/manifest.json') and p != '/manifest.json':
+        return True
+    # `/bak`, `/old-site`, `/staging` — und `/2021`, weil die Jahreszahl
+    # derselben Vermutung folgt: hier liege die Seite von damals noch herum.
+    if p.strip('/') in _PROBE_NAMES or _PROBE_YEAR_RE.match(p):
+        return True
+    return p.endswith(_PROBE_SUFFIXES) or any(part in p for part in _PROBE_PARTS)
+
+
+def record_notfound(req) -> None:
+    """Einen ins Leere laufenden Aufruf festhalten — nach Pfad gebündelt.
+
+    Getrennt vom Besucher-Log, weil ein 404 kein Besuch ist: Er sagt nichts über
+    Reichweite, sondern über kaputte Verweise. Gebündelt statt Zeile für Zeile,
+    weil der erste Scanner sonst mit `/wp-login.php` die Ablage füllt — bei
+    tausend Versuchen steht dann ein Eintrag mit Zähler tausend statt tausend
+    Einträgen.
+
+    Anders als `count_visit()` wird **unabhängig von der Adresse** aufgezeichnet:
+    Ein kaputter Verweis, der aus dem eigenen Heimnetz angeklickt wird, ist
+    derselbe kaputte Verweis. Hier zählt der Pfad, nicht der Besucher.
+    """
+    if req.headers.get('X-MyPage-Export'):
+        return
+    path = (req.path or '/')[:120]
+    ua = req.headers.get('User-Agent') or ''
+    ref = (req.headers.get('Referer') or '')[:300]
+    stats = load_stats()
+    nf = stats.setdefault('notfound', {})
+    e = nf.get(path) or {'n': 0, 'first': int(time.time())}
+    e['n'] = e.get('n', 0) + 1
+    e['last'] = int(time.time())
+    ip = get_client_ip(req)
+    # Wie beim Besucherzähler zählt eine Rechenzentrums-Adresse als Bot, egal was
+    # in der Browserkennung steht: Ein Scanner gibt sich als „Safari · iOS" aus,
+    # aus einem Serverraum surft aber niemand. Bis 0.11.39 sah diese Liste nur
+    # die Kennung — und blendete den Scan deshalb trotz gesetztem Haken nicht aus.
+    e['bot'] = bool((not ua) or any(b in ua.lower() for b in _BOT_UA)
+                    or vx.is_datacenter_ip(ip))
+    probe = _is_probe(path)
+    # Woher kam der Aufruf? Bei einem eigenen kaputten Verweis ist die Adresse
+    # gleichgültig, bei einer Sonde ist sie das Einzige, womit sich etwas
+    # anfangen lässt — sperren kann man nur eine Adresse, keinen Pfad.
+    # Gespeichert werden höchstens NOTFOUND_IPS_MAX verschiedene, neueste
+    # zuerst; nur öffentliche. Das eigene Heimnetz und die internen Aufrufe von
+    # Home Assistant sagen nichts, füllen aber die Liste.
+    if _is_public_ip(ip):
+        ips = [a for a in (e.get('ips') or []) if a != ip]
+        e['ips'] = [ip] + ips[:NOTFOUND_IPS_MAX - 1]
+        e['cc'] = _guess_country(req)
+    if ref:
+        e['ref'] = ref
+        # Ein Verweis von der eigenen Adresse heißt: der kaputte Link steht auf
+        # der eigenen Website. Das ist der Fall, der wirklich zählt — fremde
+        # Verweise und Scanner kann man nicht reparieren, eigene schon.
+        #
+        # Bei einer Sonde gilt das nicht: Den Referer setzt der Scanner selbst,
+        # und er trägt gern die angegriffene Adresse ein. Ohne diese Ausnahme
+        # trug `/api/graphql` die Marke „eigener Link" und stand damit ganz
+        # oben in der Liste — eine gefälschte Kopfzeile hätte den Scan über
+        # jeden echten kaputten Verweis gehoben.
+        # Zeigt der Verweis auf **genau die** Adresse, die gerade abgerufen wird,
+        # ist er gefälscht: Eine Seite, die es nicht gibt, kann keinen Link auf
+        # sich selbst tragen. Genau so trat ein Scanner auf, der `/Blog`,
+        # `/BACKUP` und `/2021` durchprobierte und jedes Mal die eigene Adresse
+        # als Verweisgeber eintrug — jede Zeile trug die Marke „eigener Link".
+        e['internal'] = (_same_site_ref(ref) and not probe
+                         and not _ref_is_self(ref, req))
+    nf[path] = e
+    # Begrenzen: die am längsten nicht mehr gesehenen Pfade fliegen zuerst raus.
+    if len(nf) > NOTFOUND_MAX_PATHS:
+        for k in sorted(nf, key=lambda k: nf[k].get('last', 0))[:len(nf) - NOTFOUND_MAX_PATHS]:
+            del nf[k]
+    stats['notfound'] = nf
+    save_stats(stats)
+
+
+def _ref_is_self(ref: str, req) -> bool:
+    """Verweist die Kopfzeile auf die gerade abgerufene Adresse selbst?"""
+    try:
+        r = urlparse(ref)
+    except ValueError:
+        return False
+    return (r.path or '/').rstrip('/') == (req.path or '/').rstrip('/')
+
+
+def _same_site_ref(ref: str) -> bool:
+    """Zeigt der Verweisgeber auf die eigene Website?
+
+    Verglichen wird der **ganze** Hostname, nie ein Teilstück: `gizmonet.de.bad.tld`
+    darf nicht als eigene Adresse durchgehen.
+    """
+    try:
+        host = urlparse(ref).hostname or ''
+    except ValueError:
+        return False
+    own = set()
+    for cand in (load_site()['design'].get('public_url') or '', request.host_url):
+        try:
+            h = urlparse(cand).hostname
+        except ValueError:
+            h = None
+        if h:
+            own.add(h.lower())
+    return host.lower() in own
 
 
 def _browser_name(ua: str) -> str:
@@ -3673,6 +4494,74 @@ def filter_posts(posts: list, query: str = '', tag: str = '') -> list:
     return posts
 
 
+BLOG_PAGE_SIZE = 10           # Beiträge je Seite in der Blog-Übersicht
+BLOG_PAGER_WINDOW = 2         # Wie viele Nummern links und rechts der aktuellen
+
+
+def _page_arg() -> int:
+    """Seitenzahl aus `?seite=`, mindestens 1.
+
+    Alles Unbrauchbare wird zu 1 statt zu einem Fehler: eine von Hand
+    verbogene Adresse soll die Übersicht zeigen, nicht eine Fehlerseite.
+    """
+    try:
+        return max(1, int(request.args.get('seite') or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _blog_page_url(page: int, query: str = '', tag: str = '') -> str:
+    """Adresse einer Blog-Seite mit erhaltenem Filter.
+
+    Suche und Schlagwort müssen mitwandern — sonst springt das Blättern in der
+    gefilterten Liste zurück auf den vollen Bestand.
+    """
+    args = []
+    if tag:
+        args.append(('tag', tag))
+    if query:
+        args.append(('q', query))
+    if page > 1:
+        args.append(('seite', str(page)))
+    return '/blog' + ('?' + urlencode(args) if args else '')
+
+
+def blog_pager(posts: list, page: int, query: str = '', tag: str = '') -> dict:
+    """Ausschnitt und Blätterleiste für die Blog-Übersicht.
+
+    Die Nummernliste zeigt immer die erste und die letzte Seite sowie ein
+    Fenster um die aktuelle; dazwischen steht eine Auslassung. Ohne das wächst
+    die Leiste bei hundert Seiten über den Bildschirm hinaus.
+
+    Wichtig: Sitemap und Feed führen weiterhin **alle** Beiträge. Wer dort
+    dieselbe Begrenzung einbaut, nimmt dem Suchindex den halben Bestand.
+    """
+    total = len(posts)
+    pages = max(1, (total + BLOG_PAGE_SIZE - 1) // BLOG_PAGE_SIZE)
+    page = min(max(1, page), pages)
+    start = (page - 1) * BLOG_PAGE_SIZE
+    items: list = []
+    if pages > 1:
+        shown = {1, pages} | {n for n in range(page - BLOG_PAGER_WINDOW,
+                                               page + BLOG_PAGER_WINDOW + 1)
+                              if 1 <= n <= pages}
+        last = 0
+        for n in sorted(shown):
+            if n - last > 1:
+                items.append({'gap': True})
+            items.append({'gap': False, 'n': n, 'current': n == page,
+                          'url': _blog_page_url(n, query, tag)})
+            last = n
+    return {
+        'posts': posts[start:start + BLOG_PAGE_SIZE],
+        # `offset` braucht die Vorlage für die Positionsnummern im ItemList:
+        # der erste Beitrag auf Seite 3 ist der einundzwanzigste, nicht der erste.
+        'page': page, 'pages': pages, 'total': total, 'items': items, 'offset': start,
+        'prev_url': _blog_page_url(page - 1, query, tag) if page > 1 else '',
+        'next_url': _blog_page_url(page + 1, query, tag) if page < pages else '',
+    }
+
+
 SEARCH_SNIPPET_LEN = 170
 SEARCH_MAX_RESULTS = 80
 SEARCH_MAX_WORDS = 8
@@ -3766,6 +4655,16 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool,
                  body, e.get('members_only'))
 
     for trip in _trav_public_trips(site):
+        # Die Reise-Seite ist mit dem Rückblick selbst ein Text und nicht mehr
+        # nur ein Inhaltsverzeichnis — also gehört sie in die Suche.
+        rc = _trav_recap(trip, lang)
+        if rc.get('body'):
+            consider('travel', rc.get('title') or trip.get('name') or '',
+                     f"/reiseblog/{trip['slug']}",
+                     ' '.join([rc.get('teaser') or '', rc.get('body') or '',
+                               ' '.join((trip.get('recap') or {}).get('tags') or []),
+                               trip.get('destination') or '']),
+                     trip.get('members_only'))
         for d in _trav_public_days(trip):
             art = _trav_article(d, lang)
             body = ' '.join([art.get('teaser') or '', art.get('body') or '',
@@ -3892,6 +4791,9 @@ def fetch_github_repos(user: str) -> list[dict]:
             'language':    repo.get('language') or '',
             'stars':       repo.get('stargazers_count', 0),
             'topics':      repo.get('topics', [])[:6],
+            # Letzter Push als Datum des Projekts — ohne das steht ein Projekt
+            # im Feed ohne <pubDate> und der Leser sortiert es irgendwohin
+            'pushed':      (repo.get('pushed_at') or '')[:10],
         })
     repos.sort(key=lambda x: x['stars'], reverse=True)
     return repos
@@ -3969,12 +4871,21 @@ def refresh_project_stars() -> None:
                 if r.status_code in (401, 403):
                     log.warning("Sterne-Update abgelehnt (HTTP %d) — GitHub-Token "
                                 "prüfen (Admin → System)", r.status_code)
+                    health_note('github', f'HTTP {r.status_code}')
                     break
                 if r.status_code == 200:
+                    health_note('github', ok=True)
                     data = r.json()
                     new_stars = data.get('stargazers_count', p.get('stars', 0))
                     if new_stars != p.get('stars'):
                         p['stars'] = new_stars
+                        changed = True
+                    # Beim selben Durchlauf das Push-Datum nachziehen: es liefert
+                    # dem Feed das <pubDate> und füllt sich so auch für Projekte,
+                    # die vor dieser Version importiert wurden
+                    pushed = (data.get('pushed_at') or '')[:10]
+                    if pushed and pushed != p.get('repo_pushed'):
+                        p['repo_pushed'] = pushed
                         changed = True
                 time.sleep(1)
             if changed:
@@ -4002,6 +4913,7 @@ def _normalize_project(raw: dict, existing: dict | None = None) -> dict:
     p['repo_full_name'] = _clean_str(raw.get('repo_full_name'), 150)
     p['language']       = _clean_str(raw.get('language'), 50)
     p['stars']          = max(0, int(raw.get('stars') or 0))
+    p['repo_pushed']    = _clean_str(raw.get('repo_pushed'), 10)
     p['long_de']        = _clean_str(raw.get('long_de'), 20000)
     p['long_en']        = _clean_str(raw.get('long_en'), 20000)
     gallery = raw.get('gallery') or []
@@ -4043,6 +4955,27 @@ def _slugify(s: str) -> str:
     return s[:60]
 
 
+def _unique_slug(wish: str, taken: set, fallback: str,
+                 reserved: set | None = None) -> tuple[str, bool]:
+    """Eindeutigen Slug bestimmen — und melden, ob er von der Eingabe abweicht.
+
+    Das zweite Rückgabestück ist der eigentliche Zweck: Wer „rhodos" eintippt
+    und stillschweigend „rhodos-2" bekommt, sucht seine Seite später an der
+    falschen Adresse. Die Oberfläche sagt es deshalb hinterher an.
+
+    Angehängt wird ab 2, weil der vorhandene Eintrag der erste ist.
+    """
+    reserved = reserved or set()
+    base = wish
+    if not base or base in reserved:
+        return fallback, bool(wish)
+    slug, n = base, 2
+    while slug in taken or slug in reserved:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug, slug != base
+
+
 def _normalize_page(raw: dict, existing: dict | None = None) -> dict:
     p = existing or {'id': uuid.uuid4().hex[:12]}
     p['title_de'] = _clean_str(raw.get('title_de'), 120)
@@ -4057,17 +4990,11 @@ def _normalize_page(raw: dict, existing: dict | None = None) -> dict:
     return p
 
 
-def _page_slug(site: dict, raw: dict, page_id: str) -> str:
+def _page_slug(site: dict, raw: dict, page_id: str) -> tuple[str, bool]:
     """Eindeutigen, gültigen Slug ermitteln (aus Eingabe oder Titel abgeleitet)."""
-    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
-    if not slug or slug in RESERVED_SLUGS:
-        slug = 'seite-' + page_id[:6]
-    base, n = slug, 2
+    wish = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
     taken = {p['slug'] for p in site.get('pages', []) if p.get('id') != page_id}
-    while slug in taken or slug in RESERVED_SLUGS:
-        slug = f'{base}-{n}'
-        n += 1
-    return slug
+    return _unique_slug(wish, taken, 'seite-' + page_id[:6], RESERVED_SLUGS)
 
 
 def _find_page(site: dict, slug: str) -> dict | None:
@@ -4166,16 +5093,10 @@ def _normalize_lib_entry(site: dict, raw: dict, existing: dict | None = None) ->
     return e
 
 
-def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> str:
-    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
-    if not slug:
-        slug = 'eintrag-' + entry_id[:6]
-    base, n = slug, 2
+def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> tuple[str, bool]:
+    wish = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
     taken = {e.get('slug') for e in _library(site).get('entries', []) if e.get('id') != entry_id}
-    while slug in taken:
-        slug = f'{base}-{n}'
-        n += 1
-    return slug
+    return _unique_slug(wish, taken, 'eintrag-' + entry_id[:6])
 
 
 def _find_lib_entry(site: dict, slug: str) -> dict | None:
@@ -4236,7 +5157,30 @@ def _lib_pdf_fetcher(url: str, lang: str = 'de'):
 
 
 # Bei jeder Änderung an _lib_pdf_html hochzählen — erzwingt Neuaufbau der PDFs.
-_LIB_PDF_LAYOUT = 3
+_LIB_PDF_LAYOUT = 4
+
+_PDF_TABLE_RE = re.compile(r'(<table\b[^>]*>)(.*?)</table>', re.I | re.S)
+
+
+def _pdf_mark_tables(html: str) -> str:
+    """Hängt jeder Tabelle ihre Spaltenzahl als Klasse an (`t-c6`).
+
+    Das PDF-CSS setzt `table-layout: fixed`, sonst laufen breite Tabellen über
+    den Seitenrand hinaus und werden abgeschnitten. Feste Spaltenbreiten teilen
+    die Seite aber gleichmäßig auf — ab fünf Spalten wird der Text darin
+    unlesbar schmal, wenn die Schrift nicht mitschrumpft. CSS kann Spalten
+    nicht zählen, also passiert das hier.
+    """
+    def repl(m):
+        tag, inner = m.group(1), m.group(2)
+        rows = re.findall(r'<tr\b.*?</tr>', inner, re.I | re.S)
+        n = max((len(re.findall(r'<t[hd]\b', r, re.I)) for r in rows), default=1)
+        n = min(max(n, 1), 9)
+        if re.search(r'\bclass\s*=', tag, re.I):
+            return m.group(0)
+        return f'{tag[:-1]} class="t-c{n}">{inner}</table>'
+
+    return _PDF_TABLE_RE.sub(repl, html)
 
 
 def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
@@ -4252,31 +5196,50 @@ def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
         entry.get('updated') or '',
     ] if x)
     page_label = t.get('pdf_page', 'Seite')
+    # Zwei Regeln im Stylesheet unten sind nicht offensichtlich:
+    # `table-layout: fixed` ist Pflicht — bei `auto` bemisst WeasyPrint die
+    # Spalten am Inhalt und schiebt breite Tabellen über den Seitenrand, der
+    # Überhang wird abgeschnitten. Und `page-break-inside: avoid` gehört auf
+    # die Zeile, nicht auf die Tabelle: eine Tabelle, die länger als eine Seite
+    # ist, wandert sonst komplett auf die nächste und lässt den Rest der vorigen
+    # Seite leer. `word-break: break-word` gibt es nicht — WeasyPrint verwirft
+    # es mit einer Warnung; `overflow-wrap: anywhere` ist die gültige Form.
     return f"""<!DOCTYPE html><html lang="{escape(lang)}"><head><meta charset="utf-8">
 <title>{escape(loc(entry, 'title'))}</title><style>
 @page {{ size: A4; margin: 20mm 18mm 18mm;
   @bottom-center {{ content: "{escape(page_label)} " counter(page) " / " counter(pages);
                     font-size: 9pt; color: #666; }} }}
-body {{ font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; line-height: 1.55; color: #111; }}
+body {{ font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; line-height: 1.55; color: #111;
+        hyphens: auto; }}
 h1.doc-title {{ font-size: 20pt; margin: 0 0 2mm; color: {escape(accent)}; }}
 .doc-sub {{ font-size: 9pt; color: #666; margin-bottom: 8mm;
             border-bottom: 1px solid #ddd; padding-bottom: 3mm; }}
 h1, h2, h3 {{ line-height: 1.25; margin: 6mm 0 2mm; page-break-after: avoid; }}
 h2 {{ font-size: 14pt; }} h3 {{ font-size: 12pt; }}
-p {{ margin: 0 0 3mm; }} ul, ol {{ margin: 0 0 3mm 6mm; }}
+p {{ margin: 0 0 3mm; orphans: 2; widows: 2; }} ul, ol {{ margin: 0 0 3mm 6mm; }}
+li {{ orphans: 2; widows: 2; }}
 img {{ max-width: 100%; }}
+a {{ overflow-wrap: anywhere; }}
 blockquote {{ border-left: 2pt solid {escape(accent)}; margin: 3mm 0; padding: 0 4mm; color: #444; }}
 pre {{ background: #f4f4f4; padding: 3mm; border-radius: 2mm; white-space: pre-wrap;
        font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
 code {{ font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
-table {{ border-collapse: collapse; width: 100%; margin: 3mm 0; page-break-inside: avoid; }}
-th, td {{ border: 0.5pt solid #bbb; padding: 1.5mm 2mm; text-align: left; font-size: 9.5pt; }}
+table {{ border-collapse: collapse; width: 100%; margin: 3mm 0; table-layout: fixed; }}
+thead {{ display: table-header-group; }}
+tr {{ page-break-inside: avoid; }}
+th, td {{ border: 0.5pt solid #bbb; padding: 1.5mm 2mm; text-align: left; font-size: 9.5pt;
+          vertical-align: top; overflow-wrap: anywhere; }}
 th {{ background: #f0f0f0; }}
+table.t-c4 th, table.t-c4 td {{ font-size: 8.5pt; padding: 1.2mm 1.5mm; }}
+table.t-c5 th, table.t-c5 td {{ font-size: 8pt; padding: 1mm 1.2mm; line-height: 1.4; }}
+table.t-c6 th, table.t-c6 td, table.t-c7 th, table.t-c7 td,
+table.t-c8 th, table.t-c8 td, table.t-c9 th, table.t-c9 td
+  {{ font-size: 7pt; padding: 0.8mm 1mm; line-height: 1.3; }}
 hr {{ border: none; border-top: 0.5pt solid #ccc; margin: 5mm 0; }}
 </style></head><body>
 <h1 class="doc-title">{escape(loc(entry, 'title'))}</h1>
 {f'<div class="doc-sub">{escape(subtitle)}</div>' if subtitle else ''}
-{_overlay_html_images(render_md(loc(entry, 'body')))}
+{_pdf_mark_tables(_overlay_html_images(render_md(loc(entry, 'body'))))}
 </body></html>"""
 
 
@@ -4377,16 +5340,10 @@ def _normalize_form(raw: dict, existing: dict | None = None) -> dict:
     return fm
 
 
-def _form_slug(site: dict, raw: dict, form_id: str) -> str:
-    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
-    if not slug:
-        slug = 'formular-' + form_id[:6]
-    base, n = slug, 2
+def _form_slug(site: dict, raw: dict, form_id: str) -> tuple[str, bool]:
+    wish = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
     taken = {f['slug'] for f in site.get('forms', []) if f.get('id') != form_id}
-    while slug in taken:
-        slug = f'{base}-{n}'
-        n += 1
-    return slug
+    return _unique_slug(wish, taken, 'formular-' + form_id[:6])
 
 
 def _public_forms(site: dict) -> list:
@@ -4480,7 +5437,13 @@ def _inject_banner():
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
 
 def _is_ingress() -> bool:
-    return bool(request.script_root)
+    """Läuft die Anfrage über den HA-Ingress (dann hat HA schon angemeldet)?
+
+    Die Entscheidung fällt in `_IngressMiddleware` anhand der Absenderadresse
+    und steht als Merker in der Umgebung. Bewusst nicht mehr über
+    `request.script_root`: den setzt eine Kopfzeile, die jeder mitschicken kann.
+    """
+    return bool(request.environ.get('mypage.ingress'))
 
 
 def _auth_required():
@@ -4527,12 +5490,13 @@ def login():
     step = 'password'
 
     def _grant_session(ip):
-        clear_failed_attempts(ip)
+        clear_failed_attempts(ip, _peer_addr(request))
         hours = int(cfg.get('session_hours', 24))
         token = create_session(hours)
         log_audit('admin_login')
         resp = make_response(redirect(url_for('admin_index')))
-        resp.set_cookie('session', token, httponly=True, samesite='Lax', max_age=hours * 3600)
+        resp.set_cookie('session', token, httponly=True, samesite='Lax',
+                        secure=_cookie_secure(), max_age=hours * 3600)
         resp.delete_cookie('pre2fa')
         return resp
 
@@ -4543,12 +5507,14 @@ def login():
             if token:
                 cookie_value = _trusted_cookie_serializer().dumps(token)
                 resp.set_cookie('trust2fa', cookie_value, httponly=True, samesite='Lax',
+                                 secure=_cookie_secure(),
                                  max_age=TRUSTED_DEVICE_DAYS * 86400)
         return resp
 
     if request.method == 'POST':
         ip = get_client_ip(request)
-        if is_rate_limited(ip):
+        peer = _peer_addr(request)
+        if is_rate_limited(ip, peer):
             error = t.get('error_locked', 'Zu viele Fehlversuche. Bitte 15 Minuten warten.')
         elif request.form.get('step') == 'code':
             # Schritt 2: TOTP- oder Backup-Code (nur nach erfolgreichem Passwort)
@@ -4559,7 +5525,7 @@ def login():
             if totp_verify(secret, code) or backup_code_consume(code):
                 _pending_2fa.pop(request.cookies.get('pre2fa'), None)
                 return _grant_session_trusted(ip)
-            record_failed_attempt(ip)
+            record_failed_attempt(ip, peer)
             log_audit('admin_login_2fa_failed')
             error = t.get('error_2fa_code', 'Ungültiger Code.')
             step = 'code'
@@ -4574,10 +5540,10 @@ def login():
                     resp = make_response(render_template('login.html', t=t, lang=lang,
                                                          error=None, step='code'))
                     resp.set_cookie('pre2fa', pre, httponly=True, samesite='Lax',
-                                    max_age=PENDING_2FA_TTL)
+                                    secure=_cookie_secure(), max_age=PENDING_2FA_TTL)
                     return resp
                 return _grant_session(ip)
-            record_failed_attempt(ip)
+            record_failed_attempt(ip, peer)
             log_audit('admin_login_failed', uname)
             error = t.get('error_credentials', 'Ungültige Anmeldedaten.')
 
@@ -4802,6 +5768,17 @@ def api_profile():
                       ('github', 80), ('email', 150)):
         if k in raw:
             prof[k] = _clean_str(raw[k], maxlen)
+    if isinstance(raw.get('cta'), list):
+        prof['cta'] = [{
+            'label_de': _clean_str(e.get('label_de'), 40),
+            'label_en': _clean_str(e.get('label_en'), 40),
+            'url':      _clean_str(e.get('url'), 300),
+        } for e in raw['cta'][:2]
+            if isinstance(e, dict)
+            and (_clean_str(e.get('label_de'), 40) or _clean_str(e.get('label_en'), 40))
+            # Ziel darf eine Sprungmarke, eine eigene Adresse oder eine fremde
+            # Seite sein — aber nichts, was der Browser als Skript ausführt.
+            and _clean_str(e.get('url'), 300).startswith(('#', '/', 'http://', 'https://', 'mailto:'))]
     if 'links' in raw and isinstance(raw['links'], list):
         prof['links'] = [{'label': _clean_str(l.get('label'), 40),
                           'url':   _clean_str(l.get('url'), 500)}
@@ -4827,6 +5804,14 @@ def api_design():
         d['mode'] = raw['mode']
     if raw.get('layout') in ('cards', 'list', 'minimal'):
         d['layout'] = raw['layout']
+    if raw.get('entity_type') in ('person', 'organization', 'localbusiness'):
+        d['entity_type'] = raw['entity_type']
+    if raw.get('hero_layout') in ('side', 'center', 'banner'):
+        d['hero_layout'] = raw['hero_layout']
+    if raw.get('avatar_shape') in ('circle', 'rounded', 'free'):
+        d['avatar_shape'] = raw['avatar_shape']
+    if 'hero_image' in raw:
+        d['hero_image'] = _clean_str(raw['hero_image'], 500)
     if raw.get('font') in (set(SYSTEM_FONTS) | set(WEB_FONTS) | {'custom'}):
         d['font'] = raw['font']
     if raw.get('reveal_effect') in ('off', 'fade', 'slide', 'zoom', 'blur'):
@@ -4868,6 +5853,9 @@ def api_design():
     if 'feed_lang' in raw:
         fl = _clean_str(raw['feed_lang'], 2).lower()
         d['feed_lang'] = fl if fl in ('de', 'en') else 'de'
+    if 'ai_address' in raw:
+        a = _clean_str(raw['ai_address'], 4).lower()
+        d['ai_address'] = a if a in AI_ADDRESS_FORMS else 'sie'
     if 'banner_link_url' in raw:
         bl = _clean_str(raw['banner_link_url'], 500)
         d['banner_link_url'] = bl if bl.startswith(('http://', 'https://', '/')) or not bl else ''
@@ -4932,6 +5920,23 @@ def api_sections():
     for k in ('timeline_title_de', 'timeline_title_en'):
         if k in raw:
             sec[k] = _clean_str(raw[k], 60)
+    if isinstance(raw.get('section_titles'), dict):
+        # Nur bekannte Abschnitte, und leere Paare fliegen raus: sonst wächst die
+        # Ablage mit jedem Speichern um leere Einträge für alle 20 Module.
+        titles = {}
+        for key, val in raw['section_titles'].items():
+            if key not in SECTION_TITLE_KEYS or not isinstance(val, dict):
+                continue
+            de = _clean_str(val.get('de'), 60)
+            en = _clean_str(val.get('en'), 60)
+            if de or en:
+                titles[key] = {'de': de, 'en': en}
+        sec['section_titles'] = titles
+        # Der Werdegang wird ab hier aus der gemeinsamen Ablage bedient. Die alten
+        # Felder mitzuziehen hält site.json widerspruchsfrei, falls doch noch
+        # etwas daraus liest.
+        tl = titles.get('timeline') or {}
+        sec['timeline_title_de'], sec['timeline_title_en'] = tl.get('de', ''), tl.get('en', '')
     if isinstance(raw.get('news'), list):
         sec['news'] = [{
             'date':    _clean_str(e.get('date'), 30),
@@ -5010,6 +6015,46 @@ def api_sections():
             'url':      _clean_str(e.get('url'), 500) if _clean_str(e.get('url'), 500).startswith(('http://', 'https://')) else '',
         } for e in raw['events'][:60]
             if isinstance(e, dict) and (_clean_str(e.get('title_de'), 160) or _clean_str(e.get('title_en'), 160))]
+    if isinstance(raw.get('facts'), list):
+        # Die Zahl bleibt Text: „500+", „24/7" und „~3 Mio." sind genauso
+        # gemeint wie eine glatte Zahl, und gerechnet wird damit nirgends.
+        sec['facts'] = [{
+            'value':    _clean_str(e.get('value'), 20),
+            'label_de': _clean_str(e.get('label_de'), 60),
+            'label_en': _clean_str(e.get('label_en'), 60),
+            'icon':     _clean_str(e.get('icon'), 8),
+        } for e in raw['facts'][:12]
+            if isinstance(e, dict) and _clean_str(e.get('value'), 20)]
+    if isinstance(raw.get('partners'), list):
+        sec['partners'] = [{
+            'name': _clean_str(e.get('name'), 80),
+            'logo': _clean_str(e.get('logo'), 500),
+            'url':  _clean_str(e.get('url'), 500) if _clean_str(e.get('url'), 500).startswith(('http://', 'https://')) else '',
+        } for e in raw['partners'][:40]
+            if isinstance(e, dict) and _clean_str(e.get('name'), 80)]
+    if isinstance(raw.get('videos'), list):
+        # Nur was `parse_video()` erkennt: eine beliebige Adresse als iframe zu
+        # laden hieße, jeder fremden Seite den Rahmen zu öffnen.
+        sec['videos'] = [{
+            'url':      _clean_str(e.get('url'), 500),
+            'title_de': _clean_str(e.get('title_de'), 160),
+            'title_en': _clean_str(e.get('title_en'), 160),
+            'desc_de':  _clean_str(e.get('desc_de'), 500),
+            'desc_en':  _clean_str(e.get('desc_en'), 500),
+        } for e in raw['videos'][:20]
+            if isinstance(e, dict) and parse_video(_clean_str(e.get('url'), 500))[1]]
+    if isinstance(raw.get('downloads'), list):
+        # Der Dateiname muss dem Muster der Ablage entsprechen (UUID + Endung),
+        # sonst zeigt ein selbst gesetzter Eintrag später auf eine fremde Datei.
+        sec['downloads'] = [{
+            'file':     _clean_str(e.get('file'), 80),
+            'title_de': _clean_str(e.get('title_de'), 160),
+            'title_en': _clean_str(e.get('title_en'), 160),
+            'desc_de':  _clean_str(e.get('desc_de'), 400),
+            'desc_en':  _clean_str(e.get('desc_en'), 400),
+        } for e in raw['downloads'][:60]
+            if isinstance(e, dict) and _DOC_FILE_RE.match(_clean_str(e.get('file'), 80) or '')
+            and (_clean_str(e.get('title_de'), 160) or _clean_str(e.get('title_en'), 160))]
     if isinstance(raw.get('location'), dict):
         L = raw['location']
         def _coord(v):
@@ -5276,11 +6321,16 @@ def write_backup_zip(fp) -> None:
     können beide nicht auseinanderlaufen.
     """
     with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
+        # settings.json kommt mit, settings.key bewusst NICHT: so stehen Tokens
+        # und Passwörter im Backup nur verschlüsselt, und wer das Zip in die
+        # Hände bekommt, kann sie nicht lesen. Preis: nach einem Restore auf
+        # einer frischen Installation (ohne alten Schlüssel) müssen die
+        # geheimen Felder einmal neu eingetragen werden.
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
                      'ai_usage.json', 'travel.json', 'ai_drafts.json',
-                     'ai_prompts.json', 'uploads_meta.json'):
+                     'ai_prompts.json', 'uploads_meta.json', 'settings.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -5356,6 +6406,7 @@ def create_auto_backup(keep: int) -> Path | None:
         os.replace(tmp, target)   # nie ein halb geschriebenes Backup sichtbar
     except Exception as e:
         log.warning("Automatisches Backup fehlgeschlagen: %s", e)
+        health_note('backup', str(e)[:200])
         try:
             tmp.unlink(missing_ok=True)
         except OSError:
@@ -5363,6 +6414,7 @@ def create_auto_backup(keep: int) -> Path | None:
         return None
     log.info("Automatisches Backup erstellt: %s (%.1f MB)",
              target.name, target.stat().st_size / 1048576)
+    health_note('backup', ok=True)
     _rotate_auto_backups(keep)
     return target
 
@@ -5458,6 +6510,110 @@ def api_backups_delete(name: str):
     return jsonify({'ok': True})
 
 
+# ── Revisionen: früheren Stand der Seiteninhalte ansehen und zurückholen ────
+
+def _revision_path(name: str) -> Path | None:
+    """Pfad zu einer Revision — nur exakt passende Namen, sonst None."""
+    if not _REVISION_RE.match(name or ''):
+        return None
+    return safe_under(REVISIONS_DIR, name)
+
+
+@admin_app.route('/api/revisions')
+def api_revisions_list():
+    err = _api_auth()
+    if err:
+        return err
+    keep = _revision_keep()
+    revs = list_revisions()
+    # Was sich geändert hat, wird beim Auflisten aus den Dateien selbst
+    # ermittelt: jede Revision gegen ihre Vorgängerin, die neueste gegen den
+    # aktuellen Stand. Eine mitgeführte Indexdatei wäre schneller, könnte aber
+    # von den Dateien abweichen — und dann zeigt die Liste Unsinn an.
+    def read(name: str):
+        try:
+            with open(REVISIONS_DIR / name, encoding='utf-8') as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+
+    newer = None
+    try:
+        with open(SITE_PATH, encoding='utf-8') as f:
+            newer = json.load(f)
+    except (OSError, ValueError):
+        pass
+    for r in revs:
+        older = read(r['name'])
+        r['changed'] = (_site_changed_keys(older, newer)
+                        if older is not None and newer is not None else [])
+        newer = older if older is not None else newer
+    return jsonify({'revisions': revs, 'keep': keep})
+
+
+@admin_app.route('/api/revisions/<name>')
+def api_revision_download(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    f = _revision_path(name)
+    if f is None or not f.is_file():
+        return jsonify({'error': 'not found'}), 404
+    return send_file(f, mimetype='application/json', as_attachment=True,
+                     download_name=f.name)
+
+
+@admin_app.route('/api/revisions/<name>/restore', methods=['POST'])
+def api_revision_restore(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    f = _revision_path(name)
+    if f is None or not f.is_file():
+        return jsonify({'error': 'not found'}), 404
+    try:
+        with open(f, encoding='utf-8') as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as e:
+        log.warning("Revision %s ist nicht lesbar: %s", name, e)
+        return jsonify({'error': 'unreadable'}), 400
+    if not isinstance(data, dict):
+        return jsonify({'error': 'unreadable'}), 400
+    # Der Stand vor der Rückkehr wird selbst zur Revision — sonst wäre ein
+    # versehentlich zurückgeholter Stand nicht mehr rückgängig zu machen.
+    # `force`, weil das Zusammenfassen sonst genau hier zuschlägt: wer eben
+    # gespeichert hat und dann zurückholt, liegt innerhalb des Zeitfensters.
+    with _site_lock:
+        try:
+            _snapshot_site(force=True)
+        except Exception as e:
+            log.warning("Stand vor der Rückkehr konnte nicht gesichert werden: %s", e)
+        try:
+            _atomic_write_json(SITE_PATH, data, indent=2)
+        except Exception as e:
+            log.warning("Revision %s konnte nicht eingespielt werden: %s", name, e)
+            return jsonify({'error': 'restore failed'}), 500
+    log_audit('revision_restore', name)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/revisions/<name>', methods=['DELETE'])
+def api_revision_delete(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    f = _revision_path(name)
+    if f is None or not f.is_file():
+        return jsonify({'error': 'not found'}), 404
+    try:
+        f.unlink()
+    except OSError:
+        log.warning("Revision '%s' konnte nicht gelöscht werden", f.name)
+        return jsonify({'error': 'delete failed'}), 500
+    log_audit('revision_delete', f.name)
+    return jsonify({'ok': True})
+
+
 @admin_app.route('/api/restore', methods=['POST'])
 def api_restore():
     err = _api_auth()
@@ -5479,7 +6635,7 @@ def api_restore():
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
                               'admin_2fa.json', 'ai_usage.json', 'travel.json',
                               'ai_drafts.json', 'ai_prompts.json',
-                              'uploads_meta.json'):
+                              'uploads_meta.json', 'settings.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5539,6 +6695,8 @@ def api_restore():
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
         return jsonify({'error': 'invalid backup'}), 400
     _dm_reset_fernet()  # evtl. neuen dm.key übernehmen
+    settings_store.reset_cache()  # settings.json kann aus dem Backup stammen
+    _settings_changed()
     log_audit('restore', f'{restored} Datei(en)')
     log.info("Backup wiederhergestellt: %d Datei(en)", restored)
     return jsonify({'ok': True, 'restored': restored})
@@ -5711,10 +6869,10 @@ def api_page_create():
         return jsonify({'error': 'title required'}), 400
     site = load_site()
     page = _normalize_page(raw)
-    page['slug'] = _page_slug(site, raw, page['id'])
+    page['slug'], slug_changed = _page_slug(site, raw, page['id'])
     site.setdefault('pages', []).append(page)
     save_site(site)
-    return jsonify({'ok': True, 'slug': page['slug']})
+    return jsonify({'ok': True, 'slug': page['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/pages/<pid>', methods=['PUT', 'DELETE'])
@@ -5735,9 +6893,9 @@ def api_page_edit(pid: str):
     if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
         return jsonify({'error': 'title required'}), 400
     pages[idx] = _normalize_page(raw, pages[idx])
-    pages[idx]['slug'] = _page_slug(site, raw, pid)
+    pages[idx]['slug'], slug_changed = _page_slug(site, raw, pid)
     save_site(site)
-    return jsonify({'ok': True, 'slug': pages[idx]['slug']})
+    return jsonify({'ok': True, 'slug': pages[idx]['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/pages/reorder', methods=['POST'])
@@ -5795,6 +6953,10 @@ AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
 # zurück. Sonst bliebe nur „nochmal erzeugen", und das wirft die Handarbeit weg.
 AI_TEXT_ACTIONS = ('shorter', 'longer', 'polish', 'custom')
 AI_TEXT_NOTE_MAX = 500
+# Der ganze Beitrag geht in die Anfrage für die SEO-Beschreibung. Der Deckel
+# ist grosszügig, aber nicht offen: ein versehentlich eingefügtes Buch soll
+# nicht Token für Token bei Google landen.
+AI_SEO_TEXT_MAX = 12_000
 AI_INSTRUCTIONS_MAX = 800           # Dauervorgaben, hängen an jedem Textlauf
 AI_DRAFTS_MAX = 200                 # ältester Entwurf fliegt raus, wenn voll
 AI_PROMPTS_MAX = 100                # dasselbe für die Prompt-Bibliothek
@@ -5903,6 +7065,27 @@ def _gemini_image_ratio() -> str:
 # überleben auch das Überarbeiten.
 def _ai_instructions() -> str:
     return _clean_str(_ai_settings().get('instructions'), AI_INSTRUCTIONS_MAX)
+
+
+# Anrede der KI-Texte. Sie steht im Design und nicht bei den KI-Einstellungen:
+# es ist eine Frage des Tonfalls der Website, nicht eine des Modells.
+AI_ADDRESS_FORMS = ('sie', 'du')
+
+
+def _ai_address_note(site: dict | None = None) -> str:
+    """Anredezeile fuer jeden KI-Text — haengt an jedem System-Prompt.
+
+    Ohne sie siezt Gemini auf Deutsch von sich aus, auch wenn die uebrige
+    Website durchweg duzt.
+    """
+    d = (site or load_site()).get('design', {})
+    form = d.get('ai_address') if d.get('ai_address') in AI_ADDRESS_FORMS else 'sie'
+    if form == 'du':
+        return ("\n\nAnrede: Sprich den Leser mit „du“ an (klein geschrieben), locker "
+                "und direkt — keine Höflichkeitsform, kein „Sie“. Englische Fassungen "
+                "bleiben beim neutralen „you“.")
+    return ("\n\nAnrede: Sprich den Leser mit „Sie“ an, höflich und sachlich. "
+            "Englische Fassungen bleiben beim neutralen „you“.")
 
 
 def _ai_translate_provider() -> str:
@@ -6972,6 +8155,81 @@ def _gemini_image_alt(ref: tuple[bytes, str], *, model: str
     return out, '', ''
 
 
+_AI_SEO_LANG_DE = {'de': 'Deutsch', 'en': 'Englisch'}
+
+
+def _gemini_seo_desc(*, text: str, title: str, lang: str, model: str
+                     ) -> tuple[str | None, str, str]:
+    """Eine SEO-Beschreibung aus dem fertigen Beitragstext.
+
+    Bewusst ein eigener Aufruf statt `_gemini_generate_text(kind='seo')`: dort
+    entsteht ein Text aus einem Thema, hier fasst das Modell einen vorhandenen
+    zusammen. Und es geht immer nur eine Sprache — die Vorschau fragt für die
+    Sprache, die dort gerade gewählt ist.
+    """
+    sys = (
+        "Du schreibst die SEO-Beschreibung (meta description) für eine Seite. "
+        "Ein bis zwei Sätze, 120 bis 155 Zeichen — kürzer verschenkt Platz, "
+        "länger schneidet Google ab. Der wichtigste Begriff steht früh, der Satz "
+        "ist aktiv formuliert und sagt, was der Leser auf der Seite bekommt. "
+        "Kein Markdown, keine Anführungszeichen, keine Aufzählung, kein "
+        "Punkt-Punkt-Punkt, keine Wiederholung des Titels und nichts, was nicht "
+        "im Text steht — keine erfundenen Zahlen, Orte oder Versprechen."
+    )
+    extra = _ai_instructions()
+    if extra:
+        sys += ("\n\nZusätzliche Vorgaben für diese Website, die immer gelten "
+                "(sie ändern nichts an der Antwortform):\n" + extra)
+    sys += _ai_address_note()
+    parts = [f"Sprache der Beschreibung: {_AI_SEO_LANG_DE.get(lang, 'Deutsch')}."]
+    if title:
+        parts.append("Titel der Seite:\n" + title)
+    parts.append("Text der Seite (Markdown):\n" + text)
+    schema = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={'desc': genai_types.Schema(type=genai_types.Type.STRING)},
+        required=['desc'],
+    )
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=['\n\n'.join(parts)],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=sys,
+                response_mime_type='application/json',
+                response_schema=schema,
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat die SEO-Beschreibung abgelehnt: %s", finish)
+            return None, 'refused', reason
+        data = json.loads(resp.text or '')
+        if not isinstance(data, dict):
+            return None, 'empty', reason
+    except genai_errors.APIError as e:
+        # Nur der Statuscode: die SDK-Meldung kann die Anfrage-URL samt Key enthalten
+        code = getattr(e, 'code', None)
+        log.warning("SEO-Beschreibung fehlgeschlagen (%s): Status %s",
+                    model, code or type(e).__name__)
+        return (None, ('model_missing' if code == 404 else 'failed'),
+                f'HTTP {code}' if code else '')
+    except (ValueError, TypeError) as e:
+        log.warning("SEO-Antwort (%s) war kein gültiges JSON: %s", model, type(e).__name__)
+        return None, 'empty', type(e).__name__
+    except Exception as e:
+        log.error("SEO-Beschreibung (%s) unerwartet fehlgeschlagen: %s", model, type(e).__name__)
+        return None, 'failed', type(e).__name__
+    out = _clean_str(data.get('desc'), 300)
+    if not out:
+        return None, 'empty', reason
+    return out, '', ''
+
+
 def _ai_text_schema(langs: list[str]):
     """JSON-Schema für die Antwort — erzwingt beide Sprachen in einem Aufruf.
 
@@ -7025,6 +8283,7 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
     if extra:
         sys += ("\n\nZusätzliche Vorgaben für diese Website, die immer gelten "
                 "(sie ändern nichts an der Antwortform):\n" + extra)
+    sys += _ai_address_note()
     if action:
         parts = _ai_revise_parts(kind=kind, tone=tone, topic=topic, action=action,
                                  note=note, source=source or {}, langs=langs,
@@ -7134,6 +8393,176 @@ def api_ai_text():
     log.info("KI-Text %s (%s, %s, %s)", 'überarbeitet' if action else 'erzeugt',
              model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
+
+
+@admin_app.route('/api/ai/seo', methods=['POST'])
+def api_ai_seo():
+    """SEO-Beschreibung aus einem vorhandenen Text — für den Knopf an der Vorschau."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    lang = 'en' if raw.get('lang') == 'en' else 'de'
+    # Zwei Wege in dieselbe Anfrage: der Dialog schickt seinen (noch nicht
+    # gespeicherten) Text mit, die SEO-Übersicht nur Art und Id — dort liegt der
+    # Text längst auf der Platte und müsste sonst erst in den Browser wandern.
+    kind = raw.get('kind') if raw.get('kind') in SEO_KINDS else ''
+    if kind:
+        site = load_site()
+        obj = _seo_find(site, kind, _clean_str(raw.get('id'), 40))
+        if obj is None:
+            return jsonify({'error': 'not_found'}), 404
+        text, title = _seo_source(site, kind, obj, lang)
+        text, title = text[:AI_SEO_TEXT_MAX], title[:200]
+    else:
+        text = _clean_str(raw.get('text'), AI_SEO_TEXT_MAX)
+        title = _clean_str(raw.get('title'), 200)
+    # Aus zwei Wörtern lässt sich nichts zusammenfassen; der Titel allein reicht
+    # nur, wenn es sonst nichts gibt — dann bleibt es eine Umschreibung.
+    if len(text) < 40 and len(title) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    model = _ai_model_or(raw.get('model'), _gemini_text_model())
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    desc, code, detail = _gemini_seo_desc(text=text, title=title, lang=lang, model=model)
+    if code:
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+                        'detail': detail, 'model': model}), 502
+    log.info("SEO-Beschreibung erzeugt (%s, %s)", model, lang)
+    return jsonify({'ok': True, 'desc': desc})
+
+
+# ── SEO-Übersicht ─────────────────────────────────────────────────────────────
+#
+# Die SEO-Beschreibung steht bisher nur im Dialog des jeweiligen Inhalts. Wer
+# wissen will, wo überhaupt eine fehlt, müsste jeden Beitrag einzeln aufmachen.
+# Diese Liste sammelt alles mit eigenem SEO-Feld an einer Stelle — mit dem Text,
+# den die Seite heute ausliefert, damit sichtbar wird, was ein leeres Feld
+# bedeutet: nicht „keine Beschreibung", sondern „irgendein Textanfang".
+
+SEO_KINDS = ('home', 'post', 'page', 'library')
+# Feld mit dem Fließtext je Art. Die Startseite fällt aus der Reihe: ihr
+# SEO-Feld steht im Design, der Text dazu im Profil.
+_SEO_TEXT_FIELD = {'post': 'text', 'page': 'body', 'library': 'body'}
+
+
+def _seo_meta_field(kind: str, lang: str) -> str:
+    return ('meta_description_' if kind == 'home' else 'meta_') + lang
+
+
+def _seo_objects(site: dict) -> list[tuple[str, str, dict]]:
+    """(Art, Id, Objekt) für alles mit eigenem SEO-Feld — eine Quelle für
+    Übersicht, Speichern und KI-Knopf."""
+    out: list[tuple[str, str, dict]] = [('home', '', site['design'])]
+    out += [('post', p.get('id', ''), p) for p in site.get('posts', [])]
+    out += [('page', p.get('id', ''), p) for p in site.get('pages', [])]
+    out += [('library', e.get('id', ''), e) for e in _library(site).get('entries', [])]
+    return out
+
+
+def _seo_find(site: dict, kind: str, ident: str) -> dict | None:
+    for k, i, obj in _seo_objects(site):
+        if k == kind and (kind == 'home' or i == ident):
+            return obj
+    return None
+
+
+def _seo_source(site: dict, kind: str, obj: dict, lang: str) -> tuple[str, str]:
+    """(Markdown, Titel) als Vorlage für die KI — leere Sprache greift auf die andere."""
+    loc = _loc_factory(lang)
+    if kind == 'home':
+        return loc(site['profile'], 'bio'), (site['design'].get('site_title')
+                                             or site['profile'].get('name') or '')
+    return loc(obj, _SEO_TEXT_FIELD[kind]), loc(obj, 'title')
+
+
+def _seo_effective(site: dict, kind: str, obj: dict, lang: str) -> str:
+    """Was heute im Quelltext der Seite steht — dieselbe Kette wie in den
+    öffentlichen Routen. Steht sie hier anders, ist die Übersicht wertlos."""
+    loc = _loc_factory(lang)
+    if kind == 'home':
+        return _site_meta(site, loc)
+    if kind == 'library':
+        return (loc(obj, 'meta') or loc(obj, 'summary')
+                or _plain_excerpt(render_md(loc(obj, 'body'))) or _site_meta(site, loc))
+    field = _SEO_TEXT_FIELD[kind]
+    return (loc(obj, 'meta') or _plain_excerpt(render_md(loc(obj, field)))
+            or _site_meta(site, loc))
+
+
+def _seo_row(site: dict, kind: str, ident: str, obj: dict) -> dict:
+    if kind == 'home':
+        label, url, visible = (site['design'].get('site_title')
+                               or site['profile'].get('name') or 'Start'), '/', True
+    elif kind == 'post':
+        label = obj.get('title_de') or obj.get('title_en') or ident
+        url, visible = '/blog/' + ident, post_visible(obj)
+    elif kind == 'page':
+        label = obj.get('title_de') or obj.get('title_en') or obj.get('slug', '')
+        url, visible = '/seite/' + obj.get('slug', ''), bool(obj.get('visible'))
+    else:
+        label = obj.get('title_de') or obj.get('title_en') or obj.get('slug', '')
+        url, visible = '/bibliothek/' + obj.get('slug', ''), bool(obj.get('visible'))
+    row = {'kind': kind, 'id': ident, 'label': label, 'url': url, 'visible': visible}
+    for lg in ('de', 'en'):
+        row['meta_' + lg] = obj.get(_seo_meta_field(kind, lg), '')
+        row['eff_' + lg] = _seo_effective(site, kind, obj, lg)
+        # Ohne Text kann auch die KI nichts zusammenfassen — der Knopf bleibt dann aus
+        row['src_' + lg] = bool(_seo_source(site, kind, obj, lg)[0])
+    return row
+
+
+@admin_app.route('/api/seo/list')
+def api_seo_list():
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    return jsonify({'items': [_seo_row(site, k, i, o) for k, i, o in _seo_objects(site)]})
+
+
+@admin_app.route('/api/seo/list', methods=['POST'])
+def api_seo_save():
+    """Nur die SEO-Felder schreiben — geänderte Zeilen kommen einzeln herein.
+
+    Bewusst kein `_normalize_*`: die Übersicht kennt nur zwei Felder, und ein
+    Normalisierer würde alles andere aus einem unvollständigen Datensatz neu
+    bauen und dabei löschen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    items = (request.get_json(silent=True) or {}).get('items')
+    if not isinstance(items, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    changed, pinged = 0, []
+    for raw in items[:500]:
+        if not isinstance(raw, dict):
+            continue
+        kind = raw.get('kind') if raw.get('kind') in SEO_KINDS else ''
+        obj = _seo_find(site, kind, _clean_str(raw.get('id'), 40)) if kind else None
+        if obj is None:
+            continue
+        for lg in ('de', 'en'):
+            if ('meta_' + lg) not in raw:
+                continue   # nicht mitgeschickt heißt „unverändert", nicht „leeren"
+            field = _seo_meta_field(kind, lg)
+            val = _clean_str(raw.get('meta_' + lg), 300)
+            if obj.get(field, '') != val:
+                obj[field] = val
+                changed += 1
+                if kind == 'post':
+                    pinged.append(obj)
+    if not changed:
+        return jsonify({'ok': True, 'count': 0})
+    save_site(site)
+    for post in {p['id']: p for p in pinged}.values():
+        _indexnow_ping_post(site, post)
+    log.info("SEO-Beschreibungen geändert: %s Feld(er)", changed)
+    return jsonify({'ok': True, 'count': changed})
 
 
 # ── Entwürfe des Text-Studios ─────────────────────────────────────────────────
@@ -7473,6 +8902,10 @@ def api_travel_options():
         'writing_styles': list(tb.WRITING_STYLES),
         'perspectives': list(tb.PERSPECTIVES),
         'lengths': list(tb.LENGTHS),
+        # Ohne Home Assistant gibt es die Wetter-Übernahme nicht — die
+        # Oberfläche blendet die Knöpfe dann ganz aus, statt sie ins Leere
+        # zeigen zu lassen.
+        'on_ha': bool(SUPERVISOR_TOKEN),
     })
 
 
@@ -7586,6 +9019,210 @@ def _travel_article_schema(langs: list[str], photos: int):
                               required=list(langs) + ['tags'])
 
 
+# ── Wetter aus Home Assistant ─────────────────────────────────────────────────
+#
+# Das Wetter von Hand einzutippen ist unterwegs die lästigste Stelle des
+# Formulars — und das Add-on läuft in Home Assistant, das den Wert kennt. Es
+# gilt aber eine Einschränkung, die nicht wegzudiskutieren ist: eine
+# Wetter-Entität misst dort, wo sie eingerichtet wurde, meist also zu Hause.
+# Für eine Reise nach Kreta muss in HA eine Entität für das Reiseziel
+# angelegt werden. Deshalb wird die Entität je Reise gewählt und nichts
+# automatisch geraten.
+#
+# Ohne Supervisor-Token (MyPage unter Docker, ohne HA) gibt es diese Funktion
+# nicht: dann fehlen die Knöpfe in der Oberfläche ganz, statt eine Meldung
+# anzubieten, aus der niemand einen Ausweg hat.
+
+_HA_STATES = 'http://supervisor/core/api/states'
+_HA_HISTORY = 'http://supervisor/core/api/history/period'
+_HA_ENTITY_RE = re.compile(r'^weather\.[a-z0-9_]{1,64}$')
+
+# Home Assistant kennt mehr Zustände als das Formular Auswahlpunkte hat. Was
+# sich nicht sinnvoll zuordnen lässt, bleibt bewusst leer — ein falsch geratenes
+# Wetter wäre schlimmer als ein leeres Feld, das nachfragt.
+_HA_CONDITIONS = {
+    'sunny': 'sonnig', 'clear-night': 'sonnig',
+    'partlycloudy': 'leicht bewölkt',
+    'cloudy': 'bewölkt',
+    'fog': 'neblig',
+    'rainy': 'regnerisch', 'pouring': 'regnerisch', 'snowy-rainy': 'regnerisch',
+    'snowy': 'Schneefall',
+    'hail': 'stürmisch', 'lightning': 'stürmisch', 'lightning-rainy': 'stürmisch',
+    'windy': 'stürmisch', 'windy-variant': 'stürmisch',
+    'exceptional': 'wechselhaft',
+}
+
+
+def _ha_wind_label(speed, unit: str) -> str:
+    """Windgeschwindigkeit zur Stufe des Formulars. Grenzen nach Beaufort:
+    bis 5 km/h windstill, bis 19 leicht (Bft 1–3), bis 38 mäßig (4–5),
+    bis 61 stark (6–7), darüber sehr stark (ab 8)."""
+    try:
+        kmh = float(speed)
+    except (TypeError, ValueError):
+        return ''
+    unit = (unit or 'km/h').lower()
+    if unit in ('m/s', 'ms'):
+        kmh *= 3.6
+    elif unit in ('mph', 'mi/h'):
+        kmh *= 1.609344
+    elif unit in ('kn', 'knots'):
+        kmh *= 1.852
+    for limit, label in ((6, 'windstill'), (20, 'leicht'), (39, 'mäßig'), (62, 'stark')):
+        if kmh < limit:
+            return label
+    return 'sehr stark'
+
+
+def _ha_weather_from_state(state: dict) -> dict:
+    """Ein HA-Zustandsobjekt in die Felder des Wetter-Schritts übersetzen."""
+    attrs = state.get('attributes') or {}
+    temp = attrs.get('temperature')
+    if temp is not None and str(attrs.get('temperature_unit') or '°C').strip() == '°F':
+        try:
+            temp = round((float(temp) - 32) * 5 / 9, 1)
+        except (TypeError, ValueError):
+            temp = None
+    try:
+        temp = round(float(temp), 1) if temp is not None else None
+    except (TypeError, ValueError):
+        temp = None
+    return {
+        'condition': _HA_CONDITIONS.get(state.get('state') or '', ''),
+        'raw_condition': _clean_str(state.get('state'), 40),
+        'temperature': temp,
+        'wind': _ha_wind_label(attrs.get('wind_speed'),
+                               attrs.get('wind_speed_unit') or 'km/h'),
+        'at': _clean_str(state.get('last_changed'), 40),
+    }
+
+
+@admin_app.route('/api/travel/ha/weather-entities')
+def api_travel_ha_entities():
+    """Wetter-Entitäten zur Auswahl im Reise-Dialog."""
+    err = _api_auth()
+    if err:
+        return err
+    if not SUPERVISOR_TOKEN:
+        return jsonify({'on_ha': False, 'entities': []})
+    try:
+        r = http.get(_HA_STATES, timeout=10,
+                     headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'})
+        r.raise_for_status()
+        states = r.json()
+    except Exception as e:
+        log.warning("HA-Wetterentitäten nicht abrufbar: %s: %s", type(e).__name__, e)
+        return jsonify({'on_ha': True, 'entities': [], 'error': 'ha_failed'}), 502
+    out = []
+    for st in states if isinstance(states, list) else []:
+        eid = st.get('entity_id') or ''
+        if _HA_ENTITY_RE.match(eid):
+            out.append({'id': eid,
+                        'name': _clean_str((st.get('attributes') or {}).get('friendly_name')
+                                           or eid, 120)})
+    out.sort(key=lambda x: x['name'].lower())
+    return jsonify({'on_ha': True, 'entities': out})
+
+
+@admin_app.route('/api/travel/ha/weather')
+def api_travel_ha_weather():
+    """Wetter zu einem Reisetag. Für heute der aktuelle Zustand, für ein
+    vergangenes Datum der Verlauf aus dem Recorder — dessen Aufbewahrung ist
+    begrenzt (Standard zehn Tage), weiter zurück gibt es schlicht nichts."""
+    err = _api_auth()
+    if err:
+        return err
+    if not SUPERVISOR_TOKEN:
+        return jsonify({'error': 'not_on_ha'}), 400
+    entity = request.args.get('entity', '')
+    if not _HA_ENTITY_RE.match(entity):
+        return jsonify({'error': 'invalid'}), 400
+    day = request.args.get('date', '')
+    try:
+        wanted = date.fromisoformat(day)
+    except ValueError:
+        return jsonify({'error': 'invalid'}), 400
+    today = datetime.now().astimezone().date()
+    if wanted > today:
+        return jsonify({'error': 'future'}), 400
+    headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    try:
+        if wanted == today:
+            r = http.get(f'{_HA_STATES}/{entity}', timeout=10, headers=headers)
+            if r.status_code == 404:
+                return jsonify({'error': 'no_entity'}), 404
+            r.raise_for_status()
+            return jsonify({'ok': True, 'source': 'now'} | _ha_weather_from_state(r.json()))
+        tz = datetime.now().astimezone().tzinfo
+        start = datetime.combine(wanted, dtime(0, 0), tz)
+        end = datetime.combine(wanted, dtime(23, 59, 59), tz)
+        r = http.get(f'{_HA_HISTORY}/{start.isoformat()}', timeout=20, headers=headers,
+                     params={'filter_entity_id': entity, 'end_time': end.isoformat()})
+        r.raise_for_status()
+        series = r.json()
+    except Exception as e:
+        log.warning("HA-Wetter (%s) nicht abrufbar: %s: %s", entity, type(e).__name__, e)
+        return jsonify({'error': 'ha_failed'}), 502
+    rows = (series[0] if isinstance(series, list) and series
+            and isinstance(series[0], list) else [])
+    # Der Zustand um die Mittagszeit beschreibt einen Reisetag besser als der um
+    # Mitternacht — und besser als ein Durchschnitt, den es als Wetterlage
+    # ohnehin nicht gibt („teils sonnig, teils Gewitter" ist keine Auswahl).
+    noon = datetime.combine(wanted, dtime(13, 0), tz)
+    best, best_gap = None, None
+    for st in rows:
+        if not isinstance(st, dict) or st.get('state') in (None, 'unknown', 'unavailable'):
+            continue
+        stamp = st.get('last_changed') or st.get('last_updated') or ''
+        try:
+            when = datetime.fromisoformat(stamp)
+        except ValueError:
+            continue
+        gap = abs((when - noon).total_seconds())
+        if best_gap is None or gap < best_gap:
+            best, best_gap = st, gap
+    if best is None:
+        return jsonify({'error': 'no_history'}), 404
+    return jsonify({'ok': True, 'source': 'history'} | _ha_weather_from_state(best))
+
+
+def _travel_article_call(*, prompt: str, system: str, langs: list[str],
+                         photos: int, model: str) -> tuple[dict | None, dict, int]:
+    """Ein Reisebericht-Lauf. Erzeugen und Überarbeiten unterscheiden sich nur in
+    Prompt und Systemanweisung — der Rest bis hin zur Fehlerbehandlung ist gleich,
+    und zweimal derselbe Block wäre zweimal zu pflegen."""
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=[prompt],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system,
+                response_mime_type='application/json',
+                response_schema=_travel_article_schema(langs, photos),
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            return None, {'error': 'ai_refused', 'detail': reason}, 502
+        raw = json.loads(resp.text or '')
+        if not isinstance(raw, dict):
+            return None, {'error': 'ai_empty', 'detail': reason}, 502
+    except genai_errors.APIError as e:
+        code = getattr(e, 'code', None)
+        log.warning("Reisebericht fehlgeschlagen (%s): Status %s", model, code)
+        return None, {'error': 'ai_model_missing' if code == 404 else 'ai_failed',
+                      'detail': f'HTTP {code}' if code else '', 'model': model}, 502
+    except Exception as e:
+        log.error("Reisebericht (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return None, {'error': 'ai_failed', 'detail': type(e).__name__, 'model': model}, 502
+    return tb.normalize_article(raw), {}, 200
+
+
 @admin_app.route('/api/travel/trips/<tid>/days/<did>/generate', methods=['POST'])
 def api_travel_generate(tid: str, did: str):
     err = _api_auth()
@@ -7608,14 +9245,154 @@ def api_travel_generate(tid: str, did: str):
     if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
     model = _gemini_text_model()
+    article, err, status = _travel_article_call(
+        prompt=prompt, system=tb.SYSTEM_PROMPT + _ai_address_note(), langs=langs,
+        photos=len(photo_notes), model=model)
+    if article is None:
+        return jsonify(err), status
+    log.info("Reisebericht erzeugt: %s Tag %s (%s, %s)", trip.get('name'),
+             day.get('day_number'), model, '+'.join(langs))
+    return jsonify({'ok': True, 'article': article, 'prompt': prompt})
+
+
+@admin_app.route('/api/travel/trips/<tid>/days/<did>/revise', methods=['POST'])
+def api_travel_revise(tid: str, did: str):
+    """Vorhandenen Bericht überarbeiten statt neu erzeugen.
+
+    Der Text kommt aus dem Formular, nicht aus der gespeicherten Fassung: der
+    Wizard speichert vor dem Aufruf zwar, aber der Nutzer soll auch eine gerade
+    von Hand geänderte Zeile mitgeben können, ohne sie vorher zu sichern.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    action = raw.get('action') if raw.get('action') in tb.REVISE_ACTIONS else ''
+    note = _clean_str(raw.get('note'), tb.REVISE_NOTE_MAX)
+    if not action or (action == 'custom' and not note):
+        return jsonify({'error': 'invalid'}), 400
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        return jsonify({'error': 'not_found'}), 404
+    trip_langs = (trip.get('settings') or {}).get('langs') or ['de']
+    wanted = raw.get('langs')
+    langs = [lg for lg in trip_langs
+             if isinstance(wanted, list) and lg in wanted] or trip_langs
+    article = tb.normalize_article(raw.get('article')
+                                   if isinstance(raw.get('article'), dict)
+                                   else (day.get('article') or {}))
+    # Ohne Text gibt es nichts zu überarbeiten — und ein leerer Auftrag käme als
+    # frei erfundener Bericht zurück, genau das, was der Systemprompt verbietet.
+    if not any((article.get(lg) or {}).get('body') for lg in langs):
+        return jsonify({'error': 'no_article'}), 400
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    photo_notes = [p for p in (day.get('photos') or []) if p.get('photo_note')]
+    prompt = tb.build_revise_prompt(
+        trip, article, langs, action, note,
+        data_block=tb.build_prompt(trip, day, include_style=False),
+        photo_notes=[p['photo_note'] for p in photo_notes])
+    model = _gemini_text_model()
+    fresh, err, status = _travel_article_call(
+        prompt=prompt, system=tb.REVISE_SYSTEM_PROMPT + _ai_address_note(), langs=langs,
+        photos=len(photo_notes), model=model)
+    if fresh is None:
+        return jsonify(err), status
+    # Nur die angeforderten Sprachen ersetzen: wer allein die englische Fassung
+    # überarbeiten lässt, darf die deutsche nicht verlieren.
+    for lg in ('de', 'en'):
+        if lg not in langs:
+            fresh[lg] = article.get(lg) or {'title': '', 'teaser': '', 'body': ''}
+    if not fresh.get('captions'):
+        fresh['captions'] = article.get('captions') or []
+    log.info("Reisebericht überarbeitet (%s): %s Tag %s (%s, %s)", action,
+             trip.get('name'), day.get('day_number'), model, '+'.join(langs))
+    return jsonify({'ok': True, 'article': fresh, 'prompt': prompt})
+
+
+# ── Ort zu Koordinaten ────────────────────────────────────────────────────────
+#
+# Ein Foto liefert GPS, das Formular will einen Ortsnamen. Dazwischen steht ein
+# Dienst, der beides verbindet — hier Nominatim von OpenStreetMap, weil er ohne
+# Schlüssel auskommt. Die Anfrage passiert deshalb NUR auf Knopfdruck: die
+# Koordinaten eines privaten Fotos ungefragt an einen fremden Server zu schicken
+# wäre das Gegenteil dessen, was der EXIF-Auswurf beim Upload bezweckt.
+
+NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
+# Nominatim verlangt eine Kennung mit Kontaktweg, sonst sperrt es die Anfragen
+NOMINATIM_UA = 'MyPage-Addon (https://github.com/LuckyTriple7/HA-AddOns)'
+
+
+@admin_app.route('/api/travel/geocode')
+def api_travel_geocode():
+    err = _api_auth()
+    if err:
+        return err
+    try:
+        lat = float(request.args.get('lat', ''))
+        lon = float(request.args.get('lon', ''))
+    except ValueError:
+        return jsonify({'error': 'invalid'}), 400
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return jsonify({'error': 'invalid'}), 400
+    try:
+        r = http.get(NOMINATIM_URL, timeout=15,
+                     params={'format': 'jsonv2', 'lat': f'{lat:.6f}', 'lon': f'{lon:.6f}',
+                             'zoom': '12', 'accept-language': 'de'},
+                     # Nominatim verlangt eine Kennung, sonst sperrt es
+                     headers={'User-Agent': NOMINATIM_UA})
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        log.warning("Nominatim nicht erreichbar: %s: %s", type(e).__name__, e)
+        return jsonify({'error': 'geo_failed'}), 502
+    addr = data.get('address') if isinstance(data, dict) else {}
+    addr = addr if isinstance(addr, dict) else {}
+    place = next((addr[k] for k in ('city', 'town', 'village', 'municipality',
+                                    'county', 'state') if addr.get(k)), '')
+    if not place:
+        return jsonify({'error': 'no_place'}), 404
+    return jsonify({'ok': True, 'place': _clean_str(place, 120),
+                    'country': _clean_str(addr.get('country'), 80)})
+
+
+# ── Reise-Rückblick ───────────────────────────────────────────────────────────
+#
+# Der Text über die ganze Reise, der auf der Reise-Seite über der Tagesliste
+# steht. Er entsteht aus den fertigen Tagesberichten und wird getrennt
+# freigegeben: ein Rückblick, der halb fertig im Netz steht, wäre schlimmer als
+# gar keiner.
+
+def _travel_recap_schema(langs: list[str]):
+    per_lang = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={'title':  genai_types.Schema(type=genai_types.Type.STRING),
+                    'teaser': genai_types.Schema(type=genai_types.Type.STRING),
+                    'body':   genai_types.Schema(type=genai_types.Type.STRING)},
+        required=['title', 'teaser', 'body'])
+    props = {lg: per_lang for lg in langs}
+    props['tags'] = genai_types.Schema(
+        type=genai_types.Type.ARRAY,
+        items=genai_types.Schema(type=genai_types.Type.STRING))
+    return genai_types.Schema(type=genai_types.Type.OBJECT, properties=props,
+                              required=list(langs) + ['tags'])
+
+
+def _travel_recap_call(*, prompt: str, system: str, langs: list[str], model: str
+                       ) -> tuple[dict | None, dict, int]:
+    """Wie `_travel_article_call`, nur mit dem Schema ohne Bildunterschriften."""
     try:
         client = _gemini_client()
         resp = client.models.generate_content(
             model=model, contents=[prompt],
             config=genai_types.GenerateContentConfig(
-                system_instruction=tb.SYSTEM_PROMPT,
+                system_instruction=system,
                 response_mime_type='application/json',
-                response_schema=_travel_article_schema(langs, len(photo_notes)),
+                response_schema=_travel_recap_schema(langs),
                 http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
             ),
         )
@@ -7624,23 +9401,111 @@ def api_travel_generate(tid: str, did: str):
         finish = cands[0].finish_reason if cands else None
         reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
         if finish in _GEMINI_TEXT_REFUSALS:
-            return jsonify({'error': 'ai_refused', 'detail': reason}), 502
+            return None, {'error': 'ai_refused', 'detail': reason}, 502
         raw = json.loads(resp.text or '')
         if not isinstance(raw, dict):
-            return jsonify({'error': 'ai_empty', 'detail': reason}), 502
+            return None, {'error': 'ai_empty', 'detail': reason}, 502
     except genai_errors.APIError as e:
         code = getattr(e, 'code', None)
-        log.warning("Reisebericht fehlgeschlagen (%s): Status %s", model, code)
-        return jsonify({'error': 'ai_model_missing' if code == 404 else 'ai_failed',
-                        'detail': f'HTTP {code}' if code else '', 'model': model}), 502
+        log.warning("Reise-Rückblick fehlgeschlagen (%s): Status %s", model, code)
+        return None, {'error': 'ai_model_missing' if code == 404 else 'ai_failed',
+                      'detail': f'HTTP {code}' if code else '', 'model': model}, 502
     except Exception as e:
-        log.error("Reisebericht (%s) unerwartet fehlgeschlagen: %s: %s",
+        log.error("Reise-Rückblick (%s) unerwartet fehlgeschlagen: %s: %s",
                   model, type(e).__name__, e)
-        return jsonify({'error': 'ai_failed', 'detail': type(e).__name__}), 502
-    article = tb.normalize_article(raw)
-    log.info("Reisebericht erzeugt: %s Tag %s (%s, %s)", trip.get('name'),
-             day.get('day_number'), model, '+'.join(langs))
-    return jsonify({'ok': True, 'article': article, 'prompt': prompt})
+        return None, {'error': 'ai_failed', 'detail': type(e).__name__, 'model': model}, 502
+    return tb.normalize_recap(raw), {}, 200
+
+
+def _recap_days(trip: dict) -> list:
+    """Tage mit fertigem Bericht, nach Reisetag sortiert. Ein Tag ohne Text
+    trägt nichts bei — seine Rohdaten stünden im Rückblick unvermittelt neben
+    den erzählten Tagen."""
+    return sorted([d for d in (trip.get('days') or [])
+                   if any(((d.get('article') or {}).get(lg) or {}).get('body')
+                          for lg in ('de', 'en'))],
+                  key=lambda d: d.get('day_number') or 0)
+
+
+@admin_app.route('/api/travel/trips/<tid>/recap', methods=['POST', 'PUT'])
+def api_travel_recap(tid: str):
+    """POST erzeugt den Rückblick, PUT speichert ihn samt Freigabe."""
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    raw = request.get_json(silent=True) or {}
+
+    if request.method == 'PUT':
+        trip['recap'] = tb.normalize_recap(raw.get('recap'))
+        trip['recap_published'] = bool(raw.get('recap_published'))
+        return _saved(save_travel(data))
+
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    days = _recap_days(trip)
+    if not days:
+        return jsonify({'error': 'no_days'}), 400
+    langs = (trip.get('settings') or {}).get('langs') or ['de']
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    prompt = tb.build_recap_prompt(trip, days)
+    model = _gemini_text_model()
+    recap, err, status = _travel_recap_call(
+        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT + _ai_address_note(),
+        langs=langs, model=model)
+    if recap is None:
+        return jsonify(err), status
+    log.info("Reise-Rückblick erzeugt: %s (%s Tage, %s, %s)", trip.get('name'),
+             len(days), model, '+'.join(langs))
+    return jsonify({'ok': True, 'recap': recap, 'prompt': prompt})
+
+
+@admin_app.route('/api/travel/trips/<tid>/recap/revise', methods=['POST'])
+def api_travel_recap_revise(tid: str):
+    """Rückblick überarbeiten — derselbe Werkzeugkasten wie beim Tagesbericht."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    action = raw.get('action') if raw.get('action') in tb.REVISE_ACTIONS else ''
+    note = _clean_str(raw.get('note'), tb.REVISE_NOTE_MAX)
+    if not action or (action == 'custom' and not note):
+        return jsonify({'error': 'invalid'}), 400
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    trip_langs = (trip.get('settings') or {}).get('langs') or ['de']
+    wanted = raw.get('langs')
+    langs = [lg for lg in trip_langs
+             if isinstance(wanted, list) and lg in wanted] or trip_langs
+    recap = tb.normalize_recap(raw.get('recap') if isinstance(raw.get('recap'), dict)
+                               else (trip.get('recap') or {}))
+    if not any((recap.get(lg) or {}).get('body') for lg in langs):
+        return jsonify({'error': 'no_article'}), 400
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    prompt = tb.build_revise_prompt(
+        trip, recap, langs, action, note, recap=True,
+        data_block=tb.build_recap_prompt(trip, _recap_days(trip)))
+    model = _gemini_text_model()
+    fresh, err, status = _travel_recap_call(
+        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT + _ai_address_note(),
+        langs=langs, model=model)
+    if fresh is None:
+        return jsonify(err), status
+    for lg in ('de', 'en'):
+        if lg not in langs:
+            fresh[lg] = recap.get(lg) or {'title': '', 'teaser': '', 'body': ''}
+    log.info("Reise-Rückblick überarbeitet (%s): %s (%s, %s)", action,
+             trip.get('name'), model, '+'.join(langs))
+    return jsonify({'ok': True, 'recap': fresh, 'prompt': prompt})
 
 
 # ── KI-Verbrauch ──────────────────────────────────────────────────────────────
@@ -8215,11 +10080,12 @@ def api_library_entry_create():
     site = load_site()
     lib = _library(site)
     entry = _normalize_lib_entry(site, raw)
-    entry['slug'] = _lib_entry_slug(site, raw, entry['id'])
+    entry['slug'], slug_changed = _lib_entry_slug(site, raw, entry['id'])
     lib['entries'].append(entry)
     pdf_state = _library_apply_pdf(site, entry)
     save_site(site)
-    return jsonify({'ok': True, 'slug': entry['slug'], 'pdf': pdf_state})
+    return jsonify({'ok': True, 'slug': entry['slug'], 'pdf': pdf_state,
+                    'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/library/entries/<eid>', methods=['PUT', 'DELETE'])
@@ -8242,10 +10108,11 @@ def api_library_entry_edit(eid: str):
     if not (_clean_str(raw.get('title_de'), 140) or _clean_str(raw.get('title_en'), 140)):
         return jsonify({'error': 'title required'}), 400
     entries[idx] = _normalize_lib_entry(site, raw, entries[idx])
-    entries[idx]['slug'] = _lib_entry_slug(site, raw, eid)
+    entries[idx]['slug'], slug_changed = _lib_entry_slug(site, raw, eid)
     pdf_state = _library_apply_pdf(site, entries[idx])
     save_site(site)
-    return jsonify({'ok': True, 'slug': entries[idx]['slug'], 'pdf': pdf_state})
+    return jsonify({'ok': True, 'slug': entries[idx]['slug'], 'pdf': pdf_state,
+                    'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/library/entries/<eid>/copy', methods=['POST'])
@@ -8274,7 +10141,9 @@ def api_library_entry_copy(eid: str):
             suffix = load_translations(lang).get('library_copy_suffix') or '(Kopie)'
             copy[key] = _clean_str(f'{copy[key]} {suffix}', 140)
     copy['pdf'], copy['pdf_gen'], copy['pdf_hash'] = '', '', ''
-    copy['slug'] = _lib_entry_slug(site, {'slug': src.get('slug', '')}, copy['id'])
+    # Eine Kopie soll eine neue Adresse bekommen — die Abweichung ist hier
+    # der Zweck und keine Meldung wert.
+    copy['slug'] = _lib_entry_slug(site, {'slug': src.get('slug', '')}, copy['id'])[0]
     copy['updated'] = date.today().isoformat()
     entries.insert(idx + 1, copy)
     # Ein hochgeladenes PDF bekommt eine eigene Datei — teilten sich Original und
@@ -8307,9 +10176,12 @@ def api_library_entry_reorder():
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/upload-doc', methods=['POST'])
 @admin_app.route('/api/library/upload-doc', methods=['POST'])
 def api_library_upload_doc():
-    """PDF-Upload für einen Bibliothek-Eintrag (getrennt von /api/upload für Bilder)."""
+    """PDF-Upload für Bibliothek und Download-Abschnitt (getrennt von /api/upload
+    für Bilder). Beide legen in derselben Ablage ab; der ältere Pfad bleibt, damit
+    eine offene Oberfläche nach dem Update weiterarbeitet."""
     err = _api_auth()
     if err:
         return err
@@ -8353,10 +10225,10 @@ def api_form_create():
         return jsonify({'error': 'title required'}), 400
     site = load_site()
     form = _normalize_form(raw)
-    form['slug'] = _form_slug(site, raw, form['id'])
+    form['slug'], slug_changed = _form_slug(site, raw, form['id'])
     site.setdefault('forms', []).append(form)
     save_site(site)
-    return jsonify({'ok': True, 'slug': form['slug']})
+    return jsonify({'ok': True, 'slug': form['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/forms/<fid>', methods=['PUT', 'DELETE'])
@@ -8377,9 +10249,9 @@ def api_form_edit(fid: str):
     if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
         return jsonify({'error': 'title required'}), 400
     forms[idx] = _normalize_form(raw, forms[idx])
-    forms[idx]['slug'] = _form_slug(site, raw, fid)
+    forms[idx]['slug'], slug_changed = _form_slug(site, raw, fid)
     save_site(site)
-    return jsonify({'ok': True, 'slug': forms[idx]['slug']})
+    return jsonify({'ok': True, 'slug': forms[idx]['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/forms/reorder', methods=['POST'])
@@ -8420,6 +10292,162 @@ def api_redirects():
     save_site(site)
     log_audit('settings_redirects', f'{len(out)} Regel(n)')
     return jsonify({'ok': True, 'count': len(out)})
+
+
+@admin_app.route('/api/settings')
+def api_settings_get():
+    """Wirksame Einstellungen für die Oberfläche — geheime Felder nur als Ja/Nein."""
+    err = _api_auth()
+    if err:
+        return err
+    data = settings_store.public_view(load_config())
+    data['smb_live'] = SMB_MOUNTED
+    data['on_ha'] = bool(SUPERVISOR_TOKEN)
+    return jsonify(data)
+
+
+@admin_app.route('/api/settings', methods=['POST'])
+def api_settings_save():
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    values = body.get('values')
+    clear = body.get('clear') or []
+    if not isinstance(values, dict) or not isinstance(clear, list):
+        return jsonify({'error': 'invalid'}), 400
+    clear = [k for k in clear if isinstance(k, str) and k in settings_store.FIELDS]
+    try:
+        changed = settings_store.save(values, clear)
+    except OSError as e:
+        log.warning("Einstellungen konnten nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
+    _settings_changed()
+    restart = False
+    if changed:
+        cfg = load_config()
+        # Alles sofort wirksam machen, was ohne Neustart geht — sonst wundert
+        # sich der Admin, warum die gerade gespeicherte Zahl nichts tut.
+        if 'user_upload_max_mb' in changed:
+            mb = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
+            public_app.config['MAX_CONTENT_LENGTH'] = mb * 1024 * 1024
+        if 'visit_bot_nets' in changed:
+            vx.set_extra_bot_nets(cfg.get('visit_bot_nets') or [])
+        if any(k in settings_store.SMB_KEYS for k in changed):
+            if SMB_MOUNTED:
+                # Remount kann Sekunden dauern — Antwort nicht blockieren
+                threading.Thread(target=remount_smb, daemon=True).start()
+            else:
+                restart = True   # Mountpunkt fehlt, den legt erst run.sh an
+        # Nur die Feldnamen ins Protokoll, niemals die Werte
+        log_audit('settings_update', ', '.join(sorted(changed))[:200])
+    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
+
+
+# Schlüssel-Export ist die einzige Stelle, an der ein Geheimnis das Add-on
+# verlässt. Deshalb: Admin-Passwort (und 2FA, falls aktiv) erneut abfragen,
+# Fehlversuche bremsen und jeden Vorgang ins Audit-Log schreiben.
+_key_gate: dict = {'fails': 0, 'until': 0.0}
+_KEY_GATE_MAX = 5
+_KEY_GATE_LOCK_S = 300
+
+
+def _key_gate_check(password: str, code: str) -> tuple | None:
+    """None = freigegeben, sonst die fertige Fehlerantwort."""
+    now = time.time()
+    if _key_gate['until'] > now:
+        return jsonify({'error': 'locked',
+                        'retry_after': int(_key_gate['until'] - now)}), 429
+    cfg = load_config()
+    ok = secrets.compare_digest(str(password or ''), str(cfg.get('password', '')))
+    if ok and twofa_enabled():
+        ok = totp_verify(load_2fa().get('secret', ''), code or '') or backup_code_consume(code or '')
+    if not ok:
+        _key_gate['fails'] += 1
+        if _key_gate['fails'] >= _KEY_GATE_MAX:
+            _key_gate['until'] = now + _KEY_GATE_LOCK_S
+            _key_gate['fails'] = 0
+        log_audit('settings_key_denied')
+        return jsonify({'error': 'auth'}), 403
+    _key_gate['fails'] = 0
+    return None
+
+
+def _key_error(exc: ValueError):
+    """Fehlercode der Schlüssel-Funktionen in eine feste Antwort übersetzen.
+
+    Bewusst eine Kette fester Zeichenketten statt `str(exc)`: aus einer
+    Ausnahme darf nie Text nach außen gehen (CodeQL: information exposure
+    through an exception). Der Code der Ausnahme wird nur verglichen, geantwortet
+    wird ausschließlich mit hier stehenden Literalen.
+    """
+    code = exc.args[0] if exc.args else ''
+    if code == 'passphrase_short':
+        return jsonify({'error': 'passphrase_short'}), 400
+    if code == 'wrong_passphrase':
+        return jsonify({'error': 'wrong_passphrase'}), 400
+    if code == 'invalid_file':
+        return jsonify({'error': 'invalid_file'}), 400
+    if code == 'no_key':
+        return jsonify({'error': 'no_key'}), 400
+    if code == 'exists':
+        return jsonify({'error': 'exists'}), 400
+    if code == 'crypto_unavailable':
+        return jsonify({'error': 'crypto_unavailable'}), 400
+    return jsonify({'error': 'invalid'}), 400
+
+
+@admin_app.route('/api/settings/key', methods=['GET'])
+def api_settings_key_state():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'key': settings_store.key_exists(),
+                    'min_len': settings_store.KEY_PASSPHRASE_MIN,
+                    'twofa': twofa_enabled()})
+
+
+@admin_app.route('/api/settings/key/export', methods=['POST'])
+def api_settings_key_export():
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    if (gate := _key_gate_check(body.get('password'), body.get('code'))):
+        return gate
+    try:
+        data = settings_store.export_key(str(body.get('passphrase') or ''))
+    except ValueError as e:
+        return _key_error(e)
+    log_audit('settings_key_export')
+    return Response(data, mimetype='application/json', headers={
+        'Content-Disposition': 'attachment; filename="mypage-settings-key.json"',
+        'Cache-Control': 'no-store'})
+
+
+@admin_app.route('/api/settings/key/import', methods=['POST'])
+def api_settings_key_import():
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if (gate := _key_gate_check(request.form.get('password'), request.form.get('code'))):
+        return gate
+    data = f.read(64 * 1024)   # die Exportdatei ist wenige hundert Byte groß
+    try:
+        readable = settings_store.import_key(
+            data, request.form.get('passphrase') or '',
+            overwrite=request.form.get('overwrite') == '1')
+    except ValueError as e:
+        return _key_error(e)
+    except OSError as e:
+        log.warning("Schlüssel konnte nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
+    _settings_changed()
+    log_audit('settings_key_import', f'{readable} Feld(er) lesbar')
+    return jsonify({'ok': True, 'readable': readable})
 
 
 @admin_app.route('/api/users')
@@ -8742,6 +10770,52 @@ def api_storage():
                     'active': load_site()['design'].get('storage_subdir', '')})
 
 
+@admin_app.route('/api/preview')
+def api_preview():
+    """Die öffentliche Startseite als HTML für den Vorschau-Rahmen.
+
+    Ein Rahmen, der die öffentliche Adresse direkt lädt, scheitert an zwei
+    Stellen, die MyPage nicht in der Hand hat: Reverse Proxies setzen
+    `X-Frame-Options` (Klickjacking-Schutz, der so bleiben soll), und über den
+    Ingress läuft der Admin unter der Adresse von Home Assistant — Port 17760
+    ist dort nicht zwingend erreichbar, bei HTTPS lädt der Browser eine
+    http-Seite im Rahmen ohnehin nicht.
+
+    Deshalb rendert der Admin die Seite selbst (derselbe Prozess, kein Netz)
+    und reicht sie als `srcdoc` weiter: gleiche Herkunft, damit greift keine
+    der beiden Sperren. `X-MyPage-Export` verhindert wie beim statischen
+    Export, dass der Besucherzähler den eigenen Blick mitzählt.
+
+    Das eingefügte `<base>` sorgt dafür, dass Bilder und Schriften trotzdem
+    von der echten Seite kommen. Bei HTTPS muss die Basis ebenfalls HTTPS
+    sein, sonst blockiert der Browser sie als gemischten Inhalt — dann taugt
+    nur die eingetragene öffentliche URL. Sonst reicht der Nachbarport.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    base = (load_site()['design'].get('public_url') or '').rstrip('/')
+    host = (request.host or '').split(':')[0]
+    port_base = f'http://{host}:{PUBLIC_PORT}'
+    if request.scheme == 'https':
+        base = base if base.startswith('https://') else ''
+    else:
+        base = base or port_base
+    client = public_app.test_client()
+    r = client.get('/', headers={'Accept-Language': request.headers.get('Accept-Language', 'de'),
+                                 'X-MyPage-Export': '1'})
+    if r.status_code != 200:
+        return jsonify({'error': 'render_failed', 'status': r.status_code}), 502
+    html = r.get_data(as_text=True)
+    # target="_blank" gehört dazu: im Rahmen geklickte Links liefen sonst genau
+    # in die X-Frame-Options-Sperre, wegen der die Vorschau hier gerendert wird.
+    tag = f'<base href="{escape(base)}/" target="_blank">' if base else ''
+    if tag:
+        i = html.lower().find('<head>')
+        html = (html[:i + 6] + tag + html[i + 6:]) if i >= 0 else tag + html
+    return jsonify({'html': html, 'base': base})
+
+
 @admin_app.route('/api/export')
 def api_export():
     """Statischer HTML-Export der öffentlichen Seite (für z. B. GitHub Pages)."""
@@ -8772,6 +10846,14 @@ def api_export():
             # exportierten HTML zeigt damit auf eine echte Datei.
             if _lib_entry_pdf_name(e) and not e.get('members_only'):
                 pages[f"bibliothek/{e['slug']}.pdf"] = f"/bibliothek/{e['slug']}.pdf"
+    # Dateien des Download-Abschnitts gehören in den Export: sonst zeigt die
+    # exportierte Seite auf Adressen, die es außerhalb des Add-ons nicht gibt.
+    if 'downloads' not in set(site.get('hidden_sections') or []) \
+            and 'downloads' not in set(site.get('members_sections') or []):
+        for d in (site.get('sections') or {}).get('downloads') or []:
+            fn = d.get('file') or ''
+            if _DOC_FILE_RE.match(fn):
+                pages[f'download/{fn}'] = f'/download/{fn}'
     trav_trips = _trav_public_trips(site)
     if trav_trips:
         pages['reiseblog/index.html'] = '/reiseblog'
@@ -8828,8 +10910,49 @@ def api_upload_font():
     return jsonify({'ok': True, 'name': display})
 
 
+def _exif_facts(img) -> dict:
+    """Aufnahmedatum und GPS aus dem EXIF-Block, bevor er verworfen wird.
+
+    Nur für den Reiseblog gedacht: dort spart es das Abtippen von Datum und Ort.
+    Gespeichert wird davon **nichts** — die Werte gehen einmal an den Browser des
+    Admins zurück, der sie ins Formular übernimmt. Die abgelegte Bilddatei bleibt
+    wie bisher metadatenfrei (siehe `_store_upload_image`).
+    """
+    try:
+        exif = img.getexif()
+    except Exception:
+        return {}
+    out = {}
+    try:
+        # DateTimeOriginal steht im Exif-IFD, nicht im Haupt-IFD
+        taken = (exif.get_ifd(0x8769) or {}).get(36867) or exif.get(306) or ''
+        if isinstance(taken, str) and len(taken) >= 10:
+            iso = taken[:10].replace(':', '-')
+            date.fromisoformat(iso)          # wirft, wenn es kein Datum ist
+            out['taken'] = iso
+    except Exception:
+        pass
+    try:
+        gps = exif.get_ifd(0x8825) or {}
+
+        def _deg(value, ref: str):
+            d, m, sec = (float(x) for x in value)
+            dec = d + m / 60 + sec / 3600
+            return round(-dec if ref in ('S', 'W') else dec, 6)
+
+        if gps.get(2) and gps.get(4):
+            lat = _deg(gps[2], str(gps.get(1) or 'N'))
+            lon = _deg(gps[4], str(gps.get(3) or 'E'))
+            if -90 <= lat <= 90 and -180 <= lon <= 180 and (lat or lon):
+                out['lat'], out['lon'] = lat, lon
+    except Exception:
+        pass
+    return out
+
+
 def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
-                        ai: bool = False) -> str | None:
+                        ai: bool = False, meta: dict | None = None,
+                        name: str | None = None) -> str | None:
     """Bild verkleinern, Metadaten verwerfen und als WebP in UPLOADS_DIR ablegen.
 
     `src` ist ein Datei-Objekt oder rohe Bilddaten; zurück kommt der erzeugte
@@ -8854,13 +10977,21 @@ def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
     if not _HAS_PIL:
         return None
     img = Image.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+    # Was der Reiseblog gebrauchen kann, vor dem Verwerfen herauslesen. Der
+    # Aufrufer entscheidet, ob er danach fragt; ohne `meta` ändert sich nichts.
+    if meta is not None:
+        meta.update(_exif_facts(img))
     # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
     # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
     img = ImageOps.exif_transpose(img)
     img.thumbnail((max_side, max_side))
     if img.mode not in ('RGB', 'RGBA'):
         img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
-    name = uuid.uuid4().hex + (AI_IMAGE_SUFFIX if ai else '') + '.webp'
+    # `name` setzt nur das Ersetzen: dann behält die Datei ihren Namen, damit
+    # jede Einbindung weiter zeigt, wohin sie zeigte. Die `-ai`-Kennzeichnung
+    # steckt im Namen und bleibt dadurch erhalten — sie darf beim Austausch des
+    # Inhalts nicht verlorengehen.
+    name = name or (uuid.uuid4().hex + (AI_IMAGE_SUFFIX if ai else '') + '.webp')
     target = safe_under(UPLOADS_DIR, name)
     if target is None:
         return None
@@ -8883,9 +11014,17 @@ def api_upload():
     # Bilder verkleinern und als WebP speichern (GIFs unverändert, wegen Animation)
     if ext != '.gif':
         try:
-            name = _store_upload_image(f.stream)
+            meta: dict = {}
+            name = _store_upload_image(f.stream, meta=meta)
             if name:
-                return jsonify({'ok': True, 'url': '/uploads/' + name})
+                # Der Herkunftsname ist das Einzige, woran ein Mensch die Datei
+                # später wiedererkennt — abgelegt wird sie unter einer UUID.
+                # Nur der Name, nicht der Pfad: der verriete das Verzeichnis des
+                # Hochladenden.
+                _uploads_file_meta_set(name, orig=Path(f.filename).name)
+                # `exif` geht nur an den Browser zurück, der die Datei gerade
+                # hochgeladen hat — abgelegt wird davon nichts.
+                return jsonify({'ok': True, 'url': '/uploads/' + name, 'exif': meta})
         except Exception as e:
             log.warning("Bild-Optimierung fehlgeschlagen, speichere Original: %s", e)
         f.stream.seek(0)
@@ -8895,6 +11034,7 @@ def api_upload():
     if target is None:
         abort(400)
     f.save(target)
+    _uploads_file_meta_set(name, orig=Path(f.filename).name)
     return jsonify({'ok': True, 'url': '/uploads/' + name})
 
 
@@ -8913,8 +11053,11 @@ def api_uploads_list():
     err = _api_auth()
     if err:
         return err
-    blob = _reference_blob(load_site())
+    site = load_site()
+    blob = _reference_blob(site)
     alts = _uploads_meta_load()
+    fmeta = _uploads_files_load()
+    usage = _upload_usage(site)
     files = []
     for f in UPLOADS_DIR.iterdir():
         if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
@@ -8926,14 +11069,27 @@ def api_uploads_list():
         if st.st_size <= 0:
             continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
         a = alts.get(f.name) or {}
+        m = fmeta.get(f.name) or {}
+        u = usage.get(f.name) or {}
         files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
                       'mtime': int(st.st_mtime), 'used': f.name in blob,
                       'alt_de': a.get('de', ''), 'alt_en': a.get('en', ''),
+                      'orig': m.get('orig', ''), 'tags': m.get('tags') or [],
+                      'folder': m.get('folder', ''),
+                      'places': u.get('places') or [], 'place_count': u.get('n', 0),
                       # Marker steckt im Dateinamen (siehe _store_upload_image) —
                       # damit lässt sich die Galerie auf KI-Bilder eingrenzen
                       'ai': f.stem.endswith(AI_IMAGE_SUFFIX)})
     files.sort(key=lambda x: x['mtime'], reverse=True)
-    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
+    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files),
+                    'tags': sorted({t for m in fmeta.values()
+                                    for t in (m.get('tags') or [])},
+                                   key=str.lower),
+                    # Aus der ganzen Ablage, nicht nur aus den gezeigten
+                    # Kacheln: sonst verschwände ein Ordner aus der Leiste,
+                    # sobald seine Bilder jenseits der Kachelgrenze liegen.
+                    'folders': sorted({m.get('folder') for m in fmeta.values()
+                                       if m.get('folder')}, key=str.lower)})
 
 
 @admin_app.route('/api/docs/list')
@@ -9020,6 +11176,74 @@ def _reference_blob(site: dict) -> str:
             + json.dumps(_ai_prompts_load(), ensure_ascii=False))
 
 
+# Dateinamen der Uploads sind UUIDs mit fester Endung — dieselbe Annahme, auf
+# der schon der Vorkommen-Scan des Aufräumens beruht.
+_UPLOAD_NAME_RE = re.compile(r'[0-9a-f]{8,32}(?:-ai)?\.[a-z0-9]{2,5}', re.I)
+
+
+def _usage_entities(site: dict) -> list:
+    """(Art, Bezeichnung, Adresse, Teilbaum) für jeden Ort mit Bildern.
+
+    Grundlage der Spalte „verwendet in" in der Medienverwaltung. Bewusst
+    grobkörnig: ein Beitrag ist ein Ort, nicht jedes einzelne Feld darin.
+    Fehlt hier ein Bereich, sagt die Verwaltung „nirgends verwendet", obwohl das
+    Bild eingebunden ist — deshalb gehört jede neue Ablage mit Bildern hier
+    hinein. Der Löschschutz hängt weiterhin an `_reference_blob()` und nicht an
+    dieser Liste, damit ein Vergessen hier kein Bild kostet.
+
+    Die Bezeichnung darf leer bleiben; die Oberfläche setzt dann den übersetzten
+    Namen der Art ein. Hier einen deutschen Rückfalltext einzusetzen, hieße ihn
+    auch im englischen Admin zu zeigen.
+    """
+    def title(obj):
+        return (obj.get('title_de') or obj.get('title_en') or obj.get('name')
+                or obj.get('label_de') or obj.get('label_en') or '')
+
+    out = [('home', '', '/', {'profile': site.get('profile'),
+                              'design': site.get('design'),
+                              'sections': site.get('sections')})]
+    out += [('post', title(p), '/blog/' + p.get('id', ''), p)
+            for p in site.get('posts', [])]
+    out += [('page', title(p), '/seite/' + (p.get('slug') or ''), p)
+            for p in site.get('pages', [])]
+    out += [('project', title(p), '/p/' + p.get('id', ''), p)
+            for p in site.get('projects', [])]
+    out += [('album', title(a), '', a) for a in site.get('albums', [])]
+    out += [('library', title(e), '/bibliothek/' + (e.get('slug') or ''), e)
+            for e in _library(site).get('entries', [])]
+    for trip in (load_travel().get('trips') or []):
+        base = trip.get('name') or trip.get('destination') or ''
+        slug = trip.get('slug') or ''
+        for day in (trip.get('days') or []):
+            art = (day.get('article') or {}).get('de') or {}
+            day_title = art.get('title') or f"#{day.get('number') or ''}"
+            url = f"/reiseblog/{slug}/{day.get('slug')}" if slug and day.get('slug') else ''
+            out.append(('travel', ' — '.join(x for x in (base, day_title) if x), url, day))
+    return out
+
+
+USAGE_PLACES_MAX = 5      # mehr zeigt die Oberfläche ohnehin nicht
+
+
+def _upload_usage(site: dict) -> dict:
+    """Dateiname -> {'n': Anzahl Orte, 'places': die ersten paar davon}.
+
+    Ein Durchgang je Ort statt einer Suche je Datei: bei dreihundert Bildern und
+    zweihundert Orten wären das sonst sechzigtausend Textsuchen.
+    """
+    usage: dict[str, dict] = {}
+    for kind, label, url, obj in _usage_entities(site):
+        if not obj:
+            continue
+        for name in set(_UPLOAD_NAME_RE.findall(json.dumps(obj, ensure_ascii=False))):
+            hit = usage.setdefault(name, {'n': 0, 'places': []})
+            hit['n'] += 1
+            if len(hit['places']) < USAGE_PLACES_MAX:
+                hit['places'].append({'kind': kind, 'label': _clean_str(label, 80),
+                                      'url': url})
+    return usage
+
+
 def _unused_in(directory: Path, site: dict):
     """Dateien in `directory`, die nirgends mehr referenziert sind.
 
@@ -9032,6 +11256,56 @@ def _unused_in(directory: Path, site: dict):
         if f.is_file() and f.name not in blob:
             orphans.append(f)
             total += f.stat().st_size
+    return orphans, total
+
+
+def _wm_cache_forget(name: str) -> int:
+    """Zwischengespeicherte Fassungen eines Bildes wegwerfen.
+
+    Nötig, sobald sich der Inhalt unter gleichem Namen ändert (Ersetzen) oder
+    die Datei verschwindet. Ohne das liefert die Auslieferung weiter das alte
+    Bild mit eingebranntem Text aus, und niemand fände heraus, warum.
+    """
+    stem = Path(name).stem
+    if not stem:
+        return 0
+    gone = 0
+    # Vorsilbe von Hand vergleichen statt über ein Muster: der Stamm ist zwar
+    # eine UUID, aber ein Muster mit Sonderzeichen darin würde stillschweigend
+    # etwas anderes treffen.
+    prefix = stem + '-'
+    for f in [x for x in WM_CACHE_DIR.iterdir()
+              if x.is_file() and x.name.startswith(prefix) and x.suffix == '.webp']:
+        try:
+            f.unlink()
+            gone += 1
+        except OSError as e:
+            log.warning("Cache-Datei %s konnte nicht gelöscht werden: %s", f.name, e)
+    return gone
+
+
+def _unused_wm_cache():
+    """Cache-Dateien ohne zugehörigen Upload — (Liste, Bytes).
+
+    Der Name ist `<stamm des bildes>-<schlüssel>.webp`; gibt es zum Stamm kein
+    Bild mehr, ist die Datei nicht wiederherstellbar zuzuordnen und wird nie
+    wieder ausgeliefert. Dieselbe Regel sammelt die Dateien aus der Zeit vor
+    dieser Namensgebung ein: deren Stamm gehört zu keinem Upload.
+
+    Der Cache ist reine Ableitung — er steht in keiner Backup-Liste und rechnet
+    sich beim nächsten Abruf neu. Zu viel zu löschen kostet daher nichts außer
+    einmal Rechenzeit; zu wenig zu löschen lässt das Verzeichnis wachsen.
+    """
+    stems = {f.stem for f in UPLOADS_DIR.iterdir() if f.is_file()}
+    orphans, total = [], 0
+    for f in WM_CACHE_DIR.glob('*.webp'):
+        if f.name.rsplit('-', 1)[0] in stems:
+            continue
+        orphans.append(f)
+        try:
+            total += f.stat().st_size
+        except OSError:
+            pass
     return orphans, total
 
 
@@ -9071,13 +11345,317 @@ def _cleanup_dir(orphans, total, audit_tag: str):
     return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
 
 
+def _public_urls(site: dict) -> list:
+    """Alle öffentlich erreichbaren Pfade mit lesbarer Bezeichnung.
+
+    Grundlage der Zielauswahl bei den Weiterleitungen: Ein Pfad wie
+    `/blog/3061752ccc9f` ist von Hand nicht zu tippen und aus dem Kopf schon gar
+    nicht. Dieselben Quellen wie die Sitemap, nur mit Titel statt Datum.
+    """
+    loc = _loc_factory(site_default_lang(site) if site_default_lang(site) != 'auto' else 'de')
+    out = [{'url': '/', 'kind': 'home',
+            'label': site['design'].get('site_title') or site['profile'].get('name') or '/'}]
+    out += [{'url': '/seite/' + p['slug'], 'kind': 'page', 'label': loc(p, 'title')}
+            for p in site.get('pages', []) if p.get('visible') and p.get('slug')]
+    posts = sorted_posts(site, public_only=True)
+    if posts:
+        out.append({'url': '/blog', 'kind': 'blog', 'label': 'Blog'})
+        out += [{'url': '/blog/' + p['id'], 'kind': 'post', 'label': loc(p, 'title')}
+                for p in posts]
+    lib = _lib_public_entries(site)
+    if lib:
+        out.append({'url': '/bibliothek', 'kind': 'library', 'label': _library_label(site, loc, {})})
+        out += [{'url': '/bibliothek/' + e['slug'], 'kind': 'library', 'label': loc(e, 'title')}
+                for e in lib if e.get('slug')]
+    for tr in _trav_public_trips(site):
+        out.append({'url': '/reiseblog/' + tr['slug'], 'kind': 'travel',
+                    'label': tr.get('name') or tr.get('destination') or tr['slug']})
+        for d in _trav_public_days(tr):
+            art = (d.get('article') or {}).get('de') or {}
+            out.append({'url': f"/reiseblog/{tr['slug']}/{d['slug']}", 'kind': 'travel',
+                        'label': art.get('title') or d.get('slug', '')})
+    out += [{'url': '/p/' + p['id'], 'kind': 'project', 'label': p.get('title') or p['id']}
+            for p in site.get('projects', []) if _has_detail(p) and project_visible(p)]
+    out += [{'url': '/formular/' + f['slug'], 'kind': 'form', 'label': loc(f, 'title')}
+            for f in _public_forms(site) if f.get('slug')]
+    return out
+
+
+# Die Prüfungen der Zustandsanzeige. Absichtlich eine überschaubare Liste: Sie
+# soll das melden, was den Betrieb kostet, und nicht jede Einstellung
+# kommentieren. Wer eine hinzufügt, gibt ihr eine eigene `id` — die Oberfläche
+# holt Beschriftung und Rat über `health_<id>_label` / `health_<id>_hint` aus
+# den Übersetzungen, damit hier kein deutscher Text im Code landet.
+
+def _health_dir_free_mb(path: str) -> float | None:
+    try:
+        return shutil.disk_usage(path).free / 1048576
+    except OSError:
+        return None
+
+
+def _health_newest_backup() -> tuple[str, int] | None:
+    """(Name, Alter in Tagen) des jüngsten automatischen Backups."""
+    try:
+        files = [f for f in BACKUPS_DIR.iterdir()
+                 if f.is_file() and f.suffix == '.zip']
+    except OSError:
+        return None
+    if not files:
+        return None
+    newest = max(files, key=lambda f: f.stat().st_mtime)
+    age = int((time.time() - newest.stat().st_mtime) // 86400)
+    return newest.name, age
+
+
+def health_checks() -> list:
+    """Zustand als Liste von Prüfungen: `level` ist ok, warn, err oder off."""
+    site = load_site()
+    cfg = load_config()
+    notes = health_notes()
+    out = []
+
+    def add(cid, level, detail='', note_key=None):
+        n = notes.get(note_key or cid)
+        # Eine festgehaltene Störung schlägt „nicht eingerichtet": Wenn der
+        # Mailversand gescheitert ist, war er offensichtlich eingerichtet — und
+        # die Einstellung kann seither entfernt worden sein, ohne dass das den
+        # Fehlschlag ungeschehen macht. Ihn hier zu verschlucken hieße, die
+        # Anzeige genau dann schweigen zu lassen, wenn sie etwas zu sagen hat.
+        if n and level == 'off':
+            level = 'err'
+        row = {'id': cid, 'level': level, 'detail': detail}
+        if n:
+            row['since'] = n.get('since') or n.get('ts')
+            row['count'] = n.get('n', 1)
+            row['msg'] = n.get('msg', '')
+        out.append(row)
+
+    # Öffentliche Adresse — ohne sie zeigen Sitemap, Feed und kanonische
+    # Adressen auf die interne Adresse und sind damit wertlos.
+    add('public_url', 'ok' if (site['design'].get('public_url') or '').strip() else 'warn')
+
+    # Besucher-IP: kommt die echte Adresse durch den Proxy?
+    add('client_ip', 'err' if 'client_ip' in notes else 'ok')
+
+    # Automatisches Backup
+    keep = int(cfg.get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+    newest = _health_newest_backup()
+    if not keep:
+        add('backup', 'off')
+    elif 'backup' in notes:
+        add('backup', 'err')
+    elif newest is None:
+        add('backup', 'warn')
+    else:
+        name, age = newest
+        add('backup', 'ok' if age <= 1 else 'warn', f'{name} ({age} d)')
+
+    # Speicherplatz im Datenordner
+    free = _health_dir_free_mb(_DATA)
+    if free is None:
+        add('disk', 'warn')
+    else:
+        add('disk', 'err' if free < 200 else 'warn' if free < 1000 else 'ok',
+            f'{free / 1024:.1f} GB')
+
+    # Mailversand
+    if not (cfg.get('smtp_host') or '').strip():
+        add('smtp', 'off')
+    else:
+        add('smtp', 'err' if 'smtp' in notes else 'ok')
+
+    # GitHub-Token (nur wenn überhaupt Projekte verknüpft sind)
+    linked = any(p.get('repo_full_name') for p in site.get('projects', []))
+    if not linked:
+        add('github', 'off')
+    else:
+        add('github', 'err' if 'github' in notes else 'ok')
+
+    # KI-Schlüssel
+    add('ai', 'ok' if (cfg.get('gemini_api_key') or '').strip() else 'off')
+
+    # Bildverarbeitung und PDF-Erzeugung
+    add('pillow', 'ok' if _HAS_PIL else 'err')
+    lib_pdf = any((e.get('pdf_mode') or '') == 'generated'
+                  for e in _library(site).get('entries', []))
+    add('weasy', 'off' if not lib_pdf else ('ok' if _HAS_WEASY else 'err'))
+
+    # Länderdaten der Statistik
+    try:
+        age = int((time.time() - GEOIP_CACHE.stat().st_mtime) // 86400)
+        add('geoip', 'warn' if age > 60 else 'ok', f'{age} d')
+    except OSError:
+        add('geoip', 'off')
+
+    # Indexierung — kein Fehler, aber der häufigste Grund für „Google findet
+    # mich nicht", und ohne Anzeige fällt es niemandem auf.
+    add('indexing', 'ok' if site['design'].get('allow_indexing') else 'off')
+    return out
+
+
+def health_counts() -> dict:
+    """Zahlen für die zugeklappten Bereiche im Reiter System.
+
+    Dort lädt seit 0.11.26 jeder Bereich seinen Inhalt erst beim Aufklappen.
+    Ohne diese Zahlen wäre der Reiter zwar aufgeräumt, aber blind: dass vierzig
+    Fassungen liegen oder drei Alternativtexte fehlen, sähe man erst nach dem
+    Öffnen. Ein Aufruf füllt alle Kopfzeilen; jede Zählung ist ein Verzeichnis-
+    oder ein JSON-Lesevorgang — keine baut einen Index auf.
+    """
+    def count_dir(path: Path, ok) -> int:
+        try:
+            return sum(1 for f in path.iterdir() if f.is_file() and ok(f))
+        except OSError:
+            return 0
+
+    alts = _uploads_meta_load()
+    images = alts_missing = 0
+    try:
+        for f in UPLOADS_DIR.iterdir():
+            if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
+                continue
+            images += 1
+            a = alts.get(f.name) or {}
+            if not (a.get('de') or a.get('en')):
+                alts_missing += 1
+    except OSError:
+        pass
+
+    rows = admin_log_buffer.snapshot()
+    nf = [(k, e) for k, e in (load_stats().get('notfound') or {}).items()
+          if isinstance(e, dict)]
+    return {
+        'log_errors': sum(r.get('n', 1) for r in rows
+                          if r.get('level') in ('ERROR', 'CRITICAL')),
+        'log_warnings': sum(r.get('n', 1) for r in rows
+                            if r.get('level') == 'WARNING'),
+        'audit': len(load_audit()),
+        'revisions': len(list_revisions()),
+        'backups': count_dir(BACKUPS_DIR, lambda f: f.suffix == '.zip'),
+        'images': images,
+        'alts_missing': alts_missing,
+        'docs': count_dir(DOCS_DIR, lambda f: bool(_DOC_FILE_RE.match(f.name))),
+        # Zwei Zahlen, weil die Liste Bots ausblenden kann: ohne die zweite
+        # stünde in der Kopfzeile eine 0, während unten dreißig Zeilen warten.
+        'notfound': sum(1 for k, e in nf if not e.get('bot') and not _is_probe(k)),
+        'notfound_all': len(nf),
+    }
+
+
+@admin_app.route('/api/log')
+def api_log():
+    """Die letzten Warnungen und Fehler des laufenden Add-ons.
+
+    Bewusst erst ab Stufe „Warnung": Auf INFO meldet jeder Start ein Dutzend
+    Zeilen Routine, die den Puffer füllen und nichts erklären. Wer das ganze
+    Protokoll braucht, findet es in Home Assistant unter Add-on → Protokoll.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    admin_log_buffer.flush_now()
+    rows = list(reversed(admin_log_buffer.snapshot()))
+    return jsonify({'rows': rows,
+                    'errors': sum(r.get('n', 1) for r in rows
+                                  if r.get('level') in ('ERROR', 'CRITICAL')),
+                    'warnings': sum(r.get('n', 1) for r in rows
+                                    if r.get('level') == 'WARNING')})
+
+
+@admin_app.route('/api/log/clear', methods=['POST'])
+def api_log_clear():
+    err = _api_auth()
+    if err:
+        return err
+    admin_log_buffer.clear()
+    log_audit('log_clear')
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/health')
+def api_health():
+    err = _api_auth()
+    if err:
+        return err
+    rows = health_checks()
+    rank = {'err': 0, 'warn': 1, 'ok': 2, 'off': 3}
+    rows.sort(key=lambda r: rank.get(r['level'], 9))
+    return jsonify({'checks': rows,
+                    'bad': sum(1 for r in rows if r['level'] in ('err', 'warn')),
+                    'counts': health_counts()})
+
+
+@admin_app.route('/api/site/urls')
+def api_site_urls():
+    """Zielauswahl für Weiterleitungen."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'urls': _public_urls(load_site())})
+
+
+@admin_app.route('/api/stats/notfound')
+def api_stats_notfound():
+    """Ins Leere laufende Aufrufe, häufigste zuerst.
+
+    Bots werden gekennzeichnet, aber nicht verschluckt: Wer sie stillschweigend
+    filtert, verliert genau die Zeile, die er sucht, wenn die Erkennung daneben
+    liegt. Ausblenden entscheidet die Oberfläche.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    nf = load_stats().get('notfound') or {}
+    # `probe` wird beim Ausliefern aus dem Pfad bestimmt, nicht aus dem
+    # gespeicherten Eintrag: So sind auch die Zeilen eingestuft, die vor dieser
+    # Fassung aufgelaufen sind, und eine erweiterte Musterliste wirkt rückwirkend.
+    rows = [{'path': p, 'n': e.get('n', 0), 'last': e.get('last', 0),
+             'first': e.get('first', 0), 'ref': e.get('ref', ''),
+             'probe': _is_probe(p),
+             'internal': bool(e.get('internal')) and not _is_probe(p),
+             'bot': bool(e.get('bot')),
+             'ips': list(e.get('ips') or []), 'cc': e.get('cc', '')}
+            for p, e in nf.items() if isinstance(e, dict)]
+    # Eigene kaputte Verweise zuerst, Sonden zuletzt, dazwischen nach
+    # Häufigkeit: die Liste soll oben das zeigen, was sich reparieren lässt.
+    rows.sort(key=lambda r: (r['probe'], not r['internal'], -r['n'], -r['last']))
+    return jsonify({'rows': rows, 'total': sum(r['n'] for r in rows)})
+
+
+@admin_app.route('/api/stats/notfound/clear', methods=['POST'])
+def api_stats_notfound_clear():
+    """Eine Zeile oder die ganze Liste vergessen.
+
+    Nötig, weil eine erledigte Fundstelle sonst für immer oben steht — die
+    Zählung läuft ja weiter, auch wenn die Weiterleitung längst greift.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    path = _clean_str((request.get_json(silent=True) or {}).get('path'), 120)
+    stats = load_stats()
+    nf = stats.get('notfound') or {}
+    if path:
+        removed = 1 if nf.pop(path, None) is not None else 0
+    else:
+        removed = len(nf)
+        nf = {}
+    stats['notfound'] = nf
+    save_stats(stats)
+    log_audit('notfound_clear', path or f'alle ({removed})')
+    return jsonify({'ok': True, 'removed': removed})
+
+
 @admin_app.route('/api/uploads/unused')
 def api_uploads_unused():
     err = _api_auth()
     if err:
         return err
     orphans, total = _unused_uploads(load_site())
-    return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
+    cache_files, cache_bytes = _unused_wm_cache()
+    return jsonify({'count': len(orphans), 'cache_count': len(cache_files),
+                    'size_mb': round((total + cache_bytes) / 1048576, 1)})
 
 
 @admin_app.route('/api/uploads/delete', methods=['POST'])
@@ -9106,8 +11684,132 @@ def api_uploads_delete():
         log.warning("Bild '%s' konnte nicht gelöscht werden: %s", name, e)
         return jsonify({'error': 'delete_failed'}), 500
     _uploads_meta_forget([name])
+    _wm_cache_forget(name)
     log_audit('upload_delete', name)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/uploads/meta', methods=['POST'])
+def api_uploads_meta():
+    """Herkunftsname und Etiketten einer Datei setzen.
+
+    Beides dient allein dem Wiederfinden — abgelegt bleibt die Datei unter
+    ihrer UUID. Ein Umbenennen im Dateisystem käme nicht in Frage: der Name
+    steht in jeder Einbindung und in bereits veröffentlichten Seiten.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    name = Path(_clean_str(body.get('name'), 120)).name
+    if Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return jsonify({'error': 'invalid'}), 400
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    orig = body.get('orig')
+    tags = body.get('tags')
+    folder = body.get('folder')
+    if not _uploads_file_meta_set(name,
+                                  orig=None if orig is None else _clean_str(orig, 120),
+                                  tags=None if tags is None else tags,
+                                  folder=None if folder is None else folder):
+        return jsonify({'error': 'save_failed'}), 500
+    m = _uploads_files_load().get(name) or {}
+    return jsonify({'ok': True, 'orig': m.get('orig', ''), 'tags': m.get('tags') or [],
+                    'folder': m.get('folder', '')})
+
+
+@admin_app.route('/api/uploads/folder', methods=['POST'])
+def api_uploads_folder():
+    """Mehrere Dateien in einen Ordner legen (oder aus allen herausnehmen).
+
+    Sammelweise, weil es einzeln niemand täte: einen gewachsenen Bestand über
+    je einen Dialog zu sortieren, dauert länger als das Suchen, das der Ordner
+    ersparen soll. Ein leerer Zielname bedeutet „unsortiert".
+
+    Der Ordner ist eine Angabe in `uploads_meta.json` und sonst nichts. Im
+    Dateisystem wandert keine Datei, weil ihr Name in jeder Einbindung und in
+    bereits veröffentlichten Adressen steht.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    folder = _upload_folder_clean(body.get('folder'))
+    names = body.get('names')
+    if not isinstance(names, list) or not names:
+        return jsonify({'error': 'invalid'}), 400
+    moved, missing = 0, 0
+    for raw in names[:UPLOADS_LIST_MAX]:
+        name = Path(_clean_str(raw, 120)).name
+        if Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+            missing += 1
+            continue
+        p = safe_under(UPLOADS_DIR, name)
+        if p is None or not p.is_file():
+            missing += 1
+            continue
+        if _uploads_file_meta_set(name, folder=folder):
+            moved += 1
+    log_audit('upload_folder', f'{moved} Datei(en) → {folder or "—"}')
+    return jsonify({'ok': True, 'moved': moved, 'missing': missing,
+                    'folder': folder})
+
+
+@admin_app.route('/api/uploads/replace', methods=['POST'])
+def api_uploads_replace():
+    """Inhalt einer vorhandenen Datei austauschen, Name bleibt.
+
+    Der Sinn der ganzen Sache: jede Einbindung — in Beiträgen, Seiten, Alben,
+    im Reiseblog, in bereits veröffentlichten Adressen — zeigt danach ohne
+    Zutun auf das neue Bild. Ein Löschen samt Neu-Hochladen kann das nicht.
+
+    Zwei Grenzen sind bewusst eng gezogen:
+
+    * Nur `.webp` lässt sich ersetzen. `_store_upload_image()` schreibt immer
+      WebP; in eine `.png` geschrieben, lieferte die Datei danach WebP-Daten
+      unter falscher Endung aus.
+    * Die `-ai`-Kennzeichnung steckt im Dateinamen und bleibt deshalb erhalten.
+      Ein KI-Bild bleibt gekennzeichnet, auch wenn ein Foto hineinwandert —
+      die vorsichtige Richtung. Umgekehrt lässt sich ein gewöhnliches Bild
+      nicht durch ein KI-Bild ersetzen, ohne die Kennzeichnung zu verlieren;
+      dafür ist der normale Weg über das KI-Studio zu gehen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    name = Path(_clean_str(request.form.get('name'), 120)).name
+    target = safe_under(UPLOADS_DIR, name)
+    if target is None or not target.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    if Path(name).suffix.lower() != '.webp':
+        return jsonify({'error': 'not_webp'}), 400
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in ALLOWED_UPLOAD_EXT or ext == '.gif':
+        return jsonify({'error': 'file type not allowed'}), 400
+    if not _HAS_PIL:
+        return jsonify({'error': 'no_pillow'}), 400
+    try:
+        written = _store_upload_image(f.stream, name=name)
+    except Exception as e:
+        log.warning("Ersetzen von %s fehlgeschlagen: %s", name, e)
+        return jsonify({'error': 'convert_failed'}), 400
+    if not written:
+        return jsonify({'error': 'convert_failed'}), 400
+    # Ohne das liefert die Auslieferung weiter die Fassung mit eingebranntem
+    # Text zum alten Bild aus.
+    _wm_cache_forget(name)
+    _uploads_file_meta_set(name, orig=Path(f.filename).name)
+    log_audit('upload_replace', name)
+    try:
+        mtime = int(target.stat().st_mtime)
+    except OSError:
+        mtime = int(time.time())
+    return jsonify({'ok': True, 'url': '/uploads/' + name, 'mtime': mtime})
 
 
 @admin_app.route('/api/uploads/alts', methods=['POST'])
@@ -9164,10 +11866,34 @@ def api_ai_alt():
 
 @admin_app.route('/api/uploads/cleanup', methods=['POST'])
 def api_uploads_cleanup():
+    """Verwaiste Bilder löschen — und dabei den Bild-Zwischenspeicher mit.
+
+    Der Cache wird sonst nie kleiner: er entsteht beim Ausliefern und überlebt
+    das Bild, zu dem er gehört. Er ist reine Ableitung und in keinem Backup,
+    also ist ein zu großzügiges Aufräumen folgenlos.
+    """
+    # Die Prüfung fehlte bis 0.11.28 als einzige unter 314 Routen — ein POST
+    # ohne Anmeldung löschte damit Dateien.
     err = _api_auth()
     if err:
         return err
-    return _cleanup_dir(*_unused_uploads(load_site()), 'uploads_cleanup')
+    orphans, total = _unused_uploads(load_site())
+    resp = _cleanup_dir(orphans, total, 'uploads_cleanup')
+    cache_files, cache_bytes = _unused_wm_cache()
+    gone = 0
+    for f in cache_files:
+        try:
+            f.unlink()
+            gone += 1
+        except OSError as e:
+            log.warning("Cache-Datei %s konnte nicht gelöscht werden: %s", f.name, e)
+    if gone:
+        log_audit('wm_cache_cleanup', f'{gone} Datei(en)')
+        data = resp.get_json()
+        data['cache_removed'] = gone
+        data['freed_mb'] = round((total + cache_bytes) / 1048576, 1)
+        return jsonify(data)
+    return resp
 
 
 @admin_app.route('/api/docs/unused')
@@ -9240,6 +11966,7 @@ def api_github_import():
             'repo_full_name': full_name,
             'language':       repo.get('language', ''),
             'stars':          repo.get('stars', 0),
+            'repo_pushed':    repo.get('pushed', ''),
             'tags':           repo.get('topics', []),
         }))
         existing.add(full_name)
@@ -9317,8 +12044,26 @@ def _visit_rows(month: str, with_bots: bool):
     except OSError:
         return None, None
     if not with_bots:
-        rows = [r for r in rows if not r[vx.BOT]]
+        # Die Netzprüfung läuft zusätzlich zur `bot`-Spalte, damit auch schon
+        # archivierte Zeilen sauber werden: die Spalte wurde beim Schreiben
+        # gesetzt, die Netzliste kam später dazu.
+        rows = [r for r in rows
+                if not r[vx.BOT] and not vx.is_datacenter_ip(r[vx.IP])]
     return rows, meta
+
+
+def _visit_sessions(rows, with_bots: bool) -> tuple:
+    """Sitzungen bauen, ohne Bot-Schalter die Scanner aussortieren.
+
+    Zwei Filter greifen nacheinander: die `bot`-Spalte samt Netzprüfung schon
+    beim Lesen der Zeilen (`_visit_rows`), und hier die Verhaltensprüfung —
+    ein Aufruf, kein Referrer, keine Sprache. Die zweite fängt genau das, wofür
+    keine Netzliste reicht: Scanner aus Mobilfunk- und Endkundennetzen.
+    """
+    sessions = vx.build_sessions(rows)
+    if with_bots:
+        return sessions, 0
+    return vx.drop_scanners(sessions)
 
 
 def _visit_args():
@@ -9354,7 +12099,7 @@ def api_visits_overview():
     rows, meta = _visit_rows(month, with_bots)
     if rows is None:
         return jsonify({'error': 'not_found'}), 404
-    sessions = vx.build_sessions(rows)
+    sessions, scanners = _visit_sessions(rows, with_bots)
     site = load_site()
     paths = vx.all_paths(sessions)
     return jsonify({
@@ -9362,6 +12107,7 @@ def api_visits_overview():
         'rows':      meta['rows'],
         'skipped':   meta['skipped'],
         'truncated': meta['truncated'],
+        'scanners':  scanners,
         'cards':     vx.summary(sessions),
         **vx.path_analytics(sessions),
         'heatmap':   vx.heatmap(rows),
@@ -9380,7 +12126,7 @@ def api_visits_sessions():
     rows, meta = _visit_rows(month, with_bots)
     if rows is None:
         return jsonify({'error': 'not_found'}), 404
-    sessions = vx.build_sessions(rows)
+    sessions, scanners = _visit_sessions(rows, with_bots)
     day = _clean_str(request.args.get('day'), 10)
     if re.fullmatch(r'\d{4}-\d{2}-\d{2}', day or ''):
         sessions = [s for s in sessions
@@ -9390,6 +12136,7 @@ def api_visits_sessions():
     return jsonify({
         'sessions':  vx.strip_steps(shown),
         'total':     total,
+        'scanners':  scanners,
         'truncated': total > len(shown),
         'labels':    _visit_path_labels(load_site(), vx.all_paths(shown)),
     })
@@ -9440,10 +12187,22 @@ def _seo_urls(lang: str) -> dict:
     feste Sprache. Dann ist sie für beide Fassungen die kanonische, und nur die
     `hreflang`-Angaben benennen die eindeutigen Adressen.
     """
-    base = _base_url() + request.path
+    # Ausnahme von der Regel oben: in der Blog-Übersicht bleibt `?seite=` stehen.
+    # Seite 2 zeigt andere Beiträge als Seite 1 — wer sie auf Seite 1
+    # kanonisiert, nimmt Google alles ab dem elften Beitrag aus dem Index.
+    # Nur dort und nur ohne Filter: an jeder anderen Adresse ist der Parameter
+    # wirkungslos und würde nur eine zweite kanonische Fassung derselben Seite
+    # erfinden. Und Seite 2 einer Schlagwort-Auswahl zeigt etwas anderes als
+    # Seite 2 des vollen Bestandes — gefilterte Ansichten bleiben deshalb bei
+    # der Regel oben und kanonisieren auf `/blog`.
+    paged = (request.endpoint == 'blog_index'
+             and not (request.args.get('q') or request.args.get('tag')))
+    page = _page_arg() if paged else 1
+    base = _base_url() + request.path + (f'?seite={page}' if page > 1 else '')
+    sep = '&' if page > 1 else '?'
     default = site_default_lang()
-    alts = [(lg, base if lg == default else f'{base}?lang={lg}') for lg in SITE_LANGS]
-    canonical = base if (default == 'auto' or lang == default) else f'{base}?lang={lang}'
+    alts = [(lg, base if lg == default else f'{base}{sep}lang={lg}') for lg in SITE_LANGS]
+    canonical = base if (default == 'auto' or lang == default) else f'{base}{sep}lang={lang}'
     return {'canonical_url': canonical, 'hreflang_urls': alts + [('x-default', base)]}
 
 
@@ -9470,6 +12229,47 @@ def _lang_headers(resp):
     if getattr(g, 'mypage_lang_auto', False):
         resp.vary.add('Accept-Language')
     return resp
+
+
+@public_app.after_request
+def _cache_headers(resp):
+    """ETag und `Cache-Control` an die oeffentlichen Seiten.
+
+    Gespart wird damit die **Uebertragung**, nicht das Rendern: die Seite wird
+    weiterhin bei jeder Anfrage gebaut, aber wenn dabei Byte fuer Byte dasselbe
+    herauskommt wie beim letzten Mal, geht statt einiger hundert Kilobyte ein
+    leeres 304 zurueck. Der Fingerabdruck stammt deshalb aus dem fertigen Rumpf
+    und nicht aus Aenderungszeiten der Ablagen — jede kuenstliche Kennzahl
+    muesste bei jedem neuen Feld nachgezogen werden und liefert beim ersten
+    Vergessen veraltete Seiten aus.
+
+    `max-age=0, must-revalidate` heisst: ein vorgeschalteter Proxy darf die
+    Seite behalten, muss sie aber vor jeder Auslieferung rueckfragen. Damit ist
+    ein frisch gespeicherter Beitrag sofort draussen — eine Haltezeit groesser
+    als null waere genau der Fall, in dem der Betreiber seine eigene Aenderung
+    nicht sieht und an der falschen Stelle sucht.
+
+    Angemeldete Mitglieder bekommen `private, no-store` und keinen ETag: ihre
+    Seiten koennen geschuetzten Inhalt tragen, und der darf in keinem
+    gemeinsamen Zwischenspeicher landen. Geprueft wird dafuer nur, ob ueberhaupt
+    ein Sitzungs-Cookie mitkommt — ein abgelaufenes Cookie fuehrt dann zur
+    vorsichtigeren Antwort, was die richtige Richtung ist, und erspart den
+    Griff in die Benutzerdatei bei jedem Gast.
+    """
+    if request.method not in ('GET', 'HEAD'):
+        return resp
+    if resp.status_code != 200 or resp.mimetype != 'text/html':
+        return resp
+    # Wer schon selbst etwas gesetzt hat, weiss es besser (etwa `no-store` an
+    # den Auslieferrouten fuer Dateien).
+    if resp.direct_passthrough or resp.headers.get('Cache-Control'):
+        return resp
+    if request.cookies.get('usession'):
+        resp.headers['Cache-Control'] = 'private, no-store'
+        return resp
+    resp.headers['Cache-Control'] = 'public, max-age=0, must-revalidate'
+    resp.set_etag(hashlib.sha256(resp.get_data()).hexdigest()[:32])
+    return resp.make_conditional(request)
 
 
 @public_app.route('/health')
@@ -9616,9 +12416,12 @@ def _serve_image_with_overlay(filename: str, lang: str):
     if not text:
         return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
     # Cache-Schlüssel aus Text + Dateiname → geänderter Text erzeugt eine neue
-    # Datei, alte Stände werden dadurch nie ausgeliefert
+    # Datei, alte Stände werden dadurch nie ausgeliefert. Der Stamm des
+    # Bildnamens steht davor, damit `_wm_cache_forget()` die Fassungen eines
+    # Bildes wiederfindet — aus dem Hash allein lässt sich der Bezug nicht
+    # zurückrechnen.
     key = hashlib.sha256((text + '|' + safe).encode()).hexdigest()[:24]
-    cached = WM_CACHE_DIR / f'{key}.webp'
+    cached = WM_CACHE_DIR / f'{Path(safe).stem}-{key}.webp'
     if not cached.is_file():
         data = _render_watermark(src, text)
         if data is None:
@@ -12018,6 +14821,43 @@ def _feed_cut(text: str, limit: int = FEED_TEASER_MAX) -> str:
     return (cut[:sp] if sp > limit // 2 else cut).rstrip(' ,;:-–') + ' …'
 
 
+# Ein importiertes README enthält Links wie `filebox/` oder `docs/README.md` —
+# relativ zum Repository gemeint. Auf der Projektseite lösen sie sich gegen
+# `/p/<id>` auf, im Feed-Leser gegen dessen eigene Adresse: beides führt ins
+# Leere. Deshalb werden sie auf das Repository umgebogen. `HEAD` steht bei
+# GitHub für den Standard-Branch, der Name muss also nicht bekannt sein.
+_MD_REL_HREF_RE = re.compile(
+    r'(<a\b[^>]*?\bhref=")(?!https?://|mailto:|data:|#|/|\?)([^"]+)(")', re.I)
+_MD_REL_SRC_RE = re.compile(
+    r'(<img\b[^>]*?\bsrc=")(?!https?://|mailto:|data:|#|/|\?)([^"]+)(")', re.I)
+
+
+def _repo_abs_links(html: str, repo_url: str) -> str:
+    """Relative Links eines GitHub-READMEs auf das Repository umbiegen."""
+    url = (repo_url or '').strip().rstrip('/')
+    if not html or not url:
+        return html or ''
+    # Hostname vergleichen, nicht `startswith` — `evil.com/x?y=github.com` wäre
+    # sonst ein gültiges Ziel (siehe CodeQL-Muster für URL-Prüfungen)
+    parsed = urlparse(url)
+    host = (parsed.hostname or '').lower()
+    if host != 'github.com' or len(parsed.path.strip('/').split('/')) != 2:
+        return html
+
+    def fix(m, kind):
+        path = m.group(2).lstrip('./').lstrip('/')
+        if not path:
+            return m.group(0)
+        if kind == 'img':
+            target = f'{url}/raw/HEAD/{path}'
+        else:
+            target = f'{url}/{"tree" if path.endswith("/") else "blob"}/HEAD/{path}'
+        return f'{m.group(1)}{target}{m.group(3)}'
+
+    html = _MD_REL_HREF_RE.sub(lambda m: fix(m, 'a'), html)
+    return _MD_REL_SRC_RE.sub(lambda m: fix(m, 'img'), html)
+
+
 def _feed_abs(html: str, base: str) -> str:
     """Absolute Adressen im Volltext. Ein Feed-Leser kennt den Kontext der Seite
     nicht — `/uploads/x.webp` zeigt bei ihm ins Leere."""
@@ -12114,9 +14954,12 @@ def _feed_items(site: dict, lang: str, t: dict, loc, base: str) -> list:
             # könnte — ein Feed-Eintrag ohne Ziel ist wertlos
             if not _has_detail(p):
                 continue
-            body = _overlay_html_images(render_md(loc(p, 'long')))
+            body = _repo_abs_links(_overlay_html_images(render_md(loc(p, 'long'))),
+                                   p.get('repo_url', ''))
             add(title=p.get('title'), link=f"{base}/p/{p['id']}",
-                date_iso='',   # Projekte haben kein Datum
+                # Letzter Push des Repositories; von Hand angelegte Projekte
+                # haben keinen und bleiben ohne Datum
+                date_iso=p.get('repo_pushed') or '',
                 summary=loc(p, 'desc') or _plain_excerpt(body, 100000),
                 body=body, tags=p.get('tags'), image=p.get('image'), locked=False)
 
@@ -12161,6 +15004,7 @@ def rss_feed():
     esc = html_mod.escape
     items = _feed_items(site, lang, t, loc, base)
 
+    author = site['profile'].get('name') or ''
     body = ''
     seen_dates: dict[str, int] = {}
     for it in items:
@@ -12173,6 +15017,7 @@ def rss_feed():
                  f'      <guid isPermaLink="true">{esc(it["link"])}</guid>\n'
                  + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
                  + f'      <description>{esc(it["summary"])}</description>\n'
+                 + (f'      <dc:creator>{esc(author)}</dc:creator>\n' if author else '')
                  + ''.join(f'      <category>{esc(tag)}</category>\n' for tag in it['tags'])
                  + (f'      <enclosure url="{esc(img_url)}" type="{img_type}" '
                     f'length="{img_len}"/>\n' if img_url else '')
@@ -12187,7 +15032,6 @@ def rss_feed():
 
     title = d.get('site_title') or site['profile'].get('name') or 'MyPage'
     desc = loc(site['profile'], 'tagline') or title
-    author = site['profile'].get('name') or ''
     self_url = f'{base}/feed.xml' + (f'?lang={lang}' if request.args.get('lang') else '')
     # Kanal-Logo: das Profilbild, sonst das Favicon — beides nur, wenn es ein
     # eigener Upload ist (siehe _feed_media)
@@ -12202,14 +15046,19 @@ def rss_feed():
             f'    <atom:link href="{esc(self_url)}" rel="self" type="application/rss+xml"/>\n'
             + (f'    <lastBuildDate>{_feed_pubdate(built, 0)}</lastBuildDate>\n'
                if built else '')
-            + (f'    <managingEditor>{esc(author)}</managingEditor>\n' if author else '')
+            # Kein <managingEditor>: RSS verlangt dort eine E-Mail-Adresse, und die
+            # Website zeigt sie bewusst nur zerlegt (Schutz vor Adress-Sammlern).
+            # atom:author und dc:creator nennen den Namen ohne Adresse.
+            + (f'    <atom:author><atom:name>{esc(author)}</atom:name></atom:author>\n'
+               if author else '')
             + (f'    <image>\n      <url>{esc(logo)}</url>\n'
                f'      <title>{esc(title)}</title>\n'
                f'      <link>{esc(base)}/</link>\n    </image>\n' if logo else ''))
 
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
            '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"'
-           ' xmlns:content="http://purl.org/rss/1.0/modules/content/">\n'
+           ' xmlns:content="http://purl.org/rss/1.0/modules/content/"'
+           ' xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
            '  <channel>\n'
            f'{head}{body}'
            '  </channel>\n</rss>\n')
@@ -12234,6 +15083,13 @@ def not_found(_e):
     if rd:
         # rd['to'] stammt aus der gespeicherten Konfiguration (Admin), nicht aus der Anfrage
         return redirect(rd['to'], code=301 if rd.get('permanent', True) else 302)
+    # Erst hier festhalten: Ein Pfad mit eingerichteter Weiterleitung ist kein
+    # Fehler mehr, und ihn weiter zu melden hieße, eine erledigte Sache jeden
+    # Tag aufs Neue auf die Liste zu setzen.
+    try:
+        record_notfound(request)
+    except Exception as e:      # eine Fehlerseite darf an nichts scheitern
+        log.warning("404 konnte nicht festgehalten werden: %s", e)
     lang = detect_language(request)
     t = load_translations(lang)
     return render_template('404.html', t=t, lang=lang, site=site), 404
@@ -12407,6 +15263,10 @@ def public_index():
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
         'projects':     ('projects',     'projects',             bool(projects)),
         'skills':       ('skills',       'skills_heading',       bool(sections.get('skills'))),
+        'facts':        ('fakten',       'facts_heading',        bool(sections.get('facts'))),
+        'videos':       ('videos',       'videos_heading',       bool(sections.get('videos'))),
+        'downloads':    ('downloads',    'downloads_heading',    bool(sections.get('downloads'))),
+        'partners':     ('partner',      'partners_heading',     bool(sections.get('partners'))),
         'testimonials': ('testimonials', 'testimonials_heading', bool(sections.get('testimonials'))),
         'photos':       ('photos',       'albums_heading',       bool(albums)),
         'library':      ('library',      'library_heading',      bool(library_entries)),
@@ -12433,8 +15293,10 @@ def public_index():
     if not viewer_member:
         section_order = [k for k in section_order if k not in member_secs]
 
-    # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
-    timeline_title = loc(sections, 'timeline_title')
+    # Frei konfigurierbare Überschriften je Abschnitt (leer = Standard aus den Locales)
+    sec_titles = {k: section_title(sections, k, lang) for k in SECTION_TITLE_KEYS}
+    # Der Werdegang hatte sein eigenes Feld, bevor es das für alle gab.
+    timeline_title = sec_titles.get('timeline') or loc(sections, 'timeline_title')
     # Frei konfigurierbarer Name der Sammlung (leer = Standard „Bibliothek")
     library_heading = _library_label(site, loc, t)
 
@@ -12449,7 +15311,9 @@ def public_index():
             if key == 'library' and not _library(site).get('nav'):
                 continue
             if present:
-                if key == 'timeline' and timeline_title:
+                if sec_titles.get(key):
+                    label = sec_titles[key]
+                elif key == 'timeline' and timeline_title:
                     label = timeline_title
                 elif key == 'countdown' and countdown_title:
                     label = countdown_title
@@ -12500,6 +15364,7 @@ def public_index():
                            nl=_clean_str(request.args.get('nl'), 20),
                            nav_items=nav_items,
                            section_order=section_order,
+                           sec_titles=sec_titles,
                            timeline_title=timeline_title,
                            tip_of_day=tip_of_day, tips_weekly=tips_weekly,
                            poll_view=poll_view,
@@ -12524,12 +15389,18 @@ def blog_index():
         abort(404)
     query = _clean_str(request.args.get('q'), 80)
     tag = _clean_str(request.args.get('tag'), 30)
-    posts = filter_posts(all_posts, query, tag)
+    page = _page_arg()
+    pager = blog_pager(filter_posts(all_posts, query, tag), page, query, tag)
+    # Eine Seitenzahl jenseits des Bestandes ist keine Seite. Ohne 404 gäbe es
+    # unendlich viele Adressen, die alle dasselbe letzte Dutzend zeigen — der
+    # Suchmaschine wäre der Bestand damit beliebig groß.
+    if page > pager['pages']:
+        abort(404)
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
     return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
-                           posts=posts, tags=all_post_tags(site),
+                           posts=pager['posts'], pager=pager, tags=all_post_tags(site),
                            query=query, active_tag=tag,
                            newsletter_open=newsletter_open(),
                            nl=_clean_str(request.args.get('nl'), 20),
@@ -12879,7 +15750,7 @@ def project_detail(pid: str):
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
-    long_html = render_md(loc(proj, 'long'))
+    long_html = _repo_abs_links(render_md(loc(proj, 'long')), proj.get('repo_url', ''))
     return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
                            long_html=long_html,
                            share_on=bool(site['design'].get('share_enabled')),
@@ -12954,18 +15825,19 @@ def member_area():
 @public_app.route('/bereich/login', methods=['POST'])
 def member_login():
     ip = get_client_ip(request)
+    peer = _peer_addr(request)
     email = (request.form.get('email') or '').strip().lower()
-    if is_rate_limited(ip):
+    if is_rate_limited(ip, peer):
         log.warning("Mitglieder-Login GESPERRT: '%s' von %s (zu viele Fehlversuche)",
                     email or '?', ip)
         return redirect('/bereich?msg=locked')
     password = request.form.get('password') or ''
     user = next((u for u in load_users() if u['email'] == email), None)
     if user is None or not check_password_hash(user['pw_hash'], password):
-        record_failed_attempt(ip)
+        record_failed_attempt(ip, peer)
         log.warning("Mitglieder-Login FEHLGESCHLAGEN: '%s' von %s", email or '?', ip)
         return redirect('/bereich?msg=credentials')
-    clear_failed_attempts(ip)
+    clear_failed_attempts(ip, peer)
     blocked = _member_login_blocked(user)
     if blocked:
         log.info("Mitglieder-Login abgewiesen ('%s'): %s", email, blocked)
@@ -12976,7 +15848,7 @@ def member_login():
     log_user_event(user['id'], 'login', '', ip)
     resp = make_response(redirect('/bereich'))
     resp.set_cookie('usession', token, httponly=True, samesite='Lax',
-                    max_age=USER_SESSION_HOURS * 3600)
+                    secure=_cookie_secure(), max_age=USER_SESSION_HOURS * 3600)
     log.info("Mitglieder-Login ERFOLGREICH: '%s' von %s", email, ip)
     return resp
 
@@ -13908,6 +16780,39 @@ def library_entry_pdf(slug: str):
     return resp
 
 
+@public_app.route('/download/<name>')
+def public_download(name: str):
+    """Datei aus dem Download-Abschnitt — immer als Anhang, nie inline.
+
+    Ausgeliefert wird ausschließlich, was im Abschnitt selbst steht: der Name
+    muss in `sections.downloads` vorkommen. Ohne diese Liste wäre die Route ein
+    offener Zugriff auf die ganze Dokumentenablage, in der auch die PDFs
+    gesperrter Bibliothek-Einträge liegen.
+    """
+    site = load_site()
+    if site['design'].get('maintenance'):
+        abort(404)
+    if not _DOC_FILE_RE.match(name or ''):
+        abort(404)
+    entry = next((d for d in (site.get('sections') or {}).get('downloads') or []
+                  if d.get('file') == name), None)
+    if entry is None:
+        abort(404)
+    if 'downloads' in set(site.get('hidden_sections') or []):
+        abort(404)
+    if 'downloads' in set(site.get('members_sections') or []) and not is_member(request):
+        abort(404)
+    target = safe_under(DOCS_DIR, name)
+    if target is None or not target.is_file():
+        abort(404)
+    loc = _loc_factory(detect_language(request))
+    fname = (_slugify(loc(entry, 'title')) or 'download') + Path(name).suffix
+    resp = send_file(target, mimetype='application/pdf',
+                     as_attachment=True, download_name=fname)
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
 @admin_app.route('/preview/library/<eid>')
 def admin_library_preview(eid: str):
     """Eintrags-Vorschau im Admin — rendert auch Entwürfe und gesperrte Einträge."""
@@ -13943,6 +16848,19 @@ def _trav_article(day: dict, lang: str) -> dict:
         return want
     other = art.get('en' if lang == 'de' else 'de') or {}
     return other if (other.get('title') or other.get('body')) else want
+
+
+def _trav_recap(trip: dict, lang: str) -> dict:
+    """Freigegebener Rückblick in der gewünschten Sprache, sonst in der anderen.
+    Leer, solange die Freigabe fehlt oder kein Text dasteht."""
+    if not trip.get('recap_published'):
+        return {}
+    rc = trip.get('recap') or {}
+    want = rc.get(lang) or {}
+    if want.get('body'):
+        return want
+    other = rc.get('en' if lang == 'de' else 'de') or {}
+    return other if other.get('body') else {}
 
 
 def _trav_day_public(day: dict) -> bool:
@@ -13993,7 +16911,7 @@ def _trav_trip_view(trip: dict, lang: str) -> dict:
         'start': _trav_date(trip.get('travel_start') or '', lang),
         'end': _trav_date(trip.get('travel_end') or '', lang),
         'image': _overlay_url(cover),
-        'teaser': lead.get('teaser') or '',
+        'teaser': (_trav_recap(trip, lang).get('teaser') or lead.get('teaser') or ''),
         'members_only': bool(trip.get('members_only')),
     }
 
@@ -14164,11 +17082,17 @@ def travel_trip_page(tslug: str):
     t, loc, font_family, font_faces = _trav_head(site, lang)
     view = _trav_trip_view(trip, lang)
     locked = _trav_locked(trip, False)
+    # Bei gesperrten Reisen nur der Anriss — derselbe Weg wie beim Tagesbericht.
+    recap = _trav_recap(trip, lang)
+    recap_full = _overlay_html_images(render_md(recap.get('body') or ''))
+    recap_html = (('<p>' + _locked_teaser(recap_full) + '</p>')
+                  if (locked and recap_full) else recap_full)
     return render_template(
         'travel_trip.html', t=t, lang=lang, site=site, loc=loc,
         heading=t.get('trav_trips_heading', ''), trip=view,
         days=[_trav_day_view(d, lang) for d in _trav_public_days(trip)],
-        locked=locked,
+        locked=locked, recap_title=recap.get('title') or '', recap_html=recap_html,
+        recap_tags=((trip.get('recap') or {}).get('tags') or []) if recap else [],
         totals=([] if locked or not _trav_prices(trip)
                 else _trav_trip_totals(trip, lang)),
         font_family=font_family, font_faces=font_faces,
@@ -14294,6 +17218,10 @@ def _handle_sigterm(signum, frame) -> None:
     ist daher sicher — Schreibzugriffe laufen über `with open(...) as f:`-Blöcke,
     die beim jeweiligen Abschluss bereits geschlossen/geflusht sind."""
     log.info("SIGTERM empfangen, beende sauber…")
+    # Der Protokollpuffer schreibt nur alle paar Sekunden auf die Platte. Ohne
+    # diesen letzten Anstoß fehlten nach einem Neustart genau die Meldungen, die
+    # kurz davor auflaufen — also die, die den Neustart erklären.
+    admin_log_buffer.flush_now()
     os._exit(0)
 
 
@@ -14301,11 +17229,19 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, _handle_sigterm)
     load_sessions()
     load_user_sessions()
+    # Einmalig: bisherige Add-on-Optionen in die eigene settings.json übernehmen
+    settings_store.migrate(load_options())
+    _settings_changed()
     cfg = load_config()
     if cfg.get('password') in ('', 'changeme123'):
         log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")
     upload_max = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
     public_app.config['MAX_CONTENT_LENGTH'] = upload_max * 1024 * 1024
+    extra_nets = cfg.get('visit_bot_nets') or []
+    if extra_nets:
+        vx.set_extra_bot_nets(extra_nets)
+        log.info("Besucherzähler: %d zusätzliche Bot-Netze aus visit_bot_nets",
+                 len(extra_nets))
 
     # Initialer SMB-Mount (run.sh setzt nur noch den Pfad, Zugangsdaten bleiben im Speicher)
     if SMB_MOUNTED and not storage_available():
@@ -14323,6 +17259,11 @@ if __name__ == '__main__':
     # Optionsänderung ohnehin neu, also greift die neue Frist sofort.
     _prune_visit_files()
 
+    # Warnungen des letzten Laufs zurückholen — sonst steht das Protokoll im
+    # Admin nach jedem Neustart auf leer, und gerade ein Neustart ist der
+    # Zeitpunkt, an dem man wissen will, was vorher los war.
+    admin_log_buffer.load()
+
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()
     threading.Thread(target=_sensor_worker, daemon=True).start()
@@ -14335,4 +17276,8 @@ if __name__ == '__main__':
     threading.Thread(target=auto_backup_loop, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
-    _serve(admin_app, ADMIN_PORT, threads=4)
+    # Acht Threads wie oeffentlich: Der Admin laedt beim Oeffnen eines Reiters
+    # mehrere Endpunkte parallel, und bei vier Threads meldete Waitress dann
+    # "Task queue depth is 3" — die Anfragen warteten aufeinander. Ein
+    # wartender Thread kostet praktisch nur Speicher.
+    _serve(admin_app, ADMIN_PORT, threads=8)

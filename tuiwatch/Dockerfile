@@ -26,13 +26,14 @@ COPY requirements.txt .
 # Playwright nutzt das System-Chromium (CHROMIUM_PATH) → kein 'playwright install' nötig
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
-COPY app.py scraper.py tripparser.py aktionscodes.py nextcloud.py packliste.py ./
+COPY app.py settings.py scraper.py tripparser.py aktionscodes.py nextcloud.py packliste.py ./
 COPY trips_routes.py backup_routes.py digest.py ai_client.py price_calendar.py watch.py ai_routes.py offers_routes.py ./
 COPY check24_client.py check24_routes.py email_search.py market_basket.py stats_routes.py share_routes.py ./
 COPY issues.py ./
 COPY str_flights_client.py str_flights_routes.py trippilot_questions.py ./
 COPY fra_flights_client.py fra_flights_routes.py fra_board_client.py ./
 COPY muc_flights_client.py muc_flights_routes.py ./
+COPY fkb_flights_client.py fkb_flights_routes.py ./
 COPY all_flights_routes.py ./
 # Auslieferungsstand des TripPilot-Fragebogens — muss neben trippilot_questions.py
 # liegen und wird beim Start nach /config/trippilot kopiert (dort editierbar)

@@ -1,0 +1,84 @@
+name: Test MyPage
+
+# Laeuft vor dem Bauen des Images: build-mypage.yml haengt an einer geaenderten
+# config.yaml, dieser Test an jeder Aenderung am Code. So faellt ein 500er auf,
+# bevor die Version auf einer echten Home-Assistant-Instanz landet.
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'mypage/**.py'
+      - 'mypage/templates/**'
+      - 'mypage/locales/**'
+      - 'mypage/requirements.txt'
+      - '.github/workflows/test-mypage.yml'
+  pull_request:
+    paths:
+      - 'mypage/**.py'
+      - 'mypage/templates/**'
+      - 'mypage/locales/**'
+  workflow_dispatch:
+
+# Der Lauf liest nur den Quelltext und startet Tests — schreiben muss er
+# nirgends. Ohne diesen Block gilt die Vorgabe des Kontos, und die kann
+# Schreibrechte bedeuten (CodeQL actions/missing-workflow-permissions).
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Abhaengigkeiten installieren
+        working-directory: mypage
+        # weasyprint und google-genai bleiben draussen: das erste braucht
+        # pango und andere Systempakete, das zweite nur einen API-Key, den es
+        # hier nicht gibt. Beide werden in app.py per try/except geladen — ohne
+        # sie laeuft das Add-on mit abgeschalteter PDF- bzw. KI-Funktion, und
+        # genau diesen Zustand testet der Durchlauf mit.
+        run: |
+          grep -v -e '^weasyprint' -e '^google-genai' requirements.txt > ci-requirements.txt
+          pip install -r ci-requirements.txt
+
+      - name: Uebersetzungen sind gueltiges JSON
+        working-directory: mypage
+        run: |
+          for f in locales/*.json; do python -c "import json,sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$f"; done
+
+      - name: Beide Sprachdateien haben dieselben Schluessel
+        working-directory: mypage
+        # Ein Schluessel nur auf Deutsch heisst: im englischen Admin steht an
+        # der Stelle nichts. Das faellt sonst erst einem englischen Nutzer auf.
+        run: |
+          python - <<'PY'
+          import json, sys
+          de = json.load(open('locales/de.json', encoding='utf-8'))
+          en = json.load(open('locales/en.json', encoding='utf-8'))
+          only_de = sorted(set(de) - set(en))
+          only_en = sorted(set(en) - set(de))
+          for k in only_de:
+              print(f'nur in de.json: {k}')
+          for k in only_en:
+              print(f'nur in en.json: {k}')
+          print(f'{len(de)} Schluessel, {len(only_de) + len(only_en)} fehlen')
+          sys.exit(1 if (only_de or only_en) else 0)
+          PY
+
+      - name: Rauchtest ueber alle Routen
+        working-directory: mypage
+        run: python test_routes.py
+
+      - name: Besucher-Auswerter
+        working-directory: mypage
+        run: python test_visitexplorer.py
+
+      - name: PDF-Import
+        working-directory: mypage
+        run: python test_pdfimport.py

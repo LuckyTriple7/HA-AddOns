@@ -8,6 +8,28 @@ configuration:
   session_hours:
     name: Session-Dauer
     description: Gültigkeit der Login-Session in Stunden.
+  ingress_trust_net:
+    name: Ingress-Netz (nur bei Sonderfällen)
+    description: >-
+      Leer lassen. Über das Home-Assistant-Panel (Ingress) meldet HA den Benutzer
+      bereits an, MyPage verlangt dann keine eigene Anmeldung — das gilt aber nur
+      für Anfragen aus dem Supervisor-Netz 172.30.32.0/23. Kommt der Supervisor
+      bei dir aus einem anderen Netz (etwa HA Supervised in einem eigenen
+      Docker-Netz), fragt das Panel nach Benutzername und Passwort; dann hier das
+      Netz in CIDR-Schreibweise eintragen (mehrere durch Leerzeichen getrennt).
+      Nur Netze eintragen, die tatsächlich zu Home Assistant gehören: Wer von dort
+      kommt, betritt den Admin ohne Anmeldung.
+  trusted_proxies:
+    name: Vertrauenswürdige Proxy-Netze
+    description: >-
+      Leer lassen. MyPage übernimmt die echte Besucheradresse aus den Kopfzeilen
+      X-Forwarded-For, X-Real-IP und CF-Connecting-IP — aber nur, wenn die
+      Verbindung von einer privaten Adresse kommt, also vom Reverse Proxy, vom
+      Cloudflare-Tunnel oder vom Docker-Gateway. Bei einer direkten Verbindung
+      zählt die echte Gegenstelle, sonst könnte sich jeder eine beliebige Adresse
+      geben und damit die Login-Sperre umgehen. Hier eingetragene Netze (CIDR,
+      mehrere durch Leerzeichen) ersetzen diese Regel vollständig: Dann gelten
+      ausschließlich sie als Zwischenglied — auch das eigene LAN nicht mehr.
   github_token:
     name: GitHub-Token
     description: Optionales Token — erhöht das API-Limit für GitHub-Import und Sterne-Updates.
@@ -32,6 +54,14 @@ configuration:
       erlaubt, sollten aber zur eigenen Datenschutzerklärung passen. 0 = unbegrenzt
       aufbewahren (nichts wird je gelöscht). Aufgeräumt wird beim Start des Add-ons und
       beim Anlegen einer neuen Monatsdatei.
+  visit_bot_nets:
+    name: Zusätzliche Bot-Netze
+    description: >-
+      Eigene IP-Netze in CIDR-Schreibweise (z. B. 194.180.48.0/24), deren Aufrufe
+      als Bot gezählt werden. Die Netze der großen Cloud-Anbieter (AWS, Azure,
+      Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr,
+      Scaleway) sind bereits eingebaut — hier kommt nur dazu, was darüber hinaus
+      stört. Unbrauchbare Einträge werden übergangen.
   user_journal_max:
     name: Journal-Größe pro Benutzer
     description: Wie viele Ereignisse das Journal je Benutzer behält (20–1000, Standard 100).
@@ -79,6 +109,13 @@ configuration:
     description: >-
       Legt täglich ein Backup unter addon_configs/<slug>_mypage/autobackup/ ab und
       behält die angegebene Anzahl der neuesten. 0 schaltet die automatischen Backups ab.
+  revision_keep:
+    name: Frühere Stände aufbewahren (Anzahl)
+    description: >-
+      Sichert vor jeder Änderung den bisherigen Stand der Seiteninhalte unter
+      addon_configs/<slug>_mypage/revisions/ und behält die angegebene Anzahl der neuesten.
+      Im Admin unter System → Frühere Stände einsehbar und zurückholbar.
+      0 schaltet die Stände ab.
   smb_server:
     name: SMB-Server (optional)
     description: IP/Hostname eines SMB-Shares — Mitglieder-Dateien liegen dann dort statt auf der SD-Karte.

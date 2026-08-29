@@ -1,5 +1,59 @@
 # Changelog – MessengerPortal
 
+## [1.2.24] - 2026-08-29
+- **Der Ingress-Zugang nimmt jetzt nur noch vom Supervisor an.** Die Port-Trennung aus 1.2.21 sperrte das LAN aus, aber nicht das interne `hassio`-Netz: Port 8099 ist von dort erreichbar, und **jedes andere Add-on** haette mit einem selbstgesetzten `X-Ingress-Path` weiterhin ohne Portal-Passwort hereingekommen. Der Ingress-Block laesst jetzt nur `172.30.32.2/32` zu und weist alles andere ab
+- Neue Option **Vertrauenswuerdige Ingress-Adressen** (`ingress_trusted`) fuer den Ausnahmefall. Leer bedeutet: nur der Supervisor. Mehrere Eintraege durch Komma getrennt, CIDR erlaubt
+- Ein Eintrag mit Praefixlaenge 0 (`0.0.0.0/0`, `::/0`) wird **abgelehnt** — er wuerde die Anmeldung fuer jeden aufheben, also genau die Luecke wiederherstellen. Unbrauchbare Angaben werden mit einer Warnung uebergangen; bleibt nichts uebrig, gilt wieder die Voreinstellung. Die geltende Liste steht beim Start im Log
+- Ein falscher Wert macht das Ingress-Panel unerreichbar (`403`). Die Option laesst sich in der Add-on-Konfiguration von Home Assistant wieder leeren, dafuer braucht es das Portal nicht
+- Der LAN-Listener auf 17770 bleibt wie er war: dort gilt unveraendert die Cookie-Anmeldung, eine Adressbeschraenkung waere dort der falsche Hebel
+
+## [1.2.23] - 2026-08-29
+- Fix: nginx meldete bei jedem Start `duplicate MIME type "text/html"` — einmal je Messenger und Listener, zuletzt also sechsmal. `sub_filter_types` fuehrte `text/html` auf, das nginx ohnehin immer filtert. Der Eintrag entfaellt, gefiltert wird unveraendert
+- Bestaetigt im Betrieb: das Portal spricht die Add-ons jetzt tatsaechlich ueber ihren Container-Namen an (`/proxy/whatsapp/ -> http://3d588fb4-whatsapp:17776/`), und die Kopfzeilen-Umgehung aus 1.2.21 ist von aussen nicht mehr moeglich — `/status`, `/api/logs` und `/proxy/<messenger>/` antworten mit und ohne `X-Ingress-Path` gleich
+
+## [1.2.22] - 2026-08-29
+- Fix: Das Portal fragte beim Start `GET /addons` ab und hinterliess dabei jedes Mal zwei Zeilen im Supervisor-Log — `no role for <slug>` und `Invalid token for access /addons`. Die Rolle `default` darf diese Route nicht, und `hassio_role: manager` dafuer zu vergeben (duerfte dann Add-ons starten, stoppen, installieren) waere ein schlechter Tausch gewesen. Der Aufruf entfaellt ersatzlos; der Repository-Praefix kommt weiterhin aus `GET /addons/self/info`, das die Default-Rolle immer darf
+- Die Statuszeile im Log nennt jetzt den tatsaechlich benutzten Zielhost: `Poll WhatsApp 3d588fb4-whatsapp:17776 — online`. Vorher stand dort nur der Port, und ob der Container-Name oder der HA-Host benutzt wurde, war nach dem Start nicht mehr nachvollziehbar
+- Wer ein Messenger-Add-on aus einem **anderen** Repository betreibt, traegt dessen Host von Hand in `internal_host` ein — der abgeleitete Praefix passt dann nicht
+
+## [1.2.21] - 2026-08-29
+- **Sicherheitsfix: die Anmeldung liess sich mit einer selbstgesetzten Kopfzeile umgehen.** Das Portal erkannte HA-Ingress allein am Header `X-Ingress-Path` und sprang dann ueber die Passwortpruefung. Den Header setzt aber der Aufrufer, nicht der Supervisor — ein `curl -H 'X-Ingress-Path: /x' http://<HA-IP>:17770/status` aus dem LAN kam ohne Passwort durch, ebenso auf `/proxy/whatsapp/` und damit auf die komplette Oberflaeche und REST-API des jeweiligen Messengers
+- Ursache: Ingress und LAN trafen auf denselben Listener, also gab es kein faelschungssicheres Unterscheidungsmerkmal. Jetzt lauscht nginx auf **zwei getrennten Ports**: 8099 nur fuer den Supervisor (neuer `ingress_port`, bewusst nicht unter `ports:` gemappt und damit von aussen nicht erreichbar) und 17770 fuer alles andere. Nur der Ingress-Block reicht `X-Ingress-Path` weiter, der LAN-Block leert ihn — dort gilt ausnahmslos Cookie-Anmeldung
+- **Sicherheitsfix: `/api/logs` war voellig ungeschuetzt.** Ohne Anmeldung und ohne Kopfzeilen-Trick lieferte die Route 300 Log-Zeilen aus — darunter die Statusabfragen aller Messenger samt **Vorschau der zuletzt empfangenen Nachricht** im Klartext. Die Route verlangt jetzt dieselbe Anmeldung wie die Seite, auf der die Konsole angezeigt wird
+- Beide Luecken bestanden seit der Einfuehrung der jeweiligen Funktion. Wer Port 17770 nie im LAN freigegeben hatte, war nicht betroffen — ueber Ingress kommt ohnehin nur herein, wer bei Home Assistant angemeldet ist
+
+## [1.2.20] - 2026-08-29
+- Das Portal erreicht die Messenger-Add-ons jetzt über ihren **Container-Hostnamen** (z. B. `424ccef4-whatsapp`) statt über den HA-Host und dessen veröffentlichten Port (neu: `hassio_api: true`). Der Hash davor ist der des Repositories, unterscheidet sich pro Installation und ist deshalb nicht fest verdrahtet
+- Der Name wird zweistufig ermittelt: `GET /addons` liefert die genaue Liste, verlangt aber je nach Supervisor-Fassung eine höhere Rolle. Scheitert das, reicht `GET /addons/self/info` — das darf die Default-Rolle immer, und aus dem eigenen Hostnamen lässt sich der Präfix für die Geschwister-Add-ons ableiten. Dem Portal `hassio_role: manager` zu geben (dürfte dann Add-ons starten, stoppen, installieren) war der Auskunft nicht wert
+- Damit funktioniert das Portal auch dann noch, wenn ein Messenger-Add-on seinen Port nicht mehr im LAN veröffentlicht. Das ist die Voraussetzung dafür, die ungeschützten Direktports abschalten zu können
+- nginx löst den Namen erst beim Request auf (Variable in `proxy_pass` plus `resolver` aus `/etc/resolv.conf`). Mit einem festen Namen hätte nginx den Start verweigert, solange ein Add-on aus ist — und alle Messenger stehen auf `boot: manual`. Ein gestopptes Add-on landet weiterhin auf der gewohnten „nicht erreichbar“-Seite
+- Die Option `internal_host` behält Vorrang: wer sie gesetzt hat, merkt keinen Unterschied. Ohne Supervisor-Antwort fällt das Portal auf den bisherigen Weg über den HA-Host zurück
+- Der Gateway-Aufruf (`ip route`) wird gemerkt statt bei jeder Statusabfrage neu ausgeführt
+
+## [1.2.19] - 2026-08-28
+- Die Ampel auf der Kachel sagt jetzt mehr als „Port offen": das Portal liest den Selbsttest des jeweiligen Add-ons mit (`/api/selfcheck`) und zeigt einen **eigenen Zustand**, wenn die Verbindung zwar steht, der Anbieter aber etwas umgebaut hat — „Online – mit Einschränkung", bernsteinfarbener Punkt mit Ring
+- Der Mauszeiger auf der Ampel verrät die Einzelheiten: bei Grün „Verbunden – Selbsttest ohne Befund (16 Bausteine, 4 Antwortformen geprüft)", bei Bernstein die betroffenen Funktionen
+- Die Kachel bleibt in diesem Zustand **anklickbar** — anders als bei „nicht erreichbar" läuft der Messenger ja weiter
+- Add-ons ohne diese Route (Telegram, Signal) verhalten sich unverändert: keine Aussage ist kein Fehler
+- Ergebnisse werden 5 Minuten gemerkt, ein „kennt die Route nicht" 30 Minuten — die Statusabfrage läuft im Sekundentakt, der Selbsttest dahinter nur alle paar Stunden
+
+## [1.2.18] - 2026-08-28
+- Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt, der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl bleibt ueber einen Seitenwechsel hinweg erhalten
+- Pythons `CRITICAL` laeuft dabei unter ERROR, `WARNING` unter WARN. Zeitstempel hatten die Zeilen hier schon — anders als bei WhatsApp, Telegram und Signal war nur der Filter nachzuruesten
+- Gleiche Funktion wie im WhatsApp-Add-on ab 1.8.0
+
+## [1.2.17] - 2026-08-28
+- Fix: Die rote „Neu"-Markierung war rein gerätebasiert (`localStorage`) — eine am Handy gelesene Nachricht blieb am Desktop weiter als neu markiert. Der Gelesen-Stand liegt jetzt serverseitig in `/data/read_state.json` und wird von allen Geräten geteilt; beim Öffnen einer Kachel meldet der Browser ihn per `sendBeacon` an die neue Route `POST /api/mark-read`
+
+## [1.2.16] - 2026-08-25
+- Fix: WhatsApps Zwischenzustand `authenticated` (QR gescannt, Chats werden noch geladen) zählt nicht mehr als „Online" — in dieser Phase lehnt das Add-on Sendeversuche mit HTTP 503 ab. Als echte Verbindung gelten nur noch `connected`, `linked` und `ready`
+- Der Tooltip bei „Verbindungsproblem" nennt jetzt auch den rohen Add-on-Status (z. B. `waiting_for_scan`, `not-linked`, `disconnected`), wenn das Add-on keinen Fehlertext liefert
+
+## [1.2.15] - 2026-08-25
+- Fix: **„Online" war irreführend.** Der Status kam bisher allein daher, dass der TCP-Port des Add-ons erreichbar war — ein Add-on, dessen Weboberfläche läuft, dessen Messenger-Verbindung aber abgerissen ist (z. B. Telegram nach `ENETUNREACH`), wurde trotzdem grün als „Online" angezeigt. Das Portal fragt jetzt zusätzlich `/api/status` des jeweiligen Add-ons ab und wertet nur `connected`, `linked`, `ready` oder `authenticated` als echte Verbindung
+- Neu: Dritter Status **„Verbindungsproblem"** (oranger Punkt) für Add-ons, die erreichbar, aber nicht verbunden sind. Der Tooltip nennt den Grund aus dem Add-on. Die Kachel bleibt anklickbar, damit man die Oberfläche zum Neuverbinden öffnen kann — nur wirklich unerreichbare Add-ons werden weiterhin gesperrt
+- Add-ons ohne `/api/status`-Route gelten wie bisher als online, sobald ihr Port erreichbar ist
+
 ## [1.2.14] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

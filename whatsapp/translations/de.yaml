@@ -1,4 +1,10 @@
 configuration:
+  api_enabled:
+    name: REST-API auf eigenem Port
+    description: "Startet die REST-API zusätzlich auf Port 17786. Dort gilt Token-Pflicht und es gibt keine Weboberfläche — anders als auf Port 17776, der beides ohne Anmeldung herausgibt. Ohne gesetzten API-Token startet der Port nicht. Für Zugriff aus dem LAN muss er zusätzlich unter Netzwerk freigegeben werden. Standard: aus."
+  api_token:
+    name: API-Token
+    description: "Geheimnis für die REST-API auf Port 17786. Der Aufrufer schickt es als Kopfzeile Authorization mit dem Wert Bearer und dem Token mit. Lang und zufällig wählen, etwa mit openssl rand -hex 32."
   dark_mode:
     name: Dunkles Theme
     description: Dunkles Theme in der Web-UI aktivieren.
@@ -23,6 +29,12 @@ configuration:
   keep_deleted:
     name: Gelöschte Nachrichten behalten
     description: "true = Originaler Nachrichteninhalt bleibt sichtbar, darunter erscheint ein kleines 🚫-Badge; Weiterleiten/Reaktion/Antworten-Buttons werden ausgeblendet. false = Nachricht wird durch eine 🚫-Meldung ersetzt (Standard)."
+  presence_mode:
+    name: Eigene Verfügbarkeit für "zuletzt online"
+    description: "WhatsApp liefert die Präsenz anderer nur an Geräte, die sich selbst als verfügbar melden. temporary = nur während einer Abfrage kurz melden und danach wieder abmelden (Standard); always = dauerhaft melden, dann erscheinst du für deine Kontakte durchgehend online; off = nie melden, \"zuletzt online\" bleibt dann meist leer."
+  presence_scan_minutes:
+    name: Zuletzt-online-Übersicht automatisch aktualisieren (Minuten)
+    description: "Wie oft die Übersicht aller Kontakte im Hintergrund aktualisiert wird. 0 = aus (Standard), die Übersicht lässt sich dann nur von Hand aktualisieren. Sinnvoll sind 15 bis 60 Minuten. Achtung: für die Dauer eines Rundlaufs (rund 15 Sekunden) meldest du dich als verfügbar und erscheinst so lange für deine Kontakte online — es sei denn, presence_mode steht auf off."
   debug_mode:
     name: Debug-Modus
     description: Ausführliches Logging aktivieren. Nützlich für die Fehlersuche.

@@ -5,3 +5,5 @@ pdfplumber==0.11.7
 anthropic==0.116.0
 google-genai==2.10.0
 waitress==3.0.2
+# Verschlüsselt die geheimen Felder in settings.json (Fernet, siehe settings.py)
+cryptography==50.0.0

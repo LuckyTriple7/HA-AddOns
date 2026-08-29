@@ -10,6 +10,8 @@
   "error_locked": "Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.",
   "status_online": "Online",
   "status_offline": "Offline",
+  "status_problem": "Verbindungsproblem",
+  "status_problem_hint": "Add-on läuft, aber ist nicht mit {name} verbunden",
   "status_checking": "Prüfe...",
   "no_messengers": "Keine Messenger konfiguriert.",
   "offline_title": "Nicht erreichbar",
@@ -37,5 +39,8 @@
   "notif_new_msg_from": "von {sender}",
   "banner_offline_title": "Verbindung unterbrochen",
   "banner_offline_sub": "Stelle Verbindung wieder her…",
-  "banner_offline_reload": "Neu laden"
+  "banner_offline_reload": "Neu laden",
+  "status_warn": "Online – mit Einschränkung",
+  "status_warn_hint": "{name} ist verbunden, aber der Selbsttest meldet Änderungen beim Anbieter. Betroffen: {what}. Der Rest läuft weiter.",
+  "status_health_ok": "Verbunden – Selbsttest ohne Befund ({n} Bausteine, {s} Antwortformen geprüft)"
 }

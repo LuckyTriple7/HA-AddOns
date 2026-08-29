@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.22] - 2026-08-24
+
+### Changed
+- Rebuild für Claude Code 2.1.231
+
+
 ## [1.3.21] - 2026-08-17
 
 - Doku: Neue `LICENSE.md`: Claude Code ist proprietär (Anthropic PBC, „All rights reserved“), mbpoll steht unter der GPL-3.0, dazu die Alpine-Werkzeuge unter GPL und LGPL. Die Datei nennt alle Bestandteile mit Lizenz und Quelle und hält zwei offene Punkte fest — für Claude Code und `hab` ist keine Weitergabeerlaubnis erteilt

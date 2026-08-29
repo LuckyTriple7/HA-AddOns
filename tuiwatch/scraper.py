@@ -448,11 +448,25 @@ _LOCATION_BADGES: dict[int, tuple[str, frozenset]] = {
 }
 
 
+# Gleiches Prinzip für die „Ausstattung"-Badges: der Filter-Ausdruck aus
+# `_FACILITY_ATTRS` (`GT03#TUI-G0978`) taucht im hotelseitigen globalTypes-Katalog als
+# `GT03/TUI-G0978` auf. Live gegen die echte Such-API verifiziert (Kap Verde 88 und
+# Gran Canaria 128, je ungefiltert vs. `facilityAttributes=13`): ALLE Adults-only-Treffer
+# tragen den Code (34/34), und ungefiltert tragen ihn exakt die Hotels, die der Filter
+# auch liefert (Kap Verde: dieselben 5 von 37). Der naheliegende Code `GT03-ADON` ist
+# dafür NICHT zu gebrauchen: er fehlte bei 5 der 29 Adults-only-Hotels auf Gran Canaria.
+_FACILITY_BADGES: dict[int, tuple[str, frozenset]] = {
+    13: ("Nur Erwachsene", frozenset({"GT03/TUI-G0978"})),
+}
+
+
 def _location_labels(hotel_codes) -> list:
-    """Welche Lage-Badges (siehe `_LOCATION_BADGES`) für ein Hotel zutreffen,
-    anhand seiner globalTypes-Codes aus dem Suchtreffer."""
+    """Welche Lage- und Ausstattungs-Badges (siehe `_LOCATION_BADGES` /
+    `_FACILITY_BADGES`) für ein Hotel zutreffen, anhand seiner globalTypes-Codes aus
+    dem Suchtreffer."""
     codes = set(hotel_codes or [])
-    return [label for label, candidates in _LOCATION_BADGES.values()
+    return [label for label, candidates
+            in list(_LOCATION_BADGES.values()) + list(_FACILITY_BADGES.values())
             if codes & candidates]
 
 

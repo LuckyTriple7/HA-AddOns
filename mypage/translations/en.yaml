@@ -8,6 +8,28 @@ configuration:
   session_hours:
     name: Session duration
     description: Validity of the login session in hours.
+  ingress_trust_net:
+    name: Ingress network (special cases only)
+    description: >-
+      Leave empty. Via the Home Assistant panel (Ingress) HA has already
+      authenticated the user, so MyPage does not ask for its own login — but only
+      for requests coming from the supervisor network 172.30.32.0/23. If your
+      supervisor comes from a different network (e.g. HA Supervised on a custom
+      Docker network), the panel will ask for username and password; enter that
+      network here in CIDR notation (several separated by spaces). Only enter
+      networks that really belong to Home Assistant: anything coming from there
+      enters the admin without logging in.
+  trusted_proxies:
+    name: Trusted proxy networks
+    description: >-
+      Leave empty. MyPage takes the real visitor address from the headers
+      X-Forwarded-For, X-Real-IP and CF-Connecting-IP — but only when the
+      connection comes from a private address, i.e. from the reverse proxy, the
+      Cloudflare tunnel or the Docker gateway. On a direct connection the real
+      peer counts, otherwise anyone could claim any address and bypass the login
+      lockout. Networks entered here (CIDR, several separated by spaces) replace
+      that rule entirely: only they count as an intermediary — your own LAN no
+      longer does.
   github_token:
     name: GitHub token
     description: Optional token — raises the API limit for GitHub import and star updates.
@@ -32,6 +54,14 @@ configuration:
       are allowed but should match your own privacy policy. 0 = keep indefinitely
       (nothing is ever deleted). Cleanup runs at add-on start and when a new monthly
       file is created.
+  visit_bot_nets:
+    name: Additional bot networks
+    description: >-
+      Your own IP networks in CIDR notation (e.g. 194.180.48.0/24) whose requests
+      are counted as bots. The networks of the major cloud providers (AWS, Azure,
+      Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr,
+      Scaleway) are already built in — add only what bothers you beyond those.
+      Unusable entries are ignored.
   user_journal_max:
     name: Journal size per user
     description: How many events the journal keeps per user (20–1000, default 100).
@@ -79,6 +109,13 @@ configuration:
     description: >-
       Stores a daily backup in addon_configs/<slug>_mypage/autobackup/ and keeps the
       given number of the most recent ones. 0 disables automatic backups.
+  revision_keep:
+    name: Earlier versions to keep (count)
+    description: >-
+      Saves the previous state of the site content before every change in
+      addon_configs/<slug>_mypage/revisions/ and keeps the given number of the most recent
+      ones. Viewable and restorable in the admin under System → Earlier versions.
+      0 disables versions.
   smb_server:
     name: SMB server (optional)
     description: IP/hostname of an SMB share — member files are stored there instead of the SD card.

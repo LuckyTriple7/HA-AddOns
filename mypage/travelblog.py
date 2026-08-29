@@ -9,6 +9,7 @@ ausfüllen. Verpflichtend sind deshalb nur Datum und Reisetag — alles andere
 darf leer bleiben, und was leer ist, taucht im Prompt gar nicht erst auf.
 Sonst stünde dort „Wetter: —" und das Modell dichtet etwas dazu.
 """
+import re
 from datetime import date
 
 # ── Auswahllisten ────────────────────────────────────────────────────────────
@@ -16,8 +17,8 @@ from datetime import date
 # sie hier stehen, und wandern unverändert in den Prompt: das Modell versteht
 # „leicht bewölkt" besser als einen Schlüssel wie `partly_cloudy`.
 
-WEATHER_CONDITIONS = ('sonnig', 'leicht bewölkt', 'bewölkt', 'regnerisch',
-                      'wechselhaft', 'stürmisch')
+WEATHER_CONDITIONS = ('sonnig', 'leicht bewölkt', 'bewölkt', 'neblig', 'regnerisch',
+                      'Schneefall', 'wechselhaft', 'stürmisch')
 WIND_STRENGTHS = ('windstill', 'leicht', 'mäßig', 'stark', 'sehr stark')
 EXPERIENCE_TYPES = ('Ausflug', 'Strand', 'Pool', 'Sehenswürdigkeit', 'Spaziergang',
                     'Wanderung', 'Shopping', 'Restaurant', 'Café / Bar', 'Aktivität',
@@ -86,6 +87,13 @@ def _pick(value, allowed, default: str = '') -> str:
     return v if v in allowed else default
 
 
+def _entity(value) -> str:
+    """Entitäts-Id von Home Assistant. Der Wert wandert in eine Anfrage-URL —
+    hier wird deshalb streng geprüft statt nur gekürzt."""
+    text = _s(value, 80)
+    return text if re.fullmatch(r'weather\.[a-z0-9_]{1,64}', text) else ''
+
+
 def _rating(value):
     return _num(value, 1, 5, 0)
 
@@ -134,6 +142,10 @@ def normalize_trip(raw: dict, existing: dict | None = None) -> dict:
         'include_practical_info': bool(s.get('include_practical_info', True)),
         'include_ratings': bool(s.get('include_ratings', True)),
         'langs': [lg for lg in ('de', 'en') if lg in (s.get('langs') or ['de'])] or ['de'],
+        # Wetter-Entität aus Home Assistant, je Reise: das Ziel wechselt, und
+        # die Entität des Wohnorts hilft auf Kreta niemandem. Leer heißt: von
+        # Hand eintragen wie bisher.
+        'weather_entity': _entity(s.get('weather_entity')),
     }
     t.setdefault('days', [])
     return t
@@ -305,8 +317,13 @@ def _block(title: str, lines: list) -> str:
     return f"{title}\n" + '\n'.join(body) if body else ''
 
 
-def build_prompt(trip: dict, day: dict, previous: list | None = None) -> str:
-    """Baut den Prompt aus Reise und Tag. Leere Felder fallen komplett weg."""
+def build_prompt(trip: dict, day: dict, previous: list | None = None, *,
+                 include_style: bool = True) -> str:
+    """Baut den Prompt aus Reise und Tag. Leere Felder fallen komplett weg.
+
+    `include_style=False` lässt den Schreibstil weg — beim Überarbeiten steht er
+    schon im Auftrag, und der Zielumfang von dort widerspräche einem „länger".
+    """
     s = trip.get('settings') or {}
     parts = []
 
@@ -320,12 +337,13 @@ def build_prompt(trip: dict, day: dict, previous: list | None = None) -> str:
         f"Ort: {day.get('location')}" if day.get('location') else '',
     ]))
 
-    parts.append(_block('SCHREIBSTIL', [
-        f"Perspektive: {PERSPECTIVES.get(s.get('perspective'), PERSPECTIVES['wir'])}",
-        f"Stil: {WRITING_STYLES.get(s.get('writing_style'), WRITING_STYLES['persoenlich_locker'])}",
-        f"Zielumfang: rund {LENGTHS.get(s.get('length'), 700)} Wörter",
-        'Humor ist erwünscht, aber dezent.' if s.get('humor') else '',
-    ]))
+    if include_style:
+        parts.append(_block('SCHREIBSTIL', [
+            f"Perspektive: {PERSPECTIVES.get(s.get('perspective'), PERSPECTIVES['wir'])}",
+            f"Stil: {WRITING_STYLES.get(s.get('writing_style'), WRITING_STYLES['persoenlich_locker'])}",
+            f"Zielumfang: rund {LENGTHS.get(s.get('length'), 700)} Wörter",
+            'Humor ist erwünscht, aber dezent.' if s.get('humor') else '',
+        ]))
 
     w = day.get('weather') or {}
     if w.get('mention'):
@@ -451,3 +469,210 @@ SYSTEM_PROMPT = (
     "'tags' = drei bis fünf Schlagwörter; 'captions' = je Fotohinweis eine kurze "
     "Bildunterschrift, in derselben Reihenfolge."
 )
+
+
+# ── Überarbeiten ─────────────────────────────────────────────────────────────
+#
+# Gegenstück zum Erzeugen: Der Bericht steht schon, soll aber kürzer, länger,
+# sprachlich geglättet oder nach einem freien Wunsch geändert werden. Der Weg
+# über „nochmal erzeugen" wäre der falsche — er würfelt den Text neu und wirft
+# jede Handkorrektur weg, die nach dem ersten Lauf im Formular entstanden ist.
+
+REVISE_ACTIONS = ('shorter', 'longer', 'polish', 'custom')
+REVISE_NOTE_MAX = 500
+
+_REVISE_ACTION_DE = {
+    'shorter': ('Kürze den Bericht deutlich — etwa auf die Hälfte — ohne ein Erlebnis '
+                'ganz zu verlieren. Lieber Nebensächliches streichen als überall Wörter.'),
+    'longer':  ('Baue den Bericht aus — etwa auf das Anderthalbfache. Nutze dafür '
+                'ausschließlich die Angaben aus den Tagesdaten, die bisher knapp oder '
+                'gar nicht vorkommen. Keine Wiederholungen, keine Füllsätze.'),
+    'polish':  ('Feinschliff: Stil, Rhythmus und Übergänge verbessern, Wiederholungen '
+                'und Floskeln entfernen. Inhalt und Umfang bleiben, wie sie sind.'),
+    'custom':  'Setze den folgenden Änderungswunsch um, sonst bleibt alles erhalten.',
+}
+_LANG_DE = {'de': 'Deutsch', 'en': 'Englisch'}
+
+# Bei „länger" und einem freien Wunsch braucht das Modell die Tagesdaten: ohne
+# sie könnte es den Text nur durch Erfundenes ausbauen, und genau das verbietet
+# der Systemprompt. Beim Kürzen und beim Feinschliff sind die Daten dagegen
+# schädlich — sie laden dazu ein, Weggelassenes nachzutragen, obwohl der Umfang
+# gleich bleiben soll. Der vorhandene Text ist dort die einzige Quelle.
+_REVISE_NEEDS_DATA = ('longer', 'custom')
+
+REVISE_SYSTEM_PROMPT = (
+    "Du überarbeitest den Tagesbericht eines persönlichen Reiseblogs.\n"
+    "REGELN:\n"
+    "- Erfinde nichts dazu: keine Sehenswürdigkeiten, keine Öffnungszeiten, keine "
+    "Geschichte des Ortes, keine Zahlen, keine Namen. Was nicht im vorhandenen Text "
+    "oder in den mitgelieferten Tagesdaten steht, kommt auch in der neuen Fassung "
+    "nicht vor.\n"
+    "- Preise und Bewertungen exakt übernehmen.\n"
+    "- Stimme, Perspektive und Reihenfolge der Erlebnisse bleiben erhalten, soweit "
+    "der Auftrag nichts anderes verlangt.\n"
+    "- Nicht werblich, keine übertriebenen Superlative, keine Reiseführer-Floskeln.\n"
+    "- Antworte ausschließlich im vorgegebenen JSON-Schema.\n"
+    "FELDER: 'title' = Überschrift ohne Markdown-Zeichen; 'teaser' = Anrisstext, "
+    "höchstens 250 Zeichen; 'body' = der Bericht in Markdown, Zwischenüberschriften "
+    "ab '##'; 'tags' = drei bis fünf Schlagwörter; 'captions' = je Fotohinweis eine "
+    "kurze Bildunterschrift, in derselben Reihenfolge."
+)
+
+
+def build_revise_prompt(trip: dict, article: dict, langs: list[str], action: str,
+                        note: str = '', *, data_block: str = '',
+                        photo_notes: list | None = None, recap: bool = False) -> str:
+    """Auftrag fürs Überarbeiten. Zurück kommt die volle Fassung je Sprache —
+    kein Änderungsprotokoll, denn das Formular ersetzt seine Felder damit.
+
+    Derselbe Weg für den Tagesbericht und den Reise-Rückblick: was sich
+    unterscheidet, sind die Tagesdaten (`data_block`, nur wo neues Material
+    gebraucht wird) und die Bildunterschriften, die es nur beim Tag gibt.
+    """
+    s = trip.get('settings') or {}
+    what = ("Überarbeite den vorhandenen Reise-Rückblick." if recap
+            else "Überarbeite den vorhandenen Reisebericht.")
+    fields = ("Titel, Anrisstext, Fließtext und Schlagwörter" if recap else
+              "Titel, Anrisstext, Fließtext, Schlagwörter und Bildunterschriften")
+    parts = [
+        f"{what} Gib je Sprache die vollständige neue Fassung zurück — {fields}. "
+        "Keine Auflistung der Änderungen, kein Kommentar dazu.",
+        _REVISE_ACTION_DE.get(action, _REVISE_ACTION_DE['polish']),
+    ]
+    if note:
+        parts.append(f"Änderungswunsch:\n{note}")
+    parts.append(_block('SCHREIBSTIL', [
+        f"Perspektive: {PERSPECTIVES.get(s.get('perspective'), PERSPECTIVES['wir'])}",
+        f"Stil: {WRITING_STYLES.get(s.get('writing_style'), WRITING_STYLES['persoenlich_locker'])}",
+        'Humor ist erwünscht, aber dezent.' if s.get('humor') else '',
+    ]))
+    if len(langs) > 1:
+        parts.append("Beide Fassungen bleiben inhaltlich gleich und gleich lang.")
+    else:
+        parts.append("Sprache der Ausgabe: "
+                     + ("Deutsch." if langs[0] == 'de' else "Englisch."))
+
+    if data_block and action in _REVISE_NEEDS_DATA:
+        parts.append('QUELLDATEN (Quelle für Ergänzungen — sonst nichts)\n' + data_block)
+
+    noted = list(photo_notes or [])
+    caps = article.get('captions') or []
+    for lg in langs:
+        d = article.get(lg) or {}
+        lines = [f"Vorhandene Fassung ({_LANG_DE.get(lg, lg)}):",
+                 f"Titel: {d.get('title', '')}",
+                 f"Anrisstext: {d.get('teaser', '')}",
+                 f"Text:\n{d.get('body', '')}"]
+        for i, ph in enumerate(noted):
+            cap = (caps[i] or {}).get(lg, '') if i < len(caps) else ''
+            lines.append(f"Bildunterschrift {i + 1} zu „{ph}“: {cap}")
+        parts.append('\n'.join(lines))
+    parts.append('Schlagwörter: ' + ', '.join(article.get('tags') or []))
+    return '\n\n'.join(x for x in parts if x)
+
+
+# ── Reise-Rückblick ──────────────────────────────────────────────────────────
+#
+# Der Tagesbericht erzählt einen Tag. Was fehlte, war der Text über die Reise
+# als Ganzes — bisher ist die Reise-Seite nur eine Liste von Tagen. Der
+# Rückblick entsteht aus den fertigen Tagesberichten, nicht aus den Rohdaten:
+# was der Reisende an einem Tag wichtig fand, steht schon in dessen Text, und
+# ein zweites Mal alle Erlebnisse durchzugehen produzierte nur eine längere
+# Aufzählung derselben Dinge.
+
+RECAP_MAX_DAYS = 40     # so viele Tagesberichte gehen in den Prompt
+
+RECAP_SYSTEM_PROMPT = (
+    "Du bist der Autor eines persönlichen Reiseblogs und schreibst den Rückblick "
+    "auf eine ganze Reise — den Text, der über der Liste der einzelnen Tage steht.\n"
+    "REGELN:\n"
+    "- Verwende ausschließlich die gelieferten Angaben. Erfinde nichts dazu: keine "
+    "Orte, keine Zahlen, keine Namen, keine Geschichte der Region.\n"
+    "- Kein Tag-für-Tag-Protokoll — die einzelnen Tage stehen darunter und werden "
+    "verlinkt. Erzähle den Bogen der Reise: Ankommen, Höhepunkte, Rhythmus, Fazit.\n"
+    "- Höchstens zwei, drei Tage beim Namen nennen, und nur, wenn sie den Bogen "
+    "tragen.\n"
+    "- Preise und Bewertungen exakt übernehmen, wenn welche geliefert werden.\n"
+    "- Persönliche Eindrücke als Eindruck formulieren, nicht als Tatsache.\n"
+    "- Nicht werblich, keine übertriebenen Superlative, keine Reiseführer-Floskeln.\n"
+    "- Antworte ausschließlich im vorgegebenen JSON-Schema.\n"
+    "FELDER: 'title' = Überschrift ohne Markdown-Zeichen; 'teaser' = Anrisstext, "
+    "höchstens 250 Zeichen; 'body' = der Rückblick in Markdown mit Einstieg, "
+    "Höhepunkten und Fazit, Zwischenüberschriften ab '##'; 'tags' = drei bis fünf "
+    "Schlagwörter."
+)
+
+
+def normalize_recap(raw: dict) -> dict:
+    """Wie `normalize_article`, nur ohne Bildunterschriften — die gehören zu
+    einem Tag und seinen Fotos, nicht zur Reise."""
+    raw = raw if isinstance(raw, dict) else {}
+    out = {}
+    for lg in ('de', 'en'):
+        d = raw.get(lg) if isinstance(raw.get(lg), dict) else {}
+        out[lg] = {'title': _s(d.get('title'), 200),
+                   'teaser': _s(d.get('teaser'), 300),
+                   'body': _s(d.get('body'), 40000)}
+    tags = raw.get('tags') if isinstance(raw.get('tags'), list) else []
+    out['tags'] = [_s(t, 40) for t in tags[:8] if _s(t, 40)]
+    return out
+
+
+def trip_totals(trip: dict) -> dict:
+    """Ausgaben der ganzen Reise je Währung."""
+    totals: dict[str, float] = {}
+    for day in trip.get('days') or []:
+        for cur, amount in expense_total(day).items():
+            totals[cur] = round(totals.get(cur, 0) + amount, 2)
+    return totals
+
+
+def build_recap_prompt(trip: dict, days: list) -> str:
+    """Prompt für den Rückblick: die Reise-Eckdaten und je Tag der fertige
+    Bericht in Kurzform."""
+    s = trip.get('settings') or {}
+    parts = [_block('REISE', [
+        f"Reise: {trip.get('name')}" if trip.get('name') else '',
+        f"Reiseziel: {trip.get('destination')}" if trip.get('destination') else '',
+        f"Unterkunft: {trip.get('hotel')}" if trip.get('hotel') else '',
+        f"Zeitraum: {_fmt_date(trip.get('travel_start') or '')} bis "
+        f"{_fmt_date(trip.get('travel_end') or '')}"
+        if (trip.get('travel_start') and trip.get('travel_end')) else '',
+        f"Reisetage insgesamt: {len(days)}",
+    ])]
+
+    parts.append(_block('SCHREIBSTIL', [
+        f"Perspektive: {PERSPECTIVES.get(s.get('perspective'), PERSPECTIVES['wir'])}",
+        f"Stil: {WRITING_STYLES.get(s.get('writing_style'), WRITING_STYLES['persoenlich_locker'])}",
+        f"Zielumfang: rund {LENGTHS.get(s.get('length'), 700)} Wörter",
+        'Humor ist erwünscht, aber dezent.' if s.get('humor') else '',
+    ]))
+
+    # Je Tag: was der fertige Bericht als Titel und Anriss hat, dazu die eigene
+    # Einschätzung des Reisenden. Der volle Text aller Tage wäre bei einer
+    # Zwei-Wochen-Reise ein Prompt von 20 000 Wörtern und brächte nichts, was
+    # der Anriss nicht schon sagt.
+    for d in days[:RECAP_MAX_DAYS]:
+        # Deutsch ist die Fassung, in der auch der Prompt geschrieben ist. Gibt
+        # es sie nicht, ist die englische besser als gar kein Tag.
+        arts = d.get('article') or {}
+        art = (arts.get('de') or {}) if (arts.get('de') or {}).get('body') else (arts.get('en') or {})
+        p = d.get('personal') or {}
+        parts.append(_block(f"TAG {d.get('day_number')}", [
+            f"Datum: {_fmt_date(d.get('date') or '')}" if d.get('date') else '',
+            f"Ort: {d.get('location')}" if d.get('location') else '',
+            f"Titel: {art.get('title')}" if art.get('title') else '',
+            f"Anriss: {art.get('teaser')}" if art.get('teaser') else '',
+            f"Highlight: {p['day_highlight']}" if p.get('day_highlight') else '',
+            f"Nicht gefallen: {p['day_negative']}" if p.get('day_negative') else '',
+            f"Der Tag insgesamt: {p['day_summary']}" if p.get('day_summary') else '',
+            f"Bewertung: {p['overall_rating']} von 5"
+            if (p.get('overall_rating') and s.get('include_ratings', True)) else '',
+        ]))
+
+    if s.get('include_prices', True):
+        totals = trip_totals(trip)
+        parts.append(_block('AUSGABEN DER GANZEN REISE',
+                            [f'Summe: {_money(v, k)}' for k, v in totals.items()]))
+
+    return '\n\n'.join(x for x in parts if x)

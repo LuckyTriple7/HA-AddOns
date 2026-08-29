@@ -265,6 +265,45 @@ try:
 finally:
     vx.ROWS_MAX = _orig
 
+# ── Scanner-Erkennung ────────────────────────────────────────────────────────
+print('\nis_scanner_session')
+
+
+def ses(views=1, ref='', lang=''):
+    return {'views': views, 'ref': ref, 'lang': lang}
+
+
+check(vx.is_scanner_session(ses()), 'ein Aufruf ohne Referrer und Sprache ist Scanner')
+check(not vx.is_scanner_session(ses(lang='de-DE,de;q=0.9')),
+      'mit Sprachangabe bleibt die Sitzung stehen')
+check(not vx.is_scanner_session(ses(ref='https://www.google.com/')),
+      'mit Referrer bleibt die Sitzung stehen')
+check(not vx.is_scanner_session(ses(views=2)),
+      'zwei Aufrufe bleiben stehen')
+check(vx.is_scanner_session(ses(ref='  ', lang='  ')),
+      'nur Leerzeichen zaehlen als leer')
+kept, dropped = vx.drop_scanners([ses(), ses(lang='de'), ses()])
+check(len(kept) == 1 and dropped == 2, 'drop_scanners zaehlt die entfernten Sitzungen')
+
+
+# ── Rechenzentrums-Netze ─────────────────────────────────────────────────────
+print('\nis_datacenter_ip')
+
+check(vx.is_datacenter_ip('43.156.41.180'), 'Tencent-Adresse gilt als Rechenzentrum')
+check(vx.is_datacenter_ip('20.219.2.203'), 'Azure-Adresse gilt als Rechenzentrum')
+check(not vx.is_datacenter_ip('188.70.38.79'), 'Mobilfunk-Adresse bleibt Besucher')
+check(not vx.is_datacenter_ip(''), 'leere Adresse ist kein Rechenzentrum')
+check(not vx.is_datacenter_ip('kein-ip'), 'Unfug ist kein Rechenzentrum')
+
+vx.set_extra_bot_nets(['194.180.48.0/24', 'kaputt'])
+try:
+    check(vx.is_datacenter_ip('194.180.48.7'), 'Netz aus visit_bot_nets greift')
+    check(vx.is_datacenter_ip('43.156.41.180'), 'eingebaute Netze bleiben erhalten')
+    check(not vx.is_datacenter_ip('188.70.38.79'), 'kaputter Eintrag wird uebergangen')
+finally:
+    vx.set_extra_bot_nets([])
+check(not vx.is_datacenter_ip('194.180.48.7'), 'Zusatznetze lassen sich zuruecknehmen')
+
 print()
 if FAILS:
     print(f'{len(FAILS)} Test(s) fehlgeschlagen')

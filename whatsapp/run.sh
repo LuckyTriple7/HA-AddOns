@@ -11,10 +11,17 @@ export DOWNLOAD_MEDIA=$(jq -r 'if .download_media == true then "true" else "fals
 export MEDIA_MAX_MB=$(jq -r '.media_max_mb // 500' /data/options.json)
 export VIDEO_MAX_MB=$(jq -r '.video_max_mb // 50' /data/options.json)
 export DEBUG_MODE=$(jq -r 'if .debug_mode == true then "true" else "false" end' /data/options.json)
+export PRESENCE_MODE=$(jq -r '.presence_mode // "temporary"' /data/options.json)
+export PRESENCE_SCAN_MINUTES=$(jq -r '.presence_scan_minutes // 0' /data/options.json)
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
+export HA_NOTIFICATIONS_SKIP_GROUPS=$(jq -r 'if .ha_notifications_skip_groups == true then "true" else "false" end' /data/options.json)
 export SESSION_DIR=/config/session
 export PORT=17776
+# Zweiter Listener: nur /api/*, nur mit Token (siehe server.js)
+export API_PORT=17786
+export API_ENABLED=$(jq -r 'if .api_enabled == true then "true" else "false" end' /data/options.json)
+export API_TOKEN=$(jq -r '.api_token // ""' /data/options.json)
 
 mkdir -p "$SESSION_DIR"
 

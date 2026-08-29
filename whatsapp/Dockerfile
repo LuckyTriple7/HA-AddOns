@@ -1,4 +1,4 @@
-FROM node:lts-alpine
+FROM node:24-alpine
 
 LABEL org.opencontainers.image.title="WhatsApp for Home Assistant"
 LABEL org.opencontainers.image.description="WhatsApp Web with REST API and webhook support"
@@ -23,8 +23,8 @@ ENV CHROMIUM_PATH=/usr/bin/chromium-browser
 
 WORKDIR /app
 
-COPY package.json .
-RUN npm install --omit=dev --no-fund --no-audit
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-fund --no-audit
 
 COPY server.js .
 COPY run.sh /run.sh

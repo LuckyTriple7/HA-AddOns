@@ -297,6 +297,17 @@
       animation: pulse-dot 2.5s ease-in-out infinite;
     }
     .status-dot.offline { background: #ef4444; }
+    .status-dot.degraded {
+      background: #f59e0b;
+      box-shadow: 0 0 6px rgba(245,158,11,.6);
+      animation: pulse-dot 2.5s ease-in-out infinite;
+    }
+    .status-dot.warn {
+      background: #f59e0b;
+      box-shadow: 0 0 0 2px rgba(245,158,11,.35);
+    }
+    .card-status.is-degraded { color: #f59e0b; }
+    .card-status.is-warn { color: #f59e0b; }
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; }
       50%       { opacity: .45; }
@@ -508,6 +519,11 @@
     const TYPE_ICONS    = { text: '💬', photo: '🖼️', document: '📄', voice: '🎙️', video: '📹', location: '📍' };
     const T_ONLINE      = {{ t.status_online | tojson }};
     const T_OFFLINE  = {{ t.status_offline | tojson }};
+    const T_PROBLEM  = {{ t.status_problem | tojson }};
+    const T_PROBLEM_HINT = {{ t.status_problem_hint | tojson }};
+    const T_WARN         = {{ t.status_warn | tojson }};
+    const T_WARN_HINT    = {{ t.status_warn_hint | tojson }};
+    const T_HEALTH_OK    = {{ t.status_health_ok | tojson }};
     const T_CHECKING   = {{ t.status_checking | tojson }};
     const STATUS_URL   = {{ url_for('status') | tojson }};
 
@@ -530,6 +546,7 @@
     const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
     const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
     const LOGS_URL       = {{ url_for('api_logs') | tojson }};
+    const MARK_READ_URL  = {{ url_for('api_mark_read') | tojson }};
 
     const PAGE_LOAD_TIME  = Date.now();
     let prevLastReceived  = null; // null = erster Poll, danach Map icon→timestamp
@@ -552,11 +569,34 @@
           if (!el) return;
           const dot  = el.querySelector('.status-dot');
           const text = el.querySelector('.status-text');
-          dot.className    = 'status-dot ' + (m.reachable ? 'online' : 'offline');
-          text.textContent = m.reachable ? T_ONLINE : T_OFFLINE;
+          const state = m.state || (m.reachable ? 'online' : 'offline');
+          dot.className    = 'status-dot ' + state;
+          text.textContent = state === 'online' ? T_ONLINE
+                           : state === 'warn' ? T_WARN
+                           : state === 'degraded' ? T_PROBLEM : T_OFFLINE;
+          el.classList.toggle('is-degraded', state === 'degraded');
+          el.classList.toggle('is-warn', state === 'warn');
+          if (state === 'degraded') {
+            const hint   = T_PROBLEM_HINT.replace('{name}', m.name || m.icon);
+            const reason = m.detail || m.addon_status || '';
+            el.title = reason ? hint + ' (' + reason + ')' : hint;
+          } else if (state === 'warn') {
+            // Verbindung steht, aber der Selbsttest des Add-ons meldet Aenderungen
+            const was = (m.health && m.health.affected || []).join(', ') || m.detail || '';
+            el.title = T_WARN_HINT.replace('{name}', m.name || m.icon).replace('{what}', was);
+          } else if (state === 'online' && m.health && m.health.ok) {
+            // Gruen heisst hier mehr als "Port offen": der Selbsttest war sauber
+            el.title = T_HEALTH_OK
+              .replace('{n}', m.health.checked || 0)
+              .replace('{s}', m.health.checked_shape || 0);
+          } else {
+            el.removeAttribute('title');
+          }
 
           const cardEl = document.querySelector('.card[data-icon="' + m.icon + '"]');
-          if (cardEl) cardEl.classList.toggle('is-offline', !m.reachable);
+          // Nur wirklich unerreichbare Karten sperren — bei 'degraded' braucht der
+          // Nutzer die Oberfläche, um neu zu verbinden.
+          if (cardEl) cardEl.classList.toggle('is-offline', state === 'offline');
 
           const msgEl = document.getElementById('last-msg-' + m.icon);
           if (!msgEl) return;
@@ -586,7 +626,11 @@
             // Benachrichtigung: wenn Timestamp gestiegen und Nachricht ungelesen
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
             if (card) {
-              const lastOpened = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
+              // Serverstand ist geraeteuebergreifend, localStorage nur Fallback
+              // fuer den Klick, dessen POST noch nicht durch ist.
+              const localOpened  = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
+              const serverOpened = parseInt(m.last_opened || 0);
+              const lastOpened   = Math.max(localOpened, serverOpened);
               const isNew = lastReceived > lastOpened;
               if (isNew) {
                 const shouldNotify = prevLastReceived !== null
@@ -622,11 +666,23 @@
     window.addEventListener('online', () => { _offlineFails = 0; updateStatus(); });
     window.addEventListener('offline', () => showOfflineBanner());
 
+    // Gelesen-Stand auf dem Server setzen, damit alle Geraete ihn sehen.
+    // sendBeacon ueberlebt den Seitenwechsel beim Oeffnen des Messengers.
+    function markRead(icon) {
+      if (!icon) return;
+      localStorage.setItem('mp-last-' + icon, Date.now());
+      const body = new URLSearchParams({ icon: icon });
+      try {
+        if (navigator.sendBeacon && navigator.sendBeacon(MARK_READ_URL, body)) return;
+      } catch (e) {}
+      fetch(MARK_READ_URL, { method: 'POST', body: body, keepalive: true }).catch(() => {});
+    }
+
     // On click: mark as opened, remove glow – blockiert wenn offline
     document.querySelectorAll('.card[data-icon]').forEach(card => {
       card.addEventListener('click', (e) => {
         if (card.classList.contains('is-offline')) { e.preventDefault(); return; }
-        localStorage.setItem('mp-last-' + card.dataset.icon, Date.now());
+        markRead(card.dataset.icon);
         card.classList.remove('has-new');
       });
     });
@@ -800,6 +856,16 @@
     #mp-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
     #mp-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
     #mp-console-close:hover{color:#f85149;}
+    #mp-console-filter{display:flex;align-items:center;gap:4px;padding:4px 8px;background:#0f1319;border-bottom:1px solid #30363d;flex-shrink:0;flex-wrap:wrap;}
+    #mp-console-filter button{background:none;border:1px solid #30363d;color:#6e7681;font:inherit;font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;letter-spacing:.04em;}
+    #mp-console-filter button:hover{border-color:#6e7681;}
+    #mp-console-filter button.on[data-lvl=ERROR]{color:#f85149;border-color:#f85149;}
+    #mp-console-filter button.on[data-lvl=WARNING]{color:#d29922;border-color:#d29922;}
+    #mp-console-filter button.on[data-lvl=INFO]{color:#3fb950;border-color:#3fb950;}
+    #mp-console-filter button.on[data-lvl=DEBUG]{color:#8b949e;border-color:#8b949e;}
+    #mp-console-search{flex:1;min-width:70px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;font:inherit;font-size:10px;padding:2px 6px;border-radius:4px;}
+    #mp-console-search:focus{outline:none;border-color:#6e7681;}
+    #mp-console-count{color:#6e7681;font-size:10px;white-space:nowrap;}
     #mp-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
     #mp-console-body::-webkit-scrollbar{width:5px;}#mp-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
     .mpc-info{color:#3fb950;}.mpc-warn{color:#d29922;}.mpc-error{color:#f85149;}.mpc-debug{color:#6e7681;}
@@ -809,6 +875,14 @@
     <div id="mp-console-header">
       <span id="mp-console-title">⬛ CONSOLE — MessengerPortal · Flask</span>
       <button id="mp-console-close" onclick="mpConsoleToggle()">✕</button>
+    </div>
+    <div id="mp-console-filter">
+      <button data-lvl="ERROR" class="on">ERROR</button>
+      <button data-lvl="WARNING" class="on">WARN</button>
+      <button data-lvl="INFO" class="on">INFO</button>
+      <button data-lvl="DEBUG" class="on">DEBUG</button>
+      <input id="mp-console-search" type="text" placeholder="Text filtern…">
+      <span id="mp-console-count"></span>
     </div>
     <div id="mp-console-body"></div>
   </div>
@@ -844,17 +918,67 @@
       // Zustand wiederherstellen
       try{if(localStorage.getItem('mp-console-open')==='1')setTimeout(function(){_setOpen(true);},100);}catch(e){}
       function _cls(l){return l==='WARNING'||l==='WARN'?'mpc-warn':l==='ERROR'||l==='CRITICAL'?'mpc-error':l==='DEBUG'?'mpc-debug':'mpc-info';}
+
+      // Alle Zeilen aufheben, damit ein Filterwechsel auch auf bereits
+      // eingetroffene Meldungen wirkt und nicht erst auf die naechsten
+      var _all=[],_MAXKEEP=1500;
+      var _levels={ERROR:true,WARNING:true,INFO:true,DEBUG:true};
+      try{
+        var saved=JSON.parse(localStorage.getItem('mp_console_levels')||'null');
+        if(saved)['ERROR','WARNING','INFO','DEBUG'].forEach(function(l){if(l in saved)_levels[l]=!!saved[l];});
+      }catch(e){}
+      var _search='';
+      var searchEl=document.getElementById('mp-console-search');
+      var countEl=document.getElementById('mp-console-count');
+
+      // Python kennt WARNING und CRITICAL — auf die vier Schalter abbilden
+      function _bucket(l){
+        if(l==='WARN')return 'WARNING';
+        if(l==='CRITICAL')return 'ERROR';
+        return (l==='ERROR'||l==='WARNING'||l==='DEBUG')?l:'INFO';
+      }
+      function _matches(e){
+        if(!_levels[_bucket(e.level)])return false;
+        if(_search&&e.msg.toLowerCase().indexOf(_search)<0)return false;
+        return true;
+      }
+      function _render(){
+        var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+        body.textContent='';
+        var shown=0;
+        _all.forEach(function(e){
+          if(!_matches(e))return;
+          shown++;
+          var line=document.createElement('div');
+          line.className=_cls(e.level);
+          line.textContent=e.msg;
+          body.appendChild(line);
+        });
+        countEl.textContent=shown+'/'+_all.length;
+        if(atBottom)body.scrollTop=body.scrollHeight;
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('#mp-console-filter button'),function(btn){
+        var lvl=btn.dataset.lvl;
+        btn.classList.toggle('on',!!_levels[lvl]);
+        btn.addEventListener('click',function(){
+          _levels[lvl]=!_levels[lvl];
+          btn.classList.toggle('on',_levels[lvl]);
+          try{localStorage.setItem('mp_console_levels',JSON.stringify(_levels));}catch(e){}
+          _render();
+        });
+      });
+      searchEl.addEventListener('input',function(){_search=searchEl.value.trim().toLowerCase();_render();});
+
       async function _poll(){
         try{
           var entries=await fetch(LOGS_URL+'?since='+_lastTs).then(function(r){return r.json();});
           if(!entries.length)return;
-          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
           entries.forEach(function(e){
             _lastTs=Math.max(_lastTs,e.ts);
-            var line=document.createElement('div');line.className=_cls(e.level);line.textContent=e.msg;body.appendChild(line);
+            _all.push(e);
           });
-          if(atBottom)body.scrollTop=body.scrollHeight;
-          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+          if(_all.length>_MAXKEEP)_all.splice(0,_all.length-_MAXKEEP);
+          _render();
         }catch(e){}
       }
     })();

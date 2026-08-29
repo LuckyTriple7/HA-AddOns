@@ -2,16 +2,51 @@
 
 ## Konfiguration
 
+Seit **0.11.0** pflegst du fast alles im Admin-Panel unter **Einstellungen** — nicht mehr in den Add-on-Optionen. Vorteile: Es funktioniert genauso, wenn MyPage [ohne Home Assistant](STANDALONE.md) unter Docker läuft, und Tokens sowie Passwörter liegen **verschlüsselt** in `settings.json` statt im Klartext in `options.json`.
+
+Beim ersten Start nach dem Update übernimmt MyPage die bisherigen Optionen automatisch in `settings.json` — du musst nichts abtippen.
+
+### Add-on-Optionen (Home Assistant)
+
+Hier stehen nur noch die Login-Daten. Sie bleiben bewusst in Home Assistant: Damit kommst du auch dann wieder ins Admin-Panel, wenn du dich über die Oberfläche aussperrst.
+
 | Option | Beschreibung |
 |---|---|
 | `username` | Benutzername für das Admin-Panel (Direktzugriff über Port 17761) |
 | `password` | Passwort für das Admin-Panel — **unbedingt ändern!** |
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
+
+Die übrigen Optionen sind seit **0.11.2** aus dem Schema entfernt und tauchen in der HA-Konfigurationsseite nicht mehr auf. Beim Update von 0.11.0/0.11.1 wurden ihre Werte bereits einmalig nach `settings.json` übernommen.
+
+### Reiter „Einstellungen" (Admin-Panel)
+
+Zu erreichen über das **Zahnrad** rechts oben in der Kopfzeile, neben Sprachwahl und Design-Umschalter.
+
+Gespeichert wird in `settings.json` im Add-on-Konfigurationsordner. Geheime Felder (GitHub-Token, SMTP-Passwort, Telegram-Token, SMB-Passwort, Gemini-Keys) werden mit `settings.key` verschlüsselt, im Browser nie angezeigt (nur „gesetzt"/„nicht gesetzt") und im Protokoll nur als Feldname geführt.
+
+Der **Schlüssel liegt seit 0.11.4 nicht mehr im Konfigurationsordner**, sondern im privaten Add-on-Verzeichnis (`/data`, dort wo Home Assistant auch `options.json` hält). Grund: Der Konfigurationsordner ist über den Samba-Share einsehbar — lägen `settings.json` und `settings.key` dort nebeneinander, könnte jeder mit Share-Zugriff die Zugangsdaten entschlüsseln. Ein vorhandener Schlüssel wird beim ersten Start automatisch verschoben. Im [Standalone-Betrieb](STANDALONE.md) bleibt er bei den Daten, weil `/data` dort nur containerintern und nach einem Neuaufbau weg wäre.
+
+* **Leeres Geheimfeld heißt „unverändert lassen"** — zum Entfernen den Knopf **Löschen** benutzen.
+* Das MyPage-Backup enthält `settings.json`, aber **nicht** `settings.key`. Ein Backup verrät die Zugangsdaten also nicht. Damit ein Restore auf einer **frischen** Installation trotzdem gelingt, gibt es den Schlüssel-Export (siehe unten).
+
+#### Schlüssel sichern
+
+Im Reiter **Einstellungen** ganz unten. Der Export verpackt `settings.key` mit einer **Passphrase**, die du eingibst — die Datei darf deshalb neben dem Backup liegen, ohne Passphrase ist sie wertlos (scrypt zur Ableitung, 32 MB Speicher je Rateversuch).
+
+* Vor Export **und** Import fragt MyPage das **Admin-Passwort** erneut ab, bei aktivem 2FA zusätzlich den Code. Nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt; jeder Vorgang steht im Audit-Log.
+* Die Passphrase wird nirgends gespeichert, auch nicht als Hash. Geht sie verloren, ist der Export wertlos — dann bleibt nur, die Zugangsdaten neu einzutragen.
+* Beim Einspielen auf einer frischen Installation läuft der Import ohne Rückfrage durch. Liegt dagegen schon ein **anderer** Schlüssel mit nutzbaren Daten, kommt eine Warnung: Ersetzen macht die damit verschlüsselten Zugangsdaten unwiderruflich unlesbar.
+* Nach dem Import meldet MyPage, wie viele Felder wieder lesbar sind.
+* SMB-Felder greifen sofort, wenn beim Start schon eine Freigabe eingerichtet war — sonst erst nach einem Neustart des Add-ons (die Oberfläche sagt es).
+
+| Einstellung | Beschreibung |
+|---|---|
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
 | `translate_email` | Optional: E-Mail für die DE↔EN-Auto-Übersetzung (MyMemory) — erhöht das kostenlose Tageslimit |
 | `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder/Top-Seiten werden daraus berechnet. Die **Liste im Admin zeigt immer höchstens die neuesten 500 Einträge**, auch bei größerem Wert; die übrigen fließen weiter in die Auswertungen |
 | `visit_file_log` | Schreibt jeden Aufruf zusätzlich dauerhaft als CSV nach `addon_configs/XXX_mypage/visits/` (Standard: aus). Lässt sich alternativ im Admin-Reiter **Explorer** einschalten |
 | `visit_file_keep` | Wie viele Monatsdateien des Besucher-Archivs behalten werden (0–120, Standard **1**; `0` = unbegrenzt). Das Archiv enthält ungekürzte IP-Adressen — höhere Werte sollten zur eigenen Datenschutzerklärung passen |
+| `visit_bot_nets` | Optional: eigene IP-Netze in CIDR-Schreibweise (z. B. `194.180.48.0/24`), die zusätzlich zu den eingebauten Cloud-Netzen als Bot gelten |
 | `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
 | `geoip_offline` | Länder-Erkennung über eine lokale IP-Tabelle (Standard: an, keine Besucher-IP verlässt das Add-on) |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
@@ -25,6 +60,7 @@
 | `smtp_tls` | `true` für Port 587 (STARTTLS), `false` für Port 465 (SSL) |
 | `user_upload_max_mb` | Maximale Größe pro hochgeladener Datei im Mitglieder-Bereich in MB (1–4096, Standard 200) |
 | `auto_backup_keep` | Anzahl automatischer Tages-Backups, die aufbewahrt werden (0–60, Standard 7). `0` schaltet die automatischen Backups ab |
+| `revision_keep` | Anzahl früherer Stände der Seiteninhalte, die aufbewahrt werden (0–100, Standard 20). `0` schaltet die Stände ab |
 | `smb_server` | Optional: Adresse des SMB-/CIFS-Servers für den Mitglieder-Speicher (z. B. FritzBox-NAS). Leer = lokaler Speicher im Add-on-Config-Ordner |
 | `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
 | `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
@@ -40,6 +76,14 @@
 | `17761` | Admin-Panel — Login-geschützt, möglichst nicht öffentlich freigeben |
 
 Über die HA-Seitenleiste (Ingress) ist das Admin-Panel ohne zusätzlichen Login erreichbar — die Authentifizierung übernimmt dann Home Assistant.
+
+**Woran MyPage den Ingress-Weg erkennt** (seit 0.11.29): an der **Absenderadresse** der Anfrage. Als Ingress gilt nur, was aus dem Supervisor-Netz `172.30.32.0/23` kommt. Vorher genügte dafür die Kopfzeile `X-Ingress-Path`, und die kann jeder mitschicken, der Port 17761 erreicht — damit war der Login zu umgehen. Geprüft wird vor der Auswertung von `X-Forwarded-For`, eine gefälschte Weiterleitungskette hilft also nicht.
+
+- Kommt der Supervisor bei dir aus einem anderen Netz (etwa HA Supervised in einem eigenen Docker-Netz), fragt das Panel nach Benutzername und Passwort. Dann das Netz in der Option **`ingress_trust_net`** eintragen (CIDR, mehrere durch Leerzeichen). Nur Netze eintragen, die wirklich zu Home Assistant gehören — wer von dort kommt, betritt den Admin ohne Anmeldung.
+- Abgewiesene Ingress-Kopfzeilen stehen mit Adresse im Protokoll (System → Protokoll), je Adresse höchstens stündlich.
+
+**Besucheradresse und Weiterleitungs-Kopfzeilen** (seit 0.11.30): `X-Forwarded-For`, `X-Real-IP` und `CF-Connecting-IP` werden nur ausgewertet, wenn die Verbindung aus einem **privaten** Netz kommt — dort steht in jedem realen Aufbau der Reverse Proxy, der Cloudflare-Tunnel oder das Docker-Gateway. Bei einer direkten Verbindung zählt die echte Gegenstelle: Sonst könnte sich jeder eine beliebige Adresse geben, und die Login-Sperre zählt je Adresse. Mit der Option `trusted_proxies` lässt sich das auf bestimmte Netze eingrenzen. Zusätzlich sperrt MyPage die **Verbindung selbst** nach 20 Fehlversuchen in zehn Minuten — auch dann, wenn die gemeldete Adresse jedes Mal eine andere ist.
+- **Wer den Admin ausschließlich über das HA-Panel benutzt, kann die Portfreigabe `17761` in der Add-on-Konfiguration streichen.** Dann ist der direkte Weg gar nicht vorhanden — die wirksamste Absicherung überhaupt.
 
 ## Admin-Panel
 
@@ -70,7 +114,7 @@ Verfügbare Bereiche:
   - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle **Album- und Bibliothek-Bilder** ein und deaktiviert in den Alben Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil. Siehe auch [Kennzeichnung von KI-Bildern](#kennzeichnung-von-ki-bildern).
 
 ### Markdown-Editor
-Alle Markdown-Textfelder (Blog-Beiträge, eigene Seiten, Bibliothek-Einträge, Projekt-Details, Bio, Newsletter, Formular-Einleitung & -Danke-Text, Tipps, FAQ-Antworten, Wartungsmodus-Text, Login-Nachricht je Benutzer, Standort-Öffnungszeiten) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen — dann öffnet sich der **Medien-Browser** mit allen bereits hochgeladenen Bildern (siehe [Bilder](#bilder)), aus dem heraus sich auch ein neues hochladen lässt (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
+Alle Markdown-Textfelder (Blog-Beiträge, eigene Seiten, Bibliothek-Einträge und -Einleitung, Projekt-Details, Bio, Freitext-Abschnitt, Newsletter, Formular-Einleitung & -Danke-Text, Tipps, FAQ-Antworten, Impressum & Datenschutz, Wartungsmodus-Text, Login-Nachricht je Benutzer, Standort-Öffnungszeiten, KI-Textausgabe) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen — dann öffnet sich der **Medien-Browser** mit allen bereits hochgeladenen Bildern (siehe [Bilder](#bilder)), aus dem heraus sich auch ein neues hochladen lässt (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt. Ob ein Feld den Editor bekommt, steht am Feld selbst — neue Wiederholfelder (FAQ, Tipps) bekommen ihn beim Anlegen der Zeile automatisch.
 
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
@@ -89,6 +133,7 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 - **Schlagwörter (Tags)**: Pro Beitrag bis zu 8 Tags (komma-getrennt). Auf der Blog-Seite gibt es **Tag-Filter-Chips**; auf jeder Beitragsseite verlinken die Tags zur gefilterten Ansicht.
 - **Ähnliche Beiträge**: Unter jedem Beitrag erscheinen bis zu drei verwandte Beiträge, ermittelt über **gemeinsame Schlagwörter** (sortiert nach Anzahl gemeinsamer Tags und Datum). Ohne Tags oder ohne Verwandte bleibt der Block aus; bei Mitglieder-only-Anrissen wird nichts angezeigt.
 - **Aufrufe je Beitrag**: Jeder Blog-Beitrag zählt seine Aufrufe (ohne Bots). Die Zahl steht im Admin in der Beitragsliste und erscheint dezent (👁) auf der Beitragsseite. Die Zähler liegen in `stats.json` (im Backup).
+- **Blättern**: Die Übersicht zeigt **10 Beiträge je Seite**; darunter steht eine Blätterleiste (Zurück/Weiter plus Seitenzahlen, bei vielen Seiten mit Auslassung). Suche und Tag-Filter wandern beim Blättern mit. Eine Seitenzahl jenseits des Bestandes ergibt eine 404-Seite. **Sitemap und RSS-Feed führen weiterhin alle Beiträge** — die Begrenzung gilt nur für die Anzeige.
 - **Suche**: Ein Suchfeld auf `/blog` durchsucht Titel, Text und Tags (DE+EN). Suche und Tag-Filter lassen sich kombinieren. Entwürfe und geplante Beiträge bleiben außen vor.
 - **Newsletter / Blog-Abo** (im Design-Tab aktivierbar, Standard aus): Auf der Blog-Seite erscheint ein Abo-Feld. Besucher tragen ihre E-Mail ein und bestätigen das Abo per Link (**Double-Opt-in**). Im Blog-Tab schreibst du dann eine Nachricht (Betreff + Markdown) und sendest sie per Klick an alle **bestätigten** Abonnenten — jede Mail enthält einen **Abmelde-Link**. Du siehst die Abonnentenzahl und kannst einzelne entfernen. Schutz: Honeypot + Rate-Limit, keine E-Mail-Enumeration. Benötigt SMTP + öffentliche URL; die Liste liegt in `subscribers.json` (im Backup).
 - **Teilen-Buttons** (im Design-Tab über „Teilen-Buttons" aktivierbar, Standard aus): Unter jedem Beitrag **und auf Projekt-Detailseiten** erscheinen Buttons zum Teilen via **WhatsApp, X, Facebook, LinkedIn, E-Mail** sowie **Link kopieren** (und auf Mobilgeräten der native Teilen-Dialog). Reine Links — kein Tracking-Skript, es wird nichts nachgeladen.
@@ -175,14 +220,27 @@ Der Tab bündelt alles, was mit Google Gemini erzeugt wird. Ohne `gemini_api_key
   - **Warum ein zweiter Schlüssel:** der Gemini-Key aus AI Studio ist auf die Generative Language API beschränkt und wird vom Preiskatalog mit `API_KEY_SERVICE_BLOCKED` abgewiesen. Der zweite Schlüssel muss aus einem Google-Cloud-Projekt stammen, in dem die **Cloud Billing API** freigeschaltet ist. Fehlt er, bleibt der Knopf weg und du pflegst die Preise von Hand — für die üblichen Modelle sind sie ohnehin hinterlegt.
   - **Es bleibt eine Schätzung.** Maßgeblich ist die Abrechnung bei Google — Freikontingente, Rundungen und Preisänderungen kennt das Add-on nicht. Ein Zugriff auf die echten Kosten ist mit dem Gemini-Key nicht möglich: der berechtigt nur zum Modellaufruf, Abrechnungsdaten liegen hinter der Cloud Billing API mit eigenem Dienstkonto und hinken ohnehin Stunden hinterher. Der Link neben der Überschrift führt direkt zur Abrechnungsseite.
 
+### Tab System im Überblick
+Der Reiter ist in **sechs Gruppen** geteilt: *Zustand & Diagnose* (Systemzustand, Protokoll, Admin-Protokoll), *Dateien & Speicher* (Dateien, Alternativtexte, Aufräumen), *Datensicherung* (Backup, automatische Backups, frühere Stände), *Adressen* (404-Liste, Weiterleitungen), *Betrieb* (Wartungsmodus, statischer Export, HA-Sensoren) und *Zugang* (2FA, GitHub-Token). Die Sprungleiste oben springt zu den Gruppen.
+
+- Jeder Bereich ist **zusammengeklappt**; in der Kopfzeile steht, was drinliegt („108 Einträge", „12 Bilder, davon 11 ohne Text"). Welche Bereiche offen sind, merkt sich der Browser (`localStorage`, pro Gerät).
+- Offen ist voreingestellt nur der **Systemzustand**. Der **Wartungsmodus** klappt sich selbst auf, solange er aktiv ist — eine abgeschaltete Website gehört nicht hinter eine zugeklappte Überschrift.
+- **Geladen wird erst beim Aufklappen.** Das Öffnen des Reiters kostet einen einzigen Aufruf (die Zustandsanzeige, die zugleich alle Zahlen der Kopfzeilen mitbringt). Auch die GitHub-Abfrage läuft erst, wenn du den Bereich *GitHub-Token* öffnest.
+
 ### Dateien (Tab System)
 Ein Browser über **alle hochgeladenen Bilder** und die **PDFs der Bibliothek** — gedacht zum Aufräumen und Nachsehen, was eigentlich alles herumliegt.
 
 - Der Abschnitt ist **zusammengeklappt**; in der Zeile steht die Bilanz („91 Bilder, 4 PDFs"). Ein Klick auf die Überschrift öffnet ihn. Die Kacheln werden erst dabei gebaut — bei einigen hundert Bildern lädt der Tab System sonst jedes Mal alles mit.
-- **Linksklick** öffnet die Datei in einem neuen Tab. PDFs werden dabei **inline** angezeigt (mit `sandbox` und `nosniff`), anders als öffentlich — dort gibt es sie ausschließlich als Download.
+- **Suchen**: Das Suchfeld über dem Raster durchsucht **Herkunftsname, Etiketten, Alternativtexte, Fundstellen und den Dateinamen** — alle eingegebenen Wörter müssen vorkommen. Dazu zwei Haken: **nur KI-erzeugte** und **nur unbenutzte**. Sind Etiketten vergeben, steht darunter eine Leiste; ein Klick darauf grenzt ein, ein zweiter hebt es wieder auf.
+- **Ordner** (nur im Admin, rein zur Übersicht): Ein Bild liegt in **genau einem** Ordner, trägt aber **beliebig viele** Etiketten — der Ordner sagt, wo es liegt, das Etikett, was drauf ist. Über dem Raster steht eine Leiste mit *Alle*, *Unsortiert* und den vorhandenen Ordnern samt Anzahl. Eine Ebene, keine Unterordner; ein `/` im Namen wird zum Leerzeichen, damit kein Pfad vorgetäuscht wird, den es nicht gibt.
+  - **Einsortieren**: Oben rechts auf jeder Kachel sitzt ein **Auswahlkästchen**. Ein Klick darauf wählt aus (Klick daneben öffnet weiterhin den Dialog); ist mindestens eine Kachel gewählt, erscheint die Leiste *„n ausgewählt → Verschieben nach …"* mit den vorhandenen Ordnern und **Neuer Ordner …**. Einzeln geht es auch im Dialog *Datei verwalten*.
+  - **Im Dateisystem wandert nichts.** Der Ordner ist eine Angabe in `uploads_meta.json` (im Backup enthalten). Ein echtes Verschieben würde jede Einbindung und jede bereits veröffentlichte Bildadresse zerreißen.
+- **Linksklick auf ein Bild** öffnet den Dialog **Datei verwalten**: Vorschau, Herkunftsname, Etiketten, Größe und Datum, die Liste **„Verwendet in"** mit Sprunglinks — und die Knöpfe *Datei öffnen*, *Ersetzen* und *Speichern*. Bei PDFs bleibt es beim Öffnen in einem neuen Tab; sie werden dabei **inline** angezeigt (mit `sandbox` und `nosniff`), anders als öffentlich — dort gibt es sie ausschließlich als Download.
+- **Herkunftsname und Etiketten** dienen allein dem Wiederfinden. Abgelegt bleibt jede Datei unter ihrer zufälligen Kennung: der Dateiname steckt in jeder Einbindung und in bereits veröffentlichten Adressen, ein Umbenennen im Dateisystem würde sie alle zerreißen. Neu hochgeladene Dateien merken sich ihren Herkunftsnamen von selbst; bei älteren ist das Feld leer und lässt sich von Hand füllen.
+- **Ersetzen** tauscht den Inhalt aus und behält den Namen — jede Einbindung in Beiträgen, Seiten, Alben und im Reiseblog zeigt danach ohne weiteres Zutun auf das neue Bild. Das geht nur bei WebP-Dateien (also allem, was das Add-on selbst abgelegt hat), und die KI-Kennzeichnung bleibt erhalten, weil sie im Dateinamen steckt. **Browser zeigen die alte Fassung unter Umständen bis zu einen Tag weiter** — sie liegt unter derselben Adresse in ihrem Zwischenspeicher; Strg+Shift+R hilft.
 - **Rechtsklick löscht**, nach Nachfrage. Das Löschen liegt bewusst auf dem Kontextmenü: ein Fehlklick in einem Raster aus hunderten Kacheln darf keine Datei kosten.
 - **Eingebundene Dateien lassen sich nicht löschen.** Steckt der Dateiname noch in `site.json`, verweigert das Add-on den Vorgang — sonst reisst der betroffene Beitrag oder Eintrag ein Loch. Die Plakette „unbenutzt“ zeigt vorab, was gefahrlos weg kann.
-- Die Kachel eines **KI-Bildes** trägt ✨; die Kennzeichnung stammt aus dem Dateinamen.
+- Die Kachel eines **KI-Bildes** trägt ✨; die Kennzeichnung stammt aus dem Dateinamen. Eine Zahl links oben nennt die Anzahl der Etiketten.
 - Das Kontrollkästchen **„Nur KI-erzeugte Bilder“** blendet alles andere aus. Dieselbe Möglichkeit gibt es im Medien-Browser hinter jedem „Bild wählen“.
 
 ### Reiseblog
@@ -194,9 +252,14 @@ Ein eigenes Modul, getrennt vom normalen Blog: unterwegs ein paar Stichpunkte er
 - **Bildunterschriften**: die KI schreibt eine je Foto **mit Hinweis**. Im Schritt *Fotos* lässt sich je Foto eine **eigene** eintragen; sie hat Vorrang und ist der einzige Weg, ein Foto ohne Hinweis zu beschriften.
 - Erlebnisse, Mahlzeiten, besondere Momente, Ausgaben und Fotos sind **beliebig oft** hinzufügbar. Ausgaben werden je Währung summiert — getrennt statt umgerechnet, ein geratener Wechselkurs wäre eine erfundene Zahl.
 - **„Wetter war erwähnenswert“**: ohne Haken lässt die KI das Wetter im Bericht weg.
+- **Wetter aus Home Assistant**: Läuft MyPage als Add-on, holt ein Knopf im Wetter-Schritt Wetterlage, Temperatur und Windstärke zum Datum des Reisetags — für heute den aktuellen Zustand der Entität, für einen vergangenen Tag den Verlauf aus dem Recorder (Zustand um die Mittagszeit, Aufbewahrung standardmäßig zehn Tage). Die Entität wird je Reise im Reise-Dialog gewählt; dort stehen alle `weather.*`-Entitäten zur Auswahl. **Sie misst dort, wo sie eingerichtet ist** — für ein Ziel im Ausland vorher in Home Assistant eine Entität für diesen Ort anlegen. Übernommen wird nur, was Home Assistant liefert; eine Wetterlage ohne Entsprechung im Formular (etwa „tornado") wird nicht geraten, sondern als Hinweis angezeigt. Unter Docker ohne Home Assistant gibt es Knopf und Auswahlfeld nicht.
 - Der Zwischenstand wird **laufend lokal im Browser gesichert**. Bricht unterwegs die Verbindung weg, ist die Eingabe nicht verloren.
 - **„Reisebericht erstellen“** baut aus den Angaben einen Prompt und liefert Titel, Anrisstext, Fließtext in Markdown, Schlagwörter und Bildunterschriften — auf Wunsch deutsch und englisch in einem Durchgang. Das Ergebnis ist frei editierbar.
 - Die **vorherigen Reisetage** gehen als Kurzfassung mit in den Prompt, damit sich die Berichte nicht wiederholen.
+- **Prompt einsehen:** Unter dem fertigen Bericht steht zugeklappt der Text, der an die KI ging. Fehlt etwas im Bericht, sieht man dort sofort, ob es überhaupt im Prompt stand — leere Felder fallen kommentarlos heraus.
+- **Datum und Ort aus dem Foto:** Wird im Schritt „Fotos" ein Bild neu hochgeladen, liest das Add-on Aufnahmedatum und GPS aus, bevor es die Metadaten verwirft. Das Datum wird übernommen, sofern noch keines gesetzt ist. Die Koordinaten werden nur angezeigt; erst **📍 Ort nachschlagen** fragt bei OpenStreetMap nach dem Ortsnamen. Für ein bereits vorhandenes Bild aus der Medien-Auswahl gibt es diese Angaben nicht mehr — die Datei ist zu diesem Zeitpunkt längst metadatenfrei.
+- **Überarbeiten statt neu erzeugen:** Steht der Bericht, ändern **Kürzer**, **Länger**, **Feinschliff** und ein freier Änderungswunsch ihn, ohne ihn neu zu würfeln — eigene Korrekturen bleiben also erhalten. Bei zweisprachigen Reisen lässt sich eine Sprache allein überarbeiten, das halbiert die Kosten. **↶ Vorherige Fassung** nimmt einen Lauf zurück (bis zum Wechsel auf einen anderen Tag). Auch hier wird nichts dazuerfunden: „Länger" und der freie Wunsch bekommen die Tagesdaten als einzige erlaubte Quelle, „Kürzer" und „Feinschliff" sehen nur den vorhandenen Text.
+- **Rückblick auf die ganze Reise** (📖 Rückblick, neben „Neuer Reisetag"): ein Text über die komplette Reise, geschrieben aus den fertigen Tagesberichten — kein Tag-für-Tag-Protokoll, sondern der Bogen der Reise mit Höhepunkten und Fazit. Tage ohne Bericht bleiben draußen. Er lässt sich mit denselben Knöpfen überarbeiten wie ein Tagesbericht und wird **getrennt freigegeben**: ohne Haken bleibt er ein Entwurf. Öffentlich steht er auf der Reise-Seite über der Liste der Tage; sein Anrisstext wird zur Beschreibung dieser Seite und zum Text auf der Kachel in der Reise-Übersicht, und die Reise-Seite ist damit auch über die Suche zu finden. Bei einer Reise nur für Mitglieder zeigt er Fremden wie die Tage nur den Anriss.
 - Gespeichert wird in **`travel.json`**, getrennt von `site.json` und im Backup enthalten. Rohdaten und fertiger Text liegen getrennt: eine Korrektur am Text geht nicht verloren, wenn später noch eine Ausgabe nachgetragen wird.
 
 **Öffentlich:** Drei Seiten — die Übersicht aller Reisen unter `/reiseblog`, die Tage einer Reise unter `/reiseblog/<reise>` und der Bericht unter `/reiseblog/<reise>/<tag>`. Sichtbar wird davon nur, was ausdrücklich freigegeben ist:
@@ -244,16 +307,40 @@ Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass a
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar. Ist im Tab **Inhalt** ein **Countdown** eingerichtet, wird er auf dieser Seite mit angezeigt — so entsteht eine Coming-Soon-Seite mit Countdown und optionalem „Benachrichtige mich"-Newsletter-Button.
 - **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.
+- **Systemzustand** (ganz oben im Tab) — elf Prüfungen mit Ampelpunkt: öffentliche Adresse, echte Besucher-Adresse, automatisches Backup, freier Speicherplatz, E-Mail-Versand, GitHub-Token, KI-Schlüssel, Bildverarbeitung, PDF-Erzeugung, Länderdaten, Indexierung. **Gezeigt wird nur, was auffällt**; „alles anzeigen" blendet den Rest ein. Neben jeder auffälligen Zeile steht, was sie bedeutet und wo die Einstellung liegt.
+  - Hintergrund: Das Add-on meldet Störungen an über hundert Stellen ins Log — dort sieht sie niemand. Mailversand, GitHub-Abruf, automatisches Backup und die Besucher-Adresse halten ihre letzte Störung deshalb in `health.json` fest (mit Zeitpunkt und Häufigkeit) und melden Entwarnung, sobald es wieder läuft.
+  - `health.json` liegt **bewusst nicht im Backup**: Ein zurückgespielter Stand brächte sonst längst behobene Warnungen mit.
+  - „nicht eingerichtet" heißt: Die Sache ist gar nicht in Gebrauch (kein Mailserver hinterlegt, keine Projekte mit GitHub verknüpft). Steht dazu aber eine festgehaltene Störung, gilt die — sie war offensichtlich einmal in Gebrauch.
+- **Protokoll (Warnungen & Fehler)** — die letzten 300 Meldungen des laufenden Add-ons ab Stufe „Warnung“, neueste zuerst. Dieselben Zeilen, die sonst nur im Add-on-Protokoll von Home Assistant stehen: misslungene Bildverkleinerung, abgebrochenes PDF-Rendern, eine beschädigte Datei in Quarantäne, ein weggebrochener SMB-Mount.
+  - Wiederholt sich eine Meldung, erhöht sich ein Zähler („×7“), statt die Liste zu füllen. Ein Haken blendet Warnungen aus und lässt nur Fehler stehen.
+  - Der Puffer liegt in `logbuf.json` und übersteht einen Neustart (beim Beenden wird er weggeschrieben, beim Start zurückgelesen). **Nicht im Backup** — ein Protokoll von vorgestern gehört nicht in einen wiederhergestellten Stand.
+  - „Protokoll leeren“ verwirft nur die hier gezeigten Zeilen; das Protokoll in Home Assistant bleibt unberührt. Hinweise unterhalb der Stufe „Warnung“ stehen ausschließlich dort (Einstellungen → Add-ons → MyPage → Protokoll).
+- **Nicht gefunden (404)** — eine Liste der Aufrufe, die ins Leere liefen, **nach Adresse gebündelt** (nicht Zeile für Zeile: der erste Scanner würde die Ablage sonst mit `/wp-login.php` füllen). Je Adresse Anzahl, Zeitpunkt des letzten Versuchs, **Herkunftsadresse mit Landesflagge**, Verweisgeber und bis zu drei Marken.
+  - **Herkunftsadresse**: die IP des letzten Aufrufs, mit Flagge des Landes. Gemerkt werden bis zu **fünf verschiedene** je Pfad, neueste zuerst; „+4 weitere" nennt der Mauszeiger vollständig. Bei einer Sonde ist das die einzige verwertbare Angabe — sperren lässt sich eine Adresse, kein Pfad. Gespeichert werden **nur öffentliche** Adressen: das eigene Heimnetz und die internen Aufrufe von Home Assistant sagen nichts über Herkunft, füllten aber die Liste.
+  - **„eigener Link"** heißt: Der Verweis kam von deiner eigenen Website. Das ist der Fall, der sich reparieren lässt — typischerweise nach dem Umbenennen einer Seite oder eines Bibliothek-Eintrags. Diese Zeilen stehen ganz oben, unabhängig von der Häufigkeit.
+  - **„Bot"** kennzeichnet Aufrufe ohne echte Browserkennung. Sie werden **erfasst, aber nicht verschluckt**; der Haken *Bots ausblenden* ist voreingestellt und jederzeit abwählbar. Stilles Filtern hätte den Nachteil, dass genau die gesuchte Zeile fehlt, wenn die Erkennung danebenliegt.
+  - **„Sonde"** kennzeichnet Aufrufe, die fremde Software suchen: `/xmlrpc.php` und `/wp-*` (WordPress), **jede Adresse mit einem Punkt am Anfang** (`/.env`, `/.git/config`, `/.DS_Store`), die Ausgabeordner der JavaScript-Baukästen (`/dist/`, `/assets/`, `/build/`, `/node_modules/`, `package.json`, ein `manifest.json` in irgendeinem Unterordner), `/api/graphql`, dazu alles auf `.php`, `.asp`, `.jsp` sowie verrutschte Sicherungen (`.sql`, `.bak`, `.old`, `.tar.gz`). Nichts davon gibt es hier; reparieren lässt sich daran nichts. Solche Zeilen stehen **ganz unten** und sind über den Haken *Sonden ausblenden* voreingestellt weg.
+    - Erkannt wird am **Pfad**, nicht an der Browserkennung: Die fälscht jeder Scanner, den Pfad braucht er echt.
+    - Eine Sonde bekommt die Marke **„eigener Link" nicht mehr**, auch wenn ihr Verweisgeber auf deine Website zeigt — Scanner tragen dort gern die angegriffene Adresse ein, und eine erfundene Kopfzeile soll keinen Scan über einen echten kaputten Verweis heben.
+    - Die Einstufung entsteht beim **Anzeigen** aus dem Pfad, nicht beim Aufzeichnen. Sie gilt deshalb rückwirkend für alles, was schon in der Liste steht.
+  - **„Weiterleitung anlegen"** setzt die Adresse vorbefüllt in die Weiterleitungsliste direkt darunter. Ziel eintragen, speichern — danach beantwortet das Add-on den Aufruf mit einer Umleitung, und er zählt nicht mehr als Fehler. Ein Pfad mit eingerichteter Weiterleitung wird gar nicht erst erfasst.
+  - Gemerkt werden höchstens 200 verschiedene Adressen; darüber fallen die am längsten nicht mehr gesehenen heraus. Die Liste liegt in `stats.json` (im Backup).
 - **Speicher aufräumen** — zwei getrennte Werkzeuge, keines fasst den Ordner des anderen an. Vor dem Löschen werden jeweils Anzahl und Größe angezeigt; entfernt wird ausschließlich, was nirgends mehr referenziert ist (geteilte Dateien bleiben erhalten).
-  - **Ungenutzte Bilder aufräumen**: hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite oder nach einem verworfenen KI-Bild).
+  - **Ungenutzte Bilder aufräumen**: hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite oder nach einem verworfenen KI-Bild). Derselbe Knopf leert dabei den **Bild-Zwischenspeicher** von Fassungen, deren Bild es nicht mehr gibt: beim Ausliefern entstehen Kopien mit eingebranntem Wasserzeichen oder KI-Kennzeichnung, und die überlebten bisher das Bild, zu dem sie gehören. Sie stehen in keinem Backup und werden bei Bedarf neu erzeugt — gelöscht wird also nichts, was sich nicht wiederherstellen ließe.
   - **Ungenutzte PDFs aufräumen**: PDFs der Bibliothek, zu denen es keinen Eintrag mehr gibt. Im Normalbetrieb räumt die Bibliothek selbst auf (neu gerendert, PDF-Modus gewechselt, Eintrag gelöscht) — der Knopf fängt ab, was daran vorbeigeht: ein abgebrochenes Rendern oder eine Wiederherstellung aus einem Backup mit weniger Einträgen.
 - **Alternativtexte der Bilder**: Ein Bild ohne Alternativtext ist für Screenreader nicht vorhanden und für Suchmaschinen stumm. Der Abschnitt unter dem Datei-Browser ist **zusammengeklappt**; in der Zeile steht, wie viele Bilder es gibt und wie vielen davon ein Text fehlt. Ein Klick auf die Überschrift öffnet den Editor: je Bild ein Feld für **Deutsch und Englisch**, standardmäßig nur die Bilder **ohne** Text. Der Text hängt an der **Datei**, nicht am Beitrag — dasselbe Bild zeigt überall dasselbe.
   - **Wo er wirkt:** Titelbilder und Galerien in Beiträgen, Projekten, Bibliothek, Reiseblog und auf der Startseite. In Markdown füllt er nur leere Klammern: `![](…)` bekommt ihn, `![eigener Text](…)` behält deinen. Fehlt die gewünschte Sprache, gilt die andere — ein deutscher Text ist besser als keiner. Bei Titelbildern ersetzt er den bisherigen Rückfall auf den Titel.
   - **Mit Gemini erzeugen:** Mit hinterlegtem Textmodell steht je Bild ein **„✦ KI"**-Knopf bereit, dazu **„Alle fehlenden erzeugen"** (der Reihe nach, wegen des Stundenlimits). Der Fortschritt läuft im **Banner oben** wie im KI-Tab — „Alternativtext für Bild 3 von 12 …", am Ende die Zahl, im Fehlerfall der Grund. Der Vorschlag landet erst im Feld — **gespeichert wird mit „Speichern"**, damit er sich vorher korrigieren lässt. Bricht der Sammellauf ab, bleibt gespeichert, was bis dahin fertig war. Jede Anfrage zählt auf das Textkontingent.
   - Gespeichert wird in `uploads_meta.json`, **im Backup enthalten**. Wird ein Bild gelöscht oder weggeräumt, verschwindet sein Alternativtext mit. Ein Alternativtext allein schützt eine Datei **nicht** vor dem Aufräumen — sonst fände „Ungenutzte Bilder aufräumen" nie wieder eine Waise.
 - **Weiterleitungen (301)**: Leitet alte/geänderte Adressen auf eine neue um — dauerhaft (301) oder temporär (302). Ziel als interner Pfad (`/neue-seite`) oder vollständige URL (`https://…`). Greift **nur für Pfade, die es nicht (mehr) gibt** — bestehende Seiten werden nie überschrieben. Praktisch, wenn du den Slug einer Seite/eines Beitrags geändert hast und alte Links/Lesezeichen weiter funktionieren sollen.
+  - **Ziel auswählen statt tippen:** Das Zielfeld schlägt alle öffentlichen Adressen deiner Website vor — Start, Blog und Beiträge, eigene Seiten, Bibliothek, Reiseblog, Projekte, Formulare. Tippen filtert, der Pfeil im Feld listet alles. Ein Beitragspfad wie `/blog/3061752ccc9f` ist von Hand ohnehin nicht zu treffen. Eine fremde Adresse (`https://…`) lässt sich weiterhin frei eintippen.
+  - Kommt die Zeile aus der 404-Liste, wird bei **deutlicher** Ähnlichkeit ein Ziel vorgeschlagen und angesagt — `/bibliothek/rhodos` schlägt `/bibliothek/rhodos-2` vor, `/bibliothek/gran-canaria` findet `/bibliothek/grancanaria`. Verglichen wird nur das letzte Stück des Pfades innerhalb desselben Bereichs; bei allem anderen bleibt das Feld leer. Ein stillschweigend eingetragenes falsches Ziel wäre schlimmer als gar keines.
 - **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten, Blog-Kommentaren, Benutzern, Spielständen und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 - **Automatische Backups**: Einmal täglich legt das Add-on dasselbe ZIP automatisch unter `addon_configs/<slug>_mypage/autobackup/` ab (Dateiname `mypage-auto-JJJJ-MM-TT.zip`). Wie viele Stände aufbewahrt werden, steuert die Option `auto_backup_keep` (Standard 7, `0` schaltet es ab) — ältere werden automatisch gelöscht. Im Tab **System** siehst du die vorhandenen Stände mit Datum und Größe und kannst sie einzeln herunterladen oder löschen; „Jetzt sichern" erzeugt den Stand des Tages sofort neu. Die Sicherungen liegen bewusst **außerhalb** des Backup-Inhalts, damit sie sich nicht gegenseitig aufblähen. Einspielen geht wie gewohnt über „Backup einspielen" mit der heruntergeladenen Datei.
+- **Frühere Stände (Revisionen)**: Vor jeder Änderung sichert das Add-on den bisherigen Stand der Seiteninhalte unter `addon_configs/<slug>_mypage/revisions/` (Dateiname `site-JJJJMMTT-HHMMSS.json`). Im Tab **System → Frühere Stände** stehen sie mit Zeitpunkt und den geänderten Abschnitten („Profil, Design“) und lassen sich einzeln zurückholen, herunterladen oder löschen. Beim Zurückholen wird der aktuelle Stand vorher selbst zum Stand — ein versehentlicher Griff ist also wieder rückgängig zu machen.
+  - Enthalten sind **nur die Seiteninhalte** (`site.json`): Profil, Projekte, Blog, Seiten, Design, Rechtstexte, Formulare, Bibliothek. Mitglieder, Nachrichten, Reiseblog, Umfragen und Statistik liegen in eigenen Dateien und bleiben beim Zurückholen unberührt. Für alles zusammen ist das Backup zuständig.
+  - Stände, die weniger als 90 Sekunden auseinanderliegen, werden zu einem zusammengefasst — sonst bestünde die Liste aus einer längeren Bearbeitung von vor zehn Minuten und der Stand von gestern wäre längst herausrotiert. Änderungen, die nur vom Besuch der Seite kommen (Slot-Jackpot, Tipp-Statistik), erzeugen gar keinen Stand.
+  - Die Stände sind **nicht** Teil des Backup-ZIPs — wie bei den automatischen Backups würde sich das Backup sonst mit allen Vorgängerständen selbst aufblähen.
 - **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
 
 ## Persönlicher Bereich (Mitglieder)
@@ -320,7 +407,7 @@ Damit Mitglieder wissen, wem sie schreiben, gibt es ein optionales internes **Ve
 
 ### Optionaler SMB-Speicher
 
-Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe (z. B. FritzBox-NAS) ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` in den Add-on-Optionen setzen und das Add-on neu starten.
+Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe (z. B. FritzBox-NAS) ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` im Admin-Panel unter **Einstellungen** setzen und das Add-on neu starten.
 
 - **Unterordner wählbar**: Im Benutzer-Tab gibt es einen Ordner-Browser, mit dem du den genauen Zielordner auf dem Share festlegst. Bestehende Dateien werden beim Wechsel **nicht** automatisch umgezogen.
 - **Kein Fallback**: Ist der SMB-Speicher nicht erreichbar (Server aus, Neustart), geht der Dateibereich bewusst **offline** — Benutzer und Admin sehen eine entsprechende Meldung. So landen nie versehentlich Dateien auf der SD-Karte.
@@ -367,7 +454,23 @@ Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu ver
 
 ## SEO
 
-`sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain). Strukturierte Daten (JSON-LD) für Person und Blog-Beiträge sind eingebaut.
+`sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain).
+
+**Strukturierte Daten (JSON-LD):** Jede öffentliche Seite trägt im Kopf einen unsichtbaren Block, der Suchmaschinen sagt, *was* ihr Inhalt bedeutet — nach dem Vokabular von [schema.org](https://schema.org).
+
+| Seite | Typ |
+| --- | --- |
+| Startseite | `Person` + `WebPage` |
+| Blog-Beitrag, Reisetag | `BlogPosting` |
+| Projekt | `SoftwareSourceCode` |
+| Bibliothek-Eintrag | `Article` |
+| Eigene Seite (`/seite/<slug>`) | `WebPage` |
+| Blog-Übersicht, Bibliothek, Reiseblog, Tagesliste einer Reise | `ItemList` |
+
+- **Es wird nichts gespeichert und nichts umgestellt.** Der Block entsteht bei jedem Aufruf aus den Feldern, die die Seite ohnehin anzeigt. Bestehende Beiträge haben ihn ab dem Update genauso wie neue; es gibt keinen Stapellauf und keine zweite Ablage, die veralten könnte.
+- **Die Listen führen nur, was die Seite zeigt.** Auf Seite 3 der Blog-Übersicht stehen die Beiträge 21 bis 26 mit genau diesen Platznummern. Ein Schlagwort- oder Suchfilter verkleinert die Liste entsprechend.
+- **Ohne Indexierung kein Block.** Ist *Design → Von Suchmaschinen indexieren lassen* aus, entfällt er — wie `canonical` und `hreflang` auch.
+- **Prüfen** lässt sich das Ergebnis mit dem [Schema Markup Validator](https://validator.schema.org) (nimmt auch eingefügten Quelltext, funktioniert also vor der Veröffentlichung). Der [Rich Results Test](https://search.google.com/test/rich-results) von Google zeigt dagegen **nur Typen, die einen erweiterten Treffer erzeugen** — `WebPage` und `ItemList` erscheinen dort nicht, obwohl sie korrekt sind.
 
 **Search-Console-Verifizierung (optional):** Im Design-Tab gibt es Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. Trägst du dort den Bestätigungs-Code ein (oder fügst das komplette Meta-Tag ein — der Code wird automatisch herausgelesen), setzt MyPage das passende `<meta>`-Tag in den Kopf der Startseite, sodass du die Seite per „HTML-Tag"-Methode bestätigen kannst. Leer lassen, wenn deine Seite dort bereits bestätigt ist.
 
@@ -376,6 +479,12 @@ Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu ver
 Welche Sprache eine Adresse **ohne Zusatz** ausliefert, legt *Design → Standardsprache der Website* fest. Die Reihenfolge ist `?lang=` → Cookie → diese Einstellung. Die Browser-Einstellung des Besuchers entscheidet nur bei *Automatisch*. Das ist bewusst so: ein Suchmaschinen-Roboter schickt keine Spracheinstellung mit, und der frühere Rückfall war `en` — auf einer deutschen Domain wurde also die englische Fassung indexiert. Außerdem kann `canonical` nur dann etwas Wahres aussagen, wenn einer Adresse **eine** Sprache fest zugeordnet ist.
 
 **„Gefunden – zurzeit nicht indexiert"** in der Search Console ist kein Fehler der Seite: Google kennt die Adresse aus deiner Sitemap, hat sie aber noch nicht abgerufen. Bei jungen Domains normal. Erzwingen lässt sich nichts, beschleunigen schon — in der Search Console *URL-Prüfung → Indexierung beantragen*. Am meisten bringt das für **`/blog`**, denn erst diese Seite verlinkt alle Beiträge; von dort findet Google den Rest von allein.
+
+**Snippet-Vorschau:** Im Design-Tab (Startseite) sowie in den Dialogen für **Blog-Beitrag**, **eigene Seite**, **Bibliothek-Eintrag** und im **Reisebericht** eines Reisetags steht unter den SEO-Feldern eine Vorschau des Suchtreffers, wie Google ihn baut — Adresse als Pfad-Krumen, Titel, Beschreibung. Sie zeigt auch die **Rückfallkette**: ist kein eigener SEO-Text gesetzt, greift dieselbe Reihenfolge wie auf der Seite (eigenes Feld → Textauszug der ersten 155 Zeichen → Beschreibung der Startseite → Tagline → Bio-Auszug). Zwei Zähler nennen die Länge von Titel (Ziel 20–60 Zeichen) und Beschreibung (Ziel 120–160): grün passt, gelb ist zu kurz, rot wird von Google gekürzt. Die Anzeige selbst kürzt genauso wie Google — am letzten Wortende vor der Grenze, nicht mitten im Wort. Mit **DE/EN** schaltest du zwischen beiden Sprachfassungen um — beim Reisebericht stehen nur die Sprachen zur Wahl, die für diese Reise eingestellt sind. Die Reise-Übersichtsseite `/reiseblog/<slug>` bekommt keine eigene Vorschau: ihre Beschreibung ist der Anrisstext des ersten veröffentlichten Tages, also genau das, was dessen Vorschau schon zeigt.
+
+**✦ KI-Beschreibung:** Mit hinterlegtem Gemini-Schlüssel steht neben der Sprachumschaltung der Vorschau ein Knopf, der aus dem vorhandenen Fließtext eine SEO-Beschreibung schreibt — ein Satz, Ziellänge 120–155 Zeichen, in der Sprache, die gerade gewählt ist. Ist die Fassung dieser Sprache noch leer, geht die vorhandene andere in die Anfrage; geschrieben wird trotzdem in der gewählten. Das Ergebnis landet im Feld, nicht auf der Platte: gespeichert wird der Dialog wie immer von Hand.
+
+**Alle SEO-Beschreibungen (Design-Tab):** Unter der Snippet-Vorschau listet ein eigener, **zugeklappter** Bereich **Startseite, Blog-Beiträge, eigene Seiten und Bibliothek-Einträge** untereinander — je Zeile Art, Titel, Link auf die Seite, Eingabefeld und Zeichenzähler, umschaltbar zwischen DE und EN. Wo kein eigener Text gesetzt ist, steht darunter, was Google heute ausliefert (**„Zeigt heute:"**) — meist der Anfang des Fließtextes. **„Nur ohne eigene Beschreibung"** filtert auf genau diese Lücken, **„✦ Leere per KI füllen"** arbeitet sie der Reihe nach ab (das Stundenlimit der KI gilt weiter). Geschrieben wird alles erst mit **„Beschreibungen speichern"**; bei Blog-Beiträgen geht danach ein IndexNow-Ping raus. Die Zeile der Startseite ist dasselbe Feld wie oben im Design-Formular — eine Änderung hier steht sofort auch dort.
 
 Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitemap einreichen, Tipps für die Platzierung) findest du in [SEO.md](SEO.md).
 
@@ -389,12 +498,16 @@ Unter **`/feed.xml`** liefert MyPage einen RSS-2.0-Feed. Er ist im Kopf jeder ö
 |---|---|
 | Blogbeiträge | immer (veröffentlicht, Datum nicht in der Zukunft) |
 | Reisetage | wenn *Design → Module → Reiseblog* auf JA steht; nur freigegebene Tage |
-| Projekte | Schalter *Projekte im Feed*; nur mit Detailseite, **ohne Datum** → am Ende |
+| Projekte | Schalter *Projekte im Feed*; nur mit Detailseite. Datum ist der **letzte Push** des Repositories; von Hand angelegte Projekte haben keins und stehen am Ende |
 | Bibliothek | Schalter *Bibliothek im Feed* |
 
 Projekte und Bibliothek sind abschaltbar, weil sie sich selten ändern: beim Einschalten spült der Feed den Altbestand einmalig als „neu" durch jeden Reader.
 
-**Je Eintrag** stehen Titel, Adresse, Datum, ein Anriss (`<description>`), die Schlagwörter als `<category>`, der **Volltext** als `<content:encoded>` mit absoluten Bild- und Link-Adressen und — falls vorhanden — das Titelbild als `<enclosure>`. Genau daran hängen Automatisierungsdienste, wenn sie einen Beitrag mit Bild weiterreichen sollen.
+**Je Eintrag** stehen Titel, Adresse, Datum, ein Anriss (`<description>`), der Autorname als `<dc:creator>`, die Schlagwörter als `<category>`, der **Volltext** als `<content:encoded>` mit absoluten Bild- und Link-Adressen und — falls vorhanden — das Titelbild als `<enclosure>`. Genau daran hängen Automatisierungsdienste, wenn sie einen Beitrag mit Bild weiterreichen sollen.
+
+**Autor**: als `<atom:author>` im Kanal und `<dc:creator>` je Eintrag — beides ohne E-Mail-Adresse. Das RSS-Feld `<managingEditor>` wäre die naheliegende Stelle, verlangt aber laut Spezifikation eine Adresse; die Website zeigt sie bewusst nur zerlegt (Schutz vor Adress-Sammlern), und ein Feed ist der denkbar schlechteste Ort, sie doch noch offen hinzuschreiben.
+
+**Links aus importierten READMEs**: Ein GitHub-README verlinkt relativ (`docs/README.md`, `filebox/`). Solche Adressen werden auf das Repository umgebogen (`<repo>/blob/HEAD/…`, Ordner auf `/tree/HEAD/…`, Bilder auf `/raw/HEAD/…`) — sowohl im Feed als auch auf der Projektseite selbst, wo sie sonst genauso ins Leere zeigen.
 
 **Mitglieder-only-Inhalte** stehen mit Titel und Adresse im Feed, aber ohne Text und ohne Bild; an der Stelle des Anrisses steht ein Hinweis. Sie ganz zu verschweigen wäre falsch — auf der Website stehen sie ebenfalls in der Liste, nur gesperrt.
 
@@ -425,6 +538,10 @@ Bilder, die über **✨ Bild generieren** entstanden sind, tragen beim Ausliefer
 **KI-Bilder, die du verwirfst, bleiben zunächst liegen.** Das Bild entsteht beim Klick auf „Erzeugen", nicht erst beim Speichern des Eintrags — schließt du den Dialog ohne zu speichern, liegt die Datei weiter unter `/uploads`. Sie verschwindet, sobald du im Tab **System** auf „Unbenutzte Uploads aufräumen" gehst; automatisch gelöscht wird nie etwas. Dasselbe gilt für ein Bild, das du von Hand hochlädst und dann doch nicht speicherst.
 
 ### Design
+**Aufbau des Reiters:** Die rund fünfzig Optionen stehen in **aufklappbaren Gruppen** — Design-Vorlagen, Marke & Aussehen, Startseite & Navigation, Ankündigungs-Banner, Sprache & Feeds, Suchmaschinen, Bereiche an und aus, Mitglieder & Newsletter, Knöpfe & Links, Spielereien & Effekte, Alle SEO-Beschreibungen. Offen startet nur „Marke & Aussehen"; welche Gruppen du aufklappst, merkt sich der Browser. Oben liegt die **Sprungleiste** (Chips, klebt unter der Kopfzeile) und daneben das Feld **„Option finden"**: Tippen filtert über alle Beschriftungen und Hinweistexte, klappt die passenden Gruppen auf und blendet den Rest aus. **Gespeichert wird immer der ganze Reiter** — der Knopf klebt unten, zugeklappte Gruppen werden mitgespeichert.
+
+**Anrede in KI-Texten (Gruppe „Sprache & Feeds“):** **Sie** (Vorgabe) oder **Du**. Die Wahl hängt an jedem KI-Auftrag: SEO-Beschreibungen, Texte aus dem KI-Studio und Reiseberichte. Ohne Vorgabe siezt Gemini auf Deutsch von sich aus — auch dann, wenn die übrige Website durchweg duzt. Englische Fassungen bleiben beim neutralen „you“. Wirkt nur auf **neu** erzeugte Texte; vorhandene bleiben, wie sie sind.
+
 **Design-Vorlagen (1-Klick-Stile):** Oben im Design-Tab gibt es eine Galerie fertiger Vorlagen (z. B. „Elegant Dunkel", „Hell & Clean", „Verspielt", „Tech Neon", „Magazin", „Natur Warm" sowie „Standard"). Ein Klick setzt **Modus, Akzentfarbe, Schrift und Layout** auf einmal — die Felder werden gefüllt, mit „Speichern" wird die Vorlage angewendet. Dein eigenes CSS bleibt dabei unangetastet.
 
 **Ankündigungs-Banner:** Eine schmale Hinweisleiste ganz oben auf allen öffentlichen Seiten (z. B. „Sommerfest am 12.7.!"). Text in DE/EN, optionaler Link (URL oder interner Pfad wie `/formular/anmeldung`) mit eigenem Link-Text, in Akzentfarbe. Wahlweise **schließbar** — Besucher können es ausblenden; wird der Text geändert, erscheint es erneut.
@@ -436,7 +553,7 @@ Einzeln einstellbar: Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hel
 - **Navigationsleiste**: Sprungmarken im Kopf zu den vorhandenen Bereichen; folgt der im Inhalt-Tab gewählten Reihenfolge und blendet ausgeblendete/leere Bereiche aus.
 
 ### Rechtliches
-Impressum und Datenschutzerklärung als Freitext (DE/EN). Der Text wird als **Markdown** ausgegeben: `##` wird eine Überschrift, `**Text**` fett, `- ` eine Aufzählung. Wer einfach nur Zeilen tippt, bekommt sie unverändert wie bisher. Bis zu 150 000 Zeichen je Feld. Sobald Text eingetragen ist, werden `/impressum` und `/datenschutz` im Footer der öffentlichen Seite verlinkt. Vorlagen liefern z. B. der [Impressum-Generator von e-recht24](https://www.e-recht24.de/impressum-generator.html) und der [Datenschutz-Generator von Dr. Schwenke](https://datenschutz-generator.de) (für Privatpersonen kostenlos). Ein Cookie-Banner ist nicht nötig: MyPage setzt nur technisch notwendige Cookies (Sprachwahl nach Klick, Anmeldung, Umfrage-Kennung) und keinerlei Tracking.
+Impressum und Datenschutzerklärung als Freitext (DE/EN). Der Text wird als **Markdown** ausgegeben: `##` wird eine Überschrift, `**Text**` fett, `- ` eine Aufzählung. Zum Schreiben steht über **„✏️ Bearbeiten“** derselbe [Markdown-Editor](#markdown-editor) mit Werkzeugleiste und Live-Vorschau bereit wie beim Blog. Wer einfach nur Zeilen tippt, bekommt sie unverändert wie bisher. Bis zu 150 000 Zeichen je Feld. Sobald Text eingetragen ist, werden `/impressum` und `/datenschutz` im Footer der öffentlichen Seite verlinkt. Vorlagen liefern z. B. der [Impressum-Generator von e-recht24](https://www.e-recht24.de/impressum-generator.html) und der [Datenschutz-Generator von Dr. Schwenke](https://datenschutz-generator.de) (für Privatpersonen kostenlos). Ein Cookie-Banner ist nicht nötig: MyPage setzt nur technisch notwendige Cookies (Sprachwahl nach Klick, Anmeldung, Umfrage-Kennung) und keinerlei Tracking.
 
 **Aus PDF übernehmen.** Über jedem Textfeld sitzt ein Knopf „📄 Aus PDF". Damit lässt sich das PDF eines Generators direkt einlesen, statt es abzutippen:
 
@@ -512,6 +629,8 @@ Das Besucher-Log im Admin ist ein **Ringpuffer** — es zeigt die neuesten 500 A
 - **Format**: CSV mit Semikolon als Trennzeichen und UTF-8-BOM, also **per Doppelklick in Excel/LibreOffice** korrekt in Spalten und mit richtigen Umlauten. Spalten: `datum`, `ip`, `land`, `browser`, `system`, `pfad`, `referrer`, `sprache`, `bot`, `neuer_besucher`, `user_agent`. Semikolons und Anführungszeichen in Referrer/User-Agent werden maskiert.
 - **Aufbewahrung**: `visit_file_keep` (Standard **1 Monat**, `0` = unbegrenzt). Aufgeräumt wird beim **Start des Add-ons** und beim Anlegen einer neuen Monatsdatei — eine gesenkte Frist greift also sofort, weil Home Assistant das Add-on nach jeder Optionsänderung neu startet. Bei `1` reicht das Archiv je nach Tag im Monat 1 bis 31 Tage zurück; das deckt sich mit der in vielen Datenschutzerklärungen zugesagten Frist von 30 Tagen.
 - Es werden — wie im Admin-Log — nur **öffentliche IPs** geschrieben; Bots stehen mit `bot=1` drin.
+- **Was als Scanner gilt**: eine Sitzung mit **einem** Aufruf, **ohne** Referrer und **ohne** Sprachangabe. Jeder Browser schickt `Accept-Language` mit — wer ohne Sprache genau eine Seite abholt und nie wiederkommt, hat keine Seite angesehen, sondern eine Adresse abgeklopft. Solche Sitzungen blendet der Explorer aus, solange der Bot-Schalter aus ist; unter der Tabelle steht, wie viele es waren. Diese Prüfung greift unabhängig von der Herkunft und damit auch bei Scannern aus Mobilfunk- und Endkundennetzen, für die keine Netzliste reicht.
+- **Was als Bot gilt**: die übliche Textsuche in der Browserkennung (`bot`, `crawl`, `spider`, `curl`, …) **und** die Herkunft aus einem bekannten Rechenzentrums-Netz (AWS, Azure, Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr, Scaleway). Scanner geben sich massenhaft als „Safari · iOS" aus und wären sonst nicht von echten Besuchern zu unterscheiden — im Explorer fielen sie als Ein-Seiten-Aufrufe ohne Verweildauer auf. Eigene Netze lassen sich über die Option `visit_bot_nets` ergänzen. Die Netzprüfung greift auch **rückwirkend** beim Auswerten, alte Archivdateien werden dadurch mitbereinigt.
 - **Datenschutz**: IP-Adressen sind personenbezogene Daten. Deshalb ist die Option bewusst standardmäßig aus, und die Aufbewahrungsdauer ist begrenzbar. Das Archiv ist **nicht** Teil des Backups (es würde jedes Backup mit der Zeit aufblähen) — sichere den Ordner bei Bedarf selbst.
 
 ### Besucher-Explorer

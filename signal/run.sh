@@ -60,6 +60,10 @@ start_signal_api
 
 
 export PORT=17777
+# Zweiter Listener: nur /api/*, nur mit Token (siehe server.js)
+export API_PORT=17787
+export API_ENABLED=$(jq -r 'if .api_enabled == true then "true" else "false" end' /data/options.json)
+export API_TOKEN=$(jq -r '.api_token // ""' /data/options.json)
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting Signal UI on port $PORT..."
 cd /ui
 exec node server.js

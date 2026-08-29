@@ -1,5 +1,328 @@
 # Changelog
 
+## 0.11.43
+
+- 🐛 **Warnung beim PDF-Bau.** `word-break: break-word` stand im Stylesheet der Bibliothek-PDFs, existiert aber nicht — gültige Werte sind nur `normal`, `break-all` und `keep-all`. WeasyPrint verwarf die Regel und schrieb "Ignored word-break: break-word at 30:57, invalid value." ins Log. Da `overflow-wrap: anywhere` daneben steht und die Arbeit ohnehin allein macht, ist die Zeile ersatzlos raus — am Ergebnis ändert sich nichts, das Log ist wieder sauber.
+- 🧹 Der lange Erklärtext zu den Tabellenregeln stand als CSS-Kommentar in jedem erzeugten Dokument. Er gehört in den Quelltext und steht jetzt dort.
+
+## 0.11.42
+
+- 🐛 **PDF der Bibliothek: abgeschnittene Tabellen.** Breite Tabellen (ab etwa fünf Spalten) liefen über den rechten Seitenrand hinaus und wurden dort schlicht abgeschnitten — gemessen bis 752 pt auf einer 595 pt breiten A4-Seite. Ursache war die automatische Spaltenbemessung, die sich am Inhalt orientiert statt an der Seitenbreite. Tabellen bekommen jetzt feste Spaltenbreiten, umbrechen lange Wörter und Adressen und setzen ihre Schrift ab vier Spalten gestaffelt kleiner.
+- 🐛 **PDF der Bibliothek: halbleere Seiten mittendrin.** Eine Tabelle durfte nicht über einen Seitenumbruch hinweg gesetzt werden. War sie länger als eine Seite, wanderte sie komplett auf die nächste — und die vorige blieb nach der Überschrift leer. Jetzt gilt das nur noch je Tabellenzeile; die Kopfzeile wird auf jeder Folgeseite wiederholt. Im Testdokument fielen dadurch fünf Seiten weg.
+- ✨ **Sauberere Umbrüche im Fließtext.** Silbentrennung, Schutz gegen einzeln stehende Anfangs- und Schlusszeilen von Absätzen und Listenpunkten, umbrechende Links.
+
+## 0.11.41
+
+Der Kopfbereich der Startseite war seit jeher dasselbe Bild: rundes Foto links, Text rechts, darunter die Sozial-Knöpfe. Sechs Änderungen:
+
+- 🎯 **Handlungsaufrufe.** Bis zu zwei Knöpfe im Kopfbereich (Profil-Reiter), der erste in der Akzentfarbe. Ziel darf eine Sprungmarke der Startseite sein („#kontakt“), eine eigene Adresse („/seite/anfahrt“), eine fremde Seite oder „mailto:“. Bisher führte von dort **jeder** Knopf von der Seite weg — es gab nichts, was den Besucher auf ihr weiterbrachte.
+- 🖼️ **Drei Fassungen des Kopfbereichs** (Design → Kopfbereich): nebeneinander wie bisher, **zentriert** (Logo über dem Namen — die übliche Form, wenn ein Verein oder eine Firma dahintersteht) oder **Bannerbild** (Bild über die volle Breite, abgedunkelt, Text darüber).
+- ⭕ **Die Form des Bildes ist wählbar.** Rund war fest verdrahtet: Ein Vereins- oder Firmenlogo im Querformat verlor links und rechts alles. Neu: rund, abgerundet oder **unbeschnitten** — letzteres behält das Seitenverhältnis.
+- 🏢 **Strukturierte Daten sagen nicht mehr immer „Person".** Neu wählbar: Person, Organisation/Verein oder lokales Geschäft. Bei „lokales Geschäft" wandern Adresse, Öffnungszeiten und Koordinaten aus dem Abschnitt „Standort" mit in die Auszeichnung — die Grundlage dafür, dass eine Suchmaschine daraus einen Eintrag mit Karte macht.
+- 🐛 **Doppelte Zeilenabstände in der Kurzvorstellung.** Der Text lief durch die Markdown-Aufbereitung, die aus einem Zeilenumbruch bereits einen Umbruch macht — und wurde zusätzlich mit `pre-line` gesetzt, was den verbliebenen Umbruch **noch einmal** anzeigte. Jede Zeile stand doppelt abgesetzt.
+- ⚡ **Schnellerer Bildaufbau.** Das Profilbild ist auf der Startseite fast immer das Bild, an dem Google die Ladezeit misst. Es bekommt jetzt feste Maße (kein Springen des Layouts beim Laden) und Vorrang beim Abruf; außerdem nutzt es wie alle anderen Bilder den gepflegten Alternativtext. Und fehlt der Name, steht jetzt der Seitentitel in der Überschrift statt „MyPage".
+
+## 0.11.40
+
+- 🧹 **System-Reiter: einheitliche Kopfzeilen.** Drei der sechzehn Kästen trugen ein Symbol vor dem Namen (Systemzustand, Alternativtexte, Zwei-Faktor), die übrigen dreizehn nicht — beim Überfliegen sprang das ins Auge, ohne etwas zu bedeuten. Die drei Symbole sind entfernt, alle Kopfzeilen sehen jetzt gleich aus.
+
+## 0.11.39
+
+Ein Scanner aus einem Rechenzentrum probierte zwanzig Adressen durch — `/Blog`, `/BLOG`, `/SITE`, `/bak`, `/BACKUP`, `/old-site`, `/2021`, `/WWW` — und stand mit jeder Zeile in der 404-Liste, **trotz** gesetzter Haken „Bots ausblenden" und „Sonden ausblenden". Jede Zeile trug obendrein die Marke „eigener Link". Drei Ursachen, drei Änderungen:
+
+- 🤖 **Die 404-Liste sah nur die Browserkennung.** Der Besucherzähler stuft eine Adresse aus einem Rechenzentrum längst als Bot ein, diese Liste nicht — sie glaubte dem „Safari · iOS", das der Scanner angab. Jetzt gilt hier dieselbe Regel.
+- 🏢 **netcup fehlte in der Liste der Rechenzentren.** 118 Netze des Anbieters (AS197540) sind ergänzt, damit greift die Bot-Einstufung überhaupt erst. Betrifft auch den Besucherzähler: Zugriffe von dort zählen nicht mehr als Besuch.
+- 🕵️ **Neue Sondenmuster: die vergessene Kopie.** Als Sonde gelten jetzt auch Adressen, unter denen Scanner eine alte Fassung der Seite vermuten — `bak`, `bac`, `bk`, `backup`, `old`, `old-site`, `alt`, `site`, `sito`, `sitio`, `www`, `web`, `new`, `temp`, `tmp`, `test`, `dev`, `staging`, `beta`, `demo`, `main`, `home`, `shop`, `store`, `cms`, `portal`, `dump`, `db`, `sql` — sowie **Jahreszahlen** wie `/2021`. Nur als ganzer Pfad aus einem Stück: `/seite/mein-backup` bleibt eine normale Adresse, und Namen, die MyPage selbst vergibt (`blog`, `projekte`, `uploads`), stehen bewusst nicht auf der Liste.
+- 🔗 **„Eigener Link" nur noch, wenn es einer sein kann.** Zeigt die Verweis-Kopfzeile auf **genau die** Adresse, die gerade abgerufen wird, ist sie gefälscht — eine Seite, die es nicht gibt, kann keinen Link auf sich selbst tragen. Solche Zeilen gelten nicht mehr als eigener kaputter Verweis. Echte interne Verweise (Startseite → tote Adresse) sind davon nicht betroffen.
+
+## 0.11.38
+
+- 🖱️ **In der Vorschau ließ sich nichts anklicken.** Navigationsleiste, Blog, jeder Link — ein Klick tat nichts. Ursache: Der Rahmen lief seit 0.11.35 vollständig abgeschottet (`sandbox`), und weil die Vorschau jedem Link einen neuen Tab mitgibt, blockierte der Browser genau diese neuen Tabs wortlos. Der Rahmen erlaubt jetzt das Öffnen neuer Tabs — ein Klick führt zur echten Seite, die dort auch wieder mit Skripten läuft. Skripte **innerhalb** der Vorschau bleiben aus, daran ändert sich nichts.
+
+## 0.11.37
+
+- 🔢 **Neu: Zahlen & Fakten.** Kennzahlen nebeneinander — Mitglieder, Jahre, Projekte, Öffnungstage. Die Zahl darf Text sein („500+", „24/7", „~3 Mio."), Symbol und Bezeichnung sind optional.
+- 🤝 **Neu: Partner.** Logos von Partnern, Sponsoren oder Kunden, wahlweise verlinkt. Alle Logos werden auf dieselbe Höhe gebracht, damit kein großes die kleinen daneben erschlägt; ohne Logo steht der Name da.
+- 🎬 **Neu: Videos.** YouTube- und Vimeo-Videos mit Titel und Beschreibung. Das Video **lädt erst auf Klick** — vorher steht kein fremdes Skript auf der Seite. Adressen, die nicht erkannt werden, verwirft das Add-on beim Speichern, statt sie ungeprüft in einen Rahmen zu laden.
+- 📄 **Neu: Downloads.** PDFs zum Herunterladen — Satzung, Preisliste, Speisekarte, Formular. Die Datei kommt immer als Download, nie im Browser geöffnet. Ausgeliefert wird ausschließlich, was im Abschnitt steht; ist der Abschnitt ausgeblendet oder auf Mitglieder beschränkt, gilt das auch für die Dateien. Der statische Export nimmt sie mit.
+- 🧩 Alle vier verhalten sich wie die bestehenden Abschnitte: per Drag & Drop sortierbar, einzeln ausblendbar, auf Mitglieder beschränkbar, mit eigener Überschrift und eigenem Eintrag in der Navigationsleiste.
+
+## 0.11.36
+
+- ✏️ **Jeder Abschnitt darf jetzt heißen, wie er soll.** Bisher ließ sich nur beim Werdegang die Überschrift frei setzen — alle anderen trugen den Namen, den das Add-on vorgibt. Neu hat **jedes der 18 Module** im Reiter „Inhalte" ein Feld **Eigene Überschrift** (DE und EN, oben im jeweiligen Kasten). Damit heißt „Leistungen" beim Restaurant „Speisekarte", beim Verein „Was wir tun" und bei der Firma weiterhin „Leistungen" — ohne dass am Modul selbst etwas umbenannt wird. Leer lassen heißt wie bisher: Standardüberschrift.
+- 🧭 **Die Navigationsleiste zieht mit.** Steht über dem Abschnitt „Speisekarte", steht auch in der Leiste „Speisekarte" und nicht mehr der Standardname.
+- 🔁 **Der Werdegang zieht automatisch um.** Eine dort gesetzte Überschrift wandert beim ersten Laden in die neue Ablage — nichts nachzutragen. Die beiden bisherigen Felder verschwinden aus der Oberfläche, weil sie das neue Feldpaar doppeln würden.
+- ℹ️ **Countdown und Freitext bleiben außen vor**: beide haben längst ein eigenes Titelfeld, ein zweites wäre nur eine Falle.
+
+## 0.11.35
+
+- 🖼️ **Vorschau lädt wieder — und jetzt auch über den Ingress.** Der Rahmen holte die Seite selbst von ihrer öffentlichen Adresse. Steht davor ein Reverse Proxy mit `X-Frame-Options: sameorigin` (Klickjacking-Schutz, der bleiben soll), verweigert der Browser die Anzeige; über den Ingress kommt hinzu, dass Port 17760 unter der Home-Assistant-Adresse nicht erreichbar sein muss. Neu rendert **der Admin die Seite selbst** — im selben Prozess, ohne Netz — und reicht sie als `srcdoc` in den Rahmen. Gleiche Herkunft, also greift keine der beiden Sperren.
+- 🧯 **Regression aus 0.11.33 behoben.** Seit 0.11.33 hatte die eingetragene öffentliche URL Vorrang vor `Port 17760`. Beim **direkten** Aufruf des Admin-Panels (Port 17761) hatte die Vorschau vorher funktioniert und lief damit in genau diese Sperre. Der Rahmen hängt jetzt an keiner der beiden Adressen mehr.
+- 🔒 **Ohne Skripte.** Die Vorschau läuft in einem `sandbox`-Rahmen: Skripte der öffentlichen Seite bleiben aus, damit sie aus der Admin-Herkunft heraus nichts anfassen können. Bilder, Schriften und Farben kommen weiterhin von der echten Seite (über ein eingefügtes `<base>`), Links im Rahmen öffnen einen neuen Tab. Der Besucherzähler zählt den eigenen Blick nicht mit.
+- ℹ️ Läuft Home Assistant über **https** und ist keine öffentliche URL eingetragen, bleiben die Bilder leer — eine http-Quelle lädt der Browser in einer https-Seite nicht. Text, Aufbau und Farben stehen trotzdem.
+
+## 0.11.34
+
+- 🔤 **Hinweise nennen das Feld beim richtigen Namen.** Vorschau- und Systemzustand-Hinweis verwiesen auf „Öffentliche Adresse“ — so heißt die Zeile im Systemzustand, das Eingabefeld dagegen „Öffentliche URL (für SEO/Sitemap)“ und steht im Design-Reiter unter **Suchmaschinen**. Wer dem Hinweis folgte, suchte vergeblich. Jetzt steht überall der Weg dorthin.
+
+## 0.11.33
+
+- 🖼️ **Vorschau im Design-Reiter blieb über den Ingress grau.** Der Rahmen zeigte immer `Protokoll://<Host>:17760/` — über das Home-Assistant-Panel ist das die Adresse von Home Assistant, und dort ist Port 17760 nicht zwingend erreichbar; läuft HA über **https**, blockiert der Browser eine http-Seite im Rahmen ohnehin. Jetzt gilt: Ist unter **Design → Öffentliche Adresse** eine Adresse eingetragen, zeigt die Vorschau diese; sonst bleibt es beim Nachbarport. Dieselbe Adresse steht auch in den Slug-Hinweisen unter Seiten, Bibliothek und Formularen.
+- 💬 **Statt grauer Fläche steht der Grund da.** Vor dem Laden prüft die Vorschau die Adresse (per `manifest.json`, damit der Besucherzähler nicht mitzählt). Scheitert der Abruf, erscheint anstelle des Rahmens ein Hinweis, was zu tun ist — bisher sah man nur ein leeres Feld.
+
+## 0.11.32
+
+- 🩺 **Systemzustand zeigt aufgeklappt alles.** Der Kasten blendete die unauffälligen Zeilen aus, bis man den Haken „alles anzeigen“ setzte — genau die Übersicht, wegen der man ihn öffnet, lag also hinter einem Klick. Jetzt gilt: zugeklappt steht in der Kopfzeile „alles in Ordnung“ bzw. die Zahl der Auffälligkeiten, aufgeklappt steht die **vollständige Liste** da. Haken und der erklärende Absatz darüber sind entfallen.
+
+## 0.11.31
+
+- 🕵️ **Mehr Sonden erkannt.** Drei Zeilen standen trotz gesetztem Haken in der Liste: `/.bod/.ll/`, `/assets/` und `/dist/manifest.json` — ein Scanner, der den Ausgabeordner eines JavaScript-Baukastens sucht. Neu gelten als Sonde: **jede Adresse, die mit einem Punkt beginnt** (`/.env`, `/.git/config`, `/.DS_Store`, `/.bod/.ll/`), **ein `manifest.json` in irgendeinem Unterordner** (das eigene liegt genau auf `/manifest.json`), die Ausgabeordner `/dist/`, `/assets/`, `/build/`, `/node_modules/` samt `package.json` und `composer.json` sowie verrutschte Sicherungen (`.sql`, `.bak`, `.old`, `.swp`, `.tar.gz`). `.zip` steht bewusst **nicht** dabei: Eine Mitgliederdatei darf so heißen.
+- 📐 **Die Spalten der 404-Liste fluchten.** Zähler, Zeitpunkt und Adresse standen von Zeile zu Zeile woanders — eine um ein Zeichen kürzere IP, eine breitere Plakette oder ein Knopf weniger genügte. Ursache: Jede Zeile war eine eigene Flexbox und maß ihre Breiten selbst. Jetzt liegt die **ganze Liste in einem Raster**, alle Zeilen teilen sich dieselben Spalten. Auf schmalen Fenstern (unter 820 px) bricht sie wie bisher um.
+- ℹ️ Die Einstufung entsteht weiterhin beim Anzeigen aus dem Pfad — die neuen Muster gelten damit **rückwirkend** für alles, was schon in der Liste steht.
+
+## 0.11.30
+
+- 🔒 **Die Login-Sperre war umgehbar.** Sie zählt Fehlversuche je Besucheradresse — und diese Adresse kam bisher aus den Kopfzeilen `X-Forwarded-For`, `X-Real-IP` und `CF-Connecting-IP`, die **jeder** Absender selbst setzen kann. Gemessen: dieselbe Adresse siebenmal → ab dem sechsten Versuch gesperrt; **zwölf Versuche mit zwölf erfundenen Adressen → keine Sperre.** Passwortraten war damit unbegrenzt möglich, sobald jemand den Admin-Port erreichte. Zwei Änderungen beheben das:
+  - **Kopfzeilen nur noch von einem Zwischenglied.** Kommt die Verbindung aus einem privaten Netz (Reverse Proxy, Cloudflare-Tunnel, Docker-Gateway), zählt weiterhin die gemeldete Adresse — daran ändert sich für Besucherzähler und Statistik nichts. Bei einer **direkten** Verbindung zählt die echte Gegenstelle. Verglichen wird der Wert **vor** ProxyFix, also der tatsächliche Verbindungspartner.
+  - **Zweite Sperre auf die Verbindung selbst**, ab 20 Fehlversuchen in zehn Minuten. Sie greift auch dort, wo die Kopfzeilen zu Recht geglaubt werden — etwa im eigenen LAN. Die Schwelle liegt bewusst höher als die fünf je Adresse: Hinter einem Proxy teilen sich alle Anmeldungen eine Gegenstelle, und ein Vertipper darf niemanden aussperren.
+- 🔐 **`Secure` am Sitzungs-Cookie**, sobald die Anfrage über HTTPS kam — für Admin-Sitzung, 2FA-Zwischenschritt, vertrauenswürdiges Gerät und Mitglieder-Sitzung. Ohne das Flag schickt der Browser das Token auch über eine unverschlüsselte Verbindung; ein einziger versehentlicher `http://`-Aufruf gab es damit im Klartext preis. Fest auf `Secure` lässt es sich nicht setzen: Im Heimnetz läuft der Admin oft über `http`, dort käme das Cookie nie zurück.
+- ⚙️ Neue Option **`trusted_proxies`** (leer lassen). Sie ersetzt die Vorgabe „alle privaten Adressen sind Zwischenglieder" durch eine ausdrückliche Liste — damit lässt sich auch das eigene LAN ausschließen, sodass wirklich nur der Proxy Adressen melden darf.
+- 🧪 Drei weitere Prüfungen im Rauchtest: gefälschtes `X-Real-IP` bei direkter Verbindung, korrekte Übernahme hinter dem Proxy, und dass wechselnde Adressen in die Verbindungssperre laufen.
+- 📄 `STANDALONE.md` korrigiert: Der Satz „Brute-Force-Schutz ist eingebaut" stimmte nur, solange niemand die Kopfzeile setzt.
+
+## 0.11.29
+
+- 🔒 **Sicherheitskorrektur: Der Admin ließ sich per Kopfzeile ohne Anmeldung öffnen.** Über das Home-Assistant-Panel (Ingress) meldet HA den Benutzer an, MyPage verlangte dort deshalb keine eigene Anmeldung — erkannt wurde dieser Weg bisher **allein an der Kopfzeile `X-Ingress-Path`**. Die kann jeder mitschicken, der Port 17761 erreicht: Ein einziges `curl` genügte für vollen Zugriff auf Inhalte, Einstellungen, Backup-Download und Benutzerverwaltung. Maßgeblich ist jetzt die **Absenderadresse**: Nur Anfragen aus dem Supervisor-Netz `172.30.32.0/23` gelten als Ingress, und die Prüfung sitzt vor der Auswertung von `X-Forwarded-For` — eine gefälschte Weiterleitungskette hilft nicht.
+  - **Voraussetzung war Zugang zum Port 17761**, also zum lokalen Netz; aus dem Internet war er nur erreichbar, wenn er ausdrücklich weitergereicht wurde. Ein Browser konnte den Zugriff nicht nebenbei auslösen (eigene Kopfzeile ⇒ Preflight ⇒ blockiert). Wer den Admin ausschließlich über das HA-Panel benutzt, kann die Portfreigabe `17761` in der Add-on-Konfiguration ganz streichen — dann gibt es den direkten Weg gar nicht.
+  - Neue Option **`ingress_trust_net`** für abweichende Aufbauten (HA Supervised in einem eigenen Docker-Netz). Leer lassen, solange das Panel funktioniert. Passt die Adresse nicht, erscheint im Panel der normale Login — ein Fehlurteil führt also zu „bitte anmelden", nie zu „darf alles". Abgewiesene Kopfzeilen stehen mit Adresse im Protokoll (höchstens stündlich je Adresse).
+- 🔒 **Sicherheitskorrektur: `/api/uploads/cleanup` löschte ohne Anmeldung.** Als einzige von 314 Routen fehlte dort die Prüfung; ein POST entfernte ungenutzte Bilder und den Bild-Zwischenspeicher. Betroffen waren nur Dateien, die nirgends eingebunden sind — und es galt dieselbe Voraussetzung wie oben.
+- 🧪 **Beide Fälle stehen jetzt im Rauchtest** und laufen bei jeder Änderung in der CI mit: Kopfzeile allein, Kopfzeile mit gefälschtem `X-Forwarded-For`, Adresse neben dem Supervisor-Netz, echter Ingress, Supervisor-Adresse ohne Kopfzeile — dazu drei schreibende Admin-Routen ohne Anmeldung.
+
+## 0.11.28
+
+- 🌍 **Die 404-Liste zeigt, woher der Aufruf kam.** Je Zeile steht jetzt die Adresse des letzten Aufrufs samt Landesflagge. Bei einer Sonde ist das die einzige Angabe, mit der sich etwas anfangen lässt: **sperren lässt sich eine Adresse, kein Pfad** — und zwar dort, wo es wirkt (CrowdSec, Firewall), nicht in MyPage.
+- 🔢 **Bis zu fünf verschiedene Adressen je Pfad**, neueste zuerst. Steht „+4 weitere" daneben, nennt der Mauszeiger alle. Ein Scanner, der aus einem einzigen Rechenzentrum kommt, sieht damit anders aus als ein verteiltes Netz gekaperter Geräte.
+- 🚫 **Bei Sonden entfällt „Weiterleitung anlegen".** `/xmlrpc.php` gab es hier nie, es gibt kein Ziel, auf das man sie legen könnte. Angeboten wird nur noch, was auch hilft.
+- 🔒 Gespeichert werden **nur öffentliche Adressen** — das eigene Heimnetz und die internen Aufrufe von Home Assistant sagen nichts und füllten nur die Liste. Die Angaben liegen wie bisher in `stats.json` (im Backup) und verschwinden mit „Liste leeren" oder dem ✕ der Zeile.
+
+## 0.11.27
+
+- 🕵️ **Sonden werden als solche erkannt.** In der 404-Liste standen `/xmlrpc.php`, `/api/graphql`, `/asset-manifest.json` und `/static/manifest.json` — nichts davon gibt es hier, es sind Scanner auf der Suche nach WordPress, nach einer React-App oder nach einer GraphQL-Schnittstelle. Solche Aufrufe tragen jetzt die Marke **„Sonde"**, stehen ganz unten und sind über einen eigenen Haken **voreingestellt ausgeblendet**. Erkannt wird am Pfad (`.php`, `wp-`, `/.env`, `/.git/`, `/vendor/`, `phpmyadmin`, `/api/graphql` und weitere), nicht an der Browserkennung: Die fälscht jeder Scanner, den Pfad braucht er echt.
+- 🚫 **Ein gefälschter Referer adelt keine Sonde mehr.** `/api/graphql` trug die Marke „eigener Link“ und stand damit **ganz oben** in der Liste — der Scanner hatte schlicht `https://…` deiner eigenen Website als Herkunft eingetragen. Bei einer Sonde wird diese Marke jetzt nicht mehr vergeben. Damit kann eine erfundene Kopfzeile keinen Scan über einen echten kaputten Verweis heben.
+- 🔢 Die Zahl in der Kopfzeile zählt Sonden nicht mit: „1 von 6" heißt ein echter Fund, fünf Zeilen Grundrauschen.
+- ℹ️ Die Einstufung entsteht beim Anzeigen aus dem Pfad, nicht beim Aufzeichnen. Deshalb gilt sie **rückwirkend** für alles, was schon in der Liste steht — und eine später erweiterte Musterliste ebenso.
+
+## 0.11.26
+
+- 🗂️ **Der Tab System ist aufgeräumt.** Sechzehn gleichrangige Kästen mit drei verschiedenen Klappmechaniken nebeneinander waren nicht mehr zu überblicken. Jetzt stehen sie in **sechs Gruppen** — Zustand & Diagnose, Dateien & Speicher, Datensicherung, Adressen, Betrieb, Zugang —, jeder Bereich klappt gleich (dieselbe Klappe wie im Design-Reiter), und welcher offen ist, merkt sich der Browser. Offen ist voreingestellt nur der **Systemzustand**; der **Wartungsmodus** klappt sich selbst auf, solange er aktiv ist. Die Seite ist damit **1579 statt 3402 Pixel** hoch.
+- 🔢 **Zugeklappt heißt nicht blind.** In jeder Kopfzeile steht, was drinliegt: „0 Fehler, 3 Warnungen", „108 Einträge", „12 Bilder, davon 11 ohne Text". Die Zahlen kommen mit der Zustandsanzeige in **einem** Aufruf mit.
+- ⚡ **Der Reiter lädt nur noch, was du ansiehst.** Bisher feuerte das Öffnen **acht** Aufrufe auf einmal — Protokoll, Admin-Protokoll, 2FA, Backups, frühere Stände, Dateien —, auch wenn niemand hinsah. Jetzt ist es **einer**; jeder Bereich holt sein Material beim ersten Aufklappen. Dateibrowser und Alternativtexte teilen sich dabei eine Ladung. Zwei weitere Aufrufe entfallen schon beim Anmelden: die **GitHub-Abfrage** und die Adressliste der Weiterleitungen laufen erst, wenn der jeweilige Bereich geöffnet wird.
+- 🧵 **„Task queue depth is 3" ist damit erklärt und behoben.** Diese Meldung im neuen Protokoll kam von Waitress, nicht von MyPage: Es trafen mehr Anfragen gleichzeitig ein, als der Admin freie Threads hatte — genau die sieben Ladeaufrufe von oben bei vier Threads. Der Admin läuft jetzt wie der öffentliche Teil mit **acht Threads**, und den Schwall gibt es ohnehin nicht mehr.
+- 🧭 Die Sprungleiste zeigt jetzt die **sechs Gruppen** statt sechzehn Einzelbereiche — sie passte auf keinen Bildschirm mehr und war selbst ein Teil des Problems.
+
+## 0.11.25
+
+- 📋 **Das Protokoll steht jetzt im Admin.** Warnungen und Fehler gingen bisher ausschließlich nach `stdout` und damit nur ins Add-on-Protokoll von Home Assistant. Neu im Tab **System** der Abschnitt **„Protokoll (Warnungen & Fehler)"** mit den letzten 300 Meldungen des laufenden Add-ons — misslungene Bildverkleinerung, abgebrochenes PDF-Rendern, eine beschädigte Datei in Quarantäne, ein weggebrochener SMB-Mount. Die Zustandsanzeige darüber deckt vier Bereiche ab; hier steht der Rest.
+- 🔢 **Wiederholungen füllen die Liste nicht.** Dieselbe Meldung mehrfach hintereinander erhöht einen Zähler („×7"), statt sieben Zeilen zu erzeugen — sonst verdrängt eine Meldung im Sekundentakt alles andere. Ein Haken blendet die Warnungen aus und lässt nur Fehler stehen.
+- 💾 **Übersteht den Neustart.** Der Puffer liegt in `logbuf.json` und wird beim Start zurückgelesen; beim Beenden über SIGTERM schreibt das Add-on ihn noch einmal weg. Gerade nach einem Neustart will man wissen, was kurz davor los war. Wie `health.json` liegt die Datei **nicht im Backup** — ein Protokoll von vorgestern gehört nicht in einen wiederhergestellten Stand.
+- ℹ️ Absichtlich erst ab Stufe „Warnung": Auf der Stufe darunter meldet jeder Start ein Dutzend Zeilen Routine. Das vollständige Protokoll bleibt in Home Assistant unter Einstellungen → Add-ons → MyPage → Protokoll.
+
+## 0.11.24
+
+- 🩺 **Neu: „Systemzustand" ganz oben im Tab System.** Das Add-on schrieb Störungen bisher ausschließlich ins Log — an über hundert Stellen —, und dort schaut niemand nach. Ein abgelaufener GitHub-Token, ein stillschweigend gescheiterter Mailversand, ein ausgefallenes Backup: alles unsichtbar, bis es zufällig auffiel. Elf Prüfungen mit Ampelpunkt zeigen jetzt, was gerade nicht rundläuft — öffentliche Adresse, echte Besucher-Adresse, automatisches Backup, freier Speicherplatz, E-Mail-Versand, GitHub-Token, KI-Schlüssel, Bildverarbeitung, PDF-Erzeugung, Länderdaten und Indexierung.
+- 🔕 **Voreingestellt steht dort nur, was auffällt.** Elf grüne Zeilen liest man nach der dritten Woche nicht mehr, und dann fällt auch die eine rote nicht mehr auf. „Alles anzeigen" blendet den Rest ein. Zu jeder auffälligen Zeile steht daneben, was sie für den Betrieb bedeutet und wo es einzustellen ist — nicht nur, dass etwas nicht stimmt.
+- 🕓 **Störungen werden mit Zeitpunkt und Häufigkeit festgehalten** (`health.json`), Mailversand, GitHub-Abruf, Backup und Besucher-Adresse melden ihre Entwarnung selbst. Die Datei liegt **bewusst nicht im Backup**: Ein zurückgespielter Stand brächte sonst Warnungen von vorgestern mit, die längst behoben sind.
+
+## 0.11.23
+
+- 🎯 **Das Weiterleitungsziel wird ausgewählt, nicht getippt.** Das Zielfeld schlägt jetzt alle öffentlichen Adressen der Website vor: Start, Blog und einzelne Beiträge, eigene Seiten, Bibliothek, Reiseblog samt Reisetagen, Projekte und Formulare — jeweils mit dem Titel daneben. Tippen filtert, der Pfeil im Feld listet alles. Ein Beitragspfad wie `/blog/3061752ccc9f` war von Hand ohnehin nicht zu treffen. Eine fremde Adresse (`https://…`) lässt sich unverändert frei eintragen.
+- 💡 **Vorschlag aus der 404-Liste.** Legst du dort eine Weiterleitung an, wird bei deutlicher Ähnlichkeit gleich ein Ziel eingetragen und angesagt: `/bibliothek/rhodos` schlägt `/bibliothek/rhodos-2` vor, und `/bibliothek/gran-canaria` findet auch `/bibliothek/grancanaria` trotz anderer Schreibweise. Verglichen wird nur das letzte Stück des Pfades und nur innerhalb desselben Bereichs — sonst hätte `/blog/alt` einen beliebigen Beitrag vorgeschlagen, bloß weil beide unter `/blog/` liegen. Passt nichts, bleibt das Feld leer: ein stillschweigend falsch eingetragenes Ziel wäre schlimmer als gar keines.
+
+## 0.11.22
+
+- 🔍 **Ins Leere laufende Aufrufe werden endlich sichtbar.** Rief ein Besucher eine Adresse auf, die es nicht gibt, bekam er die 404-Seite — und niemand erfuhr davon. Kein Zähler, kein Eintrag im Besucher-Log, nichts. Neu im Tab **System** die Liste **„Nicht gefunden (404)"**: nach Adresse gebündelt, häufigste zuerst, mit Anzahl, Zeitpunkt und Verweisgeber.
+- 🏷️ **„Eigener Link" steht ganz oben.** Kam der Verweis von der eigenen Website, ist der kaputte Link auf der eigenen Seite — genau der Fall, der sich reparieren lässt, etwa nach dem Umbenennen einer Seite. Diese Zeilen stehen unabhängig von der Häufigkeit vorn. Bot-Aufrufe sind gekennzeichnet und standardmäßig ausgeblendet, aber **nicht verschluckt**: Wer still filtert, verliert genau die Zeile, die er sucht, wenn die Erkennung danebenliegt.
+- ↪️ **Von der Fundstelle zur Reparatur in einem Zug.** Der Knopf „Weiterleitung anlegen" setzt die Adresse vorbefüllt in die Weiterleitungsliste direkt darunter; Ziel eintragen, speichern, fertig. Danach beantwortet das Add-on den Aufruf mit einer Umleitung — und eine Adresse mit eingerichteter Weiterleitung landet gar nicht erst wieder auf der Liste.
+- 🧮 **Gebündelt statt Zeile für Zeile.** Tausend Versuche auf `/wp-login.php` ergeben einen Eintrag mit Zähler 1000, nicht tausend Einträge. Gemerkt werden höchstens 200 verschiedene Adressen; darüber fallen die am längsten nicht gesehenen heraus.
+
+## 0.11.21
+
+- 🔗 **Eine belegte Adresse wird nicht mehr stillschweigend umbenannt.** Wer bei einer eigenen Seite, einem Bibliothek-Eintrag oder einem Formular eine Adresse einträgt, die es schon gibt, bekam bisher wortlos eine Nummer angehängt — aus „rhodos" wurde „rhodos-2", ohne dass es jemand erfuhr. Man sucht seinen Eintrag danach an der falschen Stelle. Jetzt erscheint nach dem Speichern ein Hinweisfenster mit der Adresse, unter der er tatsächlich liegt. Bewusst ein Fenster zum Wegklicken und kein kurzer Einblendtext: Der verschwindet nach zwei Sekunden, und diese Meldung enthält etwas, das man sich merken muss.
+- 🚧 Dasselbe gilt für **reservierte Adressen**: Eine Seite namens „blog" kann es nicht geben, weil die Adresse zum Blog gehört. Statt einer stillen Ersatzadresse steht der neue Name jetzt im Hinweis.
+- 🧹 Die drei fast gleichen Adressvergaben für Seiten, Bibliothek und Formulare teilen sich intern nun eine Funktion — sie liefen inhaltlich auseinander, obwohl sie dasselbe tun sollten.
+
+## 0.11.20
+
+- 🔖 **Übersichtsseiten sagen Suchmaschinen jetzt, was auf ihnen steht.** Strukturierte Daten (schema.org) gab es bisher nur auf fünf Seitentypen — Startseite, Blog-Beitrag, Reisetag, Projekt und Bibliothek-Eintrag. Neu dazu: **eigene Seiten** als `WebPage` sowie **Blog-Übersicht, Bibliothek, Reiseblog-Übersicht und die Tagesliste einer Reise** als `ItemList` mit Titel und Adresse jedes Eintrags. Der Reiseblog war damit halb versorgt: Der einzelne Tag meldete sich, die Reise selbst schwieg.
+- 📄 **Aufgeführt wird nur, was die Seite wirklich zeigt.** Auf Seite 3 der Blog-Übersicht stehen die Beiträge 21 bis 26 — mit genau diesen Platznummern, nicht wieder ab 1 und nicht der ganze Bestand. Ein Schlagwort- oder Suchfilter verkleinert die Liste entsprechend.
+- 🚫 **Nichts davon geht raus, wenn die Indexierung abgeschaltet ist.** Die neuen Blöcke hängen an derselben Bedingung wie `canonical` und `hreflang`: Über eine Seite, die nicht in den Index soll, gibt es einer Suchmaschine auch nichts zu erzählen.
+- ℹ️ **Was es *nicht* bringt:** `WebPage` und `ItemList` erzeugen **keinen** erweiterten Treffer mit Bildern oder Zusatzzeilen. Sie helfen Suchmaschinen und KI-Crawlern beim Verstehen der Seite. Für sichtbare Wirkung im Suchergebnis braucht es `LocalBusiness` und `Event` auf der Startseite — das steht weiterhin aus.
+- 🧾 **Bestehende Beiträge brauchen nichts.** Der Block entsteht bei jedem Seitenaufruf aus den Feldern, die die Seite ohnehin anzeigt; gespeichert wird nichts. Ein Beitrag von vor drei Jahren hat ihn ab dem Update genauso wie einer von morgen.
+
+## 0.11.19
+
+- 📏 **Suchfeld und Haken stehen wieder auf einer Linie.** In der Leiste über dem Bilderraster saßen Eingabefeld und Kontrollkästchen auf unterschiedlicher Höhe: Beschriftungen sind im Admin Blöcke mit Abstand nach oben, und in einer Zeile wirkte der sich als Versatz aus. Beschriftungen in den Medien-Leisten haben jetzt keinen Außenabstand mehr und sind selbst eine Zeile aus Kästchen und Text.
+- 🔤 **Suchfelder sehen aus wie die übrigen Eingabefelder.** `input type="search"` fehlte in der Grundregel des Admin-Stils, weshalb der Browser sie in seiner eigenen Größe mit eigenem Rahmen zeichnete. Betrifft neben der Mediensuche auch **„Option finden"** im Design-Reiter.
+- 🏷️ **Die Plaketten auf den Kacheln überdecken sich nicht mehr.** „unbenutzt" saß rechts oben — genau dort, wo seit v0.11.18 das Auswahlkästchen sitzt; links stießen ✨ und die Etikettenzahl zusammen. Alle Plaketten stehen jetzt in einer Zeile links oben, brechen bei Bedarf um und lassen die Ecke des Kästchens frei.
+- 📝 **Hinweistext über dem Datei-Raster stimmt wieder.** Dort stand noch, ein Linksklick öffne die Datei in einem neuen Tab — seit v0.11.17 öffnet er die Verwaltung. Jetzt beschreibt er, was die Kachel tatsächlich kann: Verwaltung, Auswahlkästchen, Rechtsklick zum Löschen, und dass eingebundene Dateien über „Ersetzen" statt über Löschen ausgetauscht werden.
+
+## 0.11.18
+
+- 📁 **Ordner in der Medienverwaltung.** Über dem Bilderraster im Tab **System → Dateien** steht jetzt eine Ordnerleiste mit *Alle*, *Unsortiert* und den angelegten Ordnern samt Anzahl. Ein Bild liegt in **genau einem** Ordner und trägt daneben **beliebig viele** Etiketten — der Ordner sagt, wo es liegt, das Etikett, was drauf ist. Eine Ebene, keine Unterordner.
+- ☑️ **Mehrere Bilder auf einmal einsortieren.** Oben rechts auf jeder Kachel sitzt ein Auswahlkästchen; ein Klick daneben öffnet weiterhin den Verwaltungsdialog. Sobald etwas gewählt ist, erscheint *„n ausgewählt → Verschieben nach …"* mit den vorhandenen Ordnern und **Neuer Ordner …**. Ohne das wäre ein gewachsener Bestand nur über je einen Dialog zu sortieren — länger als das Suchen, das der Ordner ersparen soll.
+- 🗂️ **Es wandert weiterhin keine einzige Datei.** Der Ordner ist eine Angabe in `uploads_meta.json` und existiert nur im Admin. Ein echtes Verschieben im Dateisystem würde jede Einbindung in Beiträgen, Seiten und Alben sowie jede bereits veröffentlichte Bildadresse zerreißen. Ein `/` im Ordnernamen wird deshalb auch zum Leerzeichen: er täuschte eine Verschachtelung vor, die es nicht gibt.
+
+## 0.11.18
+
+- 📁 **Ordner in der Medienverwaltung.** Über dem Bilderraster im Tab **System → Dateien** steht jetzt eine Ordnerleiste mit *Alle*, *Unsortiert* und den angelegten Ordnern samt Anzahl. Ein Bild liegt in **genau einem** Ordner und trägt daneben **beliebig viele** Etiketten — der Ordner sagt, wo es liegt, das Etikett, was drauf ist. Eine Ebene, keine Unterordner.
+- ☑️ **Mehrere Bilder auf einmal einsortieren.** Oben rechts auf jeder Kachel sitzt ein Auswahlkästchen; ein Klick daneben öffnet weiterhin den Verwaltungsdialog. Sobald etwas gewählt ist, erscheint *„n ausgewählt → Verschieben nach …"* mit den vorhandenen Ordnern und **Neuer Ordner …**. Ohne das wäre ein gewachsener Bestand nur über je einen Dialog zu sortieren — das dauerte länger als das Suchen, das der Ordner ersparen soll.
+- 🗂️ **Es wandert weiterhin keine einzige Datei.** Der Ordner ist eine Angabe in `uploads_meta.json` und existiert nur im Admin. Ein echtes Verschieben im Dateisystem würde jede Einbindung in Beiträgen, Seiten und Alben sowie jede bereits veröffentlichte Bildadresse zerreißen. Ein `/` im Ordnernamen wird deshalb auch zum Leerzeichen: er täuschte eine Verschachtelung vor, die es nicht gibt.
+
+## 0.11.17
+
+- 🔎 **Die Medienverwaltung lässt sich durchsuchen.** Dateinamen sind zufällige Kennungen und damit unsuchbar — das Suchfeld im Tab **System → Dateien** greift deshalb auf alles zu, was ein Mensch selbst vergeben hat: **Herkunftsname, Etiketten, Alternativtexte und die Stellen, an denen das Bild eingebunden ist**. Alle eingegebenen Wörter müssen vorkommen. Dazu zwei Haken (*nur KI-erzeugte*, *nur unbenutzte*) und eine Etiketten-Leiste zum Eingrenzen. Auch der Dialog **„Bild wählen"** hat das Suchfeld.
+- 🏷️ **Herkunftsname und Etiketten je Datei.** Neu hochgeladene Bilder merken sich, wie die Datei hieß, als sie vom Rechner kam („Sommerfest 2026.jpg"); bei älteren lässt sich der Name von Hand nachtragen. Dazu bis zu acht frei wählbare Etiketten. Beides dient allein dem Wiederfinden — abgelegt bleibt jede Datei unter ihrer Kennung, denn der Dateiname steckt in jeder Einbindung und in bereits veröffentlichten Adressen. **Ordner gibt es bewusst nicht:** sie würden genau diese Adressen zerreißen, Etiketten nicht.
+- 🧭 **„Verwendet in".** Ein Klick auf eine Kachel öffnet den Dialog *Datei verwalten* und zeigt, wo das Bild überhaupt steckt — Beitrag, Seite, Projekt, Album, Bibliothek, Reiseblog —, jeweils mit Sprunglink. Die Frage „kann das weg?" war bisher nur mit *unbenutzt* oder *benutzt* zu beantworten, ohne zu sagen, wo.
+- 🔁 **Bilder ersetzen, ohne sie neu zu verlinken.** Der Knopf *Ersetzen* tauscht den Inhalt aus und behält den Dateinamen: jede Einbindung zeigt danach ohne weiteres Zutun auf das neue Bild — ein falsch beschnittenes Foto in zwölf Beiträgen ist damit ein Vorgang statt zwölf. Nur für WebP-Dateien (also alles, was das Add-on selbst abgelegt hat); die KI-Kennzeichnung bleibt erhalten, weil sie im Dateinamen steckt. Browser zeigen die alte Fassung unter Umständen bis zu einen Tag weiter, Strg+Shift+R hilft.
+- 🧹 **Der Bild-Zwischenspeicher wird endlich aufgeräumt.** Beim Ausliefern entstehen Kopien mit eingebranntem Wasserzeichen oder KI-Kennzeichnung. Die überlebten bisher das Bild, zu dem sie gehören: aus ihrem Namen ließ sich der Bezug nicht zurückrechnen, also fand sie niemand wieder. Sie heißen jetzt nach dem Bild, **„Ungenutzte Bilder aufräumen" nimmt die verwaisten mit** (auch die aus der Zeit davor), und beim Ersetzen oder Löschen eines Bildes fliegen seine Fassungen sofort raus — sonst käme nach dem Ersetzen weiter das alte Bild.
+
+## 0.11.16
+
+- 📄 **Der Blog blättert.** Bisher rendete `/blog` **alle** veröffentlichten Beiträge in eine einzige Seite — bei zweihundert Beiträgen mehrere Megabyte, und das bei jedem Aufruf. Jetzt stehen dort 10 Beiträge je Seite, darunter eine Blätterleiste mit Zurück/Weiter und Seitenzahlen (bei vielen Seiten mit Auslassung, damit die Leiste nicht über den Bildschirm hinauswächst). Suche und Schlagwort-Filter wandern beim Blättern mit. **Sitemap und RSS-Feed führen unverändert alle Beiträge** — die Begrenzung gilt nur für die Anzeige.
+- 🔗 **Seite 2 ist für Google eine eigene Seite.** Jede Blätterseite trägt ihre eigene kanonische Adresse sowie `rel="prev"`/`rel="next"`; eine Seitenzahl jenseits des Bestandes ergibt eine 404-Seite statt beliebig vieler Adressen mit demselben Inhalt. Gefilterte Ansichten (`?tag=`, `?q=`) bleiben wie bisher auf `/blog` kanonisiert.
+- ⚡ **Unveränderte Seiten werden nicht mehr übertragen.** Die öffentlichen Seiten bekommen einen Fingerabdruck (ETag) und `Cache-Control: public, max-age=0, must-revalidate`. Beim zweiten Aufruf antwortet das Add-on mit einem leeren „304 — unverändert", statt die ganze Seite erneut zu schicken. Gebaut wird die Seite weiterhin bei jedem Aufruf, sodass eine gerade gespeicherte Änderung sofort draußen ist. Seiten von angemeldeten Mitgliedern bekommen stattdessen `private, no-store` und landen in keinem gemeinsamen Zwischenspeicher.
+
+## 0.11.15
+
+- 🔒 **Die Links in der SEO-Übersicht prüfen die öffentliche Adresse.** Das Feld „Öffentliche Adresse“ im Design-Tab ist freier Text; sein Inhalt wurde bisher ungeprüft zum Ziel der Links neben jedem Eintrag. Ein Wert mit `javascript:` davor wäre damit beim Klick als Code gelaufen. Verlinkt wird jetzt nur noch, was als `http://`- oder `https://`-Adresse lesbar ist — bei allem anderen entfällt der Link, die Übersicht bleibt sonst unverändert.
+
+## 0.11.14
+
+- 🗣️ **Du oder Sie — die Anrede der KI-Texte ist einstellbar.** Im Design-Tab unter „Sprache & Feeds“ steht jetzt **Anrede in KI-Texten**. Die Wahl hängt an jedem Auftrag ans Modell: SEO-Beschreibungen, Texte aus dem KI-Studio und Reiseberichte. Ohne Vorgabe siezt Gemini auf Deutsch von sich aus, auch wenn die übrige Website durchweg duzt. Vorgabe bleibt **Sie**, damit sich an vorhandenen Abläufen nichts ändert; englische Fassungen bleiben beim neutralen „you“.
+- 🔄 **Nach dem Speichern in der SEO-Übersicht ist der Rest des Admins sofort auf Stand.** Bisher hielt der Browser den alten Inhalt: die frisch gesetzte Beschreibung tauchte im Dialog eines Bibliothek-Eintrags erst nach Strg+R auf — und wäre beim nächsten Speichern dieses Eintrags wieder überschrieben worden. Umgekehrt lädt die Übersicht jetzt neu, sobald ein Beitrag, eine Seite oder ein Eintrag gespeichert wurde.
+- 📐 **Gleich hohe Knöpfe in der SEO-Übersicht.** „Beschreibungen speichern“ stand groß neben zwei kleinen, und die Symbole ✦ und ⟳ zogen die Zeile zusätzlich schief.
+
+## 0.11.13
+
+- 🗂️ **Der Design-Reiter ist sortiert.** Aus einem Block mit rund fünfzig Optionen sind zehn aufklappbare Gruppen geworden: Vorlagen, Marke & Aussehen, Startseite & Navigation, Banner, Sprache & Feeds, Suchmaschinen, Bereiche an und aus, Mitglieder & Newsletter, Knöpfe & Links, Spielereien & Effekte. Offen startet nur die erste; welche du aufklappst, merkt sich der Browser.
+- 🔎 **„Option finden".** Das Suchfeld oben im Reiter filtert über alle Beschriftungen und Hinweistexte, klappt die passenden Gruppen auf und blendet den Rest aus — man kennt den Namen einer Option, selten die Gruppe, in die sie einsortiert wurde.
+- 🧭 **Sprungleiste wie in System und Einstellungen.** Chips unter der Kopfzeile, der sichtbare Bereich ist markiert.
+- 💾 **Ein Speichern-Knopf, der unten klebt.** Er speichert wie bisher den ganzen Reiter, auch die zugeklappten Gruppen — an den Feldern selbst und an dem, was gespeichert wird, ändert sich nichts.
+
+## 0.11.12
+
+- ⚙️ **Einstellungen sitzen jetzt als Zahnrad in der Kopfzeile** — neben Sprachwahl, Design-Umschalter und Abmelden, wie in TUIWatch. Aus der Reiterleiste sind sie damit raus: die war mit sechzehn Einträgen die längste Zeile im Haus und musste seitlich gescrollt werden. Der Reiter selbst ist unverändert, nur der Weg dorthin ist kürzer; das Zahnrad färbt sich, solange er offen ist.
+
+## 0.11.11
+
+- 🔽 **Die SEO-Übersicht startet zugeklappt.** Der Design-Reiter ist ohnehin lang; die Liste aller Beschreibungen hängt ihm sonst noch einmal dieselbe Länge an. Ein Klick auf die Überschrift klappt sie auf — und erst dann fragt der Browser die Daten überhaupt ab.
+
+## 0.11.10
+
+- 🔍 **SEO-Beschreibung von der KI schreiben lassen.** Neben der Snippet-Vorschau steht in den Dialogen für Blog-Beitrag, eigene Seite und Bibliothek-Eintrag — und im Design-Tab für die Startseite — der Knopf **„✦ KI-Beschreibung"**. Er fasst den vorhandenen Fließtext zu einem Satz zusammen, in der Sprache, die in der Vorschau gewählt ist, mit Ziellänge 120–155 Zeichen. Bisher war der einzige Rückfall der Textanfang: er beginnt mitten in der Einleitung und hört mitten im Satz auf. Ist die Fassung einer Sprache noch leer, geht die vorhandene andere in die Anfrage — geschrieben wird trotzdem in der gewählten Sprache. Der Knopf erscheint nur mit hinterlegtem Gemini-Schlüssel.
+- 📋 **Alle SEO-Beschreibungen an einer Stelle.** Im Design-Tab listet der neue Bereich **„Alle SEO-Beschreibungen"** Startseite, Beiträge, Seiten und Bibliothek-Einträge untereinander — mit Zeichenzähler, Link auf die Seite und dem Hinweis, was Google heute ohne eigenes Feld ausliefert. Der Filter **„Nur ohne eigene Beschreibung"** zeigt die Lücken, **„Leere per KI füllen"** arbeitet sie der Reihe nach ab. Geändert wird im Formular, geschrieben erst mit **„Beschreibungen speichern"** — ein Vorschlag der KI landet also nie ungeprüft auf der Platte. Bei Blog-Beiträgen geht nach dem Speichern wie gewohnt ein IndexNow-Ping raus.
+
+## 0.11.9
+
+- 🔍 **Der Prompt des letzten Laufs ist einsehbar.** Unter dem Bericht (und im Rückblick) steht jetzt ein zugeklappter Kasten mit genau dem Text, der an die KI ging. Das beantwortet die häufigste Frage zum Ergebnis — „warum steht das Abendessen nicht im Text?" — in Sekunden: ein leeres Feld landet gar nicht erst im Prompt, und das sieht man dort sofort. Die Routen haben den Prompt schon immer mitgeliefert, die Oberfläche hat ihn nur weggeworfen.
+- 📷 **Datum und Ort aus dem Foto.** Beim Hochladen eines Bildes im Reise-Wizard liest das Add-on Aufnahmedatum und GPS aus, bevor es die Metadaten verwirft. Das Datum wandert direkt ins Formular — aber nur, wenn dort noch keines steht. Die Koordinaten werden **angezeigt, nicht verschickt**: erst ein Klick auf „📍 Ort nachschlagen" fragt bei OpenStreetMap nach dem Ortsnamen. Die Koordinaten eines privaten Fotos ungefragt an einen fremden Dienst zu geben wäre das Gegenteil dessen, was das Entfernen der Metadaten bezweckt.
+- 🔒 **An der Datenschutzzusage ändert sich nichts.** Die abgelegte Bilddatei bleibt wie bisher metadatenfrei (WebP, ohne EXIF neu kodiert). Ausgelesen wird vor dem Verwerfen, und das Ergebnis geht einzig an den Browser zurück, der die Datei gerade hochgeladen hat — gespeichert wird davon nichts.
+
+## 0.11.8
+
+- 📖 **Reise-Rückblick — der Text über die ganze Reise.** Bisher war die Reise-Seite nur eine Liste der Tage. Der Rückblick steht jetzt darüber: erzeugt aus den fertigen Tagesberichten (kein Tag-für-Tag-Protokoll, sondern der Bogen der Reise), frei editierbar, mit denselben Knöpfen zum Überarbeiten wie der Tagesbericht. Er wird **getrennt freigegeben** — ohne Haken bleibt er ein Entwurf und die Seite sieht aus wie bisher. Der Anrisstext des Rückblicks wird zur Beschreibung der Reise-Seite und zum Text auf der Kachel in der Übersicht; die Reise-Seite steht damit auch in der Suche. Zu finden im Reiseblog-Reiter über **📖 Rückblick** neben „Neuer Reisetag".
+- 🏠 **Wetter aus Home Assistant übernehmen.** Im Schritt „Wetter" holt ein Knopf Wetterlage, Temperatur und Windstärke für das Datum des Reisetags: für heute den aktuellen Zustand, für einen vergangenen Tag den Verlauf aus dem Recorder (Zustand um die Mittagszeit; die Aufbewahrung reicht standardmäßig zehn Tage zurück). Die Entität wird **je Reise** im Reise-Dialog gewählt — dort stehen alle `weather.*`-Entitäten der Installation zur Auswahl. Wichtig: eine Wetter-Entität misst dort, wo sie eingerichtet ist. Für ein Ziel im Ausland vorher in Home Assistant eine Entität für diesen Ort anlegen.
+- 🐳 **Unter Docker ohne Home Assistant bleibt davon alles unsichtbar** — kein Auswahlfeld im Reise-Dialog, kein Knopf im Wetter-Schritt. Eine Schaltfläche, die nur „geht hier nicht" sagen kann, ist schlimmer als keine.
+- 🌫️ **Zwei Wetterlagen mehr: „neblig" und „Schneefall".** Home Assistant meldet beides als eigenen Zustand, und ohne Entsprechung im Formular wäre das Feld leer geblieben. Was sich nicht sauber zuordnen lässt, wird weiterhin **nicht** geraten: der Rohwert steht dann als Hinweis daneben und die Lage wird von Hand gewählt.
+
+## 0.11.7
+
+- ✨ **Reisebericht überarbeiten statt neu erzeugen.** Im Tages-Wizard steht unter „Bericht" jetzt derselbe Werkzeugkasten wie im KI-Studio: **Kürzer**, **Länger**, **Feinschliff** und ein Feld für einen freien Änderungswunsch. Bisher gab es nur „Reisebericht erstellen" — wer mit dem Text unzufrieden war, musste ihn komplett neu würfeln lassen und verlor dabei jede Zeile, die er danach von Hand geändert hatte. Das Überarbeiten schickt genau die Fassung mit, die gerade in den Feldern steht.
+- 🌍 **Eine Sprache allein überarbeiten.** Bei zweisprachigen Reisen lässt sich wählen, ob beide Fassungen drankommen oder nur die deutsche bzw. englische — das halbiert die Kosten, wenn nur eine Seite hakt. Die andere Fassung bleibt unangetastet.
+- ↶ **Zurücknehmen.** Nach jedem Lauf steht die vorherige Fassung eine Taste weit entfernt; ein missratener Durchgang kostet also nichts. Beim Wechsel auf einen anderen Tag wird sie verworfen.
+- 🚫 **Auch beim Überarbeiten wird nichts dazuerfunden.** „Länger" und der freie Wunsch bekommen die Tagesdaten als einzige erlaubte Quelle mitgeliefert; „Kürzer" und „Feinschliff" sehen nur den vorhandenen Text, damit sie den Umfang nicht heimlich aufblähen.
+
+## 0.11.6
+
+- 📰 **`managingEditor` im Feed korrigiert.** Dort stand der Profilname — RSS verlangt an dieser Stelle eine E-Mail-Adresse, Feed-Validatoren melden das als Fehler. Die Adresse dorthin zu schreiben kam nicht in Frage: Die Website zeigt sie bewusst nur zerlegt, um Adress-Sammler abzuwehren. Der Autor steht jetzt als `<atom:author>` im Kanal und `<dc:creator>` je Eintrag — beides gültig und ohne Adresse.
+- 🔗 **Relative Links aus importierten GitHub-READMEs zeigen nicht mehr ins Leere.** `[FileBox](filebox/)` landete im Feed-Leser auf dessen eigener Adresse und auf der Projektseite unter `/p/filebox/`. Solche Links werden jetzt auf das Repository umgebogen (`/blob/HEAD/…` für Dateien, `/tree/HEAD/…` für Ordner, `/raw/HEAD/…` für Bilder) — im Feed **und** auf der Projektseite, wo sie genauso kaputt waren.
+- 📅 **Projekte haben im Feed jetzt ein Datum**: den letzten Push des Repositories. Bisher standen sie ohne `<pubDate>` darin; Leser, die selbst sortieren, schoben sie ans Ende oder stempelten sie beim ersten Abruf auf „jetzt" — und damit über die Blogbeiträge. Das Datum kommt beim Import mit und wird vom stündlichen Sterne-Abgleich nachgezogen, füllt sich also auch für früher importierte Projekte von selbst.
+
+## 0.11.5
+
+- 🛡️ **Fehlermeldungen der Schlüssel-Funktionen sagen nicht mehr, was intern schiefging.** Die Routen gaben den Text der Ausnahme direkt zurück (CodeQL: *Information exposure through an exception*). Übersetzt wird jetzt in feste Codes — sichtbar ändert sich nichts, die Meldungen im Browser sind dieselben.
+
+## 0.11.4
+
+- 🔒 **Der Schlüssel liegt nicht mehr neben den Einstellungen.** `settings.key` wandert beim ersten Start automatisch vom Add-on-Konfigurationsordner ins private Add-on-Verzeichnis (`/data`, dort wo auch `options.json` liegt). Der Konfigurationsordner ist über den Samba-Share einsehbar — Schloss und Schlüssel nebeneinander waren damit keine echte Verschlüsselung. Zu tun ist nichts, `settings.json` bleibt wo sie ist.
+- 🐳 **Im Standalone-Betrieb bleibt alles wie bisher.** Dort ist `/data` nur containerintern und nach einem `docker compose down` weg — der Schlüssel bliebe also nicht erhalten. MyPage unterscheidet die beiden Fälle am Supervisor-Token.
+
+## 0.11.3
+
+- 🔑 **Schlüssel sichern — neu im Reiter Einstellungen.** Bisher blieb `settings.key` im Add-on, und ein Restore auf einer frischen Installation ließ die Zugangsdaten leer. Jetzt lässt sich der Schlüssel einzeln herunterladen: verpackt mit einer **Passphrase**, die du eingibst (scrypt, 32 MB je Rateversuch). Die Datei darf deshalb neben dem Backup liegen — ohne Passphrase ist sie wertlos. Zurückspielen geht über denselben Bereich.
+- 🛡️ **Vor Export und Import wird das Admin-Passwort erneut abgefragt**, bei aktivem 2FA zusätzlich der Code. Nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt, jeder Vorgang landet im Audit-Log. Ein Klartext-Download ohne Passphrase gibt es bewusst nicht — der würde die Verschlüsselung wieder aufheben.
+- 🩹 **Kein Zufallsschlüssel mehr beim bloßen Lesen.** Fehlte `settings.key`, legte schon der erste Lesezugriff einen neuen an — der später eingespielte echte Schlüssel galt dann als „fremd" und wurde abgelehnt. Erzeugt wird jetzt nur noch, wenn wirklich etwas zu verschlüsseln ist.
+
+## 0.11.2
+
+- 🧹 **Die alten Optionen sind aus der HA-Konfigurationsseite verschwunden.** Sie standen in 0.11.0/0.11.1 nur noch da, damit der Supervisor sie nicht wegwirft, bevor die einmalige Übernahme sie lesen konnte. Das ist erledigt — übrig bleiben `username`, `password` und `session_hours` als Notzugang. Alles andere: Admin-Panel → **Einstellungen**.
+
+## 0.11.1
+
+- 🐛 **Startschleife nach dem Update auf 0.11.0 behoben.** Das Startskript las die SMB-Felder mit `jq` aus der neuen `settings.json` — die es beim allerersten Start noch gar nicht gibt. `jq` beendet sich auf einer fehlenden Datei mit Code 2, und wegen `set -e` starb daran das ganze Skript, bevor MyPage überhaupt anlief: Add-on im Fehlerzustand, im Protokoll nur die Startzeile in Endlosschleife. Fehlende oder defekte Dateien werden jetzt sauber übergangen.
+- 🛡️ **Ein nicht beschreibbarer Datenordner kostet nicht mehr den Start.** Lässt sich `settings.json` beim ersten Start nicht anlegen, läuft MyPage mit den Werten aus `options.json` weiter und schreibt eine Warnung, statt abzubrechen. Beim Speichern aus der Oberfläche kommt in dem Fall eine Fehlermeldung statt eines stillen Verlusts.
+
+## 0.11.0
+
+- ⚙️ **Neuer Reiter „Einstellungen" im Admin-Panel.** Mailversand, Telegram, GitHub-Token, KI-Keys, SMB-Speicher, Besucherzähler und Backup-Aufbewahrung stellst du ab sofort dort ein statt in den Add-on-Optionen. Damit ist MyPage auch [ohne Home Assistant](STANDALONE.md) bequem konfigurierbar — unter Docker gab es dafür bisher nur einen Texteditor.
+- 🔐 **Tokens und Passwörter liegen jetzt verschlüsselt.** Gespeichert wird in `settings.json`, die geheimen Felder mit einem eigenen Schlüssel (`settings.key`) verschlüsselt. Der Browser bekommt sie nie zu sehen (nur „gesetzt"/„nicht gesetzt"), das Protokoll nennt nur den Feldnamen. Bisher standen sie im Klartext in `options.json` — und damit in jedem Backup.
+- 💾 **Das MyPage-Backup enthält `settings.json`, aber nicht `settings.key`.** Wer das ZIP in die Hände bekommt, kann die Zugangsdaten nicht lesen. Preis: Nach einem Restore auf einer frischen Installation müssen sie einmal neu eingetragen werden.
+- 🔁 **Die bisherigen Optionen werden beim ersten Start automatisch übernommen** — nichts abtippen. In der HA-Konfiguration bleiben nur `username`, `password` und `session_hours`: der Notzugang, falls man sich über die Oberfläche aussperrt. Die übrigen Optionen stehen dort noch, wirken aber nicht mehr.
+- ⚡ **Fast alles greift sofort**, ohne Neustart — auch Upload-Grenze und Bot-Netze. Nur die SMB-Felder brauchen einen Neustart, wenn beim Start noch keine Freigabe eingerichtet war; die Oberfläche sagt es.
+## 0.10.50
+
+- 🧳 **Die Snippet-Vorschau gibt es jetzt auch im Reisebericht.** Reisetage stehen in der Sitemap und werden indexiert, hatten aber als einziger öffentlicher Seitentyp keine Vorschau. Im Schritt *Bericht* steht sie unter den Textfeldern und zeigt Titel, Adresse (`/reiseblog/<reise>/<tag>`) und Beschreibung — aus dem **Anrisstext**, ersatzweise aus dem Auszug des Berichts.
+- 🌐 **Der Sprachumschalter kennt die Reisesprachen.** Eine Reise, die nur auf Deutsch geführt wird, zeigt keinen EN-Knopf mehr — anders als bei Beiträgen und Seiten, wo immer beide Fassungen möglich sind.
+- ℹ️ Die Reise-Übersicht `/reiseblog/<slug>` bekommt bewusst **keine** eigene Vorschau: ihre Beschreibung ist der Anrisstext des ersten veröffentlichten Tages und damit genau das, was dessen Vorschau schon anzeigt.
+
+## 0.10.49
+
+- 🔎 **Snippet-Vorschau: der Google-Treffer, bevor es Google tut.** Unter den SEO-Feldern steht jetzt eine Vorschau des Suchergebnisses — im **Design-Tab** für die Startseite und in den Dialogen für **Blog-Beitrag**, **eigene Seite** und **Bibliothek-Eintrag**. Zwei Zähler zeigen die Länge von Titel (Ziel 20–60 Zeichen) und Beschreibung (Ziel 120–160): grün passt, gelb ist zu kurz, rot wird von Google gekürzt. Die Vorschau kürzt genauso wie Google — am letzten Wortende vor der Grenze, nicht mitten im Wort.
+- 🔗 **Sie zeigt auch, was passiert, wenn du nichts einträgst.** Ohne eigenen SEO-Text greift dieselbe Rückfallkette wie auf der Seite: eigenes Feld → Auszug der ersten 155 Zeichen → Beschreibung der Startseite → Tagline → Bio. Das war bisher nur im Quelltext zu sehen.
+- 🌐 **DE/EN-Umschalter** je Vorschau — die englische Fassung eines Beitrags hat eine eigene Beschreibung und damit einen eigenen Treffer.
+- 📚 **SEO.md korrigiert.** Dort stand, die Bestätigung der Search Console per Meta-Tag ginge in MyPage nicht und man solle den Reverse-Proxy bemühen. Die Felder dafür gibt es im Design-Tab — die Anleitung nennt jetzt den richtigen Weg.
+
+## 0.10.48
+
+- ⏮️ **Frühere Stände: einen versehentlich gelöschten Text zurückholen, ohne ein Backup einzuspielen.** Vor jeder Änderung sichert MyPage den bisherigen Stand der Seiteninhalte. Im Tab **System → Frühere Stände** stehen sie mit Zeitpunkt und den geänderten Abschnitten („Profil, Design“) und lassen sich einzeln **zurückholen**, herunterladen oder löschen. Beim Zurückholen wird der aktuelle Stand vorher selbst zum Stand — ein Fehlgriff ist also wieder rückgängig zu machen.
+- ⚙️ **Neue Option `revision_keep`** (Standard 20, `0` schaltet es ab). Die Stände liegen unter `addon_configs/<slug>_mypage/revisions/` und sind — wie die automatischen Backups — bewusst nicht Teil des Backup-ZIPs.
+- ℹ️ **Was ein Stand umfasst:** nur die Seiteninhalte (Profil, Projekte, Blog, Seiten, Design, Rechtstexte, Formulare, Bibliothek). Mitglieder, Nachrichten, Reiseblog, Umfragen und Statistik liegen in eigenen Dateien und bleiben beim Zurückholen unberührt. Stände unter 90 Sekunden Abstand werden zusammengefasst, und Änderungen, die nur vom Besuch der Seite kommen (Slot-Jackpot, Tipp-Statistik), erzeugen gar keinen Stand.
+
+## 0.10.47
+
+- ✏️ **Der Markdown-Editor hängt jetzt an allen Feldern, die Markdown können.** Bisher stand im Code eine Liste der Feld-Namen — wer ein neues Textfeld anlegte, musste daran denken, es dort nachzutragen. Genau das ging schief: **Impressum**, **Datenschutz**, **Bibliothek-Einleitung** und die **KI-Textausgabe** werden auf der Seite als Markdown dargestellt, im Admin gab es dazu aber keinen Bearbeiten-Knopf mit Werkzeugleiste und Vorschau. Diese vier (je DE/EN) haben ihn jetzt.
+- 🧩 **Neue Wiederholfelder bekommen den Editor von allein.** Zeilen, die erst beim Bearbeiten entstehen — FAQ-Antworten, Tipps — melden sich selbst an, statt an jeder Stelle einzeln angemeldet zu werden. Künftige Felder brauchen nur noch die Markierung am Feld selbst.
+
+## 0.10.46
+
+- 🕵️ **Scanner werden jetzt am Verhalten erkannt, nicht mehr nur an der Herkunft.** Die Netzliste aus 0.10.45 hat die Cloud-Anbieter erwischt, aber Scanner mieten sich auch in Mobilfunk- und Endkundennetzen ein — die blieben als Ein-Seiten-Aufrufe stehen. Neue Regel: ein Aufruf, kein Referrer, **keine Sprachangabe**. Jeder Browser schickt `Accept-Language` mit; wer ohne Sprache genau eine Seite abholt und nie wiederkommt, klopft Adressen ab. Solche Sitzungen sind aus dem Explorer draußen, solange der Bot-Schalter aus ist — und unter der Tabelle steht, wie viele es waren.
+- 🩹 **Lücken in der Netzliste geschlossen.** Amazon (54.160–54.255, weitere 52er-Blöcke) und Alibaba (198.11.128.0/18) fehlten und schickten weiter „Firefox · macOS" aus den Vereinigten Staaten.
+
+## 0.10.45
+
+- 🤖 **Cloud-Scanner werden jetzt als Bot erkannt.** Im Explorer standen reihenweise Sitzungen mit einem einzigen Aufruf und ohne Verweildauer — angeblich „Safari · iOS" aus Singapur, Indonesien oder Indien. Es sind Scanner aus Rechenzentren, die eine Handy-Browserkennung vortäuschen und deshalb an der bisherigen Prüfung (Textsuche in der Browserkennung) vorbeikamen. Aufrufe aus den Netzen der großen Anbieter (AWS, Azure, Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr, Scaleway) zählen jetzt als Bot und sind damit standardmäßig aus den Zahlen draußen — über den Bot-Schalter bleiben sie sichtbar. Die Prüfung greift auch rückwirkend beim Auswerten, die bereits archivierten Monate werden also mitbereinigt.
+- ⚙️ **Neue Option `visit_bot_nets`** für eigene IP-Netze in CIDR-Schreibweise, die zusätzlich als Bot gelten sollen.
+- 🕒 **Verweildauer „0 s" heißt jetzt „–".** Bei nur einem Seitenaufruf gibt es keinen zweiten Zeitstempel — es ist keine gemessene Null, sondern schlicht unbekannt.
+- 🧹 Der Datenschutz-Hinweis unter der Sitzungstabelle im Explorer ist entfallen.
+
+## 0.10.44
+
+- 🐛 **Der Sortierpfeil im Explorer war ein leeres Kästchen.** Die Oberflächenschrift hat keine Pfeilzeichen — der Pfeil wird jetzt als kleines Dreieck gezeichnet und ist damit überall sichtbar.
+
+## 0.10.43
+
+- ↕️ **Die Tabellen im Explorer lassen sich jetzt sortieren.** Ein Klick auf eine Spaltenüberschrift sortiert aufsteigend, der nächste absteigend — ein Pfeil im Kopf zeigt, wonach gerade sortiert wird. Gilt für „Sitzungen“ und „Wiederkehrende Besucher“. Zahlen und Datumsspalten starten absteigend (das Interessante steht oben), Text aufsteigend. IP-Adressen werden nach Zahlenwert einsortiert, nicht als Text — `9.0.0.1` steht also vor `10.0.0.1`.
+
 ## 0.10.42
 
 - 🔑 **GitHub-Token wird jetzt geprüft — im Admin unter System.** Neue Karte unter den Home-Assistant-Sensoren: sie zeigt, ob der in den Add-on-Einstellungen hinterlegte Token gültig ist, zu welchem Konto er gehört, wann er abläuft (mit Warnung ab 14 Tagen Restlaufzeit) und wie viel vom Stunden-Kontingent noch frei ist. Bisher fiel ein abgelaufener Token gar nicht auf: das stündliche Sterne-Update hat die Absage von GitHub still verschluckt, und der Repo-Import meldete nur ein allgemeines „GitHub nicht erreichbar“.

@@ -3,10 +3,13 @@ Kosten-Zähler, KI-Verlauf und alle /api/ai-Routen — ausgelagert aus app.py
 (Backlog #12, 3. Tranche). Geteilte Primitiven über `import app as A` mit
 spätem Attribut-Zugriff (monkeypatch-sicher, zyklenfrei).
 """
+import functools
 import hashlib
 import json
 import re
+import threading
 import time
+import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -41,11 +44,13 @@ _AI_SECTIONS = (
 )
 
 
-_CUSTOM_PROMPT_MAX_LEN = 6000  # Zeichen — ganzer Instruktionsblock, großzügiger als
-                               # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen.
-                               # 6000 statt 4000: der Regionen-Vergleich-Standardtext
-                               # allein braucht schon knapp 4000, sonst bliebe beim
-                               # Bearbeiten kein Spielraum mehr.
+_CUSTOM_PROMPT_MAX_LEN = 16000  # Zeichen — ganzer Instruktionsblock, großzügiger als
+                                # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen.
+                                # 16000, weil der Regionen-Vergleich-Standardtext mit den
+                                # Abschnitten zu Informationsfreiheit und LGBTQ-Rechten
+                                # allein über 10000 Zeichen braucht. Zu knapp bemessen wäre
+                                # hier besonders tückisch: das Speichern schneidet still
+                                # ab, und der Nutzer merkt es erst an der Antwort.
 
 _PROMPT_OVERRIDE_MAX_LEN = 20000  # Zeichen — kompletter Prompt (Fakten+Instruktionen),
                                   # großzügiger als _CUSTOM_PROMPT_MAX_LEN (nur Instruktionen)
@@ -125,7 +130,30 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "Wetter) — ein Land, an das der Nutzer wahrscheinlich nicht von selbst gedacht "
     "hätte. Bei Alternative und Überraschung reicht eine kurze, optionale Erwähnung "
     "möglicher Unterkünfte — die drei Kategorien Budget/Mittelklasse/Gehoben sind nur "
-    "bei den 3 Hauptvorschlägen nötig. Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
+    "bei den 3 Hauptvorschlägen nötig.\n\n"
+    "Prüfe zu jedem vorgeschlagenen Ziel zusätzlich zwei Punkte, die sich aus "
+    "Klima, Preis und Hotelqualität nicht ablesen lassen, und nenne sie in ein bis "
+    "zwei Stichpunkten:\n"
+    "- **Informationsfreiheit und digitaler Alltag**: staatliche Internetzensur, "
+    "blockierte Nachrichtenangebote, soziale Netzwerke, Messenger oder "
+    "Telefoniedienste, zeitweise Abschaltungen, Überwachung, rechtliche Risiken "
+    "wegen privater oder öffentlicher Onlineäußerungen, Rechtslage bei VPN-Nutzung. "
+    "Unterscheide dabei zwischen bloß eingeschränkter Pressefreiheit und konkreten "
+    "Auswirkungen auf Reisende.\n"
+    "- **LGBTQ-Reisende**: Rechtslage für gleichgeschlechtliche Beziehungen, "
+    "mögliche Strafbarkeit und deren tatsächliche Durchsetzung, gesellschaftliche "
+    "Akzeptanz, Risiken bei öffentlichen Zuneigungsbekundungen, besondere Risiken "
+    "für trans, nichtbinäre oder sichtbar queere Reisende. Trenne Rechtslage, "
+    "Alltagssituation und die abgeschirmte Lage in touristischen Anlagen; "
+    "verharmlose eine Strafbarkeit nicht mit dem Hinweis, im Resort sei es kein "
+    "Problem.\n\n"
+    "Ist einer der beiden Punkte gravierend — erhebliche Zensur, blockierte "
+    "Kommunikationsdienste, Strafbarkeit oder staatliche Verfolgung —, kennzeichne "
+    "das ausdrücklich als **mögliches KO-Kriterium**. Streiche das Ziel deswegen "
+    "aber nicht aus der Liste: ob das ein Ausschlussgrund ist, entscheidet der "
+    "Nutzer, nicht du. Gibt es zu einem Ziel nichts Auffälliges zu berichten, "
+    "genügt ein knapper Satz.\n\n"
+    "Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
     "(informell, nicht „Sie“), ehrlich und ohne zu übertreiben — wenn ein Wunsch (z. B. "
     "Budget, Reisezeit oder TUI-Verfügbarkeit) schwer erfüllbar ist, sag das offen."
 )
@@ -136,6 +164,11 @@ _ADVISOR_SAFETY_TRAILER = (
     "Entfernungsbegrenzung bei eigener Anreise) — auch beim "
     "Alternative- und Überraschung-Vorschlag."
 )
+# Der Hinweis zu Informationsfreiheit und LGBTQ-Rechten steht bewusst im
+# **editierbaren** Teil und nicht hier: er schliesst kein Ziel aus, sondern legt
+# etwas offen, dessen Gewicht von Person zu Person verschieden ist. Wer das nicht
+# braucht, nimmt es unter „KI-Prompts" heraus — was bei den Reisewarnungen oben
+# bewusst nicht geht.
 
 _DEFAULT_COMPARE_INSTRUCTIONS = (
     "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. HolidayCheck, "
@@ -223,70 +256,293 @@ _DEFAULT_DAYTRIP_INSTRUCTIONS = (
     "mich noch prüfen“."
 )
 
-_DEFAULT_REGION_COMPARE_INSTRUCTIONS = (
-    "Recherchiere für die Bewertung aktuelle und verlässliche Informationen im Web. "
-    "Verwende für Klimadaten möglichst langjährige Klima-Normalwerte, für Preise "
-    "aktuelle Richtwerte des laufenden bzw. kommenden Jahres — und kennzeichne sie "
-    "klar als Richtwerte, die je nach Abflughafen, Reisedauer, Hotelstandard und "
-    "Buchungszeitpunkt schwanken. Einzelne Wettervorhersagen sind ausdrücklich "
-    "nicht gewünscht.\n\n"
-    "Bewerte jedes Reiseziel entlang dieser Kriterien, gerne ausführlich:\n\n"
-    "1. **Wetter im gewählten Monat**: typische Tages- und Nachttemperaturen, "
-    "durchschnittliche Niederschlagsmenge bzw. Regentage/Regenwahrscheinlichkeit, "
-    "typische Sonnenscheindauer (sofern verfügbar), Wassertemperatur, sowie eine "
-    "kurze Einschätzung, wie gut sich der Monat klimatisch für eine Reise eignet. "
-    "Hat ein Ziel klimatisch deutlich unterschiedliche Teilregionen (z. B. Thailand: "
-    "Andamanensee vs. Golf von Thailand), weise auf die relevanten Unterschiede hin.\n"
-    "2. **Sicherheit**: aktuelle Reise- und Sicherheitshinweise für Touristen, "
-    "allgemeines Sicherheitsniveau, typische Risiken (Kriminalität, Naturgefahren, "
-    "Verkehr, politische Situation) — keine pauschalen Aussagen, sondern eine kurze, "
-    "realistische Einschätzung.\n"
-    "3. **Preisniveau**: typische Urlaubskosten vor Ort (Essen in einfachen und "
-    "mittleren Restaurants, Getränke, Nahverkehr/Transfers, Aktivitäten/Ausflüge, "
-    "sonstige relevante Kosten) sowie aktuelle Preisrichtwerte für Pauschalreisen im "
-    "gewählten Monat und für eine Unterkunft der mittleren Kategorie — wenn sinnvoll "
-    "mit Preisunterschieden zwischen günstigem, mittlerem und gehobenem Niveau.\n"
-    "4. **Beste Reisezeit**: die insgesamt beste Reisezeit fürs Ziel und warum, wie "
-    "gut der gewählte Monat im Vergleich dazu abschneidet, mit Einstufung sehr "
-    "gut/gut/mittel/eher ungünstig.\n"
-    "5. **Strand & Natur**: Qualität und Vielfalt der Strände, Landschaft und Natur, "
-    "Schnorcheln/Tauchen (falls relevant), besondere Naturerlebnisse, Vielfalt der "
-    "Landschaften und Ausflugsmöglichkeiten.\n"
-    "6. **Familienfreundlichkeit**: Strände und Badebedingungen, Aktivitäten, "
-    "Infrastruktur, Transfers/Entfernungen, allgemeine Eignung für Familien mit "
-    "Kindern.\n"
-    "7. **Nightlife/Party**: Bars und Restaurants am Abend, Clubs/Partyszene, "
-    "Vielfalt des Nachtlebens, ob eher ruhiger Abendurlaub oder lebhaftes "
-    "Nachtleben.\n\n"
-    "Bewerte jedes Ziel bei den qualitativen Kriterien (alles außer Preisniveau) "
-    "zusätzlich auf einer Skala von 1–5 Punkten (5 = hervorragend, 4 = sehr gut, "
-    "3 = gut/durchschnittlich, 2 = eher schwach, 1 = schlecht).\n\n"
-    "Schließe mit einer kompakten Markdown-Vergleichstabelle ab: eine Zeile je "
-    "Kriterium (inkl. einer abschließenden Zeile „Gesamtbewertung“) und eine Spalte "
-    "je Reiseziel, jeweils mit Punktzahl und einer sehr kurzen Begründung. Bilde die "
-    "Gesamtbewertung nicht rein mathematisch als Durchschnitt, wenn dadurch wichtige "
-    "Unterschiede verloren gehen — berücksichtige insbesondere die Bedeutung des "
-    "Wetters im gewählten Monat und das Preis-Leistungs-Verhältnis.\n\n"
-    "Verwende für die Recherche möglichst offizielle Reise-/Sicherheitshinweise "
-    "staatlicher Stellen, seriöse Klimadatenquellen, aktuelle Reiseveranstalter-/"
-    "Hotelpreise sowie seriöse Reiseportale, und verlinke die wichtigsten Quellen "
-    "direkt bei den jeweiligen Aussagen.\n\n"
-    "Schließe mit einem Fazit von 2–4 Sätzen: welches Ziel insgesamt am "
-    "empfehlenswertesten ist, welches das beste Preis-Leistungs-Verhältnis bietet, "
-    "welches sich am besten für Familien eignet und welches am besten für Strand/"
-    "Erholung bzw. Nightlife passt — mit klarer Aussage, für welchen Urlaubstyp "
-    "welches Ziel am besten geeignet ist. Schreibe auf Deutsch, sprich den Nutzer "
-    "dabei durchgehend mit „Du“ an (informell, nicht „Sie“), sachlich und "
-    "ausschließlich basierend auf dem, was du in den Quellen findest. Wenn zu einem "
-    "Punkt nichts Verlässliches auffindbar ist, sag das kurz statt zu spekulieren. "
-    "Gib direkt die fertige Antwort aus — keine Zwischenkommentare wie „Ich werde "
-    "jetzt recherchieren“ oder „Lassen Sie mich noch prüfen“."
-)
+_DEFAULT_REGION_COMPARE_INSTRUCTIONS = """\
+Recherchiere für die Bewertung aktuelle und verlässliche Informationen im Web. \
+Verwende für Klimadaten möglichst langjährige Klima-Normalwerte, für Preise aktuelle \
+Richtwerte des laufenden beziehungsweise kommenden Jahres und kennzeichne sie klar als \
+Richtwerte, die je nach Abflughafen, Reisedauer, Hotelstandard und Buchungszeitpunkt \
+schwanken. Einzelne Wettervorhersagen sind ausdrücklich nicht gewünscht.
 
+Bewerte jedes Reiseziel entlang der folgenden Kriterien:
+
+### 1. Wetter im gewählten Monat
+
+Nenne typische Tages- und Nachttemperaturen, durchschnittliche Niederschlagsmengen \
+beziehungsweise Regentage oder Regenwahrscheinlichkeit, typische Sonnenscheindauer, \
+sofern verfügbar, und die durchschnittliche Wassertemperatur.
+
+Ordne außerdem ein, wie gut sich der Monat klimatisch für eine Reise eignet. \
+Berücksichtige dabei auch:
+
+* Luftfeuchtigkeit und Schwüle
+* typische Dauer und Art der Regenfälle
+* Sturm-, Zyklon- oder Monsunrisiken
+* Badebedingungen und mögliche Einschränkungen durch Wind oder hohen Wellengang
+
+Hat ein Ziel klimatisch deutlich unterschiedliche Teilregionen, beispielsweise \
+verschiedene Küsten, Inselgruppen oder Monsunbereiche, weise auf die für Reisende \
+relevanten Unterschiede hin.
+
+### 2. Sicherheit
+
+Berücksichtige aktuelle Reise- und Sicherheitshinweise staatlicher Stellen, das \
+allgemeine Sicherheitsniveau und typische Risiken für Touristen.
+
+Gehe insbesondere ein auf:
+
+* Kriminalität und Betrugsrisiken
+* Naturgefahren
+* Straßenverkehr und Transfers
+* politische Lage und mögliche Unruhen
+* medizinische Versorgung
+* besondere Regeln oder Verbote, die Touristen leicht übersehen können
+
+Vermeide pauschale Aussagen und gib eine kurze, realistische Einschätzung für normale \
+Urlaubsreisende.
+
+### 3. Preisniveau
+
+Nenne typische aktuelle Richtwerte für:
+
+* Essen in einfachen und mittleren Restaurants
+* alkoholfreie und alkoholische Getränke
+* Nahverkehr, Taxis und Transfers
+* Aktivitäten und Ausflüge
+* Eintrittsgelder und sonstige relevante Nebenkosten
+* Unterkünfte der mittleren Kategorie
+* Pauschalreisen im gewählten Monat
+
+Unterscheide, soweit sinnvoll, zwischen günstigem, mittlerem und gehobenem Niveau. Gib \
+bei Pauschalreisen nach Möglichkeit Richtwerte pro Person für eine typische Reisedauer \
+von 7 bis 14 Nächten ab Deutschland an.
+
+Mache deutlich, dass die Preise je nach Abflughafen, Reisedauer, Verpflegung, \
+Hotelstandard, Reiseveranstalter und Buchungszeitpunkt stark schwanken können.
+
+### 4. Beste Reisezeit
+
+Nenne die insgesamt beste Reisezeit für das Ziel und erkläre kurz, warum sie als \
+besonders geeignet gilt.
+
+Bewerte anschließend, wie der gewählte Monat im Vergleich dazu abschneidet:
+
+* sehr gut
+* gut
+* mittel
+* eher ungünstig
+* ungünstig
+
+Berücksichtige dabei nicht nur Temperatur und Niederschlag, sondern auch \
+Luftfeuchtigkeit, Wind, Meerbedingungen, Hauptsaison, Besucheraufkommen und Preisniveau.
+
+### 5. Strand und Natur
+
+Bewerte:
+
+* Qualität, Vielfalt und Zugänglichkeit der Strände
+* Wasserqualität und typische Badebedingungen
+* Landschaft und Natur
+* Schnorcheln und Tauchen
+* Korallenriffe und Unterwasserwelt
+* besondere Naturerlebnisse
+* Vielfalt der Landschaften
+* Möglichkeiten für Ausflüge außerhalb des Hotels
+
+Weise auch auf mögliche Nachteile hin, beispielsweise Korallenbruch am Strand, starke \
+Strömungen, eingeschränkten öffentlichen Strandzugang, Seegras, Erosion oder eine \
+geringe landschaftliche Abwechslung.
+
+### 6. Familienfreundlichkeit
+
+Bewerte:
+
+* Eignung der Strände für Kinder
+* Wellen, Strömungen und flach abfallendes Wasser
+* Aktivitäten für unterschiedliche Altersgruppen
+* Familienzimmer und Hotelinfrastruktur
+* medizinische Versorgung
+* Dauer und Aufwand der Transfers
+* allgemeine Bewegungsfreiheit außerhalb der Anlage
+* Eignung für Familien mit kleinen Kindern und Jugendlichen
+
+### 7. Nightlife und Abendunterhaltung
+
+Bewerte:
+
+* Bars und Restaurants am Abend
+* Clubs und Partyszene
+* Unterhaltung in Hotels und Resorts
+* Möglichkeiten, außerhalb der Unterkunft auszugehen
+* Auswahl und Vielfalt des Nachtlebens
+* Verfügbarkeit und Preis von Alkohol
+* lokale Regeln oder Einschränkungen
+
+Ordne ein, ob das Ziel eher für ruhigen Abendurlaub, gehobene Hotelunterhaltung oder \
+lebhaftes Nachtleben geeignet ist.
+
+### 8. Informationsfreiheit und digitaler Alltag
+
+Bewerte kurz, wie frei und zuverlässig Reisende das Internet und digitale Dienste \
+nutzen können.
+
+Prüfe insbesondere:
+
+* staatliche Internetzensur oder Internetsperren
+* blockierte Websites, Nachrichtenangebote, soziale Netzwerke, Messenger oder \
+Telefoniedienste
+* zeitweise Abschaltungen oder Drosselungen des Internets
+* Überwachung und Kontrolle der Internetnutzung
+* rechtliche Risiken bei kritischen politischen Äußerungen oder Beiträgen in sozialen \
+Medien
+* Einschränkungen bei VPN-Diensten und ob deren Nutzung legal, eingeschränkt oder \
+praktisch problematisch ist
+* Qualität und Verfügbarkeit von WLAN und mobilem Internet
+* Einschränkungen, die auch innerhalb von Hotels oder Resorts gelten
+
+Unterscheide klar zwischen einer lediglich eingeschränkten Pressefreiheit und konkreten \
+Auswirkungen auf Touristen im digitalen Alltag.
+
+Kennzeichne erhebliche Internetzensur, blockierte Kommunikationsdienste oder ein \
+realistisches Risiko wegen privater beziehungsweise öffentlicher Onlineäußerungen \
+deutlich als **mögliches KO-Kriterium**.
+
+### 9. LGBTQ-Reisende
+
+Bewerte sachlich die rechtliche und praktische Situation für LGBTQ-Reisende.
+
+Berücksichtige:
+
+* Rechtslage für gleichgeschlechtliche Beziehungen
+* mögliche Strafbarkeit und angedrohte Strafen
+* tatsächliche Durchsetzung der Gesetze
+* gesellschaftliche Akzeptanz
+* Risiken durch Diskriminierung, Belästigung oder Kontrollen
+* Situation in Hotels und touristischen Resorts im Vergleich zum öffentlichen Raum
+* Risiken bei öffentlichen Zuneigungsbekundungen
+* besondere Risiken für trans, nichtbinäre oder sichtbar queere Reisende
+* Einreiseprobleme oder Schwierigkeiten bei Reisedokumenten, sofern relevant
+* konkrete Hinweise offizieller Reise- und Sicherheitsbehörden
+
+Vermeide verharmlosende Aussagen wie „im Resort normalerweise kein Problem“, wenn \
+gleichzeitig strafrechtliche Risiken bestehen. Trenne klar zwischen der Rechtslage, der \
+tatsächlichen Alltagssituation und der abgeschirmten Situation in touristischen Anlagen.
+
+Kennzeichne eine mögliche Strafbarkeit, staatliche Verfolgung oder ein erhebliches \
+persönliches Sicherheitsrisiko deutlich als **mögliches KO-Kriterium**.
+
+## Bewertungssystem
+
+Bewerte jedes Ziel bei allen qualitativen Kriterien mit **1 bis 5 Punkten**:
+
+* **5 Punkte:** hervorragend beziehungsweise sehr frei und unproblematisch
+* **4 Punkte:** sehr gut, nur geringe Einschränkungen
+* **3 Punkte:** durchschnittlich beziehungsweise relevante Einschränkungen
+* **2 Punkte:** deutlich eingeschränkt oder problematisch
+* **1 Punkt:** schlecht, stark eingeschränkt oder mit erheblichen Risiken verbunden
+
+Das Preisniveau erhält keine einfache Qualitätsnote. Bewerte stattdessen das \
+**Preis-Leistungs-Verhältnis** mit 1 bis 5 Punkten.
+
+Bei den Kriterien „Informationsfreiheit und digitaler Alltag“ sowie „LGBTQ-Reisende“ \
+bedeutet eine hohe Punktzahl eine freie, rechtlich sichere und weitgehend \
+diskriminierungsarme Situation. Eine niedrige Punktzahl steht für Zensur, rechtliche \
+Risiken oder erhebliche Einschränkungen.
+
+Ein schwerwiegendes KO-Kriterium darf nicht durch gute Bewertungen bei Strand, \
+Hotelqualität oder Wetter rechnerisch ausgeglichen werden.
+
+## Vergleichstabelle
+
+Schließe mit einer kompakten Markdown-Vergleichstabelle ab.
+
+* Eine Zeile je Kriterium
+* Eine Spalte je Reiseziel
+* Jeweils Punktzahl und sehr kurze Begründung
+* Zusätzliche Zeile „Mögliche KO-Kriterien“
+* Abschließende Zeile „Gesamtbewertung“
+
+Die Tabelle soll mindestens folgende Zeilen enthalten:
+
+1. Wetter im gewählten Monat
+2. Sicherheit
+3. Preis-Leistungs-Verhältnis
+4. Beste Reisezeit
+5. Strand und Natur
+6. Familienfreundlichkeit
+7. Nightlife und Abendunterhaltung
+8. Informationsfreiheit und digitaler Alltag
+9. LGBTQ-Reisende
+10. Mögliche KO-Kriterien
+11. Gesamtbewertung
+
+Bilde die Gesamtbewertung nicht rein mathematisch als Durchschnitt, wenn dadurch \
+wichtige Unterschiede verloren gehen. Berücksichtige insbesondere:
+
+* Wetter im gewählten Monat
+* Preis-Leistungs-Verhältnis
+* persönliche Bewegungsfreiheit
+* digitale Informationsfreiheit
+* rechtliche und persönliche Sicherheit
+* mögliche KO-Kriterien
+
+Ein Ziel mit sehr guten Stränden darf nicht automatisch Gesamtsieger werden, wenn dort \
+gravierende Einschränkungen der Informationsfreiheit oder erhebliche rechtliche Risiken \
+für bestimmte Reisende bestehen.
+
+## Quellen
+
+Verwende möglichst:
+
+* offizielle Reise- und Sicherheitshinweise staatlicher Stellen
+* offizielle Gesetzes- oder Regierungsinformationen
+* seriöse internationale Menschenrechts- und Digitalfreiheitsorganisationen
+* seriöse Klimadatenquellen mit langjährigen Durchschnittswerten
+* aktuelle Reiseveranstalter- und Hotelpreise
+* seriöse Reise- und Preisportale
+
+Verlinke die wichtigsten Quellen direkt bei den jeweiligen Aussagen. Prüfe bei sensiblen \
+Themen wie Internetzensur und LGBTQ-Rechten möglichst mehr als eine aktuelle Quelle.
+
+Wenn Quellen voneinander abweichen, stelle die Unterschiede kurz dar. Wenn zu einem \
+Punkt keine verlässlichen aktuellen Informationen auffindbar sind, sage das \
+ausdrücklich, statt zu spekulieren.
+
+## Fazit
+
+Schließe mit einem klaren Fazit von 3 bis 5 Sätzen:
+
+* Welches Ziel ist insgesamt am empfehlenswertesten?
+* Welches bietet das beste Preis-Leistungs-Verhältnis?
+* Welches eignet sich am besten für Familien?
+* Welches passt am besten zu Strand und Erholung?
+* Welches bietet das bessere Nightlife?
+* Gibt es bei einem Ziel mögliche KO-Kriterien hinsichtlich Informationsfreiheit, \
+persönlicher Freiheit oder LGBTQ-Sicherheit?
+
+Sprich eine klare Empfehlung für unterschiedliche Urlaubstypen aus und relativiere \
+gravierende rechtliche oder gesellschaftliche Einschränkungen nicht allein mit dem \
+Hinweis, dass Reisende sich überwiegend im Hotel oder Resort aufhalten können.
+
+Schreibe auf Deutsch und sprich den Nutzer durchgehend mit „Du“ an. Formuliere sachlich, \
+klar und ausschließlich auf Grundlage der gefundenen Quellen. Gib direkt die fertige \
+Auswertung aus, ohne Zwischenkommentare wie „Ich werde jetzt recherchieren“, „Lassen \
+Sie mich prüfen“ oder Hinweise auf den eigenen Arbeitsprozess."""
+
+# Anpassbare KI-Vorlagen. `guide` steht als aufrufbare Funktion drin, weil sein
+# Standardtext aus `_GUIDE_SECTIONS` erzeugt wird und die Liste weiter unten in
+# der Datei definiert ist — er kann also erst zur Laufzeit gebaut werden.
 _PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS,
                     'summary': _DEFAULT_SUMMARY_INSTRUCTIONS,
                     'daytrip': _DEFAULT_DAYTRIP_INSTRUCTIONS,
-                    'region_compare': _DEFAULT_REGION_COMPARE_INSTRUCTIONS}
+                    'region_compare': _DEFAULT_REGION_COMPARE_INSTRUCTIONS,
+                    'climate': lambda: _DEFAULT_CLIMATE_INSTRUCTIONS,
+                    'guide': lambda: _default_guide_instructions()}
+
+
+def _prompt_feature_default(feature: str) -> str:
+    """Standardtext eines Features — Konstante oder erst zur Laufzeit gebaut."""
+    val = _PROMPT_FEATURES[feature]
+    return val() if callable(val) else val
 
 
 def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
@@ -328,55 +584,89 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
     'gemini-3.6-flash': {'input': 1.5,  'output': 7.5},
     'gemini-3.5-flash': {'input': 1.5,  'output': 9.0},
     'gemini-2.5-flash': {'input': 0.3,  'output': 2.5},
-    # Perplexity-Listenpreise (docs.perplexity.ai, Stand Juli 2026). Die
-    # zusätzliche Request-Gebühr (siehe _AI_PERPLEXITY_REQUEST_FEE) ist HIER
-    # bewusst nicht mit drin — sie wird separat pro Aufruf addiert, weil sie
-    # nicht pro Token, sondern pauschal je Anfrage anfällt.
-    'sonar':                {'input': 1.0, 'output': 1.0},
-    'sonar-pro':             {'input': 3.0, 'output': 15.0},
-    'sonar-reasoning-pro':   {'input': 2.0, 'output': 8.0},
-    'sonar-deep-research':   {'input': 2.0, 'output': 8.0},
+    # Perplexity-Presets der Agent API. Die Preise sind die des Modells, das
+    # hinter dem Preset steckt (fast/low/medium = openai/gpt-5.6-luna,
+    # high/xhigh = openai/gpt-5.6-sol), jeweils die günstigere Kontext-Stufe.
+    #
+    # Das ist hier nur noch der **Rückfallweg**: die Agent API meldet die
+    # tatsächlichen Kosten je Aufruf mit (`usage.cost.total_cost`, seit v0.107.0),
+    # und die schlagen diese Schätzung. Gebraucht wird die Tabelle, wenn eine
+    # Antwort den Kostenblock einmal nicht mitliefert. Welches Modell Perplexity
+    # hinter einem Preset betreibt, ändert sich zudem ohne unser Zutun — noch ein
+    # Grund, sich auf die gemeldete Zahl zu verlassen und nicht auf diese hier.
+    'pplx-fast':    {'input': 0.20, 'output': 1.20},
+    'pplx-low':     {'input': 0.20, 'output': 1.20},
+    'pplx-medium':  {'input': 0.20, 'output': 1.20},
+    'pplx-high':    {'input': 5.00, 'output': 30.00},
+    'pplx-xhigh':   {'input': 5.00, 'output': 30.00},
 }
 
-# USD pro 1000 Anfragen, gestaffelt nach `search_context_size` (siehe
-# ai_client.py::_ai_request_perplexity) — wir fragen dort immer 'low' an (die
-# günstigste Stufe), daher hier ebenfalls nur die 'low'-Preise. Sonar Deep
-# Research hat keine Kontext-Stufen, sondern eine feste Gebühr je 1000
-# Suchanfragen; wird hier gleich behandelt. In USD pro Aufruf (bereits /1000).
-_AI_PERPLEXITY_REQUEST_FEE = {
-    'sonar':                0.005,
-    'sonar-pro':             0.006,
-    'sonar-reasoning-pro':   0.006,
-    'sonar-deep-research':   0.005,
-}
+# Gebühr je Websuche der Agent API, in USD pro Aufruf. Ebenfalls nur der
+# Rückfallweg neben der gemeldeten `usage.cost.total_cost` (dort ist die Gebühr
+# bereits enthalten). Ein Preset sucht bei jeder Anfrage mindestens einmal;
+# mehrstufige Recherchen suchen öfter, das kann diese Pauschale nicht abbilden
+# und unterschätzt die gründlicheren Stufen — die gemeldete Zahl tut es nicht.
+_AI_PERPLEXITY_REQUEST_FEE = {p: 0.0025 for p in
+                              ('pplx-fast', 'pplx-low', 'pplx-medium',
+                               'pplx-high', 'pplx-xhigh')}
+
+
+def _ai_estimated_call_cost(model: str, input_tokens: int, output_tokens: int,
+                            cache_read: int, cache_creation: int, calls: int) -> float:
+    """Kostenschätzung (USD) aus Preistabelle und pauschaler Request-Gebühr —
+    der Weg für alles, was keine echten Kosten mitliefert (Claude, Gemini, und
+    Perplexity-Aufrufe von vor der Agent-API-Umstellung)."""
+    price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
+    cost = input_tokens / 1_000_000 * price['input']
+    cost += output_tokens / 1_000_000 * price['output']
+    cost += cache_read / 1_000_000 * price['input'] * 0.1
+    cost += cache_creation / 1_000_000 * price['input'] * 1.25
+    cost += calls * _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
+    return cost
 
 
 def _ai_call_cost(model: str, usage: dict) -> float:
-    """Geschätzte Kosten (USD) für genau diesen einen Aufruf."""
-    price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
-    cost = usage.get('input_tokens', 0) / 1_000_000 * price['input']
-    cost += usage.get('output_tokens', 0) / 1_000_000 * price['output']
-    cost += usage.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
-    cost += usage.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
-    cost += _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
-    return round(cost, 4)
+    """Kosten (USD) für genau diesen einen Aufruf.
+
+    Perplexitys Agent API rechnet den Aufruf selbst ab und liefert das Ergebnis
+    als `cost_usd` mit (Token- **und** Suchgebühr, siehe
+    `ai_client.py::_perplexity_reported_cost`). Dann ist das die echte Zahl und
+    die Schätzung wird nicht gebraucht — bei allem anderen bleibt es bei der
+    Schätzung aus Preistabelle und Request-Gebühr."""
+    reported = usage.get('cost_usd')
+    if isinstance(reported, (int, float)) and not isinstance(reported, bool):
+        return round(float(reported), 4)
+    return round(_ai_estimated_call_cost(
+        model, usage.get('input_tokens', 0), usage.get('output_tokens', 0),
+        usage.get('cache_read_input_tokens', 0),
+        usage.get('cache_creation_input_tokens', 0), 1), 4)
 
 
 def _ai_usage_calc(models: dict) -> dict:
-    """Verrechnet ein {model: counters}-Dict zu Aufrufen/Tokens/geschätzten
-    Kosten (USD), je Modell mit eigenem Preis (siehe _AI_PRICING) plus — bei
-    Perplexity — der pauschalen Request-Gebühr je Aufruf (siehe
-    _AI_PERPLEXITY_REQUEST_FEE)."""
+    """Verrechnet ein {model: counters}-Dict zu Aufrufen/Tokens/Kosten (USD).
+
+    Ein Bucket kann gemischt sein: Perplexity-Aufrufe über die Agent API bringen
+    ihre echten Kosten mit (in `cost_usd` aufsummiert), Claude/Gemini und alte
+    Perplexity-Aufrufe von vor der Umstellung nicht. Damit beides nebeneinander
+    stimmt, merkt sich der Bucket zusätzlich, welche Aufrufe und Tokens schon
+    abgerechnet sind (`cost_calls`/`cost_*_tokens`, siehe
+    `_record_ai_usage_bucket`) — geschätzt wird nur noch der Rest. Ohne diese
+    Trennung würden abgerechnete Aufrufe doppelt zählen, und ein über die
+    Umstellung hinweg gewachsener Gesamtzähler müsste dauerhaft schätzen."""
     cost = 0.0
     calls = input_tokens = output_tokens = 0
     for model, t in models.items():
-        price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
         n_calls = t.get('calls', 0)
-        cost += t.get('input_tokens', 0) / 1_000_000 * price['input']
-        cost += t.get('output_tokens', 0) / 1_000_000 * price['output']
-        cost += t.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
-        cost += t.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
-        cost += n_calls * _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
+        cost += t.get('cost_usd', 0.0) or 0.0
+        cost += _ai_estimated_call_cost(
+            model,
+            max(t.get('input_tokens', 0) - t.get('cost_input_tokens', 0), 0),
+            max(t.get('output_tokens', 0) - t.get('cost_output_tokens', 0), 0),
+            max(t.get('cache_read_input_tokens', 0)
+                - t.get('cost_cache_read_input_tokens', 0), 0),
+            max(t.get('cache_creation_input_tokens', 0)
+                - t.get('cost_cache_creation_input_tokens', 0), 0),
+            max(n_calls - t.get('cost_calls', 0), 0))
         calls += n_calls
         input_tokens += t.get('input_tokens', 0)
         output_tokens += t.get('output_tokens', 0)
@@ -415,7 +705,13 @@ def _record_ai_usage_bucket(meta_key: str, id_field: str | None, current_id: str
     """Addiert einen KI-Aufruf zu einem Zähler-Bucket in `meta`. Für periodische
     Buckets (id_field gesetzt, z. B. 'date'/'month') wird bei Periodenwechsel auf
     0 zurückgesetzt statt unbegrenzt zu wachsen; für den Gesamt-Bucket (id_field
-    None) bleibt das bisherige flache {model: counters}-Format erhalten."""
+    None) bleibt das bisherige flache {model: counters}-Format erhalten.
+
+    Meldet der Anbieter echte Kosten (`usage['cost_usd']`, nur Perplexity über die
+    Agent API), werden sie zusammen mit den Tokens und dem Aufruf, für die sie
+    gelten, in `cost_*`-Feldern mitgeschrieben. `_ai_usage_calc` schätzt dann nur
+    noch den nicht abgerechneten Rest des Buckets. Alte Buckets ohne diese Felder
+    verhalten sich unverändert (alles geschätzt)."""
     try:
         stored = json.loads(A._meta_get(meta_key) or '{}')
     except (TypeError, ValueError):
@@ -429,10 +725,17 @@ def _record_ai_usage_bucket(meta_key: str, id_field: str | None, current_id: str
     t = models.setdefault(model, {'input_tokens': 0, 'output_tokens': 0,
                                    'cache_creation_input_tokens': 0,
                                    'cache_read_input_tokens': 0, 'calls': 0})
-    for key in ('input_tokens', 'output_tokens', 'cache_creation_input_tokens',
-                'cache_read_input_tokens'):
-        t[key] += usage.get(key, 0)
-    t['calls'] += 1
+    token_keys = ('input_tokens', 'output_tokens', 'cache_creation_input_tokens',
+                  'cache_read_input_tokens')
+    for key in token_keys:
+        t[key] = t.get(key, 0) + usage.get(key, 0)
+    t['calls'] = t.get('calls', 0) + 1
+    reported = usage.get('cost_usd')
+    if isinstance(reported, (int, float)) and not isinstance(reported, bool):
+        t['cost_usd'] = round(t.get('cost_usd', 0.0) + float(reported), 6)
+        t['cost_calls'] = t.get('cost_calls', 0) + 1
+        for key in token_keys:
+            t['cost_' + key] = t.get('cost_' + key, 0) + usage.get(key, 0)
     A._meta_set(meta_key, json.dumps(stored))
 
 
@@ -502,6 +805,119 @@ def _configured_ai_providers(cfg: dict) -> list[str]:
     return [p for p in _AI_PROVIDERS if (cfg.get(_AI_PROVIDER_KEY_FIELDS[p]) or '').strip()]
 
 
+# ── Hintergrund-Aufträge ───────────────────────────────────────────────────
+# Eine gründliche Perplexity-Stufe recherchiert minutenlang. Bleibt die Antwort
+# so lange in einer offenen HTTP-Verbindung hängen, gibt der Browser (bzw. der
+# Ingress-Proxy davor) vorher auf: der Nutzer sieht „fehlgeschlagen", während der
+# Server in Ruhe zu Ende rechnet und das Ergebnis im KI-Verlauf ablegt. Bezahlt,
+# fertig — und trotzdem als Fehler dargestellt.
+#
+# Deshalb: Schickt der Aufrufer `_async: true` mit, läuft die Route in einem
+# Thread und die Anfrage kommt sofort mit einer Auftragsnummer zurück. Das
+# Ergebnis holt das Frontend über `/api/ai/job/<id>` ab. Die Routen selbst müssen
+# dafür nichts wissen — der Dekorator `ai_async` erledigt es.
+_AI_JOBS: dict = {}
+_AI_JOBS_LOCK = threading.Lock()
+_AI_JOB_TTL = 3600          # fertige Ergebnisse so lange zum Abholen bereithalten
+_AI_JOB_MAX = 50            # Obergrenze, damit vergessene Aufträge nicht auflaufen
+
+
+def _ai_jobs_prune(now: float) -> None:
+    """Abgelaufene Aufträge wegräumen (nur unter gehaltenem Lock aufrufen).
+
+    Zusätzlich zur Frist eine harte Obergrenze: ein Frontend, das ein Ergebnis nie
+    abholt (Tab geschlossen), soll den Speicher nicht langsam volllaufen lassen."""
+    for jid in [j for j, v in _AI_JOBS.items() if now - v['ts'] > _AI_JOB_TTL]:
+        _AI_JOBS.pop(jid, None)
+    if len(_AI_JOBS) > _AI_JOB_MAX:
+        for jid in sorted(_AI_JOBS, key=lambda j: _AI_JOBS[j]['ts'])[:-_AI_JOB_MAX]:
+            _AI_JOBS.pop(jid, None)
+
+
+def ai_async(fn):
+    """Route wahlweise im Hintergrund ausführen (`_async: true` im Request-JSON).
+
+    Ohne das Feld verhält sich die Route unverändert — ältere Frontends und die
+    Tests laufen also weiter wie bisher.
+
+    Der Thread braucht einen eigenen Request-Kontext: die Routen lesen
+    `request.get_json()` und prüfen die Anmeldung über Header/Cookie
+    (`A._require_api`). Beides wird vor dem Start eingesammelt und im Thread mit
+    `test_request_context` originalgetreu nachgebaut — sonst liefe die Route dort
+    ohne Anfrage und ohne Anmeldung."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        data = request.get_json(silent=True) or {}
+        if not data.get('_async'):
+            return fn(*args, **kwargs)
+        jid = uuid.uuid4().hex
+        path, headers = request.path, dict(request.headers)
+        root = request.script_root
+
+        def run():
+            try:
+                # SCRIPT_NAME muss mit: `_is_ingress()` prueft `request.script_root`,
+                # und im Thread laeuft die Ingress-Middleware nicht mit, die ihn
+                # sonst aus dem X-Ingress-Path-Header setzt. Ohne ihn antwortet die
+                # Route mit 401, obwohl der urspruengliche Aufruf angemeldet war.
+                # `environ_overrides` statt `environ_base`, weil der Builder
+                # SCRIPT_NAME sonst aus dem Pfad neu berechnet und ueberschreibt.
+                with A.app.test_request_context(
+                        path, method='POST', json=data, headers=headers,
+                        environ_overrides={'SCRIPT_NAME': root} if root else None):
+                    # Cookies stecken bereits im Cookie-Header aus `headers` —
+                    # `request.cookies` selbst ist unveraenderlich.
+                    rv = fn(*args, **kwargs)
+                    body, code = _ai_job_normalize(rv)
+            except Exception as e:                      # noqa: BLE001 — Thread-Ende
+                A.log.error("KI-Hintergrundauftrag fehlgeschlagen (%s): %s: %s",
+                            path, type(e).__name__, e)
+                body, code = json.dumps({'error': 'failed'}), 500
+            with _AI_JOBS_LOCK:
+                _AI_JOBS[jid] = {'ts': time.time(), 'done': True,
+                                 'body': body, 'code': code}
+
+        with _AI_JOBS_LOCK:
+            _ai_jobs_prune(time.time())
+            _AI_JOBS[jid] = {'ts': time.time(), 'done': False, 'body': None, 'code': None}
+        A._spawn(run)
+        return jsonify({'job': jid}), 202
+    return wrapper
+
+
+def _ai_job_normalize(rv):
+    """Rückgabewert einer Route in (JSON-Text, Statuscode) übersetzen — Flask lässt
+    `Response`, `(Response, code)` und `(dict, code)` gleichermaßen zu."""
+    code = 200
+    if isinstance(rv, tuple):
+        rv, code = rv[0], (rv[1] if len(rv) > 1 else 200)
+    if hasattr(rv, 'get_data'):
+        return rv.get_data(as_text=True), code
+    return json.dumps(rv), code
+
+
+@bp.route('/api/ai/job/<job_id>', methods=['GET'])
+def api_ai_job(job_id):
+    """Ergebnis eines Hintergrundauftrags abholen.
+
+    Solange er läuft: `{'job_status': 'running'}` mit 202 — der Aufrufer fragt
+    später erneut. Ist er fertig, kommt exakt die Antwort, die die Route selbst
+    erzeugt hätte (Text und Statuscode unverändert durchgereicht), und der Auftrag
+    wird verworfen: er ist abgeholt, ein zweites Mal braucht ihn niemand."""
+    if (err := A._require_api()):
+        return err
+    with _AI_JOBS_LOCK:
+        job = _AI_JOBS.get(job_id)
+        if job and job['done']:
+            _AI_JOBS.pop(job_id, None)
+    if not job:
+        return jsonify({'error': 'not_found'}), 404
+    if not job['done']:
+        return jsonify({'job_status': 'running'}), 202
+    return A.app.response_class(job['body'], status=job['code'],
+                                mimetype='application/json')
+
+
 def _provider_for_model(model: str) -> str:
     """Umkehrung von `_ai_config_for`: welcher Provider bedient dieses Modell —
     für Folgefragen (`/api/ai/history/<id>/followup`), die mit demselben Modell
@@ -553,9 +969,13 @@ def _ai_config_for(provider: str) -> tuple[str, str]:
         return api_key, model
     if provider == 'perplexity':
         api_key = (cfg.get('perplexity_api_key') or '').strip()
-        model = cfg.get('perplexity_model') or 'sonar-pro'
+        model = cfg.get('perplexity_model') or ''
+        # Alte Sonar-Auswahl auf das entsprechende Preset heben, statt sie als
+        # ungültig zu verwerfen — sonst landete jede bestehende Installation
+        # kommentarlos auf dem Standard und verlöre die eingestellte Stufe.
+        model = A._PERPLEXITY_PRESET_FOR_SONAR.get(model, model)
         if model not in A._PERPLEXITY_MODELS:
-            model = 'sonar-pro'
+            model = 'pplx-low'
         return api_key, model
     api_key = (cfg.get('anthropic_api_key') or '').strip()
     model = cfg.get('anthropic_model') or 'claude-opus-5'
@@ -1104,6 +1524,7 @@ def _hotel_summary_prompt(hotel: dict, instructions: str) -> str:
 
 
 @bp.route('/api/ai/hotel-summary', methods=['POST'])
+@ai_async
 def api_ai_hotel_summary():
     """Ausführliche KI-Einschätzung zu einem Hotel aus den Suchergebnissen (Lage,
     Zimmer, Gastronomie, Pool, Ausstattung, Fazit) — Claude durchsucht dafür live
@@ -1170,6 +1591,7 @@ def _ai_score_request(prompt: str, model: str, api_key: str, log_ctx: str):
 
 
 @bp.route('/api/ai/calendar-outlook/<int:offer_id>', methods=['POST'])
+@ai_async
 def api_ai_calendar_outlook(offer_id: int):
     """KI-Zusammenfassung des Preiskalenders eines Angebots (günstige/teure Monate,
     Preisänderungen) — reiner Markdown-Fließtext, keine Websuche (nur lokale
@@ -1211,6 +1633,7 @@ def api_ai_calendar_outlook(offer_id: int):
 
 
 @bp.route('/api/ai/booking-score/<int:offer_id>', methods=['POST'])
+@ai_async
 def api_ai_booking_score(offer_id: int):
     """KI-Buchungsscore für ein einzelnes getracktes Angebot — auf Anfrage (kostet
     Websuche-Aufrufe), 6h je Angebot gecacht."""
@@ -1261,6 +1684,7 @@ def api_ai_booking_score(offer_id: int):
 
 
 @bp.route('/api/ai/region-outlook', methods=['POST'])
+@ai_async
 def api_ai_region_outlook():
     """KI-Einschätzung für eine ganze Destination (kein bestimmtes Hotel) aus deren
     Markttrend/-index — auf Anfrage, 6h je Region gecacht."""
@@ -1334,22 +1758,33 @@ _CLIMATE_SCHEMA = {
 }
 
 
+_DEFAULT_CLIMATE_INSTRUCTIONS = (
+    "Je Monat: durchschnittliche Tageshöchsttemperatur und Nachttemperatur in °C, "
+    "durchschnittliche Wassertemperatur in °C, Sonnenstunden pro Tag, Regentage "
+    "im Monat. Dazu ein kurzer Hinweis (höchstens acht Wörter) für Besonderes wie "
+    "Regenzeit, Hurrikansaison, Passatwind, Hitze oder Hochsaison — sonst leer "
+    "lassen.\n\n"
+    "Nenne außerdem die aus Wetter-Sicht besten Reisemonate und eine "
+    "Zusammenfassung in zwei bis drei Sätzen (Klimatyp, Regenzeit, "
+    "Badesaison).\n\n"
+    "Nutze langjährige Klima-Normalwerte (Klimamittel), keine Vorhersage für ein "
+    "einzelnes Jahr. Suche die Werte im Web und stütze dich auf gängige "
+    "Klimatabellen. Wo für das Ziel keine Wassertemperatur sinnvoll ist "
+    "(Binnenland), trage 0 ein und schreibe es in den Hinweis."
+)
+
+
 def _climate_prompt(label: str) -> str:
+    """Fester Kopf (Reiseziel und die zwölf Monate) + editierbarer Teil.
+
+    Die Zwölf-Monats-Vorgabe bleibt fest: die Klimatabelle im UI rechnet mit genau
+    zwölf Einträgen, und eine Vorlage, die das ändert, würde die Anzeige
+    zerlegen — die Route weist Antworten mit weniger Monaten ohnehin zurück."""
+    instructions = A._prompt_instructions('climate', _DEFAULT_CLIMATE_INSTRUCTIONS)
     return (
         f"Stelle mir das Klima für {label} als Jahresübersicht zusammen — für alle "
         "zwölf Monate, Januar (1) bis Dezember (12), jeder Monat genau einmal.\n\n"
-        "Je Monat: durchschnittliche Tageshöchsttemperatur und Nachttemperatur in °C, "
-        "durchschnittliche Wassertemperatur in °C, Sonnenstunden pro Tag, Regentage "
-        "im Monat. Dazu ein kurzer Hinweis (höchstens acht Wörter) für Besonderes wie "
-        "Regenzeit, Hurrikansaison, Passatwind, Hitze oder Hochsaison — sonst leer "
-        "lassen.\n\n"
-        "Nenne außerdem die aus Wetter-Sicht besten Reisemonate und eine "
-        "Zusammenfassung in zwei bis drei Sätzen (Klimatyp, Regenzeit, "
-        "Badesaison).\n\n"
-        "Nutze langjährige Klima-Normalwerte (Klimamittel), keine Vorhersage für ein "
-        "einzelnes Jahr. Suche die Werte im Web und stütze dich auf gängige "
-        "Klimatabellen. Wo für das Ziel keine Wassertemperatur sinnvoll ist "
-        "(Binnenland), trage 0 ein und schreibe es in den Hinweis."
+        + instructions
     )
 
 
@@ -1357,18 +1792,20 @@ def _linkify_citations_in_place(result: dict, urls: list | None) -> None:
     """Perplexity setzt Quellen-Marker wie „[7][11]" auch in die Textfelder einer
     strukturierten Antwort. Dort können sie beim Abruf nicht verlinkt werden (das
     würde den JSON-String zerstören), also passiert es hier nach dem Parsen — sonst
-    bliebe im Klima-Fenster toter Text stehen. Bei den anderen Anbietern ist `urls`
-    leer und die Funktion tut nichts."""
-    if not urls:
-        return
+    bliebe im Klima-Fenster toter Text stehen.
+
+    Laeuft auch ohne Quellenliste: dann wird nicht verlinkt, aber reine
+    Maschinen-Marker werden trotzdem entfernt. Der frühere Ausstieg an dieser
+    Stelle war der Grund, warum „cite[16][19]" in Antworten ohne mitgelieferte
+    Quellen stehen blieb. Bei Claude und Gemini gibt es solche Marker nicht,
+    dort ändert das nichts."""
     from ai_client import _perplexity_linkify_citations
-    data = {'citations': urls}
     if isinstance(result.get('zusammenfassung'), str):
         result['zusammenfassung'] = _perplexity_linkify_citations(
-            result['zusammenfassung'], data)
+            result['zusammenfassung'], urls)
     for m in (result.get('months') or []):
         if isinstance(m, dict) and isinstance(m.get('hinweis'), str):
-            m['hinweis'] = _perplexity_linkify_citations(m['hinweis'], data)
+            m['hinweis'] = _perplexity_linkify_citations(m['hinweis'], urls)
 
 
 def _climate_load(giata: int):
@@ -1411,6 +1848,7 @@ def api_climate_get(giata: int):
 
 
 @bp.route('/api/ai/climate', methods=['POST'])
+@ai_async
 def api_ai_climate():
     """Klimatabelle für ein Reiseziel per KI erzeugen und dauerhaft speichern.
 
@@ -1573,9 +2011,30 @@ _GUIDE_SECTIONS = (
      "Mietwagen sinnvoll?; öffentliche Verkehrsmittel; Taxi; Uber/Bolt vorhanden?; "
      "Verkehrsregeln"),
     ("Internet & Kommunikation", "Mobilfunknetz; eSIM verfügbar?; WLAN; Roaming"),
+    ("Informationsfreiheit & digitaler Alltag",
+     "Staatliche Internetzensur oder Sperren; blockierte Websites, Nachrichtenangebote, "
+     "soziale Netzwerke, Messenger oder Telefoniedienste; zeitweise Abschaltungen oder "
+     "Drosselungen; Überwachung der Internetnutzung; rechtliche Risiken bei kritischen "
+     "Äußerungen oder Beiträgen in sozialen Medien; VPN-Nutzung legal oder eingeschränkt?; "
+     "gelten Einschränkungen auch im Hotel oder Resort? Unterscheide klar zwischen bloß "
+     "eingeschränkter Pressefreiheit und konkreten Auswirkungen auf Touristen. Kennzeichne "
+     "erhebliche Zensur, blockierte Kommunikationsdienste oder ein realistisches Risiko "
+     "wegen Onlineäußerungen ausdrücklich als mögliches KO-Kriterium."),
     ("Sicherheit",
      "Allgemeine Sicherheitslage; typische Betrugsmaschen; Gegenden, die man meiden "
      "sollte; Verhalten bei Notfällen"),
+    ("LGBTQ-Reisende",
+     "Rechtslage für gleichgeschlechtliche Beziehungen; mögliche Strafbarkeit und "
+     "angedrohte Strafen; tatsächliche Durchsetzung; gesellschaftliche Akzeptanz; Risiken "
+     "durch Diskriminierung, Belästigung oder Kontrollen; Situation in Hotels und Resorts "
+     "im Vergleich zum öffentlichen Raum; Risiken bei öffentlichen Zuneigungsbekundungen; "
+     "besondere Risiken für trans, nichtbinäre oder sichtbar queere Reisende; "
+     "Einreiseprobleme oder Schwierigkeiten bei Reisedokumenten; Hinweise offizieller "
+     "Reise- und Sicherheitsbehörden. Trenne Rechtslage, Alltagssituation und die "
+     "abgeschirmte Lage in touristischen Anlagen; verharmlose eine Strafbarkeit nicht mit "
+     "dem Hinweis, im Resort sei es kein Problem. Kennzeichne Strafbarkeit, staatliche "
+     "Verfolgung oder ein erhebliches persönliches Sicherheitsrisiko ausdrücklich als "
+     "mögliches KO-Kriterium."),
     ("Kultur & Etikette",
      "Begrüßung; Kleidung; Fotografieren; religiöse Besonderheiten; Verhalten in "
      "Restaurants; Umgang mit Einheimischen"),
@@ -1595,16 +2054,19 @@ _GUIDE_SECTIONS = (
 )
 
 
-def _guide_prompt(label: str) -> str:
+def _default_guide_instructions() -> str:
+    """Editierbarer Teil des Reiseführer-Prompts: Abschnittskatalog und Regeln.
+
+    Aus `_GUIDE_SECTIONS` erzeugt statt doppelt gepflegt — die Anzahl steht damit
+    nie im Widerspruch zur Liste. Wer den Text überschreibt, bestimmt die
+    Abschnitte selbst; das Antwortschema (`_GUIDE_SCHEMA`) ist bewusst offen und
+    schreibt keine feste Zahl vor."""
     secs = '\n'.join(f"{i}. {t}\n   {d}" for i, (t, d) in enumerate(_GUIDE_SECTIONS, 1))
     return (
-        "Du bist ein erfahrener Reiseberater.\n\n"
-        f"Erstelle für das Reiseziel „{label}\" einen kompakten, aber informativen "
-        "Reiseführer.\n\n"
-        "Liefere genau die folgenden dreizehn Abschnitte in dieser Reihenfolge und mit "
-        "genau diesen Titeln. `einleitung` ist ein einleitender Satz (darf leer "
-        "bleiben), `punkte` sind die Einzelangaben: `label` die Bezeichnung, `text` "
-        "die Angabe.\n\n"
+        f"Liefere genau die folgenden {len(_GUIDE_SECTIONS)} Abschnitte in dieser "
+        "Reihenfolge und mit genau diesen Titeln. `einleitung` ist ein einleitender "
+        "Satz (darf leer bleiben), `punkte` sind die Einzelangaben: `label` die "
+        "Bezeichnung, `text` die Angabe.\n\n"
         f"{secs}\n\n"
         "Dazu `zusammenfassung`: höchstens 15 Stichpunkte mit allen wichtigen "
         "Informationen.\n\n"
@@ -1614,16 +2076,27 @@ def _guide_prompt(label: str) -> str:
     )
 
 
+def _guide_prompt(label: str) -> str:
+    """Fester Kopf (Rolle und Reiseziel) + editierbarer Kriterienkatalog — wie beim
+    Regionen-Vergleich. Das Reiseziel gehört bewusst NICHT in den editierbaren
+    Teil: es kommt aus der Auswahl und wäre in einer Vorlage ein Fehler."""
+    instructions = A._prompt_instructions('guide', _default_guide_instructions())
+    return (
+        "Du bist ein erfahrener Reiseberater.\n\n"
+        f"Erstelle für das Reiseziel „{label}\" einen kompakten, aber informativen "
+        "Reiseführer.\n\n" + instructions
+    )
+
+
 def _guide_linkify_in_place(result: dict, urls: list | None) -> None:
     """Wie `_linkify_citations_in_place`, nur für die Reiseführer-Struktur — sonst
-    stünden Perplexitys Quellen-Marker („[7]") als toter Text in jedem Abschnitt."""
-    if not urls:
-        return
+    stünden Perplexitys Quellen-Marker („[7]") als toter Text in jedem Abschnitt.
+
+    Laeuft ebenfalls ohne Quellenliste — siehe `_linkify_citations_in_place`."""
     from ai_client import _perplexity_linkify_citations
-    data = {'citations': urls}
 
     def lk(s):
-        return _perplexity_linkify_citations(s, data) if isinstance(s, str) else s
+        return _perplexity_linkify_citations(s, urls) if isinstance(s, str) else s
 
     result['zusammenfassung'] = [lk(s) for s in (result.get('zusammenfassung') or [])]
     for sec in (result.get('sections') or []):
@@ -1673,6 +2146,7 @@ def api_guide_get(giata: int):
 
 
 @bp.route('/api/ai/guide', methods=['POST'])
+@ai_async
 def api_ai_guide():
     """Reiseführer per KI erzeugen und dauerhaft speichern. Liegt er vor, kommt er
     unverändert zurück; `refresh: true` erzwingt eine Neuerstellung."""
@@ -1849,6 +2323,7 @@ def _search_advice_prompt(d: dict) -> str:
 
 
 @bp.route('/api/ai/search-advice', methods=['POST'])
+@ai_async
 def api_ai_search_advice():
     """Reisezeit-Check direkt aus der Suchmaske: Klima/Saison zum gewählten Zeitraum,
     Schnäppchenmonate und ähnliche Alternativziele. Die Eckdaten kommen vom Frontend
@@ -1924,6 +2399,7 @@ def _ai_ask_general(question: str, data: dict, api_key: str, model: str):
 
 
 @bp.route('/api/ai/ask', methods=['POST'])
+@ai_async
 def api_ai_ask():
     """Freitext-Frage. Zwei Ausprägungen über `scope`:
 
@@ -2011,11 +2487,11 @@ def api_ai_prompt_settings():
     if request.method == 'GET':
         return jsonify({
             feature: {
-                'default': default,
+                'default': _prompt_feature_default(feature),
                 'enabled': A._meta_get(f'custom_prompt_{feature}_enabled') == '1',
                 'text': A._meta_get(f'custom_prompt_{feature}_text') or '',
             }
-            for feature, default in _PROMPT_FEATURES.items()
+            for feature in _PROMPT_FEATURES
         })
     data = request.get_json(silent=True) or {}
     for feature in _PROMPT_FEATURES:
@@ -2276,6 +2752,7 @@ def api_trippilot_editor():
 
 
 @bp.route('/api/ai/travel-advisor', methods=['POST'])
+@ai_async
 def api_ai_travel_advisor():
     """KI-Reiseberater: aus einem kurzen Profil (Region, Interessen, Reiseart,
     Budget, Reisezeit, Wetterwünsche) schlägt Claude 3 passende Ziele vor — freie
@@ -2343,6 +2820,7 @@ def _compare_prompt(hotels: list[dict], instructions: str) -> str:
 
 
 @bp.route('/api/ai/hotel-compare', methods=['POST'])
+@ai_async
 def api_ai_hotel_compare():
     """Vergleicht 2–5 Hotels aus den Suchergebnissen in einem KI-Aufruf: gleiche
     Kriterien wie beim Einzel-Fazit, plus Vergleichstabelle und Empfehlung, welches
@@ -2393,6 +2871,17 @@ _MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'Aug
               'September', 'Oktober', 'November', 'Dezember')
 
 
+def _region_compare_max_tokens(n_regions: int) -> int:
+    """Ausgabe-Budget fuer einen Regionen-Vergleich.
+
+    Grundstock fuer Tabelle, Fazit und Quellen plus ein Anteil je Ziel. Die Zahl
+    ist grosszuegig gewaehlt: ein zu knappes Budget schneidet die Antwort mitten
+    im Text ab, und der Aufruf ist trotzdem voll bezahlt — zu viel Budget kostet
+    dagegen nichts, weil nur tatsaechlich erzeugte Tokens abgerechnet werden.
+    Die Deckelung schuetzt nur davor, ein Modell-Limit zu ueberschreiten."""
+    return min(6000 + 4000 * max(n_regions, 1), 40000)
+
+
 def _region_compare_prompt(regions: list[dict], month: str, instructions: str) -> str:
     """Baut den Regionen-Vergleichs-Prompt: feste Zielliste (Fakten, wie bei
     `_compare_prompt`) + editierbarer Kriterienkatalog (`instructions`)."""
@@ -2403,6 +2892,7 @@ def _region_compare_prompt(regions: list[dict], month: str, instructions: str) -
 
 
 @bp.route('/api/ai/region-compare', methods=['POST'])
+@ai_async
 def api_ai_region_compare():
     """Vergleicht 2–5 Reiseziele/Regionen für einen gewählten Monat: Wetter,
     Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/
@@ -2443,7 +2933,12 @@ def api_ai_region_compare():
     if (preview := _prompt_preview_response(data, prompt)):
         return preview
     prompt = _resolve_prompt(data, prompt)
-    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=8192,
+    # Der Bedarf waechst mit der Anzahl der Ziele: je Ziel neun Kriterien in
+    # Fliesstext, dazu Tabelle und Fazit. Feste 8192 reichten dafuer nicht — bei
+    # fuenf Zielen brach die Antwort nach dem dritten ab, und was fehlte, sah man
+    # der Ausgabe nicht an.
+    text, usage, err = A._ai_call(api_key, model, prompt,
+                                max_tokens=_region_compare_max_tokens(len(regions)),
                                 log_ctx=f"Regionen-Vergleich {len(regions)} Ziele ({month_label})")
     if err:
         return err
@@ -2629,6 +3124,7 @@ _AI_RETRY_MARKDOWN_CONFIG = {
 
 
 @bp.route('/api/ai/history/<int:aid>/repeat', methods=['POST'])
+@ai_async
 def api_ai_history_repeat(aid: int):
     """Wiederholt einen gespeicherten KI-Verlaufseintrag mit gewähltem Provider —
     schickt den eingefrorenen Prompt erneut, speichert das Ergebnis als NEUEN
@@ -2699,6 +3195,7 @@ def _ai_followup_messages(row) -> list[dict]:
 
 
 @bp.route('/api/ai/history/<int:aid>/followup', methods=['POST'])
+@ai_async
 def api_ai_history_followup(aid: int):
     """Stellt eine Folgefrage zu einem bestehenden KI-Verlaufseintrag — echte
     Konversation (bisheriger Prompt + Antwort(en) + neue Frage), anders als

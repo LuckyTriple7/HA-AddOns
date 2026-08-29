@@ -7,6 +7,7 @@ SQLite und zeigt Verlauf + Hoch/Runter-Anzeige in einer Weboberfläche.
 """
 import csv
 import hashlib
+import html as htmllib
 import io
 import ipaddress
 import json
@@ -30,10 +31,12 @@ from urllib.parse import parse_qs, quote, urlparse
 
 import anthropic
 import requests as http
+
+import settings as settings_store
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
-from flask import (Flask, jsonify, make_response, redirect, render_template,
+from flask import (Flask, Response, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -92,12 +95,15 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.101.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
 _DATA = os.environ.get('TUIWATCH_DATA', '/data')
-CONFIG_PATH = _DATA + '/options.json'
+CONFIG_PATH = _DATA + '/options.json'   # Home Assistant: Login-Notzugang
+# Alles Weitere pflegt der Nutzer selbst (settings.json + settings.key)
+settings_store.init(_DATA)
+SETTINGS_PATH = settings_store.path()
 SESSIONS_PATH = _DATA + '/sessions.json'
 DB_PATH = _DATA + '/tuiwatch.db'
 TRIPS_DIR = _DATA + '/trips'   # dauerhaft gespeicherte Reise-PDFs
@@ -184,7 +190,28 @@ _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten 
 _CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
 _AI_MODELS = ('claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
 _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash')
-_PERPLEXITY_MODELS = ('sonar', 'sonar-pro', 'sonar-reasoning-pro', 'sonar-deep-research')
+# Perplexity-Auswahl = die Presets der Agent API, nicht mehr die Sonar-Modelle.
+# Von denen existiert dort nur noch `perplexity/sonar`; sonar-pro,
+# sonar-reasoning-pro und sonar-deep-research lehnt die API mit
+# „model ... is not supported" ab. Perplexity benennt die Presets selbst als
+# Nachfolge (siehe _PERPLEXITY_PRESET_FOR_SONAR) und weist für sie in eigenen
+# Benchmarks bessere Ergebnisse aus, für die Deep-Research-Stufe zudem
+# niedrigere Kosten je Anfrage.
+# Das `pplx-`-Präfix ist unsere Kennung, gesendet wird nur der Teil dahinter:
+# ohne Präfix stünde in Nutzungsstatistik und KI-Verlauf ein nichtssagendes
+# „low"/„high" in der Modellspalte, und `_provider_for_model` müsste solche
+# Allerweltsnamen sicher einem Anbieter zuordnen.
+_PERPLEXITY_MODELS = ('pplx-fast', 'pplx-low', 'pplx-medium', 'pplx-high', 'pplx-xhigh')
+
+# Umzug bestehender Konfigurationen: die Zuordnung stammt aus Perplexitys
+# Migrations-Tabelle (Sonar Chat Completions -> Agent API preset), damit eine
+# eingestellte Gründlichkeit erhalten bleibt statt auf den Standard zu fallen.
+_PERPLEXITY_PRESET_FOR_SONAR = {
+    'sonar': 'pplx-fast',
+    'sonar-pro': 'pplx-low',
+    'sonar-reasoning-pro': 'pplx-medium',
+    'sonar-deep-research': 'pplx-high',
+}
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
 # einfache Login-Drossel
@@ -270,7 +297,12 @@ def _push_cooldown_sensor() -> None:
 
 # ── Config & Sessions ──────────────────────────────────────────────────────────
 
-def load_config() -> dict:
+_merged_cache: dict | None = None
+_merged_stamp: tuple | None = None
+
+
+def load_options() -> dict:
+    """Rohe Add-on-Optionen (Home Assistant schreibt sie, Standalone mountet sie)."""
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -279,6 +311,40 @@ def load_config() -> dict:
     except Exception as e:
         log.warning("options.json nicht lesbar (%s): %s", CONFIG_PATH, e)
         return {}
+
+
+def load_config() -> dict:
+    """Wirksame Einstellungen: Standardwerte < options.json < settings.json.
+
+    options.json liefert nur noch den Login-Notzugang (username/password/
+    session_hours) und – solange nicht migriert – die alten Werte. Alles, was
+    in der Oberfläche gepflegt wird, steht in settings.json und gewinnt.
+
+    Wird sehr oft aufgerufen (jede Route, jeder Worker), deshalb ein Cache über
+    die Änderungszeit beider Dateien statt eines Lesevorgangs je Aufruf.
+    """
+    global _merged_cache, _merged_stamp
+    try:
+        o_mtime = os.path.getmtime(CONFIG_PATH)
+    except OSError:
+        o_mtime = -1.0
+    try:
+        s_mtime = os.path.getmtime(SETTINGS_PATH)
+    except OSError:
+        s_mtime = -1.0
+    stamp = (o_mtime, s_mtime)
+    if _merged_cache is None or stamp != _merged_stamp:
+        merged = {k: spec[1] for k, spec in settings_store.FIELDS.items()}
+        merged.update(load_options())
+        merged.update(settings_store.load())
+        _merged_cache, _merged_stamp = merged, stamp
+    return _merged_cache
+
+
+def _settings_changed() -> None:
+    """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
+    global _merged_cache, _merged_stamp
+    _merged_cache, _merged_stamp = None, None
 
 
 def _verbose() -> bool:
@@ -450,6 +516,14 @@ def normalize_foreign_icon(raw) -> str:
 def db() -> sqlite3.Connection:
     con = sqlite3.connect(DB_PATH, timeout=15)
     con.row_factory = sqlite3.Row
+    # SQLite erzwingt FOREIGN KEY nur, wenn das Pragma je Verbindung gesetzt ist —
+    # ohne das waren die ON-DELETE-CASCADE-Regeln der Kindtabellen (price_history,
+    # offer_events, calendar_history …) reine Dokumentation. Muss vor der ersten
+    # Anweisung kommen: innerhalb einer Transaktion ist das Pragma wirkungslos.
+    # Die Löschpfade räumen ihre Kindzeilen weiterhin selbst auf; der Cascade ist
+    # das Netz für Pfade, die eine Tabelle vergessen, und gegen Waisen bei einem
+    # abgebrochenen Löschvorgang.
+    con.execute('PRAGMA foreign_keys=ON')
     return con
 
 
@@ -961,7 +1035,8 @@ def _backfill_price_moves(con) -> None:
             'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
             'ORDER BY ts ASC', (o['id'],)).fetchall()
         room_change_ts = {r['ts'] for r in con.execute(
-            "SELECT ts FROM offer_events WHERE offer_id=? AND type='room'", (o['id'],)).fetchall()}
+            "SELECT ts FROM offer_events WHERE offer_id=? AND type IN ('room','room_auto')",
+            (o['id'],)).fetchall()}
         prev = None
         for r in rows:
             # Preisschritt über einen Zimmerwechsel hinweg ist kein Marktsignal, sondern
@@ -1445,24 +1520,32 @@ def _notify_startup() -> None:
 
 
 def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None,
-                  target: float | None) -> None:
-    """Schickt Benachrichtigungen bei Preisänderung und erreichtem Wunschpreis."""
+                  target: float | None, room_switch: str = '') -> None:
+    """Schickt Benachrichtigungen bei Preisänderung und erreichtem Wunschpreis.
+
+    `room_switch` (Text aus `_room_change_text`) hängt an der Meldung, wenn der Preis
+    beim selben Check auch deshalb springt, weil das bisher günstigste Zimmer weg ist
+    — ohne diesen Zusatz liest sich die Meldung wie eine reine Preiserhöhung."""
     if new_price is None:
         return
     cfg = load_config()
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
     url = offer.get('url', '')
     muted = bool(offer.get('notify_muted'))
+    # Zimmernamen kommen von TUI und können &/< enthalten — für Telegram (parse_mode
+    # HTML) deshalb escapen; die Klartext-Meldung an HA nimmt den Namen unverändert.
+    room_line = f"\n🛏️ {room_switch}" if room_switch else ''
+    room_line_tg = f"\n🛏️ {htmllib.escape(room_switch)}" if room_switch else ''
 
     # 1) Wunschpreis erreicht (nur beim Übergang über die Schwelle)
     if target and new_price <= target and (prev_price is None or prev_price > target):
         title = f"🎯 Wunschpreis erreicht: {name}"
-        msg = f"{name}\nWunschpreis {_eur(target)} erreicht — jetzt {_eur(new_price)}\n{url}"
+        msg = f"{name}\nWunschpreis {_eur(target)} erreicht — jetzt {_eur(new_price)}{room_line}\n{url}"
         log.info("🎯 Wunschpreis erreicht (#%d %s): %s ≤ %s → Benachrichtigung",
                  offer['id'], name, _eur(new_price), _eur(target))
         _notify_ha(title, msg, f"target_{offer['id']}", muted=muted)
         _notify_telegram(f"🎯 <b>Wunschpreis erreicht</b>\n{name}\nJetzt <b>{_eur(new_price)}</b> "
-                         f"(Ziel {_eur(target)})\n{url}", muted=muted)
+                         f"(Ziel {_eur(target)}){room_line_tg}\n{url}", muted=muted)
         return  # nicht zusätzlich die Änderungsmeldung senden
 
     # 2) Preisänderung
@@ -1474,12 +1557,13 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
         else:
             title = f"📈 Preis gestiegen: {name}"
             arrow = f"▲ {_eur(diff)}"
-        msg = f"{name}\n{_eur(prev_price)} → {_eur(new_price)} ({arrow})\n{url}"
+        msg = f"{name}\n{_eur(prev_price)} → {_eur(new_price)} ({arrow}){room_line}\n{url}"
         log.info("Benachrichtigung (#%d %s): %s → %s gesendet", offer['id'], name,
                  _eur(prev_price), _eur(new_price))
         _notify_ha(title, msg, f"change_{offer['id']}", muted=muted)
         _notify_telegram(f"{'📉' if diff<0 else '📈'} <b>{name}</b>\n"
-                         f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}", muted=muted)
+                         f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})"
+                         f"{room_line_tg}\n{url}", muted=muted)
 
 
 def _check_cheaper_date(offer: dict, current_price: float,
@@ -1824,14 +1908,37 @@ def _prompt_instructions(feature: str, default: str) -> str:
     return (_meta_get(f'custom_prompt_{feature}_text') or '').strip() or default
 
 
-def _log_event(offer_id: int, type_: str, text: str) -> None:
-    """Speichert ein Ereignis (für Marker im Verlauf-Diagramm)."""
+def _log_event(offer_id: int, type_: str, text: str, ts: int | None = None) -> None:
+    """Speichert ein Ereignis (für Marker im Verlauf-Diagramm und Hinweiszeilen im
+    Verlauf). `ts` explizit setzen, wenn das Ereignis zu einem konkreten Messpunkt
+    gehört — sonst landet es Sekunden nach diesem und die Verlaufstabelle ordnete
+    es dem nächsten (späteren) Messpunkt zu."""
     try:
         with db() as con:
             con.execute('INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)',
-                        (offer_id, int(time.time()), type_, text))
+                        (offer_id, int(ts if ts is not None else time.time()), type_, text))
     except Exception as e:
         log.warning("Event #%d (%s) nicht gespeichert: %s", offer_id, type_, e)
+
+
+def _room_change_text(offer: dict, res: dict) -> str:
+    """Ereignistext, wenn ein Abruf einen ANDEREN Zimmertyp liefert als zuletzt
+    gespeichert — leerer String, wenn nicht.
+
+    Das passiert ohne Zutun: Ein Angebot ohne fixiertes Zimmer verfolgt immer das
+    **günstigste** Zimmer. Ist das ausgebucht, rückt das nächstteurere nach — der
+    Preis springt, obwohl sich am Markt nichts bewegt hat. Bisher stand dieser
+    Wechsel nirgends, der Sprung sah aus wie eine reine Preiserhöhung.
+
+    Bei der Erstbefüllung (vorher kein Zimmer gespeichert) wird bewusst nichts
+    gemeldet, ebenso bei fehlgeschlagenem Abruf (dann steht in `res` kein Zimmer)."""
+    if not res.get('ok'):
+        return ''
+    old_room = (offer.get('room') or '').strip()
+    new_room = (res.get('room') or '').strip()
+    if not old_room or not new_room or old_room == new_room:
+        return ''
+    return f"Zimmer gewechselt: {old_room} → {new_room}"
 
 
 def _check_api_alarm(res: dict) -> None:
@@ -1884,6 +1991,12 @@ def check_offer(offer_id: int) -> None:
             # statt `>`: ts ist nur sekundengenau, ein schneller Zimmerwechsel direkt
             # nach dem ersten Check (typisch: Tracken → sofort Zimmerauswahl-Dialog)
             # landet oft in derselben Sekunde wie der vorherige Preis-Check.
+            #
+            # Nur `type='room'` (von Hand gewähltes Zimmer): der AUTOMATISCHE Wechsel
+            # (`room_auto`, günstigstes Zimmer ausgebucht) hängt genau am Zeitstempel
+            # seines eigenen Messpunkts und wird dort direkt über `room_switch`
+            # berücksichtigt — mit `>=` würde er sonst auch noch den nächsten,
+            # regulären Preisschritt aus dem Markttrend werfen.
             room_changed = bool(prev_row) and con.execute(
                 "SELECT 1 FROM offer_events WHERE offer_id=? AND type='room' AND ts>=? LIMIT 1",
                 (offer_id, prev_row['ts'])).fetchone()
@@ -1916,6 +2029,12 @@ def check_offer(offer_id: int) -> None:
                 time.sleep(3)
 
         ts = int(time.time())
+        # Zimmerwechsel ohne Zutun (günstigstes Zimmer ausgebucht → nächstes rückt
+        # nach): als Ereignis festhalten und den Preisschritt aus dem Markttrend
+        # heraushalten — er zeigt einen anderen Zimmertyp, keine Marktbewegung.
+        room_switch = _room_change_text(offer, res)
+        if room_switch:
+            room_changed = True
         avail = res.get('available')
         vac_status = res.get('vac_status') or ''
         vac_ok = None if not vac_status else (1 if vac_status == 'OK' else 0)
@@ -1957,6 +2076,12 @@ def check_offer(offer_id: int) -> None:
                     'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
                     'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
 
+        if room_switch:
+            # Zeitstempel des Messpunkts, damit der Hinweis in der Verlaufstabelle
+            # genau an dem Preis hängt, der durch den Wechsel entstanden ist.
+            _log_event(offer_id, 'room_auto', room_switch, ts=ts)
+            log.info("Angebot #%d (%s): %s", offer_id, name, room_switch)
+
         if res.get('ok') and res.get('flight_pin_missed') and offer.get('flight_pin'):
             # Fixierte Flugvariante ist aus dem Angebot verschwunden → Fixierung lösen
             # (sonst würde bei jedem Poll erneut gemeldet) und wieder günstigster Flug.
@@ -1991,7 +2116,8 @@ def check_offer(offer_id: int) -> None:
                 if res.get('price'):
                     _check_cheaper_date(offer, res['price'], force_refresh=True, notify=False)
             else:
-                _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
+                _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'),
+                              room_switch=room_switch)
                 _clear_error_alarm(offer)
                 _check_vacancy_alarm(offer, vac_status,
                                      prev_vac['vac_ok'] if prev_vac else None)
@@ -2869,6 +2995,15 @@ def _flight_healthchecks() -> list[dict]:
         except Exception as e:
             add('MUC-Flugplan-PDF', False, type(e).__name__)
 
+    if cfg.get('enable_fkb_flights', False):
+        import fkb_flights_client
+        try:
+            rows = fkb_flights_client.list_destinations(verbose=_verbose())
+            add('FKB-Saisonflugplan', rows is not None,
+                f'{len(rows)} Ziele' if rows is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('FKB-Saisonflugplan', False, type(e).__name__)
+
     return checks
 
 
@@ -3044,6 +3179,137 @@ def api_dbsize():
     return jsonify({'bytes': size})
 
 
+@app.route('/api/settings', methods=['GET'])
+def api_settings_get():
+    """Feldbeschreibung + wirksame Werte für den Einstellungen-Dialog.
+
+    Geheime Felder kommen nur als „gesetzt: ja/nein" zurück, nie im Klartext.
+    """
+    if (err := _require_api()):
+        return err
+    return jsonify(settings_store.public_view(load_config()))
+
+
+@app.route('/api/settings', methods=['POST'])
+def api_settings_save():
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    values = body.get('values')
+    clear = body.get('clear') or []
+    if not isinstance(values, dict) or not isinstance(clear, list):
+        return jsonify({'error': 'invalid'}), 400
+    clear = [k for k in clear if isinstance(k, str) and k in settings_store.FIELDS]
+    try:
+        changed = settings_store.save(values, clear)
+    except OSError as e:
+        log.warning("Einstellungen konnten nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
+    _settings_changed()
+    restart = any(k in settings_store.RESTART_KEYS for k in changed)
+    if changed:
+        # Nur die Feldnamen ins Log, niemals die Werte
+        log.info("Einstellungen geändert: %s", ', '.join(sorted(changed)))
+    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
+
+
+# Schlüssel-Export ist die einzige Stelle, an der ein Geheimnis TUIWatch
+# verlässt. Deshalb: Passwort erneut abfragen, Fehlversuche bremsen, und die
+# Datei verlässt das Add-on nur mit einer Passphrase verpackt.
+_key_gate: dict = {'fails': 0, 'until': 0.0}
+_KEY_GATE_MAX = 5
+_KEY_GATE_LOCK_S = 300
+
+
+def _key_gate_check(password: str):
+    """None = freigegeben, sonst die fertige Fehlerantwort."""
+    now = time.time()
+    if _key_gate['until'] > now:
+        return jsonify({'error': 'locked', 'retry_after': int(_key_gate['until'] - now)}), 429
+    if not secrets.compare_digest(str(password or ''), str(load_config().get('password', ''))):
+        _key_gate['fails'] += 1
+        if _key_gate['fails'] >= _KEY_GATE_MAX:
+            _key_gate['until'] = now + _KEY_GATE_LOCK_S
+            _key_gate['fails'] = 0
+        log.warning("Schlüssel-Zugriff abgelehnt (falsches Passwort)")
+        return jsonify({'error': 'auth'}), 403
+    _key_gate['fails'] = 0
+    return None
+
+
+def _key_error(exc: ValueError):
+    """Fehlercode der Schlüssel-Funktionen in eine feste Antwort übersetzen.
+
+    Bewusst eine Kette fester Zeichenketten statt `str(exc)`: aus einer
+    Ausnahme darf nie Text nach außen gehen (CodeQL: information exposure
+    through an exception). Der Code der Ausnahme wird nur verglichen, geantwortet
+    wird ausschließlich mit hier stehenden Literalen.
+    """
+    code = exc.args[0] if exc.args else ''
+    if code == 'passphrase_short':
+        return jsonify({'error': 'passphrase_short'}), 400
+    if code == 'wrong_passphrase':
+        return jsonify({'error': 'wrong_passphrase'}), 400
+    if code == 'invalid_file':
+        return jsonify({'error': 'invalid_file'}), 400
+    if code == 'no_key':
+        return jsonify({'error': 'no_key'}), 400
+    if code == 'exists':
+        return jsonify({'error': 'exists'}), 400
+    if code == 'crypto_unavailable':
+        return jsonify({'error': 'crypto_unavailable'}), 400
+    return jsonify({'error': 'invalid'}), 400
+
+
+@app.route('/api/settings/key', methods=['GET'])
+def api_settings_key_state():
+    if (err := _require_api()):
+        return err
+    return jsonify({'key': settings_store.key_exists(),
+                    'min_len': settings_store.KEY_PASSPHRASE_MIN})
+
+
+@app.route('/api/settings/key/export', methods=['POST'])
+def api_settings_key_export():
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    if (gate := _key_gate_check(body.get('password'))):
+        return gate
+    try:
+        data = settings_store.export_key(str(body.get('passphrase') or ''))
+    except ValueError as e:
+        return _key_error(e)
+    log.info("Schlüssel exportiert (mit Passphrase verpackt)")
+    return Response(data, mimetype='application/json', headers={
+        'Content-Disposition': 'attachment; filename="tuiwatch-settings-key.json"',
+        'Cache-Control': 'no-store'})
+
+
+@app.route('/api/settings/key/import', methods=['POST'])
+def api_settings_key_import():
+    if (err := _require_api()):
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if (gate := _key_gate_check(request.form.get('password'))):
+        return gate
+    data = f.read(64 * 1024)   # die Exportdatei ist wenige hundert Byte groß
+    try:
+        readable = settings_store.import_key(
+            data, request.form.get('passphrase') or '',
+            overwrite=request.form.get('overwrite') == '1')
+    except ValueError as e:
+        return _key_error(e)
+    except OSError as e:
+        log.warning("Schlüssel konnte nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
+    _settings_changed()
+    log.info("Schlüssel eingespielt — %d Zugangsdaten wieder lesbar", readable)
+    return jsonify({'ok': True, 'readable': readable})
+
+
 @app.route('/api/tui-calls', methods=['GET'])
 def api_tui_calls():
     """Heutige TUI-API-Aufrufe für die Footer-Anzeige — Reset um 0 Uhr
@@ -3105,6 +3371,12 @@ self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>self.clients.claim());
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET') return;
+  var u=new URL(e.request.url);
+  // API-Antworten nie cachen: sie unterscheiden sich pro Aufruf, und bei
+  // abgelaufener Cloudflare-Access-Sitzung kommt statt Daten ein Redirect auf
+  // den Login zurueck. Aus dem Cache wuerden dann veraltete Daten ausgeliefert,
+  // statt dass die Oberflaeche den Ablauf bemerkt und neu laedt.
+  if(u.origin!==self.location.origin||u.pathname.indexOf('/api/')!==-1) return;
   e.respondWith(fetch(e.request).then(r=>{
     try{ if(r&&r.ok){ const c=r.clone(); caches.open(C).then(x=>x.put(e.request,c)); } }catch(_){ }
     return r;
@@ -3183,6 +3455,7 @@ def index():
         str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
         fra_flights_enabled=bool(cfg.get('enable_fra_flights', False)),
         muc_flights_enabled=bool(cfg.get('enable_muc_flights', False)),
+        fkb_flights_enabled=bool(cfg.get('enable_fkb_flights', False)),
         share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
@@ -3529,11 +3802,12 @@ def _schedule_overview() -> dict:
                   'note': f'alle {_dur(ak_interval)}'})
 
     # Flugpläne — STR/FRA-Zielliste/MUC, je eigener Warm-Poller mit eigenem
-    # Takt (_str_flights_worker/_fra_board_worker/_muc_flights_worker), nur
+    # Takt (_str_/_fra_board_/_muc_/_fkb_flights_worker), nur
     # aktive Flughäfen zählen mit.
     import str_flights_client
     import fra_board_client
     import muc_flights_client
+    import fkb_flights_client
     flight_srcs = []
     if cfg.get('enable_str_flights', False):
         flight_srcs.append(('STR', str_flights_client.last_fetch_ts(), str_flights_client.CACHE_TTL))
@@ -3543,6 +3817,8 @@ def _schedule_overview() -> dict:
     if cfg.get('enable_muc_flights', False):
         muc_last = muc_flights_client.status().get('checked_ts') or 0
         flight_srcs.append(('MUC', muc_last, muc_flights_client.CHECK_INTERVAL))
+    if cfg.get('enable_fkb_flights', False):
+        flight_srcs.append(('FKB', fkb_flights_client.last_fetch_ts(), fkb_flights_client.CACHE_TTL))
     if flight_srcs:
         soonest = min((last or 0) + interval for _, last, interval in flight_srcs)
         note = '/'.join(name for name, _, _ in flight_srcs) + ' aktiv'
@@ -3934,6 +4210,7 @@ api_reset_offer = offers_routes.api_reset_offer
 api_check_now = offers_routes.api_check_now
 api_email = offers_routes.api_email
 _HISTORY_COLS = offers_routes._HISTORY_COLS
+_SEARCH_BACKUP_COLS = offers_routes._SEARCH_BACKUP_COLS
 _EVENT_COLS = offers_routes._EVENT_COLS
 _OFFER_RESTORE_COLS = offers_routes._OFFER_RESTORE_COLS
 api_compare_start = offers_routes.api_compare_start
@@ -3965,6 +4242,7 @@ import check24_routes  # noqa: E402
 import str_flights_routes  # noqa: E402
 import fra_flights_routes  # noqa: E402
 import muc_flights_routes  # noqa: E402
+import fkb_flights_routes  # noqa: E402
 import all_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
@@ -3978,6 +4256,7 @@ app.register_blueprint(check24_routes.bp)
 app.register_blueprint(str_flights_routes.bp)
 app.register_blueprint(fra_flights_routes.bp)
 app.register_blueprint(muc_flights_routes.bp)
+app.register_blueprint(fkb_flights_routes.bp)
 app.register_blueprint(all_flights_routes.bp)
 app.register_blueprint(market_basket.bp)
 # Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
@@ -4092,6 +4371,19 @@ def _str_flights_worker() -> None:
         time.sleep(str_flights_client.CACHE_TTL)
 
 
+def _fkb_flights_worker() -> None:
+    """Hält den Saisonflugplan von Karlsruhe/Baden-Baden warm (nur bei
+    `enable_fkb_flights`) — analog zu `_str_flights_worker`."""
+    import fkb_flights_client
+    while True:
+        try:
+            if bool(load_config().get('enable_fkb_flights', False)):
+                fkb_flights_client.list_destinations(verbose=_verbose())
+        except Exception as e:
+            log.warning("FKB-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(fkb_flights_client.CACHE_TTL)
+
+
 def _fra_board_worker() -> None:
     """Hält die genäherte FRA-Zielliste warm (nur bei `enable_fra_flights`) —
     analog zu `_muc_flights_worker`. Betrifft nur die Übersichtstabelle
@@ -4149,6 +4441,9 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
     load_sessions()
+    # Einmalig: bisherige Add-on-Optionen in die eigene settings.json übernehmen
+    settings_store.migrate(load_options())
+    _settings_changed()
     # /config/trippilot einrichten: eigene questions.json bleibt unangetastet,
     # questions.default.json/README werden auf den Auslieferungsstand gebracht
     trippilot_questions.ensure_user_copy()
@@ -4164,6 +4459,7 @@ def main() -> None:
     threading.Thread(target=_muc_flights_worker, daemon=True).start()
     threading.Thread(target=_str_flights_worker, daemon=True).start()
     threading.Thread(target=_fra_board_worker, daemon=True).start()
+    threading.Thread(target=_fkb_flights_worker, daemon=True).start()
     _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

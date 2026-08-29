@@ -1,5 +1,307 @@
 # Changelog
 
+## [1.8.31] - 2026-08-29
+- **Breaking Change: Port 17776 wird nicht mehr veroeffentlicht.** Er gab Weboberflaeche und REST-API ohne jede Anmeldung an das ganze LAN heraus — wer die Adresse kannte, konnte mitlesen, senden, Medien holen und Kontakte blockieren. Das Mapping steht jetzt auf `null`
+- **Unveraendert erreichbar:** die Oberflaeche ueber das HA-Panel (Ingress, Anmeldung durch Home Assistant) und ueber das MessengerPortal. Das Portal spricht das Add-on seit **1.2.20** ueber seinen Container-Namen an und braucht den Host-Port nicht mehr
+- **Was bricht:** alles, was `http://<HA-IP>:17776/api/...` oder `http://localhost:17776/api/...` aufruft — eigene Skripte, `rest_command`, `rest`-Sensoren. Umstellen auf Port **17786** mit `Authorization: Bearer <Token>` (Optionen `api_enabled` und `api_token`, Port unter *Netzwerk* freigeben). Beispiele stehen in DOCS.md
+- Wer 17776 unbedingt braucht, kann das Mapping unter *Netzwerk* von Hand wieder eintragen. Dann gilt aber wieder: kein Passwort, fuer jedes Geraet im Netz
+- Der Watchdog laeuft jetzt ueber `tcp://[HOST]:17776` statt `tcp://[HOST]:[PORT:17776]`. Die alte Form loeste den **Host**-Port auf und waere ohne Mapping ins Leere gelaufen — das Add-on haette sich selbst als tot gemeldet und im Kreis neu gestartet
+
+## [1.8.30] - 2026-08-29
+- **REST-API auf eigenem Port mit Token-Pflicht.** Neue Optionen `api_enabled` (Standard: aus) und `api_token` starten einen zweiten Listener auf **17786**, der ausschliesslich `/api/*` bedient und jeden Aufruf ohne `Authorization: Bearer <Token>` mit `401` abweist
+- Hintergrund: Port 17776 gibt Weboberflaeche **und** REST-API ohne jede Anmeldung heraus. Wer ihn im LAN erreicht, kann mitlesen, senden, Medien holen und Kontakte blockieren. Beides liegt auf demselben Express-Server, ein Schalter fuer „nur API" existierte nicht
+- Die Weboberflaeche wird ueber 17786 auch mit gueltigem Token **nicht** ausgeliefert (`404`) — sonst waere der Port ein zweiter, gleichwertiger Weg auf alles
+- Ist `api_enabled` an, aber kein Token gesetzt, startet der Port nicht und das Add-on schreibt eine Fehlerzeile ins Log. Ein offener Port ohne Token waere genau die Luecke, die er schliessen soll
+- Zwei Schalter, absichtlich: die Option startet den Listener, das Port-Mapping unter *Netzwerk* entscheidet ueber die Erreichbarkeit im LAN. Ohne Mapping laeuft die API nur im internen hassio-Netz
+- Der Vergleich laeuft ueber `crypto.timingSafeEqual` statt `===`, damit die Laufzeit den Token nicht verraet. Abgewiesene Zugriffe landen mit Pfad und IP als WARN in der Konsole des Add-ons
+- Port 17776 bleibt vorerst unveraendert freigegeben. In einer der naechsten Fassungen wird sein Mapping auf „nicht veroeffentlicht" umgestellt — der Zugang laeuft dann ueber HA-Ingress oder das MessengerPortal, das die Add-ons seit **MessengerPortal 1.2.20** ueber ihren Container-Namen erreicht und dafuer keinen offenen Port mehr braucht. Wer die API im LAN nutzt, sollte bis dahin auf 17786 umgestellt haben
+- `test-api.ps1` spricht jetzt 17786 an und schickt den Token mit. Der Token steht **nicht** im Skript — es liest `$env:WHATSAPP_API_TOKEN` oder fragt beim Start danach; Host und Port lassen sich ueber `WHATSAPP_HOST` und `WHATSAPP_API_PORT` uebersteuern. Bei `401` und `404` sagt es, was zu tun ist, statt die rohe Ausnahme zu zeigen
+- DOCS.md: neue Uebersicht „Zwei Ports, zwei Sicherheitsstufen", alle `curl`- und HA-Beispiele auf 17786 samt Token umgestellt (`rest_command` und `rest`-Sensor holen ihn per `!secret` aus `secrets.yaml`)
+
+## [1.8.29] - 2026-08-28
+- Fix: **Die Option „Gruppenbenachrichtigungen ueberspringen“ hatte keine Wirkung.** Der Wert wurde beim Start nie an das Add-on durchgereicht, es galt immer „aus“ — Gruppen loesten also weiter HA-Benachrichtigungen aus, egal wie der Schalter stand
+- Fix: **Geloeschter Spam kam nach einem Neustart zurueck.** Das Loeschen mehrerer Nachrichten aus einem Chat entfernte sie nur aus dem laufenden Betrieb, ohne den Verlauf auf die Platte zu schreiben
+- Der Container-Bau nutzt jetzt `npm ci` mit der vorhandenen `package-lock.json` statt `npm install`, und das Node-Grundabbild ist auf Fassung 24 festgelegt. Damit liefert derselbe Stand auch denselben Bau — vorher konnten sich Abhaengigkeiten zwischen zwei Bauten still verschieben
+- Aufgeraeumt: `test-api.ps1` zeigte auf Port 3000 statt 17776 und lief damit ins Leere; dieselbe Verwechslung stand auch in der Doku
+
+## [1.8.28] - 2026-08-28
+- Der Selbsttest prueft jetzt auch, **ob WhatsApp noch antwortet wie bisher** — nicht nur, ob die Bausteine da sind. Eine Funktion kann bleiben und trotzdem etwas anderes liefern; genau so kam die Umstellung der Chats von `@c.us` auf `@lid`
+- Vier Formpruefungen, alle nur lesend: **Datenschutzeinstellungen** (sind alle Felder da, sind die Werte bekannt?), **Ausnahmeliste** (`{status, users, dhash}`, Kennungen in bekannter Form), **Status-Publikum** (`{setting, allowList, denyList}`, Modus einordenbar) und die **Kennungsformen der eigenen Chats**
+- Taucht ein unbekannter Wert auf — etwa eine neue Datenschutz-Stufe oder eine Chat-Kennung, die weder `@c.us` noch `@lid` noch `@g.us` ist — steht das im Log und als Leiste in der Oberflaeche: „WhatsApp antwortet anders als bisher". Das ist der Fall, in dem etwas falsch angezeigt oder falsch gesetzt werden koennte
+- Die zweite Stufe laeuft nur, wenn die erste sauber war — fehlt ein Modul, meldet sonst beides dasselbe
+
+## [1.8.27] - 2026-08-28
+- Feature: **Selbsttest gegen Umbauten bei WhatsApp.** Das Add-on greift an 16 Stellen in die Innereien von WhatsApp Web — Praesenz, Status posten, Datenschutz, Ausnahmelisten. Benennt WhatsApp eines dieser Module um, faellt bisher genau dieser Teil still aus, waehrend der Rest weiterlaeuft; gemerkt hat man es erst beim naechsten Benutzen
+- Der Selbsttest sieht alle Stellen auf einmal nach: **Modul vorhanden? Die benoetigten Funktionen darin vorhanden?** Aufgerufen wird nichts. Er laeuft 90 Sekunden nach dem Start und danach alle sechs Stunden
+- Faellt etwas weg, steht es **als Warnleiste oben in der Oberflaeche** („WhatsApp Web hat umgebaut — diese Funktionen arbeiten gerade nicht: …") und als Warnung im Log, mit Nennung der betroffenen Funktion und des fehlenden Bausteins
+- Die laufende WhatsApp-Web-Fassung wird in `/config/waweb_state.json` gemerkt. Wechselt sie, steht das im Log — genau dann brechen solche Sachen naemlich
+- `GET /api/selfcheck` liefert das letzte Ergebnis, `?run=1` prueft sofort
+- Nebenbei: laesst sich ein Kontakt fuer die Ausnahmeliste nicht in den Sammlungen finden, wird seine Kennung jetzt ueber `WAWebWidFactory` gebaut, statt ihn zu ueberspringen
+
+## [1.8.26] - 2026-08-28
+- Fix: **Im Kontakte-Reiter erschien das eigene Profil erst, wenn das Adressbuch geladen war.** Waehrenddessen stand dort nur „Lade Kontakte", obwohl das Profil davon gar nicht abhaengt. Es steht jetzt sofort oben — auch wenn das Adressbuch noch laedt oder gar nicht kommt
+- Das Profil wird ausserdem schon beim Start im Hintergrund geholt, damit Name und Bild beim ersten Klick fertig dastehen
+
+## [1.8.25] - 2026-08-28
+- Die Rueckgabe steht jetzt fest: `{ setting: "deny-list", allowList: [], denyList: […] }`. Beide Listen bestehen **nebeneinander** — das Add-on nimmt deshalb die zum Modus passende, statt die erstbeste gefuellte. Sonst haette eine liegengebliebene Liste die falschen Namen gezeigt
+- Die Kontakte kommen hier als Rufnummern (`491713333774@c.us`), nicht als LID wie bei „Zuletzt online" — Namen sind damit direkt zuzuordnen
+
+## [1.8.24] - 2026-08-28
+- Fix: **Bei den Statusmeldungen stand „Noch niemand ausgenommen", obwohl neun Kontakte ausgenommen waren.** Der Modus wurde richtig erkannt, nur die Liste nicht: sie steht in `getStatusPrivacySettingConfig()` unter einem anderen Feldnamen als vermutet
+- Statt weiter zu raten sucht das Add-on jetzt das erste Feld, das ueberhaupt eine gefuellte Liste enthaelt, und gibt den gefundenen Feldnamen als `listKey` mit zurueck
+- `GET /api/privacy/status?raw=1` zeigt die Rueckgabe vollstaendig, Feld fuer Feld — damit laesst sich der Rest ohne weiteres Raten festnageln
+
+## [1.8.23] - 2026-08-28
+- Feature: **Wer die Statusmeldungen sehen darf, laesst sich jetzt auch hier einstellen** — neue Zeile „Statusmeldungen" im Datenschutz-Reiter mit allen drei Moeglichkeiten: *Meine Kontakte*, *Meine Kontakte, ausser…* und *Nur teilen mit…*. Fuer die letzten beiden oeffnet sich dieselbe Kontaktauswahl wie bei „Zuletzt online"
+- Das Status-Publikum haengt an eigenen Modulen (`WAWebStatusPrivacySettingAction`) und funktioniert anders als die uebrigen Einstellungen: die Liste wird **vollstaendig gesetzt**, nicht schrittweise ergaenzt. Die Umrechnung der Kontakte in WhatsApp-Kennungen macht `convertPrivacyListContactsToWids` — je nach Kontakt Rufnummer oder LID
+- Der Modus kommt aus einem Enum, dessen Schreibweise sich aendern kann. Das Add-on gibt ihn deshalb **roh mit** und ordnet ihn nur grob ein, statt auf eine feste Zeichenkette zu bauen
+- `GET /api/privacy/status` liest, `POST /api/privacy/status` (`{mode, ids}`) setzt
+
+## [1.8.22] - 2026-08-28
+- Fix: In der Ausnahmeliste stand bei Kontakten ohne Namen `+491755313702@c.us` statt der blossen Rufnummer. `phoneNumber` kommt je nach Fassung als WID oder als vollstaendige Kennung — der Anhang wird jetzt abgeschnitten
+
+## [1.8.21] - 2026-08-28
+- Feature: **„Meine Kontakte, außer…" laesst sich jetzt hier einstellen** — samt Kontaktauswahl. Im Reiter Datenschutz die Einstellung waehlen, Haekchen setzen, uebernehmen; bei bereits gesetzter Ausnahmeliste steht unter der Zeile, wer ausgenommen ist, mit „bearbeiten" daneben
+- Der Weg dahin stand im Quelltext: `setPrivacy` nimmt `users` als `[{action:'add'|'remove', wid}]` plus den `dhash` des aktuellen Standes — die Liste wird **schrittweise** gepflegt. Die Oberflaeche schickt deshalb nur die Unterschiede, nicht die ganze Liste
+- Die Liste kommt als LID-Kennungen (`167327647719579@lid`) zurueck, die keine Rufnummer sind. Namen und, wo bekannt, Rufnummern holt das Add-on beim Lesen dazu — sonst staende dort nur eine Zahlenkolonne
+- WhatsApp braucht echte WID-Objekte statt Zeichenketten. Statt selbst eine zu bauen, nimmt das Add-on die vorhandene aus Kontakt- oder Chat-Sammlung. Laesst sich ein Kontakt nicht zuordnen, wird er **uebersprungen und gemeldet** statt still verschluckt
+- Nach jeder Aenderung liest das Add-on Liste und Einstellung frisch von WhatsApp zurueck
+
+## [1.8.20] - 2026-08-28
+- Fix: `GET /api/privacy/disallowed` verschwieg ausgerechnet das Wichtigste. Die Antwort hat die Form `{status, users, dhash}`, die Beschreibung gab aber nur eine feste Feldliste aus — `users`, also die eigentliche Ausnahmeliste, fehlte darin. Jetzt werden **alle** Felder beschrieben, eine Ebene tiefer als vorher
+
+## [1.8.19] - 2026-08-28
+- Neu: **`GET /api/privacy/disallowed?category=lastSeen` liest die Ausnahmeliste** zu „Meine Kontakte, ausser…". WhatsApp fuehrt sie pro Kategorie getrennt (`lastSeen`, `about`, `profilePicture`, `groupAdd`) — die Route fragt sie ueber `queryPrivacyDisallowedList()` ab und beschreibt die Antwort Feld fuer Feld, statt sie blind zu serialisieren
+- Der Quelltext von `WAWebSetPrivacyJob` hat gezeigt, wie das Setzen wirklich funktioniert: `setPrivacy({name, value, users, dhash})` mit `users` als Liste von `{action: 'add'|'remove', wid}`. Die Ausnahmeliste wird also **schrittweise** gepflegt, nicht am Stueck ersetzt — und ohne `users` ist der Aufruf voellig unauffaellig, genau wie bisher genutzt
+- Damit ist der Weg zur Kontaktauswahl frei; noch fehlt die Form der gelesenen Eintraege und das Modul, das aus einer Rufnummer eine WID baut. Beides steht jetzt in der Kandidatenliste der Diagnose
+
+## [1.8.18] - 2026-08-28
+- Fix: **Die Oberflaeche blieb leer — `Uncaught SyntaxError: Unexpected identifier 's'`.** Im englischen Hinweistext des neuen Datenschutz-Reiters stand ein Apostroph als `'`. Die Seite wird aus einem Template-Literal gebaut, und das macht daraus ein echtes `'` — damit endete die Zeichenkette mitten im Satz und das gesamte Skript der Seite war hin
+- Der Satz kommt jetzt ohne Apostroph aus. `node --check server.js` sieht solche Fehler grundsaetzlich nicht, weil die Escapes erst beim Ausliefern aufgeloest werden
+
+## [1.8.17] - 2026-08-28
+- Feature: **Datenschutzeinstellungen lassen sich jetzt hier aendern** — „Mein Profil" im Kontakte-Reiter, neuer Reiter **Datenschutz**: zuletzt online, online, Profilbild, Info, Gruppen, Anrufe und Lesebestaetigungen. Auswahl aendern genuegt, gespeichert wird sofort
+- Moeglich geworden durch die Diagnose der letzten Fassungen: gelesen wird ueber `WAWebQueryPrivacySettingsJob.getPrivacy()`, gesetzt ueber `WAWebSetPrivacyForOneCategoryAction.setPrivacyForOneCategory()` — die Umrechnung auf die Server-Namen (`lastSeen` → `last`) macht WhatsApp Web selbst
+- Nach jeder Aenderung wird der Stand **frisch von WhatsApp zurueckgelesen**. Nimmt WhatsApp den Wert nicht an, springt die Auswahl zurueck und sagt, worauf es weiterhin steht — statt einen Erfolg zu behaupten
+- **„Meine Kontakte, ausser…" bleibt dem Handy vorbehalten.** Die Einstellung braucht eine Ausnahmeliste; ohne sie wuerde ein Setzen die bestehende Liste stillschweigend leeren. Sie wird angezeigt, ist aber nicht auswaehlbar
+- `GET /api/privacy` liest, `POST /api/privacy` (`{name, value}`) aendert — Kategorien: `lastSeen`, `online`, `profilePicture`, `about`, `groupAdd`, `callAdd`, `readReceipts`
+
+## [1.8.16] - 2026-08-28
+- Neu: **`GET /api/privacy` liest die Datenschutzeinstellungen aus** — zuletzt online, Profilbild, Info, Status, Lesebestaetigungen, Gruppen, dazu die zulaessigen Werte (`all`, `contacts`, `contact_blacklist`, `none`, fuer „online" auch `match_last_seen`). Reines Lesen ueber `WAWebQueryPrivacySettingsJob.getPrivacy()`
+- Die Modulliste hat die Gegenstuecke zum Setzen ausgespuckt: `WAWebSetPrivacyForOneCategoryAction`, `WAWebSetPrivacyJob` und `WAWebStatusPrivacySettingAction`. Sie stehen jetzt in der Kandidatenliste der Diagnose — **aufgerufen wird davon nichts**
+- Neu: **`GET /api/privacy/source?module=<Name>` zeigt den Quelltext eines Moduls** aus der Modulliste. Die exportierten Funktionen stecken hinter einem Babel-Mantel und geben per `toString()` nichts her; die Fabrikfunktion aus der Modulliste schon. Damit laesst sich die Signatur der Setz-Funktion ablesen, statt sie zu raten
+
+## [1.8.15] - 2026-08-28
+- `GET /api/privacy/diag` nachgeschaerft, nachdem der erste Durchgang zwei Treffer hatte: `WAWebPrivacySettings` (die zulaessigen Werte: `all`, `contacts`, `contact_blacklist`, `none`) und `WAWebQueryPrivacySettingsJob.getPrivacy()`
+- Lesende Funktionen liefern ihre Antwort asynchron — die Sonde loest die Zusage jetzt auf (8 s Deckel) und zeigt den **echten aktuellen Stand** statt nur „→ Promise"
+- Der Bundle-Scan lief ins Leere (der `performance`-Puffer einer lang laufenden Seite ist leer). Die Modulnamen kommen deshalb jetzt aus der Modulliste von WhatsApp Web selbst (`require('__debug')`), gefiltert auf `privacy`, `lastseen`, `readreceipt`, `profilepic`, `groupadd`. Der Bundle-Scan bleibt als Ausweichweg unter `?scan=1`
+- `?probeFound=1` listet zu jedem gefundenen Modul jetzt die Felder **mit Signatur**, nicht nur die Namen — daran ist die Setz-Funktion zu erkennen
+
+## [1.8.14] - 2026-08-28
+- Neu: **`GET /api/privacy/diag` sagt, ob sich die Datenschutzeinstellungen ueberhaupt steuern lassen** („wer sieht meinen Status / zuletzt online / Profilbild"). `whatsapp-web.js` hat dafuer keine API — die Sonde schaut in der laufenden Sitzung nach, ob WhatsApp Web selbst ein passendes Modul mitbringt
+- Die Route **liest nur**: aufgerufen werden ausschliesslich Funktionen, deren Name mit `get`/`is`/`has`/`read` beginnt und die keine Parameter nehmen. Geaendert wird nichts
+- `?scan=1` durchsucht die geladenen Bundles nach echten Modulnamen (`WAWeb…Privacy…`), statt sie zu raten — WhatsApp benennt sie bei Umbauten um. `?probeFound=1` probiert die Fundstellen gleich durch und zeigt ihre Felder
+- Die Antwort nennt auch die laufende WhatsApp-Web- und Bibliotheksfassung, damit ein spaeterer Fund einordbar bleibt
+
+## [1.8.13] - 2026-08-28
+- Fix: **Blaue Haken blieben grau.** Den blauen Haken setzte bisher nur das Live-Ereignis `message_ack` — wurde eine Nachricht gelesen, waehrend das Add-on aus oder getrennt war, kam das Ereignis nie und der Haken blieb fuer immer grau, obwohl er auf dem Handy blau war
+- Drei Stellen nachgezogen: der Start uebernimmt jetzt den aktuellen Haken-Stand auch fuer **bereits bekannte** Nachrichten (vorher verwarf `addMsg` das Duplikat samt frischem Wert), `message_ack` sichert die Aenderung sofort auf Platte (vorher nur im Arbeitsspeicher — ein Neustart holte den alten Wert zurueck), und alle 5 Minuten fragt das Add-on bei WhatsApp nach: **eigene Nachrichten der letzten 7 Tage ohne blauen Haken**, hoechstens 25 pro Durchgang, 200 ms Abstand
+- Der erste Durchgang laeuft eine Minute nach dem Start. Mit `debug_mode` steht das Ergebnis im Log: „ack-resync: 3 von 25 Haken nachgezogen"
+
+## [1.8.12] - 2026-08-28
+- Fix: **Der Medien-Knopf in der Chat-Kopfzeile hatte gar keine eigene Optik** — ohne Regel zeichnete der Browser seinen Standardknopf mit weissem Kasten, der zwischen den anderen Knoepfen fehl am Platz wirkte. Jetzt derselbe Rahmen wie Suche, Export und Loeschen; aus ist er bernsteinfarben
+- Als Aus-Symbol steht dort nicht mehr das durchgestrichene Auge (das heisst „ausgeblendet", nicht „keine Medien"), sondern ein Bildrahmen mit Schraegstrich — bei 15 Pixeln deutlich besser zu lesen
+
+## [1.8.11] - 2026-08-28
+- Feature: **Medien lassen sich jetzt fuer einzelne Chats abschalten.** `download_media` gilt weiter fuer alle Chats, das Bild-Symbol in der Chat-Kopfzeile nimmt einen einzelnen Chat davon aus — nuetzlich bei Gruppen, die staendig grosse Videos schicken
+- Aus heisst: nichts Neues wird geladen (Fotos, Sprachnachrichten, Videos) und vorhandene Medien bleiben in diesem Chat **nur ausgeblendet — geloescht wird nichts**. Ein Klick zurueck auf AN zeigt sie sofort wieder an und laedt im Hintergrund nach, was in der Zwischenzeit liegengeblieben ist
+- Die Ausnahmen stehen in `/config/chatmedia.json` und ueberstehen Neustarts; `GET /api/chat-media` und `POST /api/chat-media` (`{chatId, enabled}`) machen dasselbe ueber die API
+- Fix: **Die Knoepfe in der Status-Archiv-Gesamtuebersicht waren winzig und kaum zu erkennen.** Statt der Emoji-Zeichen 🗄 ⬇ 🗑 stehen dort jetzt dieselben Symbole wie im Rest der Oberflaeche, in 34x34 grossen Feldern mit Rahmen; Loeschen ist rot
+
+## [1.8.10] - 2026-08-28
+- Fix: **`downloadWAMedia: no data for …` kam bei jedem Start aufs Neue.** Schlug der Medien-Download fehl, blieb `mediaFile` leer — und der naechste Start versuchte dieselbe Nachricht wieder. Bei einem Medium, das WhatsApp serverseitig nicht mehr ausliefert (bei aelteren Nachrichten der Normalfall), konnte das nie gelingen und wiederholte sich monatelang
+- Fehlversuche werden jetzt an der Nachricht gezaehlt und nach drei Anlaeufen nicht mehr wiederholt. Nachrichten ohne Medienanhang oder mit verschwundener Vorlage gelten sofort als erledigt. Beim Start steht dann nur noch eine ruhige Zeile: „2 Nachricht(en) ohne abrufbares Medium — nach 3 Versuchen wird es nicht erneut probiert"
+- Die Zaehler ueberleben den Neustart, und auch `ensureMediaLater` vermerkt sein endgueltiges Aufgeben. Die Warnung selbst sagt jetzt, was los ist: „WhatsApp liefert keine Daten mehr (Medium abgelaufen?)"
+
+## [1.8.9] - 2026-08-28
+- Fix: **Chats mit langem Verlauf brauchten lange zum Oeffnen und die Ansicht sprang herum**, besonders auf dem Handy. Der Browser holte den kompletten Verlauf und baute ihn in einem Rutsch auf — bei einem Chat mit 420 Nachrichten also alle 420. Jetzt kommen zuerst die **juengsten 50**, aeltere auf Abruf
+- Oben im Chat steht dafuer „↑ Ältere Nachrichten laden · 50 von 420 geladen"; scrollt man ohnehin nach oben, laedt der naechste Schwung von selbst nach. Dabei bleibt die Blickposition erhalten — die Nachricht, die man gerade liest, bleibt an ihrem Platz
+- Die Suche ueber alle Chats geht weiterhin punktgenau: liegt ein Treffer weiter zurueck, laedt der Sprung so lange nach, bis die Nachricht da ist
+- `GET /api/messages` versteht dafuer `?limit=n` (juengste n, Antwort mit `more` und `total`) und `?before=<ts>` (die aelteren davor). Ohne `limit` bleibt es bei der vollstaendigen Liste
+
+## [1.8.8] - 2026-08-28
+- Feature: **Die laufende WhatsApp-Web-Fassung ist jetzt sichtbar.** Sie steht beim Verbinden im Log und in der Kopfzeile der Konsole, zusammen mit der Fassung von `whatsapp-web.js`: „⬛ CONSOLE — WhatsApp · WA Web 2.3000.… · lib 1.34.…". `GET /api/status` liefert sie als `waWeb` und `lib` mit
+- Nuetzlich, weil sich daran festmachen laesst, wann ein Umbau bei WhatsApp etwas hier zerlegt hat — genau das war heute mehrfach die Ursache
+
+## [1.8.7] - 2026-08-28
+- Feature: **X zum Leeren im Suchfeld der Seitenleiste.** Erscheint nur, wenn etwas drinsteht, raeumt Feld und Filter weg und laesst den Cursor im Feld — auch im Kontakte-Reiter
+
+## [1.8.6] - 2026-08-28
+- Feature: **Pruefen, ob eine Rufnummer bei WhatsApp ist** — ohne sie zu speichern und ohne ihr zu schreiben. Das kann die WhatsApp-App nicht. Tippt man in der Seitenleiste etwas, das nach einer Rufnummer aussieht, erscheint die Zeile „📱 „…" bei WhatsApp prüfen"; im Kontakte-Reiter steht ausserdem unten ein Knopf dafuer
+- Bei einem Treffer nennt das Ergebnis die Nummer, den gespeicherten Namen (oder „nicht im Adressbuch") und den Info-Text; ein Knopf oeffnet direkt den Chat — auch wenn es bisher keinen gab
+- Die Anfrage geht an WhatsApps Server, deshalb hoechstens 20 Abfragen je Minute. Neu: `GET /api/check-number?number=<nr>`
+
+## [1.8.5] - 2026-08-28
+- Feature: **Suche über alle Chats.** Tippt man in der Seitenleiste, erscheint darueber die Zeile „🔍 „…" in allen Nachrichten suchen" — ein Klick oder Enter oeffnet die Trefferliste. Jeder Treffer nennt Chat, bei Gruppen zusaetzlich den Absender, Datum und Uhrzeit sowie einen Textausschnitt mit hervorgehobenem Suchwort. Ein Klick springt in den Chat direkt zur Nachricht und hebt sie fuenf Sekunden lang hervor
+- Zwei Quellen: der eigene Nachrichtenspeicher, wo punktgenaues Anspringen moeglich ist, und **WhatsApps eigene Suche**, die auch aelteres findet, was hier nie gespeichert wurde. Solche Treffer sind als „nicht im lokalen Verlauf" gekennzeichnet und oeffnen nur den Chat. Die Fusszeile nennt beide Zahlen
+- Neu: `GET /api/search?q=<text>`; ab zwei Zeichen, hoechstens 80 Treffer (`?limit=`), `?remote=0` beschraenkt auf den eigenen Verlauf
+
+## [1.8.4] - 2026-08-28
+- Aenderung: **Das Schloss bei blockierten Kontakten ist jetzt deutlich zu sehen.** Das schmale Band am unteren Rand ging auf Fotos unter — stattdessen liegt ein dunkler Schleier ueber dem ganzen Profilbild, mit grossem Schloss in der Mitte. Im Kontaktfenster entsprechend groesser
+
+## [1.8.3] - 2026-08-28
+- Feature: **Gemeinsame Gruppen im Kontaktfenster.** Darunter stehen die Gruppen, in denen ihr beide seid — ein Klick oeffnet die jeweilige Gruppe direkt
+- Feature: **Anzahl verknuepfter Geraete.** Die zeigt die WhatsApp-App nirgends an. Ein normales Konto mit einer Web-Sitzung meldet zwei (Telefon und Web), mehr Geraete entsprechend mehr
+- Beides laeuft ueber einen eigenen Endpunkt `GET /api/contact/:chatId/extra` und wird nachgelagert geladen, damit das Kontaktfenster genauso schnell aufgeht wie bisher. Bei Gruppen und ohne Treffer bleiben die Zeilen ausgeblendet
+
+## [1.8.2] - 2026-08-28
+- Feature: **Blockierte Kontakte sind auf einen Blick zu erkennen.** In der Chat- und in der Kontaktliste traegt das Profilbild ein rotes Band mit Schloss am unteren Rand, im Kontaktfenster ebenso. Die Liste der blockierten Kontakte wird beim Verbinden geladen, danach alle fuenf Minuten aufgefrischt und sofort nach jedem Blockieren oder Aufheben
+- Der Abgleich laeuft ueber ID **und** Rufnummer: WhatsApp fuehrt blockierte Kontakte unter der Adressbuch-ID, die Chats teils unter `@lid` — ohne den zweiten Weg fehlte das Schloss genau dort, wo es hingehoert
+- `GET /api/blocked` haelt sein Ergebnis eine Minute vor, weil die Anzeige es staendig braucht; `?refresh=1` umgeht das
+
+## [1.8.1] - 2026-08-28
+- Feature: **Kontakte blockieren und entblocken.** Im Kontaktfenster — erreichbar ueber das Profilbild — steht unten ein Knopf dafuer. Ist jemand blockiert, sagt das eine rote Zeile, und der Knopf heisst „Blockierung aufheben". Beide Richtungen fragen vorher nach, mit Namen und einem Satz dazu, was das bedeutet
+- Gruppen lassen sich nicht blockieren, dort bleibt der Knopf verborgen
+- Neu: `GET /api/blocked` listet die blockierten Kontakte, `POST /api/contact/:chatId/block` und `.../unblock` schalten um. `GET /api/contact/:chatId` liefert zusaetzlich `isBlocked`
+
+## [1.8.0] - 2026-08-28
+- Fix: **In der Konsole fehlte bei vielen Zeilen die Uhrzeit.** Die still protokollierten Debug-Zeilen (`API GET …`) trugen keinen Zeitstempel, die echten Konsolenzeilen schon — jetzt haben alle einen, und zwar in Ortszeit statt UTC
+- Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt. Der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl der Ebenen bleibt ueber einen Seitenwechsel hinweg erhalten
+
+Diese Fassung buendelt die Arbeit der letzten Runde:
+
+- Eigene Statusmeldungen senden — Text mit Hintergrundfarbe und Schrift, Bild und Video, Vorlagen, Zuruecknahme, Info-Text im Profil (1.7.59 bis 1.7.69)
+- Bilder werden vor jedem Upload im Browser verkleinert, auch bei Chat-Anhaengen (1.7.66, 1.7.67)
+- „Zuletzt online" im Kontaktfenster und als Uebersicht ueber alle Kontakte, mit optionalem Rundlauf im Hintergrund (1.7.70 bis 1.7.74)
+- Die Gespraechs-Statistik ist von der Chat-Kopfzeile ins Kontaktfenster gewandert (1.7.73)
+
+## [1.7.74] - 2026-08-28
+- Feature: **Zuletzt-online-Übersicht ueber alle Kontakte.** Im Reiter „Kontakte" fuehrt unten ein Knopf zu einer Tabelle mit Name, letztem Zeitpunkt und wann zuletzt geprueft wurde — online zuerst, dann nach Zeitpunkt sortiert. „Jetzt aktualisieren" startet einen Rundlauf von Hand
+- Ein Rundlauf abonniert die Praesenz aller bekannten Einzelkontakte (hoechstens 300, in Haeppchen zu 25), wartet einmal neun Sekunden auf die asynchronen Antworten und liest dann alle Modelle aus — eine Runde statt einer Abfrage je Kontakt
+- Neue Option **`presence_scan_minutes`** (Standard 0 = aus) fuer den automatischen Rundlauf im Hintergrund; 15 bis 60 Minuten sind sinnvolle Werte. Bewusst standardmaessig aus, weil man sich fuer die Dauer eines Rundlaufs als verfuegbar meldet und so lange fuer die Kontakte online erscheint — es sei denn, `presence_mode` steht auf `off`
+- Die Daten ueberleben einen Neustart (`/config/presence.json`). Liefert WhatsApp zu einem Kontakt nichts, bleibt der alte Zeitpunkt stehen, statt von Leere ueberschrieben zu werden
+
+## [1.7.73] - 2026-08-28
+- Aenderung: **Die Gespraechs-Statistik ist von der Chat-Kopfzeile ins Kontaktfenster gewandert** — dorthin, wo man ueber das Profilbild hinkommt. Die Kopfzeile zeigt jetzt nur noch Name und Rufnummer, die Statistik steht unter dem Info-Text: Anzahl der Nachrichten, gesendet, empfangen, Fotos und seit wann
+- Bei Kontakten ohne Chatverlauf entfaellt die Zeile ganz, statt eine Null anzuzeigen
+
+## [1.7.72] - 2026-08-28
+- Feature: **Dauerhaft online sein ist nicht mehr noetig.** Die Verfuegbarkeit wird jetzt nur noch fuer die Dauer einer Abfrage gemeldet und danach wieder abgemeldet. Man erscheint also hoechstens fuer die paar Sekunden online, in denen man ein Kontaktfenster oeffnet
+- Die Option `presence_announce` (an/aus) weicht dafuer `presence_mode` mit drei Werten: `temporary` (Standard, kurz melden und wieder abmelden), `always` (dauerhaft, wie bisher) und `off` (nie melden — „zuletzt online" bleibt dann meist leer). Wer `presence_announce` gesetzt hatte, stellt bitte `presence_mode` neu ein
+- Parallele Abfragen zaehlen mit, damit sie sich nicht gegenseitig abmelden, und nach der letzten wird mit zwei Sekunden Karenz abgemeldet — schnelles Durchklicken schaltet so nicht dauernd an und aus
+
+## [1.7.71] - 2026-08-28
+- Fix: **„Zuletzt online" meldete immer „keine Angabe".** Das Debug-Log zeigte `hasData:false` bei leerem `chatstate` — es kam nie eine Praesenz-Aktualisierung. Grund: `model.subscribe()` ist im Presence-Modell nur ein `collection.find()` und sendet gar kein Abo. Das erledigt `WAWebSendPresenceSubscriptionJob.sendUserPresenceSubscription(wid)`, das jetzt aufgerufen wird; `model.subscribe()` bleibt als Rueckfall. Die Wartezeit stieg von 3,5 auf 6 Sekunden
+- Neue Option **`presence_announce`** (Standard: aus). WhatsApp liefert fremde Praesenz nur an Geraete, die sich selbst als verfuegbar melden. Die Option macht das — mit der Nebenwirkung, dass man fuer seine Kontakte als online erscheint, solange das Add-on laeuft. Deshalb bewusst abschaltbar und standardmaessig aus
+- `GET /api/presence/:chatId?announce=1` erzwingt die Meldung fuer einen einzelnen Test, `?announce=0` unterdrueckt sie
+
+## [1.7.70] - 2026-08-28
+- Feature: **„Zuletzt online" im Kontaktfenster.** `whatsapp-web.js` kann fremde Praesenz nicht lesen — nur die eigene senden. WhatsApp Web fuehrt sie aber in der `PresenceCollection`: das Modell hat `subscribe()`, `isOnline` und darunter `chatstate` mit `type`, `t` (Zeitpunkt) und `deny`. Das Add-on abonniert die Praesenz beim Oeffnen des Kontakts und zeigt eines von vier Ergebnissen: „online" (gruen), „zuletzt online: Heute, 08:53", „zuletzt online: nicht sichtbar" (der Kontakt erlaubt es nicht) oder „zuletzt online: keine Angabe"
+- Ohne Abo liefert WhatsApp nichts, und die Antwort kommt asynchron — deshalb steht bis zu dreieinhalb Sekunden „wird geprueft" da. Fuer Gruppen entfaellt die Anzeige
+- Neu: `GET /api/presence/:chatId` liefert `online`, `lastSeen` (Millisekunden) und `denied`; im Debug-Modus zusaetzlich die Rohwerte aus WhatsApp Web
+
+## [1.7.69] - 2026-08-28
+- Feature: **„Auswahl entfernen" im Bild-Reiter.** Ein gewaehltes Bild liess sich bisher nur durch Auswahl eines anderen ersetzen. Der Knopf erscheint, sobald etwas gewaehlt ist — auch waehrend das Bild noch verkleinert wird — und raeumt Vorschau, Dateifeld und Bildunterschrift weg
+- Fix: **Der Editor merkte sich alles ueber „Abbrechen" hinweg.** Beim naechsten Oeffnen stand noch das zuletzt gewaehlte Bild da und liess sich versehentlich ein zweites Mal posten. Beim Oeffnen wird jetzt zurueckgesetzt: Text, Bild, Bildunterschrift, Farbe, Schrift und der Vorlagenname
+- Nach erfolgreichem Posten raeumt sich der Editor ebenfalls auf — die Erfolgsmeldung bleibt stehen
+
+## [1.7.68] - 2026-08-28
+- Fix: **Bild-Status scheiterte mit „Cannot read properties of undefined (reading 'id')".** Der Fehler kam aus WhatsApps eigenem Code. Der Quelltext des Bundles zeigt, warum: die Aktion erwartet ein Objekt — `sendStatusMediaMsgAction({ beforeSend, funnelContext, mediaMsgData })` — und liest daraus `mediaMsgData.id.fromMe`. `whatsapp-web.js` ruft sie dagegen als `(msgModel, mediaUpdate)` auf, womit `mediaMsgData` undefiniert ist. Vor dem Versand wird die Aktion jetzt umhuellt: die alte Aufrufform wird in die erwartete umgesetzt, ein bereits richtiger Aufruf geht unveraendert durch
+- Die Umhuellung greift nur, wenn die Aktion hoechstens einen Parameter nimmt. Sollte WhatsApp wieder auf zwei Parameter wechseln, bleibt sie unangetastet und das Log sagt es
+- Zum Vergleich: der Text-Versand war nie betroffen — dort ist der zweite Parameter nur der `funnelContext` fuer die Statistik
+
+## [1.7.67] - 2026-08-28
+- Feature: **Auch Bildanhaenge im Chat werden vor dem Hochladen verkleinert**, nicht nur Status-Bilder — die Groessengrenze auf dem Weg trifft jeden Upload. Die Anhang-Leiste zeigt es an: „582.2 KB · verkleinert aus 4.8 MB". Wer sofort auf Senden klickt, laedt trotzdem die verkleinerte Fassung hoch, weil der Versand auf die Umrechnung wartet
+- Fix: Schlaegt ein Anhang im Chat fehl, nennt die Meldung jetzt den echten Grund statt pauschal „Netzwerkfehler" — bei einer HTML-Antwort von einem Proxy davor also Statuscode und Herkunft
+
+## [1.7.66] - 2026-08-28
+- Feature: **Bilder werden vor dem Hochladen im Browser verkleinert.** Kamerafotos mit 2 bis 10 MB scheiterten an einer Groessengrenze im Proxy vor dem Add-on — die laesst sich von hier aus nicht anheben. Bilder werden jetzt auf hoechstens 1920 Pixel an der laengeren Kante gebracht und als JPEG auf rund 700 KB gedrueckt (Qualitaet stufenweise von 85 % abwaerts, nur so weit wie noetig). Ein Testfoto mit 4032x3024 und 4,8 MB geht damit als 582 KB raus
+- Der Editor zeigt die Verkleinerung an: „Bild verkleinert: 4,8 MB → 582 KB (1920×1440 Pixel)". Kleine Bilder bleiben unangetastet, Videos lassen sich im Browser nicht verkleinern — ab 2 MB weist ein Hinweis darauf hin, dass grosse Uploads unterwegs abgewiesen werden koennen
+- Bildvorlagen speichern ebenfalls die verkleinerte Fassung
+- Die Obergrenze im Auswahldialog liegt jetzt bei 64 MB statt 16 MB — nach dem Verkleinern zaehlt sie nur noch fuer Videos
+
+## [1.7.65] - 2026-08-28
+- Diagnose: **„Unexpected token '<', "<!DOCTYPE "..." beim Bild-Status verriet nichts.** Im Add-on-Log taucht dazu kein einziger Eintrag auf — die Anfrage erreicht das Add-on also gar nicht, die HTML-Antwort kommt von einer Stelle davor (Ingress-Proxy). Der Status-Editor wertet Antworten jetzt so aus, dass er bei Nicht-JSON den echten Statuscode, den Inhaltstyp und den Anfang der Antwort anzeigt, bei Uploads zusaetzlich die Dateigroesse. Statt des Parser-Fehlers steht dort dann z.B. `HTTP 413 Payload Too Large [text/html] …`
+
+## [1.7.64] - 2026-08-28
+- Fix: **Bild-Status meldete „Unexpected token '<', "<!DOCTYPE "... is not valid JSON".** Fehler aus Middleware — etwa Multer bei einem abgelehnten Upload — liefen in Express' HTML-Fehlerseite, im Frontend kam davon nur der Parser-Fehler an, ohne jeden Hinweis auf die Ursache. Alle `/api/`-Pfade antworten jetzt auch im Fehlerfall mit JSON, und der Grund landet zusaetzlich als `[ERROR]` im Log
+- Fix: **Vom Server abgelehnte Statusmeldungen (`ack = -1`) standen als „laufend" in der Liste.** Sie bleiben in der WhatsApp-Web-Sammlung liegen, sind aber nie bei jemandem angekommen — sie werden jetzt uebersprungen. Ebenso Eintraege mit gesetztem `revokeTimestamp`
+- Hinweis: Eine auf dem Handy geloeschte Statusmeldung kann hier weiter auftauchen, solange WhatsApp Web die Loeschung nicht mitbekommen hat — die Rohdaten tragen dann keinerlei Kennzeichnung. Sie verschwindet spaetestens nach 24 Stunden von allein; der Papierkorb in der Liste raeumt sie sofort weg
+
+## [1.7.63] - 2026-08-28
+- Fix: **Auf dem Handy geloeschte Statusmeldungen standen weiter in „Meine laufenden Statusmeldungen".** Zurueckgezogene Eintraege (`type: revoked` bzw. `isRevoked`) werden jetzt uebersprungen, ebenso Eintraege, die aelter als 24 Stunden sind — ein Status laeuft nach dieser Zeit ohnehin ab
+- `GET /api/my-status/diag` gibt jetzt die Rohfelder der eigenen Statusmeldungen aus (Typ, Zeitstempel, Ack und alle vorhandenen Feldnamen). Falls WhatsApp eine Loeschung anders kennzeichnet als erwartet, laesst sich der Filter daran ohne Raterei nachziehen
+- `GET /api/my-status/diag?deep=1` durchsucht die geladenen WhatsApp-Web-Bundles nach dem Quelltext von `sendStatusTextMsgAction`. Der normale Weg ueber `toString()` zeigt nur den Babel-Mantel `function C(e,t){…}` — immerhin verraet der, dass die Aktion einen zweiten, von `whatsapp-web.js` nie genutzten Parameter hat (vermutlich fuer Link-Vorschauen)
+
+## [1.7.62] - 2026-08-28
+- Fix: **„Meine laufenden Statusmeldungen" blieb leer, obwohl der Status auf dem Handy zu sehen war.** WhatsApp fuehrt den eigenen Status unter der LID des Kontos (`…@lid`), abgefragt wurde er unter der Rufnummer (`…@c.us`). Die richtige ID kommt jetzt aus `Status.getMyStatus()`, die Rufnummer bleibt als Rueckfall
+- Neu: `GET /api/my-status/diag` meldet, welche Felder die WhatsApp-Status-Aktionen annehmen, die Status-Feature-Schalter des Kontos und unter welcher ID der eigene Status laeuft — Grundlage fuer weitere Statusfunktionen, ohne im Trueben zu fischen
+- Die ausfuehrliche Rueckmeldung der Sendeaktion steht jetzt nur noch im Debug-Log statt bei jedem Statusversand im normalen Log
+
+## [1.7.61] - 2026-08-28
+- Fix: **Text-Status wurde als gesendet gemeldet, erschien aber auf keinem Geraet.** Das Log zeigte `message_ack: true_status@broadcast_… → -1` — der WhatsApp-Server lehnte die Nachricht ab. Ursache: `whatsapp-web.js` baut fuer Status ein eigenes Msg-Modell samt Absender-Identitaet (bei LID-Konten die falsche), uebergibt der WhatsApp-Aktion `sendStatusTextMsgAction` aber ohnehin nur `{ color, font, text }` und wirft deren Rueckgabewert weg. Text-Status geht jetzt direkt an diese Aktion, WhatsApp baut die Nachricht selbst — und ihr Ergebnis landet im Log. Fehlt die Aktion (kuenftige Umbenennung), greift weiterhin der Bibliotheksweg
+- Fix: Ein abgelehnter Status (`ack = -1`) wird jetzt als Warnung geloggt statt nur als Debug-Zeile. Vorher sah ein fehlgeschlagener Versand von aussen wie ein Erfolg aus
+
+## [1.7.60] - 2026-08-28
+- Fix: **Status-Versand brach mit `canCheckStatusRankingPosterGating is not a function` ab.** `whatsapp-web.js` ruft beim Posten eines Status `window.require('WAWebStatusGatingUtils').canCheckStatusRankingPosterGating()` auf — in aktuellen WhatsApp-Web-Versionen gibt es diese Funktion nicht mehr, und der Versand scheiterte sowohl bei Text- als auch bei Bild-Status. Vor jedem Statusversand wird `window.require` jetzt fuer genau dieses Modul umhuellt und die fehlende Funktion ergaenzt (Ergebnis `false`, entspricht dem Normalfall ohne Gating-Pruefung). Andere Module bleiben unberuehrt, der Eingriff ist idempotent und wird nach einem Reconnect erneut gesetzt. Beim ersten Mal landet eine Warnung mit den tatsaechlich vorhandenen Modul-Exporten im Log
+
+## [1.7.59] - 2026-08-28
+- Feature: **Eigene Statusmeldungen senden.** Im Reiter „Kontakte" steht ganz oben ein neuer Eintrag „Mein Profil". Ein Klick öffnet einen Status-Editor mit vier Reitern:
+  - **Text** — Text schreiben, Hintergrundfarbe aus 15 Vorschlägen oder frei per Farbwähler, eine von acht WhatsApp-Schriften, mit Live-Vorschau
+  - **Bild / Video** — Datei hochladen (max. 16 MB), Vorschau, optionaler Text zum Bild
+  - **Vorlagen** — Entwürfe mit Namen speichern, später laden, ändern und löschen; eine Vorlage merkt sich Text, Farbe, Schrift und – bei Bildvorlagen – die Bilddatei
+  - **Profil** — Info-Text des Profils bearbeiten und die eigenen laufenden Statusmeldungen sehen und einzeln zurückziehen
+- Feature: Neue REST-Endpunkte `GET /api/me`, `POST /api/me/about`, `GET /api/my-status`, `POST /api/my-status/text`, `POST /api/my-status/media`, `POST /api/my-status/revoke` sowie `GET/POST /api/status-templates` und `POST /api/status-templates/:id/delete` — damit lassen sich Statusmeldungen auch aus Home-Assistant-Automationen heraus posten
+- Vorlagen liegen in `/config/status_templates.json`, Vorlagenbilder in `/config/status_templates/`
+
+## [1.7.58] - 2026-08-25
+- Fix: **Stille Verbindungsabbrüche fielen bis zu 10 Minuten lang nicht auf.** Der Keep-alive prüfte `client.getState()` nur alle 600 Sekunden — bis dahin meldete `/api/status` weiter `connected`, das MessengerPortal zeigte grün „Online" und Sendeversuche liefen ins Leere. Intervall auf 60 Sekunden verkürzt
+- Fix: `client.getState()` lief ohne Timeout. Bei eingefrorenem Puppeteer kehrte der Aufruf nie zurück, der Keep-alive-Durchlauf endete nie und der Ausfall blieb dauerhaft unbemerkt. Jetzt bricht ein `Promise.race` nach 30 Sekunden ab und löst einen Reconnect aus
+- Fix: **Nach einem fehlgeschlagenen Reconnect blieb das Add-on für immer auf `error` stehen.** Scheiterte `client.initialize()`, versuchte es nichts mehr — nur ein Add-on-Neustart half. Neuer Auto-Retry-Timer verbindet aus `error` und `disconnected` heraus mit exponentiellem Backoff neu (15 s, 30 s, 60 s … max. 5 Minuten) und setzt den Backoff nach Erfolg zurück. `waiting_for_scan` und `auth_failed` werden bewusst nicht wiederholt — dort muss der Nutzer den QR-Code scannen
+- Fix: Blieb ein Reconnect selbst hängen (`initialize()` kehrt nie zurück), sperrte das `_reconnecting`-Flag jeden weiteren Versuch dauerhaft. Ein Watchdog hebt die Sperre nach 3 Minuten wieder auf
+
+## [1.7.57] - 2026-08-25
+- Security: CodeQL-Alert #208 (`js/polynomial-redos`, high) — `chatId.replace(/@.*$/, '')` in `resolveArchiveName()` läuft auf Werten aus `req.params`, und `@.*$` braucht bei vielen `@` polynomiale Zeit (ReDoS-Risiko über einen präparierten Chat-Parameter). Alle sechs Vorkommen dieses Musters durch `split('@')[0]` ersetzt — gleiches Ergebnis in allen Fällen (mehrere `@`, kein `@`, leerer String), aber garantiert lineare Laufzeit
+
+## [1.7.56] - 2026-08-24
+- Fix: **Jeder Kontakt stand doppelt in der Liste** (285 Einträge statt 142) — WhatsApp liefert zu jeder Person mehrere Contact-Objekte mit derselben `@c.us`-ID; in 1.7.54 war der Dedupe-Schlüssel von der ID auf die Rufnummer umgestellt worden, und weil eines der Objekte die LID im Feld `number` trägt, entstanden zwei Schlüssel pro Person. Dedupliziert wird wieder über die ID; bei mehreren Objekten gewinnt das mit brauchbarer Rufnummer
+- Fix: **Angezeigte Nummern waren zum Teil LIDs** (`+69050273165504`, `+5858385784864`) — `contact.number` enthält seit der LID-Umstellung oft die LID statt der Rufnummer. Neuer Helfer `contactNumber()` nimmt bei `@c.us` den Teil vor dem `@` (das ist per Definition die Rufnummer), akzeptiert nur 7–15 Ziffern und verwirft alles, was der LID der ID entspricht; `contact.number` dient nur noch als Rückfall. Greift auch in `resolveChatNumbers()` und beim Laden der Chats, sodass die Nummer unter dem Chatnamen stimmt oder fehlt, statt falsch zu sein
+- Getestet gegen die echten Live-Rohdaten des Add-ons: 285 Objekte ergeben 142 Kontakte, alle Nummern 11–13 Stellen, keine einzige LID-artige (≥14 Stellen) mehr; aufgelöster LID-Chat liefert die Rufnummer, ein unaufgelöster liefert leer statt falsch
+
+## [1.7.55] - 2026-08-24
+- Fix: **Unter dem Chatnamen stand eine erfundene Nummer wie „+127…"** — dieselbe Ursache wie 1.7.54: `chat.id.user` ist bei `@lid`-Chats die interne LID (13–18 Stellen), nicht die Rufnummer, wurde aber als `phone` gespeichert und angezeigt. Neuer Helfer `phoneForChat()` lässt eine LID nie als Rufnummer durch: entweder die über `getContactById()` aufgelöste echte Nummer oder gar keine. `upsertChat()` korrigiert bereits gespeicherte LID-Nummern, löscht eine gültige Nummer aber nie (nach einem Neustart ist der Auflösungs-Cache leer, die Nummer aus `chats.json` trotzdem richtig)
+- Neu: Die Auflösung läuft jetzt von selbst, nicht erst beim Öffnen des Kontakte-Tabs: Der Start-Handler nimmt die Nummer aus dem ohnehin geholten Kontakt mit, und `/api/chats` stößt offene LID-Auflösungen im Hintergrund an (mit Reentranz-Schutz, No-op sobald alles bekannt ist). Korrigierte Nummern landen in `chats.json`
+- Getestet: Unit-Test über `phoneForChat()`/`upsertChat()` mit den echten ID-Formaten — LID ohne Auflösung ergibt keine Nummer, mit Auflösung die richtige, gespeicherte Nummern überleben den Neustart, alte LID-Nummern werden ersetzt
+
+## [1.7.54] - 2026-08-24
+- Fix: **Im Kontakte-Tab stand bei praktisch allen Einträgen „noch kein Chat"** — WhatsApp führt Chats inzwischen unter `@lid`-IDs (hier 49 von 53), das Adressbuch dagegen unter `@c.us`. Die Zahl vor dem `@` ist bei `@lid` eine interne LID und keine Rufnummer, deshalb passte weder ID noch Nummer zusammen und `hasChat` war fast immer `false` (an den Live-Daten nachgemessen: 1 von 142 Kontakten wurde erkannt). Neuer `resolveChatNumbers()` löst die LID pro Chat einmalig über `client.getContactById()` zur Rufnummer auf und merkt sie sich; `buildChatIndex()` legt Chat-ID, Rufnummer und `phone` als Schlüssel auf die Chat-ID. Ergebnis mit denselben Daten gegengeprüft: 44 von 50 Einzelchats werden jetzt zugeordnet — die übrigen 6 sind Chats mit Leuten, die gar nicht im Adressbuch stehen
+- Fix: `hasChat` wird nicht mehr mit der 5-Minuten-Cache-Antwort eingefroren, sondern bei jedem Aufruf frisch bestimmt. Sonst blieb ein direkt nach dem Start geöffneter Kontakte-Tab minutenlang bei „noch kein Chat", weil `chatMap` in dem Moment noch leer war
+- Neu: Jeder Kontakt trägt jetzt `chatId` (die zugehörige Chat-ID oder `null`). Ein Klick öffnet damit den echten Chat inklusive Verlauf statt einer leeren Ansicht unter der falschen ID
+- Neu: Die Logzeile beim Laden des Adressbuchs nennt die ID-Formate (`@c.us`/`@lid`), die Trefferzahl und die Größe des Chat-Index — damit lässt sich so eine Format-Umstellung künftig direkt am Log ablesen
+
+## [1.7.53] - 2026-08-24
+- Fix: **Kopfleiste lief auf dem Handy rechts aus dem Bild** — mit dem neuen Archiv-Button passten die Schaltflächen nicht mehr in eine Zeile, Flexbox quetschte sie zusammen und die letzten (Abmelden, Scroll-Buttons) waren nicht erreichbar. Unter 768 px ist die Leiste jetzt horizontal scrollbar (`overflow-x:auto`, `flex-shrink:0` auf allen Elementen, damit gescrollt statt gestaucht wird; Scrollbalken ausgeblendet). Buttons und Speicheranzeige sind dort außerdem etwas kompakter
+- Neu: Weicher Verlauf am rechten Rand der Leiste, solange noch etwas außerhalb liegt (`updateTopbarFade()` bei Scroll, Resize und nach dem Verbinden) — verschwindet, sobald ans Ende gescrollt wurde
+- Getestet mit Playwright bei 360/390/768/1200 px: unter 768 px scrollt die Leiste und der letzte Button wird erreichbar, ab 768 px unverändert ohne Scroll; im geöffneten Chat (Titel und Status ausgeblendet) passt weiterhin alles ohne Scroll
+
+## [1.7.52] - 2026-08-24
+- Fix: **Web-UI startete nicht mehr** (`Uncaught SyntaxError: Invalid regular expression: /^+/: Nothing to repeat`, Ingress-Seite blieb leer) — der Nummernfilter der neuen Kontaktliste war als `/^\+/` geschrieben. Der gesamte Client-Code steckt in einem Template-Literal in `server.js`, und darin ist `\+` kein bekanntes Escape: der Backslash fällt beim Ausliefern weg, im Browser kam `/^+/` an und das Skript brach komplett ab. Filter nutzt jetzt `q.startsWith('+') ? q.slice(1) : q` statt einer Regex
+- Fix: Aus demselben Grund war die Rufnummer unter dem Chatnamen faktisch nie sichtbar — `/^\d{7,15}$/` in `openChat()` kam im Browser als `/^d{7,15}$/` an und traf nur den Literaltext „ddddddd". Backslash verdoppelt; die Nummer erscheint jetzt wieder in der Kopfzeile des Chats
+- Intern: Test-Harness bildet die Escape-Regeln des Template-Literals jetzt exakt nach und prüft das tatsächlich ausgelieferte Client-Skript mit `node --check`; der bisherige Harness hatte den Backslash zu früh aufgelöst und den Fehler dadurch nicht gesehen
+
+## [1.7.51] - 2026-08-24
+- Neu: **Tab „Kontakte" in der Seitenleiste** — zeigt das komplette WhatsApp-Adressbuch, also auch Kontakte ohne (mehr) Chatverlauf, die in der Chatliste naturgemäß fehlen. Zeile zeigt Name, Rufnummer und bei fehlendem Verlauf den Hinweis „noch kein Chat"; ein Klick öffnet den (leeren) Chat, sodass man direkt schreiben kann. Existiert bereits ein Chat, wird dessen echtes Chat-Objekt geöffnet (Ungelesen-Markierung, Zeitstempel bleiben korrekt). Die Suchleiste filtert hier nach Name **und** Nummer, die Fußzeile nennt Gesamtzahl und Anzahl ohne Chat und bietet „↻ Adressbuch neu laden"
+- Neu: Endpoint `GET /api/contacts` — liefert `id`, `name`, `number`, `hasChat` für alle Adressbuch-Kontakte (`isMyContact`), Gruppen/Broadcasts/Channels gefiltert, Doppel-Einträge über `@c.us`/`@lid` nach Nummer dedupliziert. `client.getContacts()` ist teuer, daher 5-Minuten-Cache; `?refresh=1` erzwingt den Neuaufbau
+- Intern: `renderChatList()` delegiert im Kontakte-Tab an `renderContactList()`, damit die 5-Sekunden-Poll-Updates die Adressbuch-Ansicht nicht überschreiben
+
+## [1.7.50] - 2026-08-24
+- Fix: **Archiv-Übersicht zeigte bei manchen Kontakten nur die Rufnummer statt des Namens** — die Namen kamen bisher ausschließlich aus `chatMap`, und die kennt nur Kontakte mit echtem Chatverlauf. Wer nur Statusmeldungen postet (oder wo der Chat gelöscht bzw. sehr alt ist), stand deshalb als nackte Nummer da, obwohl der Kontakt im Telefonadressbuch steht. Neuer Helfer `resolveArchiveName()` fragt in diesem Fall über `client.getContactById()` den gespeicherten Namen (bzw. `shortName`/`pushname`) ab und merkt ihn sich im Cache; greift auch für den Titel der Export-ZIP. Konnte nicht aufgelöst werden (keine Verbindung, unbekannter Kontakt), bleibt die Nummer stehen und wird beim nächsten Aufruf erneut versucht
+- Neu: In der Übersicht steht die Rufnummer als Unterzeile unter dem Namen, sofern beide sich unterscheiden — erleichtert das Zuordnen bei mehreren gleichnamigen Kontakten
+
+## [1.7.49] - 2026-08-24
+- Neu: **Gesamtübersicht über alle Status-Archive** — neuer Button (Archiv-Symbol) in der Kopfzeile öffnet eine Tabelle mit allen Kontakten, die archivierte Statusmeldungen haben: Anzahl Einträge (davon abgelaufen bzw. ohne Medium), belegter Speicher, Zeitraum. Spalten sind per Klick auf die Überschrift sortierbar (Standard: größter Speicherbedarf oben), pro Zeile lässt sich das Archiv öffnen, als ZIP exportieren oder löschen; die Fußzeile zeigt die Summe über alle Kontakte und bietet „Alle Archive leeren". Bisher war der Speicherbedarf nur kontaktweise über das Kontakt-Fenster sichtbar
+- Neu: Endpoints `GET /api/status-archive-overview` (Kontakt, Anzahl, Bytes, ältester/neuester Eintrag; 10 s Cache, da der Scan pro Mediendatei ein `statSync` macht) und `POST /api/status-archive-clear-bulk` (leert die Archive der übergebenen `chatIds`, ohne Angabe alle). Die Löschlogik aus `/api/status-archive/:chatId/clear` liegt jetzt in `clearArchiveForChat()` und meldet freigewordene Dateien und Bytes zurück
+
 ## [1.7.48] - 2026-08-13
 - Neu: **Gesendete Nachrichten erscheinen sofort in der Chat-Ansicht** (optimistisches Rendern). Bisher wurde die Bubble erst gezeichnet, nachdem `client.sendMessage()` den WhatsApp-Web-Roundtrip abgeschlossen hatte und der nächste Poll lief — je nach Verbindung mehrere Sekunden Verzögerung. Jetzt legt `sendMsg()` die Bubble direkt beim Absenden an: ausgegraut (`.bubble-wrap.pending`, 55 % Deckkraft) mit 🕓 statt Häkchen, Eingabefeld wird sofort geleert. Sobald der Server den Versand bestätigt, bekommt der Wrap die echte Message-ID, die Ausgrauung verschwindet und das ✓ erscheint — die Dedupe-Prüfung in `renderMessages()` verhindert dabei eine zweite Bubble aus dem Poll. Schlägt der Versand fehl oder bricht das Netz weg, wird der Platzhalter entfernt und der Text zurück ins Eingabefeld geschrieben. Gilt für normale Nachrichten und Antworten (inkl. Zitat-Block); Medienversand bleibt unverändert
 

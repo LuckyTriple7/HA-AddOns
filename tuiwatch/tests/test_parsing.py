@@ -564,6 +564,22 @@ def test_fetch_search_params_coupon_false_without_flag(monkeypatch, fake_resp):
     assert res["results"][0]["locations"] == []
 
 
+def test_fetch_search_params_adults_only_badge(monkeypatch, fake_resp):
+    """`GT03/TUI-G0978` im globalTypes-Katalog → Badge „Nur Erwachsene" (live gegen
+    die Such-API verifiziert, siehe _FACILITY_BADGES)."""
+    payload = {"resultsTotal": 1, "items": [{
+        "hotel": {"giataId": 259515, "name": "Riu Cabo Verde", "category": "5",
+                  "location": {}, "globalTypes": [{"code": "GT03-BEAC/ST03-SAND"},
+                                                  {"code": "GT03/TUI-G0978"}]},
+        "price": {"perPerson": {"amount": 1414}},
+        "boardType": "AI", "numberOfNights": 7, "startDate": "2027-01-14T00:00:00",
+    }]}
+    monkeypatch.setattr(scraper.requests, "post", lambda *a, **k: fake_resp(payload))
+    res = scraper.fetch_search_params(region=88, start="2027-01-14", end="2027-01-21",
+                                      duration=7, travellers=2, airports=["STR"])
+    assert res["results"][0]["locations"] == ["Sandstrand", "Nur Erwachsene"]
+
+
 def test_fetch_search_params_region_separate(monkeypatch, fake_resp):
     """`region` steht getrennt neben `location` — der Auto-Tag beim Tracken
     vergibt nur die Region, nicht „Ort, Region"."""

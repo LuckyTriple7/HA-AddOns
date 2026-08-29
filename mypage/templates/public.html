@@ -22,13 +22,25 @@
      Beitrag dann von selbst mit. #}
   <link rel="alternate" type="application/rss+xml" title="{{ site.design.site_title or site.profile.name or 'MyPage' }} Feed" href="/feed.xml">
   {% endif %}
+  {#- Der Typ entscheidet, was Suchmaschinen aus der Seite machen: eine Person
+      bekommt kein Kartenblatt mit Adresse und Öffnungszeiten, ein lokales
+      Geschäft schon. Bei „Organisation" und „Lokales Geschäft" führt der
+      Seitentitel den Namen, denn dort steht der Betrieb und nicht der Mensch. -#}
+  {%- set ent = site.design.entity_type or 'person' %}
+  {%- set ld_type = {'organization': 'Organization', 'localbusiness': 'LocalBusiness'}.get(ent, 'Person') %}
   {%- set ld = {
     '@context': 'https://schema.org',
-    '@type': 'Person',
-    'name': site.profile.name,
+    '@type': ld_type,
+    'name': (site.design.site_title or site.profile.name) if ent != 'person' else site.profile.name,
     'description': meta_desc,
     'sameAs': (['https://github.com/' + site.profile.github] if site.profile.github else [])
   } %}
+  {%- if ent == 'localbusiness' %}
+    {%- set lb = site.sections.location or {} %}
+    {%- if lb.address %}{% set _ = ld.update({'address': {'@type': 'PostalAddress', 'streetAddress': lb.address}}) %}{% endif %}
+    {%- if loc(lb, 'hours') %}{% set _ = ld.update({'openingHours': loc(lb, 'hours')}) %}{% endif %}
+    {%- if lb.lat and lb.lng %}{% set _ = ld.update({'geo': {'@type': 'GeoCoordinates', 'latitude': lb.lat, 'longitude': lb.lng}}) %}{% endif %}
+  {%- endif %}
   {%- if canonical_url %}{% set _ = ld.update({'url': canonical_url, 'mainEntityOfPage': {'@type': 'WebPage', '@id': canonical_url}}) %}{% endif %}
   {%- if site.profile.avatar %}{% set _ = ld.update({'image': site.profile.avatar|abs_url}) %}{% endif %}
   <script type="application/ld+json">{{ ld|tojson }}</script>
@@ -86,13 +98,43 @@
 
     /* Hero */
     .hero { padding: 64px 0 48px; display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+    /* Zentriert: Bild über dem Namen, alles mittig — die übliche Form für
+       Vereine und Firmen, bei denen das Logo und nicht das Gesicht führt. */
+    .hero.center { flex-direction: column; text-align: center; gap: 18px; }
+    .hero.center .social, .hero.center .hero-cta { justify-content: center; }
+    .hero.center .bio { margin-left: auto; margin-right: auto; }
+    /* Bannerbild: Bild in den Hintergrund, Text darüber. Die Überlagerung ist
+       kein Zierrat — ohne sie steht heller Text auf hellem Foto. */
+    .hero-banner { position: relative; border-radius: 14px; overflow: hidden; margin: 24px 0 8px;
+                   background-position: center; background-size: cover; }
+    .hero-banner::before { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+    .hero-banner .hero { position: relative; padding: 56px 28px; }
+    .hero-banner .hero h1, .hero-banner .hero .bio, .hero-banner .hero .social a { color: #fff; }
+    .hero-banner .hero .social a { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.35); }
     .avatar {
       width: 128px; height: 128px; border-radius: 50%; object-fit: cover;
       border: 3px solid var(--accent); flex-shrink: 0;
     }
+    /* Abgerundetes Quadrat statt Kreis — schneidet weniger vom Logo ab. */
+    .avatar.rounded { border-radius: 14px; }
+    /* Unbeschnitten: Höhe begrenzt, Breite nach Seitenverhältnis. Für breite
+       Logos die einzige Form, die nichts wegschneidet. */
+    .avatar.free { width: auto; height: 96px; max-width: 280px; border-radius: 8px;
+                   object-fit: contain; border: 0; background: transparent; }
+    /* Handlungsaufrufe: der erste trägt die Akzentfarbe und damit den Blick. */
+    .hero-cta { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .hero-cta a { display: inline-flex; align-items: center; border-radius: 8px;
+                  padding: 10px 20px; font-weight: 600; font-size: 0.92rem; }
+    .hero-cta a.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+    .hero-cta a.primary:hover { filter: brightness(1.1); text-decoration: none; }
+    .hero-cta a.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .hero-cta a.ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
     .hero h1 { font-size: 2.1rem; line-height: 1.2; margin-bottom: 6px; }
     .tagline { font-size: 1.1rem; color: var(--accent); font-weight: 500; margin-bottom: 12px; }
-    .bio { color: var(--muted); max-width: 640px; white-space: pre-line; }
+    /* Kein `white-space: pre-line`: `render_md()` macht aus einem einfachen
+       Zeilenumbruch bereits ein <br>, und das im HTML verbliebene \n käme
+       zusätzlich als Umbruch an — jede Zeile stünde doppelt abgesetzt da. */
+    .bio { color: var(--muted); max-width: 640px; }
     .social { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
     .social a {
       display: inline-flex; align-items: center; gap: 6px;
@@ -444,6 +486,35 @@
     .tm-author img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
     .tm-role { color: var(--muted); }
     /* Team */
+    /* Video: lädt erst auf Klick — vorher steht kein fremdes Skript auf der Seite */
+    .vid-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+    .vid-embed { position: relative; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--surf2, var(--surf)), var(--surf)); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
+    .vid-embed:hover { border-color: var(--accent); }
+    .vid-play { width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; padding-left: 4px; }
+    .vid-hint { color: var(--muted); font-size: 0.82rem; }
+    .vid-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 10px; }
+    .vid-title { font-weight: 700; margin-top: 8px; }
+    .vid-desc { color: var(--muted); font-size: 0.86rem; margin-top: 2px; }
+    /* Downloads */
+    .dl-list { display: flex; flex-direction: column; gap: 10px; }
+    .dl-item { display: flex; align-items: center; gap: 12px; background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .dl-item:hover { border-color: var(--accent); text-decoration: none; }
+    .dl-icon { font-size: 1.4rem; flex: 0 0 auto; }
+    .dl-title { font-weight: 600; }
+    .dl-desc { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+    .dl-size { color: var(--muted); font-size: 0.8rem; margin-left: auto; flex: 0 0 auto; }
+    /* Kennzahlen: die Zahl trägt den Abschnitt, alles andere ordnet sich unter */
+    .facts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; }
+    .fact-card { text-align: center; background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 18px 14px; }
+    .fact-icon { font-size: 1.6rem; line-height: 1; }
+    .fact-value { font-size: 2rem; font-weight: 800; color: var(--accent); line-height: 1.1; margin-top: 6px; word-break: break-word; }
+    .fact-label { color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
+    /* Partnerlogos: einheitliche Höhe statt Originalgrößen — sonst erschlägt ein
+       großes Logo die kleineren daneben. */
+    .partner-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: center; }
+    .partner-item { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; justify-content: center; min-width: 120px; min-height: 64px; }
+    .partner-item img { max-height: 44px; max-width: 150px; width: auto; height: auto; object-fit: contain; }
+    .partner-name { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
     .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; }
     .team-card { text-align: center; }
     .team-photo { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); }
@@ -640,12 +711,31 @@
     {% if nl == 'confirmed' %}<div class="nl-banner ok">{{ t.nl_confirmed }}</div>{% endif %}
     {% if nl == 'unsubscribed' %}<div class="nl-banner ok">{{ t.nl_unsubscribed }}</div>{% endif %}
     {% if nl == 'invalidmail' %}<div class="nl-banner err">{{ t.nl_invalidmail }}</div>{% endif %}
-    <section class="hero">
-      {% if site.profile.avatar %}<img class="avatar" src="{{ site.profile.avatar }}" alt="{{ site.profile.name }}">{% endif %}
+    {%- set hero_layout = site.design.hero_layout or 'side' %}
+    {%- set hero_bg = site.design.hero_image if hero_layout == 'banner' else '' %}
+    {% if hero_bg %}<div class="hero-banner" style="background-image:url('{{ hero_bg }}')">{% endif %}
+    <section class="hero{{ ' center' if hero_layout in ('center', 'banner') else '' }}">
+      {#- Das größte Bild oberhalb der Falz und damit fast immer der Wert, an dem
+          der Browser die Ladezeit misst: feste Maße gegen den Sprung beim Laden,
+          fetchpriority, damit es vor allem anderen geholt wird. Nie `lazy`. -#}
+      {% if site.profile.avatar %}<img class="avatar {{ site.design.avatar_shape or 'circle' }}" src="{{ site.profile.avatar }}"
+           alt="{{ alt_for(site.profile.avatar, '', site.profile.name) }}"
+           width="128" height="128" fetchpriority="high" decoding="async">{% endif %}
       <div>
-        <h1>{{ site.profile.name or 'MyPage' }}</h1>
+        <h1>{{ site.profile.name or site.design.site_title or 'MyPage' }}</h1>
         {% if loc(site.profile, 'tagline') %}<div class="tagline">{{ loc(site.profile, 'tagline') }}</div>{% endif %}
         {% if bio_html %}<div class="bio">{{ bio_html|safe }}</div>{% endif %}
+        {% if site.profile.cta %}
+        <div class="hero-cta">
+          {% for c in site.profile.cta %}
+          {#- Eine fremde Adresse öffnet einen neuen Tab, eine eigene bleibt im
+              selben — sonst sammeln sich beim Blättern durch die eigene Seite
+              die Tabs. -#}
+          <a class="{{ 'primary' if loop.first else 'ghost' }}" href="{{ c.url }}"
+             {% if c.url.startswith('http') %}target="_blank" rel="noopener"{% endif %}>{{ loc(c, 'label') }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
         <div class="social">
           {% if site.profile.github %}
           <a href="https://github.com/{{ site.profile.github }}" target="_blank" rel="noopener">
@@ -707,11 +797,12 @@
         {% endif %}
       </div>
     </section>
+    {% if hero_bg %}</div>{% endif %}
 
     {% for _sec in section_order %}
     {% if _sec == 'news' %}
     {% if sections.news %}
-    <h2 class="section-title" id="news">{{ t.news_heading }}</h2>
+    <h2 class="section-title" id="news">{{ sec_titles.get('news') or t.news_heading }}</h2>
     <div class="news-list">
       {% for n in sections.news %}
       <div class="news-item">
@@ -731,7 +822,7 @@
 
     {% elif _sec == 'tips' %}
     {% if tip_of_day %}
-    <h2 class="section-title" id="tips">{{ t.tips_heading_week if tips_weekly else t.tips_heading }}</h2>
+    <h2 class="section-title" id="tips">{{ sec_titles.get('tips') or (t.tips_heading_week if tips_weekly else t.tips_heading) }}</h2>
     <div class="tip-box">
       <span class="tip-icon">💡</span>
       <div class="tip-text">{{ render_md(loc(tip_of_day, 'text'))|safe }}</div>
@@ -747,7 +838,7 @@
 
     {% elif _sec == 'poll' %}
     {% if poll_view %}
-    <h2 class="section-title" id="umfrage">{{ t.poll_heading }}</h2>
+    <h2 class="section-title" id="umfrage">{{ sec_titles.get('poll') or t.poll_heading }}</h2>
     <div class="poll-box" id="poll-box">
       <p class="poll-q">{{ poll_view.question }}</p>
       <div class="poll-options" id="poll-options"{% if poll_view.voted is not none %} hidden{% endif %}>
@@ -771,7 +862,7 @@
 
     {% elif _sec == 'blog' %}
     {% if latest_posts %}
-    <h2 class="section-title" id="blog">{{ t.blog_heading }}</h2>
+    <h2 class="section-title" id="blog">{{ sec_titles.get('blog') or t.blog_heading }}</h2>
     <div class="news-list" style="padding-bottom:36px">
       {% for po in latest_posts %}
       <div class="news-item">
@@ -794,7 +885,7 @@
       <summary>📚 {{ library_heading }} <span class="lib-count">({{ library_total }})</span></summary>
       <div class="lib-collapse-body">
     {% else %}
-    <h2 class="section-title" id="library">{{ library_heading }}</h2>
+    <h2 class="section-title" id="library">{{ sec_titles.get('library') or library_heading }}</h2>
     {% endif %}
     {% if library_tags %}
     <div class="lib-tagbar" id="lib-tagbar">
@@ -835,7 +926,7 @@
 
     {% elif _sec == 'travel' %}
     {% if travel_trips %}
-    <h2 class="section-title" id="reiseblog">{{ t.trav_trips_heading }}</h2>
+    <h2 class="section-title" id="reiseblog">{{ sec_titles.get('travel') or t.trav_trips_heading }}</h2>
     <div class="trav-grid">
       {% for tr in travel_trips %}
       <a class="lib-card" href="/reiseblog/{{ tr.slug }}">
@@ -857,7 +948,7 @@
 
     {% elif _sec == 'forms' %}
     {% if form_cards %}
-    <h2 class="section-title" id="formulare">{{ t.forms_heading }}</h2>
+    <h2 class="section-title" id="formulare">{{ sec_titles.get('forms') or t.forms_heading }}</h2>
     <div class="trav-grid">
       {% for f in form_cards %}
       <a class="lib-card" href="/formular/{{ f.slug }}">
@@ -873,7 +964,7 @@
 
     {% elif _sec == 'services' %}
     {% if sections.services %}
-    <h2 class="section-title" id="services">{{ t.services_heading }}</h2>
+    <h2 class="section-title" id="services">{{ sec_titles.get('services') or t.services_heading }}</h2>
     <div class="svc-grid">
       {% for s in sections.services %}
       <div class="svc-card">
@@ -888,7 +979,7 @@
 
     {% elif _sec == 'projects' %}
     {% if projects %}
-    <h2 class="section-title" id="projects">{{ t.projects }}</h2>
+    <h2 class="section-title" id="projects">{{ sec_titles.get('projects') or t.projects }}</h2>
     {% if site.design.layout == 'minimal' %}
     <div class="min-list">
       {% for p in projects %}
@@ -972,7 +1063,7 @@
 
     {% elif _sec == 'skills' %}
     {% if sections.skills %}
-    <h2 class="section-title" id="skills">{{ t.skills_heading }}</h2>
+    <h2 class="section-title" id="skills">{{ sec_titles.get('skills') or t.skills_heading }}</h2>
     <div class="skills">
       {% for s in sections.skills %}<span class="skill">{{ s }}</span>{% endfor %}
     </div>
@@ -980,7 +1071,7 @@
 
     {% elif _sec == 'testimonials' %}
     {% if sections.testimonials %}
-    <h2 class="section-title" id="testimonials">{{ t.testimonials_heading }}</h2>
+    <h2 class="section-title" id="testimonials">{{ sec_titles.get('testimonials') or t.testimonials_heading }}</h2>
     <div class="tm-grid">
       {% for tm in sections.testimonials %}
       <figure class="tm-card">
@@ -996,7 +1087,7 @@
 
     {% elif _sec == 'photos' %}
     {% if albums %}
-    <h2 class="section-title" id="photos">{{ t.albums_heading }}</h2>
+    <h2 class="section-title" id="photos">{{ sec_titles.get('photos') or t.albums_heading }}</h2>
     <div class="album-rail-wrap">
       <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="album-rail" id="album-rail">
@@ -1030,9 +1121,76 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'videos' %}
+    {% if sections.videos %}
+    <h2 class="section-title" id="videos">{{ sec_titles.get('videos') or t.videos_heading }}</h2>
+    <div class="vid-grid">
+      {% for v in sections.videos %}
+      {% set vp = parse_video(v.url) %}
+      {% if vp[1] %}
+      <div>
+        <div class="vid-embed" data-src="{{ vp[1] }}" onclick="loadVideo(this)">
+          <div class="vid-play">▶</div>
+          <span class="vid-hint">{{ t.video_load }} ({{ vp[0]|capitalize }})</span>
+        </div>
+        {% if loc(v, 'title') %}<div class="vid-title">{{ loc(v, 'title') }}</div>{% endif %}
+        {% if loc(v, 'desc') %}<div class="vid-desc">{{ loc(v, 'desc') }}</div>{% endif %}
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'downloads' %}
+    {% if sections.downloads %}
+    <h2 class="section-title" id="downloads">{{ sec_titles.get('downloads') or t.downloads_heading }}</h2>
+    <div class="dl-list">
+      {% for d in sections.downloads %}
+      <a class="dl-item" href="/download/{{ d.file }}">
+        <span class="dl-icon" aria-hidden="true">📄</span>
+        <span>
+          <span class="dl-title">{{ loc(d, 'title') }}</span>
+          {% if loc(d, 'desc') %}<div class="dl-desc">{{ loc(d, 'desc') }}</div>{% endif %}
+        </span>
+        {% if d.size %}<span class="dl-size">{{ d.size }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'facts' %}
+    {% if sections.facts %}
+    <h2 class="section-title" id="fakten">{{ sec_titles.get('facts') or t.facts_heading }}</h2>
+    <div class="facts-grid">
+      {% for f in sections.facts %}
+      <div class="fact-card">
+        {% if f.icon %}<div class="fact-icon" aria-hidden="true">{{ f.icon }}</div>{% endif %}
+        <div class="fact-value">{{ f.value }}</div>
+        {% if loc(f, 'label') %}<div class="fact-label">{{ loc(f, 'label') }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'partners' %}
+    {% if sections.partners %}
+    <h2 class="section-title" id="partner">{{ sec_titles.get('partners') or t.partners_heading }}</h2>
+    <div class="partner-grid">
+      {% for pa in sections.partners %}
+      {#- Ohne Logo steht der Name da: ein leerer Kasten wäre schlimmer als Text. -#}
+      {% set inner %}{% if pa.logo %}<img src="{{ pa.logo }}" alt="{{ pa.name }}" loading="lazy">{% else %}<span class="partner-name">{{ pa.name }}</span>{% endif %}{% endset %}
+      {% if pa.url %}
+      <a class="partner-item" href="{{ pa.url }}" target="_blank" rel="noopener" title="{{ pa.name }}">{{ inner }}</a>
+      {% else %}
+      <div class="partner-item" title="{{ pa.name }}">{{ inner }}</div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% elif _sec == 'team' %}
     {% if sections.team %}
-    <h2 class="section-title" id="team">{{ t.team_heading }}</h2>
+    <h2 class="section-title" id="team">{{ sec_titles.get('team') or t.team_heading }}</h2>
     <div class="team-grid">
       {% for m in sections.team %}
       <div class="team-card">
@@ -1047,7 +1205,7 @@
 
     {% elif _sec == 'timeline' %}
     {% if sections.timeline %}
-    <h2 class="section-title" id="timeline">{{ timeline_title|default('') or t.timeline_heading }}</h2>
+    <h2 class="section-title" id="timeline">{{ sec_titles.get('timeline') or timeline_title|default('') or t.timeline_heading }}</h2>
     <div class="timeline">
       {% for e in sections.timeline %}
       <div class="tl-item">
@@ -1064,7 +1222,7 @@
 
     {% elif _sec == 'events' %}
     {% if sections.events %}
-    <h2 class="section-title" id="events">{{ t.events_heading }}</h2>
+    <h2 class="section-title" id="events">{{ sec_titles.get('events') or t.events_heading }}</h2>
     <div class="ev-list">
       {% for e in sections.events %}
       <div class="ev-item">
@@ -1080,7 +1238,7 @@
 
     {% elif _sec == 'links' %}
     {% if sections.links %}
-    <h2 class="section-title" id="links">{{ t.links_heading }}</h2>
+    <h2 class="section-title" id="links">{{ sec_titles.get('links') or t.links_heading }}</h2>
     <div class="links-cta">
       <p>{{ t.links_subtitle }}</p>
       <button class="links-btn" onclick="openLinks()">🔗 {{ t.links_open }}</button>
@@ -1089,7 +1247,7 @@
 
     {% elif _sec == 'faq' %}
     {% if sections.faq %}
-    <h2 class="section-title" id="faq">{{ t.faq_heading }}</h2>
+    <h2 class="section-title" id="faq">{{ sec_titles.get('faq') or t.faq_heading }}</h2>
     <div class="faq">
       {% for f in sections.faq %}
       {% set q = loc(f, 'q') %}
@@ -1106,7 +1264,7 @@
     {% elif _sec == 'location' %}
     {% set L = sections.location or {} %}
     {% if L.address or L.hours_de or L.hours_en %}
-    <h2 class="section-title" id="standort">{{ t.location_heading }}</h2>
+    <h2 class="section-title" id="standort">{{ sec_titles.get('location') or t.location_heading }}</h2>
     <div class="loc-box">
       <div class="loc-info">
         {% if L.name %}<div class="loc-name">{{ L.name }}</div>{% endif %}
@@ -1212,6 +1370,16 @@
   </footer>
 
   <script>
+    // Das Video wird erst auf Klick geladen: vorher steht kein fremdes Skript
+    // auf der Seite, und der Besucher entscheidet, wann YouTube mitliest.
+    function loadVideo(box) {
+      const f = document.createElement('iframe');
+      f.src = box.dataset.src + (box.dataset.src.includes('?') ? '&' : '?') + 'autoplay=1';
+      f.allow = 'autoplay; fullscreen; picture-in-picture';
+      f.setAttribute('allowfullscreen', '');
+      box.innerHTML = '';
+      box.appendChild(f);
+    }
     (function(){
       const saved = localStorage.getItem('mp-public-theme');
       if (saved) {

@@ -48,11 +48,34 @@
                    border-radius:var(--r-pill); padding:3px 10px; font:inherit;
                    font-size:var(--fs-xs); font-weight:700; line-height:1; }
     .issue-badge:hover { background:color-mix(in srgb, var(--amber) 16%, transparent); }
+    /* Bei nur einer Störung bleibt die Zahl leer — der leere span würde den 5px-Gap
+       als Luft rechts stehen lassen und das Dreieck aus der Mitte schieben. */
+    .issue-badge > span:empty { display:none; }
     .issue-badge.error { border-color:var(--red); color:var(--red);
                          animation:issue-pulse 2s ease-in-out infinite; }
     .issue-badge.error:hover { background:color-mix(in srgb, var(--red) 16%, transparent); }
     @keyframes issue-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
     @media (prefers-reduced-motion:reduce) { .issue-badge.error { animation:none; } }
+    /* Laeuft gerade eine KI-Anfrage, steht das hier neben dem Logo — die
+       gruendlichen Perplexity-Stufen rechnen minutenlang, und ohne Anzeige ist
+       nicht zu erkennen, ob ueberhaupt noch etwas passiert. Nach dem Fertigwerden
+       blinkt es kurz gruen und verschwindet dann von selbst; ein Fenster soll
+       dafuer nicht aufspringen. */
+    .ai-badge { display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+                border:1px solid var(--accent); background:transparent; color:var(--accent);
+                border-radius:var(--r-pill); padding:3px 10px; font:inherit;
+                font-size:var(--fs-xs); font-weight:700; line-height:1; }
+    .ai-badge:hover { background:color-mix(in srgb, var(--accent) 16%, transparent); }
+    .ai-badge > span:empty { display:none; }
+    .ai-badge.running svg { animation:ai-spin 1.6s linear infinite; }
+    .ai-badge.done { border-color:var(--green); color:var(--green);
+                     animation:ai-blink 1s ease-in-out infinite; }
+    .ai-badge.done:hover { background:color-mix(in srgb, var(--green) 16%, transparent); }
+    @keyframes ai-spin { to { transform:rotate(360deg); } }
+    @keyframes ai-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    @media (prefers-reduced-motion:reduce) {
+      .ai-badge.running svg, .ai-badge.done { animation:none; }
+    }
     .issue-row { padding:10px 0; border-bottom:1px solid var(--border); }
     .issue-row.muted { opacity:.55; }
     .issue-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
@@ -88,6 +111,15 @@
     .add-row { display:flex; gap:8px; flex-wrap:wrap; }
     .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:var(--r-ui); font-size:var(--fs-sm); }
     .add-row input:focus { outline:none; border-color:var(--accent); }
+    /* Chrome faerbt automatisch ausgefuellte Felder hellblau — im dunklen Thema
+       unlesbar. Der Inset-Schatten uebermalt die Fuellung, Farbe wird gesetzt. */
+    input:-webkit-autofill, input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus, textarea:-webkit-autofill, select:-webkit-autofill {
+      -webkit-text-fill-color: var(--text);
+      -webkit-box-shadow: 0 0 0 1000px var(--bg) inset;
+      caret-color: var(--text);
+      transition: background-color 9999s ease-out 0s;
+    }
     .hint { font-size:var(--fs-xs); color:var(--muted); margin-top:8px; }
     /* Umbruch statt Ellipse: passt die Leiste nicht in eine Zeile (schmales
        Fenster, Tablet), sind zwei Zeilen lesbarer als „Aktionscod…". */
@@ -144,6 +176,10 @@
     .search-row { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
     .search-row input { flex:1 1 240px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:var(--r-ui); font-size:var(--fs-sm); }
     .search-row input:focus { outline:none; border-color:var(--accent); }
+    /* type=search bringt in Chrome ein eigenes Loeschkreuz mit; die Oberflaeche
+       setzt ueber attachClearX schon eins, sonst stuenden dort zwei. */
+    input[type=search]::-webkit-search-cancel-button,
+    input[type=search]::-webkit-search-decoration { -webkit-appearance:none; display:none; }
     /* ✕ zum Leeren in Suchfeldern (JS-Enhancer attachClearX) */
     .clearx-wrap { position:relative; display:inline-flex; flex:1 1 240px; width:100%; max-width:100%; min-width:0; }
     .clearx-wrap > input { width:100%; flex:1; padding-right:30px; box-sizing:border-box; }
@@ -406,6 +442,19 @@
     .modal { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
     /* Flache Fenster (Laptop im Querformat): mehr Höhe fürs Modal, weniger Rand */
     @media (max-height:760px){ .modal-bg { padding:8px; } .modal { max-height:96vh; padding:14px; } }
+    /* Einstellungen-Dialog: eine Zeile je Feld, Erklärung darunter */
+    .set-group { border-top:1px solid var(--border); margin-top:16px; padding-top:12px; }
+    .set-group:first-child { border-top:0; margin-top:0; }
+    .set-group h3 { font-size:var(--fs-md); margin-bottom:8px; }
+    .set-row { margin-bottom:12px; }
+    .set-row label.set-lbl { display:block; font-size:var(--fs-sm); font-weight:600; margin-bottom:3px; }
+    .set-row .hint { font-size:var(--fs-xs); color:var(--muted); margin-top:3px; }
+    .set-row input[type=text], .set-row input[type=password], .set-row input[type=number],
+    .set-row select { width:100%; max-width:420px; }
+    .set-row.set-bool label.set-lbl { display:flex; align-items:center; gap:8px; font-weight:500; }
+    .set-secret-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .set-state { font-size:var(--fs-xs); color:var(--muted); font-weight:400; }
+    .set-warn { color:var(--bad, #ef4444); }
     .modal h2 { font-size:var(--fs-lg); margin-bottom:4px; }
     .modal .sub { font-size:var(--fs-sm); color:var(--muted); margin-bottom:14px; }
     #hist-canvas { width:100%; height:300px; display:block; }
@@ -414,6 +463,9 @@
     table.hist { width:100%; border-collapse:collapse; margin-top:14px; font-size:var(--fs-sm); }
     table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
     table.hist th { color:var(--muted); font-weight:600; }
+    /* Hinweiszeile im Verlauf (z. B. automatischer Zimmerwechsel) — gehört zum
+       Messpunkt direkt darüber, deshalb ohne eigene Trennlinie und abgesetzt. */
+    table.hist tr.hist-note td { color:var(--amber); background:var(--surf2); font-size:var(--fs-xs); }
     .cmp-load { color:var(--muted); font-size:var(--fs-sm); padding:18px 4px; text-align:center; }
     .ai-h { font-size:var(--fs-md); color:var(--accent); margin:16px 0 6px; }
     .ai-h:first-child { margin-top:0; }
@@ -428,6 +480,10 @@
     /* Quellen-Nummer ohne URL: gleiche Position wie ein Zitat-Link, aber sichtbar
        stumm — sonst sieht sie aus wie ein Link, der nicht funktioniert. */
     .ai-cite-dead { color:var(--muted); font-size:.78em; vertical-align:super; cursor:help; }
+    /* Filterfeld ueber den Uebersichtslisten (Klima, Reisefuehrer) */
+    .list-filter { width:100%; margin:2px 0 10px; background:var(--bg);
+      border:1px solid var(--border); color:var(--text);
+      border-radius:var(--r-ui); padding:8px; font:inherit; }
     .aihist-item { display:flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:1px solid var(--border); }
     .aihist-main { flex:1; min-width:0; cursor:pointer; }
     .aihist-main:hover .aihist-title { color:var(--accent); }
@@ -445,11 +501,16 @@
     .fraf-row { cursor:pointer; }
     .fraf-row:hover td { background:var(--surf); }
     .mucf-row:hover td { background:var(--surf); }
-    .fpick-opts { display:flex; gap:12px; flex-wrap:wrap; margin:14px 0 4px; }
-    .fpick-opt { flex:1 1 160px; text-align:center; padding:16px 14px; border-radius:var(--r-ui); cursor:pointer;
+    /* Alle freigeschalteten Flughäfen nebeneinander in EINER Reihe (`flex:1 1 0`
+       statt einer Mindestbreite, sonst brach der vierte um). Der lange Name
+       „Karlsruhe/Baden-Baden" darf dafür intern umbrechen. */
+    .fpick-opts { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 4px; }
+    .fpick-opt { flex:1 1 0; min-width:0; text-align:center; padding:14px 10px; border-radius:var(--r-ui); cursor:pointer;
       background:var(--surf2); border:1px solid var(--border); color:var(--text); font-size:var(--fs-md); }
     .fpick-opt:hover { border-color:var(--accent); }
-    .fpick-opt b { display:block; font-size:var(--fs-lg); }
+    .fpick-opt b { display:block; font-size:var(--fs-md); overflow-wrap:anywhere; hyphens:auto; }
+    /* Auf schmalen Displays lieber zwei Reihen als vier Schnipsel. */
+    @media (max-width:560px) { .fpick-opt { flex:1 1 45%; } }
     body.share-disabled .share-feature { display:none !important; }
     .shr-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
     .shr-row label { font-size:var(--fs-sm); }
@@ -931,6 +992,7 @@
     <symbol id="i-signal" viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0 1 19 0"/><path d="M6 12.5a10 10 0 0 1 12 0"/><path d="M9.5 16.5a5 5 0 0 1 5 0"/><circle cx="12" cy="20" r="1"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.5l3.1 6.4 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3L7 14.8l-5-4.9 6.9-1z"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
@@ -1001,12 +1063,21 @@
                 onclick="openIssues()" title="Störungen — klicken für Details">
           <svg class="i"><use href="#i-warn"/></svg><span id="issue-badge-n"></span>
         </button>
+        <!-- KI-Aktivität: sichtbar, solange eine Anfrage läuft; danach kurz grün,
+             dann weg (siehe aiBadge* in app.js). -->
+        <button class="ai-badge" id="ai-badge" style="display:none"
+                onclick="openAiHistory()" title="KI arbeitet — klicken für den KI-Verlauf">
+          <svg class="i"><use href="#i-ai"/></svg><span id="ai-badge-n"></span>
+        </button>
       </div>
       <div class="trip-countdown" id="trip-countdown" onclick="openTrips()" title="Nächste Reise – zu „Meine Reisen“">
         <svg class="i"><use href="#i-plane"/></svg> <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
       </div>
       <div class="header-actions">
         <button class="btn" id="check-all" title="Alle Angebote jetzt prüfen"><svg class="i"><use href="#i-refresh"/></svg> <span class="btn-lbl">Alle prüfen</span></button>
+        <button class="icon-btn" onclick="openSettings()" title="Einstellungen">
+          <svg class="i"><use href="#i-gear"/></svg>
+        </button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="i icon-moon"><use href="#i-moon"/></svg>
           <svg class="i icon-sun"><use href="#i-sun"/></svg>
@@ -1021,8 +1092,9 @@
 
     <div class="add-card">
       <div class="add-row">
-        <input type="text" id="new-url" placeholder="TUI-Angebots-URL einfügen (von tui.com)…">
-        <input type="text" id="new-label" placeholder="Eigener Name (optional)" style="flex:0 1 200px">
+        <input type="url" id="new-url" name="tui-offer-url" autocomplete="off" inputmode="url"
+               placeholder="TUI-Angebots-URL einfügen (von tui.com)…">
+        <input type="text" id="new-label" name="tui-offer-label" autocomplete="off" placeholder="Eigener Name (optional)" style="flex:0 1 200px">
         <button class="btn" id="add-btn">Hinzufügen</button>
       </div>
       <div class="hint">Tipp: Auf tui.com die gewünschte Reise mit Datum, Personen &amp; Abflughafen suchen und die Adresszeile (URL) hier einfügen. Getrackt wird genau dieses Angebot.</div>
@@ -1043,9 +1115,9 @@
         <div class="more-menu">
           <div class="mm-group mm-wissen">
             <div class="mm-head">Reise-Wissen</div>
-            <button class="mm-item ai-feature" onclick="openClimate()"
+            <button class="mm-item ai-feature" onclick="openClimateList()"
                     title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist"><svg class="i"><use href="#i-climate"/></svg> Klimatabellen</button>
-            <button class="mm-item ai-feature" onclick="openGuide()"
+            <button class="mm-item ai-feature" onclick="openGuideList()"
                     title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist"><svg class="i"><use href="#i-compass"/></svg> Reiseführer</button>
             <button class="mm-item ai-feature" onclick="openRegionCompare()"
                     title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung"><svg class="i"><use href="#i-chart"/></svg> Regionen vergleichen</button>
@@ -1075,7 +1147,8 @@
     <div id="overview" class="overview" style="display:none"></div>
 
     <div class="search-row">
-      <input type="text" id="search" placeholder="Suchen… (Hotel, Ziel, Reise-Details)" autocomplete="off">
+      <input type="search" id="search" name="offer-filter" autocomplete="off"
+             placeholder="Suchen… (Hotel, Ziel, Reise-Details)">
       <select id="sort" title="Sortierung">
         <option value="added">Reihenfolge: Hinzugefügt</option>
         <option value="start">Reisebeginn</option>
@@ -1432,6 +1505,7 @@
         <span class="hint" style="flex:1;min-width:180px">Öffnet die Druckansicht — dort „Als PDF speichern" wählen.</span>
         <button class="btn sec" onclick="openAiEmailModal()"><svg class="i"><use href="#i-mail"/></svg> E-Mail senden</button>
         <button class="btn sec" onclick="exportAiPdf()"><svg class="i"><use href="#i-doc"/></svg> PDF exportieren</button>
+        <button class="btn sec" onclick="exportAiMarkdown()"><svg class="i"><use href="#i-download"/></svg> Markdown</button>
       </div>
     </div>
   </div>
@@ -1450,7 +1524,7 @@
       </div>
       <div class="sub" id="syslog-sub"></div>
       <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-        <input id="syslog-q" placeholder="Filtern (z. B. Preisbarometer)" style="flex:1;min-width:180px">
+        <input id="syslog-q" autocomplete="off" placeholder="Filtern (z. B. Preisbarometer)" style="flex:1;min-width:180px">
         <select id="syslog-level">
           <option value="">alle Stufen</option>
           <option value="INFO">ab INFO</option>
@@ -1505,7 +1579,7 @@
       </button>
       <h2><svg class="i"><use href="#i-ai"/></svg> KI-Verlauf</h2>
       <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
-      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="Suchen (Titel, Art, Modell)…"
+      <input type="text" id="aihist-search" autocomplete="off" oninput="filterAiHistory()" placeholder="Suchen (Titel, Art, Modell)…"
         style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:var(--r-ui);padding:8px;font:inherit">
       <div id="aihist-body"></div>
     </div>
@@ -1647,6 +1721,55 @@
     </div>
   </div>
 
+  <!-- Einstellungen (settings.json, siehe settings.py) -->
+  <div class="modal-bg" id="settings-bg">
+    <div class="modal" style="max-width:760px">
+      <button class="icon-btn modal-close" onclick="closeSettings()">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+      <h2><svg class="i"><use href="#i-gear"/></svg> Einstellungen</h2>
+      <div class="sub">Gespeichert wird in <code>settings.json</code> im Datenverzeichnis des Add-ons;
+        Tokens und Passwörter verschlüsselt. In der Home-Assistant-Konfiguration stehen nur noch
+        Benutzername, Passwort und Sitzungsdauer. Ein leeres Geheimfeld heißt „unverändert lassen“.</div>
+      <div class="set-warn hint" id="set-crypto-warn" style="display:none">
+        Verschlüsselung nicht verfügbar — geheime Felder können nicht gespeichert werden.</div>
+      <div id="settings-body"><div class="cmp-load">lädt…</div></div>
+
+      <div class="set-group" id="set-key-group">
+        <h3>🔑 Schlüssel sichern</h3>
+        <div class="set-row">
+          <div class="hint">Der Schlüssel entschlüsselt alle gespeicherten Zugangsdaten und liegt bewusst
+            <b>nicht</b> im Backup. Damit ein Restore auf einer frischen Installation trotzdem gelingt,
+            kannst du ihn hier einzeln herunterladen — verpackt mit einer Passphrase, die nur du kennst.
+            Ohne diese Passphrase ist die Datei wertlos, sie darf also neben dem Backup liegen.</div>
+          <div class="hint" id="set-key-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row">
+          <label class="set-lbl" for="set-key-pass">Passphrase für die Datei</label>
+          <input type="password" id="set-key-pass" autocomplete="off" readonly
+                 onfocus="this.removeAttribute('readonly')">
+          <div class="hint">Mindestens 10 Zeichen. Wird nirgends gespeichert — geht sie verloren, ist der
+            Export wertlos.</div>
+        </div>
+        <div class="set-row">
+          <label class="set-lbl" for="set-key-admin">Passwort (Bestätigung)</label>
+          <input type="password" id="set-key-admin" autocomplete="off" readonly
+                 onfocus="this.removeAttribute('readonly')">
+          <div class="hint">Dasselbe Passwort wie beim Login — steht in den Add-on-Optionen.</div>
+        </div>
+        <div class="set-row" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sec" type="button" id="set-key-export" onclick="exportKey(this)">Schlüssel herunterladen</button>
+          <button class="btn sec" type="button" onclick="$('#set-key-file').click()">Schlüssel einspielen</button>
+          <input type="file" id="set-key-file" accept=".json,application/json" style="display:none">
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn sec" onclick="loadSettings()">Neu laden</button>
+        <button class="btn" id="set-save" onclick="saveSettings(this)">Speichern</button>
+      </div>
+    </div>
+  </div>
+
   <!-- KI-Prompt-Einstellungen -->
   <div class="modal-bg" id="promptcfg-bg">
     <div class="modal" style="max-width:720px">
@@ -1656,35 +1779,10 @@
       <h2><svg class="i"><use href="#i-settings"/></svg> KI-Prompts</h2>
       <div class="sub">Standard ist bereits ausgefüllt. Checkbox aktivieren, um ihn zu überschreiben. Die Websuche bleibt technisch immer aktiv, auch wenn der Hinweis dazu aus dem Text entfernt wird — die KI sucht dann ggf. weniger gezielt.</div>
 
-      <h3 style="margin:14px 0 6px"><svg class="i"><use href="#i-map"/></svg> TripPilot</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-hotel"/></svg> Hotelvergleich</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-ai"/></svg> KI-Fazit</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-car"/></svg> Tagesausflug</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-chart"/></svg> Regionen-Vergleich</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-region_compare-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-region_compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('region_compare')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-region_compare-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('region_compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+      <!-- Blöcke werden aus PROMPTCFG_FEATURES erzeugt (siehe app.js) — sonst
+           musste fuer jede neue Vorlage an drei Stellen dasselbe nachgetragen
+           werden, und eine davon wurde regelmaessig vergessen. -->
+      <div id="promptcfg-list"></div>
 
       <div style="margin-top:16px;text-align:right">
         <button class="btn" onclick="savePromptCfg()">Speichern</button>
@@ -1816,7 +1914,7 @@
        Flughafen. Bei ≥2 aktiven Flughäfen zusätzlich die Kachel „Alle
        durchsuchen" (openAllFlights, siehe all_flights_routes.py). -->
   <div class="modal-bg" id="fpick-bg">
-    <div class="modal" style="max-width:560px">
+    <div class="modal" style="max-width:680px">
       <button class="icon-btn modal-close" onclick="closeFlightPick()">
         <svg class="i"><use href="#i-close"/></svg>
       </button>
@@ -1825,6 +1923,9 @@
       <div class="fpick-opts">
         <button class="fpick-opt" id="fpick-str" onclick="closeFlightPick(); openStrFlights()">
           <b>Stuttgart (STR)</b>
+        </button>
+        <button class="fpick-opt" id="fpick-fkb" onclick="closeFlightPick(); openFkbFlights()">
+          <b>Karlsruhe/<wbr><span style="white-space:nowrap">Baden-Baden (FKB)</span></b>
         </button>
         <button class="fpick-opt" id="fpick-fra" onclick="closeFlightPick(); openFraFlights()">
           <b>Frankfurt (FRA)</b>
@@ -1860,10 +1961,10 @@
       </div>
       <div id="allf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
 
-      <!-- Gesamtliste aller tatsächlich angeflogenen Ziele (nur STR + MUC —
+      <!-- Gesamtliste aller tatsächlich angeflogenen Ziele (STR + MUC + FKB —
            Frankfurt hat als Drehkreuz keine abrufbare Gesamtliste, siehe
            api_flights_destinations()). Zeile anklicken übernimmt den Code
-           ins Suchfeld oben und sucht über alle drei Flughäfen (FRA also
+           ins Suchfeld oben und sucht über alle Flughäfen (FRA also
            mit, nur eben nicht in dieser Liste). -->
       <h3 style="margin:18px 0 4px"><svg class="i"><use href="#i-clipboard"/></svg> Alle Flugziele</h3>
       <div id="allf-dest-body"><div class="hint">Lädt…</div></div>
@@ -1906,6 +2007,34 @@
       <h2 id="fraf-detail-title"><svg class="i"><use href="#i-plane"/></svg> Flugdetails</h2>
       <div class="sub" id="fraf-detail-live"></div>
       <div id="fraf-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- FKB-Flugplan-Modal — Saisonflugplan des Baden-Airpark, aus dem
+       WordPress-AJAX der Flughafen-Website (gerendertes HTML, kein Daten-API),
+       siehe SCRAPING_FKB.md. -->
+  <div class="modal-bg" id="fkbf-bg">
+    <div class="modal" style="max-width:980px">
+      <button class="icon-btn modal-close" onclick="closeFkbFlights()">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Saisonflugplan ab Karlsruhe/Baden-Baden (FKB)</h2>
+      <div class="sub">Linienflug-Verbindungen mehrerer Saisons — aus dem Saisonflugplan des Flughafens, keine Pauschalreise-Angebote.</div>
+      <div class="shr-row" style="margin:10px 0">
+        <input type="text" id="fkbf-q" placeholder="Ziel suchen… (Code, Ort, Airline)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
+        <select id="fkbf-type" onchange="fkbFlightsSearch()">
+          <option value="">Abflug &amp; Ankunft</option>
+          <option value="departure">Nur Abflug ab FKB</option>
+          <option value="arrival">Nur Ankunft in FKB</option>
+        </select>
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="fkbf-von" title="Verbindung frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="fkbf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
+        </label>
+      </div>
+      <div id="fkbf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Ryanair".</div></div>
+      <div class="hc-foot" style="margin-top:8px" onclick="fkbFlightsRefresh()" title="Saisonflugplan sofort neu laden (passiert sonst automatisch alle sechs Stunden)"><svg class="i"><use href="#i-refresh"/></svg> Flugplan neu laden</div>
     </div>
   </div>
 
@@ -2036,10 +2165,11 @@
                 homeLoc: {{ trippilot_home_location|tojson }}, check24: {{ check24_enabled|tojson }},
                 strFlights: {{ str_flights_enabled|tojson }}, share: {{ share_enabled|tojson }},
                 fraFlights: {{ fra_flights_enabled|tojson }},
-                mucFlights: {{ muc_flights_enabled|tojson }} };
+                mucFlights: {{ muc_flights_enabled|tojson }},
+                fkbFlights: {{ fkb_flights_enabled|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
     document.body.classList.toggle('check24-disabled', !G.check24);
-    document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights);
+    document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights && !G.fkbFlights);
     document.body.classList.toggle('share-disabled', !G.share);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
   </script>

@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.10.42"
+version: "0.11.43"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -37,66 +37,26 @@ ports_description:
 map:
   - app_config:rw
 
+# Ab 0.11.0 pflegt MyPage seine Einstellungen selbst: Admin-Panel → Einstellungen,
+# gespeichert verschlüsselt in settings.json im Add-on-Konfigurationsordner. Hier
+# stehen seit 0.11.2 nur noch die Login-Daten — der Notzugang, falls man sich über
+# die Oberfläche aussperrt.
 options:
   username: "admin"
   password: "changeme123"
   session_hours: 24
-  github_token: ""
-  visit_log_max: 500
-  visit_file_log: false
-  visit_file_keep: 1
-  user_journal_max: 100
-  geoip_offline: true
-  translate_email: ""
-  telegram_bot_token: ""
-  telegram_chat_id: ""
-  ha_notify: true
-  smtp_host: ""
-  smtp_port: 587
-  smtp_user: ""
-  smtp_password: ""
-  smtp_from: ""
-  smtp_to: ""
-  smtp_tls: true
-  user_upload_max_mb: 200
-  auto_backup_keep: 7
-  smb_server: ""
-  smb_share: ""
-  smb_user: ""
-  smb_password: ""
-  gemini_api_key: ""
-  gemini_billing_key: ""
-  gemini_image_model: "gemini-3.1-flash-image"
-  gemini_image_ratio: "16:9"
+  # Leer lassen. Nur noetig, wenn der Home-Assistant-Supervisor nicht aus
+  # 172.30.32.0/23 kommt (etwa HA Supervised in einem eigenen Docker-Netz) und
+  # der Aufruf ueber das HA-Panel deshalb nach einer Anmeldung fragt.
+  ingress_trust_net: ""
+  # Leer lassen. Nur noetig, wenn Weiterleitungs-Kopfzeilen (X-Forwarded-For &
+  # Co.) auch von Adressen ausserhalb der privaten Netze geglaubt werden sollen
+  # - oder wenn das eigene LAN ausdruecklich NICHT als Zwischenglied gelten soll.
+  trusted_proxies: ""
 
 schema:
   username: str
   password: str
   session_hours: int
-  github_token: str?
-  visit_log_max: int?
-  visit_file_log: bool?
-  visit_file_keep: int(0,120)?
-  user_journal_max: int?
-  geoip_offline: bool?
-  translate_email: str?
-  telegram_bot_token: str?
-  telegram_chat_id: str?
-  ha_notify: bool?
-  smtp_host: str?
-  smtp_port: int?
-  smtp_user: str?
-  smtp_password: str?
-  smtp_from: str?
-  smtp_to: str?
-  smtp_tls: bool?
-  user_upload_max_mb: int?
-  auto_backup_keep: int(0,60)?
-  smb_server: str?
-  smb_share: str?
-  smb_user: str?
-  smb_password: str?
-  gemini_api_key: password?
-  gemini_billing_key: password?
-  gemini_image_model: list(gemini-3.1-flash-image|gemini-3.1-flash-lite-image|gemini-3-pro-image|gemini-2.5-flash-image)?
-  gemini_image_ratio: list(16:9|3:2|4:3|1:1|3:4|2:3|9:16|21:9)?
+  ingress_trust_net: "str?"
+  trusted_proxies: "str?"

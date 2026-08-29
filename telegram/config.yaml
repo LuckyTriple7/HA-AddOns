@@ -1,6 +1,6 @@
 name: Telegram
 description: Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-API und Webhook-Support
-version: "1.7.4"
+version: "1.7.7"
 image: "ghcr.io/luckytriple7/telegram"
 slug: telegram
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -12,7 +12,7 @@ arch:
 startup: application
 boot: manual
 init: true
-watchdog: "tcp://[HOST]:[PORT:17778]"
+watchdog: "tcp://[HOST]:17778"
 
 map:
   - app_config:rw
@@ -23,14 +23,23 @@ panel_icon: phu:telegram
 panel_title: Telegram
 
 ports:
-  17778/tcp: 17778
+  17778/tcp: null
+  17788/tcp: null
 
 ports_description:
-  17778/tcp: Telegram Web-UI und REST-API
+  17778/tcp: >-
+    Web-UI und REST-API ohne Authentifizierung - wer den Port erreicht, kann
+    mitlesen und senden. Standardmaessig zu; der Zugang laeuft ueber Ingress
+    oder das MessengerPortal. Nur freigeben, wenn du weisst warum.
+  17788/tcp: >-
+    REST-API mit Token - nur /api/*, keine Oberflaeche. Braucht zusaetzlich
+    die Optionen "REST-API auf eigenem Port" und "API-Token".
 
 homeassistant_api: true
 
 options:
+  api_enabled: false
+  api_token: ""
   api_id: 0
   api_hash: ""
   phone_number: ""
@@ -46,6 +55,8 @@ options:
   ha_notifications_skip_bots: false
 
 schema:
+  api_enabled: bool
+  api_token: password?
   api_id: int
   api_hash: str
   phone_number: str

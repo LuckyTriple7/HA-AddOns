@@ -16,6 +16,8 @@ from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import addon_hosts
+
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
 # Werkzeug HTTP-Access-Logs unterdrücken – nginx übernimmt das
@@ -67,6 +69,7 @@ app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_h
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
+READSTATE_PATH = '/data/read_state.json'
 LOCALES_PATH  = '/app/locales'
 
 _config_cache = None
@@ -99,6 +102,35 @@ def load_sessions() -> None:
 
 
 load_sessions()
+
+# ── Geräteübergreifender Gelesen-Stand ────────────────────────────────────────
+# Ohne das lag der Stand nur im localStorage des jeweiligen Browsers: eine auf
+# dem Handy gelesene Nachricht blieb am Desktop weiter als "neu" markiert.
+read_state: dict[str, int] = {}
+
+
+def load_read_state() -> None:
+    global read_state
+    try:
+        with open(READSTATE_PATH) as f:
+            data = json.load(f)
+        read_state = {str(k).lower(): int(v) for k, v in data.items()
+                      if isinstance(v, (int, float))}
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("Gelesen-Stand konnte nicht geladen werden: %s", e)
+
+
+def save_read_state() -> None:
+    try:
+        with open(READSTATE_PATH, 'w') as f:
+            json.dump(read_state, f)
+    except Exception as e:
+        log.warning("Gelesen-Stand konnte nicht gespeichert werden: %s", e)
+
+
+load_read_state()
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -241,19 +273,40 @@ def get_client_ip(req) -> str:
     return req.remote_addr or 'unknown'
 
 
+_gateway_cache: str = ''
+
+
 def get_internal_host() -> str:
+    """Notnagel-Ziel: der HA-Host. Nur noch relevant, wenn die Supervisor-API
+    keinen Container-Hostnamen liefert (siehe messenger_host)."""
+    global _gateway_cache
     configured = load_config().get('internal_host', '').strip()
     if configured:
         return configured
+    if _gateway_cache:
+        return _gateway_cache
+    _gateway_cache = '172.30.32.2'
     try:
         out = subprocess.check_output(['ip', 'route', 'show', 'default'],
                                       text=True, stderr=subprocess.DEVNULL)
         for token, value in zip(out.split(), out.split()[1:]):
             if token == 'via':
-                return value
+                _gateway_cache = value
+                break
     except Exception:
         pass
-    return '172.30.32.2'
+    return _gateway_cache
+
+
+def messenger_host(m: dict) -> str:
+    """Zielhost eines Messenger-Add-ons.
+
+    Container-Hostname aus der Supervisor-API zuerst — der funktioniert auch
+    ohne veroeffentlichten Host-Port. Ein ausdruecklich gesetzter
+    internal_host hat weiterhin Vorrang.
+    """
+    override = load_config().get('internal_host', '').strip()
+    return addon_hosts.resolve_host(m.get('icon', ''), get_internal_host(), override)
 
 
 def check_port(host: str, port: int, timeout: float = 2.0) -> bool:
@@ -274,21 +327,108 @@ def fetch_last_received(host: str, port: int, timeout: float = 2.0) -> dict | No
         return None
 
 
+# Add-on-Status-Werte, die eine echte, nutzbare Messenger-Verbindung bedeuten
+# ('authenticated' bei WhatsApp heisst nur "QR gescannt" — noch nicht sendebereit)
+ADDON_STATUS_OK = {'connected', 'linked', 'ready'}
+
+
+# Der Selbsttest der Add-ons laeuft dort ohnehin nur alle paar Stunden — die
+# Statusabfrage des Portals kommt aber alle paar Sekunden. Deshalb gemerkt:
+# Ergebnis 5 Minuten, "kennt die Route nicht" 30 Minuten.
+_selfcheck_cache: dict[str, tuple[float, dict | None]] = {}
+SELFCHECK_TTL_OK = 300.0
+SELFCHECK_TTL_NONE = 1800.0
+
+
+def fetch_selfcheck(host: str, port: int, timeout: float = 2.0) -> dict | None:
+    """Liest /api/selfcheck des Add-ons: prueft dessen Innereien gegen Umbauten
+    beim Anbieter. None, wenn das Add-on die Route nicht kennt — dann gibt es zu
+    dieser Frage schlicht keine Aussage, was kein Fehler ist."""
+    key = f'{host}:{port}'
+    hit = _selfcheck_cache.get(key)
+    if hit and (time.time() - hit[0]) < (SELFCHECK_TTL_NONE if hit[1] is None else SELFCHECK_TTL_OK):
+        return hit[1]
+    try:
+        url = f'http://{host}:{port}/api/selfcheck'
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+            data = data if isinstance(data, dict) and 'ok' in data else None
+    except Exception:
+        data = None
+    _selfcheck_cache[key] = (time.time(), data)
+    return data
+
+
+def fetch_addon_status(host: str, port: int, timeout: float = 2.0) -> dict | None:
+    """Liest /api/status des Messenger-Add-ons. None, wenn es die Route nicht gibt."""
+    try:
+        url = f'http://{host}:{port}/api/status'
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+            return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
 def fetch_messenger_status(host: str, m: dict) -> dict:
     port      = m['port']
     reachable = check_port(host, port)
     last      = fetch_last_received(host, port) if reachable else None
+    api       = fetch_addon_status(host, port) if reachable else None
     name      = m.get('name', m['icon'])
-    if reachable:
-        preview = (last or {}).get('preview', '')
-        log.debug('Poll %s:%s — online last="%s"', name, port, preview[:60] if preview else '—')
+
+    addon_status = str((api or {}).get('status') or '')
+    detail       = str((api or {}).get('error') or '')
+
+    if not reachable:
+        state = 'offline'
+    elif api is None:
+        # Add-on ohne /api/status: offener Port bleibt das einzige Signal
+        state = 'online'
+    elif addon_status.lower() in ADDON_STATUS_OK:
+        state = 'online'
     else:
-        log.debug('Poll %s:%s — nicht erreichbar', name, port)
+        state = 'degraded'
+
+    # Verbunden heisst noch nicht, dass alles funktioniert: der Selbsttest des
+    # Add-ons meldet, wenn der Anbieter etwas umgebaut hat. Das ist ein eigener
+    # Zustand — die Verbindung steht ja, nur ein Teil arbeitet nicht mehr.
+    health = fetch_selfcheck(host, port) if state == 'online' else None
+    if health and health.get('ok') is False:
+        state = 'warn'
+        betroffen = [x.get('feature') for x in
+                     (health.get('broken') or []) + (health.get('changed') or []) if x.get('feature')]
+        betroffen = list(dict.fromkeys(betroffen))
+        if not detail:
+            detail = ', '.join(betroffen)
+        log.warning('Selbsttest %s:%s meldet Aenderungen beim Anbieter: %s',
+                    name, port, ', '.join(betroffen) or '?')
+
+    if state == 'online':
+        preview = (last or {}).get('preview', '')
+        log.debug('Poll %s %s:%s — online last="%s"', name, host, port, preview[:60] if preview else '—')
+    elif state == 'degraded':
+        log.warning('Poll %s %s:%s — erreichbar, aber nicht verbunden (status=%s error=%s)',
+                    name, host, port, addon_status or '?', detail or '—')
+    else:
+        log.debug('Poll %s %s:%s — nicht erreichbar', name, host, port)
+
     return {
-        'icon':         m['icon'].lower(),
-        'name':         name,
-        'reachable':    reachable,
+        'icon':          m['icon'].lower(),
+        'name':          name,
+        'reachable':     reachable,
+        'state':         state,
+        'addon_status':  addon_status,
+        'detail':        detail,
         'last_received': last,
+        'health':        None if health is None else {
+            'ok': bool(health.get('ok')),
+            'checked': health.get('checked'),
+            'checked_shape': health.get('checkedShape'),
+            'ts': health.get('ts'),
+            'affected': [x.get('feature') for x in
+                         (health.get('broken') or []) + (health.get('changed') or []) if x.get('feature')],
+        },
     }
 
 
@@ -337,6 +477,11 @@ def health():
 
 @app.route('/api/logs')
 def api_logs():
+    # Der Puffer enthaelt die Statuszeilen der Messenger samt Vorschau der
+    # letzten Nachricht - die Konsole braucht dieselbe Anmeldung wie die Seite,
+    # auf der sie angezeigt wird.
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return '', 401
     since = int(request.args.get('since', 0))
     entries = [e for e in _log_buffer if e['ts'] > since]
     return jsonify(entries)
@@ -347,12 +492,30 @@ def status():
     if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
         return '', 401
     config = load_config()
-    host = get_internal_host()
     messengers = [m for m in config.get('messengers', [])
                   if m.get('enabled', True) and m.get('icon') and m.get('port')]
     with ThreadPoolExecutor(max_workers=len(messengers) or 1) as ex:
-        result = list(ex.map(lambda m: fetch_messenger_status(host, m), messengers))
+        result = list(ex.map(lambda m: fetch_messenger_status(messenger_host(m), m),
+                             messengers))
+    for r in result:
+        r['last_opened'] = read_state.get(r['icon'], 0)
     return jsonify(result)
+
+
+@app.route('/api/mark-read', methods=['POST'])
+def api_mark_read():
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return '', 401
+    icon = (request.form.get('icon') or '').strip().lower()
+    known = {str(m.get('icon', '')).lower()
+             for m in load_config().get('messengers', [])}
+    if not icon or icon not in known:
+        return '', 400
+    ts = int(time.time() * 1000)
+    if ts > read_state.get(icon, 0):
+        read_state[icon] = ts
+        save_read_state()
+    return jsonify({'icon': icon, 'last_opened': read_state[icon]})
 
 
 @app.route('/proxy-offline')

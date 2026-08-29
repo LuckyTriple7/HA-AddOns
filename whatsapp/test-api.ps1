@@ -1,8 +1,42 @@
 ﻿# WhatsApp Add-on API Tester
-$HA_IP   = "homeassistant.local"
-$HA_PORT = 3000
+#
+# Spricht den Token-Port an (Standard 17786), nicht mehr 17776. Auf 17776
+# liegen Weboberflaeche und API ohne jede Anmeldung - dieser Port wird
+# kuenftig nicht mehr veroeffentlicht.
+#
+# Voraussetzungen im Add-on: Option "REST-API auf eigenem Port" an,
+# "API-Token" gesetzt, Port 17786 unter Netzwerk freigegeben.
+#
+# Den Token nicht hier eintragen - die Datei liegt in git. Entweder vorher
+#   $env:WHATSAPP_API_TOKEN = "..."
+# setzen oder beim Start eingeben.
+
+$HA_IP   = if ($env:WHATSAPP_HOST) { $env:WHATSAPP_HOST } else { "homeassistant.local" }
+$HA_PORT = if ($env:WHATSAPP_API_PORT) { $env:WHATSAPP_API_PORT } else { 17786 }
 $BASE    = "http://${HA_IP}:${HA_PORT}"
 $TIMEOUT = 5   # Sekunden
+
+$TOKEN = $env:WHATSAPP_API_TOKEN
+if (-not $TOKEN) {
+    $TOKEN = Read-Host "API-Token (Option api_token im Add-on)"
+}
+if (-not $TOKEN) {
+    Write-Host "Ohne Token antwortet der Port nur mit 401. Abbruch." -ForegroundColor Red
+    exit 1
+}
+$HEADERS = @{ Authorization = "Bearer $TOKEN" }
+
+function Show-Fehler($e) {
+    $code = $null
+    if ($e.Exception.Response) { $code = [int]$e.Exception.Response.StatusCode }
+    if ($code -eq 401) {
+        Write-Host "401 - Token abgelehnt. Stimmt er mit der Option api_token ueberein?" -ForegroundColor Red
+    } elseif ($code -eq 404) {
+        Write-Host "404 - auf diesem Port gibt es nur /api/*, keine Oberflaeche." -ForegroundColor Red
+    } else {
+        Write-Host "Fehler: $e" -ForegroundColor Red
+    }
+}
 
 function Show-Menu {
     Write-Host ""
@@ -19,20 +53,20 @@ function Show-Menu {
 function Get-Status {
     Write-Host "Verbinde mit $BASE/api/status …" -ForegroundColor DarkGray
     try {
-        $r = Invoke-RestMethod -Uri "$BASE/api/status" -Method GET -TimeoutSec $TIMEOUT
+        $r = Invoke-RestMethod -Uri "$BASE/api/status" -Method GET -Headers $HEADERS -TimeoutSec $TIMEOUT
         Write-Host ""
         Write-Host "Status  : " -NoNewline; Write-Host $r.status -ForegroundColor Green
         Write-Host "Telefon : $($r.phone)"
         if ($r.error) { Write-Host "Fehler  : $($r.error)" -ForegroundColor Red }
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 
 function Get-Chats {
     Write-Host "Lade Chats …" -ForegroundColor DarkGray
     try {
-        $chats = Invoke-RestMethod -Uri "$BASE/api/chats" -Method GET -TimeoutSec $TIMEOUT
+        $chats = Invoke-RestMethod -Uri "$BASE/api/chats" -Method GET -Headers $HEADERS -TimeoutSec $TIMEOUT
         if ($chats.Count -eq 0) {
             Write-Host "Keine Chats gefunden." -ForegroundColor Yellow
             return
@@ -49,7 +83,7 @@ function Get-Chats {
         }
         return $chats
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 
@@ -74,14 +108,14 @@ function Send-Message {
     try {
         $body = @{ to = $to; message = $msg } | ConvertTo-Json
         $r = Invoke-RestMethod -Uri "$BASE/api/send" -Method POST `
-             -ContentType "application/json" -Body $body -TimeoutSec $TIMEOUT
+             -ContentType "application/json" -Body $body -Headers $HEADERS -TimeoutSec $TIMEOUT
         if ($r.success) {
             Write-Host "Gesendet! ID: $($r.id)" -ForegroundColor Green
         } else {
             Write-Host "Fehler: $($r.error)" -ForegroundColor Red
         }
     } catch {
-        Write-Host "Fehler: $_" -ForegroundColor Red
+        Show-Fehler $_
     }
 }
 

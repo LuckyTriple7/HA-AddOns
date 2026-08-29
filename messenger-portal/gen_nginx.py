@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
 """Generates the nginx reverse-proxy config from /data/options.json at startup."""
+import ipaddress
 import json
 import os
+import re
 import subprocess
 
+import addon_hosts
+
 CONFIG_PATH = '/data/options.json'
+# Getrennte Listener: der Ingress-Port ist absichtlich NICHT unter "ports:"
+# gemappt und damit nur vom Supervisor erreichbar. Nur dort darf der Header
+# X-Ingress-Path geglaubt werden - er kommt sonst vom Client und waere als
+# Erkennungsmerkmal fuer "HA hat schon authentifiziert" faelschbar.
+INGRESS_PORT = 8099
+LAN_PORT = 17770
+
+# Der Ingress-Port ist zwar nicht nach aussen gemappt, liegt aber im
+# hassio-Netz (172.30.32.0/23) - jedes andere Add-on koennte dort anklopfen
+# und mit selbstgesetztem X-Ingress-Path die Anmeldung umgehen.
+# Ingress-Anfragen kommen ausschliesslich vom Supervisor, deshalb genau der.
+DEFAULT_INGRESS_TRUSTED = '172.30.32.2/32'
+SPLIT_RE = r'[,' + chr(92) + 's]+'
+NL_CHAR = chr(10)
 NGINX_CONF   = '/etc/nginx/http.d/messenger-portal.conf'
 
 # Draggable back-to-portal button injected into every proxied page.
@@ -72,8 +90,48 @@ def detect_gateway() -> str:
     return '172.30.32.2'
 
 
+def ingress_allowlist(config: dict) -> list:
+    """Wer den Ingress-Listener ansprechen darf.
+
+    Voreinstellung ist der Supervisor allein. Weitere Netze nur, wenn sie
+    ausdruecklich in ingress_trusted stehen - und niemals ein Praefix der
+    Laenge 0, das waere dieselbe Luecke mit mehr Schritten.
+    """
+    raw = str(config.get('ingress_trusted') or '').strip()
+    if not raw:
+        return [DEFAULT_INGRESS_TRUSTED]
+
+    entries = []
+    for part in re.split(SPLIT_RE, raw):
+        if not part:
+            continue
+        try:
+            net = ipaddress.ip_network(part, strict=False)
+        except ValueError:
+            print(f'[WARN] ingress_trusted: "{part}" ist keine gueltige IP oder '
+                  f'CIDR-Angabe - uebergangen')
+            continue
+        if net.prefixlen == 0:
+            print(f'[WARN] ingress_trusted: "{part}" wuerde jede Adresse '
+                  f'zulassen - abgelehnt')
+            continue
+        entries.append(str(net))
+
+    if not entries:
+        print('[WARN] ingress_trusted enthaelt keinen brauchbaren Eintrag - '
+              'benutze die Voreinstellung')
+        return [DEFAULT_INGRESS_TRUSTED]
+    return entries
+
+
+def var_name(slug: str) -> str:
+    """nginx-Variablenname aus einem Slug - nur [a-z0-9_] ist dort erlaubt."""
+    return 'mp_' + re.sub(r'[^a-z0-9_]', '_', slug.lower())
+
+
 def proxy_block(slug: str, name: str, host: str, port: int) -> str:
     prefix = f'/proxy/{slug}/'
+    var = var_name(slug)
     return f"""
     # ── {slug} ──────────────────────────────────────────
     location {prefix} {{
@@ -81,7 +139,13 @@ def proxy_block(slug: str, name: str, host: str, port: int) -> str:
         error_page 401 = @login_redirect;
         error_page 502 503 504 = @offline_{slug};
 
-        proxy_pass              http://{host}:{port}/;
+        # Ziel als Variable + resolver: so loest nginx den Namen erst beim
+        # Request auf. Sonst verweigert nginx den Start, solange das Add-on
+        # aus ist (alle Messenger stehen auf boot: manual) - mit Variable
+        # landet der Fall stattdessen wie gewohnt auf @offline_{slug}.
+        set                     ${var} "{host}:{port}";
+        rewrite                 ^{prefix}(.*)$ /$1 break;
+        proxy_pass              http://${var};
         proxy_http_version      1.1;
         proxy_set_header        Host              $http_host;
         proxy_set_header        X-Real-IP         $remote_addr;
@@ -97,7 +161,9 @@ def proxy_block(slug: str, name: str, host: str, port: int) -> str:
 
         # Rewrite absolute paths in HTML/JS responses
         sub_filter_once  off;
-        sub_filter_types text/html text/javascript application/javascript application/json;
+        # text/html filtert sub_filter immer, es hier zu nennen erzeugt nur
+        # die Warnung 'duplicate MIME type "text/html"' bei jedem nginx-Start.
+        sub_filter_types text/javascript application/javascript application/json;
         sub_filter 'href="/'   'href="{prefix}';
         sub_filter 'src="/'    'src="{prefix}';
         sub_filter 'action="/' 'action="{prefix}';
@@ -134,19 +200,37 @@ def main():
 
     configured = config.get('internal_host', '').strip()
     if configured:
-        host = configured
-        print(f'[INFO] internal_host aus Config: {host}')
+        fallback = configured
+        print(f'[INFO] internal_host aus Config: {fallback}')
     else:
-        host = detect_gateway()
-        print(f'[INFO] internal_host auto-erkannt (Gateway): {host}')
+        fallback = detect_gateway()
+        print(f'[INFO] internal_host auto-erkannt (Gateway): {fallback}')
+
+    # Bevorzugt wird der Container-Hostname aus der Supervisor-API: der bleibt
+    # auch dann erreichbar, wenn das Add-on seinen Host-Port nicht mehr
+    # veroeffentlicht. Der HA-Host bleibt Notnagel.
+    prefix = addon_hosts.lookup()
+    if prefix:
+        print(f'[INFO] Add-on-Praefix "{prefix}" - Messenger werden ueber ihren '
+              f'Container-Namen angesprochen')
+    else:
+        print('[WARN] Kein Add-on-Praefix vom Supervisor - benutze den HA-Host')
 
     messengers = [m for m in config.get('messengers', []) if m.get('enabled', True)]
-
-    proxy_blocks = ''.join(
-        proxy_block(m['icon'].lower(), m['name'], host, m['port'])
+    targets = [
+        (m['icon'].lower(), m['name'],
+         addon_hosts.resolve_host(m['icon'], fallback, configured), m['port'])
         for m in messengers
         if m.get('icon') and m.get('port')
-    )
+    ]
+
+    proxy_blocks = ''.join(proxy_block(*t) for t in targets)
+
+    resolvers = addon_hosts.nameservers()
+    print(f'[INFO] nginx-resolver: {resolvers}')
+
+    allow = ingress_allowlist(config)
+    print(f'[INFO] Ingress-Listener nimmt nur von: {", ".join(allow)}')
 
     conf = f"""# Auto-generated by gen_nginx.py – do not edit manually
 
@@ -154,9 +238,39 @@ map $http_upgrade $connection_upgrade {{
     default  upgrade;
     ''       close;
 }}
+{server_block(INGRESS_PORT, '$http_x_ingress_path', proxy_blocks, resolvers, allow)}
+{server_block(LAN_PORT, '""', proxy_blocks, resolvers)}
+"""
 
+    os.makedirs(os.path.dirname(NGINX_CONF), exist_ok=True)
+    with open(NGINX_CONF, 'w', encoding='utf-8') as f:
+        f.write(conf)
+    print(f'[INFO] nginx config written → {NGINX_CONF}')
+    print(f'[INFO] Ingress-Listener auf {INGRESS_PORT}, LAN-Listener auf {LAN_PORT}')
+    for slug, _name, thost, tport in targets:
+        print(f'[INFO]   /proxy/{slug}/ -> http://{thost}:{tport}/')
+
+
+def server_block(listen: int, ingress: str, proxy_blocks: str, resolvers: str,
+                 allow: list = None) -> str:
+    """Ein server-Block. `ingress` ist der Ausdruck, den nginx als
+    X-Ingress-Path weiterreicht: auf dem Ingress-Port die Kopfzeile des
+    Supervisors, auf dem LAN-Port die leere Zeichenkette. `allow`
+    schraenkt zusaetzlich ein, von welchen Adressen der Block annimmt."""
+    acl = ''
+    if allow:
+        rules = NL_CHAR.join(f'    allow {a};' for a in allow)
+        acl = (
+            NL_CHAR + '    # Nur diese Adressen duerfen die Ingress-Erkennung ausloesen.'
+            + NL_CHAR + '    # Sonst koennte jedes andere Add-on im hassio-Netz die Anmeldung'
+            + NL_CHAR + '    # mit einem selbstgesetzten X-Ingress-Path umgehen.'
+            + NL_CHAR + rules + NL_CHAR + '    deny all;' + NL_CHAR)
+    return f"""
 server {{
-    listen 17770;
+    listen {listen};
+{acl}
+    # Namen werden zur Laufzeit aufgeloest (siehe proxy_block)
+    resolver {resolvers} valid=30s ipv6=off;
 
     # Default (1m) is too small for pasted screenshots/media uploads
     # forwarded to proxied messenger add-ons (e.g. WhatsApp send-media).
@@ -170,7 +284,7 @@ server {{
         proxy_set_header        Content-Length  "";
         proxy_set_header        Cookie          $http_cookie;
         proxy_set_header        X-Real-IP       $remote_addr;
-        proxy_set_header        X-Ingress-Path  $http_x_ingress_path;
+        proxy_set_header        X-Ingress-Path  {ingress};
     }}
 
     location @login_redirect {{
@@ -189,7 +303,7 @@ server {{
         proxy_pass         http://127.0.0.1:5000;
         proxy_set_header   Host           $host;
         proxy_set_header   Cookie         $http_cookie;
-        proxy_set_header   X-Ingress-Path $http_x_ingress_path;
+        proxy_set_header   X-Ingress-Path {ingress};
     }}
 
     # ── Flask app (login, portal, static) ────────────────
@@ -199,18 +313,11 @@ server {{
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_set_header   X-Ingress-Path    $http_x_ingress_path;
+        proxy_set_header   X-Ingress-Path    {ingress};
     }}
 {proxy_blocks}
 }}
 """
-
-    os.makedirs(os.path.dirname(NGINX_CONF), exist_ok=True)
-    with open(NGINX_CONF, 'w') as f:
-        f.write(conf)
-    print(f'[INFO] nginx config written → {NGINX_CONF}')
-    for m in messengers:
-        print(f'[INFO]   /proxy/{m["icon"].lower()}/ → http://{host}:{m["port"]}/')
 
 
 if __name__ == '__main__':

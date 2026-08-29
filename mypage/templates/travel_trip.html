@@ -11,6 +11,29 @@
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   {% include '_seo.html' %}
+  {#- Strukturierte Daten. Nur bei erlaubter Indexierung, wie `canonical` und
+      `hreflang` in `_seo.html`: über eine Seite, die nicht in den Index soll,
+      gibt es einer Suchmaschine auch nichts zu erzählen. Der Block entsteht bei
+      jedem Aufruf aus den Feldern der Seite — gespeichert wird nichts. #}
+  {%- if site.design.allow_indexing %}
+  {%- set ld = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    'name': trip.name,
+    'inLanguage': lang,
+    'numberOfItems': days|length,
+    'itemListOrder': 'https://schema.org/ItemListOrderAscending',
+    'itemListElement': []
+  } %}
+  {%- if meta_desc %}{% set _ = ld.update({'description': meta_desc}) %}{% endif %}
+  {%- for d in days %}
+  {%- set _ = ld.itemListElement.append({
+       '@type': 'ListItem', 'position': loop.index,
+       'name': d.title or (t.trav_day ~ ' ' ~ d.number),
+       'url': ('/reiseblog/' ~ trip.slug ~ '/' ~ d.slug)|abs_url}) %}
+  {%- endfor %}
+  <script type="application/ld+json">{{ ld|tojson }}</script>
+  {%- endif %}
   <meta name="theme-color" content="#0d1117">
   <link rel="apple-touch-icon" href="/icon.png">
   <style>
@@ -54,6 +77,21 @@
     .trip-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.78rem; color: var(--muted); margin-bottom: 20px; }
     .trav-flag { border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; }
     .trip-hero { width: 100%; border-radius: 10px; margin-bottom: 24px; }
+    /* Rückblick: derselbe Textsatz wie auf einer Tagesseite — es ist derselbe
+       Artikel-Typ, nur über die ganze Reise. */
+    .page-content h1, .page-content h2, .page-content h3 { margin: 1.4em 0 .5em; line-height: 1.3; }
+    .page-content h2 { font-size: 1.4rem; }
+    .page-content h3 { font-size: 1.15rem; }
+    .page-content p { margin: 0 0 1em; }
+    .page-content ul, .page-content ol { margin: 0 0 1em 1.4em; }
+    .page-content li { margin: .3em 0; }
+    .page-content img { max-width: 100%; height: auto; border-radius: 8px; }
+    .page-content blockquote { border-left: 3px solid var(--accent); margin: 1em 0; padding: .2em 1em; color: var(--muted); }
+    .page-content hr { border: none; border-top: 1px solid var(--border); margin: 1.6em 0; }
+    .recap-title { font-size: 1.45rem; margin-bottom: 4px; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 20px 0 4px; }
+    .tag-chip { font-size: 0.75rem; padding: 3px 10px; border-radius: 999px; color: var(--muted); background: var(--surf); border: 1px solid var(--border); }
+    .day-list-title { font-size: 1.15rem; margin: 34px 0 14px; }
     /* Ein Reisetag ist eine Zeile, keine Kachel: die Tage werden der Reihe nach
        gelesen, und eine Liste zeigt die Reihenfolge deutlicher als ein Raster. */
     .day-list { display: flex; flex-direction: column; gap: 12px; }
@@ -111,6 +149,19 @@
 
     {% if trip.image %}<img class="trip-hero" src="{{ trip.image }}" alt="{{ alt_for(trip.image) }}">{% endif %}
     {% if locked %}{% include '_locked.html' %}{% endif %}
+
+    {% if recap_html %}
+    <article class="page-content">
+      {% if recap_title %}<h2 class="recap-title">{{ recap_title }}</h2>{% endif %}
+      {{ recap_html|safe }}
+    </article>
+    {% if recap_tags and not locked %}
+    <div class="tag-row">
+      {% for tag in recap_tags %}<span class="tag-chip">{{ tag }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    <h2 class="day-list-title">{{ t.trav_days_heading }}</h2>
+    {% endif %}
 
     <div class="day-list">
       {% for d in days %}

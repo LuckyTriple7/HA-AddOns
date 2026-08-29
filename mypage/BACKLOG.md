@@ -11,11 +11,13 @@ Meta-Voraussetzungen, Rezept über den RSS-Feed).
 
 ## Reiseblog — nichts mehr offen, aber Fallstricke merken
 
-**Stand:** fertig mit v0.10.5. Stufe 1 (Admin, Wizard, KI-Bericht), Stufe 2 (öffentliche
-Seiten, Slugs, Freigabe je Tag, Mitglieder-Sperre, Sitemap, Suche, IndexNow, statischer
-Export, Vorschau) und die vier Reste aus Stufe 3 (Ausgaben-Auswertung, übersetzte
-Auswahllisten, Formular-Abschnitt, eigene Bildunterschriften) sind umgesetzt. Hier stehen
-nur noch die Stolperstellen für spätere Arbeit am Modul.
+**Stand:** Stufe 1 (Admin, Wizard, KI-Bericht), Stufe 2 (öffentliche Seiten, Slugs, Freigabe
+je Tag, Mitglieder-Sperre, Sitemap, Suche, IndexNow, statischer Export, Vorschau) und die
+vier Reste aus Stufe 3 (Ausgaben-Auswertung, übersetzte Auswahllisten, Formular-Abschnitt,
+eigene Bildunterschriften) sind mit v0.10.5 fertig geworden. Dazu kamen: Überarbeiten des
+Berichts (v0.11.7), Rückblick auf die ganze Reise und Wetter aus Home Assistant (v0.11.8),
+Prompt-Ansicht und Datum/Ort aus dem Foto-EXIF (v0.11.9). Offene Vorhaben stehen keine
+mehr an — hier stehen nur noch die Stolperstellen für spätere Arbeit am Modul.
 
 **Fallstricke, die schon bekannt sind:**
 
@@ -38,6 +40,32 @@ nur noch die Stolperstellen für spätere Arbeit am Modul.
 - Öffentliche Beträge hängen an `settings.include_prices` der Reise, demselben Schalter, der
   der KI das Nennen von Preisen erlaubt. Kein zweiter Schalter — wer der KI Geld verbietet,
   will es auch nicht als Tabelle darunter.
+- Beim Überarbeiten (`/revise`, seit v0.11.7) gehen die Tagesdaten **nur** bei `longer` und
+  `custom` mit. Bei `shorter` und `polish` wären sie schädlich: sie laden das Modell ein,
+  Weggelassenes nachzutragen, obwohl der Umfang gleich bleiben soll (`_REVISE_NEEDS_DATA`
+  in `travelblog.py`).
+- Der Bericht, den `/revise` überarbeitet, kommt aus dem **Formular**, nicht aus der
+  gespeicherten Fassung — sonst ginge eine gerade von Hand geänderte Zeile verloren. Wer
+  den Aufruf umbaut, muss `article` weiter mitschicken.
+- Der Rückblick liegt in `trip.recap` und wird über eigene Routen gespeichert
+  (`PUT /api/travel/trips/<tid>/recap`). `normalize_trip()` fasst ihn nicht an — sie
+  übernimmt unbekannte Felder aus `existing`, weshalb ein normales Reise-Speichern ihn
+  nicht verliert. Wer dort einmal von `dict(existing)` abweicht, löscht ihn still.
+- `_recap_days()` nimmt Tage mit fertigem Text in **einer** der beiden Sprachen; der Prompt
+  bevorzugt die deutsche Fassung, weil er selbst deutsch ist. Der Reise-Dialog bietet
+  ohnehin nur „de" oder „de,en" an — eine rein englische Reise gibt es über die Oberfläche
+  nicht.
+- Die Wetter-Übernahme hängt an `SUPERVISOR_TOKEN` UND `homeassistant_api: true` in der
+  `config.yaml`. Fehlt eines von beidem, antwortet der Supervisor mit 401 und die
+  Entitätenliste bleibt leer.
+- `_exif_facts()` liest Aufnahmedatum und GPS **vor** `exif_transpose()`. Wer in
+  `_store_upload_image()` die Reihenfolge dreht, bekommt stillschweigend leere Werte —
+  kaputt geht dabei nichts, es füllt sich nur nichts mehr. Die abgelegte Datei muss
+  metadatenfrei bleiben: der Rückgabewert geht ausschließlich an den hochladenden Browser.
+- Der Ortsname kommt von Nominatim (OpenStreetMap) und **nur auf Knopfdruck**. Kein
+  automatischer Aufruf einbauen: das schickte die Koordinaten privater Fotos ungefragt an
+  einen fremden Dienst. Nominatim erlaubt eine Anfrage je Sekunde und verlangt die Kennung
+  in `NOMINATIM_UA`.
 
 ---
 
@@ -117,3 +145,504 @@ noch die Stolperstellen für spätere Arbeit.
   Wer sie „genauer" macht, ohne die Tokens zu kennen, macht sie nur falscher.
 - Neue Ablagen im Add-on-Konfigurationsordner gehören in **beide** Listen des
   Backups (Sichern und Wiederherstellen) — sonst fehlen sie beim Zurückspielen.
+
+---
+
+## SEO: strukturierte Daten und Snippet-Vorschau
+
+**Stand:** zurückgestellt am 2026-08-25 nach einer Bestandsaufnahme. Nichts davon
+ist angefangen.
+
+**Warum überhaupt:** Die Daten für Rich Results liegen bereits gepflegt in
+`site.json`, werden aber nirgends als schema.org ausgegeben. JSON-LD gibt es nur
+auf fünf Seitentypen: `Person` (Startseite), `BlogPosting` (Beitrag, Reisetag),
+`SoftwareSourceCode` (Projekt), `Article` (Bibliothek). Die Startseite meldet
+Google also weder FAQ noch Öffnungszeiten noch Termine — obwohl alles im Admin
+eingetragen ist.
+
+**Reihenfolge nach Wirkung, nicht nach Aufwand:**
+
+1. **`LocalBusiness`** aus `sections.location` (~3–4 h). Name, Adresse und `geo`
+   sind vorhanden — `lat`/`lng` werden schon für die Karte gepflegt. Größte
+   Lücke, weil die Zielgruppe Verein/Handwerker/Dienstleister ohne dieses
+   Schema in der lokalen Suche praktisch nicht vorkommt.
+   - **Haken:** `hours_de` ist Freitext („Mo-Fr 9-17“), `openingHours` braucht
+     `Mo-Fr 09:00-17:00`. Ein toleranter Parser ist richtig, aber er muss bei
+     unklarer Eingabe die Angabe **weglassen** statt zu raten — falsche
+     Öffnungszeiten in Google sind schlimmer als gar keine.
+2. **`Event`** aus `sections.events` (~1–1,5 h). Datum, Titel, Ort und URL sind
+   alle da; `location` ist ein String und muss zu einem `Place`-Objekt werden.
+   Erzeugt weiterhin erweiterte Treffer.
+3. **`BreadcrumbList`** auf `/blog/<id>`, `/seite/<slug>`, `/bibliothek/<slug>`,
+   `/p/<id>` und den Reiseblog-Seiten (~2 h). Google zeigt dann den Pfad statt
+   der nackten Adresse.
+4. **`Service` + `Offer`** aus `sections.services` (~1 h). `price` ist gepflegt.
+5. **`FAQPage`** aus `sections.faq` (~1 h) — **nur noch Beiwerk.** Siehe die
+   Richtigstellung unten; einzeln lohnt es nicht, mitnehmen kann man es, wenn
+   ohnehin jemand am Startseiten-Schema arbeitet.
+6. ~~**Snippet-Vorschau im Admin**~~ — **erledigt mit v0.10.49/0.10.50.** Fünf
+   Vorschauen (Startseite, Beitrag, eigene Seite, Bibliothek-Eintrag,
+   Reisebericht) mit Längenampel und Sprachumschalter.
+6b. ~~**Übersichts- und eigene Seiten ohne Schema**~~ — **erledigt mit
+   v0.11.20.** `page.html` als `WebPage`, `blog.html`, `library.html`,
+   `travel.html` und `travel_trip.html` als `ItemList`. `search.html` und
+   `form.html` bleiben absichtlich ohne. Ursprünglicher Text zur Einordnung:
+   - **`page.html` zuerst** (~1 h): eine eigene Seite ist `WebPage`, Impressum
+     und Datenschutz sind `AboutPage` bzw. `WebPage`. Der Seitentyp, den heute
+     am ehesten jemand direkt aufruft.
+   - **`travel_trip.html`** (~1 h): eine Reise ist eine Sammlung von Tagen, also
+     `ItemList` mit den Tagen als `ListItem` (oder `Blog` mit `blogPost`). Der
+     Reiseblog ist heute halb versorgt — der einzelne Tag meldet sich als
+     `BlogPosting`, die Reise selbst und die Übersicht sagen gar nichts.
+   - **`blog.html`, `library.html`, `travel.html`** (~1 h): `ItemList` über die
+     gezeigten Einträge. **Nur die Einträge der aktuellen Seite auflisten**,
+     nicht den ganzen Bestand — sonst behauptet Seite 3 der Blog-Übersicht,
+     sie enthalte zweihundert Beiträge.
+   - **`search.html` und `form.html` bewusst nicht.** Suchergebnisse gehören
+     nicht in den Index (das ist Googles eigene Richtlinie), und ein Formular
+     ist kein Inhalt, über den es etwas zu erzählen gäbe.
+   - **Erwartung ehrlich halten:** `ItemList` und `WebPage` erzeugen **keinen**
+     erweiterten Treffer. Sie helfen beim Verstehen — auch den KI-Crawlern —,
+     aber wer hier sichtbare Wirkung im Suchergebnis erwartet, wird enttäuscht.
+     Der Hebel dafür bleibt `LocalBusiness` und `Event`.
+
+   **Beim Bauen aufgefallen (v0.11.20):**
+
+   - Die **neuen** Blöcke stehen unter `{% if site.design.allow_indexing %}`,
+     die **fünf alten** nicht — die geben ihr JSON-LD auch auf einer Seite aus,
+     die auf `noindex` steht. Widerspruch, aber harmlos und deshalb nicht
+     nebenbei geändert: Wer die fünf nachzieht, sollte es in einem eigenen
+     Schritt tun und dabei alle gleichzeitig anfassen.
+   - Die Platznummern der Blog-Übersicht kommen aus `pager['offset']`. Wer die
+     Blätterung umbaut, muss den Wert mitziehen, sonst fängt jede Seite wieder
+     bei 1 an und behauptet damit, sie zeige den Anfang des Bestandes.
+
+7. **SEO-Ampel je Beitrag** (~1 Tag): Beschreibung gesetzt und lang genug?
+   Titelbild? Alternativtexte? Text lang genug? Mindestens eine
+   Zwischenüberschrift?
+8. **Kleinkram:** `dateModified` fehlt bei `BlogPosting` — Beiträge haben gar
+   kein `updated`-Feld, das müsste beim Speichern gesetzt werden (~1 h). Die
+   Blog-Übersicht `/blog` hat kein `Blog`/`ItemList`-Schema.
+
+**Richtigstellung vom 2026-08-27 — `FAQPage` bringt keine Fläche mehr:**
+
+Die frühere Fassung dieser Liste führte `FAQPage` an zweiter Stelle mit der
+Begründung, Google klappe die Fragen im Suchergebnis auf und der Treffer bekomme
+dadurch deutlich mehr Fläche. **Das gilt nicht mehr.** Google hat die
+FAQ-Rich-Results am **7. Mai 2026** abgeschaltet. Vorstufe war der August 2023,
+seitdem gab es sie nur noch für bekannte Behörden- und Gesundheitsseiten; seit
+Mai 2026 für niemanden. Die Berichte in der Search Console fielen im Juni 2026
+weg, die Unterstützung in der Search-Console-API im August 2026.
+
+Was bleibt: Die Auszeichnung ist weiterhin gültiges schema.org, sie schadet
+nicht (Google sagt ausdrücklich, ungenutzte strukturierte Daten seien
+unschädlich), und KI-Crawler lesen sie. Als Hebel für die **Darstellung im
+Suchergebnis** ist sie tot — deshalb steht sie jetzt an letzter Stelle.
+
+`LocalBusiness` und `Event` sind davon **nicht** betroffen und erzeugen weiter
+erweiterte Treffer. Wer diese Liste später wieder aufnimmt: nicht aus dem
+Gedächtnis planen, sondern kurz gegen die aktuelle Google-Dokumentation prüfen —
+die Menge der Typen mit erweiterten Treffern wird seit Jahren kleiner, nicht
+größer (`How-to` fiel 2023, `FAQPage` 2026).
+
+Belege: <https://developers.google.com/search/docs/appearance/structured-data/local-business>,
+<https://www.searchenginejournal.com/google-drops-faq-rich-results-from-search/574429/>
+
+**Bewusst nicht vorgesehen:** Keyword-Dichte, Lesbarkeits-Punktzahlen und eine
+eigene Redirect-Suite. Weiterleitungen gibt es bereits; die beiden anderen
+schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
+
+**Fallstricke, die schon bekannt sind:**
+
+- JSON-LD steht in den Vorlagen, nicht in `app.py` — `{%- set ld = {…} %}` je
+  Seitentyp, ausgegeben über `{{ ld|tojson }}`. Wer es nach Python zieht, muss
+  alle fünf Stellen gleichzeitig umstellen, sonst laufen sie auseinander.
+- **Es wird nichts gespeichert und nichts umgestellt.** Der Block entsteht bei
+  jedem Seitenaufruf aus den Feldern, die die Seite ohnehin anzeigt. Sobald eine
+  Vorlage ihn ausgibt, haben ihn alte und neue Einträge gleichermaßen — es gibt
+  keinen Stapellauf, keine Wanderung, keine zweite Ablage, die auseinanderlaufen
+  könnte. Die einzige Ausnahme sind **Felder, die es noch nicht gibt**: ein
+  `dateModified` kann für einen Beitrag, der seit Jahren nicht gespeichert
+  wurde, nicht erfunden werden. Solche Angaben gehören weggelassen, nicht
+  geraten (siehe Punkt 8).
+- `_seo.html` gibt `canonical` und `hreflang` nur bei
+  `site.design.allow_indexing` aus. Neue Schema-Blöcke gehören unter dieselbe
+  Bedingung — über eine Seite, die nicht in den Index soll, gibt es Google auch
+  nichts zu erzählen.
+- Mehrere Schema-Blöcke auf der Startseite (Person + LocalBusiness + FAQPage +
+  Event) sind erlaubt, sollten aber über `@graph` verbunden werden, statt sich
+  gegenseitig zu ignorieren.
+- Bewertungen aus `sections.testimonials` **nicht** als `Review`/
+  `AggregateRating` ausgeben: Google wertet selbst eingetragene Bewertungen auf
+  der eigenen Seite als Verstoß gegen die Richtlinien für Rich Results.
+- Die Snippet-Vorschau bildet die Rückfallkette aus `app.py` nach
+  (`_site_meta()`, `_plain_excerpt()`). Wer serverseitig an der Kette dreht, muss
+  `SNIPS` in `admin.html` nachziehen — sonst zeigt die Vorschau etwas anderes,
+  als die Seite ausliefert, und das ist schlimmer als gar keine Vorschau.
+- `snipPlain()` ersetzt Tags durch ein **Leerzeichen**, genau wie
+  `_plain_excerpt()`. Mit `textContent` klebt die Überschrift am ersten Absatz
+  („HalloDas ist…“) und der Auszug weicht ab dem ersten Zeilenumbruch ab.
+- Der Reise-Editor hat keine festen Feld-Ids — `travField()` baut die Eingaben
+  zur Laufzeit und schreibt in `DAY.article`. Die Vorschau `snip-travel` liest
+  deshalb aus dem Objekt und wird aus `travDraft()` heraus gezeichnet. Wer einen
+  weiteren Weg baut, über den sich `DAY` ändert, muss `snipRender('snip-travel')`
+  mit aufrufen.
+
+---
+
+## Rauchtest über alle Routen — steht, aber nur die halbe Miete
+
+**Stand:** `test_routes.py` seit 2026-08-27, läuft in der CI
+(`.github/workflows/test-mypage.yml`) bei jeder Änderung an Code, Vorlagen oder
+Übersetzungen — also **vor** dem Bau des Images, das an `config.yaml` hängt.
+
+**Was er abdeckt:** 137 Routen mit GET, öffentlich und Admin, gegen einen
+erfundenen Datenbestand. Durchgefallen ist, was 5xx liefert oder eine Ausnahme
+wirft. Dazu: Anmeldung, fünf unbekannte Adressen (müssen 404 sein), vier
+Admin-Routen ohne Anmeldung (müssen 401 sein) und der Abgleich, dass `de.json`
+und `en.json` dieselben Schlüssel haben.
+
+**Was offen bleibt — die ehrliche Zahl:**
+
+- **158 Routen ohne GET** (POST/PUT/DELETE) sind ungeprüft. Das ist mehr als die
+  Hälfte, und dort sitzt alles, was schreibt. Ein Test dafür braucht je Route
+  einen sinnvollen Rumpf; das ist Fleißarbeit, kein Entwurf.
+- **17 Routen übersprungen**, weil sie nach draußen telefonieren (GitHub, Gemini,
+  Übersetzung, IndexNow, HA-Supervisor) oder lange laufen (Backup, Export). Wer
+  sie abdecken will, braucht vorgetäuschte Antworten statt echter Aufrufe.
+- Der Test prüft **kein einziges Mal den Inhalt** einer Antwort. Eine Seite, die
+  200 liefert und dabei den falschen Text zeigt, fällt nicht auf.
+
+**Fallstricke, die schon bekannt sind:**
+
+- Die Umgebungsvariablen müssen **vor** `import app` gesetzt sein: Das Modul legt
+  beim Laden seine Verzeichnisse an und liest die Optionen. Ein `import app` weiter
+  oben in der Datei schriebe in den echten Datenordner.
+- `SKIP_SUBSTRINGS` vergleicht Teilzeichenketten. `/health` darin hätte
+  `/api/health` gleich mit ausgeschlossen — die Zustandsanzeige wäre ungeprüft
+  geblieben, ohne dass es auffällt. Neue Einträge deshalb so eng wie möglich fassen.
+- Die Kennungen in `VALUES` müssen zu den Testdaten aus `seed()` passen. Wer eine
+  Route mit neuem Platzhalter baut, trägt ihn dort ein — sonst wird sie
+  stillschweigend übersprungen und taucht nur in der Abdeckungszeile auf.
+
+---
+
+## Vergleich mit WordPress — die verbliebenen Lücken
+
+**Stand:** Bestandsaufnahme am 2026-08-27, am Code geprüft (nicht aus Erinnerung).
+Nichts davon ist angefangen. Was WordPress kann und hier fehlt — sortiert nach
+Wirkung je Aufwand, nicht nach Größe des Vorhabens.
+
+**Was ausdrücklich schon da ist** und deshalb hier nicht auftaucht: geplante
+Veröffentlichung (`post_status()` in `app.py`, Status `scheduled` über ein
+Datum in der Zukunft), RSS/Atom, OpenGraph, Volltextsuche, Weiterleitungen,
+Sitemap, IndexNow, Kommentare mit Moderation, Newsletter mit Double-Opt-in,
+Formular-Baukasten, Design-Vorlagen, statischer Export, Backup samt
+Rückholen früherer Stände.
+
+### 1. Responsive Bilder (`srcset`) — größter Web-Vitals-Hebel
+
+`_store_upload_image()` legt genau **eine** Fassung ab: höchstens 1600 px, WebP.
+WordPress erzeugt mehrere Größen und liefert sie über `srcset` aus. Ein Handy
+lädt hier also 1600 px für einen 400 px breiten Platz — auf jeder Seite, für
+jedes Bild.
+
+**Was zu bauen wäre:** beim Ablegen zusätzlich 480 px und 960 px erzeugen,
+Namensschema `<uuid>-480.webp`; `render_md()` und die Vorlagen geben `srcset`
+plus `sizes` aus.
+
+**Haken:** `_unused_uploads()` erkennt verwaiste Dateien über einen
+Vorkommen-Scan im JSON-Text. Die Varianten dürfen deshalb **nie** einzeln in
+`site.json` landen — sonst gilt jede Variante ohne eigenen Verweis als Waise und
+wird weggeräumt. Löschen und Aufräumen müssen die Geschwisterdateien am
+Namenspräfix mitnehmen, und beide Backup-Listen (Sichern und Wiederherstellen)
+brauchen sie ebenfalls. Aufwand ~1 Tag.
+
+### ~~2. Blättern im Blog~~ — erledigt mit v0.11.16
+
+`blog_index()` rendert **alle** veröffentlichten Beiträge in eine einzige Seite.
+Bei zweihundert Beiträgen sind das mehrere Megabyte, und der Besucher lädt sie
+bei jedem Aufruf. WordPress zeigt zehn je Seite.
+
+**Was zu bauen wäre:** `?seite=n` mit fester Seitengröße, `rel="prev"`/`rel="next"`
+im Kopf, Blätterleiste unten.
+
+**Umgesetzt als:** `blog_pager()` (Ausschnitt plus Nummernfenster mit
+Auslassung), `_page_arg()` und `_blog_page_url()` in `app.py`, Leiste in
+`blog.html`, zehn Beiträge je Seite (`BLOG_PAGE_SIZE`). Sitemap und Feed führen
+weiterhin alle Beiträge — nachgemessen. Seite jenseits des Bestandes: 404.
+Kanonische Adresse trägt `?seite=`, aber nur ohne aktiven Filter; gefilterte
+Ansichten kanonisieren wie bisher auf `/blog`.
+
+### 3. Strukturierte Daten auf der Startseite
+
+Eigener Abschnitt weiter oben in dieser Datei („SEO: strukturierte Daten und
+Snippet-Vorschau"), Reihenfolge `LocalBusiness` → `Event` → `BreadcrumbList` →
+`Service`. Für die Zielgruppe Verein, Handwerk, Dienstleistung die größte
+Sichtbarkeitslücke überhaupt. `FAQPage` stand hier früher an zweiter Stelle und
+ist seit dem 7. Mai 2026 wirkungslos — Einzelheiten in der Richtigstellung im
+SEO-Abschnitt.
+
+### 4. Mehrere Autoren
+
+Ein Beitrag hat kein `author`-Feld (`_normalize_post()`), und es gibt keine
+Rollen: einen Admin, ansonsten Mitglieder, die ausschließlich lesen. WordPress
+kennt Redakteur, Autor und Mitarbeiter samt Autorenarchiv. Für eine Vereinsseite,
+auf der mehrere Leute schreiben, ist das der strukturell größte Unterschied.
+
+**Was zu bauen wäre:** Rollenkennzeichen am Mitglied, ein eingeschränkter
+Admin-Zugang (nur eigene Beiträge), `author` am Beitrag, Autorenseite unter
+`/autor/<id>`.
+
+**Haken:** Das ist ein sicherheitsrelevanter Umbau — jede Admin-Route braucht
+dann eine Rechteprüfung, nicht nur die Anmeldung. Vorher lohnt der Smoke-Test
+über alle Routen aus `Ideas.md`, sonst merkt niemand, welche Route die Prüfung
+vergessen hat. Aufwand ~3–4 Tage.
+
+### 5. Revisionen je Beitrag
+
+Es gibt Versionsstände der **ganzen** `site.json` (zwanzig Stück,
+90-Sekunden-Zusammenfassung). „Nur diesen einen Beitrag auf gestern zurück" geht
+nicht. Baubar **ohne** neues Ablageformat: den Beitrag per Id aus den
+vorhandenen Schnappschüssen ziehen, Textvergleich anzeigen, einzeln
+zurückschreiben.
+
+**Haken:** Ein einzeln zurückgeschriebener Beitrag darf den Rest der Datei nicht
+anfassen — also über den normalen Speicherweg gehen, nicht die alte Datei
+einspielen. Aufwand ~1 Tag, weil die Datenbasis bereits steht.
+
+### 6. Kategorien und echte Archivseiten für den Blog
+
+Der Blog kennt nur Schlagwörter (höchstens acht) und filtert über `?tag=`.
+Kategorien gibt es ausschließlich in der Bibliothek. Damit fehlen Archivseiten
+mit eigener Adresse und eigener Beschreibung — eine Filteradresse mit
+Fragezeichen nimmt Google selten in den Index.
+
+**Was zu bauen wäre:** `/tag/<slug>` als eigene Seite mit eigenem
+`meta_description`, wahlweise eine Kategorie je Beitrag mit `/kategorie/<slug>`.
+Zusammen mit Punkt 2 zu bauen, beide fassen dieselbe Route an. Aufwand ~4 h
+zusätzlich.
+
+### ~~7. HTTP-Cache für die öffentlichen Seiten~~ — erledigt mit v0.11.16
+
+Nur der Feed setzt `Cache-Control` und beantwortet `If-None-Match` mit 304. Jede
+Anfrage an die Startseite rendert die Seite neu, obwohl sich zwischen zwei
+Aufrufen meist nichts geändert hat.
+
+**Was zu bauen wäre:** ETag aus der Änderungszeit von `site.json`, der Sprache
+und dem Anmeldestatus; danach `make_conditional(request)` wie beim Feed.
+
+**Umgesetzt als:** `_cache_headers()` in `app.py` (after_request am
+`public_app`). Der Fingerabdruck stammt aus dem **fertigen Rumpf**, nicht aus
+Änderungszeiten der Ablagen — damit kann kein neues Feld vergessen werden.
+Gespart wird die Übertragung, nicht das Rendern.
+
+**Haken, der beim Weiterbauen gilt:** Seiten mit Mitgliederinhalt dürfen
+**niemals** `public` bekommen. Erkannt wird das am Sitzungs-Cookie `usession`;
+liegt eines an, geht `private, no-store` heraus und gar kein ETag. Wer diese
+Prüfung durch etwas Genaueres ersetzt, muss dieselbe Richtung wahren: im
+Zweifel `private`, nie `public`. Seiten mit Aufrufzähler (Beitragsseiten,
+Startseite mit Zähler) ändern sich bei jedem Aufruf und bekommen deshalb nie
+ein 304 — das ist so richtig und kein Fehler.
+
+### 8. Import aus WordPress
+
+Es gibt keinen. Wer von WordPress herüberzieht, tippt Beiträge, Seiten und
+Schlagwörter ab — der Grund, warum MyPage heute eher ein Zweitsystem als ein
+Ersatz ist. Ein Leser für die WXR-Datei (Beiträge, Seiten, Schlagwörter, Bilder)
+ändert das.
+
+**Haken:** Die Bilder stecken als absolute Adressen im Text und müssen beim
+Import heruntergeladen, durch `_store_upload_image()` geschickt und im Markdown
+ersetzt werden. Das Herunterladen ist ein Zugriff auf eine vom Benutzer
+angegebene Adresse — die SSRF-Prüfung über `ipaddress` ist dort Pflicht
+(gleiches Muster wie beim GitHub-Import). WXR ist zudem XML mit
+HTML-Beitragstext: der Text muss durch dieselbe Bereinigung wie eigene Eingaben,
+nicht ungeprüft übernommen. Aufwand ~2 Tage.
+
+### Kleinkram, gesammelt
+
+- `updated`/`dateModified` fehlt am Beitrag komplett — steht schon als Punkt 8 im
+  SEO-Abschnitt, ~1 h.
+- **404-Liste, mögliche Erweiterungen** (v0.11.22 bringt die Liste selbst):
+  eine HA-Benachrichtigung, wenn eine Adresse mit der Marke „eigener Link"
+  neu auftaucht, wäre der nächste sinnvolle Schritt — dann muss niemand
+  nachsehen. Voraussetzung ist eine Entprellung: Ein einzelner kaputter Link
+  wird von jedem Bot mehrfach abgeklappert und dürfte nicht jedes Mal melden.
+  Ebenfalls denkbar: ein Vorschlag für das Weiterleitungsziel aus der Ähnlichkeit
+  zu vorhandenen Slugs (`/bibliothek/rhodos` → `/bibliothek/rhodos-2`).
+- **Menü-Baukasten:** Die Navigation entsteht automatisch aus den vorhandenen
+  Sektionen und den eigenen Seiten. Kein frei gesetzter Menüpunkt, kein
+  Untermenü, kein eigenes Fußzeilenmenü.
+- **Kommentare nur für Mitglieder** (`blog_comment()` bricht ohne
+  `current_member` mit 403 ab). Gäste mit Freigabe wären der WordPress-Weg. Die
+  jetzige Regelung ist eine bewusste Entscheidung gegen Spam, kostet aber
+  Reichweite — vor einem Umbau gehört geklärt, ob Moderation und Rate-Limit dafür
+  reichen.
+- **Formulare** kennen kein Dateifeld und keine Bedingungslogik
+  (`FORM_FIELD_TYPES`). Ein Dateifeld zieht Quota, Virenfrage und Aufräumen nach
+  sich — nicht nebenbei zu machen.
+- ~~**Medienverwaltung** ohne Suche, ohne Ersetzen einer Datei, ohne Ordner~~ —
+  **erledigt mit v0.11.17.** Suche über Herkunftsname, Etiketten,
+  Alternativtexte und Fundstellen; Dialog *Datei verwalten* mit „Verwendet in";
+  Ersetzen unter gleichem Dateinamen. Dazu **Ordner nur im Admin** (v0.11.18):
+  eine Ebene, ein Ordner je Datei, Mehrfachauswahl im Raster zum Einsortieren.
+  Im Dateisystem wandert nichts — der Dateiname steht in jeder Einbindung und
+  in bereits veröffentlichten Adressen, ein echtes Verschieben zerrisse sie
+  alle. Ordner und Etiketten haben getrennte Rollen: der Ordner sagt, wo eine
+  Datei liegt (genau einer), das Etikett, was drauf ist (beliebig viele).
+
+  **Fallstricke für spätere Arbeit am Modul:**
+
+  - `uploads_meta.json` trägt jetzt zwei Karten (`alts` und `files`). Wer eine
+    dritte hinzufügt, muss sie in `_uploads_meta_forget()` mit aufräumen und
+    über `_uploads_meta_update()` schreiben — wer die Datei lädt, ändert und
+    speichert, überschreibt zwischendurch Geschriebenes der anderen Karte.
+  - `_usage_entities()` bestimmt, was „Verwendet in" kennt. Fehlt dort ein
+    Bereich, meldet die Verwaltung „nirgends verwendet", obwohl das Bild
+    eingebunden ist. Der **Löschschutz** hängt weiterhin an `_reference_blob()`
+    und nicht an dieser Liste — ein Vergessen kostet damit keine Datei.
+  - Ersetzen geht nur für `.webp`. `_store_upload_image()` schreibt immer WebP;
+    in eine `.png` geschrieben, lieferte die Datei WebP-Daten unter falscher
+    Endung aus.
+  - Die `-ai`-Kennzeichnung steckt im Dateinamen und übersteht das Ersetzen
+    deshalb. Das ist Absicht und die vorsichtige Richtung: ein gekennzeichnetes
+    Bild bleibt gekennzeichnet.
+  - Der Bild-Zwischenspeicher heißt jetzt `<stamm des bildes>-<schlüssel>.webp`.
+    Wer das Namensschema ändert, muss `_wm_cache_forget()` und
+    `_unused_wm_cache()` gleichzeitig mitziehen — sonst räumt das Aufräumen
+    entweder nichts mehr weg oder die Fassungen lebender Bilder.
+  - Ordner sind eine reine Anzeige-Angabe in `uploads_meta.json`, eine Ebene
+    tief. Wer Unterordner nachrüstet, braucht Baum, Brotkrumen und ein
+    Umbenennen ganzer Zweige — und muss `_upload_folder_clean()` ändern, das
+    Schrägstriche heute absichtlich zu Leerzeichen macht.
+  - Die Ordnerliste in `/api/uploads/list` kommt aus der **ganzen** Ablage,
+    nicht aus den höchstens 300 gezeigten Kacheln. Wer das umstellt, lässt
+    Ordner aus der Leiste verschwinden, sobald ihre Bilder jenseits der
+    Kachelgrenze liegen.
+  - Browser halten ein ersetztes Bild bis zu einen Tag fest (`max_age=86400` an
+    der Auslieferroute). Wer das ändern will, ändert es für **alle** Bilder —
+    also Ladezeit gegen Aktualität. Der Admin umgeht es über `?v=<mtime>`.
+
+### Empfohlene Reihenfolge
+
+7 (Cache) und 2 (Blättern) sind mit v0.11.16 erledigt. Weiter mit
+1 (`srcset`, ~1 Tag) → 3 (schema.org). Erst das technische Fundament, dann die
+Sichtbarkeit, dann die großen Bauten 4 und 8.
+
+**Bewusst nicht vorgesehen:** ein Erweiterungssystem nach Art der WordPress-Plugins,
+ein Shop und Mehrsprachigkeit über DE/EN hinaus. Alle drei ziehen mehr Wartung
+nach sich, als sie dieser Zielgruppe bringen.
+
+---
+
+## Inhaltsmodule — Benennung, freie Überschriften, neue Bausteine
+
+**Stand:** Der Reiter „Inhalte" führt 20 Module (`section_order` in `app.py`), fünf davon
+sind reine Sortier-Platzhalter für eigene Reiter (Blog, Projekte, Bibliothek, Formulare,
+Reiseblog). Aus der Durchsicht am 28.08.2026 sind folgende Vorhaben offen.
+
+### 1. Freie Überschrift für jedes Modul — erledigt mit v0.11.36
+
+Umgesetzt wie vorgesehen: `sections.section_titles = {<key>: {'de': '', 'en': ''}}`,
+gelesen über `section_title()`, im Admin ein Feldpaar je Modul (Makro `sect_title` in
+`admin.html`, Eingabefelder `st-<key>_de/_en` mit der Standardüberschrift als Platzhalter).
+Der alte Werdegang-Eintrag wandert beim Laden über `_migrate_section_titles()` in die neue
+Ablage; die Felder `timeline_title_de/en` bleiben als Rückfallebene bestehen und werden
+beim Speichern mitgezogen.
+
+**Fallstricke für später:**
+
+- Countdown und Freitext haben bereits eigene Titelfelder und stehen deshalb nicht in
+  `SECTION_TITLE_KEYS`. Wer sie aufnimmt, hat zwei konkurrierende Überschriften.
+- `/api/sections` ersetzt `section_titles` **vollständig**. Der Admin schickt immer alle
+  Felder (`collectSectionTitles()`, gefüllt aus `fillSections()` bei jedem `loadSite()`);
+  wer die Route von anderer Stelle mit einem Teil-Objekt aufruft, löscht die übrigen Titel.
+- Leere Paare werden nicht gespeichert — sonst wüchse die Ablage mit jedem Speichern um
+  20 leere Einträge.
+- Die Navigationsleiste zieht denselben Wert (`sec_titles` in der Startseiten-Route), sonst
+  stünde in der Leiste ein anderer Name als über dem Abschnitt.
+
+### 2. Umbenennungen (reine Locale-Arbeit)
+
+Die internen Keys sind bereits generisch (`news`, `services`, `timeline`), betroffen sind
+also nur die sichtbaren Bezeichnungen in `de.json`/`en.json`:
+
+- „Leistungen" → **Angebote** (`services_heading`): passt dann auch für Verein, Restaurant,
+  Dienstleister; die Felder (Symbol, Preis, Text) bleiben unverändert.
+- „Aktuelles" → **Meldungen** (`news_heading`): weniger auf einen Seitentyp festgelegt.
+  „News" bewusst nicht — im deutschen Locale ist „Meldungen" das genauere Wort.
+- „Werdegang" → **Zeitleiste** als Admin-Label (`timeline_heading`): der interne Name ist
+  schon `timeline`, die öffentliche Überschrift bleibt frei wählbar (siehe 1).
+
+Keine Migration nötig, da keine Schlüssel wandern.
+
+### 3. Inhaltsverzeichnis aus den Markdown-Überschriften
+
+`render_md()` läuft mit `nl2br, sane_lists, tables, fenced_code` — **ohne** `toc`. Deshalb
+bekommen Überschriften keine `id`, es gibt also keine Sprungziele. Die Extension nachrüsten
+liefert beides: IDs und ein fertiges Verzeichnis.
+
+**Kein eigenes Modul.** Ein Verzeichnis ohne den zugehörigen Text ist sinnlos, und auf einer
+Startseite mit 20 Abschnitten wäre unklar, worüber es führt. Richtiger Ort ist eine
+Checkbox „Inhaltsverzeichnis voranstellen" bei Freien Seiten, Freitext und
+Bibliothekseinträgen.
+
+Fallstrick: `toc` schreibt IDs in bestehendes HTML. Das ist verträglich, ändert aber die
+Ausgabe aller bereits veröffentlichten Texte — vor dem Umstellen einmal gegen den
+Rauchtest laufen lassen.
+
+### 4. Neue Module — vier gebaut mit v0.11.37
+
+Umgesetzt: **Zahlen/Fakten** (`facts`), **Partner/Logos** (`partners`), **Videos**
+(`videos`) und **Downloads** (`downloads`). Alle vier verhalten sich wie die
+bestehenden Abschnitte: sortierbar, ausblendbar, auf Mitglieder beschränkbar, mit
+eigener Überschrift aus Punkt 1.
+
+**Fallstricke für später:**
+
+- Ein neues Modul muss an **fünf** Stellen eingetragen werden, sonst fehlt es
+  irgendwo lautlos: `DEFAULT_SITE['sections']`, `DEFAULT_SITE['section_order']`
+  (daraus entsteht `SECTION_KEYS`), das Sanitizing in `/api/sections`, `section_defs`
+  in der Startseiten-Route (Anker, Locale-Key, Sichtbarkeit) und der `{% elif %}`-Zweig
+  in `public.html`. Im Admin kommen Panel, Zeilen-Bauer, `fillSections()` und
+  `saveSections()` dazu.
+- `videos` nimmt nur Adressen an, die `parse_video()` erkennt. Das ist Absicht: eine
+  beliebige Adresse als iframe zu laden hieße, jeder fremden Seite den Rahmen zu öffnen.
+- `downloads` speichert nur Dateinamen, die `_DOC_FILE_RE` entsprechen, und die
+  öffentliche Route `/download/<name>` liefert ausschließlich Dateien aus, die im
+  Abschnitt stehen. Ohne diese Liste wäre sie ein offener Zugriff auf die ganze
+  Dokumentenablage — dort liegen auch die PDFs gesperrter Bibliothek-Einträge.
+  Ausgeblendete und Mitglieder-Abschnitte sperren die Route mit.
+- Der statische Export nimmt die Download-Dateien mit (`pages['download/<datei>']`),
+  aber nur wenn der Abschnitt sichtbar und nicht auf Mitglieder beschränkt ist.
+- `/api/upload-doc` ist derselbe Endpunkt wie `/api/library/upload-doc`; beide legen in
+  `DOCS_DIR` ab. Wer den alten Pfad entfernt, bricht eine offene Oberfläche nach einem
+  Update.
+
+Layout-Bausteine dagegen weiterhin **nicht** als Module:
+
+- **Hero** ist faktisch das Profil (Name, Tagline, Bio, Avatar). Statt eines neuen Moduls
+  dort Hintergrundbild und zwei Buttons ergänzen.
+- **Call-to-Action** und **Teaser/Karten** lassen sich als **Blockvorlagen** im
+  Freitext-Abschnitt lösen (Markdown mit Bildern kann er bereits). Das spart je ein Modul,
+  einen Schema-Zweig und eine Übersetzungsrunde.
+- **Galerie** und **Banner/Hinweis** sind bereits vorhanden (Fotoalben mit Diashow;
+  `design.banner_*` samt `_banner.html`, wegklickbar über localStorage).
+
+### 5. Bewusst global, nicht als Modul
+
+Navigation, Footer, Impressum/Datenschutz, SEO-Titel und Meta-Description, Open Graph,
+Favicon, 404-Seite, Weiterleitungen, Rollen, Backup/Revisionen, Sitemap, robots.txt,
+DE/EN, Dark Mode und Custom CSS bleiben Website-Funktionen — alle sind bereits so gebaut.
+
+**Cookie-Einwilligung ist nicht vorgesehen:** Der Besucherzähler arbeitet mit einem Hash
+statt einem Tracking-Cookie, die Karte ist OpenStreetMap, Videos laufen über die
+nocookie-Variante. Es gibt nichts einzuwilligen. Kommt später etwas Einwilligungspflichtiges
+dazu, gehört der Dialog zu den globalen Funktionen, nicht in die Modulliste.
+
+### Empfohlene Reihenfolge
+
+1 (freie Überschriften, erledigt) und 4 (vier neue Module, erledigt) sind durch. Offen:
+2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → Hero-Erweiterung → CTA/Teaser als
+Freitext-Vorlagen.

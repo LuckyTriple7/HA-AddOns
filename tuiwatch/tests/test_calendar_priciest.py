@@ -32,9 +32,14 @@ DAYS = [{"date": "2027-03-01", "price": 900},
 
 
 def _store(m, offer_id, cal):
+    """Angebot mit **explizit** dieser id anlegen, dann den Kalender daran hängen.
+
+    Ohne die feste id vergibt SQLite fortlaufend ab 1, und der Kalender hing an
+    einer offer_id, die es gar nicht gab. Das fiel nie auf, solange die
+    Fremdschlüssel nicht erzwungen wurden — jetzt schon."""
     with m.db() as con:
-        con.execute("INSERT INTO offers (url, created) VALUES (?,?)",
-                    (f"https://x.invalid/angebote/H/{offer_id}/", int(time.time())))
+        con.execute("INSERT INTO offers (id, url, created) VALUES (?,?,?)",
+                    (offer_id, f"https://x.invalid/angebote/H/{offer_id}/", int(time.time())))
         con.execute("INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
                     (offer_id, int(time.time()), json.dumps(cal)))
 

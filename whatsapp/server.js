@@ -1,8 +1,14 @@
 'use strict';
 const _logBuffer = [];
 const _LOG_MAX = 300;
+// Ortszeit, nicht UTC — die Konsole liest ein Mensch
+const _ts = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+       + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
 (function () {
-  const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
   const _levelMap = { log: 'INFO', warn: 'WARN', error: 'ERROR' };
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
@@ -31,7 +37,10 @@ const _LOG_MAX = 300;
 })();
 
 function _logSilent(level, msg) {
-  _logBuffer.push({ ts: Date.now(), level: level || 'DEBUG', msg: '[' + (level||'DEBUG') + '] ' + msg });
+  const lvl = level || 'DEBUG';
+  // Gleiche Form wie die echten Konsolenzeilen, damit in der Weboberflaeche
+  // nicht die eine Haelfte einen Zeitstempel hat und die andere nicht
+  _logBuffer.push({ ts: Date.now(), level: lvl, msg: '[' + lvl + '] [' + _ts() + '] ' + msg });
   if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
 }
 
@@ -46,6 +55,7 @@ const https = require('https');
 const http = require('http');
 const { URL } = require('url');
 const fs = require('fs');
+const crypto = require('crypto');
 const { existsSync, rmSync } = fs;
 
 const rateLimit = require('express-rate-limit');
@@ -98,6 +108,7 @@ app.use((req, res, next) => {
 let qrCodeDataUrl = null;
 let status = 'initializing';
 let connectedPhone = null;
+let waWebVersion = null; // Fassung von WhatsApp Web selbst, nicht der Bibliothek
 let lastError = null;
 let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
 
@@ -106,6 +117,15 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const VIDEO_MAX_MB = Math.max(parseInt(process.env.VIDEO_MAX_MB || '50', 10), 1);
 const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
+// off       — nie melden, "zuletzt online" bleibt dann meist leer
+// temporary — nur waehrend einer Abfrage kurz verfuegbar, danach wieder abmelden
+// always    — dauerhaft verfuegbar (man erscheint durchgehend online)
+const PRESENCE_SCAN_MINUTES = Math.max(0, parseInt(process.env.PRESENCE_SCAN_MINUTES || '0', 10) || 0);
+const PRESENCE_MODE = (() => {
+  const m = String(process.env.PRESENCE_MODE || '').toLowerCase();
+  if (m === 'off' || m === 'temporary' || m === 'always') return m;
+  return process.env.PRESENCE_ANNOUNCE === 'true' ? 'always' : 'temporary';
+})();
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
@@ -116,6 +136,8 @@ const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
+// So oft wird ein fehlender Medien-Download wiederholt, danach gilt er als verloren
+const MEDIA_MAX_TRIES = 3;
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
 const WEBHOOK = process.env.WEBHOOK_INCOMING || '';
@@ -125,6 +147,8 @@ console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
 console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
 console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
+console.log(`[INFO]   presence_mode          = ${PRESENCE_MODE}`);
+console.log(`[INFO]   presence_scan_minutes  = ${PRESENCE_SCAN_MINUTES || 'aus'}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
@@ -135,6 +159,7 @@ console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
 console.log(`[INFO]   webhook_incoming       = ${WEBHOOK ? WEBHOOK : 'not set'}`);
 console.log('[INFO] ─────────────────────────────────────────────────────');
 const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, lastTime, isGroup }
+const lidNumberCache = new Map();   // '<lid>@lid' -> echte Rufnummer (siehe resolveChatNumbers)
 const messagesByChatId = new Map(); // chatId -> Message[]
 const seenIds = new Set();
 
@@ -213,6 +238,34 @@ try {
   }
 } catch (e) { console.error('[ERROR] loadStatusArchive:', e.message); }
 
+// ── Medien pro Chat abschalten ────────────────────────────────────────────────
+// download_media gilt fuer alle Chats. Einzelne Chats (Werbe-Gruppen, Chats mit
+// vielen grossen Videos) lassen sich hier davon ausnehmen — gemerkt wird nur,
+// wer ausgenommen ist, damit ein neuer Chat automatisch der globalen Regel folgt.
+const CHAT_MEDIA_FILE = '/config/chatmedia.json';
+const mediaOffChats = new Set();
+
+try {
+  if (existsSync(CHAT_MEDIA_FILE)) {
+    const data = JSON.parse(fs.readFileSync(CHAT_MEDIA_FILE, 'utf8'));
+    const list = Array.isArray(data) ? data : (data.off || []);
+    for (const id of list) if (typeof id === 'string' && id) mediaOffChats.add(id);
+    if (mediaOffChats.size) console.log(`[INFO] Media download disabled for ${mediaOffChats.size} chat(s)`);
+  }
+} catch (e) { console.error('[ERROR] loadChatMedia:', e.message); }
+
+function saveChatMedia() {
+  try {
+    fs.writeFileSync(CHAT_MEDIA_FILE, JSON.stringify([...mediaOffChats]));
+  } catch (e) { console.error('[ERROR] saveChatMedia:', e.message); }
+}
+
+// Darf fuer diesen Chat ueberhaupt etwas geladen werden? Der globale Schalter
+// bleibt die Obergrenze, der Chat-Schalter kann nur zusaetzlich abschalten.
+function mediaAllowed(chatId) {
+  return DOWNLOAD_MEDIA && !mediaOffChats.has(chatId);
+}
+
 try {
   let best = null;
   for (const [chatId, msgs] of messagesByChatId.entries()) {
@@ -286,18 +339,63 @@ function getChatMsgs(chatId) {
   return messagesByChatId.get(chatId);
 }
 
+// WhatsApp liefert im Feld contact.number nach der LID-Umstellung haeufig die LID
+// statt der Rufnummer (14-15 Stellen). Bei @c.us-IDs ist der Teil vor dem @ die
+// echte Rufnummer, deshalb hat der Vorrang; contact.number nur als Rueckfall und
+// nie, wenn er der LID der Chat-ID entspricht.
+function contactNumber(contact, chatId) {
+  const id = chatId || contact?.id?._serialized || '';
+  const lid = id.endsWith('@lid') ? id.split('@')[0] : '';
+  const idUser = String(contact?.id?.user || '').replace(/\D/g, '');
+  const numField = String(contact?.number || '').replace(/\D/g, '');
+  for (const cand of [idUser, numField]) {
+    if (cand.length >= 7 && cand.length <= 15 && cand !== lid) return cand;
+  }
+  return '';
+}
+
+// Bei @lid-Chats ist der Teil vor dem @ eine interne LID und keine Rufnummer —
+// die stand sonst als "+127…" unter dem Chatnamen. Nur die aufgeloeste Nummer
+// verwenden (siehe lidNumberCache), sonst lieber gar keine anzeigen.
+function phoneForChat(chatId, rawUser) {
+  const resolved = lidNumberCache.get(chatId);
+  if (resolved) return resolved;
+  if (chatId.endsWith('@lid')) return '';
+  const digits = String(rawUser || '').replace(/\D/g, '');
+  return digits.length >= 5 ? digits : '';
+}
+
 function upsertChat(chatId, { name, phone, isGroup }) {
+  const clean = phone === undefined ? '' : phoneForChat(chatId, phone);
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: name || chatId, phone: phone || '', isGroup: !!isGroup, lastMsg: '', lastTime: 0 });
+    chatMap.set(chatId, { id: chatId, name: name || chatId, phone: clean, isGroup: !!isGroup, lastMsg: '', lastTime: 0 });
   } else {
     const c = chatMap.get(chatId);
     if (name) c.name = name;
-    if (phone && !c.phone) c.phone = phone;
+    // auch korrigieren, wenn schon eine (falsche LID-)Nummer drinsteht. Eine bereits
+    // gespeicherte Nummer wird nie geleert — nach einem Neustart ist der Cache leer,
+    // die Nummer aus chats.json aber gueltig; resolveChatNumbers() korrigiert Reste.
+    if (clean && clean !== c.phone) c.phone = clean;
   }
 }
 
 function addMsg(chatId, msg) {
-  if (seenIds.has(msg.id)) { dbg(`addMsg: duplicate skipped ${msg.id}`); return false; }
+  if (seenIds.has(msg.id)) {
+    // Bekannte Nachricht — aber der Haken kann inzwischen weiter sein. Beim Start
+    // liest der Loader den aktuellen Stand von WhatsApp; den hier uebernehmen,
+    // sonst bleibt ein waehrend der Auszeit gelesener Haken fuer immer grau.
+    if (typeof msg.ack === 'number' && msg.ack > 0) {
+      const stored = getChatMsgs(chatId).find(m => m.id === msg.id);
+      if (stored && stored.fromMe && msg.ack > (stored.ack || 0)) {
+        stored.ack = msg.ack;
+        stored.ackUpdatedAt = Date.now();
+        saveMsgs();
+        dbg(`addMsg: ack ${msg.id} → ${msg.ack}`);
+      }
+    }
+    dbg(`addMsg: duplicate skipped ${msg.id}`);
+    return false;
+  }
   seenIds.add(msg.id);
   dbg(`addMsg: chatId=${chatId} fromMe=${msg.fromMe} type=${msg.type} body="${(msg.body||'').slice(0,60)}"`);
   const msgs = getChatMsgs(chatId);
@@ -331,7 +429,9 @@ async function downloadWAMedia(msg, msgId) {
         _logSilent('DEBUG', `downloadWAMedia: ok ${safeId}.${ext} ${(Buffer.from(media.data,'base64').length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
         enforceMediaLimitThrottled(); // Speicherlimit auch beim Foto-/Auto-Download wahren
       } else {
-        _logSilent('WARN', `downloadWAMedia: no data for ${safeId}.${ext}`);
+        // WhatsApp liefert nichts mehr — bei aelteren Nachrichten ist das Medium
+        // auf dem Server abgelaufen und kommt auch spaeter nicht zurueck
+        _logSilent('WARN', `downloadWAMedia: WhatsApp liefert keine Daten mehr fuer ${safeId}.${ext} (Medium abgelaufen?)`);
       }
     } else {
       _logSilent('DEBUG', `downloadWAMedia: cached ${safeId}.${ext}`);
@@ -369,6 +469,11 @@ async function ensureMediaLater(chatId, msgId) {
       }
     } catch (e) { dbg('ensureMediaLater:', e.message); }
   }
+  // Nach all diesen Versuchen ist das Medium praktisch sicher verloren — vormerken,
+  // damit der naechste Start es nicht wieder von vorn probiert
+  const list = messagesByChatId.get(chatId);
+  const stored = list && list.find(m => m.id === msgId);
+  if (stored && !stored.mediaFile) { stored.mediaTries = MEDIA_MAX_TRIES; saveMsgs(); }
   _logSilent('WARN', `ensureMediaLater: media still unavailable for ${msgId}`);
 }
 
@@ -411,11 +516,19 @@ client.on('authenticated', () => {
 
 client.on('ready', async () => {
   _reconnecting = false;
+  _reconnectStartedAt = 0;
   _intentionalDisconnect = false;
   connectedPhone = (client.info?.wid?.user || '').replace(/:\d+$/, '') || null;
   status = 'connected';
   lastError = null;
   console.log(`[INFO] WhatsApp ready — phone: ${connectedPhone}`);
+
+  // Welche Fassung von WhatsApp Web laeuft. Nuetzlich, weil sich daran
+  // festmachen laesst, wann ein Umbau bei WhatsApp etwas hier zerlegt hat.
+  try {
+    waWebVersion = await client.getWWebVersion();
+    console.log(`[INFO] WhatsApp Web ${waWebVersion} — whatsapp-web.js ${WA_VERSION}`);
+  } catch (e) { dbg('getWWebVersion: ' + e.message); }
 
   try {
     const chats = await client.getChats();
@@ -426,11 +539,18 @@ client.on('ready', async () => {
       if (isFilteredChat(chatId)) continue;
       // For 1:1 chats, prefer pushname over bare phone number
       let chatName = chat.name || chat.id.user;
+      let chatPhone = chat.id.user;
       if (!chat.isGroup) {
         const ct = await client.getContactById(chatId).catch(() => null);
         chatName = ct?.name || ct?.pushname || chatName;
+        // getContactById loest @lid zur echten Rufnummer auf
+        const num = contactNumber(ct, chatId);
+        if (num) {
+          chatPhone = num;
+          if (chatId.endsWith('@lid')) lidNumberCache.set(chatId, num);
+        }
       }
-      upsertChat(chatId, { name: chatName, phone: chat.id.user, isGroup: chat.isGroup });
+      upsertChat(chatId, { name: chatName, phone: chatPhone, isGroup: chat.isGroup });
 
       const msgs = await chat.fetchMessages({ limit: INITIAL_MESSAGES }).catch(() => []);
       for (const msg of msgs) {
@@ -484,13 +604,22 @@ client.on('ready', async () => {
       (async () => {
         const pending = [];
         let cachedPhotos = 0, cachedVoice = 0, cachedVideo = 0;
+        // Ein abgelaufenes Medium liefert WhatsApp nie wieder aus. Ohne Gedaechtnis
+        // versucht der Start es jedes Mal erneut — deshalb Fehlversuche zaehlen.
+        let giveUp = 0;
         for (const [chatId, msgs] of messagesByChatId) {
+          if (!mediaAllowed(chatId)) continue; // Chat mit abgeschalteten Medien
           for (const m of msgs) {
             if (m.type === 'photo' || m.type === 'voice') {
               if (m.mediaFile) { if (m.type === 'photo') cachedPhotos++; else cachedVoice++; }
+              else if ((m.mediaTries || 0) >= MEDIA_MAX_TRIES) giveUp++;
               else pending.push({ chatId, m });
             } else if (m.type === 'video' && m.mediaFile) { cachedVideo++; }
           }
+        }
+        if (giveUp) {
+          console.log(`[INFO] ${giveUp} Nachricht(en) ohne abrufbares Medium — nach ${MEDIA_MAX_TRIES} Versuchen `
+            + 'wird es nicht erneut probiert (Medium bei WhatsApp abgelaufen)');
         }
         const cachedTotal = cachedPhotos + cachedVoice + cachedVideo;
         if (cachedTotal) {
@@ -502,19 +631,30 @@ client.on('ready', async () => {
         }
         if (!pending.length) return;
         console.log(`[INFO] Auto-downloading media for ${pending.length} message(s) in background…`);
-        let count = 0;
+        let count = 0, exhausted = 0;
         for (const { m } of pending) {
           try {
             const fullMsg = await client.getMessageById(m.id);
-            if (fullMsg) {
+            if (!fullMsg || !fullMsg.hasMedia) {
+              // Nachricht weg oder ohne Medienanhang — gar nicht erst weiter probieren
+              m.mediaTries = MEDIA_MAX_TRIES;
+              dbg(`auto-media: ${m.id} ohne abrufbares Medium — kein weiterer Versuch`);
+            } else {
               const file = await downloadWAMedia(fullMsg, m.id);
-              if (file) { m.mediaFile = file; count++; }
+              if (file) { m.mediaFile = file; m.mediaTries = 0; count++; }
+              else m.mediaTries = (m.mediaTries || 0) + 1;
             }
-          } catch (e) { dbg(`auto-media: error for ${m.id}: ${e.message}`); }
+          } catch (e) {
+            m.mediaTries = (m.mediaTries || 0) + 1;
+            dbg(`auto-media: error for ${m.id}: ${e.message}`);
+          }
+          if (!m.mediaFile && (m.mediaTries || 0) >= MEDIA_MAX_TRIES) exhausted++;
           await new Promise(r => setTimeout(r, 600));
         }
-        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} media file(s) downloaded`);
-        if (count) saveMsgs();
+        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} media file(s) downloaded`
+          + (exhausted ? ` — ${exhausted} endgueltig ohne Medium, wird beim naechsten Start uebersprungen` : ''));
+        // Auch ohne Erfolg sichern: die Zaehler sollen den Neustart ueberleben
+        saveMsgs();
       })();
     }
   } catch (err) {
@@ -565,13 +705,14 @@ client.on('message', async (msg) => {
   let type = 'text', mediaFile = null, filename = null, locLat = null, locLng = null, locName = '';
   if (isImage) {
     type = 'photo';
-    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    if (mediaAllowed(chatId)) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
   } else if (isPtt) {
     type = 'voice';
-    mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    // Sprachnachrichten kommen sonst immer mit — ausser der Chat ist ausgenommen
+    if (!mediaOffChats.has(chatId)) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   } else if (isLocation) {
     type = 'location';
     locLat = msg.location?.latitude ?? null;
@@ -606,7 +747,7 @@ client.on('message', async (msg) => {
   });
   _logSilent('DEBUG', `msg_in: from=${contactName} chat=${chatId} type=${type}${msg.body?' body="'+msg.body.slice(0,60)+'"':''}`);
   // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
-  if (added && type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+  if (added && type === 'photo' && mediaAllowed(chatId) && !mediaFile) {
     ensureMediaLater(chatId, msg.id._serialized);
   }
   if (added) {
@@ -650,7 +791,7 @@ client.on('message_create', async (msg) => {
   let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';
-    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    if (mediaAllowed(chatId)) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
@@ -682,7 +823,7 @@ client.on('message_create', async (msg) => {
     quotedMsg: quotedMsgDataOut,
   });
   // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
-  if (type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+  if (type === 'photo' && mediaAllowed(chatId) && !mediaFile) {
     ensureMediaLater(chatId, msg.id._serialized);
   }
 });
@@ -749,18 +890,73 @@ client.on('message_revoke_me', (msg) => {
 });
 
 client.on('message_ack', (msg, ack) => {
-  const ackNames = {1:'sent',2:'received',3:'read',4:'played'};
+  const ackNames = {'-1':'error',0:'pending',1:'sent',2:'received',3:'read',4:'played'};
   _logSilent('DEBUG', `message_ack: ${msg.id._serialized} → ${ackNames[ack]||ack}`);
+  // Ein Status mit ack -1 wurde vom WhatsApp-Server abgelehnt und erscheint auf
+  // keinem Geraet — das faellt sonst niemandem auf, weil der Versand "gelingt"
+  if (ack < 0 && String(msg.id?.remote || msg.to || '').includes('status@broadcast')) {
+    console.warn(`[WARN] Eigener Status wurde vom Server abgelehnt (ack=${ack}, id=${msg.id._serialized}) — er erscheint auf keinem Geraet`);
+  }
   const msgs = messagesByChatId.get(msg.to);
   if (msgs) {
     const stored = msgs.find(m => m.id === msg.id._serialized);
-    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); return; }
+    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); saveMsgs(); return; }
   }
   for (const list of messagesByChatId.values()) {
     const stored = list.find(m => m.id === msg.id._serialized);
-    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); break; }
+    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); saveMsgs(); break; }
   }
 });
+
+// ── Haken nachziehen ──────────────────────────────────────────────────────────
+// message_ack kommt nur, solange das Add-on laeuft und verbunden ist. Wird eine
+// Nachricht gelesen, waehrend es aus war, bleibt der Haken sonst fuer immer grau,
+// obwohl er auf dem Handy blau ist. Deshalb regelmaessig direkt bei WhatsApp
+// nachfragen — nur eigene Nachrichten, nur die juengsten, nur solange nicht
+// gelesen.
+const ACK_RESYNC_MINUTES = 5;
+const ACK_RESYNC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const ACK_RESYNC_BATCH = 25;
+let _ackResyncRunning = false;
+
+async function resyncAcks() {
+  if (status !== 'connected' || _ackResyncRunning) return;
+  _ackResyncRunning = true;
+  try {
+    const cutoff = Date.now() - ACK_RESYNC_MAX_AGE_MS;
+    const pending = [];
+    for (const msgs of messagesByChatId.values()) {
+      for (const m of msgs) {
+        if (!m.fromMe || m.deleted) continue;
+        if ((m.timestamp || 0) < cutoff) continue;
+        if ((m.ack || 0) >= 3) continue; // schon gelesen/abgespielt
+        pending.push(m);
+      }
+    }
+    if (!pending.length) return;
+    pending.sort((a, b) => b.timestamp - a.timestamp);
+    let changed = 0;
+    for (const m of pending.slice(0, ACK_RESYNC_BATCH)) {
+      try {
+        const fresh = await client.getMessageById(m.id).catch(() => null);
+        if (!fresh || typeof fresh.ack !== 'number') continue;
+        if (fresh.ack > (m.ack || 0)) { m.ack = fresh.ack; m.ackUpdatedAt = Date.now(); changed++; }
+      } catch (e) { dbg('resyncAcks:', e.message); }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    if (changed) {
+      saveMsgs();
+      _logSilent('DEBUG', `ack-resync: ${changed} von ${Math.min(pending.length, ACK_RESYNC_BATCH)} Haken nachgezogen`);
+    }
+  } finally {
+    _ackResyncRunning = false;
+  }
+}
+
+// Einmal kurz nach dem Start (holt nach, was waehrend der Auszeit gelesen wurde)
+setTimeout(() => { resyncAcks().catch(e => dbg('resyncAcks:', e.message)); }, 60000);
+setInterval(() => { resyncAcks().catch(e => dbg('resyncAcks:', e.message)); }, ACK_RESYNC_MINUTES * 60000);
+
 
 client.on('call', (call) => {
   _logSilent('INFO', `Incoming call from ${call.from} — type=${call.isVideo?'video':'audio'} id=${call.id}`);
@@ -889,7 +1085,7 @@ function formatNumber(to) {
 
 app.get('/api/status', (req, res) => {
   const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
-  res.json({ status, phone: connectedPhone, myJid, error: lastError });
+  res.json({ status, phone: connectedPhone, myJid, error: lastError, waWeb: waWebVersion, lib: WA_VERSION });
 });
 
 app.get('/api/qr', (req, res) => {
@@ -898,6 +1094,9 @@ app.get('/api/qr', (req, res) => {
 });
 
 app.get('/api/chats', (req, res) => {
+  // Offene LID-Aufloesungen im Hintergrund nachziehen (No-op, sobald alles bekannt ist),
+  // damit unter dem Chatnamen die echte Rufnummer steht und nicht die LID
+  if (status === 'connected') resolveChatNumbers().catch(() => {});
   const list = [...chatMap.values()].sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(list);
 });
@@ -913,12 +1112,124 @@ app.get('/api/stats', (req, res) => {
   res.json({ total: msgs.length, sent, received, photos, first });
 });
 
+// Pruefen, ob eine Rufnummer ueberhaupt bei WhatsApp ist — das kann die App
+// nicht, ohne die Nummer zu speichern und ihr zu schreiben. Die Anfrage geht an
+// WhatsApps Server, deshalb ein eigenes Limit gegen versehentliche Massenabfragen.
+const checkNumberLimit = rateLimit({ windowMs: 60_000, limit: 20 });
+
+app.get('/api/check-number', checkNumberLimit, async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const raw = String(req.query.number || '');
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) {
+    return res.status(400).json({ error: 'Rufnummer mit 7 bis 15 Ziffern erwartet', number: digits });
+  }
+  try {
+    const wid = await client.getNumberId(digits);
+    if (!wid) {
+      console.log(`[INFO] Nummernpruefung ${digits}: nicht bei WhatsApp`);
+      return res.json({ number: digits, exists: false });
+    }
+    const jid = wid._serialized || `${digits}@c.us`;
+    const out = { number: digits, exists: true, jid, name: '', about: '', hasProfilePic: false };
+    const contact = await client.getContactById(jid).catch(() => null);
+    if (contact) {
+      out.name = contact.name || contact.pushname || contact.shortName || '';
+      out.isMyContact = contact.isMyContact === true;
+      out.hasProfilePic = !!(await contact.getProfilePicUrl().catch(() => null));
+      out.about = (await contact.getAbout().catch(() => null)) || '';
+    }
+    // Existiert schon ein Chat, kann die Oberflaeche direkt dorthin springen
+    const index = buildChatIndex();
+    out.chatId = index.get(jid) || index.get(digits) || null;
+    console.log(`[INFO] Nummernpruefung ${digits}: bei WhatsApp${out.name ? ' (' + out.name + ')' : ''}`);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Suche ueber alle Chats. Zwei Quellen: der eigene Nachrichtenspeicher (dort
+// laesst sich anschliessend punktgenau hinspringen) und WhatsApps eigene Suche,
+// die auch aelteres findet, was hier nie gespeichert wurde — solche Treffer sind
+// als "nicht im Verlauf" gekennzeichnet und oeffnen nur den Chat.
+app.get('/api/search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ results: [], total: 0, tooShort: true });
+  const needle = q.toLowerCase();
+  const limit = Math.min(Math.max(parseInt(req.query.limit || '80', 10) || 80, 10), 300);
+
+  const results = [];
+  const seen = new Set();
+  for (const [chatId, msgs] of messagesByChatId.entries()) {
+    if (isFilteredChat(chatId)) continue;
+    const chat = chatMap.get(chatId);
+    for (const m of msgs) {
+      if (m.deleted) continue;
+      const body = m.body || '';
+      if (!body || !body.toLowerCase().includes(needle)) continue;
+      seen.add(m.id);
+      results.push({
+        chatId, chatName: chat?.name || chatId.split('@')[0], isGroup: !!chat?.isGroup,
+        msgId: m.id, body, timestamp: m.timestamp, fromMe: !!m.fromMe,
+        contact: m.contact || '', local: true,
+      });
+    }
+  }
+  const localCount = results.length;
+
+  let remoteCount = 0, remoteError = null;
+  if (req.query.remote !== '0' && status === 'connected') {
+    try {
+      const found = await client.searchMessages(q, { page: 0, limit: 40 });
+      for (const m of found || []) {
+        const id = m.id?._serialized || '';
+        const chatId = m.id?.remote || m.from || '';
+        if (!id || !chatId || seen.has(id) || isFilteredChat(chatId)) continue;
+        seen.add(id);
+        remoteCount++;
+        const chat = chatMap.get(chatId);
+        results.push({
+          chatId, chatName: chat?.name || chatId.split('@')[0], isGroup: chatId.endsWith('@g.us'),
+          msgId: id, body: m.body || '', timestamp: (m.timestamp || 0) * 1000,
+          fromMe: !!m.fromMe, contact: '', local: false,
+        });
+      }
+    } catch (e) {
+      remoteError = e.message;
+      dbg(`searchMessages("${q}"): ${e.message}`);
+    }
+  }
+
+  results.sort((a, b) => b.timestamp - a.timestamp);
+  const total = results.length;
+  console.log(`[INFO] Suche "${q}": ${total} Treffer (${localCount} aus dem Verlauf, ${remoteCount} zusaetzlich von WhatsApp)`);
+  res.json({
+    results: results.slice(0, limit), total, truncated: total > limit,
+    localCount, remoteCount, remoteError,
+  });
+});
+
 app.get('/api/messages', (req, res) => {
-  const { chat: chatId, since } = req.query;
+  const { chat: chatId, since, limit, before } = req.query;
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts) || (m.mediaUpdatedAt && m.mediaUpdatedAt > since_ts)) : msgs);
+  if (since_ts) {
+    // Laufende Aktualisierung des offenen Chats — unveraendert eine Liste
+    return res.json(msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts) || (m.mediaUpdatedAt && m.mediaUpdatedAt > since_ts)));
+  }
+
+  // Mit limit stueckweise laden: die juengsten n, aeltere spaeter ueber before.
+  // Ohne limit bleibt es bei der vollstaendigen Liste, damit vorhandene Aufrufer
+  // (Neuaufbau nach dem Loeschen) unveraendert funktionieren.
+  const lim = Math.min(Math.max(parseInt(limit || '0', 10) || 0, 0), 500);
+  if (!lim) return res.json(msgs);
+
+  const beforeTs = parseInt(before || '0', 10);
+  const pool = beforeTs ? msgs.filter(m => m.timestamp < beforeTs) : msgs;
+  const slice = pool.slice(-lim);
+  res.json({ messages: slice, more: pool.length > slice.length, total: msgs.length });
 });
 
 app.post('/api/send', async (req, res) => {
@@ -1025,10 +1336,12 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
 
 let _reconnecting = false;
 let _intentionalDisconnect = false;
+let _reconnectStartedAt = 0;
 
 async function doReconnect(reason) {
   if (_reconnecting || _intentionalDisconnect) return;
   _reconnecting = true;
+  _reconnectStartedAt = Date.now();
   status = 'initializing';
   connectedPhone = null;
   console.warn('[WARN] Auto-reconnect: %s', reason);
@@ -1044,11 +1357,16 @@ async function doReconnect(reason) {
   });
 }
 
-// Keep-alive: erkennt hängende Puppeteer-Instanzen alle 10 Minuten
+// Keep-alive: erkennt hängende Puppeteer-Instanzen und stille Socket-Drops.
+// getState() braucht einen eigenen Timeout — bei eingefrorenem Puppeteer kehrt
+// der Aufruf sonst nie zurück und der Ausfall bliebe unbemerkt.
 setInterval(async () => {
   if (status !== 'connected' || _reconnecting) return;
   try {
-    const state = await client.getState();
+    const state = await Promise.race([
+      client.getState(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getState timeout after 30s')), 30000)),
+    ]);
     if (state !== 'CONNECTED') {
       console.warn('[WARN] State check: state=%s — reconnecting…', state);
       doReconnect('state check: ' + state);
@@ -1059,7 +1377,38 @@ setInterval(async () => {
     console.warn('[WARN] State check failed (%s) — reconnecting…', e.message);
     doReconnect('state check error: ' + e.message);
   }
-}, 600000);
+}, 60000);
+
+// ── Auto-Retry: nicht dauerhaft auf 'error' stehen bleiben ───────────────────
+// Schlägt client.initialize() im Reconnect fehl, bleibt der Status sonst für
+// immer 'error' und nur ein Add-on-Neustart hilft.
+const WA_RETRY_BASE_MS      = 15000;
+const WA_RETRY_MAX_MS       = 300000;
+const WA_RECONNECT_STUCK_MS = 180000;
+let _waRetryDelay  = WA_RETRY_BASE_MS;
+let _waNextRetryAt = 0;
+
+setInterval(() => {
+  if (status === 'connected') { _waRetryDelay = WA_RETRY_BASE_MS; _waNextRetryAt = 0; return; }
+
+  // Hängender Reconnect (initialize() kehrt nie zurück) nach 3 Minuten freigeben
+  if (_reconnecting && _reconnectStartedAt && Date.now() - _reconnectStartedAt > WA_RECONNECT_STUCK_MS) {
+    console.warn('[WARN] Reconnect hängt seit %ss — Sperre aufgehoben',
+                 Math.round((Date.now() - _reconnectStartedAt) / 1000));
+    _reconnecting = false;
+    _reconnectStartedAt = 0;
+  }
+  if (_reconnecting || _intentionalDisconnect) return;
+  // Zustände, die auf den Nutzer warten, nicht automatisch wiederholen
+  if (status !== 'error' && status !== 'disconnected') return;
+  if (Date.now() < _waNextRetryAt) return;
+
+  _waNextRetryAt = Date.now() + _waRetryDelay;
+  console.warn('[WARN] Auto-Retry (status=%s, letzter Fehler: %s) — nächster Versuch in %ss',
+               status, lastError || '—', Math.round(_waRetryDelay / 1000));
+  _waRetryDelay = Math.min(_waRetryDelay * 2, WA_RETRY_MAX_MS);
+  doReconnect('auto retry after status=' + status);
+}, 10000);
 
 // Sammelt aktuell laufende Statusmeldungen aller Kontakte dauerhaft ein, solange
 // KEEP_DELETED aktiv ist — WhatsApp löscht Status nach 24h, unsere Kopie bleibt.
@@ -1103,6 +1452,7 @@ async function captureStatuses() {
     }
     if (dirty) {
       saveStatusArchive();
+      _archiveOverviewCache = null;
       console.log(`[INFO] captureStatuses: ${newCount} neue Statusmeldung(en) von ${chatsHit.size} Kontakt(en) archiviert`);
     } else {
       dbg(`captureStatuses: nichts Neues (${broadcasts.length} live Broadcast(s) geprüft)`);
@@ -1399,6 +1749,64 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   }
 });
 
+// ── Medien pro Chat: Stand abfragen und umschalten ────────────────────────────
+app.get('/api/chat-media', (req, res) => {
+  res.json({ global: DOWNLOAD_MEDIA, off: [...mediaOffChats] });
+});
+
+// Laeuft nach dem Wiedereinschalten im Hintergrund: holt nach, was waehrend der
+// abgeschalteten Zeit liegengeblieben ist.
+const _backfillRunning = new Set();
+async function backfillChatMedia(chatId) {
+  if (_backfillRunning.has(chatId)) return;
+  _backfillRunning.add(chatId);
+  try {
+    const msgs = messagesByChatId.get(chatId) || [];
+    const pending = msgs.filter(m => (m.type === 'photo' || m.type === 'voice') && !m.mediaFile && !m.deleted);
+    if (!pending.length) return;
+    console.log(`[INFO] chat-media: Lade ${pending.length} Medium/Medien in ${chatId} nach`);
+    let count = 0;
+    for (const m of pending) {
+      if (mediaOffChats.has(chatId)) break; // zwischenzeitlich wieder abgeschaltet
+      try {
+        const fullMsg = await client.getMessageById(m.id).catch(() => null);
+        if (!fullMsg || !fullMsg.hasMedia) { m.mediaTries = MEDIA_MAX_TRIES; continue; }
+        const file = await downloadWAMedia(fullMsg, m.id);
+        if (file) { m.mediaFile = file; m.mediaTries = 0; count++; }
+        else m.mediaTries = (m.mediaTries || 0) + 1;
+      } catch (e) {
+        m.mediaTries = (m.mediaTries || 0) + 1;
+        dbg(`backfillChatMedia: ${m.id}: ${e.message}`);
+      }
+      await new Promise(r => setTimeout(r, 600));
+    }
+    saveMsgs();
+    console.log(`[INFO] chat-media: ${count}/${pending.length} Medium/Medien in ${chatId} nachgeladen`);
+  } finally {
+    _backfillRunning.delete(chatId);
+  }
+}
+
+app.post('/api/chat-media', (req, res) => {
+  const chatId = String(req.body?.chatId || '');
+  if (!chatId) return res.status(400).json({ error: 'chatId required' });
+  const enabled = req.body?.enabled !== false;
+  if (enabled) {
+    const wasOff = mediaOffChats.delete(chatId);
+    saveChatMedia();
+    // Nur nachladen, wenn der Chat wirklich ausgenommen war — sonst laeuft der
+    // Nachlauf bei jedem Klick los
+    if (wasOff && DOWNLOAD_MEDIA && status === 'connected') {
+      backfillChatMedia(chatId).catch(e => dbg('backfillChatMedia:', e.message));
+    }
+  } else {
+    mediaOffChats.add(chatId);
+    saveChatMedia();
+  }
+  _logSilent('INFO', `chat-media: ${chatId} → ${enabled ? 'an' : 'aus'}`);
+  res.json({ success: true, chatId, enabled, global: DOWNLOAD_MEDIA });
+});
+
 app.post('/api/fetch-video', async (req, res) => {
   const { msgId, chatId } = req.body;
   if (!msgId || !chatId) return res.status(400).json({ error: 'msgId and chatId required' });
@@ -1525,6 +1933,7 @@ app.post('/api/delete-batch/:chatId', async (req, res) => {
       chat.lastMsg = '';
     }
   }
+  saveMsgs();
   console.log(`[INFO] Spam-Löschung: ${deleted}/${ids.length} gelöscht in Chat ${chatId}`);
   res.json({ deleted, failed });
 });
@@ -1580,6 +1989,107 @@ app.get('/api/avatar/:chatId', async (req, res) => {
   }
 });
 
+// Adressbuch von WhatsApp Web — auch Kontakte ohne (mehr) Chatverlauf, damit man
+// sie im Web-UI findet und anschreiben kann. getContacts() ist teuer, daher Cache;
+// ?refresh=1 erzwingt einen Neuaufbau.
+let _contactsCache = null;
+const CONTACTS_CACHE_MS = 300000;
+
+// WhatsApp fuehrt Chats inzwischen unter @lid-IDs, das Adressbuch aber unter
+// @c.us — die Zahl vor dem @ ist bei @lid eine interne LID, nicht die Rufnummer.
+// getContactById(<lid>) loest sie auf; Ergebnis dauerhaft merken (aendert sich nicht).
+let _resolvingChatNumbers = false;
+async function resolveChatNumbers() {
+  if (_resolvingChatNumbers) return;
+  const open = [...chatMap.keys()].filter(id => id.endsWith('@lid') && !lidNumberCache.has(id));
+  if (!open.length) return;
+  _resolvingChatNumbers = true;
+  let dirty = false;
+  try {
+    await Promise.all(open.map(async id => {
+      try {
+        const c = await client.getContactById(id);
+        const num = contactNumber(c, id);
+        if (num) {
+          lidNumberCache.set(id, num);
+          const chat = chatMap.get(id);
+          if (chat && chat.phone !== num) { chat.phone = num; dirty = true; }
+        }
+      } catch(e) { dbg(`resolveChatNumbers(${id}): ${e.message}`); }
+    }));
+  } finally {
+    _resolvingChatNumbers = false;
+  }
+  if (dirty) saveMsgs(); // chats.json enthaelt die korrigierten Nummern
+  dbg(`resolveChatNumbers: ${lidNumberCache.size} LID(s) aufgeloest`);
+}
+
+// Index ueber alle Einzelchats: Chat-ID und Rufnummer zeigen auf die Chat-ID,
+// damit ein Adressbuch-Kontakt seinen Chat unabhaengig vom ID-Format findet.
+function buildChatIndex() {
+  const index = new Map();
+  for (const [id, chat] of chatMap.entries()) {
+    if (!id || isFilteredChat(id) || id.endsWith('@g.us') || (chat && chat.isGroup)) continue;
+    index.set(id, id);
+    const user = id.split('@')[0];
+    if (/^\d{5,}$/.test(user) && !id.endsWith('@lid')) index.set(user, id);
+    const lidNum = lidNumberCache.get(id);
+    if (lidNum) index.set(lidNum, id);
+    const phone = chat && chat.phone ? String(chat.phone).replace(/\D/g, '') : '';
+    if (phone.length >= 5 && !id.endsWith('@lid')) index.set(phone, id);
+  }
+  return index;
+}
+
+app.get('/api/contacts', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const fresh = !req.query.refresh && _contactsCache && Date.now() - _contactsCache.ts < CONTACTS_CACHE_MS;
+  try {
+    if (!fresh) {
+      const all = await client.getContacts();
+      const byId = new Map(); // Chat-ID -> Eintrag
+      let cus = 0, lid = 0, other = 0, raw = 0;
+      for (const c of all) {
+        const id = c.id?._serialized;
+        if (!id || c.isMe || c.isGroup || isFilteredChat(id) || id.endsWith('@g.us')) continue;
+        if (!c.isMyContact) continue; // nur echtes Adressbuch, keine fremden Absender
+        raw++;
+        const number = contactNumber(c, id);
+        const name = c.name || c.shortName || c.pushname || number || id.split('@')[0];
+        const entry = { id, name, number, isGroup: false };
+        const prev = byId.get(id);
+        // Pro Person liefert WhatsApp mehrere Objekte mit derselben ID — den mit
+        // brauchbarer Rufnummer behalten, sonst den ersten
+        if (!prev) { byId.set(id, entry); if (id.endsWith('@c.us')) cus++; else if (id.endsWith('@lid')) lid++; else other++; }
+        else if (!prev.number && number) byId.set(id, entry);
+      }
+      const contacts = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      _contactsCache = { ts: Date.now(), contacts, kinds: { cus, lid, other, raw } };
+    }
+    // hasChat NICHT mitcachen: chatMap kann sich jederzeit aendern (und war beim
+    // ersten Aufruf kurz nach dem Start womoeglich noch leer)
+    await resolveChatNumbers();
+    const index = buildChatIndex();
+    const contacts = _contactsCache.contacts.map(c => {
+      const chatId = index.get(c.id) || (c.number ? index.get(c.number) : null) || null;
+      return { ...c, chatId, hasChat: !!chatId };
+    });
+    const data = {
+      contacts,
+      total: contacts.length,
+      withoutChat: contacts.filter(c => !c.hasChat).length,
+    };
+    if (!fresh) {
+      const k = _contactsCache.kinds;
+      console.log(`[INFO] Adressbuch geladen: ${data.total} Kontakt(e) aus ${k.raw} Rohobjekten (${k.cus} @c.us, ${k.lid} @lid, ${k.other} sonstige), `
+        + `${data.total - data.withoutChat} mit Chat; Chat-Index: ${index.size} Schluessel, ${lidNumberCache.size} LID(s) aufgeloest`);
+    }
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/contact/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1599,12 +2109,397 @@ app.get('/api/contact/:chatId', async (req, res) => {
       number,
       about: about || '',
       isMyContact: contact.isMyContact || false,
+      isBlocked: contact.isBlocked === true,
       hasProfilePic: !!picUrl,
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
 });
+
+// Zusatzangaben zu einem Kontakt, die WhatsApp Web kennt, die App aber nicht
+// (Geraetezahl) oder die eigene Aufrufe kosten (gemeinsame Gruppen). Bewusst ein
+// eigener Endpunkt, damit das Kontaktfenster nicht langsamer aufgeht.
+app.get('/api/contact/:chatId/extra', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (chatId.endsWith('@g.us')) return res.json({ commonGroups: [], deviceCount: null });
+  const out = { commonGroups: [], deviceCount: null };
+  try {
+    const groups = await client.getCommonGroups(chatId).catch(() => []);
+    for (const g of groups || []) {
+      const id = g?._serialized || g?.id?._serialized || (typeof g === 'string' ? g : '');
+      if (!id) continue;
+      let name = chatMap.get(id)?.name || '';
+      if (!name) {
+        const chat = await client.getChatById(id).catch(() => null);
+        name = chat?.name || id.split('@')[0];
+      }
+      out.commonGroups.push({ id, name });
+    }
+    out.commonGroups.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  } catch (e) { dbg(`commonGroups(${chatId}): ${e.message}`); }
+  try {
+    // Ein normales Konto mit einer Web-Sitzung meldet 2 (Telefon + Web)
+    const n = await client.getContactDeviceCount(chatId);
+    if (typeof n === 'number' && n > 0) out.deviceCount = n;
+  } catch (e) { dbg(`deviceCount(${chatId}): ${e.message}`); }
+  res.json(out);
+});
+
+// ── Blockieren ────────────────────────────────────────────────────────────────
+// contact.block()/unblock() sind in der Bibliothek vorhanden und regeln die
+// LID-Umrechnung selbst. Gruppen lassen sich nicht blockieren.
+
+let _blockedCache = null;
+const BLOCKED_CACHE_MS = 60000;
+
+app.get('/api/blocked', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  // getBlockedContacts() holt pro Eintrag ein Kontaktobjekt aus der Seite — fuer
+  // eine Anzeige, die staendig gebraucht wird, kurz zwischenspeichern
+  if (!req.query.refresh && _blockedCache && Date.now() - _blockedCache.ts < BLOCKED_CACHE_MS) {
+    return res.json({ contacts: _blockedCache.contacts, cached: true });
+  }
+  try {
+    const list = await client.getBlockedContacts();
+    const payload = {
+      contacts: list.map(c => ({
+        id: c.id?._serialized || '',
+        name: c.name || c.pushname || c.shortName || c.id?.user || '',
+        number: contactNumber(c, c.id?._serialized || ''),
+      })).filter(c => c.id),
+    };
+    _blockedCache = { ts: Date.now(), contacts: payload.contacts };
+    res.json(payload);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/contact/:chatId/block', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (chatId.endsWith('@g.us')) return res.status(400).json({ error: 'Gruppen lassen sich nicht blockieren' });
+  try {
+    const contact = await client.getContactById(chatId);
+    if (!contact) throw new Error('Kontakt nicht gefunden');
+    await contact.block();
+    _blockedCache = null;
+    console.log(`[INFO] Kontakt blockiert: ${chatId}`);
+    res.json({ success: true, isBlocked: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/contact/:chatId/unblock', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (chatId.endsWith('@g.us')) return res.status(400).json({ error: 'Gruppen lassen sich nicht blockieren' });
+  try {
+    const contact = await client.getContactById(chatId);
+    if (!contact) throw new Error('Kontakt nicht gefunden');
+    await contact.unblock();
+    _blockedCache = null;
+    console.log(`[INFO] Blockierung aufgehoben: ${chatId}`);
+    res.json({ success: true, isBlocked: false });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Zuletzt online ────────────────────────────────────────────────────────────
+// whatsapp-web.js kann nur die eigene Praesenz senden, fremde nicht lesen.
+// WhatsApp Web selbst fuehrt sie in der PresenceCollection: das Modell hat
+// subscribe(), isOnline und darunter chatstate mit type, t (Zeitpunkt) und deny
+// (Sichtbarkeit vom Kontakt verboten). Ohne Abo kommen keine Daten, deshalb erst
+// abonnieren, dann kurz auf die Antwort warten.
+// Eigene Verfuegbarkeit im Seiten-Kontext setzen. WhatsApp liefert fremde
+// Praesenz nur an Geraete, die sich selbst als verfuegbar melden — man wird
+// dadurch aber fuer die Kontakte sichtbar online.
+async function setOwnPresence(available) {
+  if (!client.pupPage) return false;
+  try {
+    return await client.pupPage.evaluate((av) => {
+      try {
+        const b = window.require('WAWebContactPresenceBridge');
+        if (av) b.setPresenceAvailable(); else b.setPresenceUnavailable();
+        return true;
+      } catch (e) { return false; }
+    }, available);
+  } catch (e) { return false; }
+}
+
+// Zaehler statt einfachem An/Aus: zwei gleichzeitige Abfragen sollen sich nicht
+// gegenseitig abmelden, und nach der letzten wird mit kurzer Karenz abgemeldet,
+// damit schnelles Durchklicken nicht dauernd an- und ausschaltet.
+let _presenceHolds = 0;
+let _presenceOffTimer = null;
+const PRESENCE_OFF_DELAY_MS = 2000;
+
+async function holdOwnPresence() {
+  if (_presenceOffTimer) { clearTimeout(_presenceOffTimer); _presenceOffTimer = null; }
+  _presenceHolds++;
+  if (_presenceHolds === 1) {
+    const ok = await setOwnPresence(true);
+    dbg(`presence: als verfuegbar gemeldet (${ok ? 'ok' : 'fehlgeschlagen'})`);
+  }
+}
+
+function releaseOwnPresence() {
+  _presenceHolds = Math.max(0, _presenceHolds - 1);
+  if (_presenceHolds > 0) return;
+  if (_presenceOffTimer) clearTimeout(_presenceOffTimer);
+  _presenceOffTimer = setTimeout(async () => {
+    _presenceOffTimer = null;
+    if (_presenceHolds > 0) return;
+    const ok = await setOwnPresence(false);
+    dbg(`presence: wieder abgemeldet (${ok ? 'ok' : 'fehlgeschlagen'})`);
+  }, PRESENCE_OFF_DELAY_MS);
+}
+
+app.get('/api/presence/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  if (chatId.endsWith('@g.us')) return res.json({ supported: false });
+  // Ohne eigene "verfuegbar"-Meldung schickt WhatsApp keine fremde Praesenz
+  const mode = req.query.announce === '1' ? 'always'
+             : req.query.announce === '0' ? 'off'
+             : PRESENCE_MODE;
+  const announce = mode !== 'off';
+  const temporary = mode === 'temporary';
+  if (announce) await holdOwnPresence();
+  try {
+    const p = await client.pupPage.evaluate(async (chatId, waitMs) => {
+      const out = { supported: true, how: null, isOnline: null, hasData: null,
+                    stale: null, isSubscribed: null, type: null, t: null, deny: null, error: null };
+      const read = (model) => {
+        const cs = model.chatstate || {};
+        out.isOnline = !!model.isOnline;
+        out.hasData = !!model.hasData;
+        out.stale = !!model.stale;
+        out.isSubscribed = !!model.isSubscribed;
+        out.type = cs.type != null ? cs.type : null;
+        out.t = cs.t != null ? cs.t : null;
+        out.deny = cs.deny != null ? !!cs.deny : null;
+      };
+      const settled = (model) => {
+        const cs = model.chatstate || {};
+        return !!model.hasData || cs.t != null || cs.deny != null || cs.type === 'available';
+      };
+      const waitFor = async (model, ms) => {
+        const deadline = Date.now() + ms;
+        while (Date.now() < deadline) {
+          if (settled(model)) return true;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        return settled(model);
+      };
+      try {
+        const wid = window.require('WAWebWidFactory').createWid(chatId);
+        const PC = window.require('WAWebPresenceCollection').PresenceCollection;
+        let model = PC.get(wid);
+        if (!model) { try { model = await PC.find(wid); } catch (e) {} }
+        if (!model) { out.error = 'keine Praesenz zu dieser ID'; return out; }
+
+        // Das echte Abo: model.subscribe() ist nur ein collection.find() und
+        // sendet nichts. Der Auftrag dafuer ist sendUserPresenceSubscription.
+        try {
+          await window.require('WAWebSendPresenceSubscriptionJob').sendUserPresenceSubscription(wid);
+          out.how = 'sendUserPresenceSubscription';
+        } catch (e) {
+          out.error = 'subscription: ' + String((e && e.message) || e);
+          try {
+            if (typeof model.subscribe === 'function') { await model.subscribe(); out.how = 'model.subscribe'; }
+          } catch (e2) {}
+        }
+
+        await waitFor(model, waitMs);
+        read(model);
+      } catch (e) {
+        out.error = String((e && e.message) || e);
+      }
+      return out;
+    }, chatId, 6000);
+
+    // chatstate.t kommt in Sekunden — auf Millisekunden bringen, aber nur wenn es
+    // plausibel ist (sonst lieber nichts anzeigen als eine erfundene Zeit)
+    let lastSeen = null;
+    if (typeof p.t === 'number' && p.t > 1000000000 && p.t < 1e12) lastSeen = p.t * 1000;
+    else if (typeof p.t === 'number' && p.t >= 1e12) lastSeen = p.t;
+
+    dbg(`presence(${chatId}): ${JSON.stringify(p)}`);
+    res.json({
+      supported: true,
+      online: p.type === 'available' || p.isOnline === true,
+      lastSeen,
+      denied: p.deny === true,
+      // Kein Zeitpunkt und keine Verweigerung: WhatsApp hat schlicht nichts geliefert
+      unknown: !p.deny && lastSeen === null && p.type !== 'available',
+      mode,
+      raw: DEBUG ? p : undefined,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    if (announce && temporary) releaseOwnPresence();
+  }
+});
+
+// ── Zuletzt-online-Übersicht ──────────────────────────────────────────────────
+// Ein Rundlauf abonniert die Praesenz aller bekannten Einzelkontakte, wartet
+// einmal auf die asynchronen Antworten und liest dann alle Modelle aus. Das ist
+// deutlich sparsamer als eine Abfrage pro Kontakt — kostet aber die eigene
+// Verfuegbarkeitsmeldung fuer die Dauer des Rundlaufs.
+const PRESENCE_FILE = '/config/presence.json';
+const PRESENCE_MAX_CONTACTS = 300;
+const presenceCache = new Map(); // chatId -> { online, lastSeen, denied, ts }
+
+try {
+  if (existsSync(PRESENCE_FILE)) {
+    const data = JSON.parse(fs.readFileSync(PRESENCE_FILE, 'utf8'));
+    for (const [id, e] of Object.entries(data)) presenceCache.set(id, e);
+    console.log(`[INFO] Loaded last-seen data for ${presenceCache.size} contacts from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadPresence:', e.message); }
+
+let presenceSaveTimer = null;
+function savePresence() {
+  if (presenceSaveTimer) clearTimeout(presenceSaveTimer);
+  presenceSaveTimer = setTimeout(() => {
+    try { fs.writeFileSync(PRESENCE_FILE, JSON.stringify(Object.fromEntries(presenceCache))); }
+    catch (e) { console.error('[ERROR] savePresence:', e.message); }
+  }, 3000);
+}
+
+// Alle Einzelkontakte, fuer die eine Praesenz sinnvoll ist: erst die mit Chat,
+// danach das restliche Adressbuch, bis die Obergrenze erreicht ist.
+function presenceCandidates() {
+  const ids = [];
+  const seen = new Set();
+  const add = (id) => {
+    if (!id || seen.has(id) || id.endsWith('@g.us') || isFilteredChat(id)) return;
+    seen.add(id); ids.push(id);
+  };
+  for (const [id, chat] of chatMap.entries()) if (!chat?.isGroup) add(id);
+  if (_contactsCache) for (const c of _contactsCache.contacts) add(c.chatId || c.id);
+  return ids.slice(0, PRESENCE_MAX_CONTACTS);
+}
+
+let _presenceScanRunning = false;
+let _presenceLastScan = 0;
+
+async function scanPresence() {
+  if (status !== 'connected' || !client.pupPage) return { scanned: 0, skipped: 'nicht verbunden' };
+  if (_presenceScanRunning) return { scanned: 0, skipped: 'laeuft bereits' };
+  const ids = presenceCandidates();
+  if (!ids.length) return { scanned: 0, skipped: 'keine Kontakte' };
+
+  _presenceScanRunning = true;
+  const announce = PRESENCE_MODE !== 'off';
+  if (announce) await holdOwnPresence();
+  try {
+    const t0 = Date.now();
+    const raw = await client.pupPage.evaluate(async (ids, waitMs, chunk) => {
+      const WF = window.require('WAWebWidFactory');
+      const PC = window.require('WAWebPresenceCollection').PresenceCollection;
+      const JOB = window.require('WAWebSendPresenceSubscriptionJob');
+      const models = [];
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        try {
+          const wid = WF.createWid(id);
+          let m = PC.get(wid);
+          if (!m) { try { m = await PC.find(wid); } catch (e) {} }
+          if (!m) continue;
+          models.push([id, m]);
+          try { await JOB.sendUserPresenceSubscription(wid); } catch (e) {}
+        } catch (e) {}
+        // In Haeppchen, damit der Socket nicht in einem Rutsch geflutet wird
+        if (chunk > 0 && (i + 1) % chunk === 0) await new Promise(r => setTimeout(r, 250));
+      }
+      // Einmal auf die asynchronen Antworten warten, dann alles auslesen
+      await new Promise(r => setTimeout(r, waitMs));
+      const out = {};
+      for (const [id, m] of models) {
+        const cs = m.chatstate || {};
+        out[id] = {
+          online: cs.type === 'available' || m.isOnline === true,
+          t: cs.t != null ? cs.t : null,
+          deny: cs.deny != null ? !!cs.deny : null,
+          hasData: !!m.hasData,
+        };
+      }
+      return out;
+    }, ids, 9000, 25);
+
+    let withData = 0;
+    const now = Date.now();
+    for (const [id, r] of Object.entries(raw || {})) {
+      let lastSeen = null;
+      if (typeof r.t === 'number' && r.t > 1000000000 && r.t < 1e12) lastSeen = r.t * 1000;
+      else if (typeof r.t === 'number' && r.t >= 1e12) lastSeen = r.t;
+      // Nichts erhalten? Alten Wert behalten statt ihn mit Leere zu ueberschreiben
+      const prev = presenceCache.get(id);
+      if (!r.hasData && lastSeen === null && r.deny === null && !r.online) {
+        if (prev) presenceCache.set(id, { ...prev, checkedAt: now });
+        continue;
+      }
+      withData++;
+      presenceCache.set(id, {
+        online: !!r.online,
+        lastSeen: lastSeen !== null ? lastSeen : (prev ? prev.lastSeen : null),
+        denied: r.deny === true,
+        ts: now,
+        checkedAt: now,
+      });
+    }
+    savePresence();
+    _presenceLastScan = now;
+    console.log(`[INFO] Praesenz-Rundlauf: ${Object.keys(raw || {}).length} Kontakt(e) abgefragt, `
+      + `${withData} mit Daten, ${Math.round((Date.now() - t0) / 1000)}s`);
+    return { scanned: Object.keys(raw || {}).length, withData };
+  } catch (e) {
+    console.warn('[WARN] scanPresence:', e.message);
+    return { scanned: 0, error: e.message };
+  } finally {
+    _presenceScanRunning = false;
+    if (announce && PRESENCE_MODE === 'temporary') releaseOwnPresence();
+  }
+}
+
+app.get('/api/presence-overview', async (req, res) => {
+  if (req.query.refresh === '1') await scanPresence();
+  const index = status === 'connected' ? buildChatIndex() : new Map();
+  const nameFor = (id) => {
+    const chat = chatMap.get(id) || chatMap.get(index.get(id) || '');
+    if (chat && chat.name) return chat.name;
+    const c = _contactsCache && _contactsCache.contacts.find(x => x.id === id || x.chatId === id);
+    return (c && c.name) || id.split('@')[0];
+  };
+  const contacts = [...presenceCache.entries()].map(([id, e]) => ({
+    id, name: nameFor(id), online: !!e.online, lastSeen: e.lastSeen || null,
+    denied: !!e.denied, checkedAt: e.checkedAt || e.ts || null,
+  }));
+  // Online zuerst, dann nach letztem Zeitpunkt, Unbekanntes ans Ende
+  contacts.sort((a, b) => (b.online - a.online) || ((b.lastSeen || 0) - (a.lastSeen || 0))
+    || a.name.localeCompare(b.name, 'de'));
+  res.json({
+    contacts,
+    total: contacts.length,
+    lastScan: _presenceLastScan || null,
+    running: _presenceScanRunning,
+    intervalMinutes: PRESENCE_SCAN_MINUTES,
+    mode: PRESENCE_MODE,
+  });
+});
+
+if (PRESENCE_SCAN_MINUTES > 0) {
+  setInterval(() => { scanPresence().catch(() => {}); }, PRESENCE_SCAN_MINUTES * 60000);
+  console.log(`[INFO] Praesenz-Rundlauf alle ${PRESENCE_SCAN_MINUTES} Minuten aktiv`);
+}
 
 app.get('/api/statuses-available', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1645,6 +2540,1360 @@ app.get('/api/status/:chatId', async (req, res) => {
   }
 });
 
+// ── Eigenes Profil + eigener Status ───────────────────────────────────────────
+// WhatsApp kennt zwei verschiedene "Status": den 24h-Status (Story, laeuft ueber
+// den Pseudo-Chat status@broadcast) und den Info-Text im Profil (setStatus).
+// Beides haengt hier am selben "Mein Profil"-Eintrag im Kontakte-Reiter.
+
+const STATUS_BROADCAST_JID = 'status@broadcast';
+const STATUS_TEMPLATES_FILE = '/config/status_templates.json';
+const STATUS_TPL_DIR = '/config/status_templates';
+let statusTemplates = [];
+
+try { fs.mkdirSync(STATUS_TPL_DIR, { recursive: true }); } catch (e) {}
+try {
+  if (existsSync(STATUS_TEMPLATES_FILE)) {
+    const data = JSON.parse(fs.readFileSync(STATUS_TEMPLATES_FILE, 'utf8'));
+    if (Array.isArray(data)) statusTemplates = data;
+    console.log(`[INFO] Loaded ${statusTemplates.length} status template(s) from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadStatusTemplates:', e.message); }
+
+function saveStatusTemplates() {
+  try {
+    fs.writeFileSync(STATUS_TEMPLATES_FILE, JSON.stringify(statusTemplates));
+  } catch (e) { console.error('[ERROR] saveStatusTemplates:', e.message); }
+}
+
+// Absoluter Pfad einer Vorlagendatei, oder null wenn der Name aus dem Verzeichnis ausbricht
+function templateMediaPath(name) {
+  if (!name || !/^[\w.-]+$/.test(name)) return null;
+  const fp = path.resolve(STATUS_TPL_DIR, name);
+  return fp.startsWith(path.resolve(STATUS_TPL_DIR) + path.sep) ? fp : null;
+}
+
+function myJid() {
+  const wid = client.info?.wid?._serialized;
+  if (wid) return wid;
+  return connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
+}
+
+// Wandelt Broadcast-Nachrichten in das Format der Statusliste im Frontend um
+const MY_STATUS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+async function mapStatusMsgs(raw) {
+  const msgs = [];
+  for (const m of raw || []) {
+    // Zurueckgezogene Meldungen bleiben in der WhatsApp-Web-Sammlung stehen —
+    // sie gehoeren nicht in die Liste der laufenden Status
+    if (m.type === 'revoked' || m.isRevoked === true || m.revokeTimestamp) continue;
+    // ack -1 heisst: vom WhatsApp-Server abgelehnt. Solche Eintraege bleiben in
+    // der Sammlung liegen, sind aber nie bei jemandem angekommen
+    if (typeof m.ack === 'number' && m.ack < 0) continue;
+    // Nach 24 Stunden laeuft ein Status ab; aeltere Eintraege sind Karteileichen
+    const ts = (m.timestamp || 0) * 1000;
+    if (ts && Date.now() - ts >= MY_STATUS_MAX_AGE_MS) continue;
+    const isImage = m.type === 'image';
+    const isVideo = m.type === 'video';
+    let mediaFile = null;
+    if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
+      mediaFile = await downloadWAMedia(m, m.id._serialized || m.id.id).catch(() => null);
+    }
+    msgs.push({
+      id: m.id._serialized || m.id.id,
+      type: isImage ? 'photo' : isVideo ? 'video' : 'text',
+      body: m.body || '',
+      timestamp: m.timestamp * 1000,
+      mediaFile,
+    });
+  }
+  return msgs.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+app.get('/api/me', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const jid = myJid();
+  try {
+    let about = '', name = '';
+    if (jid) {
+      const contact = await client.getContactById(jid).catch(() => null);
+      if (contact) {
+        name = contact.pushname || contact.name || '';
+        about = await contact.getAbout().catch(() => null) || '';
+      }
+    }
+    res.json({
+      jid,
+      number: connectedPhone || (jid ? jid.split('@')[0] : ''),
+      name: name || client.info?.pushname || '',
+      about,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Info-Text im Profil (nicht die 24h-Story)
+app.post('/api/me/about', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const about = typeof req.body?.about === 'string' ? req.body.about.slice(0, 139) : null;
+  if (about === null) return res.status(400).json({ error: 'about required' });
+  try {
+    await client.setStatus(about);
+    res.json({ success: true, about });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Eigene laufende Statusmeldungen (24h)
+// WhatsApp fuehrt den eigenen Status unter der LID des Kontos, nicht unter der
+// Rufnummer — getBroadcastById('<rufnummer>@c.us') findet ihn deshalb nicht und
+// die Liste blieb leer, obwohl der Status auf dem Handy zu sehen war.
+// Status.getMyStatus() liefert die richtige ID direkt aus WhatsApp Web.
+let _myStatusIdCache = null;
+async function myStatusChatId() {
+  if (!client.pupPage) return _myStatusIdCache;
+  try {
+    const id = await client.pupPage.evaluate(() => {
+      try {
+        const st = window.require('WAWebCollections').Status.getMyStatus();
+        return (st && st.id && st.id._serialized) || null;
+      } catch (e) { return null; }
+    });
+    if (id && id !== _myStatusIdCache) {
+      _myStatusIdCache = id;
+      console.log(`[INFO] Eigener Status laeuft unter ${id}`);
+    }
+  } catch (e) { dbg('myStatusChatId: ' + e.message); }
+  return _myStatusIdCache;
+}
+
+app.get('/api/my-status', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    // Reihenfolge: die von WhatsApp gemeldete Status-ID (LID), dann die Rufnummer
+    const candidates = [];
+    const own = await myStatusChatId();
+    if (own) candidates.push(own);
+    const jid = myJid();
+    if (jid && !candidates.includes(jid)) candidates.push(jid);
+
+    let raw = [];
+    for (const id of candidates) {
+      const b = await client.getBroadcastById(id).catch(() => null);
+      if (b && b.msgs && b.msgs.length) { raw = b.msgs; break; }
+    }
+    if (!raw.length && candidates.length) {
+      // Letzter Ausweg: in der Sammelliste nach einer der eigenen IDs suchen
+      const users = candidates.map(c => c.split('@')[0]);
+      const all = await client.getBroadcasts().catch(() => []);
+      const mine = all.find(x => candidates.includes(x.id?._serialized) || users.includes(x.id?.user));
+      if (mine && mine.msgs) raw = mine.msgs;
+    }
+    res.json({ msgs: await mapStatusMsgs(raw), chatId: candidates[0] || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Diagnose: zeigt, welche Felder die WhatsApp-Status-Aktionen tatsaechlich
+// annehmen. Der Quelltext ist minifiziert, die destrukturierten Parameternamen
+// bleiben aber lesbar — daran laesst sich z.B. ablesen, wie eine Link-Vorschau
+// mitgegeben wird, ohne raten zu muessen.
+app.get('/api/my-status/diag', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  try {
+    const out = await client.pupPage.evaluate(() => {
+      const src = (fn) => (typeof fn === 'function' ? String(fn).slice(0, 3000) : null);
+      const safe = (fn) => { try { return fn(); } catch (e) { return 'FEHLER: ' + ((e && e.message) || e); } };
+      const sendMod = safe(() => window.require('WAWebSendStatusMsgAction'));
+      const gate = safe(() => window.require('WAWebStatusGatingUtils'));
+      const flags = {};
+      if (gate && typeof gate === 'object') {
+        for (const k of Object.keys(gate)) {
+          if (typeof gate[k] === 'function') flags[k] = safe(() => gate[k]());
+          else flags[k] = gate[k];
+        }
+      }
+      const my = safe(() => {
+        const st = window.require('WAWebCollections').Status.getMyStatus();
+        if (!st) return null;
+        // Rohfelder mitgeben: daran laesst sich ablesen, woran eine auf dem Handy
+        // geloeschte Statusmeldung zu erkennen ist
+        const list = (st.msgs && st.msgs.getModelsArray ? st.msgs.getModelsArray() : (st.msgs || []));
+        const msgs = [].slice.call(list, 0, 20).map((m) => {
+          const out = {};
+          for (const k of ['type', 'subtype', 'body', 't', 'ack', 'isRevoked', 'revokedTime', 'star',
+                           'isNewMsg', 'invis', 'isSentByMe', 'stale', 'deleteTime', 'expireTimestamp']) {
+            if (m && m[k] !== undefined) out[k] = typeof m[k] === 'object' ? JSON.stringify(m[k]).slice(0, 120) : m[k];
+          }
+          try { out.id = m.id && m.id._serialized; } catch (e) {}
+          try { out.allKeys = Object.keys(m.attributes || m).slice(0, 60); } catch (e) {}
+          return out;
+        });
+        return { id: st.id && st.id._serialized, total: st.totalCount, count: msgs.length, msgs };
+      });
+      return {
+        myStatus: my,
+        sendModuleKeys: sendMod && typeof sendMod === 'object' ? Object.keys(sendMod) : sendMod,
+        sendStatusTextMsgAction: sendMod ? src(sendMod.sendStatusTextMsgAction) : null,
+        sendStatusMediaMsgAction: sendMod ? src(sendMod.sendStatusMediaMsgAction) : null,
+        gatingFlags: flags,
+      };
+    });
+    if (req.query.deep === '1') out.deep = await probeStatusSource();
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Diagnose: Datenschutzeinstellungen ────────────────────────────────────────
+// whatsapp-web.js kennt dafuer keine API. Ob WhatsApp Web selbst ein brauchbares
+// Modul mitbringt ("wer sieht meinen Status / zuletzt online / Profilbild"),
+// laesst sich nur an der laufenden Sitzung feststellen. Diese Sonde schaut nach
+// und veraendert nichts: aufgerufen werden ausschliesslich Funktionen, deren
+// Name mit get/is/has beginnt und die keine Parameter nehmen.
+const PRIVACY_MODULE_CANDIDATES = [
+  'WAWebPrivacySettings',
+  'WAWebPrivacySettingsModel',
+  'WAWebPrivacySettingsCollection',
+  'WAWebPrivacySettingsBridge',
+  'WAWebSetPrivacySettingsAction',
+  'WAWebPrivacySettingsAction',
+  'WAWebQueryPrivacySettingsJob',
+  'WAWebSetPrivacyForOneCategoryAction',
+  'WAWebSetPrivacyJob',
+  'WAWebStatusPrivacySettingAction',
+  'WAWebMexGetPrivacySetting',
+  'WAWebMexGetPrivacyList',
+  'WAWebApiPrivacyDisallowedList',
+  'WAWebQueryPrivacyDisallowedListUtil',
+  'WAWebStatusPrivacyContactsUtils',
+  'WAWebPrivacyGatingUtils',
+  'WAWebSchemaPrivacyDisallowedList',
+  'WAWebWid',
+  'WAWebLidMigrationUtils',
+];
+
+async function probePrivacyModules() {
+  return client.pupPage.evaluate(async (names) => {
+    const sig = (fn) => {
+      try {
+        const s = String(fn);
+        const i = s.indexOf(')');
+        return s.slice(0, i > 0 ? i + 1 : 120).replace(/\s+/g, ' ').slice(0, 160);
+      } catch (e) { return null; }
+    };
+    const out = {};
+    for (const name of names) {
+      let mod;
+      try { mod = window.require(name); }
+      catch (e) { out[name] = { found: false, error: String((e && e.message) || e).slice(0, 120) }; continue; }
+      if (!mod) { out[name] = { found: false }; continue; }
+      const entry = { found: true, keys: [], values: {} };
+      let keys = [];
+      try { keys = Object.keys(mod); } catch (e) {}
+      entry.keys = keys.slice(0, 60);
+      for (const k of keys.slice(0, 60)) {
+        let v;
+        try { v = mod[k]; } catch (e) { continue; }
+        if (typeof v === 'function') {
+          entry.values[k] = 'fn ' + sig(v);
+          // Nur eindeutig lesende, parameterlose Funktionen wirklich aufrufen
+          if (/^(get|is|has|read|query)/.test(k) && v.length === 0) {
+            try {
+              let r = v.call(mod);
+              // getPrivacy() & Co. antworten asynchron — den Wert wirklich holen
+              if (r && typeof r.then === 'function') {
+                r = await Promise.race([r, new Promise(res2 => setTimeout(() => res2('ZEITUEBERSCHREITUNG'), 8000))]);
+              }
+              entry.values[k] += ' → ' + JSON.stringify(r).slice(0, 1500);
+            } catch (e) { entry.values[k] += ' → FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
+          }
+        } else if (v && typeof v === 'object') {
+          try { entry.values[k] = 'obj ' + JSON.stringify(v).slice(0, 200); }
+          catch (e) { entry.values[k] = 'obj [nicht serialisierbar]'; }
+        } else {
+          entry.values[k] = typeof v + ' ' + String(v).slice(0, 120);
+        }
+      }
+      out[name] = entry;
+    }
+    // Sammlungen von WhatsApp Web mit "privacy" im Namen mitnehmen
+    try {
+      const col = window.require('WAWebCollections');
+      out._collections = Object.keys(col).filter(k => /privacy|blocklist|status/i.test(k));
+    } catch (e) { out._collections = 'FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
+    return out;
+  }, PRIVACY_MODULE_CANDIDATES);
+}
+
+// Der zuverlaessige Weg an die echten Modulnamen: WhatsApp Web fuehrt seine
+// Modulliste im Registry-Modul '__debug'. Der Bundle-Scan darunter bleibt als
+// Ausweichweg, falls das Registry-Modul mal verschwindet.
+async function listPrivacyModuleNames() {
+  return client.pupPage.evaluate(() => {
+    const pick = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+        if (obj[key] && typeof obj[key] === 'object') return obj[key];
+      }
+      return null;
+    };
+    let reg = null, via = null;
+    try { reg = pick(window.require('__debug')); if (reg) via = "require('__debug')"; } catch (e) {}
+    if (!reg) { try { reg = pick(window.__debug); if (reg) via = 'window.__debug'; } catch (e) {} }
+    if (!reg) return { via: null, total: 0, names: [], error: 'kein Registry-Modul gefunden' };
+    let all = [];
+    try { all = Object.keys(reg); } catch (e) { return { via, total: 0, names: [], error: String((e && e.message) || e) }; }
+    const re = /privacy|lastseen|last_seen|readreceipt|read_receipt|profilepic|groupadd|group_add|onlinevisib/i;
+    return { via, total: all.length, names: all.filter(n => re.test(n)).sort().slice(0, 200) };
+  });
+}
+
+// Ausweichweg: die echten Namen aus den geladenen Bundles fischen.
+async function scanPrivacyModuleNames() {
+  return client.pupPage.evaluate(async () => {
+    const deadline = Date.now() + 45000;
+    const urls = new Set();
+    for (const e of performance.getEntriesByType('resource')) {
+      if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) urls.add(e.name);
+    }
+    for (const sc of document.scripts) if (sc.src) urls.add(sc.src);
+    const sameOrigin = [...urls].filter(u => { try { return new URL(u).origin === location.origin; } catch (e) { return false; } });
+    const names = new Set();
+    let scanned = 0, bytes = 0;
+    const re = /WAWeb[A-Za-z0-9]*[Pp]rivacy[A-Za-z0-9]*/g;
+    for (const url of sameOrigin) {
+      if (Date.now() > deadline) break;
+      let text = '';
+      try { const r = await fetch(url); if (!r.ok) continue; text = await r.text(); }
+      catch (e) { continue; }
+      scanned++; bytes += text.length;
+      let m;
+      while ((m = re.exec(text)) !== null) { names.add(m[0]); if (names.size > 200) break; }
+    }
+    return { scannedFiles: scanned, scannedBytes: bytes, candidateFiles: sameOrigin.length, names: [...names].sort() };
+  });
+}
+
+// GET /api/privacy/diag         — bekannte Modulnamen durchprobieren (schnell)
+// GET /api/privacy/diag?scan=1  — zusaetzlich die Bundles nach echten Namen durchsuchen (dauert)
+// GET /api/privacy/diag?scan=1&probeFound=1 — die gefundenen Namen gleich mit durchprobieren
+app.get('/api/privacy/diag', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  try {
+    const out = { lib: WA_VERSION, waWeb: waWebVersion, modules: await probePrivacyModules() };
+    out.registry = await listPrivacyModuleNames();
+    if (req.query.scan === '1') out.scan = await scanPrivacyModuleNames();
+    {
+      const found = [...(out.registry.names || []), ...((out.scan && out.scan.names) || [])];
+      if (req.query.probeFound === '1' && found.length) {
+        const extra = [...new Set(found)].filter(n => !PRIVACY_MODULE_CANDIDATES.includes(n)).slice(0, 40);
+        out.probedFromScan = await client.pupPage.evaluate((names) => {
+          const sig = (fn) => {
+            try { const s = String(fn); const i = s.indexOf(')'); return s.slice(0, i > 0 ? i + 1 : 120).replace(/\s+/g, ' ').slice(0, 160); }
+            catch (e) { return null; }
+          };
+          const out = {};
+          for (const name of names) {
+            try {
+              const mod = window.require(name);
+              if (!mod) { out[name] = 'leer'; continue; }
+              const entry = {};
+              for (const k of Object.keys(mod).slice(0, 40)) {
+                let v; try { v = mod[k]; } catch (e) { continue; }
+                entry[k] = typeof v === 'function' ? 'fn ' + sig(v) : typeof v;
+              }
+              out[name] = entry;
+            } catch (e) { out[name] = 'FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
+          }
+          return out;
+        }, extra);
+      }
+    }
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Aktueller Stand der Datenschutzeinstellungen — reines Lesen.
+// getPrivacy() liefert das, was WhatsApp Web selbst in seinen Einstellungen zeigt.
+app.get('/api/privacy', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  try {
+    const out = await client.pupPage.evaluate(async () => {
+      const safe = async (fn) => { try { return await fn(); } catch (e) { return { error: String((e && e.message) || e).slice(0, 200) }; } };
+      const settings = await safe(async () => window.require('WAWebQueryPrivacySettingsJob').getPrivacy());
+      const values = await safe(async () => {
+        const p = window.require('WAWebPrivacySettings');
+        return { visibility: p.VISIBILITY, onlineVisibility: p.ONLINE_VISIBILITY, allNone: p.ALL_NONE, allContacts: p.ALL_CONTACTS, callAdd: p.CALL_ADD };
+      });
+      return { settings, allowedValues: values };
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Was sich setzen laesst und mit welchen Werten. Die Namen sind die, die
+// getPrivacy() zurueckgibt; WhatsApp Web rechnet sie selbst in seine
+// Server-Namen um (privacyWebNameToServerName).
+const PRIVACY_CATEGORIES = {
+  lastSeen:       ['all', 'contacts', 'contact_blacklist', 'none'],
+  online:         ['all', 'match_last_seen'],
+  profilePicture: ['all', 'contacts', 'contact_blacklist', 'none'],
+  about:          ['all', 'contacts', 'contact_blacklist', 'none'],
+  readReceipts:   ['all', 'none'],
+  groupAdd:       ['all', 'contacts', 'contact_blacklist'],
+  callAdd:        ['all', 'known', 'contacts'],
+};
+
+// Datenschutzeinstellung aendern. Body: { name, value }
+app.post('/api/privacy', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const name = String(req.body?.name || '');
+  const value = String(req.body?.value || '');
+  const allowed = PRIVACY_CATEGORIES[name];
+  if (!allowed) return res.status(400).json({ error: 'unbekannte Kategorie', allowed: Object.keys(PRIVACY_CATEGORIES) });
+  if (!allowed.includes(value)) return res.status(400).json({ error: 'unzulaessiger Wert', allowed });
+  // "Meine Kontakte ausser ..." braucht die Ausnahmeliste als WhatsApp-IDs.
+  // Die wird hier nicht gepflegt — lieber ehrlich ablehnen als eine leere Liste
+  // schicken und damit still die bestehende Ausnahmeliste loeschen.
+  if (value === 'contact_blacklist') {
+    return res.status(400).json({ error: 'contact_blacklist_unsupported',
+      hint: 'Die Ausnahmeliste laesst sich hier nicht pflegen — diese Einstellung nur am Handy aendern.' });
+  }
+  try {
+    const out = await client.pupPage.evaluate(async (name, value) => {
+      try {
+        const mod = window.require('WAWebSetPrivacyForOneCategoryAction');
+        const serverName = mod.privacyWebNameToServerName(name);
+        if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + name };
+        await mod.setPrivacyForOneCategory({ name: serverName, value }, null);
+        const settings = await window.require('WAWebQueryPrivacySettingsJob').getPrivacy();
+        return { ok: true, serverName, settings };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, name, value);
+    if (!out.ok) return res.status(500).json({ error: out.error });
+    // Ehrlich pruefen statt Erfolg zu behaupten: der neue Stand kommt frisch von WhatsApp
+    const applied = out.settings && out.settings[name];
+    _logSilent('INFO', `privacy: ${name} → ${value}${applied === value ? '' : ` (WhatsApp meldet ${applied})`}`);
+    res.json({ success: applied === value, name, value, applied, settings: out.settings });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Die Ausnahmeliste zu "Meine Kontakte, ausser ...". WhatsApp fuehrt sie pro
+// Kategorie getrennt; die Typen stehen in WAWebSchemaPrivacyDisallowedList.
+const DISALLOWED_TYPES = {
+  lastSeen: 'LastSeen',
+  about: 'About',
+  profilePicture: 'ProfilePicture',
+  groupAdd: 'GroupAdd',
+};
+
+// GET /api/privacy/disallowed?category=lastSeen — nur lesen
+app.get('/api/privacy/disallowed', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const category = String(req.query.category || 'lastSeen');
+  const typeName = DISALLOWED_TYPES[category];
+  if (!typeName) return res.status(400).json({ error: 'unbekannte Kategorie', allowed: Object.keys(DISALLOWED_TYPES) });
+  try {
+    const out = await client.pupPage.evaluate(async (typeName) => {
+      try {
+        const schema = window.require('WAWebSchemaPrivacyDisallowedList');
+        const type = schema.PrivacyDisallowedListType[typeName];
+        if (type === undefined) {
+          return { error: 'Typ nicht gefunden', known: Object.keys(schema.PrivacyDisallowedListType || {}) };
+        }
+        const util = window.require('WAWebQueryPrivacyDisallowedListUtil');
+        const col = window.require('WAWebCollections');
+        const result = await util.queryPrivacyDisallowedList(type);
+        // Die Liste kommt als LID-Wids. Eine LID ist keine Rufnummer, deshalb hier
+        // gleich Name und - wenn bekannt - Rufnummer dazuholen; sonst steht in der
+        // Oberflaeche nur eine nichtssagende Zahlenkolonne.
+        const entries = ((result && result.users) || []).map((w) => {
+          const id = (w && (w._serialized || String(w))) || '';
+          const out = { id, name: '', number: '' };
+          try {
+            const c = col.Contact.get(w) || col.Contact.get(id);
+            if (c) {
+              out.name = c.name || c.pushname || c.formattedName || c.verifiedName || '';
+              // phoneNumber kommt je nach Fassung als Wid oder als '49…@c.us'
+              const pn = c.phoneNumber || (c.id && c.id.user);
+              if (pn) out.number = String(pn._serialized || pn).split('@')[0].replace(/^\+/, '');
+            }
+          } catch (e) {}
+          if (!out.number) {
+            try {
+              const pn = window.require('WAWebLidMigrationUtils').toPn(w);
+              if (pn) out.number = String(pn._serialized || pn).split('@')[0];
+            } catch (e) {}
+          }
+          return out;
+        });
+        return {
+          type: String(type),
+          lidMigrated: util.isPrivacyDisallowedListTypeLidMigrated(),
+          status: result && result.status,
+          dhash: result && result.dhash,
+          count: entries.length,
+          entries,
+        };
+      } catch (e) {
+        return { error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, typeName);
+    if (out.error) return res.status(500).json(out);
+    res.json({ category, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Ausnahmeliste aendern und die Kategorie dabei auf "contact_blacklist" stellen.
+// Body: { category, add: [chatId...], remove: [chatId...] }
+// WhatsApp pflegt die Liste schrittweise: setPrivacy bekommt nur die Aenderungen
+// (users mit action add/remove) plus den dhash des aktuellen Standes. Die
+// vollstaendige Liste danach braucht nur die lokale Spiegelung.
+app.post('/api/privacy/disallowed', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const category = String(req.body?.category || '');
+  const typeName = DISALLOWED_TYPES[category];
+  if (!typeName) return res.status(400).json({ error: 'unbekannte Kategorie', allowed: Object.keys(DISALLOWED_TYPES) });
+  const clean = (v) => Array.isArray(v) ? [...new Set(v.map(x => String(x || '')).filter(Boolean))].slice(0, 500) : [];
+  const add = clean(req.body?.add);
+  const remove = clean(req.body?.remove);
+  if (!add.length && !remove.length) return res.status(400).json({ error: 'add oder remove erforderlich' });
+  try {
+    const out = await client.pupPage.evaluate(async (category, typeName, add, remove) => {
+      const ser = (w) => { try { return w && (w._serialized || String(w)); } catch (e) { return null; } };
+      try {
+        const schema = window.require('WAWebSchemaPrivacyDisallowedList');
+        const type = schema.PrivacyDisallowedListType[typeName];
+        const util = window.require('WAWebQueryPrivacyDisallowedListUtil');
+        const setMod = window.require('WAWebSetPrivacyForOneCategoryAction');
+        const col = window.require('WAWebCollections');
+        const serverName = setMod.privacyWebNameToServerName(category);
+        if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + category };
+
+        // WhatsApp erwartet Wid-Objekte, keine Zeichenketten. Statt selbst eine
+        // Wid zu bauen, die vorhandene aus Kontakt oder Chat nehmen.
+        const resolve = (id) => {
+          try { const c = col.Contact.get(id); if (c && c.id) return c.id; } catch (e) {}
+          try { const c = col.Chat.get(id); if (c && c.id) return c.id; } catch (e) {}
+          // Kontakt nicht in den Sammlungen: Kennung selbst bauen (dieselbe
+          // Fabrik, die die Praesenz-Abfrage schon nutzt)
+          try { const w = window.require('WAWebWidFactory').createWid(id); if (w) return w; } catch (e) {}
+          return null;
+        };
+        const unresolved = [];
+        const addWids = [], removeWids = [];
+        for (const id of add) { const w = resolve(id); if (w) addWids.push(w); else unresolved.push(id); }
+        for (const id of remove) { const w = resolve(id); if (w) removeWids.push(w); else unresolved.push(id); }
+        if (!addWids.length && !removeWids.length) return { ok: false, error: 'kein Kontakt aufloesbar', unresolved };
+
+        const before = await util.queryPrivacyDisallowedList(type);
+        const beforeUsers = (before && before.users) || [];
+        const dhash = before && before.dhash;
+
+        // Vollstaendige Liste nach der Aenderung — nur fuer die lokale Spiegelung
+        const removeSet = new Set(removeWids.map(ser));
+        const addSet = new Set(addWids.map(ser));
+        const after = beforeUsers.filter(w => !removeSet.has(ser(w)) && !addSet.has(ser(w))).concat(addWids);
+
+        const users = [
+          ...addWids.map(wid => ({ action: 'add', wid })),
+          ...removeWids.map(wid => ({ action: 'remove', wid })),
+        ];
+        await setMod.setPrivacyForOneCategory(
+          { name: serverName, value: 'contact_blacklist', users, dhash }, after);
+
+        const afterList = await util.queryPrivacyDisallowedList(type);
+        const settings = await window.require('WAWebQueryPrivacySettingsJob').getPrivacy();
+        return {
+          ok: true,
+          unresolved,
+          added: addWids.map(ser),
+          removed: removeWids.map(ser),
+          list: ((afterList && afterList.users) || []).map(ser),
+          status: afterList && afterList.status,
+          settings,
+        };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, category, typeName, add, remove);
+    if (!out.ok) return res.status(500).json(out);
+    _logSilent('INFO', `privacy-list: ${category} +${out.added.length} -${out.removed.length} → ${out.list.length} Eintrag/Eintraege`);
+    res.json({ success: true, category, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Selbsttest: haelt WhatsApp Web noch, worauf wir bauen? ────────────────────
+// Das Add-on greift an mehreren Stellen in die Innereien von WhatsApp Web. Die
+// benennt WhatsApp bei Umbauten gern um — dann bricht ein Teil weg, waehrend der
+// Rest weiterlaeuft, und man merkt es erst, wenn man die Stelle zufaellig nutzt.
+// Der Selbsttest prueft alle diese Stellen auf einmal und meldet, was fehlt.
+// Aufgerufen wird dabei nichts — nur nachgesehen, ob es da ist.
+const WA_INTERNALS = [
+  { mod: 'WAWebCollections',                 need: ['Contact', 'Chat', 'Status'],                        feature: 'Kontakte, Chats, Status' },
+  { mod: 'WAWebWidFactory',                  need: ['createWid'],                                        feature: 'Kennungen bauen' },
+  { mod: 'WAWebLidMigrationUtils',           need: ['toLid', 'toPn'],                                    feature: 'LID/Rufnummer-Umrechnung' },
+  { mod: 'WAWebPresenceCollection',          need: ['PresenceCollection'],                               feature: 'Zuletzt online' },
+  { mod: 'WAWebSendPresenceSubscriptionJob', need: ['sendUserPresenceSubscription'],                     feature: 'Zuletzt online' },
+  { mod: 'WAWebContactPresenceBridge',       need: ['setPresenceAvailable', 'setPresenceUnavailable'],   feature: 'eigene Verfuegbarkeit' },
+  { mod: 'WAWebSendStatusMsgAction',         need: ['sendStatusTextMsgAction', 'sendStatusMediaMsgAction'], feature: 'Status posten' },
+  { mod: 'WAWebStatusGatingUtils',           need: [],                                                   feature: 'Status-Schalter des Kontos', optional: true },
+  { mod: 'WAWebQueryPrivacySettingsJob',     need: ['getPrivacy'],                                       feature: 'Datenschutz lesen' },
+  { mod: 'WAWebSetPrivacyForOneCategoryAction', need: ['privacyWebNameToServerName', 'setPrivacyForOneCategory'], feature: 'Datenschutz aendern' },
+  { mod: 'WAWebPrivacySettings',             need: ['VISIBILITY', 'ONLINE_VISIBILITY', 'CALL_ADD'],      feature: 'zulaessige Datenschutz-Werte' },
+  { mod: 'WAWebSchemaPrivacyDisallowedList', need: ['PrivacyDisallowedListType'],                        feature: 'Ausnahmeliste' },
+  { mod: 'WAWebQueryPrivacyDisallowedListUtil', need: ['queryPrivacyDisallowedList', 'isPrivacyDisallowedListTypeLidMigrated'], feature: 'Ausnahmeliste lesen' },
+  { mod: 'WAWebStatusPrivacySettingAction',  need: ['getStatusPrivacySetting', 'setStatusPrivacyAllowList', 'setStatusPrivacyDenyList', 'setStatusPrivacyContact'], feature: 'Status-Publikum' },
+  { mod: 'WAWebStatusPrivacyContactsUtils',  need: ['convertPrivacyListContactsToWids'],                 feature: 'Status-Publikum' },
+  { mod: '__debug',                          need: [],                                                   feature: 'Modulliste (Diagnose)', optional: true },
+];
+
+// ── Zweite Stufe: sieht das Ergebnis noch aus wie erwartet? ───────────────────
+// Ein Modul kann da sein und trotzdem etwas anderes liefern als frueher — genau
+// so kam damals die Umstellung von @c.us auf @lid bei den Chats. Deshalb hier
+// nicht nur nachsehen, ob es die Funktion gibt, sondern sie lesend aufrufen und
+// die Form der Antwort pruefen. Aufgerufen werden ausschliesslich Leser.
+const KNOWN_JID_SUFFIXES = ['c.us', 'g.us', 'lid', 'broadcast', 'newsletter', 'bot', 'call', 's.whatsapp.net'];
+
+async function runShapeCheck() {
+  if (status !== 'connected' || !client.pupPage) return [];
+  const inPage = await client.pupPage.evaluate(async (categories) => {
+    const res = [];
+    const add = (name, feature, ok, note) => res.push({ name, feature, ok, note });
+    const jidOk = (id) => /@(c\.us|lid|g\.us)$/.test(String(id || ''));
+
+    // 1) Datenschutzeinstellungen: erwartete Schluessel und bekannte Werte
+    try {
+      const cfg = await window.require('WAWebQueryPrivacySettingsJob').getPrivacy();
+      if (!cfg || typeof cfg !== 'object') {
+        add('privacySettings', 'Datenschutz lesen', false, 'getPrivacy() liefert kein Objekt');
+      } else {
+        const fehlend = Object.keys(categories).filter(k => cfg[k] === undefined);
+        const fremd = [];
+        for (const [k, erlaubt] of Object.entries(categories)) {
+          const v = cfg[k];
+          if (v !== undefined && !erlaubt.includes(v)) fremd.push(k + '=' + v);
+        }
+        add('privacySettings', 'Datenschutz lesen', fehlend.length === 0 && fremd.length === 0,
+          [fehlend.length ? 'fehlende Felder: ' + fehlend.join(', ') : '',
+           fremd.length ? 'unbekannte Werte: ' + fremd.join(', ') : ''].filter(Boolean).join(' · '));
+      }
+    } catch (e) { add('privacySettings', 'Datenschutz lesen', false, String((e && e.message) || e).slice(0, 140)); }
+
+    // 2) Ausnahmeliste: {status, users, dhash} mit Kennungen in bekannter Form
+    try {
+      const schema = window.require('WAWebSchemaPrivacyDisallowedList');
+      const type = schema.PrivacyDisallowedListType.LastSeen;
+      const r = await window.require('WAWebQueryPrivacyDisallowedListUtil').queryPrivacyDisallowedList(type);
+      if (!r || typeof r !== 'object') {
+        add('disallowedList', 'Ausnahmeliste', false, 'Antwort ist kein Objekt');
+      } else if (!Array.isArray(r.users)) {
+        add('disallowedList', 'Ausnahmeliste', false, 'Feld users fehlt — Antwort hat jetzt: ' + Object.keys(r).join(', '));
+      } else {
+        const schlecht = r.users.filter(w => !jidOk(w && (w._serialized || String(w)))).length;
+        add('disallowedList', 'Ausnahmeliste', schlecht === 0,
+          schlecht ? schlecht + ' Eintrag/Eintraege in unbekannter Kennungsform' : '');
+      }
+    } catch (e) { add('disallowedList', 'Ausnahmeliste', false, String((e && e.message) || e).slice(0, 140)); }
+
+    // 3) Status-Publikum: {setting, allowList, denyList}
+    try {
+      const cfg = await window.require('WAWebStatusPrivacySettingAction').getStatusPrivacySetting();
+      if (!cfg || typeof cfg !== 'object') {
+        add('statusPrivacy', 'Status-Publikum', false, 'Antwort ist kein Objekt');
+      } else {
+        const modus = String(cfg.setting ?? '');
+        const listenDa = Array.isArray(cfg.allowList) && Array.isArray(cfg.denyList);
+        const modusBekannt = /contact|deny|allow/i.test(modus);
+        add('statusPrivacy', 'Status-Publikum', listenDa && modusBekannt,
+          [!listenDa ? 'allowList/denyList fehlen — vorhanden: ' + Object.keys(cfg).join(', ') : '',
+           !modusBekannt ? 'unbekannter Modus: ' + (modus || '(leer)') : ''].filter(Boolean).join(' · '));
+      }
+    } catch (e) { add('statusPrivacy', 'Status-Publikum', false, String((e && e.message) || e).slice(0, 140)); }
+
+    return res;
+  }, PRIVACY_CATEGORIES);
+
+  // 4) Kennungsformen der eigenen Daten — hier faellt auf, wenn WhatsApp die
+  //    Chats auf ein neues Format umstellt, so wie damals von @c.us auf @lid
+  const suffixe = {};
+  for (const id of chatMap.keys()) {
+    const m = String(id).split('@')[1];
+    if (m) suffixe[m] = (suffixe[m] || 0) + 1;
+  }
+  const unbekannt = Object.keys(suffixe).filter(x => !KNOWN_JID_SUFFIXES.includes(x));
+  inPage.push({
+    name: 'chatIdFormats',
+    feature: 'Chat- und Kontaktkennungen',
+    ok: unbekannt.length === 0,
+    note: unbekannt.length ? 'neue Kennungsform: ' + unbekannt.join(', ') : '',
+    detail: suffixe,
+  });
+  return inPage;
+}
+
+const WAWEB_STATE_FILE = '/config/waweb_state.json';
+let _lastSelfCheck = null;
+
+async function runSelfCheck() {
+  if (status !== 'connected' || !client.pupPage) return null;
+  const result = await client.pupPage.evaluate((specs) => {
+    const out = [];
+    for (const spec of specs) {
+      let mod = null, err = null;
+      try { mod = window.require(spec.mod); } catch (e) { err = String((e && e.message) || e).slice(0, 120); }
+      if (!mod) { out.push({ ...spec, ok: false, reason: err ? 'Modul-Fehler: ' + err : 'Modul fehlt' }); continue; }
+      const missing = spec.need.filter((k) => {
+        try { return mod[k] === undefined || mod[k] === null; } catch (e) { return true; }
+      });
+      out.push({ ...spec, ok: missing.length === 0, missing });
+    }
+    return out;
+  }, WA_INTERNALS);
+
+  const broken = result.filter(r => !r.ok && !r.optional);
+  const degraded = result.filter(r => !r.ok && r.optional);
+
+  // Zweite Stufe nur, wenn die Bausteine ueberhaupt da sind — sonst scheitert
+  // sie zwangslaeufig und meldet dasselbe Problem ein zweites Mal
+  let shape = [];
+  if (!broken.length) {
+    try { shape = await runShapeCheck(); }
+    catch (e) { dbg('runShapeCheck:', e.message); }
+  }
+  const changed = shape.filter(r => !r.ok);
+
+  _lastSelfCheck = {
+    ts: Date.now(),
+    waWeb: waWebVersion,
+    lib: WA_VERSION,
+    ok: broken.length === 0 && changed.length === 0,
+    checked: result.length,
+    checkedShape: shape.length,
+    broken: broken.map(r => ({ mod: r.mod, feature: r.feature, missing: r.missing, reason: r.reason })),
+    degraded: degraded.map(r => ({ mod: r.mod, feature: r.feature, missing: r.missing, reason: r.reason })),
+    changed: changed.map(r => ({ name: r.name, feature: r.feature, note: r.note })),
+    shape,
+  };
+  if (broken.length) {
+    console.warn(`[WARN] Selbsttest: ${broken.length} von ${result.length} Bausteinen fehlen — `
+      + 'WhatsApp Web hat vermutlich umgebaut. Betroffen: '
+      + broken.map(r => `${r.feature} (${r.mod}${r.missing && r.missing.length ? ': ' + r.missing.join(', ') : ''})`).join(' | '));
+  } else if (changed.length) {
+    console.warn('[WARN] Selbsttest: Bausteine sind alle da, aber WhatsApp antwortet anders als erwartet — '
+      + changed.map(r => `${r.feature}: ${r.note}`).join(' | '));
+  } else {
+    console.log(`[INFO] Selbsttest: alle ${result.length} WhatsApp-Web-Bausteine vorhanden`
+      + (shape.length ? `, ${shape.length} Antwortformen unveraendert` : '')
+      + (degraded.length ? ` (${degraded.length} optionale fehlen)` : ''));
+  }
+  return _lastSelfCheck;
+}
+
+// Eine neue WhatsApp-Web-Fassung ist der Moment, in dem etwas wegbrechen kann —
+// deshalb wird sie gemerkt und ein Wechsel deutlich ins Log geschrieben.
+function noteWaWebVersion() {
+  if (!waWebVersion) return;
+  let prev = null;
+  try {
+    if (existsSync(WAWEB_STATE_FILE)) prev = JSON.parse(fs.readFileSync(WAWEB_STATE_FILE, 'utf8'));
+  } catch (e) { dbg('noteWaWebVersion (lesen):', e.message); }
+  if (prev && prev.waWeb && prev.waWeb !== waWebVersion) {
+    console.log(`[INFO] WhatsApp Web hat sich geaendert: ${prev.waWeb} → ${waWebVersion} `
+      + '— der Selbsttest sagt gleich, ob noch alles sitzt');
+  }
+  try {
+    fs.writeFileSync(WAWEB_STATE_FILE, JSON.stringify({ waWeb: waWebVersion, lib: WA_VERSION, seen: Date.now() }));
+  } catch (e) { dbg('noteWaWebVersion (schreiben):', e.message); }
+}
+
+// Kurz nach dem Start und danach alle sechs Stunden
+setTimeout(() => { noteWaWebVersion(); runSelfCheck().catch(e => dbg('runSelfCheck:', e.message)); }, 90000);
+setInterval(() => { runSelfCheck().catch(e => dbg('runSelfCheck:', e.message)); }, 6 * 60 * 60 * 1000);
+
+// GET /api/selfcheck        — letztes Ergebnis (oder frisch, wenn noch keins da ist)
+// GET /api/selfcheck?run=1  — jetzt pruefen
+app.get('/api/selfcheck', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  try {
+    const data = (req.query.run === '1' || !_lastSelfCheck) ? await runSelfCheck() : _lastSelfCheck;
+    if (!data) return res.status(503).json({ error: 'keine Browser-Seite' });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Publikum der Statusmeldungen ──────────────────────────────────────────────
+// Laeuft getrennt von den uebrigen Datenschutzeinstellungen: eigene Module,
+// eigene Modi und — anders als bei "Zuletzt online" — wird die Liste immer
+// vollstaendig gesetzt, nicht schrittweise.
+//   Contact   = alle Kontakte
+//   DenyList  = alle Kontakte ausser den genannten
+//   AllowList = nur die genannten
+app.get('/api/privacy/status', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const wantRaw = req.query.raw === '1';
+  try {
+    const out = await client.pupPage.evaluate(async (wantRaw) => {
+      // Unbekannte Rueckgaben beschreiben statt blind serialisieren: WhatsApp
+      // arbeitet mit Wid-Objekten, die Zyklen enthalten koennen.
+      const describe = (v, depth) => {
+        if (v === null || v === undefined) return v;
+        const t = typeof v;
+        if (t === 'string' || t === 'number' || t === 'boolean') return v;
+        if (t === 'function') return 'fn';
+        if (Array.isArray(v)) return depth <= 0 ? '[' + v.length + ' Eintraege]' : v.slice(0, 50).map(x => describe(x, depth - 1));
+        const out = {};
+        let own = [];
+        try { own = Object.keys(v).slice(0, 40); } catch (e) {}
+        for (const k of own) {
+          try { out[k] = depth <= 0 ? String(v[k]).slice(0, 80) : describe(v[k], depth - 1); }
+          catch (e) { out[k] = 'FEHLER'; }
+        }
+        for (const k of ['_serialized', 'user', 'server']) {
+          if (out[k] === undefined && v[k] !== undefined) {
+            try { out[k] = String(v[k]).slice(0, 80); } catch (e) {}
+          }
+        }
+        try { out.__str = String(v).slice(0, 120); } catch (e) {}
+        return out;
+      };
+      try {
+        const act = window.require('WAWebStatusPrivacySettingAction');
+        const col = window.require('WAWebCollections');
+        const cfg = await act.getStatusPrivacySetting();
+        // Die Rueckgabe ist { setting: 'deny-list' | 'allow-list' | ..., allowList, denyList }.
+        // Beide Listen bleiben nebeneinander bestehen, deshalb die zum Modus
+        // passende nehmen — sonst zeigt eine liegengebliebene Liste falsche Namen.
+        const rawMode = String((cfg && (cfg.setting ?? cfg.type ?? cfg.mode)) ?? '');
+        const lowMode = rawMode.toLowerCase();
+        let rawList = [], listKey = null;
+        if (cfg) {
+          if (lowMode.includes('allow') && Array.isArray(cfg.allowList)) { rawList = cfg.allowList; listKey = 'allowList'; }
+          else if (lowMode.includes('deny') && Array.isArray(cfg.denyList)) { rawList = cfg.denyList; listKey = 'denyList'; }
+          else {
+            // Unbekannte Fassung: erstes Feld mit gefuellter Liste
+            for (const k of Object.keys(cfg)) {
+              if (Array.isArray(cfg[k]) && cfg[k].length) { rawList = cfg[k]; listKey = k; break; }
+            }
+          }
+        }
+        const entries = rawList.map((w) => {
+          const id = (w && (w._serialized || String(w))) || '';
+          const out = { id, name: '', number: '' };
+          try {
+            const c = col.Contact.get(w) || col.Contact.get(id);
+            if (c) {
+              out.name = c.name || c.pushname || c.formattedName || c.verifiedName || '';
+              const pn = c.phoneNumber || (c.id && c.id.user);
+              if (pn) out.number = String(pn._serialized || pn).split('@')[0].replace(/^\+/, '');
+            }
+          } catch (e) {}
+          if (!out.number && id.endsWith('@c.us')) out.number = id.split('@')[0];
+          return out;
+        });
+        // Der Wert des Modus kommt aus einem Enum ('deny-list'), dessen
+        // Schreibweise sich aendern kann — deshalb roh mitgeben und grob einordnen
+        const raw = rawMode;
+        const mode = lowMode.includes('allow') ? 'allow' : lowMode.includes('deny') ? 'deny' : 'contacts';
+        const out = { ok: true, mode, raw, listKey, count: entries.length, entries };
+        if (wantRaw) { out.cfgKeys = cfg ? Object.keys(cfg) : null; out.cfg = describe(cfg, 4); }
+        return out;
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, wantRaw);
+    if (!out.ok) return res.status(500).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/privacy/status — { mode: 'contacts' | 'deny' | 'allow', ids: [...] }
+app.post('/api/privacy/status', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const mode = String(req.body?.mode || '');
+  if (!['contacts', 'deny', 'allow'].includes(mode)) {
+    return res.status(400).json({ error: 'mode muss contacts, deny oder allow sein' });
+  }
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map(x => String(x || '')).filter(Boolean))].slice(0, 500) : [];
+  if (mode !== 'contacts' && !ids.length) {
+    return res.status(400).json({ error: 'ids erforderlich', hint: 'Ohne Kontakte waere die Einstellung wirkungslos.' });
+  }
+  try {
+    const out = await client.pupPage.evaluate(async (mode, ids) => {
+      try {
+        const act = window.require('WAWebStatusPrivacySettingAction');
+        if (mode === 'contacts') {
+          await act.setStatusPrivacyContact();
+        } else {
+          const col = window.require('WAWebCollections');
+          const utils = window.require('WAWebStatusPrivacyContactsUtils');
+          // WhatsApp rechnet die Kontaktmodelle selbst in WIDs um (Rufnummer
+          // oder LID, je nach Kontakt) — genau diesen Weg hier mitgehen.
+          const models = [], unresolved = [];
+          for (const id of ids) {
+            let m = null;
+            try { m = col.Contact.get(id); } catch (e) {}
+            if (!m) { try { const ch = col.Chat.get(id); m = ch && ch.contact; } catch (e) {} }
+            if (m) models.push(m); else unresolved.push(id);
+          }
+          if (!models.length) return { ok: false, error: 'kein Kontakt aufloesbar', unresolved };
+          const wids = utils.convertPrivacyListContactsToWids(models);
+          if (!wids || !wids.length) return { ok: false, error: 'keine WID ermittelbar', unresolved };
+          if (mode === 'allow') await act.setStatusPrivacyAllowList(wids);
+          else await act.setStatusPrivacyDenyList(wids);
+          var _unresolved = unresolved;
+        }
+        const cfg = await act.getStatusPrivacySetting();
+        const raw = String((cfg && (cfg.setting ?? cfg.type ?? cfg.mode)) ?? '');
+        const low = raw.toLowerCase();
+        return {
+          ok: true,
+          unresolved: typeof _unresolved === 'undefined' ? [] : _unresolved,
+          mode: low.includes('allow') ? 'allow' : low.includes('deny') ? 'deny' : 'contacts',
+          raw,
+          count: ((cfg && (cfg.list || cfg.wids || cfg.contacts)) || []).length,
+        };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, mode, ids);
+    if (!out.ok) return res.status(500).json(out);
+    _logSilent('INFO', `status-privacy: ${mode} (${out.count} Kontakt/e)`);
+    res.json({ success: out.mode === mode, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Der Quelltext einer Aktion steht in der Modulliste als Fabrikfunktion. Nur so
+// laesst sich ablesen, welche Parameter z.B. WAWebSetPrivacyForOneCategoryAction
+// erwartet — die exportierte Funktion selbst steckt hinter einem Babel-Mantel
+// und gibt per toString() nichts her.
+// GET /api/privacy/source?module=WAWebSetPrivacyForOneCategoryAction
+app.get('/api/privacy/source', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const name = String(req.query.module || '');
+  if (!/^[\w.]{3,120}$/.test(name)) return res.status(400).json({ error: 'module erforderlich' });
+  const max = Math.min(Math.max(parseInt(req.query.max || '8000', 10) || 8000, 500), 60000);
+  try {
+    const out = await client.pupPage.evaluate((name, max) => {
+      const pick = (obj) => {
+        if (!obj || typeof obj !== 'object') return null;
+        for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+          if (obj[key] && typeof obj[key] === 'object') return obj[key];
+        }
+        return null;
+      };
+      let reg = null;
+      try { reg = pick(window.require('__debug')); } catch (e) {}
+      if (!reg) { try { reg = pick(window.__debug); } catch (e) {} }
+      if (!reg) return { error: 'kein Registry-Modul gefunden' };
+      const entry = reg[name];
+      if (!entry) return { error: 'Modul nicht in der Liste: ' + name };
+      const out = { name, entryType: typeof entry, entryKeys: [] };
+      try { out.entryKeys = typeof entry === 'object' ? Object.keys(entry).slice(0, 40) : []; } catch (e) {}
+      // Fabrikfunktion suchen: je nach Fassung heisst sie anders
+      let factory = typeof entry === 'function' ? entry : null;
+      if (!factory) {
+        for (const k of ['factory', 'f', 'fn', 'func', 'moduleFactory']) {
+          if (entry && typeof entry[k] === 'function') { factory = entry[k]; out.factoryKey = k; break; }
+        }
+      }
+      if (factory) { try { out.source = String(factory).slice(0, max); } catch (e) { out.source = 'FEHLER: ' + String((e && e.message) || e); } }
+      // Zusaetzlich die exportierten Felder mit Signatur — manchmal reicht das schon
+      try {
+        const mod = window.require(name);
+        const exp = {};
+        for (const k of Object.keys(mod || {}).slice(0, 40)) {
+          let v; try { v = mod[k]; } catch (e) { continue; }
+          if (typeof v === 'function') {
+            const s = String(v);
+            exp[k] = 'fn(' + v.length + ') ' + s.replace(/\s+/g, ' ').slice(0, 300);
+          } else if (v && typeof v === 'object') {
+            try { exp[k] = 'obj ' + JSON.stringify(v).slice(0, 300); } catch (e) { exp[k] = 'obj'; }
+          } else exp[k] = typeof v + ' ' + String(v).slice(0, 120);
+        }
+        out.exports = exp;
+      } catch (e) { out.exports = 'FEHLER: ' + String((e && e.message) || e).slice(0, 160); }
+      return out;
+    }, name, max);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Die Status-Aktionen liegen in WhatsApp Web hinter einem Babel-Mantel
+// (function C(e,t){return b.apply(this,arguments)}), toString() zeigt also nichts.
+// Der echte Quelltext steht aber in den geladenen Bundles — die durchsucht diese
+// Sonde direkt in der Seite. Damit sieht man, welche Felder der zweite Parameter
+// von sendStatusTextMsgAction erwartet, statt es zu raten.
+async function probeStatusSource() {
+  if (!client.pupPage) return { error: 'keine Browser-Seite' };
+  try {
+    return await client.pupPage.evaluate(async () => {
+      const NEEDLE = 'sendStatusTextMsgAction';
+      const deadline = Date.now() + 45000;
+      const urls = new Set();
+      for (const e of performance.getEntriesByType('resource')) {
+        if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) urls.add(e.name);
+      }
+      for (const sc of document.scripts) if (sc.src) urls.add(sc.src);
+
+      const sameOrigin = [...urls].filter(u => { try { return new URL(u).origin === location.origin; } catch (e) { return false; } });
+      const hits = [];
+      let scanned = 0, bytes = 0;
+      for (const url of sameOrigin) {
+        if (Date.now() > deadline || hits.length >= 3) break;
+        let text = '';
+        try { const r = await fetch(url); if (!r.ok) continue; text = await r.text(); }
+        catch (e) { continue; }
+        scanned++; bytes += text.length;
+        let from = 0;
+        while (hits.length < 3) {
+          const i = text.indexOf(NEEDLE, from);
+          if (i < 0) break;
+          hits.push({ url: url.split('/').pop().slice(0, 80), at: i, snippet: text.slice(Math.max(0, i - 400), i + 1600) });
+          from = i + NEEDLE.length;
+        }
+      }
+      return { scannedFiles: scanned, scannedBytes: bytes, candidateFiles: sameOrigin.length, hits };
+    });
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// whatsapp-web.js ruft beim Status-Versand
+// window.require('WAWebStatusGatingUtils').canCheckStatusRankingPosterGating() auf.
+// In neueren WhatsApp-Web-Versionen gibt es diese Funktion (oder das ganze Modul)
+// nicht mehr, der Versand bricht dann mit "is not a function" ab. Deshalb wird
+// window.require fuer genau dieses eine Modul umhuellt und die fehlende Funktion
+// ergaenzt. Idempotent — laeuft vor jedem Statusversand, weil ein Reconnect die
+// Seite neu laedt und den Shim verwirft.
+let _statusShimLogged = false;
+let _mediaShimLogged = false;
+async function ensureStatusShims() {
+  if (!client.pupPage) return;
+  try {
+    const info = await client.pupPage.evaluate(() => {
+      const out = { gatingPatched: false, gatingHad: null, gatingKeys: [], mediaPatched: false, mediaNote: null };
+
+      // ── 1) Fehlende Gating-Funktion ergaenzen ──────────────────────────────
+      const MOD = 'WAWebStatusGatingUtils';
+      const FN = 'canCheckStatusRankingPosterGating';
+      try {
+        const m = window.require(MOD);
+        out.gatingHad = !!(m && typeof m[FN] === 'function');
+        if (m) out.gatingKeys = Object.keys(m);
+      } catch (e) { out.gatingHad = false; }
+      if (!out.gatingHad) {
+        if (!window.__waStatusGatingShim) {
+          window.__waStatusGatingShim = true;
+          const orig = window.require;
+          window.require = function (name) {
+            if (name === MOD) {
+              let mod = null;
+              try { mod = orig.apply(this, arguments); } catch (e) { mod = null; }
+              if (!mod || typeof mod[FN] !== 'function') {
+                // cannotBeRanked: false entspricht dem Normalfall ohne Gating-Pruefung
+                const stub = () => false;
+                // Erst am Originalmodul ergaenzen, damit Prototyp und Getter erhalten
+                // bleiben; nur wenn das Modul eingefroren ist, eine Kopie zurueckgeben
+                if (mod) { try { mod[FN] = stub; if (typeof mod[FN] === 'function') return mod; } catch (e) {} }
+                return Object.assign({}, mod || {}, { [FN]: stub });
+              }
+              return mod;
+            }
+            return orig.apply(this, arguments);
+          };
+        }
+        out.gatingPatched = true;
+      }
+
+      // ── 2) Aufrufform von sendStatusMediaMsgAction geradeziehen ────────────
+      // WhatsApp erwartet ein Objekt:
+      //   sendStatusMediaMsgAction({ beforeSend, funnelContext, mediaMsgData })
+      // und liest daraus mediaMsgData.id. whatsapp-web.js ruft die Aktion aber
+      // als (msgModel, mediaUpdate) auf — dann ist mediaMsgData undefiniert und
+      // WhatsApp stirbt mit "Cannot read properties of undefined (reading 'id')".
+      // Die Huelle erkennt die alte Aufrufform und setzt sie um; ein bereits
+      // richtiger Aufruf geht unveraendert durch.
+      try {
+        const sm = window.require('WAWebSendStatusMsgAction');
+        const fn = sm && sm.sendStatusMediaMsgAction;
+        if (typeof fn !== 'function') {
+          out.mediaNote = 'sendStatusMediaMsgAction fehlt';
+        } else if (fn.__waMediaShim) {
+          out.mediaPatched = true;
+        } else if (fn.length > 1) {
+          // Nimmt die Aktion mehr als einen Parameter, passt die alte Form doch
+          out.mediaNote = 'nimmt ' + fn.length + ' Parameter — alte Aufrufform passt, nicht angefasst';
+        } else {
+          const wrapped = function (a, b) {
+            if (a && typeof a === 'object' && a.mediaMsgData) return fn.call(this, a);
+            const data = (a && a.attributes) || a;
+            return fn.call(this, {
+              mediaMsgData: data,
+              beforeSend: (msgModel) => (typeof b === 'function' ? b(msgModel) : undefined),
+            });
+          };
+          wrapped.__waMediaShim = true;
+          try { sm.sendStatusMediaMsgAction = wrapped; } catch (e) {}
+          out.mediaPatched = sm.sendStatusMediaMsgAction === wrapped;
+          if (!out.mediaPatched) out.mediaNote = 'Modul liess sich nicht aendern';
+        }
+      } catch (e) {
+        out.mediaNote = String((e && e.message) || e);
+      }
+
+      return out;
+    });
+
+    if (info && info.gatingPatched && !_statusShimLogged) {
+      _statusShimLogged = true;
+      console.warn('[WARN] WAWebStatusGatingUtils.canCheckStatusRankingPosterGating fehlt in dieser '
+        + 'WhatsApp-Web-Version — Ersatzfunktion gesetzt. Vorhandene Modul-Exporte: '
+        + ((info.gatingKeys || []).join(', ') || '(keine)'));
+    }
+    if (info && !_mediaShimLogged) {
+      _mediaShimLogged = true;
+      if (info.mediaPatched) {
+        console.log('[INFO] sendStatusMediaMsgAction: Aufrufform von whatsapp-web.js wird umgesetzt');
+      } else if (info.mediaNote) {
+        console.warn('[WARN] sendStatusMediaMsgAction nicht angepasst: ' + info.mediaNote);
+      }
+    }
+  } catch (e) {
+    console.warn('[WARN] ensureStatusShims:', e.message);
+  }
+}
+
+// Text-Status direkt ueber die WhatsApp-Aktion posten.
+//
+// whatsapp-web.js baut fuer Text-Status zwar ein Msg-Modell, uebergibt der Aktion
+// aber nur { color, font, text } und wirft deren Rueckgabewert komplett weg. Ein
+// abgelehnter Versand kam dadurch als Erfolg zurueck ("kein Status sichtbar").
+// Direkt aufgerufen bekommen wir das echte Ergebnis und koennen es melden.
+async function sendStatusTextDirect(text, bgHex, font) {
+  if (!client.pupPage) return { ok: false, error: 'keine Browser-Seite' };
+  return await client.pupPage.evaluate(async (text, bgHex, font) => {
+    // Rueckgaben aus der Seite muessen JSON-tauglich sein
+    const describe = (v) => {
+      if (v === undefined) return { type: 'undefined' };
+      if (v === null) return { type: 'null' };
+      const type = typeof v;
+      if (type !== 'object') return { type, value: String(v).slice(0, 200) };
+      const out = { type: 'object', keys: Object.keys(v).slice(0, 30) };
+      try { out.json = JSON.stringify(v).slice(0, 500); } catch (e) {}
+      return out;
+    };
+    try {
+      const mod = window.require('WAWebSendStatusMsgAction');
+      if (!mod || typeof mod.sendStatusTextMsgAction !== 'function') {
+        return { ok: false, error: 'sendStatusTextMsgAction fehlt', keys: mod ? Object.keys(mod) : [] };
+      }
+      // Denselben Chat aufloesen wie die Bibliothek, damit der Status-Thread existiert
+      let chatOk = false;
+      try {
+        const chat = await window.WWebJS.getChat('status@broadcast', { getAsModel: false });
+        chatOk = !!chat;
+      } catch (e) {}
+
+      let color = 0xff0a5f55;
+      try {
+        color = window.WWebJS.assertColor(bgHex);
+      } catch (e) {
+        const n = String(bgHex).replace('#', '');
+        color = parseInt((n.length <= 6 ? 'FF' + n.padStart(6, '0') : n), 16);
+      }
+
+      const res = await mod.sendStatusTextMsgAction({ color, font, text });
+      return { ok: true, chatOk, keys: Object.keys(mod), result: describe(res) };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  }, text, bgHex, font);
+}
+
+// Text-Status posten. fontStyle 0-7 und backgroundColor sind die WhatsApp-eigenen
+// Optionen fuer Text-Stories (siehe WWebJS sendStatusTextMsgAction).
+app.post('/api/my-status/text', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!text) return res.status(400).json({ error: 'text required' });
+  const bg = /^#[0-9a-fA-F]{6}$/.test(req.body?.backgroundColor || '') ? req.body.backgroundColor : '#0a5f55';
+  const font = Math.min(Math.max(parseInt(req.body?.fontStyle ?? 0, 10) || 0, 0), 7);
+  try {
+    await ensureStatusShims();
+    const direct = await sendStatusTextDirect(text, bg, font);
+    dbg(`Text-Status: Aktion meldet ${JSON.stringify(direct)}`);
+    if (direct && direct.ok) {
+      console.log(`[INFO] Eigener Text-Status gepostet (${text.length} Zeichen, Farbe ${bg}, Font ${font})`);
+      return res.json({ success: true, id: null, detail: direct.result || null });
+    }
+    // Faellt der Direktweg aus (Modul umbenannt o.ae.), den Bibliotheksweg versuchen
+    console.warn('[WARN] Text-Status direkt fehlgeschlagen (%s) — versuche whatsapp-web.js', (direct && direct.error) || 'unbekannt');
+    const result = await client.sendMessage(STATUS_BROADCAST_JID, text, {
+      sendSeen: false,
+      extra: { backgroundColor: bg, fontStyle: font },
+    });
+    if (!result) throw new Error((direct && direct.error) || 'sendMessage returned no result');
+    if (result.__logged !== undefined) result.__logged = true;
+    console.log(`[INFO] Eigener Text-Status gepostet (${text.length} Zeichen, Farbe ${bg}, Font ${font})`);
+    res.json({ success: true, id: result.id?._serialized || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Bild-/Video-Status posten (optional mit Bildunterschrift)
+app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const caption = typeof req.body?.caption === 'string' ? req.body.caption : '';
+  let buffer = req.file?.buffer, mime = req.file?.mimetype, origName = req.file?.originalname;
+  // Alternativ ein bereits gespeichertes Vorlagenbild verwenden
+  if (!buffer && req.body?.templateFile) {
+    const fp = templateMediaPath(req.body.templateFile);
+    if (!fp || !existsSync(fp)) return res.status(400).json({ error: 'template media not found' });
+    buffer = fs.readFileSync(fp);
+    const ext = req.body.templateFile.split('.').pop().toLowerCase();
+    mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'mp4' ? 'video/mp4' : 'image/jpeg';
+    origName = req.body.templateFile;
+  }
+  if (!buffer) return res.status(400).json({ error: 'file required' });
+  if (!/^(image|video)\//.test(mime || '')) return res.status(400).json({ error: 'only image or video allowed' });
+  try {
+    await ensureStatusShims();
+    const media = new MessageMedia(mime, buffer.toString('base64'), origName);
+    const result = await client.sendMessage(STATUS_BROADCAST_JID, media, {
+      sendSeen: false,
+      ...(caption ? { caption } : {}),
+    });
+    if (!result) throw new Error('sendMessage returned no result — Medientyp fuer Status nicht unterstuetzt?');
+    console.log(`[INFO] Eigener Medien-Status gepostet (${mime}, ${Math.round(buffer.length / 1024)} KB)`);
+    res.json({ success: true, id: result.id?._serialized || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Eigenen Status wieder zurueckziehen
+app.post('/api/my-status/revoke', deleteRateLimit, async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  const id = typeof req.body?.id === 'string' ? req.body.id : '';
+  if (!id) return res.status(400).json({ error: 'id required' });
+  try {
+    await client.revokeStatusMessage(id);
+    console.log(`[INFO] Eigener Status ${id} zurueckgezogen`);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// ── Status-Vorlagen ───────────────────────────────────────────────────────────
+
+app.get('/api/status-templates', (req, res) => {
+  res.json({ templates: statusTemplates });
+});
+
+app.post('/api/status-templates', upload.single('file'), (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 80);
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const id = String(req.body?.id || '').trim();
+  const existing = id ? statusTemplates.find(t => t.id === id) : null;
+  if (id && !existing) return res.status(404).json({ error: 'template not found' });
+  if (!existing && statusTemplates.length >= 100) return res.status(400).json({ error: 'too many templates' });
+
+  const tpl = existing || { id: 'tpl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), createdAt: Date.now() };
+  tpl.name = name;
+  tpl.text = String(req.body?.text || '').slice(0, 700);
+  tpl.backgroundColor = /^#[0-9a-fA-F]{6}$/.test(req.body?.backgroundColor || '') ? req.body.backgroundColor : '#0a5f55';
+  tpl.fontStyle = Math.min(Math.max(parseInt(req.body?.fontStyle ?? 0, 10) || 0, 0), 7);
+  tpl.updatedAt = Date.now();
+
+  if (req.file) {
+    if (!/^(image|video)\//.test(req.file.mimetype || '')) return res.status(400).json({ error: 'only image or video allowed' });
+    if (req.file.size > 16 * 1024 * 1024) return res.status(400).json({ error: 'file too large (max 16 MB)' });
+    const ext = req.file.mimetype === 'image/png' ? 'png'
+      : req.file.mimetype === 'image/webp' ? 'webp'
+      : req.file.mimetype.startsWith('video/') ? 'mp4' : 'jpg';
+    const fname = `${tpl.id}_${Date.now().toString(36)}.${ext}`;
+    const fp = templateMediaPath(fname);
+    if (!fp) return res.status(400).json({ error: 'invalid path' });
+    try {
+      fs.writeFileSync(fp, req.file.buffer);
+      const old = tpl.mediaFile ? templateMediaPath(tpl.mediaFile) : null;
+      if (old && old !== fp) { try { fs.unlinkSync(old); } catch (e) {} }
+      tpl.mediaFile = fname;
+      tpl.mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'photo';
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  } else if (req.body?.removeMedia === '1' && tpl.mediaFile) {
+    const old = templateMediaPath(tpl.mediaFile);
+    if (old) { try { fs.unlinkSync(old); } catch (e) {} }
+    tpl.mediaFile = null;
+    tpl.mediaType = null;
+  }
+
+  if (!existing) statusTemplates.push(tpl);
+  saveStatusTemplates();
+  res.json({ success: true, template: tpl });
+});
+
+app.post('/api/status-templates/:id/delete', deleteRateLimit, (req, res) => {
+  const idx = statusTemplates.findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'template not found' });
+  const [tpl] = statusTemplates.splice(idx, 1);
+  if (tpl.mediaFile) {
+    const fp = templateMediaPath(tpl.mediaFile);
+    if (fp) { try { fs.unlinkSync(fp); } catch (e) {} }
+  }
+  saveStatusTemplates();
+  res.json({ success: true });
+});
+
+app.get('/api/status-template-media/:filename', (req, res) => {
+  const fp = templateMediaPath(req.params.filename);
+  if (!fp || !existsSync(fp)) return res.status(404).end();
+  const ext = req.params.filename.split('.').pop().toLowerCase();
+  res.setHeader('Content-Type', ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.sendFile(fp);
+});
+
 const STATUS_EXPIRY_MS = 24 * 60 * 60 * 1000;
 app.get('/api/status-archive/:chatId', (req, res) => {
   const entries = statusArchiveByChatId.get(req.params.chatId) || [];
@@ -1655,12 +3904,11 @@ app.get('/api/status-archive/:chatId', (req, res) => {
   res.json({ msgs });
 });
 
-app.get('/api/status-archive/:chatId/export', (req, res) => {
+app.get('/api/status-archive/:chatId/export', async (req, res) => {
   const chatId = req.params.chatId;
   const isEn = (req.query.lang || 'de') === 'en';
   const loc = isEn ? 'en-GB' : 'de-DE';
-  const contact = chatMap.get(chatId);
-  const contactName = contact ? (contact.name || chatId) : chatId;
+  const contactName = await resolveArchiveName(chatId);
   const entries = [...(statusArchiveByChatId.get(chatId) || [])].sort((a, b) => a.timestamp - b.timestamp);
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -1703,20 +3951,59 @@ app.get('/api/status-archive/:chatId/export', (req, res) => {
   archive.finalize();
 });
 
-app.post('/api/status-archive/:chatId/clear', (req, res) => {
-  const chatId = req.params.chatId;
+// Kontaktname fuer Archiv-Ansichten. chatMap kennt nur Kontakte mit echtem Chat —
+// wer nur Status postet (oder wo der Chat laengst geloescht ist), stand sonst als
+// nackte Nummer da. Deshalb Fallback ueber das Adressbuch von WhatsApp Web.
+const archiveNameCache = new Map(); // chatId -> aufgeloester Name
+async function resolveArchiveName(chatId) {
+  const cached = archiveNameCache.get(chatId);
+  if (cached) return cached;
+  const chat = chatMap.get(chatId);
+  if (chat && chat.name && chat.name !== chatId) {
+    archiveNameCache.set(chatId, chat.name);
+    return chat.name;
+  }
+  const fallback = chatId.split('@')[0];
+  if (status !== 'connected') return fallback; // nicht cachen — spaeter erneut versuchen
+  try {
+    const contact = await client.getContactById(chatId);
+    const name = contact.name || contact.shortName || contact.pushname || '';
+    if (!name) return fallback;
+    archiveNameCache.set(chatId, name);
+    return name;
+  } catch(e) {
+    dbg(`resolveArchiveName(${chatId}): ${e.message}`);
+    return fallback;
+  }
+}
+
+// Pfad einer Archiv-Mediendatei, oder null wenn der Name aus MEDIA_DIR ausbricht
+function archiveMediaPath(mediaFile) {
+  if (!mediaFile) return null;
+  const fp = path.resolve(MEDIA_DIR, mediaFile);
+  return fp.startsWith(path.resolve(MEDIA_DIR) + path.sep) ? fp : null;
+}
+
+// Loescht Archiv + zugehoerige Mediendateien eines Kontakts, meldet Freigewordenes zurueck
+function clearArchiveForChat(chatId) {
   const entries = statusArchiveByChatId.get(chatId) || [];
+  let files = 0, bytes = 0;
   for (const e of entries) {
-    if (!e.mediaFile) continue;
-    try {
-      const fp = path.resolve(MEDIA_DIR, e.mediaFile);
-      if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep)) fs.unlinkSync(fp);
-    } catch(e) {}
+    const fp = archiveMediaPath(e.mediaFile);
+    if (fp) {
+      try { bytes += fs.statSync(fp).size; fs.unlinkSync(fp); files++; } catch(err) {}
+    }
     archiveSeenIds.delete(e.id);
   }
   statusArchiveByChatId.delete(chatId);
+  return { entries: entries.length, files, bytes };
+}
+
+app.post('/api/status-archive/:chatId/clear', (req, res) => {
+  const freed = clearArchiveForChat(req.params.chatId);
   saveStatusArchive();
-  res.json({ success: true });
+  _archiveOverviewCache = null;
+  res.json({ success: true, ...freed });
 });
 
 // Entfernt nur Einträge mit fehlendem/kaputtem Medium (kein mediaFile oder Datei nicht
@@ -1737,7 +4024,81 @@ app.post('/api/status-archive/:chatId/cleanup', (req, res) => {
   });
   statusArchiveByChatId.set(chatId, kept);
   saveStatusArchive();
+  _archiveOverviewCache = null;
   res.json({ success: true, removed, converted });
+});
+
+// ── Archiv-Gesamtuebersicht ───────────────────────────────────────────────────
+// Speicherbedarf je Kontakt an einer Stelle, damit man nicht jeden Kontakt
+// einzeln oeffnen muss. Der Scan macht ein statSync pro Mediendatei — kurz
+// cachen, damit wiederholtes Oeffnen den Event-Loop nicht blockiert.
+let _archiveOverviewCache = null;
+const ARCHIVE_OVERVIEW_CACHE_MS = 10000;
+
+async function buildArchiveOverview() {
+  const now = Date.now();
+  const contacts = [];
+  let totalBytes = 0, totalEntries = 0, totalMissing = 0;
+  for (const [chatId, entries] of statusArchiveByChatId.entries()) {
+    if (!entries.length) continue;
+    let bytes = 0, media = 0, missing = 0, expired = 0, oldest = 0, newest = 0;
+    for (const e of entries) {
+      const ts = e.timestamp || 0;
+      if (ts && (!oldest || ts < oldest)) oldest = ts;
+      if (ts > newest) newest = ts;
+      if (now - ts >= STATUS_EXPIRY_MS) expired++;
+      if (e.type !== 'photo' && e.type !== 'video') continue;
+      media++;
+      const fp = archiveMediaPath(e.mediaFile);
+      let size = 0;
+      if (fp) { try { size = fs.statSync(fp).size; } catch(err) { size = 0; } }
+      if (size) bytes += size; else missing++;
+    }
+    contacts.push({
+      chatId,
+      name: chatId.split('@')[0],
+      count: entries.length,
+      expired,
+      media,
+      missing,
+      bytes,
+      oldest,
+      newest,
+    });
+    totalBytes += bytes;
+    totalEntries += entries.length;
+    totalMissing += missing;
+  }
+  await Promise.all(contacts.map(async c => { c.name = await resolveArchiveName(c.chatId); }));
+  contacts.sort((a, b) => b.bytes - a.bytes || b.count - a.count);
+  return { contacts, totalBytes, totalEntries, totalMissing, totalContacts: contacts.length };
+}
+
+app.get('/api/status-archive-overview', async (req, res) => {
+  if (_archiveOverviewCache && Date.now() - _archiveOverviewCache.ts < ARCHIVE_OVERVIEW_CACHE_MS) {
+    return res.json(_archiveOverviewCache.data);
+  }
+  try {
+    const data = await buildArchiveOverview();
+    _archiveOverviewCache = { ts: Date.now(), data };
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Leert die Archive mehrerer Kontakte auf einmal (ohne chatIds: alle)
+app.post('/api/status-archive-clear-bulk', (req, res) => {
+  const ids = Array.isArray(req.body?.chatIds) && req.body.chatIds.length
+    ? req.body.chatIds.filter(id => statusArchiveByChatId.has(id))
+    : [...statusArchiveByChatId.keys()];
+  let files = 0, bytes = 0, entries = 0;
+  for (const chatId of ids) {
+    const freed = clearArchiveForChat(chatId);
+    files += freed.files; bytes += freed.bytes; entries += freed.entries;
+  }
+  saveStatusArchive();
+  _archiveOverviewCache = null;
+  console.log(`[INFO] Status-Archiv geleert: ${ids.length} Kontakt(e), ${entries} Eintrag/Eintraege, ${(bytes/1024/1024).toFixed(1)} MB`);
+  res.json({ success: true, contacts: ids.length, entries, files, bytes });
 });
 
 // ── Web UI ────────────────────────────────────────────────────────────────────
@@ -1747,7 +4108,9 @@ const _SVG = {
   disk:       '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
   imageOn:    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
   imageOff:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+  archive:    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
   trash:      '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  imageSlash: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="4.5" y1="19.5" x2="19.5" y2="4.5"/></svg>',
   chevUp:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
   chevDown:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
   chevLeft:   '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
@@ -1807,10 +4170,14 @@ app.get('/', (req, res) => {
     .scroll-btn { background: none; border: 1px solid #8696a0; color: #e9edef; padding: 4px 8px; border-radius: 6px; cursor: pointer; opacity: 0.55; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
     .scroll-btn:hover { opacity: 0.8; }
     .photo-placeholder { display: none; }
-    body.hide-photos .msg-img { display: none !important; }
-    body.hide-photos .photo-placeholder { display: inline; }
-    body.hide-photos video { display: none !important; }
-    body.hide-photos .wa-video-placeholder { display: none !important; }
+    body.hide-photos .msg-img, body.chat-media-off .msg-img { display: none !important; }
+    body.hide-photos .photo-placeholder, body.chat-media-off .photo-placeholder { display: inline; }
+    body.hide-photos video, body.chat-media-off video { display: none !important; }
+    body.hide-photos .wa-video-placeholder, body.chat-media-off .wa-video-placeholder { display: none !important; }
+    #chat-media-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s, border-color 0.15s; }
+    #chat-media-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
+    #chat-media-btn.off, #chat-media-btn.off:hover { border-color: #f0a500; color: #f0a500; }
+    html.light #chat-media-btn:hover { border-color: #25d366; color: #25d366; }
 
     /* Main two-panel layout */
     #main { flex: 1; display: flex; overflow: hidden; }
@@ -1833,12 +4200,31 @@ app.get('/', (req, res) => {
     html.light .filter-tab { color:#999; }
     html.light .filter-tab:hover { background:rgba(0,0,0,0.06); color:#111; }
     html.light .filter-tab.active { background:#e0e0e0; color:#111; }
+    .contact-list-foot { padding:10px 12px; text-align:center; }
+    .contact-list-foot button { background:none; border:none; color:#8696a0; font-size:12px; cursor:pointer; padding:4px 8px; border-radius:8px; }
+    .contact-list-foot button:hover { background:rgba(134,150,160,0.15); }
+    .chat-item .chat-preview.no-chat { font-style:italic; opacity:0.75; }
     .avatar.group-avatar { background:#25D366 !important; font-size:22px; }
+    #load-older { display: block; width: calc(100% - 24px); margin: 6px 12px 10px; padding: 8px;
+      border: none; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; }
+    html.dark #load-older { background: rgba(255,255,255,0.07); color: #e9edef; }
+    html.light #load-older { background: rgba(0,0,0,0.05); color: #111; }
+    #load-older:hover { outline: 1px solid #00a884; }
+    #load-older:disabled { opacity: 0.6; cursor: default; outline: none; }
+    #search-wrap { position: relative; width: 100%; }
     #search {
       width: 100%; background: #2a3942; border: none; border-radius: 8px;
-      padding: 8px 12px; color: #e9edef; font-size: 14px; outline: none;
+      padding: 8px 30px 8px 12px; color: #e9edef; font-size: 14px; outline: none;
     }
     #search::placeholder { color: #8696a0; }
+    #search-clear {
+      display: none; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #8696a0; cursor: pointer;
+      font-size: 14px; line-height: 1; padding: 4px 6px; border-radius: 50%;
+    }
+    #search-clear:hover { color: #e9edef; background: rgba(255,255,255,0.1); }
+    #search-clear.show { display: block; }
+    html.light #search-clear:hover { color: #111; background: rgba(0,0,0,0.08); }
     #chat-list { flex: 1; overflow-y: auto; }
     #chat-list::-webkit-scrollbar { width: 5px; }
     #chat-list::-webkit-scrollbar-thumb { background: #2a3942; border-radius: 3px; }
@@ -1857,6 +4243,12 @@ app.get('/', (req, res) => {
     }
     .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
     .avatar.has-status { box-shadow: 0 0 0 2px #25D366; animation: statusPulse 2s ease-in-out infinite; }
+    .avatar.blocked::after, .contact-modal-pic.blocked::after {
+      content: '🔒'; position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; line-height: 1; background: rgba(0,0,0,0.6);
+    }
+    .contact-modal-pic.blocked::after { font-size: 46px; }
     @keyframes statusPulse {
       0%, 100% { box-shadow: 0 0 0 2px #25D366; }
       50% { box-shadow: 0 0 0 2px #25D366, 0 0 0 5px rgba(37,211,102,0.4); }
@@ -1866,7 +4258,7 @@ app.get('/', (req, res) => {
     .contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
     html.dark .contact-modal-box { background: #202c33; }
     html.light .contact-modal-box { background: #fff; }
-    .contact-modal-pic { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px; }
+    .contact-modal-pic { position: relative; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px; }
     .contact-modal-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .contact-modal-name { font-size: 18px; font-weight: 600; text-align: center; }
     html.dark .contact-modal-name { color: #e9edef; }
@@ -1874,6 +4266,28 @@ app.get('/', (req, res) => {
     .contact-modal-pushname { font-size: 13px; color: #8696a0; }
     .contact-modal-number { font-size: 14px; color: #00a884; font-weight: 500; }
     .contact-modal-about { font-size: 13px; color: #8696a0; text-align: center; max-width: 260px; word-break: break-word; }
+    .contact-modal-presence { font-size: 12px; color: #8696a0; min-height: 16px; }
+    .contact-modal-stats { display: none; font-size: 12px; color: #8696a0; text-align: center; line-height: 1.6; }
+    .contact-modal-stats.has-items { display: block; }
+    .contact-modal-stats b { color: #00a884; font-weight: 600; }
+    .contact-modal-devices { display: none; font-size: 12px; color: #8696a0; }
+    .contact-modal-devices.show { display: block; }
+    .contact-modal-groups { display: none; width: 100%; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
+    .contact-modal-groups.show { display: flex; }
+    .contact-modal-groups .cg-label { font-size: 12px; font-weight: 600; opacity: 0.6; }
+    .contact-modal-groups button { text-align: left; background: none; border: none; color: inherit; font: inherit;
+      font-size: 13px; padding: 5px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    html.dark .contact-modal-groups button { background: rgba(255,255,255,0.05); }
+    html.light .contact-modal-groups button { background: rgba(0,0,0,0.04); }
+    .contact-modal-groups button:hover { outline: 1px solid #00a884; }
+    .contact-modal-blocked { display: none; font-size: 12px; color: #f15c5c; font-weight: 600; }
+    .contact-modal-blocked.show { display: block; }
+    .contact-modal-block { margin-top: 4px; background: none; border: 1px solid rgba(241,92,92,0.55); color: #f15c5c; border-radius: 8px; padding: 6px 16px; font-size: 13px; cursor: pointer; }
+    .contact-modal-block:hover { background: rgba(241,92,92,0.12); }
+    .contact-modal-block.unblock { border-color: rgba(0,168,132,0.55); color: #00a884; }
+    .contact-modal-block.unblock:hover { background: rgba(0,168,132,0.12); }
+    .contact-modal-block:disabled { opacity: 0.5; cursor: default; }
+    .contact-modal-presence.online { color: #06cf9c; font-weight: 600; }
     .contact-modal-status { display: none; flex-direction: column; gap: 8px; width: 100%; max-height: 240px; overflow-y: auto; }
     .contact-modal-status.has-items { display: flex; }
     .status-label { font-size: 12px; font-weight: 600; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -1903,6 +4317,91 @@ app.get('/', (req, res) => {
     .status-item img, .status-item video { max-width: 100%; max-height: 180px; border-radius: 6px; display: block; cursor: zoom-in; }
     .status-item .status-text { font-size: 13px; word-break: break-word; }
     .status-item .status-time { font-size: 11px; color: #8696a0; }
+    #numcheck-modal { display: none; position: fixed; inset: 0; z-index: 505; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #numcheck-modal.open { display: flex; }
+    .nc-box { border-radius: 14px; width: min(420px, 92%); display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; }
+    html.dark .nc-box { background: #202c33; color: #e9edef; }
+    html.light .nc-box { background: #fff; color: #111; }
+    .nc-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .nc-body h3 { font-size: 15px; font-weight: 600; margin: 0; }
+    .nc-row { display: flex; gap: 8px; }
+    .nc-row input { flex: 1; border-radius: 8px; padding: 8px 12px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
+    html.dark .nc-row input { background: #2a3942; color: #e9edef; }
+    html.light .nc-row input { background: #f0f2f5; color: #111; }
+    .nc-row input:focus { outline: none; border-color: #00a884; }
+    .nc-result { font-size: 14px; line-height: 1.5; border-radius: 8px; padding: 10px 12px; display: none; }
+    .nc-result.show { display: block; }
+    .nc-result.yes { background: rgba(0,168,132,0.15); color: #06cf9c; }
+    .nc-result.no { background: rgba(241,92,92,0.15); color: #f15c5c; }
+    .nc-result.err { background: rgba(241,92,92,0.15); color: #f15c5c; }
+    .nc-result .nc-sub { color: #8696a0; font-size: 12px; display: block; margin-top: 3px; }
+    .nc-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .chat-list-checknum { padding: 8px 12px; cursor: pointer; font-size: 13px; color: #00a884; border-bottom: 1px solid rgba(128,128,128,0.18); }
+    html.dark .chat-list-checknum:hover { background: rgba(255,255,255,0.05); }
+    html.light .chat-list-checknum:hover { background: rgba(0,0,0,0.04); }
+    #gsearch-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #gsearch-modal.open { display: flex; }
+    .gs-box { border-radius: 14px; width: min(680px, 94%); max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; }
+    html.dark .gs-box { background: #202c33; color: #e9edef; }
+    html.light .gs-box { background: #fff; color: #111; }
+    .gs-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(128,128,128,0.2); }
+    .gs-head input { flex: 1; border-radius: 8px; padding: 8px 12px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
+    html.dark .gs-head input { background: #2a3942; color: #e9edef; }
+    html.light .gs-head input { background: #f0f2f5; color: #111; }
+    .gs-head input:focus { outline: none; border-color: #00a884; }
+    .gs-head button { background: none; border: none; color: inherit; font-size: 18px; cursor: pointer; opacity: 0.7; }
+    .gs-head button:hover { opacity: 1; }
+    .gs-body { flex: 1; overflow-y: auto; padding: 6px; }
+    .gs-foot { padding: 8px 14px; border-top: 1px solid rgba(128,128,128,0.2); font-size: 12px; color: #8696a0; }
+    .gs-hit { display: block; width: 100%; text-align: left; background: none; border: none; color: inherit; font: inherit;
+      padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+    html.dark .gs-hit:hover { background: rgba(255,255,255,0.06); }
+    html.light .gs-hit:hover { background: rgba(0,0,0,0.05); }
+    .gs-hit-top { display: flex; align-items: baseline; gap: 8px; }
+    .gs-hit-chat { font-size: 13px; font-weight: 600; color: #00a884; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gs-hit-time { font-size: 11px; color: #8696a0; margin-left: auto; white-space: nowrap; }
+    .gs-hit-body { font-size: 13px; line-height: 1.45; word-break: break-word; margin-top: 2px; }
+    .gs-hit-body mark { background: rgba(255,214,0,0.35); color: inherit; border-radius: 3px; padding: 0 1px; }
+    .gs-hit-note { font-size: 11px; color: #8696a0; font-style: italic; }
+    .gs-empty { padding: 24px; text-align: center; color: #8696a0; font-size: 13px; }
+    .chat-list-search-all { padding: 8px 12px; cursor: pointer; font-size: 13px; color: #00a884; border-bottom: 1px solid rgba(128,128,128,0.18); }
+    html.dark .chat-list-search-all:hover { background: rgba(255,255,255,0.05); }
+    html.light .chat-list-search-all:hover { background: rgba(0,0,0,0.04); }
+    #presence-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #presence-modal.open { display: flex; }
+    .pres-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3cdb7c; margin-right:6px; }
+    .pres-online { color:#06cf9c; font-weight:600; }
+    .pres-none { color:#8696a0; }
+    #archive-overview-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #archive-overview-modal.open { display: flex; }
+    .archive-ov-box { border-radius: 14px; padding: 18px; width: 94%; max-width: 820px; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    html.dark .archive-ov-box { background: #202c33; color: #e9edef; }
+    html.light .archive-ov-box { background: #fff; color: #111; }
+    .archive-ov-body { flex: 1; overflow: auto; margin: 4px 0 12px; }
+    .archive-ov-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .archive-ov-table th { text-align: left; font-weight: 600; font-size: 12px; color: #8696a0; padding: 6px 8px; position: sticky; top: 0; cursor: pointer; white-space: nowrap; }
+    html.dark .archive-ov-table th { background: #202c33; }
+    html.light .archive-ov-table th { background: #fff; }
+    .archive-ov-table th .sort-mark { opacity: 0.9; font-size: 10px; margin-left: 3px; }
+    .archive-ov-table td { padding: 7px 8px; border-top: 1px solid rgba(128,128,128,0.18); vertical-align: middle; }
+    .archive-ov-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .archive-ov-name { font-weight: 500; word-break: break-word; }
+    .archive-ov-sub { font-size: 11px; color: #8696a0; }
+    .archive-ov-warn { color: #f0b232; }
+    .archive-ov-acts { display: flex; gap: 6px; justify-content: flex-end; }
+    .archive-ov-acts button {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; padding: 0; border-radius: 8px; cursor: pointer;
+      background: rgba(128,128,128,0.14); border: 1px solid rgba(128,128,128,0.35);
+      color: inherit; opacity: 1;
+    }
+    .archive-ov-acts button svg { width: 17px; height: 17px; }
+    .archive-ov-acts button:hover:not(:disabled) { background: rgba(128,128,128,0.3); }
+    .archive-ov-acts button[data-act="clear"] { color: #f15c5c; border-color: rgba(241,92,92,0.45); }
+    .archive-ov-acts button[data-act="clear"]:hover:not(:disabled) { background: rgba(241,92,92,0.18); }
+    .archive-ov-acts button:disabled { opacity: 0.3; cursor: default; }
+    .archive-ov-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; font-size: 12px; color: #8696a0; }
+    .archive-ov-empty { padding: 24px 8px; text-align: center; color: #8696a0; font-size: 13px; }
     .contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
     html.dark .contact-modal-close { background: #2a3942; color: #e9edef; }
     html.light .contact-modal-close { background: #f0f2f5; color: #111; }
@@ -1933,7 +4432,6 @@ app.get('/', (req, res) => {
     #ch-info { flex: 1; min-width: 0; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
-    #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
     #msg-search-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; margin-left: auto; }
     #msg-search-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #msg-search-btn.active { border-color: #3cdb7c; color: #3cdb7c; }
@@ -2164,8 +4662,16 @@ app.get('/', (req, res) => {
       body.chat-open #sidebar { display: none; }
       body.chat-open #chat-panel { display: flex; }
       #lang-btn { display: none !important; }
-      .topbar { gap: 6px; }
-      #ch-stats { white-space: normal; font-size: 10px; }
+      /* Die Buttons rechts liefen aus dem Bild — Leiste horizontal scrollbar machen.
+         Ohne flex-shrink:0 quetscht Flexbox die Buttons zusammen statt zu scrollen. */
+      .topbar { gap: 6px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .topbar::-webkit-scrollbar { display: none; }
+      .topbar > * { flex-shrink: 0; }
+      .topbar h1 { flex: 0 0 auto; }
+      .topbar .scroll-btn, .topbar .photo-toggle-btn { padding: 4px 6px; }
+      .storage-info { font-size: 11px; }
+      /* Verlauf am rechten Rand als Hinweis, dass da noch mehr kommt */
+      .topbar.has-more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
       body.chat-open .topbar h1 { display: none; }
       body.chat-open .topbar .status-dot { display: none; }
       body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
@@ -2216,7 +4722,6 @@ app.get('/', (req, res) => {
     html.light #chat-header { background: #075e54; border-color: #075e54; }
     html.light #ch-name { color: #fff; }
     html.light #ch-phone { color: rgba(255,255,255,0.75); }
-    html.light #ch-stats { color: rgba(255,255,255,0.65); }
     html.light #welcome { color: #555; }
     html.light .bubble-wrap.in .bubble { background: #fff; color: #111; }
     html.light .bubble-wrap.out .bubble { background: #dcf8c6; color: #111; }
@@ -2243,6 +4748,101 @@ app.get('/', (req, res) => {
     .ob-reload { background:#2a3942; border:1px solid #3d5259; color:#e9edef; border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
     .ob-reload:hover { background:#3d5259; border-color:#5a7a87; }
     @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── Eigenes Profil + Status-Composer ── */
+    .chat-item.me-item { border-bottom: 1px solid rgba(128,128,128,0.22); }
+    html.dark .chat-item.me-item { background: rgba(0,168,132,0.10); }
+    html.light .chat-item.me-item { background: rgba(0,168,132,0.08); }
+    .me-item .chat-preview { color: #00a884 !important; }
+    #mystatus-modal { display: none; position: fixed; inset: 0; z-index: 460; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
+    #mystatus-modal.open { display: flex; }
+    .ms-box { border-radius: 16px; width: min(520px, 94%); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; }
+    html.dark .ms-box { background: #202c33; color: #e9edef; }
+    html.light .ms-box { background: #fff; color: #111; }
+    .ms-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid rgba(128,128,128,0.2); }
+    .ms-head h3 { font-size: 15px; font-weight: 600; margin: 0; flex: 1; }
+    .ms-head .ms-close { background: none; border: none; color: inherit; font-size: 18px; cursor: pointer; opacity: 0.7; }
+    .ms-head .ms-close:hover { opacity: 1; }
+    .ms-body { padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .ms-tabs { display: flex; gap: 4px; }
+    .ms-tabs button { flex: 1; background: none; border: none; border-radius: 10px; padding: 7px 6px; font-size: 13px; color: #8696a0; cursor: pointer; }
+    html.dark .ms-tabs button.active { background: #2a3942; color: #e9edef; }
+    html.light .ms-tabs button.active { background: #e9edef; color: #111; }
+    .ms-pane { display: none; flex-direction: column; gap: 10px; }
+    .ms-pane.active { display: flex; }
+    .ms-label { font-size: 12px; font-weight: 600; opacity: 0.65; }
+    .priv-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+    .priv-row label { flex: 1; font-size: 14px; }
+    .priv-row select { width: auto; min-width: 46%; flex-shrink: 0; }
+    .priv-row select:disabled { opacity: 0.6; }
+    #wa-health { background: #7a4a00; color: #ffe9c7; font-size: 12.5px; padding: 7px 14px; line-height: 1.45; flex-shrink: 0; }
+    html.light #wa-health { background: #ffe9c7; color: #6b3f00; }
+    #wa-health b { font-weight: 600; }
+    .priv-list { font-size: 12px; color: #8696a0; padding: 0 0 8px 2px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .priv-list .priv-edit { background: none; border: none; color: #3cdb7c; cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; }
+    #priv-picker-modal { display: none; position: fixed; inset: 0; z-index: 460; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+    #priv-picker-modal.open { display: flex; }
+    .priv-picker-box { border-radius: 14px; padding: 16px; width: min(460px, 94vw); max-height: 84vh; display: flex; flex-direction: column; gap: 10px; }
+    html.dark .priv-picker-box { background: #202c33; color: #e9edef; }
+    html.light .priv-picker-box { background: #fff; color: #111; }
+    #priv-picker-list { overflow-y: auto; flex: 1; min-height: 120px; }
+    .priv-pick-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; font-size: 14px; cursor: pointer; border-bottom: 1px solid rgba(128,128,128,0.14); }
+    .priv-pick-row input { width: 16px; height: 16px; flex-shrink: 0; }
+    .priv-pick-num { color: #8696a0; font-size: 12px; }
+    .ms-input, .ms-area { width: 100%; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
+    html.dark .ms-input, html.dark .ms-area { background: #2a3942; color: #e9edef; }
+    html.light .ms-input, html.light .ms-area { background: #f0f2f5; color: #111; }
+    .ms-area { resize: vertical; min-height: 70px; }
+    .ms-preview { border-radius: 12px; min-height: 150px; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: #fff; word-break: break-word; overflow: hidden; }
+    .ms-preview .ms-preview-text { font-size: 22px; line-height: 1.35; white-space: pre-wrap; max-height: 220px; overflow: hidden; }
+    .ms-font-0 { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .ms-font-1 { font-family: Georgia, 'Times New Roman', serif; }
+    .ms-font-2 { font-family: 'Segoe Script', 'Brush Script MT', cursive; }
+    .ms-font-3 { font-family: 'Comic Sans MS', 'Segoe Print', cursive; }
+    .ms-font-4 { font-family: 'Arial Narrow', 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 1px; }
+    .ms-font-5 { font-family: Impact, 'Haettenschweiler', sans-serif; letter-spacing: 0.5px; }
+    .ms-font-6 { font-family: 'Courier New', monospace; }
+    .ms-font-7 { font-family: 'Trebuchet MS', sans-serif; font-weight: 700; }
+    .ms-colors { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .ms-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+    .ms-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px #00a884; }
+    .ms-colors input[type=color] { width: 30px; height: 28px; border: none; background: none; padding: 0; cursor: pointer; }
+    .ms-fonts { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ms-fonts button { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer; background: none; color: inherit; }
+    .ms-fonts button.active { border-color: #00a884; color: #00a884; }
+    .ms-media-preview { border-radius: 10px; max-height: 220px; display: none; margin: 0 auto; }
+    .ms-media-preview.show { display: block; max-width: 100%; }
+    .ms-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid rgba(128,128,128,0.2); }
+    .ms-btn { border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
+    .ms-btn.primary { background: #00a884; color: #fff; }
+    .ms-btn.primary:hover { background: #06cf9c; }
+    .ms-btn.primary:disabled { opacity: 0.5; cursor: default; }
+    html.dark .ms-btn.ghost { background: #2a3942; color: #e9edef; }
+    html.light .ms-btn.ghost { background: #f0f2f5; color: #111; }
+    .ms-btn.ghost:hover { opacity: 0.85; }
+    .ms-hint { font-size: 12px; color: #8696a0; flex: 1; align-self: center; }
+    .ms-tpl-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+    .ms-tpl { display: flex; align-items: center; gap: 10px; border-radius: 8px; padding: 7px 9px; cursor: pointer; }
+    html.dark .ms-tpl { background: rgba(255,255,255,0.05); }
+    html.light .ms-tpl { background: rgba(0,0,0,0.04); }
+    .ms-tpl:hover { outline: 1px solid #00a884; }
+    .ms-tpl-thumb { width: 38px; height: 38px; border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; overflow: hidden; }
+    .ms-tpl-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .ms-tpl-info { flex: 1; min-width: 0; }
+    .ms-tpl-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ms-tpl-sub { font-size: 12px; color: #8696a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ms-tpl-del { background: none; border: none; color: #f15c5c; font-size: 14px; cursor: pointer; padding: 4px 6px; }
+    .ms-live { display: flex; flex-direction: column; gap: 8px; }
+    .ms-live-item { display: flex; align-items: center; gap: 10px; border-radius: 8px; padding: 7px 9px; }
+    html.dark .ms-live-item { background: rgba(255,255,255,0.05); }
+    html.light .ms-live-item { background: rgba(0,0,0,0.04); }
+    .ms-live-item img, .ms-live-item video { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+    .ms-live-body { flex: 1; min-width: 0; font-size: 13px; word-break: break-word; }
+    .ms-live-time { font-size: 11px; color: #8696a0; }
+    .ms-msg { font-size: 13px; border-radius: 8px; padding: 7px 10px; display: none; }
+    .ms-msg.show { display: block; }
+    .ms-msg.ok { background: rgba(0,168,132,0.18); color: #06cf9c; }
+    .ms-msg.err { background: rgba(241,92,92,0.18); color: #f15c5c; }
   </style>
 </head>
 <body>
@@ -2275,22 +4875,30 @@ app.get('/', (req, res) => {
     <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
     ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
+    <button class="scroll-btn" onclick="openArchiveOverview()" data-i18n-title="archiveOverviewBtn" title="Status-Archiv-Übersicht">${_SVG.archive}</button>
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
     <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:13px;padding:0 8px;font-weight:500;">DE</button>
     <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="confirmLogout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
 
+  <div id="wa-health" style="display:none;"></div>
+
   <div id="main" style="display:none;">
 
     <div id="sidebar">
       <div id="sidebar-header">
-        <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()">
+        <div id="search-wrap">
+          <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()"
+                 onkeydown="if(event.key==='Enter'){const v=this.value.trim(); if(v.length>1) openGlobalSearch(v);}">
+          <button id="search-clear" onclick="clearChatSearch()" data-i18n-title="searchClear" title="Suche leeren">✕</button>
+        </div>
       </div>
       <div id="chat-filter">
         <button class="filter-tab active" data-filter="all" onclick="setFilter('all')" data-i18n="filterAll">Alle</button>
         <button class="filter-tab" data-filter="private" onclick="setFilter('private')" data-i18n="filterPrivate">Privat</button>
         <button class="filter-tab" data-filter="groups" onclick="setFilter('groups')" data-i18n="filterGroups">Gruppen</button>
+        <button class="filter-tab" data-filter="contacts" onclick="setFilter('contacts')" data-i18n="filterContacts">Kontakte</button>
       </div>
       <div id="chat-list"><div class="no-chats" data-i18n="loadingChats">Lade Chats…</div></div>
     </div>
@@ -2306,8 +4914,8 @@ app.get('/', (req, res) => {
         <div id="ch-info">
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
-          <div id="ch-stats"></div>
         </div>
+        ${DOWNLOAD_MEDIA ? `<button id="chat-media-btn" onclick="toggleChatMedia()" title="Medien in diesem Chat: AN">${_SVG.imageOn}</button>` : ''}
         <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
         <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">${_SVG.trash}</button>
@@ -2368,13 +4976,86 @@ app.get('/', (req, res) => {
       <div class="contact-modal-name" id="contact-modal-name">…</div>
       <div class="contact-modal-pushname" id="contact-modal-pushname"></div>
       <div class="contact-modal-number" id="contact-modal-number"></div>
+      <div class="contact-modal-presence" id="contact-modal-presence"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
+      <div class="contact-modal-blocked" id="contact-modal-blocked" data-i18n="blkBlocked">Du hast diesen Kontakt blockiert</div>
+      <div class="contact-modal-stats" id="contact-modal-stats"></div>
+      <div class="contact-modal-devices" id="contact-modal-devices"></div>
+      <div class="contact-modal-groups" id="contact-modal-groups"></div>
+      <button class="contact-modal-block" id="contact-modal-block" style="display:none"></button>
       <div class="contact-modal-status" id="contact-modal-status"></div>
       <div style="width:100%" id="contact-modal-archive"></div>
       <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
     </div>
   </div>
 
+  <div id="mystatus-modal" onclick="if(event.target===this)closeMyStatus()">
+    <div class="ms-box">
+      <div class="ms-head">
+        <h3 data-i18n="msTitle">Mein Status</h3>
+        <button class="ms-close" onclick="closeMyStatus()">✕</button>
+      </div>
+      <div class="ms-body">
+        <div id="ms-msg" class="ms-msg"></div>
+
+        <div class="ms-tabs">
+          <button id="ms-tab-text" class="active" onclick="msSetTab('text')" data-i18n="msTabText">Text</button>
+          <button id="ms-tab-media" onclick="msSetTab('media')" data-i18n="msTabMedia">Bild / Video</button>
+          <button id="ms-tab-tpl" onclick="msSetTab('tpl')" data-i18n="msTabTemplates">Vorlagen</button>
+          <button id="ms-tab-profile" onclick="msSetTab('profile')" data-i18n="msTabProfile">Profil</button>
+          <button id="ms-tab-priv" onclick="msSetTab('priv')" data-i18n="msTabPrivacy">Datenschutz</button>
+        </div>
+
+        <div id="ms-pane-text" class="ms-pane active">
+          <div class="ms-preview" id="ms-preview"><div class="ms-preview-text ms-font-0" id="ms-preview-text"></div></div>
+          <textarea id="ms-text" class="ms-area" maxlength="700" data-i18n-pl="msTextPlaceholder" placeholder="Was möchtest du teilen?" oninput="msRenderPreview()"></textarea>
+          <div class="ms-label" data-i18n="msBackground">Hintergrund</div>
+          <div class="ms-colors" id="ms-colors"></div>
+          <div class="ms-label" data-i18n="msFont">Schrift</div>
+          <div class="ms-fonts" id="ms-fonts"></div>
+        </div>
+
+        <div id="ms-pane-media" class="ms-pane">
+          <input type="file" id="ms-file" accept="image/*,video/*" class="ms-input" onchange="msFilePicked()">
+          <img id="ms-media-preview" class="ms-media-preview" alt="">
+          <div id="ms-media-note" class="ms-hint"></div>
+          <button class="ms-btn ghost" id="ms-media-clear" style="display:none" onclick="msClearMedia()" data-i18n="msMediaClear">Auswahl entfernen</button>
+          <div class="ms-label" data-i18n="msCaption">Text zum Bild (optional)</div>
+          <textarea id="ms-caption" class="ms-area" maxlength="700" data-i18n-pl="msCaptionPlaceholder" placeholder="Bildunterschrift…"></textarea>
+        </div>
+
+        <div id="ms-pane-tpl" class="ms-pane">
+          <div class="ms-label" data-i18n="msTemplatesSaved">Gespeicherte Vorlagen</div>
+          <div class="ms-tpl-list" id="ms-tpl-list"></div>
+          <div class="ms-label" data-i18n="msTemplateSaveLbl">Aktuellen Entwurf als Vorlage speichern</div>
+          <input type="text" id="ms-tpl-name" class="ms-input" maxlength="80" data-i18n-pl="msTemplateNamePlaceholder" placeholder="Name der Vorlage…">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ms-btn ghost" onclick="msSaveTemplate()" data-i18n="msTemplateSave">Vorlage speichern</button>
+            <button class="ms-btn ghost" id="ms-tpl-update" style="display:none" onclick="msSaveTemplate(true)" data-i18n="msTemplateUpdate">Vorlage aktualisieren</button>
+          </div>
+          <div class="ms-hint" data-i18n="msTemplateHint">Die Vorlage übernimmt Text, Farbe, Schrift und – falls gewählt – das Bild aus dem Editor.</div>
+        </div>
+
+        <div id="ms-pane-priv" class="ms-pane">
+          <div class="ms-label" data-i18n="privTitle">Wer darf was sehen</div>
+          <div id="ms-priv-list"></div>
+        </div>
+
+        <div id="ms-pane-profile" class="ms-pane">
+          <div class="ms-label" data-i18n="msAboutLbl">Info-Text im Profil</div>
+          <input type="text" id="ms-about" class="ms-input" maxlength="139" data-i18n-pl="msAboutPlaceholder" placeholder="Hey! Ich benutze WhatsApp.">
+          <button class="ms-btn ghost" onclick="msSaveAbout()" data-i18n="msAboutSave">Info speichern</button>
+          <div class="ms-label" data-i18n="msLiveTitle">Meine laufenden Statusmeldungen</div>
+          <div class="ms-live" id="ms-live"></div>
+        </div>
+      </div>
+      <div class="ms-actions">
+        <span class="ms-hint" id="ms-foot"></span>
+        <button class="ms-btn ghost" onclick="closeMyStatus()" data-i18n="btnCancel">Abbrechen</button>
+        <button class="ms-btn primary" id="ms-send" onclick="msSend()" data-i18n="msSend">An Status senden</button>
+      </div>
+    </div>
+  </div>
   <div id="archive-modal" onclick="if(event.target===this)closeArchiveModal()">
     <div class="archive-modal-box">
       <div class="archive-modal-header">
@@ -2387,6 +5068,80 @@ app.get('/', (req, res) => {
         </div>
       </div>
       <div id="archive-modal-body"></div>
+    </div>
+  </div>
+
+  <div id="priv-picker-modal" onclick="if(event.target===this)closePrivPicker()">
+    <div class="priv-picker-box">
+      <div class="ms-head">
+        <h3 id="priv-picker-title">Ausnahmen</h3>
+        <button class="ms-close" onclick="closePrivPicker()">✕</button>
+      </div>
+      <input type="text" id="priv-picker-search" class="ms-input" data-i18n-pl="privPickerSearch" placeholder="Kontakt suchen…" oninput="renderPrivPicker()">
+      <div id="priv-picker-list"></div>
+      <div class="ms-actions">
+        <span class="ms-hint" id="priv-picker-count"></span>
+        <button class="ms-btn ghost" onclick="closePrivPicker()" data-i18n="btnCancel">Abbrechen</button>
+        <button class="ms-btn primary" id="priv-picker-save" onclick="savePrivPicker()" data-i18n="privPickerSave">Übernehmen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="numcheck-modal" onclick="if(event.target===this)closeNumCheck()">
+    <div class="nc-box">
+      <div class="nc-body">
+        <h3 data-i18n="ncTitle">Rufnummer bei WhatsApp prüfen</h3>
+        <div class="nc-row">
+          <input type="text" id="nc-input" data-i18n-pl="ncPlaceholder" placeholder="+49 170 1234567">
+          <button class="ms-btn primary" id="nc-go" onclick="runNumCheck()" data-i18n="ncCheck">Prüfen</button>
+        </div>
+        <div class="nc-result" id="nc-result"></div>
+        <div class="nc-actions">
+          <button class="ms-btn ghost" onclick="closeNumCheck()" data-i18n="btnClose">Schließen</button>
+          <button class="ms-btn primary" id="nc-open" style="display:none" data-i18n="ncOpenChat">Chat öffnen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="gsearch-modal" onclick="if(event.target===this)closeGlobalSearch()">
+    <div class="gs-box">
+      <div class="gs-head">
+        <input type="text" id="gs-input" data-i18n-pl="gsPlaceholder" placeholder="In allen Nachrichten suchen…">
+        <button onclick="closeGlobalSearch()">✕</button>
+      </div>
+      <div class="gs-body" id="gs-body"></div>
+      <div class="gs-foot" id="gs-foot"></div>
+    </div>
+  </div>
+
+  <div id="presence-modal" onclick="if(event.target===this)closePresenceOverview()">
+    <div class="archive-ov-box">
+      <div class="archive-modal-header">
+        <h3 data-i18n="presOvTitle">Zuletzt online — Übersicht</h3>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="status-archive-clear" id="pres-ov-refresh">↻ <span data-i18n="presOvRefresh">Jetzt aktualisieren</span></button>
+          <button class="archive-modal-close" onclick="closePresenceOverview()">✕</button>
+        </div>
+      </div>
+      <div class="archive-ov-body" id="pres-ov-body"></div>
+      <div class="archive-ov-foot">
+        <span id="pres-ov-foot"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="archive-overview-modal" onclick="if(event.target===this)closeArchiveOverview()">
+    <div class="archive-ov-box">
+      <div class="archive-modal-header">
+        <h3 data-i18n="archiveOverviewTitle">Status-Archiv — Gesamtübersicht</h3>
+        <button class="archive-modal-close" onclick="closeArchiveOverview()">✕</button>
+      </div>
+      <div class="archive-ov-body" id="archive-ov-body"></div>
+      <div class="archive-ov-foot">
+        <span id="archive-ov-total"></span>
+        <button class="status-archive-clear" id="archive-ov-clear-all">🗑 <span data-i18n="archiveClearAll">Alle Archive leeren</span></button>
+      </div>
     </div>
   </div>
 
@@ -2465,6 +5220,8 @@ app.get('/', (req, res) => {
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
         btnBack:'Zurück',
         ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'Spam löschen',
+        ttChatMediaOn:'Medien in diesem Chat: AN — Klick schaltet sie aus (nichts wird gelöscht)',
+        ttChatMediaOff:'Medien in diesem Chat: AUS — vorhandene sind nur ausgeblendet, Klick schaltet sie wieder an',
         ttMsgSearch:'Nachrichten durchsuchen', msgSearchPlaceholder:'Suchen…', msgSearchNoResult:'Keine Treffer',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', btnLocation:'Standort senden', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
@@ -2497,6 +5254,113 @@ app.get('/', (req, res) => {
         archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen', archiveExport:'Als ZIP exportieren',
         archiveMediaGone:'Medium nicht verfügbar', archiveCleanup:'Fehlerhafte aufräumen',
         archiveCleanupDone:(r,c)=>r+c===0?'✓ Nichts zu tun':'✓ '+r+' entfernt'+(c?', '+c+' zu Text konvertiert':''),
+        archiveOverviewBtn:'Status-Archiv: Gesamtübersicht', archiveOverviewTitle:'Status-Archiv — Gesamtübersicht',
+        archiveOverviewLoading:'Lade Übersicht…', archiveOverviewEmpty:'Noch keine archivierten Statusmeldungen vorhanden.',
+        archiveColContact:'Kontakt', archiveColCount:'Einträge', archiveColSize:'Speicher', archiveColPeriod:'Zeitraum', archiveColActions:'Aktionen',
+        archiveRowExpired:(n)=>n+' abgelaufen', archiveRowMissing:(n)=>n+' ohne Medium',
+        archiveOpenTitle:'Archiv öffnen', archiveOpenNone:'Noch nichts abgelaufen — nichts zu zeigen',
+        archiveExportTitle:'Als ZIP exportieren', archiveDeleteTitle:'Archiv dieses Kontakts löschen',
+        archiveRowClearConfirm:(name,size)=>'Archiv von '+name+' wirklich löschen? Gibt '+size+' frei.',
+        archiveClearAll:'Alle Archive leeren',
+        archiveClearAllConfirm:(c,size)=>'Wirklich die Archive aller '+c+' Kontakte löschen? Gibt '+size+' frei. Das lässt sich nicht rückgängig machen.',
+        archiveOvTotal:(c,n,size)=>c+' Kontakt'+(c===1?'':'e')+' · '+n+' Eintrag'+(n===1?'':'/Einträge')+' · '+size,
+        archiveOvNoFiles:'keine Datei',
+        filterContacts:'Kontakte', contactsLoading:'Lade Adressbuch…',
+        contactsEmpty:'Keine Kontakte gefunden.', contactsNoChat:'noch kein Chat',
+        contactsError:'Adressbuch konnte nicht geladen werden.',
+        contactsRefresh:'Adressbuch neu laden',
+        searchClear:'Suche leeren',
+        loadOlder:'↑ Ältere Nachrichten laden', loadOlderBusy:'lädt…',
+        loadOlderCount:(n,total)=>n+' von '+total+' geladen',
+        presLoading:'zuletzt online wird geprüft…', presOnline:'online',
+        presLastSeen:(w)=>'zuletzt online: '+w, presDenied:'zuletzt online: nicht sichtbar',
+        presUnknown:'zuletzt online: keine Angabe',
+        blkBlocked:'Du hast diesen Kontakt blockiert',
+        blkBlock:'Kontakt blockieren', blkUnblock:'Blockierung aufheben',
+        blkConfirmBlock:(n)=>'„'+n+'" wirklich blockieren? Der Kontakt kann dir dann nicht mehr schreiben und sieht dein Profilbild und „zuletzt online" nicht mehr.',
+        blkConfirmUnblock:(n)=>'Blockierung von „'+n+'" wirklich aufheben?',
+        blkDone:'Kontakt blockiert.', blkUndone:'Blockierung aufgehoben.',
+        blkWorking:'Einen Moment…',
+        cgDevices:(n)=>n+' verknüpfte Geräte', cgDevice:'1 verknüpftes Gerät',
+        cgGroups:(n)=>n===1?'1 gemeinsame Gruppe':n+' gemeinsame Gruppen',
+        gsTitle:'In allen Nachrichten suchen', gsPlaceholder:'In allen Nachrichten suchen…',
+        gsSearchAll:(q)=>'🔍 „'+q+'" in allen Nachrichten suchen',
+        gsSearching:'Suche läuft…', gsNoResult:'Keine Nachricht gefunden.',
+        gsTooShort:'Bitte mindestens zwei Zeichen eingeben.',
+        gsNotStored:'nicht im lokalen Verlauf — öffnet nur den Chat',
+        gsFoot:(n,local,remote)=>n+' Treffer · '+local+' aus dem Verlauf'+(remote?' · '+remote+' zusätzlich von WhatsApp':''),
+        gsTruncated:(shown,total)=>'zeige '+shown+' von '+total+' Treffern',
+        gsJumpFailed:'Die Nachricht steht nicht im geladenen Verlauf.',
+        ncTitle:'Rufnummer bei WhatsApp prüfen', ncPlaceholder:'+49 170 1234567',
+        ncCheck:'Prüfen', ncChecking:'Wird geprüft…', ncOpenChat:'Chat öffnen',
+        ncAsk:(n)=>'📱 „'+n+'" bei WhatsApp prüfen', ncOpen:'📱 Rufnummer prüfen',
+        ncYes:'Diese Nummer ist bei WhatsApp.', ncNo:'Diese Nummer ist nicht bei WhatsApp.',
+        ncKnown:(n)=>'Gespeichert als '+n, ncNotSaved:'nicht im Adressbuch',
+        ncTooShort:'Bitte eine Rufnummer mit 7 bis 15 Ziffern eingeben.',
+        presOvTitle:'Zuletzt online — Übersicht', presOvOpen:'Zuletzt online — Übersicht',
+        presOvRefresh:'Jetzt aktualisieren', presOvScanning:'Rundlauf läuft…',
+        presOvEmpty:'Noch keine Daten. „Jetzt aktualisieren" startet einen Rundlauf.',
+        presOvColName:'Kontakt', presOvColState:'Zuletzt online', presOvColChecked:'Geprüft',
+        presOvNever:'keine Angabe', presOvDenied:'nicht sichtbar', presOvOnline:'online',
+        presOvFoot:(n,when,iv)=>n+' Kontakt'+(n===1?'':'e')+(when?' · Rundlauf '+when:'')
+          +(iv?' · automatisch alle '+iv+' Min.':' · automatischer Rundlauf aus'),
+        contactsFoot:(n,w)=>n+' Kontakt'+(n===1?'':'e')+' im Adressbuch · '+w+' ohne Chat',
+        meProfile:'Mein Profil', meStatusSub:'Status posten · Info bearbeiten',
+        msTitle:'Mein Status', msTabText:'Text', msTabMedia:'Bild / Video', msTabTemplates:'Vorlagen', msTabProfile:'Profil',
+        msTabPrivacy:'Datenschutz', privTitle:'Wer darf was sehen', privLoading:'Lade Einstellungen…',
+        privUnavailable:'WhatsApp Web gibt die Datenschutzeinstellungen gerade nicht her.',
+        priv_lastSeen:'Zuletzt online', priv_online:'Online', priv_profilePicture:'Profilbild', priv_about:'Info',
+        priv_groupAdd:'Gruppen', priv_callAdd:'Anrufe', priv_readReceipts:'Lesebestätigungen',
+        privVal_all:'Jeder', privVal_contacts:'Meine Kontakte', privVal_contact_blacklist:'Meine Kontakte, außer…',
+        privVal_none:'Niemand', privVal_match_last_seen:'Wie „Zuletzt online"', privVal_known:'Bekannte Kontakte',
+        privHint:'Bei „Meine Kontakte, außer…" wählst du die Ausnahmen direkt hier aus. Ohne Lesebestätigungen siehst du auch bei anderen keine mehr (in Gruppen bleiben sie an).',
+        privNoBlacklist:'Für diese Einstellung führt WhatsApp keine Ausnahmeliste.',
+        healthTitle:'WhatsApp Web hat umgebaut.',
+        healthTitleShape:'WhatsApp antwortet anders als bisher.',
+        healthBodyShape:(what)=>'Betroffen: '+what+'. Die Bausteine sind noch da, ihre Antworten haben aber eine andere Form — hier kann etwas falsch angezeigt oder falsch gesetzt werden. Einzelheiten unter /api/selfcheck.',
+        healthBody:(what)=>'Diese Funktionen sind davon betroffen und arbeiten gerade nicht: '+what+'. Der Rest läuft weiter. Einzelheiten unter /api/selfcheck.',
+        priv_statusAudience:'Statusmeldungen',
+        privStatus_contacts:'Meine Kontakte', privStatus_deny:'Meine Kontakte, außer…', privStatus_allow:'Nur teilen mit…',
+        privStatusSaved:'Status-Publikum gespeichert',
+        privStatusOnlyCount:(n)=>n===1?'1 Kontakt':n+' Kontakte',
+        privListEdit:'bearbeiten', privListEmpty:'Noch niemand ausgenommen',
+        privListUnavailable:'Ausnahmeliste nicht abrufbar',
+        privListCount:(n)=>n===1?'1 Ausnahme':n+' Ausnahmen',
+        privListSaved:(n)=>n===1?'Gespeichert — 1 Kontakt ausgenommen':'Gespeichert — '+n+' Kontakte ausgenommen',
+        privUnresolved:(n)=>n===1?'1 Kontakt ließ sich nicht zuordnen und wurde übersprungen.':n+' Kontakte ließen sich nicht zuordnen und wurden übersprungen.',
+        privPickerTitle:(what)=>what+': wer soll es NICHT sehen?',
+        privPickerCount:(n)=>n+' ausgewählt', privPickerSearch:'Kontakt suchen…', privPickerSave:'Übernehmen',
+        privFailed:'Ändern hat nicht geklappt.',
+        privSaved:(what, val)=>what + ' → ' + val,
+        privRejected:(applied)=>'WhatsApp hat das nicht übernommen, es steht weiter auf ' + applied + '.',
+        msTextPlaceholder:'Was möchtest du teilen?', msBackground:'Hintergrund', msFont:'Schrift',
+        msCaption:'Text zum Bild (optional)', msCaptionPlaceholder:'Bildunterschrift…',
+        msTemplatesSaved:'Gespeicherte Vorlagen', msTemplatesEmpty:'Noch keine Vorlagen gespeichert.',
+        msTemplateSaveLbl:'Aktuellen Entwurf als Vorlage speichern', msTemplateNamePlaceholder:'Name der Vorlage…',
+        msTemplateSave:'Vorlage speichern', msTemplateUpdate:'Vorlage aktualisieren',
+        msTemplateHint:'Die Vorlage übernimmt Text, Farbe, Schrift und – falls gewählt – das Bild aus dem Editor.',
+        msTemplateNameMissing:'Bitte einen Namen für die Vorlage eingeben.',
+        msTemplateSaved:'Vorlage gespeichert.', msTemplateDeleted:'Vorlage gelöscht.',
+        msTemplateDeleteConfirm:(n)=>'Vorlage „'+n+'“ wirklich löschen?',
+        msTemplateLoaded:(n)=>'Vorlage „'+n+'“ geladen.',
+        msTplText:'Text', msTplImage:'Bild', msTplVideo:'Video',
+        msAboutLbl:'Info-Text im Profil', msAboutPlaceholder:'Hey! Ich benutze WhatsApp.',
+        msAboutSave:'Info speichern', msAboutSaved:'Info gespeichert.',
+        msLiveTitle:'Meine laufenden Statusmeldungen', msLiveEmpty:'Zurzeit kein eigener Status aktiv.',
+        msLiveLoading:'Lade…', msLiveDelete:'Zurückziehen',
+        msLiveDeleteConfirm:'Diesen Status wirklich zurückziehen?', msLiveDeleted:'Status zurückgezogen.',
+        msSend:'An Status senden', msSending:'Wird gesendet…',
+        msSentText:'Text-Status gepostet.', msSentMedia:'Medien-Status gepostet.',
+        msNeedText:'Bitte erst einen Text eingeben.', msNeedFile:'Bitte erst ein Bild oder Video auswählen.',
+        msFileTooBig:'Datei zu groß (max. 64 MB).', msVideoNoPreview:'Video ausgewählt – keine Vorschau.',
+        msShrinking:'Bild wird verkleinert…',
+        msMediaClear:'Auswahl entfernen',
+        attachShrunk:(from)=>'verkleinert aus '+from,
+        msShrunk:(from,to,w,h)=>'Bild verkleinert: '+from+' → '+to+' ('+w+'×'+h+' Pixel)',
+        msShrinkFail:(size)=>'Bild ließ sich nicht verkleinern und bleibt bei '+size+'. Große Uploads können unterwegs abgewiesen werden.',
+        msVideoBig:(size)=>'Das Video ist '+size+' groß – große Uploads können unterwegs abgewiesen werden.',
+        msTplFileNote:(n)=>'Bild aus Vorlage: '+n,
+        msError:(e)=>'Fehler: '+e,
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2509,6 +5373,8 @@ app.get('/', (req, res) => {
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
         btnBack:'Back',
         ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'Delete Spam',
+        ttChatMediaOn:'Media in this chat: ON — click to turn off (nothing gets deleted)',
+        ttChatMediaOff:'Media in this chat: OFF — existing files are only hidden, click to turn back on',
         ttMsgSearch:'Search messages', msgSearchPlaceholder:'Search…', msgSearchNoResult:'No results',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
         btnEmoji:'Emoji', btnAttach:'Attach file', btnLocation:'Send location', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
@@ -2541,6 +5407,113 @@ app.get('/', (req, res) => {
         archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'), archiveExport:'Export as ZIP',
         archiveMediaGone:'Media unavailable', archiveCleanup:'Clean up broken',
         archiveCleanupDone:(r,c)=>r+c===0?'✓ Nothing to do':'✓ '+r+' removed'+(c?', '+c+' converted to text':''),
+        archiveOverviewBtn:'Status archive: overview', archiveOverviewTitle:'Status archive — overview',
+        archiveOverviewLoading:'Loading overview…', archiveOverviewEmpty:'No archived status updates yet.',
+        archiveColContact:'Contact', archiveColCount:'Entries', archiveColSize:'Storage', archiveColPeriod:'Period', archiveColActions:'Actions',
+        archiveRowExpired:(n)=>n+' expired', archiveRowMissing:(n)=>n+' without media',
+        archiveOpenTitle:'Open archive', archiveOpenNone:'Nothing expired yet — nothing to show',
+        archiveExportTitle:'Export as ZIP', archiveDeleteTitle:'Delete this contact\\'s archive',
+        archiveRowClearConfirm:(name,size)=>'Really delete the archive of '+name+'? Frees '+size+'.',
+        archiveClearAll:'Clear all archives',
+        archiveClearAllConfirm:(c,size)=>'Really delete the archives of all '+c+' contacts? Frees '+size+'. This cannot be undone.',
+        archiveOvTotal:(c,n,size)=>c+' contact'+(c===1?'':'s')+' · '+n+' entr'+(n===1?'y':'ies')+' · '+size,
+        archiveOvNoFiles:'no file',
+        filterContacts:'Contacts', contactsLoading:'Loading address book…',
+        contactsEmpty:'No contacts found.', contactsNoChat:'no chat yet',
+        contactsError:'Could not load the address book.',
+        contactsRefresh:'Reload address book',
+        searchClear:'Clear search',
+        loadOlder:'↑ Load older messages', loadOlderBusy:'loading…',
+        loadOlderCount:(n,total)=>n+' of '+total+' loaded',
+        presLoading:'checking last seen…', presOnline:'online',
+        presLastSeen:(w)=>'last seen: '+w, presDenied:'last seen: not visible',
+        presUnknown:'last seen: no information',
+        blkBlocked:'You have blocked this contact',
+        blkBlock:'Block contact', blkUnblock:'Unblock contact',
+        blkConfirmBlock:(n)=>'Really block "'+n+'"? They will no longer be able to message you and will not see your profile picture or last seen.',
+        blkConfirmUnblock:(n)=>'Really unblock "'+n+'"?',
+        blkDone:'Contact blocked.', blkUndone:'Contact unblocked.',
+        blkWorking:'One moment…',
+        cgDevices:(n)=>n+' linked devices', cgDevice:'1 linked device',
+        cgGroups:(n)=>n===1?'1 group in common':n+' groups in common',
+        gsTitle:'Search all messages', gsPlaceholder:'Search all messages…',
+        gsSearchAll:(q)=>'🔍 Search all messages for "'+q+'"',
+        gsSearching:'Searching…', gsNoResult:'No message found.',
+        gsTooShort:'Please enter at least two characters.',
+        gsNotStored:'not in the local history — only opens the chat',
+        gsFoot:(n,local,remote)=>n+' hits · '+local+' from the history'+(remote?' · '+remote+' extra from WhatsApp':''),
+        gsTruncated:(shown,total)=>'showing '+shown+' of '+total+' hits',
+        gsJumpFailed:'That message is not in the loaded history.',
+        ncTitle:'Check a number on WhatsApp', ncPlaceholder:'+49 170 1234567',
+        ncCheck:'Check', ncChecking:'Checking…', ncOpenChat:'Open chat',
+        ncAsk:(n)=>'📱 Check "'+n+'" on WhatsApp', ncOpen:'📱 Check a number',
+        ncYes:'This number is on WhatsApp.', ncNo:'This number is not on WhatsApp.',
+        ncKnown:(n)=>'Saved as '+n, ncNotSaved:'not in your address book',
+        ncTooShort:'Please enter a number with 7 to 15 digits.',
+        presOvTitle:'Last seen — overview', presOvOpen:'Last seen — overview',
+        presOvRefresh:'Refresh now', presOvScanning:'sweep running…',
+        presOvEmpty:'No data yet. "Refresh now" starts a sweep.',
+        presOvColName:'Contact', presOvColState:'Last seen', presOvColChecked:'Checked',
+        presOvNever:'no information', presOvDenied:'not visible', presOvOnline:'online',
+        presOvFoot:(n,when,iv)=>n+' contact'+(n===1?'':'s')+(when?' · sweep '+when:'')
+          +(iv?' · automatically every '+iv+' min':' · automatic sweep off'),
+        contactsFoot:(n,w)=>n+' contact'+(n===1?'':'s')+' in the address book · '+w+' without a chat',
+        meProfile:'My profile', meStatusSub:'Post a status · edit info',
+        msTitle:'My status', msTabText:'Text', msTabMedia:'Photo / video', msTabTemplates:'Templates', msTabProfile:'Profile',
+        msTabPrivacy:'Privacy', privTitle:'Who can see what', privLoading:'Loading settings…',
+        privUnavailable:'WhatsApp Web is not exposing the privacy settings right now.',
+        priv_lastSeen:'Last seen', priv_online:'Online', priv_profilePicture:'Profile photo', priv_about:'About',
+        priv_groupAdd:'Groups', priv_callAdd:'Calls', priv_readReceipts:'Read receipts',
+        privVal_all:'Everyone', privVal_contacts:'My contacts', privVal_contact_blacklist:'My contacts except…',
+        privVal_none:'Nobody', privVal_match_last_seen:'Same as last seen', privVal_known:'Known contacts',
+        privHint:'For "My contacts except…" you pick the exceptions right here. With read receipts off you will not see them from others either (they stay on in groups).',
+        privNoBlacklist:'WhatsApp keeps no exception list for this setting.',
+        healthTitle:'WhatsApp Web has changed.',
+        healthTitleShape:'WhatsApp is answering differently than before.',
+        healthBodyShape:(what)=>'Affected: '+what+'. The internals are still there, but their answers have a different shape — things may be shown or set incorrectly. Details at /api/selfcheck.',
+        healthBody:(what)=>'These features are affected and are not working right now: '+what+'. Everything else keeps running. Details at /api/selfcheck.',
+        priv_statusAudience:'Status updates',
+        privStatus_contacts:'My contacts', privStatus_deny:'My contacts except…', privStatus_allow:'Only share with…',
+        privStatusSaved:'Status audience saved',
+        privStatusOnlyCount:(n)=>n===1?'1 contact':n+' contacts',
+        privListEdit:'edit', privListEmpty:'Nobody excluded yet',
+        privListUnavailable:'Exception list not available',
+        privListCount:(n)=>n===1?'1 exception':n+' exceptions',
+        privListSaved:(n)=>n===1?'Saved — 1 contact excluded':'Saved — '+n+' contacts excluded',
+        privUnresolved:(n)=>n===1?'1 contact could not be matched and was skipped.':n+' contacts could not be matched and were skipped.',
+        privPickerTitle:(what)=>what+': who should NOT see it?',
+        privPickerCount:(n)=>n+' selected', privPickerSearch:'Search contact…', privPickerSave:'Apply',
+        privFailed:'Could not change the setting.',
+        privSaved:(what, val)=>what + ' → ' + val,
+        privRejected:(applied)=>'WhatsApp did not accept it, it is still set to ' + applied + '.',
+        msTextPlaceholder:'What do you want to share?', msBackground:'Background', msFont:'Font',
+        msCaption:'Caption (optional)', msCaptionPlaceholder:'Caption…',
+        msTemplatesSaved:'Saved templates', msTemplatesEmpty:'No templates saved yet.',
+        msTemplateSaveLbl:'Save the current draft as a template', msTemplateNamePlaceholder:'Template name…',
+        msTemplateSave:'Save template', msTemplateUpdate:'Update template',
+        msTemplateHint:'The template keeps text, colour, font and – if picked – the image from the editor.',
+        msTemplateNameMissing:'Please enter a name for the template.',
+        msTemplateSaved:'Template saved.', msTemplateDeleted:'Template deleted.',
+        msTemplateDeleteConfirm:(n)=>'Really delete the template "'+n+'"?',
+        msTemplateLoaded:(n)=>'Template "'+n+'" loaded.',
+        msTplText:'Text', msTplImage:'Image', msTplVideo:'Video',
+        msAboutLbl:'About text in your profile', msAboutPlaceholder:'Hey there! I am using WhatsApp.',
+        msAboutSave:'Save about', msAboutSaved:'About saved.',
+        msLiveTitle:'My live status updates', msLiveEmpty:'No status of your own is active right now.',
+        msLiveLoading:'Loading…', msLiveDelete:'Revoke',
+        msLiveDeleteConfirm:'Really revoke this status?', msLiveDeleted:'Status revoked.',
+        msSend:'Post to status', msSending:'Sending…',
+        msSentText:'Text status posted.', msSentMedia:'Media status posted.',
+        msNeedText:'Please enter some text first.', msNeedFile:'Please pick a photo or video first.',
+        msFileTooBig:'File too large (max. 64 MB).', msVideoNoPreview:'Video selected – no preview.',
+        msShrinking:'Shrinking image…',
+        msMediaClear:'Remove selection',
+        attachShrunk:(from)=>'shrunk from '+from,
+        msShrunk:(from,to,w,h)=>'Image shrunk: '+from+' → '+to+' ('+w+'×'+h+' pixels)',
+        msShrinkFail:(size)=>'Could not shrink the image, it stays at '+size+'. Large uploads may be rejected on the way.',
+        msVideoBig:(size)=>'The video is '+size+' – large uploads may be rejected on the way.',
+        msTplFileNote:(n)=>'Image from template: '+n,
+        msError:(e)=>'Error: '+e,
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -2555,6 +5528,7 @@ app.get('/', (req, res) => {
       if (lb) lb.textContent = lang === 'de' ? 'DE' : 'EN';
       const ptb = document.getElementById('photo-toggle');
       if (ptb) ptb.title = document.body.classList.contains('hide-photos') ? t('photosOff') : t('photosOn');
+      if (typeof applyChatMediaState === 'function') applyChatMediaState();
     }
     function switchLang() {
       lang = lang === 'de' ? 'en' : 'de';
@@ -2721,6 +5695,32 @@ app.get('/', (req, res) => {
     let allChats = [];
     let lastSeenTime = {};
     let _statusChatIds = new Set();
+    // Blockierte Kontakte: WhatsApp fuehrt sie unter der ID des Adressbuchs, die
+    // Chats laufen teils unter @lid — deshalb zusaetzlich ueber die Rufnummer
+    // vergleichen, sonst fehlt das Schloss genau dort, wo es hingehoert.
+    let _blockedIds = new Set(), _blockedNumbers = new Set();
+
+    function isBlockedChat(chat) {
+      if (!chat || chat.isGroup) return false;
+      const id = chat.id || '';
+      if (_blockedIds.has(id)) return true;
+      const num = String(chat.phone || '').replace(/\\D/g, '') || (id.endsWith('@c.us') ? id.split('@')[0] : '');
+      return !!num && _blockedNumbers.has(num);
+    }
+
+    async function pollBlocked() {
+      if (currentStatus !== 'connected') return;
+      try {
+        const d = await fetch('api/blocked').then(apiJson);
+        const list = d.contacts || [];
+        _blockedIds = new Set(list.map(c => c.id));
+        _blockedNumbers = new Set(list.map(c => String(c.number || '').replace(/\\D/g, '')).filter(Boolean));
+        renderChatList(allChats);
+      } catch (e) {}
+    }
+
+    setInterval(() => { if (!document.hidden) pollBlocked(); }, 300000);
+
     async function pollStatuses() {
       if (document.hidden || currentStatus !== 'connected') return;
       try {
@@ -2734,6 +5734,8 @@ app.get('/', (req, res) => {
     const msgList = document.getElementById('messages');
     msgList.addEventListener('scroll', () => {
       atBottom = msgList.scrollTop + msgList.clientHeight >= msgList.scrollHeight - 30;
+      // Oben angekommen: aeltere Nachrichten von selbst nachladen
+      if (msgList.scrollTop < 60 && selectedChatId) loadOlderMessages(selectedChatId);
     });
 
     const COLORS = ['#e67e22','#d35400','#27ae60','#34b7f1','#00bcd4','#9c27b0','#ff5722','#607d8b','#e91e63','#3f51b5'];
@@ -2796,6 +5798,54 @@ app.get('/', (req, res) => {
         : (q.type==='image'||q.type==='photo' ? t('photo') : q.type==='ptt'||q.type==='audio' ? t('voiceMsg') : t('mediaGeneric'));
       return '<div class="quoted-block"><div class="quoted-sender">' + esc(q.contact||'') + '</div><div class="quoted-text">' + esc(preview) + '</div></div>';
     }
+    // ── Medien pro Chat ─────────────────────────────────────────────────────────
+    // Aus heisst: nichts Neues wird geladen und vorhandene Bilder/Videos bleiben
+    // in diesem Chat ausgeblendet. Geloescht wird nichts — wieder AN zeigt alles
+    // wieder an und holt nach, was in der Zwischenzeit liegengeblieben ist.
+    let _mediaOffChats = new Set();
+
+    async function loadChatMediaPrefs() {
+      try {
+        const d = await fetch('api/chat-media').then(r => r.json());
+        _mediaOffChats = new Set(d.off || []);
+      } catch(e) {}
+      applyChatMediaState();
+    }
+
+    function applyChatMediaState() {
+      const btn = document.getElementById('chat-media-btn');
+      const off = !!selectedChatId && _mediaOffChats.has(selectedChatId);
+      document.body.classList.toggle('chat-media-off', off);
+      if (!btn) return;
+      btn.style.display = selectedChatId ? '' : 'none';
+      btn.classList.toggle('off', off);
+      btn.innerHTML = off ? '${_SVG.imageSlash}' : '${_SVG.imageOn}';
+      btn.title = off ? t('ttChatMediaOff') : t('ttChatMediaOn');
+    }
+
+    async function toggleChatMedia() {
+      if (!selectedChatId) return;
+      const chatId = selectedChatId;
+      const enable = _mediaOffChats.has(chatId);
+      if (enable) _mediaOffChats.delete(chatId); else _mediaOffChats.add(chatId);
+      applyChatMediaState();
+      try {
+        await fetch('api/chat-media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, enabled: enable }),
+        }).then(r => r.json());
+      } catch(e) {
+        // Server hat es nicht angenommen — Anzeige zurueckdrehen
+        if (enable) _mediaOffChats.add(chatId); else _mediaOffChats.delete(chatId);
+        applyChatMediaState();
+        return;
+      }
+      // Beim Einschalten laedt der Server im Hintergrund nach — kurz danach neu holen
+      if (enable) setTimeout(() => { if (selectedChatId === chatId) reloadMessages(chatId); }, 4000);
+    }
+    loadChatMediaPrefs();
+
     async function loadStorage() {
       try {
         const d = await fetch('api/storage').then(r => r.json());
@@ -2812,6 +5862,19 @@ app.get('/', (req, res) => {
     }
     loadStorage();
     setInterval(loadStorage, 60000);
+
+    // Mobil ist die Topbar horizontal scrollbar; Verlauf rechts nur zeigen,
+    // solange tatsaechlich noch etwas ausserhalb liegt
+    function updateTopbarFade() {
+      const bar = document.getElementById('topbar');
+      if (!bar) return;
+      const more = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 2;
+      bar.classList.toggle('has-more-right', more);
+    }
+    document.getElementById('topbar').addEventListener('scroll', updateTopbarFade, { passive: true });
+    window.addEventListener('resize', updateTopbarFade);
+    window.addEventListener('load', updateTopbarFade);
+    updateTopbarFade();
 
     async function cleanupMedia() {
       if (!confirm(t('cleanupConfirm'))) return;
@@ -2994,13 +6057,901 @@ app.get('/', (req, res) => {
     });
 
     let currentFilter = 'all';
+    // Adressbuch: Kontakte ohne Chatverlauf tauchen in allChats nicht auf, deshalb
+    // eigene Liste, die erst beim Wechsel auf den Kontakte-Tab geladen wird
+    let _addressBook = null, _addressBookState = 'idle'; // idle | loading | ready | error
     function setFilter(f) {
       currentFilter = f;
       document.querySelectorAll('.filter-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === f));
+      if (f === 'contacts') {
+        renderContactList();
+        if (_addressBookState === 'idle') loadAddressBook();
+        if (!_myProfile) loadMyProfile().then(() => { if (currentFilter === 'contacts') renderContactList(); });
+        return;
+      }
       renderChatList(allChats);
     }
 
+    async function loadAddressBook(refresh) {
+      _addressBookState = 'loading';
+      if (currentFilter === 'contacts') renderContactList();
+      try {
+        const d = await fetch('api/contacts' + (refresh ? '?refresh=1' : '')).then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        _addressBook = d;
+        _addressBookState = 'ready';
+      } catch(e) {
+        _addressBook = null;
+        _addressBookState = 'error';
+      }
+      if (currentFilter === 'contacts') renderContactList();
+    }
+
+    function renderContactList() {
+      const list = document.getElementById('chat-list');
+      // Das eigene Profil haengt nicht am Adressbuch — es gehoert sofort hin,
+      // auch waehrend das Adressbuch noch laedt oder gar nicht kommt
+      if (_addressBookState === 'loading' || _addressBookState === 'idle') {
+        list.innerHTML = '<div class="no-chats">' + esc(t('contactsLoading')) + '</div>';
+        list.insertBefore(buildMeItem(), list.firstChild);
+        return;
+      }
+      if (_addressBookState === 'error') {
+        list.innerHTML = '<div class="no-chats">' + esc(t('contactsError')) + '</div>'
+          + '<div class="contact-list-foot"><button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button></div>';
+        list.insertBefore(buildMeItem(), list.firstChild);
+        bindContactFoot(list);
+        return;
+      }
+      const all = (_addressBook && _addressBook.contacts) || [];
+      const q = document.getElementById('search').value.toLowerCase();
+      const filtered = q
+        ? all.filter(c => c.name.toLowerCase().includes(q) || c.number.includes(q.startsWith('+') ? q.slice(1) : q))
+        : all;
+      list.innerHTML = '';
+      if (!filtered.length) {
+        list.innerHTML = '<div class="no-chats">' + esc(t('contactsEmpty')) + '</div>';
+      } else {
+        for (const c of filtered) {
+          const item = document.createElement('div');
+          item.className = 'chat-item' + (c.id === selectedChatId ? ' active' : '');
+          item.dataset.id = c.id;
+          // Existiert doch ein Chat, das echte Chat-Objekt oeffnen (Ungelesen-Status,
+          // lastTime); sonst ein Minimal-Objekt — loadMessages() liefert dann eben nichts
+          // c.chatId kommt vom Server (loest @lid-Chats zur Rufnummer auf); ohne das
+          // findet man den Chat nicht, weil Chat- und Kontakt-ID verschiedene Formate haben
+          const existing = allChats.find(x => x.id === (c.chatId || c.id));
+          item.onclick = () => openChat(existing || { id: c.id, name: c.name, phone: c.number, isGroup: false, lastTime: 0 });
+
+          const av = document.createElement('div');
+          av.className = 'avatar' + (_statusChatIds.has(c.id) ? ' has-status' : '')
+            + (isBlockedChat({ id: c.chatId || c.id, phone: c.number }) ? ' blocked' : '');
+          av.setAttribute('data-avid', c.id);
+          av.style.background = avatarColor(c.name);
+          av.textContent = avatarInitials(c.name);
+          if (_avatarState.get(c.id) === 'loaded') applyAvatar(av, c.id);
+
+          const info = document.createElement('div');
+          info.className = 'chat-info';
+          // hasChat live gegen allChats pruefen — der Serverwert veraltet, sobald
+          // man aus dieser Ansicht heraus jemandem schreibt
+          const hasChat = !!existing || c.hasChat;
+          const sub = hasChat
+            ? (c.number ? '+' + c.number : '')
+            : (c.number ? '+' + c.number + ' · ' + t('contactsNoChat') : t('contactsNoChat'));
+          info.innerHTML =
+            '<div class="chat-name">' + esc(c.name) + '</div>' +
+            '<div class="chat-preview' + (hasChat ? '' : ' no-chat') + '">' + esc(sub) + '</div>';
+
+          item.appendChild(av); item.appendChild(info);
+          list.appendChild(item);
+        }
+        queueAvatars(filtered.slice(0, 30));
+      }
+      // Eigenes Profil bleibt immer der erste Eintrag — auch wenn die Suche nichts trifft
+      list.insertBefore(buildMeItem(), list.firstChild);
+      prependSearchAll(list);
+      const foot = document.createElement('div');
+      foot.className = 'contact-list-foot';
+      foot.innerHTML = '<div style="font-size:11px;color:#8696a0;margin-bottom:4px">'
+        + esc(tf('contactsFoot', (_addressBook && _addressBook.total) || 0, (_addressBook && _addressBook.withoutChat) || 0)) + '</div>'
+        + '<button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button>'
+        + '<button data-act="presence">🕒 ' + esc(t('presOvOpen')) + '</button>'
+        + '<button data-act="checknum">' + esc(t('ncOpen')) + '</button>';
+      list.appendChild(foot);
+      bindContactFoot(list);
+    }
+
+    function bindContactFoot(list) {
+      const btn = list.querySelector('.contact-list-foot button[data-act="reload"]');
+      if (btn) btn.addEventListener('click', () => loadAddressBook(true));
+      const pres = list.querySelector('.contact-list-foot button[data-act="presence"]');
+      if (pres) pres.addEventListener('click', () => openPresenceOverview());
+      const num = list.querySelector('.contact-list-foot button[data-act="checknum"]');
+      if (num) num.addEventListener('click', () => openNumCheck(''));
+    }
+
+    // ── Eigenes Profil + Status-Composer ────────────────────────────────────────
+    // WhatsApp unterscheidet zwei Dinge, die beide "Status" heissen: die 24h-Story
+    // (status@broadcast) und den Info-Text im Profil. Der Composer kann beides.
+    const MS_COLORS = ['#0a5f55','#128c7e','#25d366','#34b7f1','#4a6cf7','#7f5af0',
+                       '#b5179e','#e63946','#f4772b','#f2b705','#6d4c41','#5c6bc0',
+                       '#607d8b','#263238','#1b1b1b'];
+    const MS_FONTS = [
+      { i: 0, label: 'Aa' }, { i: 1, label: 'Aa' }, { i: 2, label: 'Aa' }, { i: 3, label: 'Aa' },
+      { i: 4, label: 'Aa' }, { i: 5, label: 'Aa' }, { i: 6, label: 'Aa' }, { i: 7, label: 'Aa' },
+    ];
+    let _myProfile = null;
+    let _msTab = 'text';
+    let _msColor = MS_COLORS[0];
+    let _msFont = 0;
+    let _msFile = null;          // File aus dem Datei-Dialog
+    let _msTplFile = null;       // Dateiname eines Vorlagenbildes (statt Upload)
+    let _msTemplates = [];
+    let _msEditingTpl = null;    // id der gerade geladenen Vorlage
+    let _msBusy = false;
+
+    async function loadMyProfile(force) {
+      if (_myProfile && !force) return _myProfile;
+      try {
+        const d = await fetch('api/me').then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        _myProfile = d;
+      } catch (e) { _myProfile = null; }
+      return _myProfile;
+    }
+
+    // Eintrag "Mein Profil" ganz oben im Kontakte-Reiter
+    function buildMeItem() {
+      const item = document.createElement('div');
+      item.className = 'chat-item me-item';
+      item.onclick = () => openMyStatus();
+
+      const name = (_myProfile && _myProfile.name) || t('meProfile');
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.style.background = avatarColor(name);
+      av.textContent = avatarInitials(name);
+      if (_myProfile && _myProfile.jid) {
+        av.setAttribute('data-avid', _myProfile.jid);
+        if (_avatarState.get(_myProfile.jid) === 'loaded') applyAvatar(av, _myProfile.jid);
+        else queueAvatars([{ id: _myProfile.jid, isGroup: false }]);
+      }
+
+      const info = document.createElement('div');
+      info.className = 'chat-info';
+      info.innerHTML = '<div class="chat-name">' + esc(name) + '</div>'
+        + '<div class="chat-preview">' + esc(t('meStatusSub')) + '</div>';
+
+      item.appendChild(av); item.appendChild(info);
+      return item;
+    }
+
+    function msShow(kind, text) {
+      const el = document.getElementById('ms-msg');
+      el.className = 'ms-msg show ' + (kind === 'err' ? 'err' : 'ok');
+      el.textContent = text;
+      if (kind !== 'err') setTimeout(() => { if (el.textContent === text) el.className = 'ms-msg'; }, 4000);
+    }
+    function msClearMsg() { document.getElementById('ms-msg').className = 'ms-msg'; }
+
+    function msSetTab(tab) {
+      _msTab = tab;
+      ['text','media','tpl','profile','priv'].forEach(k => {
+        document.getElementById('ms-tab-' + k).classList.toggle('active', k === tab);
+        document.getElementById('ms-pane-' + k).classList.toggle('active', k === tab);
+      });
+      // Der Senden-Knopf gehoert nur zu Text und Medien
+      const send = document.getElementById('ms-send');
+      send.style.display = (tab === 'text' || tab === 'media') ? '' : 'none';
+      if (tab === 'tpl') msRenderTemplates();
+      if (tab === 'profile') msLoadLive();
+      if (tab === 'priv') msLoadPrivacy();
+    }
+
+    function msBuildPickers() {
+      const cw = document.getElementById('ms-colors');
+      cw.innerHTML = '';
+      for (const c of MS_COLORS) {
+        const b = document.createElement('button');
+        b.className = 'ms-swatch' + (c === _msColor ? ' active' : '');
+        b.style.background = c;
+        b.dataset.color = c;
+        b.onclick = () => { _msColor = c; msBuildPickers(); msRenderPreview(); };
+        cw.appendChild(b);
+      }
+      const free = document.createElement('input');
+      free.type = 'color';
+      free.value = _msColor;
+      free.oninput = (e) => { _msColor = e.target.value; msRenderPreview(); cw.querySelectorAll('.ms-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === _msColor)); };
+      cw.appendChild(free);
+
+      const fw = document.getElementById('ms-fonts');
+      fw.innerHTML = '';
+      for (const f of MS_FONTS) {
+        const b = document.createElement('button');
+        b.className = 'ms-font-' + f.i + (f.i === _msFont ? ' active' : '');
+        b.textContent = f.label;
+        b.onclick = () => { _msFont = f.i; msBuildPickers(); msRenderPreview(); };
+        fw.appendChild(b);
+      }
+    }
+
+    function msRenderPreview() {
+      const txt = document.getElementById('ms-text').value;
+      const prev = document.getElementById('ms-preview');
+      const inner = document.getElementById('ms-preview-text');
+      prev.style.background = _msColor;
+      inner.className = 'ms-preview-text ms-font-' + _msFont;
+      inner.textContent = txt;
+    }
+
+    // Kamerafotos sind schnell 5-10 MB. Solche Uploads scheitern am Proxy vor dem
+    // Add-on (dort greift eine Groessengrenze, die das Add-on nicht anheben kann),
+    // und fuer einen Status bringt die volle Aufloesung ohnehin nichts — WhatsApp
+    // skaliert sie wieder herunter. Deshalb wird schon im Browser verkleinert.
+    const MS_IMG_MAX_PX = 1920;                 // laengere Kante
+    const MS_IMG_TARGET_BYTES = 700 * 1024;
+    const MS_UPLOAD_WARN_BYTES = 2 * 1024 * 1024;
+
+    async function msShrinkImage(file) {
+      if (!file || !file.type.startsWith('image/')) return null;
+      let bmp = null;
+      try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+      catch (e) { try { bmp = await createImageBitmap(file); } catch (e2) { return null; } }
+      if (!bmp) return null;
+      const srcW = bmp.width, srcH = bmp.height;
+      const scale = Math.min(1, MS_IMG_MAX_PX / Math.max(srcW, srcH));
+      if (scale === 1 && file.size <= MS_IMG_TARGET_BYTES) { if (bmp.close) bmp.close(); return null; }
+      const w = Math.max(1, Math.round(srcW * scale));
+      const h = Math.max(1, Math.round(srcH * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { if (bmp.close) bmp.close(); return null; }
+      ctx.drawImage(bmp, 0, 0, w, h);
+      if (bmp.close) bmp.close();
+      // Qualitaet schrittweise senken, bis die Zielgroesse passt
+      let blob = null;
+      for (const q of [0.85, 0.75, 0.65, 0.55]) {
+        blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+        if (!blob || blob.size <= MS_IMG_TARGET_BYTES) break;
+      }
+      if (!blob) return null;
+      if (blob.size >= file.size && scale === 1) return null; // haette nichts gebracht
+      const base = (file.name || 'status').replace(/\\.[^.]+$/, '');
+      return {
+        file: new File([blob], base + '.jpg', { type: 'image/jpeg' }),
+        w, h, srcW, srcH, fromBytes: file.size, toBytes: blob.size,
+      };
+    }
+
+    const msKB = (b) => b >= 1024 * 1024
+      ? (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB'
+      : Math.max(1, Math.round(b / 1024)) + ' KB';
+
+    async function msFilePicked() {
+      const inp = document.getElementById('ms-file');
+      const img = document.getElementById('ms-media-preview');
+      const note = document.getElementById('ms-media-note');
+      _msTplFile = null;
+      _msFile = inp.files && inp.files[0] ? inp.files[0] : null;
+      img.classList.remove('show'); img.removeAttribute('src');
+      note.textContent = '';
+      document.getElementById('ms-media-clear').style.display = 'none';
+      if (!_msFile) return;
+      if (_msFile.size > 64 * 1024 * 1024) { _msFile = null; inp.value = ''; msShow('err', t('msFileTooBig')); return; }
+      document.getElementById('ms-media-clear').style.display = '';
+
+      if (_msFile.type.startsWith('image/')) {
+        const original = _msFile;
+        note.textContent = t('msShrinking');
+        let small = null;
+        try { small = await msShrinkImage(original); } catch (e) { small = null; }
+        if (small) {
+          _msFile = small.file;
+          note.textContent = tf('msShrunk', msKB(small.fromBytes), msKB(small.toBytes), small.w, small.h);
+        } else if (original.size > MS_UPLOAD_WARN_BYTES) {
+          note.textContent = tf('msShrinkFail', msKB(original.size));
+        } else {
+          note.textContent = '';
+        }
+        img.src = URL.createObjectURL(_msFile);
+        img.classList.add('show');
+      } else {
+        note.textContent = _msFile.size > MS_UPLOAD_WARN_BYTES
+          ? t('msVideoNoPreview') + ' ' + tf('msVideoBig', msKB(_msFile.size))
+          : t('msVideoNoPreview');
+      }
+    }
+
+    // Bildauswahl verwerfen, ohne den ganzen Editor anzufassen
+    function msClearMedia() {
+      _msFile = null;
+      _msTplFile = null;
+      const inp = document.getElementById('ms-file');
+      if (inp) inp.value = '';
+      const img = document.getElementById('ms-media-preview');
+      img.classList.remove('show'); img.removeAttribute('src');
+      document.getElementById('ms-media-note').textContent = '';
+      document.getElementById('ms-caption').value = '';
+      document.getElementById('ms-media-clear').style.display = 'none';
+    }
+
+    // Kompletter Neustart: nach dem Senden und bei jedem Oeffnen. Sonst stand
+    // beim naechsten Aufmachen noch das zuletzt gewaehlte Bild da und liess sich
+    // versehentlich ein zweites Mal posten.
+    function msResetEditor() {
+      msClearMedia();
+      document.getElementById('ms-text').value = '';
+      document.getElementById('ms-tpl-name').value = '';
+      _msColor = MS_COLORS[0];
+      _msFont = 0;
+      _msEditingTpl = null;
+      document.getElementById('ms-tpl-update').style.display = 'none';
+      msBuildPickers();
+      msRenderPreview();
+    }
+
+    // Kategorien mit Ausnahmeliste ("Meine Kontakte, ausser ...")
+    const PRIV_LIST_CATS = ['lastSeen', 'about', 'profilePicture', 'groupAdd'];
+    let _privListCat = null;      // Kategorie, die der Kontaktwaehler gerade bearbeitet
+    let _privListNow = [];        // aktuelle Eintraege: [{id, name, number}]
+    let _privListSel = new Set(); // ausgewaehlte IDs im Waehler
+
+    // Publikum der Statusmeldungen — eigene Route, eigene Modi
+    let _statusPrivacy = null;
+
+    async function msLoadStatusPrivacy() {
+      const sel = document.getElementById('priv-statusAudience');
+      const box = document.getElementById('priv-list-statusAudience');
+      if (!sel || !box) return;
+      box.textContent = t('privLoading');
+      let d = null;
+      try { d = await fetch('api/privacy/status').then(r => r.json()); } catch (e) {}
+      if (!d || d.error) { box.textContent = t('privListUnavailable'); return; }
+      _statusPrivacy = d;
+      sel.value = d.mode;
+      if (d.mode === 'contacts') {
+        box.textContent = '';
+      } else {
+        const names = (d.entries || []).map(e => e.name || (e.number ? '+' + e.number : e.id));
+        const label = d.mode === 'allow' ? 'privStatusOnlyCount' : 'privListCount';
+        box.innerHTML = '<span>' + esc(names.length ? tf(label, names.length) + ': ' + names.join(', ') : t('privListEmpty')) + '</span>'
+          + ' <button class="priv-edit">' + esc(t('privListEdit')) + '</button>';
+        box.querySelector('button').addEventListener('click', () => openPrivPicker('statusAudience', d.entries || []));
+      }
+      sel.onchange = () => {
+        const wanted = sel.value;
+        if (wanted === 'contacts') { msSaveStatusPrivacy('contacts', []); return; }
+        // "ausser ..." und "nur ..." brauchen eine Liste — erst waehlen lassen,
+        // gesetzt wird beides zusammen beim Uebernehmen
+        sel.value = _statusPrivacy ? _statusPrivacy.mode : 'contacts';
+        _statusPickMode = wanted;
+        openPrivPicker('statusAudience', (_statusPrivacy && _statusPrivacy.entries) || []);
+      };
+    }
+
+    let _statusPickMode = null;
+
+    async function msSaveStatusPrivacy(mode, ids) {
+      try {
+        const d = await fetch('api/privacy/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, ids }),
+        }).then(r => r.json());
+        if (d.success) {
+          if (d.unresolved && d.unresolved.length) msShow('err', tf('privUnresolved', d.unresolved.length));
+          else msShow('ok', t('privStatusSaved'));
+          await msLoadStatusPrivacy();
+          return true;
+        }
+        msShow('err', d.error || t('privFailed'));
+      } catch (e) { msShow('err', tf('msError', e.message)); }
+      await msLoadStatusPrivacy();
+      return false;
+    }
+
+    async function msLoadDisallowed(cat) {
+      const box = document.getElementById('priv-list-' + cat);
+      if (!box) return;
+      box.textContent = t('privLoading');
+      try {
+        const d = await fetch('api/privacy/disallowed?category=' + encodeURIComponent(cat)).then(r => r.json());
+        if (d.error) { box.textContent = t('privListUnavailable'); return; }
+        const names = (d.entries || []).map(e => e.name || (e.number ? '+' + e.number : e.id));
+        box.innerHTML = '<span>' + esc(names.length ? tf('privListCount', names.length) + ': ' + names.join(', ') : t('privListEmpty')) + '</span>'
+          + ' <button class="priv-edit" data-cat="' + cat + '">' + esc(t('privListEdit')) + '</button>';
+        box.querySelector('button').addEventListener('click', () => openPrivPicker(cat, d.entries || []));
+      } catch (e) { box.textContent = t('privListUnavailable'); }
+    }
+
+    function openPrivPicker(cat, entries) {
+      _privListCat = cat;
+      _privListNow = entries || [];
+      // Vorbelegt ist, wer schon auf der Liste steht — LIDs bleiben als ID erhalten
+      _privListSel = new Set(_privListNow.map(e => e.id));
+      document.getElementById('priv-picker-title').textContent = tf('privPickerTitle', t('priv_' + cat));
+      document.getElementById('priv-picker-search').value = '';
+      renderPrivPicker();
+      document.getElementById('priv-picker-modal').classList.add('open');
+    }
+    function closePrivPicker() {
+      document.getElementById('priv-picker-modal').classList.remove('open');
+    }
+
+    function renderPrivPicker() {
+      const list = document.getElementById('priv-picker-list');
+      const q = (document.getElementById('priv-picker-search').value || '').toLowerCase();
+      // Oben die, die schon drauf sind (auch wenn sie im Adressbuch fehlen),
+      // darunter das Adressbuch
+      const book = (_addressBook && _addressBook.contacts) || [];
+      const rows = [];
+      for (const e of _privListNow) {
+        rows.push({ id: e.id, name: e.name || (e.number ? '+' + e.number : e.id), number: e.number || '' });
+      }
+      const known = new Set(rows.map(r => r.id));
+      for (const c of book) {
+        if (known.has(c.id)) continue;
+        rows.push({ id: c.id, name: c.name || c.number, number: c.number || '' });
+      }
+      const filtered = q ? rows.filter(r => r.name.toLowerCase().includes(q) || r.number.includes(q)) : rows;
+      list.innerHTML = filtered.slice(0, 400).map(r =>
+        '<label class="priv-pick-row"><input type="checkbox" data-id="' + esc(r.id) + '"'
+        + (_privListSel.has(r.id) ? ' checked' : '') + '>'
+        + '<span>' + esc(r.name) + (r.number ? ' <span class="priv-pick-num">+' + esc(r.number) + '</span>' : '') + '</span></label>'
+      ).join('') || '<div class="ms-hint">' + esc(t('contactsEmpty')) + '</div>';
+      list.querySelectorAll('input[data-id]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          if (cb.checked) _privListSel.add(cb.dataset.id); else _privListSel.delete(cb.dataset.id);
+          document.getElementById('priv-picker-count').textContent = tf('privPickerCount', _privListSel.size);
+        });
+      });
+      document.getElementById('priv-picker-count').textContent = tf('privPickerCount', _privListSel.size);
+    }
+
+    async function savePrivPicker() {
+      const cat = _privListCat;
+      if (!cat) return;
+      if (cat === 'statusAudience') {
+        const mode = _statusPickMode || (_statusPrivacy && _statusPrivacy.mode) || 'deny';
+        const btn0 = document.getElementById('priv-picker-save');
+        btn0.disabled = true;
+        const ok = await msSaveStatusPrivacy(mode, [..._privListSel]);
+        btn0.disabled = false;
+        _statusPickMode = null;
+        if (ok) closePrivPicker();
+        return;
+      }
+      const before = new Set(_privListNow.map(e => e.id));
+      const add = [..._privListSel].filter(id => !before.has(id));
+      const remove = [...before].filter(id => !_privListSel.has(id));
+      if (!add.length && !remove.length) { closePrivPicker(); return; }
+      const btn = document.getElementById('priv-picker-save');
+      btn.disabled = true;
+      try {
+        const d = await fetch('api/privacy/disallowed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category: cat, add, remove }),
+        }).then(r => r.json());
+        if (d.success) {
+          closePrivPicker();
+          if (d.unresolved && d.unresolved.length) msShow('err', tf('privUnresolved', d.unresolved.length));
+          else msShow('ok', tf('privListSaved', d.list ? d.list.length : 0));
+          _privSettings = d.settings || _privSettings;
+          await msLoadPrivacy();
+        } else {
+          msShow('err', d.error || t('privFailed'));
+        }
+      } catch (e) {
+        msShow('err', tf('msError', e.message));
+      }
+      btn.disabled = false;
+    }
+
+    // ── Datenschutz-Reiter ──────────────────────────────────────────────────────
+    // Reihenfolge wie in WhatsApp selbst. Die zulaessigen Werte gibt WhatsApp Web
+    // vor; "Meine Kontakte ausser ..." braucht eine Ausnahmeliste und laesst sich
+    // hier nur anzeigen, nicht setzen.
+    const PRIV_ROWS = [
+      { key: 'lastSeen',       opts: ['all','contacts','contact_blacklist','none'] },
+      { key: 'online',         opts: ['all','match_last_seen'] },
+      { key: 'profilePicture', opts: ['all','contacts','contact_blacklist','none'] },
+      { key: 'about',          opts: ['all','contacts','contact_blacklist','none'] },
+      { key: 'groupAdd',       opts: ['all','contacts','contact_blacklist'] },
+      { key: 'callAdd',        opts: ['all','known','contacts'] },
+      { key: 'readReceipts',   opts: ['all','none'] },
+    ];
+    let _privSettings = null;
+
+    async function msLoadPrivacy() {
+      const box = document.getElementById('ms-priv-list');
+      box.innerHTML = '<div class="ms-hint">' + esc(t('privLoading')) + '</div>';
+      let d = null;
+      try { d = await fetch('api/privacy').then(r => r.json()); } catch (e) {}
+      if (!d || d.error || !d.settings || d.settings.error) {
+        box.innerHTML = '<div class="ms-hint">' + esc(t('privUnavailable')) + '</div>';
+        return;
+      }
+      _privSettings = d.settings;
+      box.innerHTML = PRIV_ROWS.map(row => {
+        const cur = _privSettings[row.key] || '';
+        const opts = row.opts.map(v =>
+          '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + esc(t('privVal_' + v)) + '</option>'
+        ).join('');
+        const listLine = (cur === 'contact_blacklist' && PRIV_LIST_CATS.includes(row.key))
+          ? '<div class="priv-list" id="priv-list-' + row.key + '"></div>' : '';
+        return '<div class="priv-row">'
+          + '<label for="priv-' + row.key + '">' + esc(t('priv_' + row.key)) + '</label>'
+          + '<select id="priv-' + row.key + '" data-key="' + row.key + '" class="ms-input">' + opts + '</select>'
+          + '</div>' + listLine;
+      }).join('')
+        + '<div class="priv-row">'
+          + '<label for="priv-statusAudience">' + esc(t('priv_statusAudience')) + '</label>'
+          + '<select id="priv-statusAudience" class="ms-input">'
+            + ['contacts','deny','allow'].map(v => '<option value="' + v + '">' + esc(t('privStatus_' + v)) + '</option>').join('')
+          + '</select>'
+        + '</div>'
+        + '<div class="priv-list" id="priv-list-statusAudience"></div>'
+        + '<div class="ms-hint">' + esc(t('privHint')) + '</div>';
+      box.querySelectorAll('select[data-key]').forEach(sel => {
+        sel.addEventListener('change', () => msSavePrivacy(sel));
+      });
+      for (const row of PRIV_ROWS) {
+        if (_privSettings[row.key] === 'contact_blacklist' && PRIV_LIST_CATS.includes(row.key)) msLoadDisallowed(row.key);
+      }
+      msLoadStatusPrivacy();
+    }
+
+    async function msSavePrivacy(sel) {
+      const key = sel.dataset.key;
+      const value = sel.value;
+      const before = _privSettings ? _privSettings[key] : '';
+      if (value === before) return;
+      // Ohne Ausnahmeliste ergibt "Meine Kontakte, ausser ..." keinen Sinn —
+      // deshalb zuerst waehlen lassen; gesetzt wird die Kategorie dabei mit
+      if (value === 'contact_blacklist') {
+        sel.value = before;
+        if (!PRIV_LIST_CATS.includes(key)) { msShow('err', t('privNoBlacklist')); return; }
+        let entries = [];
+        try {
+          const d = await fetch('api/privacy/disallowed?category=' + encodeURIComponent(key)).then(r => r.json());
+          entries = d.entries || [];
+        } catch (e) {}
+        openPrivPicker(key, entries);
+        return;
+      }
+      sel.disabled = true;
+      try {
+        const d = await fetch('api/privacy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: key, value }),
+        }).then(r => r.json());
+        if (d.success) {
+          _privSettings = d.settings || _privSettings;
+          msShow('ok', tf('privSaved', t('priv_' + key), t('privVal_' + value)));
+        } else {
+          // Zuruecksetzen statt so tun, als haette es geklappt
+          sel.value = before;
+          const why = d.error === 'contact_blacklist_unsupported' ? t('privNoBlacklist')
+            : (d.applied ? tf('privRejected', t('privVal_' + d.applied)) : (d.error || t('privFailed')));
+          msShow('err', why);
+        }
+      } catch (e) {
+        sel.value = before;
+        msShow('err', tf('msError', e.message));
+      }
+      sel.disabled = false;
+    }
+
+    async function openMyStatus() {
+      msClearMsg();
+      document.getElementById('mystatus-modal').classList.add('open');
+      msResetEditor();
+      msSetTab('text');
+      msLoadTemplates();
+      const p = await loadMyProfile(true);
+      const foot = document.getElementById('ms-foot');
+      foot.textContent = p ? ((p.name ? p.name + ' · ' : '') + (p.number ? '+' + p.number : '')) : '';
+      document.getElementById('ms-about').value = (p && p.about) || '';
+    }
+
+    function closeMyStatus() {
+      document.getElementById('mystatus-modal').classList.remove('open');
+    }
+
+    // Antwortet nicht das Add-on, sondern etwas davor (MessengerPortal, Ingress),
+    // kommt HTML zurueck und JSON.parse scheitert mit "Unexpected token '<'".
+    // Diese Huelle zeigt stattdessen Statuscode und Anfang der echten Antwort.
+    async function apiJson(r) {
+      const txt = await r.text();
+      try { return JSON.parse(txt); }
+      catch (e) {
+        const kind = (r.headers.get('content-type') || '').split(';')[0] || '?';
+        const snippet = txt.replace(/\\s+/g, ' ').trim().slice(0, 160);
+        throw new Error('HTTP ' + r.status + ' ' + (r.statusText || '') + ' [' + kind + '] '
+          + (snippet || '(leere Antwort)'));
+      }
+    }
+
+    async function msSend() {
+      if (_msBusy) return;
+      const btn = document.getElementById('ms-send');
+      const setBusy = (b) => { _msBusy = b; btn.disabled = b; btn.textContent = b ? t('msSending') : t('msSend'); };
+      try {
+        if (_msTab === 'text') {
+          const text = document.getElementById('ms-text').value.trim();
+          if (!text) { msShow('err', t('msNeedText')); return; }
+          setBusy(true);
+          const d = await fetch('api/my-status/text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, backgroundColor: _msColor, fontStyle: _msFont }),
+          }).then(apiJson);
+          if (d.error) throw new Error(d.error);
+          msShow('ok', t('msSentText'));
+          msResetEditor();
+        } else {
+          if (!_msFile && !_msTplFile) { msShow('err', t('msNeedFile')); return; }
+          setBusy(true);
+          const fd = new FormData();
+          if (_msFile) fd.append('file', _msFile);
+          else fd.append('templateFile', _msTplFile);
+          const cap = document.getElementById('ms-caption').value;
+          if (cap) fd.append('caption', cap);
+          // Groesse mitnennen: bricht der Upload vor dem Add-on ab, ist sie die erste Spur
+          const kb = _msFile ? Math.round(_msFile.size / 1024) : 0;
+          const d = await fetch('api/my-status/media', { method: 'POST', body: fd })
+            .then(apiJson)
+            .catch(err => { throw new Error(err.message + (kb ? ' (Upload ' + kb + ' KB)' : '')); });
+          if (d.error) throw new Error(d.error);
+          msShow('ok', t('msSentMedia'));
+          msResetEditor();
+        }
+        msLoadLive();
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    // ── Vorlagen ──
+    async function msLoadTemplates() {
+      try {
+        const d = await fetch('api/status-templates').then(r => r.json());
+        _msTemplates = d.templates || [];
+      } catch (e) { _msTemplates = []; }
+      if (_msTab === 'tpl') msRenderTemplates();
+    }
+
+    function msRenderTemplates() {
+      const box = document.getElementById('ms-tpl-list');
+      box.innerHTML = '';
+      if (!_msTemplates.length) {
+        box.innerHTML = '<div class="ms-hint">' + esc(t('msTemplatesEmpty')) + '</div>';
+        return;
+      }
+      for (const tpl of _msTemplates) {
+        const row = document.createElement('div');
+        row.className = 'ms-tpl';
+        row.onclick = () => msApplyTemplate(tpl.id);
+
+        const thumb = document.createElement('div');
+        thumb.className = 'ms-tpl-thumb';
+        if (tpl.mediaFile && tpl.mediaType !== 'video') {
+          const i = document.createElement('img');
+          i.src = 'api/status-template-media/' + encodeURIComponent(tpl.mediaFile);
+          thumb.appendChild(i);
+        } else {
+          thumb.style.background = tpl.backgroundColor || '#0a5f55';
+          thumb.textContent = tpl.mediaFile ? '🎬' : 'Aa';
+        }
+
+        const info = document.createElement('div');
+        info.className = 'ms-tpl-info';
+        const kind = tpl.mediaFile ? (tpl.mediaType === 'video' ? t('msTplVideo') : t('msTplImage')) : t('msTplText');
+        const preview = (tpl.text || '').replace(/\\s+/g, ' ').slice(0, 60);
+        info.innerHTML = '<div class="ms-tpl-name">' + esc(tpl.name) + '</div>'
+          + '<div class="ms-tpl-sub">' + esc(kind + (preview ? ' · ' + preview : '')) + '</div>';
+
+        const del = document.createElement('button');
+        del.className = 'ms-tpl-del';
+        del.textContent = '🗑';
+        del.onclick = (e) => { e.stopPropagation(); msDeleteTemplate(tpl.id); };
+
+        row.appendChild(thumb); row.appendChild(info); row.appendChild(del);
+        box.appendChild(row);
+      }
+    }
+
+    function msApplyTemplate(id) {
+      const tpl = _msTemplates.find(x => x.id === id);
+      if (!tpl) return;
+      _msEditingTpl = tpl.id;
+      document.getElementById('ms-tpl-update').style.display = '';
+      document.getElementById('ms-tpl-name').value = tpl.name;
+      _msColor = tpl.backgroundColor || MS_COLORS[0];
+      _msFont = tpl.fontStyle || 0;
+      msBuildPickers();
+      if (tpl.mediaFile) {
+        _msFile = null;
+        _msTplFile = tpl.mediaFile;
+        document.getElementById('ms-file').value = '';
+        document.getElementById('ms-caption').value = tpl.text || '';
+        const img = document.getElementById('ms-media-preview');
+        if (tpl.mediaType === 'video') {
+          img.classList.remove('show');
+          document.getElementById('ms-media-note').textContent = t('msVideoNoPreview');
+        } else {
+          img.src = 'api/status-template-media/' + encodeURIComponent(tpl.mediaFile);
+          img.classList.add('show');
+          document.getElementById('ms-media-note').textContent = tf('msTplFileNote', tpl.name);
+        }
+        document.getElementById('ms-media-clear').style.display = '';
+        msSetTab('media');
+      } else {
+        _msTplFile = null;
+        document.getElementById('ms-text').value = tpl.text || '';
+        msRenderPreview();
+        msSetTab('text');
+      }
+      msShow('ok', tf('msTemplateLoaded', tpl.name));
+    }
+
+    async function msSaveTemplate(update) {
+      const name = document.getElementById('ms-tpl-name').value.trim();
+      if (!name) { msShow('err', t('msTemplateNameMissing')); return; }
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('backgroundColor', _msColor);
+      fd.append('fontStyle', String(_msFont));
+      if (update && _msEditingTpl) fd.append('id', _msEditingTpl);
+      // Bild-Vorlage, wenn im Medien-Reiter eine Datei gewaehlt wurde
+      if (_msFile) {
+        fd.append('file', _msFile);
+        fd.append('text', document.getElementById('ms-caption').value);
+      } else {
+        fd.append('text', document.getElementById('ms-text').value);
+        if (!_msTplFile) fd.append('removeMedia', '1');
+      }
+      try {
+        const d = await fetch('api/status-templates', { method: 'POST', body: fd }).then(apiJson);
+        if (d.error) throw new Error(d.error);
+        _msEditingTpl = d.template.id;
+        document.getElementById('ms-tpl-update').style.display = '';
+        await msLoadTemplates();
+        msRenderTemplates();
+        msShow('ok', t('msTemplateSaved'));
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
+    }
+
+    async function msDeleteTemplate(id) {
+      const tpl = _msTemplates.find(x => x.id === id);
+      if (!tpl) return;
+      if (!confirm(tf('msTemplateDeleteConfirm', tpl.name))) return;
+      try {
+        const d = await fetch('api/status-templates/' + encodeURIComponent(id) + '/delete', { method: 'POST' }).then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        if (_msEditingTpl === id) { _msEditingTpl = null; document.getElementById('ms-tpl-update').style.display = 'none'; }
+        await msLoadTemplates();
+        msRenderTemplates();
+        msShow('ok', t('msTemplateDeleted'));
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
+    }
+
+    // ── Profil-Reiter: Info-Text und laufende eigene Status ──
+    async function msSaveAbout() {
+      const about = document.getElementById('ms-about').value;
+      try {
+        const d = await fetch('api/me/about', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ about }),
+        }).then(apiJson);
+        if (d.error) throw new Error(d.error);
+        if (_myProfile) _myProfile.about = about;
+        msShow('ok', t('msAboutSaved'));
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
+    }
+
+    async function msLoadLive() {
+      const box = document.getElementById('ms-live');
+      box.innerHTML = '<div class="ms-hint">' + esc(t('msLiveLoading')) + '</div>';
+      let msgs = [];
+      try {
+        const d = await fetch('api/my-status').then(apiJson);
+        if (d.error) throw new Error(d.error);
+        msgs = d.msgs || [];
+      } catch (e) {
+        box.innerHTML = '<div class="ms-hint">' + esc(tf('msError', e.message || String(e))) + '</div>';
+        return;
+      }
+      box.innerHTML = '';
+      if (!msgs.length) {
+        box.innerHTML = '<div class="ms-hint">' + esc(t('msLiveEmpty')) + '</div>';
+        return;
+      }
+      for (const m of msgs) {
+        const row = document.createElement('div');
+        row.className = 'ms-live-item';
+        if (m.mediaFile && m.type === 'photo') {
+          const i = document.createElement('img');
+          i.src = 'api/media/' + encodeURIComponent(m.mediaFile);
+          i.onclick = () => openLightbox(i.src);
+          row.appendChild(i);
+        } else if (m.mediaFile && m.type === 'video') {
+          const v = document.createElement('video');
+          v.src = 'api/media/' + encodeURIComponent(m.mediaFile);
+          row.appendChild(v);
+        }
+        const body = document.createElement('div');
+        body.className = 'ms-live-body';
+        body.innerHTML = (m.body ? esc(m.body) : '<span style="opacity:0.6">' + (m.type === 'photo' ? '📷' : m.type === 'video' ? '📹' : '…') + '</span>')
+          + '<div class="ms-live-time">' + esc(fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp)) + '</div>';
+        const del = document.createElement('button');
+        del.className = 'ms-tpl-del';
+        del.textContent = '🗑';
+        del.title = t('msLiveDelete');
+        del.onclick = () => msRevoke(m.id);
+        row.appendChild(body); row.appendChild(del);
+        box.appendChild(row);
+      }
+    }
+
+    async function msRevoke(id) {
+      if (!confirm(t('msLiveDeleteConfirm'))) return;
+      try {
+        const d = await fetch('api/my-status/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        }).then(apiJson);
+        if (d.error) throw new Error(d.error);
+        msShow('ok', t('msLiveDeleted'));
+        msLoadLive();
+      } catch (e) {
+        msShow('err', tf('msError', e.message || String(e)));
+      }
+    }
+
+    // Sucht man in der Seitenleiste, bezieht sich das nur auf Chatnamen. Diese
+    // Zeile bietet an, denselben Text in allen Nachrichten zu suchen.
+    function prependSearchAll(list) {
+      // Bewusst der Rohtext aus dem Feld: der Filter arbeitet kleingeschrieben,
+      // angezeigt und weitergereicht wird aber, was der Benutzer getippt hat
+      const raw = (document.getElementById('search').value || '').trim();
+      if (raw.length < 2) return;
+      const row = document.createElement('div');
+      row.className = 'chat-list-search-all';
+      row.textContent = tf('gsSearchAll', raw);
+      row.onclick = () => openGlobalSearch(raw);
+      list.insertBefore(row, list.firstChild);
+
+      // Sieht die Eingabe nach einer Rufnummer aus, zusaetzlich die Pruefung anbieten
+      const digits = raw.replace(/\\D/g, '');
+      if (/^[+0-9 ()\\/.-]+$/.test(raw) && digits.length >= 7 && digits.length <= 15) {
+        const num = document.createElement('div');
+        num.className = 'chat-list-checknum';
+        num.textContent = tf('ncAsk', raw);
+        num.onclick = () => openNumCheck(raw);
+        list.insertBefore(num, list.firstChild);
+      }
+    }
+
     function renderChatList(chats) {
+      // Poll-Updates und openChat() rufen das hier unabhaengig vom aktiven Tab —
+      // im Kontakte-Tab darf die Chatliste die Adressbuch-Ansicht nicht ueberschreiben
+      if (currentFilter === 'contacts') { renderContactList(); return; }
       const list = document.getElementById('chat-list');
       const q = document.getElementById('search').value.toLowerCase();
       const filtered = chats.filter(c => {
@@ -3011,6 +6962,7 @@ app.get('/', (req, res) => {
       });
       if (!filtered.length) {
         list.innerHTML = '<div class="no-chats">' + t('noChats') + '</div>';
+        prependSearchAll(list);
         return;
       }
       list.innerHTML = '';
@@ -3025,7 +6977,8 @@ app.get('/', (req, res) => {
           av.className = 'avatar group-avatar';
           av.textContent = '👥';
         } else {
-          av.className = 'avatar' + (_statusChatIds.has(chat.id) ? ' has-status' : '');
+          av.className = 'avatar' + (_statusChatIds.has(chat.id) ? ' has-status' : '')
+            + (isBlockedChat(chat) ? ' blocked' : '');
           av.setAttribute('data-avid', chat.id);
           av.style.background = avatarColor(chat.name);
           av.textContent = avatarInitials(chat.name);
@@ -3053,9 +7006,23 @@ app.get('/', (req, res) => {
         item.appendChild(av); item.appendChild(info); item.appendChild(meta);
         list.appendChild(item);
       }
+      prependSearchAll(list);
     }
 
-    function filterChats() { renderChatList(allChats); }
+    function clearChatSearch() {
+      const inp = document.getElementById('search');
+      inp.value = '';
+      inp.focus();
+      filterChats();
+    }
+
+    function filterChats() {
+      // Das X nur zeigen, wenn auch etwas drinsteht
+      const inp = document.getElementById('search');
+      document.getElementById('search-clear').classList.toggle('show', !!inp.value);
+      if (currentFilter === 'contacts') { renderContactList(); return; }
+      renderChatList(allChats);
+    }
 
     async function openChat(chat) {
       exitDeleteMode();
@@ -3093,8 +7060,9 @@ app.get('/', (req, res) => {
       }
       document.getElementById('ch-name').textContent = chat.name;
       const ph = chat.phone || '';
-      document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
+      document.getElementById('ch-phone').textContent = /^\\d{7,15}$/.test(ph) ? '+' + ph : '';
 
+      applyChatMediaState();
       lastSeenTime[chat.id] = chat.lastTime || Date.now();
       renderChatList(allChats);
       msgList.innerHTML = '';
@@ -3102,27 +7070,102 @@ app.get('/', (req, res) => {
       atBottom = true;
       _pendingMentions = []; hideMentionDropdown(); // Erwähnungen vom vorherigen Chat verwerfen
       if (isGroupChat(chat.id)) ensureParticipants(chat.id); // Namen für @-Auflösung vorladen
-      document.getElementById('ch-stats').textContent = '';
-      await loadMessages(chat.id);
+      await loadInitialMessages(chat.id);
     }
 
-    async function updateChatStats(chatId) {
-      if (chatId !== selectedChatId) return;
-      try {
-        const s = await fetch('api/stats?chat=' + encodeURIComponent(chatId)).then(r => r.json());
-        const sinceStr = s.first ? fmtDate(s.first) : '';
-        const photoStr = s.photos ? '  📷 ' + s.photos : '';
-        document.getElementById('ch-stats').textContent =
-          s.total + ' ' + t('statsMsg') + '  ↑ ' + s.sent + '  ↓ ' + s.received + photoStr + (sinceStr ? '  ' + t('statsSince') + ' ' + sinceStr : '');
-      } catch(e) {}
+    // Gespraechs-Statistik. Stand frueher in der Chat-Kopfzeile und nahm dort viel
+    // Platz weg — jetzt im Kontaktfenster, das man ueber das Profilbild oeffnet.
+    async function loadChatStats(chatId) {
+      const el = document.getElementById('contact-modal-stats');
+      if (!el) return;
+      el.className = 'contact-modal-stats';
+      el.innerHTML = '';
+      let s = null;
+      try { s = await fetch('api/stats?chat=' + encodeURIComponent(chatId)).then(apiJson); }
+      catch (e) { return; }
+      if (!document.getElementById('contact-modal').classList.contains('open')) return;
+      if (!s || !s.total) return; // ohne Chatverlauf gibt es nichts zu zeigen
+      const parts = ['<b>' + s.total + '</b> ' + esc(t('statsMsg'))
+        + '  ↑ ' + s.sent + '  ↓ ' + s.received + (s.photos ? '  📷 ' + s.photos : '')];
+      if (s.first) parts.push(esc(t('statsSince')) + ' ' + esc(fmtDate(s.first)));
+      el.innerHTML = parts.join('<br>');
+      el.className = 'contact-modal-stats has-items';
     }
 
     function closeChat() {
       document.body.classList.remove('chat-open'); // mobile: back to chat list
+      document.body.classList.remove('chat-media-off');
       selectedChatId = null;
       selectedChatPhone = null;
       document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
       clearReply();
+    }
+
+    // Ein Chat mit langem Verlauf kam bisher komplett auf einmal — auf dem Handy
+    // dauert der Aufbau spuerbar, und nachgeladene Bilder verschieben die Ansicht.
+    // Deshalb zuerst die juengsten Nachrichten, aeltere auf Abruf.
+    const INITIAL_MSGS = 50, OLDER_BATCH = 50;
+    let _chatBuf = {};    // chatId -> bereits geladene Nachrichten, aufsteigend
+    let _older = {};      // chatId -> { oldestTs, more, total, loading }
+
+    async function loadInitialMessages(chatId) {
+      try {
+        const d = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&limit=' + INITIAL_MSGS)
+          .then(apiJson);
+        const msgs = (d && d.messages) || [];
+        if (chatId !== selectedChatId) return;
+        _chatBuf[chatId] = msgs.slice();
+        _older[chatId] = {
+          oldestTs: msgs.length ? msgs[0].timestamp : 0,
+          more: !!(d && d.more), total: (d && d.total) || msgs.length, loading: false,
+        };
+        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
+        renderLoadOlder(chatId);
+        msgList.scrollTop = msgList.scrollHeight;
+      } catch (e) {}
+    }
+
+    function renderLoadOlder(chatId) {
+      const existing = document.getElementById('load-older');
+      if (existing) existing.remove();
+      const st = _older[chatId];
+      if (!st || !st.more) return;
+      const btn = document.createElement('button');
+      btn.id = 'load-older';
+      btn.textContent = t('loadOlder') + ' · ' + tf('loadOlderCount', (_chatBuf[chatId] || []).length, st.total);
+      btn.onclick = () => loadOlderMessages(chatId);
+      msgList.insertBefore(btn, msgList.firstChild);
+    }
+
+    async function loadOlderMessages(chatId) {
+      const st = _older[chatId];
+      if (!st || !st.more || st.loading || chatId !== selectedChatId) return false;
+      st.loading = true;
+      const btn = document.getElementById('load-older');
+      if (btn) { btn.disabled = true; btn.textContent = t('loadOlderBusy'); }
+      try {
+        const d = await fetch('api/messages?chat=' + encodeURIComponent(chatId)
+          + '&limit=' + OLDER_BATCH + '&before=' + st.oldestTs).then(apiJson);
+        const older = (d && d.messages) || [];
+        if (chatId !== selectedChatId) return false;
+        if (!older.length) { st.more = false; renderLoadOlder(chatId); return false; }
+        _chatBuf[chatId] = older.concat(_chatBuf[chatId] || []);
+        st.oldestTs = older[0].timestamp;
+        st.more = !!(d && d.more);
+        // Neu zeichnen und dabei die Blickposition halten, sonst springt die Ansicht
+        const prevHeight = msgList.scrollHeight, prevTop = msgList.scrollTop;
+        msgList.innerHTML = '';
+        renderMessages(_chatBuf[chatId], chatId);
+        renderLoadOlder(chatId);
+        msgList.scrollTop = msgList.scrollHeight - prevHeight + prevTop;
+        return true;
+      } catch (e) {
+        return false;
+      } finally {
+        st.loading = false;
+        const b = document.getElementById('load-older');
+        if (b) b.disabled = false;
+      }
     }
 
     async function loadMessages(chatId) {
@@ -3133,7 +7176,11 @@ app.get('/', (req, res) => {
           .then(r => r.json());
         // Stats nur neu laden, wenn tatsächlich neue Nachrichten kamen
         if (msgs.length) {
-          renderMessages(msgs, chatId); pollReactions(); updateChatStats(chatId);
+          if (_chatBuf[chatId]) {
+            const known = new Set(_chatBuf[chatId].map(m => m.id));
+            for (const m of msgs) if (!known.has(m.id)) _chatBuf[chatId].push(m);
+          }
+          renderMessages(msgs, chatId); pollReactions();
           // Kontaktliste links sofort aktualisieren (Vorschau + Sortierung),
           // statt bis zum nächsten pollChats-Intervall (10 s) zu warten — gilt für
           // empfangene wie gesendete Nachrichten im offenen Chat
@@ -3395,6 +7442,8 @@ app.get('/', (req, res) => {
         lastMsgTime[chatId] = 0;
         atBottom = true;
         if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
+        _chatBuf[chatId] = msgs.slice();
+        _older[chatId] = { oldestTs: msgs.length ? msgs[0].timestamp : 0, more: false, total: msgs.length, loading: false };
         lastMsgTime[chatId] = msgs.reduce((max, m) => Math.max(max, m.timestamp), 0);
       } catch(e) {}
     }
@@ -3576,6 +7625,103 @@ app.get('/', (req, res) => {
       renderFwdChatList(q ? allChats.filter(c => c.name.toLowerCase().includes(q)) : allChats);
     }
 
+    // Gemeinsame Gruppen und Geraetezahl. Beides kostet eigene Aufrufe in der
+    // Seite, deshalb nachgelagert und nicht im Hauptaufruf des Kontaktfensters.
+    async function loadContactExtra(chatId) {
+      const devEl = document.getElementById('contact-modal-devices');
+      const grpEl = document.getElementById('contact-modal-groups');
+      devEl.className = 'contact-modal-devices'; devEl.textContent = '';
+      grpEl.className = 'contact-modal-groups'; grpEl.innerHTML = '';
+      if (String(chatId).endsWith('@g.us')) return;
+      let d = null;
+      try { d = await fetch('api/contact/' + encodeURIComponent(chatId) + '/extra').then(apiJson); }
+      catch (e) { return; }
+      if (!document.getElementById('contact-modal').classList.contains('open')) return;
+      if (!d || d.error) return;
+
+      if (d.deviceCount) {
+        devEl.textContent = d.deviceCount === 1 ? t('cgDevice') : tf('cgDevices', d.deviceCount);
+        devEl.className = 'contact-modal-devices show';
+      }
+      const groups = d.commonGroups || [];
+      if (groups.length) {
+        const label = document.createElement('div');
+        label.className = 'cg-label';
+        label.textContent = tf('cgGroups', groups.length);
+        grpEl.appendChild(label);
+        for (const g of groups) {
+          const btn = document.createElement('button');
+          btn.textContent = g.name;
+          btn.onclick = () => {
+            const chat = allChats.find(c => c.id === g.id);
+            closeContactModal();
+            openChat(chat || { id: g.id, name: g.name, isGroup: true, lastTime: 0 });
+          };
+          grpEl.appendChild(btn);
+        }
+        grpEl.className = 'contact-modal-groups show';
+      }
+    }
+
+    // Blockieren / Blockierung aufheben. Gruppen lassen sich nicht blockieren,
+    // dort bleibt der Knopf verborgen.
+    function renderBlockState(chatId, name, blocked) {
+      const note = document.getElementById('contact-modal-blocked');
+      const btn = document.getElementById('contact-modal-block');
+      if (!note || !btn) return;
+      if (String(chatId).endsWith('@g.us')) { btn.style.display = 'none'; return; }
+      note.classList.toggle('show', !!blocked);
+      btn.style.display = '';
+      btn.disabled = false;
+      btn.className = 'contact-modal-block' + (blocked ? ' unblock' : '');
+      btn.textContent = t(blocked ? 'blkUnblock' : 'blkBlock');
+      btn.onclick = () => toggleBlock(chatId, name, !!blocked);
+    }
+
+    async function toggleBlock(chatId, name, blocked) {
+      const msg = blocked ? tf('blkConfirmUnblock', name) : tf('blkConfirmBlock', name);
+      if (!confirm(msg)) return;
+      const btn = document.getElementById('contact-modal-block');
+      btn.disabled = true;
+      btn.textContent = t('blkWorking');
+      try {
+        const d = await fetch('api/contact/' + encodeURIComponent(chatId) + (blocked ? '/unblock' : '/block'),
+          { method: 'POST' }).then(apiJson);
+        if (d.error) throw new Error(d.error);
+        renderBlockState(chatId, name, !blocked);
+        pollBlocked();
+        alert(t(blocked ? 'blkUndone' : 'blkDone'));
+      } catch (e) {
+        renderBlockState(chatId, name, blocked);
+        alert(tf('msError', e.message || String(e)));
+      }
+    }
+
+    // Zuletzt online. Ohne Abo liefert WhatsApp nichts, deshalb kann die Antwort
+    // ein paar Sekunden dauern — solange steht "wird geprüft" da.
+    async function loadPresence(chatId) {
+      const el = document.getElementById('contact-modal-presence');
+      if (!el) return;
+      el.className = 'contact-modal-presence';
+      el.textContent = t('presLoading');
+      let d = null;
+      try { d = await fetch('api/presence/' + encodeURIComponent(chatId)).then(apiJson); }
+      catch (e) { d = null; }
+      // Fenster wurde inzwischen geschlossen oder ein anderer Kontakt geoeffnet
+      if (!document.getElementById('contact-modal').classList.contains('open')) return;
+      if (!d || d.error || d.supported === false) { el.textContent = ''; return; }
+      if (d.online) {
+        el.className = 'contact-modal-presence online';
+        el.textContent = t('presOnline');
+      } else if (d.lastSeen) {
+        el.textContent = tf('presLastSeen', fmtDate(d.lastSeen) + ', ' + fmtTime(d.lastSeen));
+      } else if (d.denied) {
+        el.textContent = t('presDenied');
+      } else {
+        el.textContent = t('presUnknown');
+      }
+    }
+
     async function openContactInfo(chatId, fallbackName) {
       const modal = document.getElementById('contact-modal');
       const picEl = document.getElementById('contact-modal-pic');
@@ -3588,7 +7734,14 @@ app.get('/', (req, res) => {
       // Reset
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
+      document.getElementById('contact-modal-blocked').classList.remove('show');
+      document.getElementById('contact-modal-block').style.display = 'none';
+      picEl.classList.remove('blocked');
+      loadPresence(chatId);
+      loadChatStats(chatId);
+      loadContactExtra(chatId);
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
+      document.getElementById('contact-modal-stats').className = 'contact-modal-stats';
       archiveEl.innerHTML = '';
       modal.classList.add('open');
       fetch('api/status/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
@@ -3613,6 +7766,8 @@ app.get('/', (req, res) => {
         }
         numberEl.textContent = data.number ? '+' + data.number : '';
         aboutEl.textContent = data.about || '';
+        renderBlockState(chatId, data.name || fallbackName || chatId, data.isBlocked === true);
+        picEl.classList.toggle('blocked', data.isBlocked === true);
         picEl.textContent = '';
         picEl.removeAttribute('data-avid');
         if (data.hasProfilePic) {
@@ -3727,6 +7882,363 @@ app.get('/', (req, res) => {
       }
       setTimeout(() => { label.textContent = orig; }, 2500);
     });
+    // ── Status-Archiv: Gesamtuebersicht ───────────────────────────────────────
+    let _ovData = null, _ovSort = 'bytes', _ovDesc = true;
+    function fmtBytes(b) {
+      if (!b) return '0 MB';
+      if (b < 102400) return Math.round(b / 1024) + ' KB';
+      return (b / 1048576).toFixed(1) + ' MB';
+    }
+    // ── Rufnummer bei WhatsApp pruefen ──
+    function openNumCheck(number) {
+      const modal = document.getElementById('numcheck-modal');
+      const inp = document.getElementById('nc-input');
+      const out = document.getElementById('nc-result');
+      out.className = 'nc-result'; out.innerHTML = '';
+      document.getElementById('nc-open').style.display = 'none';
+      modal.classList.add('open');
+      if (number !== undefined) inp.value = number;
+      inp.focus(); inp.select();
+      if (number) runNumCheck();
+    }
+
+    function closeNumCheck() {
+      document.getElementById('numcheck-modal').classList.remove('open');
+    }
+
+    async function runNumCheck() {
+      const inp = document.getElementById('nc-input');
+      const out = document.getElementById('nc-result');
+      const go = document.getElementById('nc-go');
+      const openBtn = document.getElementById('nc-open');
+      const digits = (inp.value || '').replace(/\\D/g, '');
+      openBtn.style.display = 'none';
+      if (digits.length < 7 || digits.length > 15) {
+        out.className = 'nc-result show err';
+        out.textContent = t('ncTooShort');
+        return;
+      }
+      go.disabled = true;
+      const label = go.textContent;
+      go.textContent = t('ncChecking');
+      out.className = 'nc-result show';
+      out.textContent = t('ncChecking');
+      try {
+        const d = await fetch('api/check-number?number=' + encodeURIComponent(digits)).then(apiJson);
+        if (d.error) throw new Error(d.error);
+        if (!d.exists) {
+          out.className = 'nc-result show no';
+          out.textContent = t('ncNo');
+          return;
+        }
+        out.className = 'nc-result show yes';
+        const sub = d.name ? tf('ncKnown', d.name) : t('ncNotSaved');
+        out.innerHTML = esc(t('ncYes')) + '<span class="nc-sub">+' + esc(d.number) + ' · ' + esc(sub)
+          + (d.about ? ' · ' + esc(d.about) : '') + '</span>';
+        openBtn.style.display = '';
+        openBtn.onclick = () => {
+          const id = d.chatId || d.jid;
+          const chat = allChats.find(c => c.id === id)
+            || { id, name: d.name || ('+' + d.number), phone: d.number, isGroup: false, lastTime: 0 };
+          closeNumCheck();
+          openChat(chat);
+        };
+      } catch (e) {
+        out.className = 'nc-result show err';
+        out.textContent = tf('msError', e.message || String(e));
+      } finally {
+        go.disabled = false;
+        go.textContent = label;
+      }
+    }
+
+    // ── Suche über alle Chats ──
+    let _gsTimer = null, _gsSeq = 0;
+
+    function openGlobalSearch(query) {
+      const modal = document.getElementById('gsearch-modal');
+      const input = document.getElementById('gs-input');
+      modal.classList.add('open');
+      if (query !== undefined) input.value = query;
+      input.focus();
+      input.select();
+      runGlobalSearch();
+    }
+
+    function closeGlobalSearch() {
+      document.getElementById('gsearch-modal').classList.remove('open');
+    }
+
+    // Ausschnitt um den Treffer herum, damit lange Nachrichten die Liste nicht sprengen
+    function gsSnippet(body, q) {
+      const lower = body.toLowerCase(), needle = q.toLowerCase();
+      const at = lower.indexOf(needle);
+      if (at < 0) return esc(body.slice(0, 180)) + (body.length > 180 ? '…' : '');
+      const from = Math.max(0, at - 60), to = Math.min(body.length, at + needle.length + 90);
+      return (from > 0 ? '…' : '') + esc(body.slice(from, at))
+        + '<mark>' + esc(body.slice(at, at + needle.length)) + '</mark>'
+        + esc(body.slice(at + needle.length, to)) + (to < body.length ? '…' : '');
+    }
+
+    async function runGlobalSearch() {
+      const q = document.getElementById('gs-input').value.trim();
+      const body = document.getElementById('gs-body');
+      const foot = document.getElementById('gs-foot');
+      const seq = ++_gsSeq;
+      if (q.length < 2) {
+        body.innerHTML = '<div class="gs-empty">' + esc(t('gsTooShort')) + '</div>';
+        foot.textContent = '';
+        return;
+      }
+      body.innerHTML = '<div class="gs-empty">' + esc(t('gsSearching')) + '</div>';
+      let d = null;
+      try { d = await fetch('api/search?q=' + encodeURIComponent(q)).then(apiJson); }
+      catch (e) {
+        if (seq !== _gsSeq) return;
+        body.innerHTML = '<div class="gs-empty">' + esc(tf('msError', e.message || String(e))) + '</div>';
+        return;
+      }
+      if (seq !== _gsSeq) return; // eine neuere Eingabe ist schon unterwegs
+      const hits = (d && d.results) || [];
+      if (!hits.length) {
+        body.innerHTML = '<div class="gs-empty">' + esc(t('gsNoResult')) + '</div>';
+        foot.textContent = '';
+        return;
+      }
+      body.innerHTML = '';
+      for (const h of hits) {
+        const btn = document.createElement('button');
+        btn.className = 'gs-hit';
+        const who = (h.isGroup && h.contact && h.contact !== h.chatName)
+          ? esc(h.chatName) + ' · ' + esc(h.contact)
+          : esc(h.chatName);
+        btn.innerHTML = '<div class="gs-hit-top"><span class="gs-hit-chat">' + who + '</span>'
+          + '<span class="gs-hit-time">' + esc(fmtDate(h.timestamp) + ', ' + fmtTime(h.timestamp)) + '</span></div>'
+          + '<div class="gs-hit-body">' + gsSnippet(h.body || '', q) + '</div>'
+          + (h.local ? '' : '<div class="gs-hit-note">' + esc(t('gsNotStored')) + '</div>');
+        btn.onclick = () => jumpToMessage(h.chatId, h.msgId, h.local);
+        body.appendChild(btn);
+      }
+      foot.textContent = tf('gsFoot', d.total, d.localCount || 0, d.remoteCount || 0)
+        + (d.truncated ? ' · ' + tf('gsTruncated', hits.length, d.total) : '');
+    }
+
+    async function jumpToMessage(chatId, msgId, local) {
+      const chat = allChats.find(c => c.id === chatId)
+        || { id: chatId, name: chatId.split('@')[0], isGroup: chatId.endsWith('@g.us'), lastTime: 0 };
+      closeGlobalSearch();
+      await openChat(chat);
+      if (!local) return;
+      const find = () => [...msgList.querySelectorAll('.bubble-wrap')].find(w => w.dataset.msgid === msgId);
+      const show = (wrap) => {
+        clearMsgHighlights();
+        const bub = wrap.querySelector('.bubble') || wrap;
+        bub.classList.add('msg-highlight-active');
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => bub.classList.remove('msg-highlight-active'), 5000);
+      };
+      // Nach dem Oeffnen rendert die Liste asynchron — kurz auf die Blase warten
+      for (let i = 0; i < 25; i++) {
+        const wrap = find();
+        if (wrap) { show(wrap); return; }
+        await new Promise(r => setTimeout(r, 150));
+      }
+      // Nicht dabei: der Chat laedt nur die juengsten Nachrichten. Stueckweise
+      // weiter zurueckgehen, bis die Nachricht auftaucht oder nichts mehr kommt.
+      for (let i = 0; i < 30; i++) {
+        if (!(await loadOlderMessages(chatId))) break;
+        const wrap = find();
+        if (wrap) { show(wrap); return; }
+      }
+    }
+
+    // ── Zuletzt-online-Übersicht ──
+    let _presOvLoading = false;
+
+    function presStateCell(c) {
+      if (c.online) return '<span class="pres-online"><span class="pres-dot"></span>' + esc(t('presOvOnline')) + '</span>';
+      if (c.lastSeen) return esc(fmtDate(c.lastSeen) + ', ' + fmtTime(c.lastSeen));
+      if (c.denied) return '<span class="pres-none">' + esc(t('presOvDenied')) + '</span>';
+      return '<span class="pres-none">' + esc(t('presOvNever')) + '</span>';
+    }
+
+    async function loadPresenceOverview(refresh) {
+      if (_presOvLoading) return;
+      _presOvLoading = true;
+      const body = document.getElementById('pres-ov-body');
+      const footEl = document.getElementById('pres-ov-foot');
+      const btn = document.getElementById('pres-ov-refresh');
+      if (refresh) {
+        body.innerHTML = '<div class="no-chats">' + esc(t('presOvScanning')) + '</div>';
+        if (btn) btn.disabled = true;
+      }
+      let d = null;
+      try { d = await fetch('api/presence-overview' + (refresh ? '?refresh=1' : '')).then(apiJson); }
+      catch (e) { d = null; }
+      if (btn) btn.disabled = false;
+      _presOvLoading = false;
+      if (!d || d.error) { body.innerHTML = '<div class="no-chats">' + esc(t('contactsError')) + '</div>'; return; }
+      const list = d.contacts || [];
+      if (!list.length) {
+        body.innerHTML = '<div class="no-chats">' + esc(t('presOvEmpty')) + '</div>';
+      } else {
+        body.innerHTML = '<table class="archive-ov-table"><thead><tr>'
+          + '<th>' + esc(t('presOvColName')) + '</th>'
+          + '<th>' + esc(t('presOvColState')) + '</th>'
+          + '<th class="num">' + esc(t('presOvColChecked')) + '</th>'
+          + '</tr></thead><tbody>'
+          + list.map(c => '<tr><td>' + esc(c.name) + '</td><td>' + presStateCell(c) + '</td>'
+              + '<td class="num">' + (c.checkedAt ? esc(fmtTime(c.checkedAt)) : '—') + '</td></tr>').join('')
+          + '</tbody></table>';
+      }
+      footEl.textContent = tf('presOvFoot', d.total || 0,
+        d.lastScan ? fmtDate(d.lastScan) + ', ' + fmtTime(d.lastScan) : '',
+        d.intervalMinutes || 0);
+    }
+
+    (function bindNumCheck() {
+      const inp = document.getElementById('nc-input');
+      if (!inp) { document.addEventListener('DOMContentLoaded', bindNumCheck); return; }
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') runNumCheck(); });
+    })();
+
+    (function bindGlobalSearch() {
+      const inp = document.getElementById('gs-input');
+      if (!inp) { document.addEventListener('DOMContentLoaded', bindGlobalSearch); return; }
+      inp.addEventListener('input', () => {
+        if (_gsTimer) clearTimeout(_gsTimer);
+        _gsTimer = setTimeout(runGlobalSearch, 300);
+      });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { if (_gsTimer) clearTimeout(_gsTimer); runGlobalSearch(); }
+      });
+    })();
+
+    // Das Fenster steht im HTML vor diesem Skript, der Knopf existiert also schon.
+    // Der DOMContentLoaded-Zweig ist nur die Absicherung, falls sich das mal dreht.
+    (function bindPresOvRefresh() {
+      const r = document.getElementById('pres-ov-refresh');
+      if (r) { r.addEventListener('click', () => loadPresenceOverview(true)); return; }
+      document.addEventListener('DOMContentLoaded', bindPresOvRefresh);
+    })();
+
+    function openPresenceOverview() {
+      document.getElementById('presence-modal').classList.add('open');
+      loadPresenceOverview(false);
+    }
+
+    function closePresenceOverview() {
+      document.getElementById('presence-modal').classList.remove('open');
+    }
+
+    async function openArchiveOverview() {
+      const body = document.getElementById('archive-ov-body');
+      body.innerHTML = '<div class="archive-ov-empty">' + esc(t('archiveOverviewLoading')) + '</div>';
+      document.getElementById('archive-ov-total').textContent = '';
+      document.getElementById('archive-overview-modal').classList.add('open');
+      try {
+        _ovData = await fetch('api/status-archive-overview').then(r => r.json());
+      } catch(e) { _ovData = null; }
+      renderArchiveOverview();
+    }
+    function closeArchiveOverview() {
+      document.getElementById('archive-overview-modal').classList.remove('open');
+    }
+    function sortArchiveOverview(key) {
+      if (_ovSort === key) { _ovDesc = !_ovDesc; } else { _ovSort = key; _ovDesc = key !== 'name'; }
+      renderArchiveOverview();
+    }
+    function renderArchiveOverview() {
+      const body = document.getElementById('archive-ov-body');
+      const foot = document.getElementById('archive-ov-total');
+      const clearAllBtn = document.getElementById('archive-ov-clear-all');
+      const rows = (_ovData && _ovData.contacts) ? _ovData.contacts.slice() : [];
+      if (!rows.length) {
+        body.innerHTML = '<div class="archive-ov-empty">' + esc(t('archiveOverviewEmpty')) + '</div>';
+        foot.textContent = '';
+        clearAllBtn.style.display = 'none';
+        return;
+      }
+      clearAllBtn.style.display = '';
+      const dir = _ovDesc ? 1 : -1;
+      rows.sort((a, b) => {
+        if (_ovSort === 'name') return dir * a.name.localeCompare(b.name, lang);
+        if (_ovSort === 'count') return dir * (b.count - a.count);
+        if (_ovSort === 'newest') return dir * (b.newest - a.newest);
+        return dir * (b.bytes - a.bytes);
+      });
+      const mark = (key) => _ovSort === key ? '<span class="sort-mark">' + (_ovDesc ? '▼' : '▲') + '</span>' : '';
+      const head = '<tr>'
+        + '<th data-sort="name">' + esc(t('archiveColContact')) + mark('name') + '</th>'
+        + '<th data-sort="count" style="text-align:right">' + esc(t('archiveColCount')) + mark('count') + '</th>'
+        + '<th data-sort="bytes" style="text-align:right">' + esc(t('archiveColSize')) + mark('bytes') + '</th>'
+        + '<th data-sort="newest">' + esc(t('archiveColPeriod')) + mark('newest') + '</th>'
+        + '<th style="text-align:right;cursor:default">' + esc(t('archiveColActions')) + '</th>'
+        + '</tr>';
+      const trs = rows.map(c => {
+        const sub = [];
+        const number = c.chatId.split('@')[0];
+        if (number && c.name !== number) sub.push('+' + esc(number));
+        if (c.expired) sub.push(esc(tf('archiveRowExpired', c.expired)));
+        if (c.missing) sub.push('<span class="archive-ov-warn">' + esc(tf('archiveRowMissing', c.missing)) + '</span>');
+        const period = c.oldest
+          ? esc(fmtDate(c.oldest)) + (c.newest && fmtDate(c.newest) !== fmtDate(c.oldest) ? ' – ' + esc(fmtDate(c.newest)) : '')
+          : '';
+        const size = c.bytes ? fmtBytes(c.bytes) : esc(t('archiveOvNoFiles'));
+        return '<tr data-chat="' + esc(c.chatId) + '">'
+          + '<td><div class="archive-ov-name">' + esc(c.name) + '</div>'
+            + (sub.length ? '<div class="archive-ov-sub">' + sub.join(' · ') + '</div>' : '') + '</td>'
+          + '<td class="num">' + c.count + '</td>'
+          + '<td class="num">' + size + '</td>'
+          + '<td class="archive-ov-sub">' + period + '</td>'
+          + '<td><div class="archive-ov-acts">'
+            + '<button data-act="open" title="' + esc(c.expired ? t('archiveOpenTitle') : t('archiveOpenNone')) + '"' + (c.expired ? '' : ' disabled') + '>${_SVG.archive}</button>'
+            + '<button data-act="export" title="' + esc(t('archiveExportTitle')) + '">${_SVG.download}</button>'
+            + '<button data-act="clear" title="' + esc(t('archiveDeleteTitle')) + '">${_SVG.trash}</button>'
+          + '</div></td>'
+          + '</tr>';
+      }).join('');
+      body.innerHTML = '<table class="archive-ov-table"><thead>' + head + '</thead><tbody>' + trs + '</tbody></table>';
+      body.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => sortArchiveOverview(th.dataset.sort));
+      });
+      foot.textContent = tf('archiveOvTotal', _ovData.totalContacts, _ovData.totalEntries, fmtBytes(_ovData.totalBytes));
+    }
+    document.getElementById('archive-ov-body').addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button[data-act]');
+      if (!btn || btn.disabled) return;
+      const tr = btn.closest('tr[data-chat]');
+      if (!tr) return;
+      const chatId = tr.dataset.chat;
+      const row = (_ovData.contacts || []).find(c => c.chatId === chatId);
+      const name = row ? row.name : chatId;
+      if (btn.dataset.act === 'open') {
+        closeArchiveOverview();
+        openArchiveModal(chatId, name);
+      } else if (btn.dataset.act === 'export') {
+        window.location.href = 'api/status-archive/' + encodeURIComponent(chatId) + '/export?lang=' + lang;
+      } else if (btn.dataset.act === 'clear') {
+        if (!confirm(tf('archiveRowClearConfirm', name, fmtBytes(row ? row.bytes : 0)))) return;
+        try { await fetch('api/status-archive/' + encodeURIComponent(chatId) + '/clear', { method: 'POST' }); } catch(e) {}
+        await refreshArchiveOverview();
+      }
+    });
+    document.getElementById('archive-ov-clear-all').addEventListener('click', async () => {
+      if (!_ovData || !_ovData.totalContacts) return;
+      if (!confirm(tf('archiveClearAllConfirm', _ovData.totalContacts, fmtBytes(_ovData.totalBytes)))) return;
+      try { await fetch('api/status-archive-clear-bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch(e) {}
+      await refreshArchiveOverview();
+    });
+    // Nach dem Loeschen: Uebersicht, Speicheranzeige und ggf. das offene
+    // Kontakt-Badge auf den neuen Stand bringen
+    async function refreshArchiveOverview() {
+      try { _ovData = await fetch('api/status-archive-overview').then(r => r.json()); } catch(e) { _ovData = null; }
+      renderArchiveOverview();
+      loadStorage();
+      const archiveEl = document.getElementById('contact-modal-archive');
+      if (archiveEl) archiveEl.innerHTML = '';
+    }
+
     function closeContactModal() {
       document.getElementById('contact-modal').classList.remove('open');
     }
@@ -3787,9 +8299,14 @@ app.get('/', (req, res) => {
       return (bytes / 1048576).toFixed(1) + ' MB';
     }
 
+    // Laufende Verkleinerung eines Anhangs — sendFile() wartet darauf, damit ein
+    // schneller Klick auf Senden nicht das unverkleinerte Original hochlaedt
+    let _attachShrinking = null;
+
     function attachFile(file) {
       if (!file) return;
       _attachFile = file;
+      _attachShrinking = null;
       const isImg = file.type.startsWith('image/');
       const icon = document.getElementById('attach-icon');
       const thumb = document.getElementById('attach-thumb');
@@ -3804,6 +8321,19 @@ app.get('/', (req, res) => {
       document.getElementById('attach-name').textContent = file.name;
       document.getElementById('attach-size').textContent = formatFileSize(file.size);
       document.getElementById('attach-bar').classList.add('active');
+      // Fotos vor dem Hochladen verkleinern — dieselbe Grenze wie beim Status
+      // trifft jeden Upload, und WhatsApp skaliert Fotos ohnehin herunter
+      if (isImg) {
+        _attachShrinking = (async () => {
+          let small = null;
+          try { small = await msShrinkImage(file); } catch (e) { small = null; }
+          if (small && _attachFile === file) {
+            _attachFile = small.file;
+            const sz = document.getElementById('attach-size');
+            if (sz) sz.textContent = formatFileSize(small.toBytes) + ' · ' + tf('attachShrunk', formatFileSize(small.fromBytes));
+          }
+        })();
+      }
       document.getElementById('msg-input').placeholder = t('attachCaption');
       document.getElementById('msg-input').focus();
     }
@@ -3824,6 +8354,8 @@ app.get('/', (req, res) => {
 
     async function sendFile() {
       if (!_attachFile || !selectedChatId) return;
+      if (_attachShrinking) { try { await _attachShrinking; } catch (e) {} }
+      if (!_attachFile) return;
       const caption = document.getElementById('msg-input').value.trim();
       const formData = new FormData();
       formData.append('to', selectedChatId);
@@ -3834,13 +8366,13 @@ app.get('/', (req, res) => {
       document.getElementById('msg-input').style.height = 'auto';
       atBottom = true;
       try {
-        const r = await fetch('api/send-media', { method: 'POST', body: formData }).then(r => r.json());
+        const r = await fetch('api/send-media', { method: 'POST', body: formData }).then(apiJson);
         if (r.success) {
           await pollMessages();
         } else {
           alert(tf('errSend', r.error));
         }
-      } catch(e) { alert(t('errNetwork')); }
+      } catch(e) { alert(tf('errSend', e.message || String(e))); }
     }
 
     // ── @-Erwähnungen in Gruppen ───────────────────────────────────────────────
@@ -4078,6 +8610,13 @@ app.get('/', (req, res) => {
         dot.title = dotLabel;
 
         if (s.phone && !myPhone) myPhone = s.phone;
+        // Fassungen in der Kopfzeile der Konsole — dort sucht man Diagnosen
+        if (s.waWeb || s.lib) {
+          const el = document.getElementById('wa-console-title');
+          if (el) el.textContent = '⬛ CONSOLE — WhatsApp'
+            + (s.waWeb ? ' · WA Web ' + s.waWeb : '')
+            + (s.lib ? ' · lib ' + s.lib : '');
+        }
         if (s.myJid && !myJid) myJid = s.myJid;
         if (s.status !== currentStatus) {
           currentStatus = s.status;
@@ -4090,11 +8629,12 @@ app.get('/', (req, res) => {
           document.getElementById('qr-overlay').style.display = qr ? 'flex' : 'none';
           document.getElementById('topbar').style.display = connected ? 'flex' : 'none';
           document.getElementById('main').style.display = connected ? 'flex' : 'none';
+          if (connected) updateTopbarFade(); // vorher war die Leiste display:none, also 0 breit
           if (qr) {
             const d = await fetch('api/qr').then(r => r.json()).catch(() => null);
             if (d?.qr) document.getElementById('qr-img').innerHTML = '<img src="' + d.qr + '">';
           }
-          if (connected) { await pollChats(); pollStatuses(); }
+          if (connected) { await pollChats(); pollStatuses(); pollBlocked(); }
         }
       } catch(e) {
         _offlineFails++;
@@ -4107,6 +8647,27 @@ app.get('/', (req, res) => {
     refresh();
     // Intervalle pausieren, wenn der Tab im Hintergrund ist (spart Last/Requests);
     // visibilitychange unten aktualisiert sofort beim Zurückkehren
+    // Meldet sich nur, wenn etwas fehlt: WhatsApp Web baut regelmaessig um, und
+    // dann faellt ein einzelner Teil aus, waehrend der Rest weiterlaeuft
+    async function checkWaHealth() {
+      const bar = document.getElementById('wa-health');
+      if (!bar) return;
+      let d = null;
+      try { d = await fetch('api/selfcheck').then(r => r.json()); } catch (e) { return; }
+      if (!d || d.error || d.ok) { bar.style.display = 'none'; return; }
+      const parts = [...new Set([...(d.broken || []), ...(d.changed || [])].map(b => b.feature))];
+      const nurForm = !(d.broken || []).length;
+      bar.innerHTML = '<b>' + esc(t(nurForm ? 'healthTitleShape' : 'healthTitle')) + '</b> '
+        + esc(tf(nurForm ? 'healthBodyShape' : 'healthBody', parts.join(', ')))
+        + (d.waWeb ? ' <span style="opacity:0.75">(WA Web ' + esc(d.waWeb) + ')</span>' : '');
+      bar.style.display = 'block';
+    }
+    setTimeout(checkWaHealth, 4000);
+    setInterval(checkWaHealth, 30 * 60 * 1000);
+
+    // Eigenes Profil vorab holen, damit der Kontakte-Reiter es beim ersten
+    // Klick fertig anzeigt statt erst nach dem Adressbuch
+    loadMyProfile().then(() => { if (currentFilter === 'contacts') renderContactList(); });
     setInterval(() => { if (!document.hidden) refresh(); }, 5000);
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
@@ -4162,6 +8723,10 @@ app.get('/', (req, res) => {
         if (isDeleteMode) { exitDeleteMode(); return; }
         lightbox.classList.remove('open');
         document.getElementById('contact-modal')?.classList.remove('open');
+        document.getElementById('archive-overview-modal')?.classList.remove('open');
+        document.getElementById('presence-modal')?.classList.remove('open');
+        document.getElementById('gsearch-modal')?.classList.remove('open');
+        document.getElementById('numcheck-modal')?.classList.remove('open');
       }
     });
 
@@ -4263,6 +8828,16 @@ app.get('/', (req, res) => {
     #wa-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
     #wa-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
     #wa-console-close:hover{color:#f85149;}
+    #wa-console-filter{display:flex;align-items:center;gap:4px;padding:4px 8px;background:#0f1319;border-bottom:1px solid #30363d;flex-shrink:0;flex-wrap:wrap;}
+    #wa-console-filter button{background:none;border:1px solid #30363d;color:#6e7681;font:inherit;font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;letter-spacing:.04em;}
+    #wa-console-filter button:hover{border-color:#6e7681;}
+    #wa-console-filter button.on[data-lvl=ERROR]{color:#f85149;border-color:#f85149;}
+    #wa-console-filter button.on[data-lvl=WARN]{color:#d29922;border-color:#d29922;}
+    #wa-console-filter button.on[data-lvl=INFO]{color:#3fb950;border-color:#3fb950;}
+    #wa-console-filter button.on[data-lvl=DEBUG]{color:#8b949e;border-color:#8b949e;}
+    #wa-console-search{flex:1;min-width:70px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;font:inherit;font-size:10px;padding:2px 6px;border-radius:4px;}
+    #wa-console-search:focus{outline:none;border-color:#6e7681;}
+    #wa-console-count{color:#6e7681;font-size:10px;white-space:nowrap;}
     #wa-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
     #wa-console-body::-webkit-scrollbar{width:5px;}#wa-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
     .wc-info{color:#3fb950;}.wc-warn{color:#d29922;}.wc-error{color:#f85149;}.wc-debug{color:#6e7681;}
@@ -4272,6 +8847,14 @@ app.get('/', (req, res) => {
     <div id="wa-console-header">
       <span id="wa-console-title">⬛ CONSOLE — WhatsApp</span>
       <button id="wa-console-close" onclick="waConsoleToggle()">✕</button>
+    </div>
+    <div id="wa-console-filter">
+      <button data-lvl="ERROR" class="on">ERROR</button>
+      <button data-lvl="WARN" class="on">WARN</button>
+      <button data-lvl="INFO" class="on">INFO</button>
+      <button data-lvl="DEBUG" class="on">DEBUG</button>
+      <input id="wa-console-search" type="text" placeholder="Text filtern…">
+      <span id="wa-console-count"></span>
     </div>
     <div id="wa-console-body"></div>
   </div>
@@ -4307,20 +8890,61 @@ app.get('/', (req, res) => {
       }
       window.waConsoleToggle=waConsoleToggle;
       function _cls(l){return l==='WARN'?'wc-warn':l==='ERROR'?'wc-error':l==='DEBUG'?'wc-debug':'wc-info';}
+
+      // Alle Zeilen aufheben, damit ein Filterwechsel auch auf bereits
+      // eingetroffene Meldungen wirkt und nicht erst auf die naechsten
+      var _all=[],_MAXKEEP=1500;
+      var _levels={ERROR:true,WARN:true,INFO:true,DEBUG:true};
+      try{
+        var saved=JSON.parse(localStorage.getItem('wa_console_levels')||'null');
+        if(saved)['ERROR','WARN','INFO','DEBUG'].forEach(function(l){if(l in saved)_levels[l]=!!saved[l];});
+      }catch(e){}
+      var _search='';
+      var searchEl=document.getElementById('wa-console-search');
+      var countEl=document.getElementById('wa-console-count');
+
+      function _matches(e){
+        if(!_levels[e.level])return false;
+        if(_search&&e.msg.toLowerCase().indexOf(_search)<0)return false;
+        return true;
+      }
+      function _render(){
+        var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+        body.textContent='';
+        var shown=0;
+        _all.forEach(function(e){
+          if(!_matches(e))return;
+          shown++;
+          var line=document.createElement('div');
+          line.className=_cls(e.level);
+          line.textContent=e.msg;
+          body.appendChild(line);
+        });
+        countEl.textContent=shown+'/'+_all.length;
+        if(atBottom)body.scrollTop=body.scrollHeight;
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('#wa-console-filter button'),function(btn){
+        var lvl=btn.dataset.lvl;
+        btn.classList.toggle('on',!!_levels[lvl]);
+        btn.addEventListener('click',function(){
+          _levels[lvl]=!_levels[lvl];
+          btn.classList.toggle('on',_levels[lvl]);
+          try{localStorage.setItem('wa_console_levels',JSON.stringify(_levels));}catch(e){}
+          _render();
+        });
+      });
+      searchEl.addEventListener('input',function(){_search=searchEl.value.trim().toLowerCase();_render();});
+
       async function _poll(){
         try{
           var entries=await fetch('api/logs?since='+_lastTs).then(function(r){return r.json();});
           if(!entries.length)return;
-          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
           entries.forEach(function(e){
             _lastTs=Math.max(_lastTs,e.ts);
-            var line=document.createElement('div');
-            line.className=_cls(e.level);
-            line.textContent=e.msg;
-            body.appendChild(line);
+            _all.push(e);
           });
-          if(atBottom)body.scrollTop=body.scrollHeight;
-          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+          if(_all.length>_MAXKEEP)_all.splice(0,_all.length-_MAXKEEP);
+          _render();
         }catch(e){}
       }
     })();
@@ -4329,9 +8953,60 @@ app.get('/', (req, res) => {
 </html>`);
 });
 
+// Fehler aus Middleware — etwa Multer bei einem zu grossen Upload — landeten
+// bisher in Express' HTML-Fehlerseite. Im Frontend kam davon nur
+// "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" an, ohne jeden
+// Hinweis auf die Ursache. API-Pfade antworten jetzt immer mit JSON.
+app.use((err, req, res, next) => {
+  const msg = String((err && err.message) || err);
+  console.error(`[ERROR] ${req.method} ${req.path}: ${msg}${err && err.code ? ' (' + err.code + ')' : ''}`);
+  if (res.headersSent) return next(err);
+  const code = (err && (err.status || err.statusCode))
+    || (err && err.code === 'LIMIT_FILE_SIZE' ? 413 : 500);
+  if (req.path.startsWith('/api/')) {
+    return res.status(code).json({ error: msg, code: (err && err.code) || null });
+  }
+  return next(err);
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 
 const PORT = parseInt(process.env.PORT || '17776', 10);
 app.listen(PORT, () => console.log(`[INFO] Web UI running on port ${PORT}`));
+
+// ── REST-API auf eigenem Port ────────────────────────────────────────────────
+// Der UI-Port bedient Oberflaeche und API gemeinsam und kennt keine
+// Authentifizierung — die Weboberflaeche ruft ihre eigenen /api/-Routen ja aus
+// dem Browser auf. Sein Schutz ist deshalb, dass er nicht im LAN
+// veroeffentlicht wird: Zugriff ueber HA-Ingress oder das MessengerPortal.
+//
+// Wer die REST-API von aussen braucht, bekommt sie hier — und nur hier:
+// ausschliesslich /api/*, ausschliesslich mit Token. Die Oberflaeche gibt es
+// ueber diesen Port auch mit gueltigem Token nicht, sonst waere er wieder ein
+// zweiter, gleichwertiger Weg auf alles.
+const API_PORT    = parseInt(process.env.API_PORT || '17786', 10);
+const API_ENABLED = process.env.API_ENABLED === 'true';
+const API_TOKEN   = process.env.API_TOKEN || '';
+
+if (API_ENABLED && !API_TOKEN) {
+  console.error(`[ERROR] api_enabled ist gesetzt, aber api_token ist leer — die REST-API auf Port ${API_PORT} startet nicht. Ein offener Port ohne Token waere genau die Luecke, die dieser Port schliessen soll.`);
+} else if (API_ENABLED) {
+  const expected = Buffer.from(`Bearer ${API_TOKEN}`);
+  const apiApp = express();
+  apiApp.set('trust proxy', 1);
+  apiApp.use((req, res, next) => {
+    if (!req.path.startsWith('/api/')) return res.status(404).json({ error: 'not_found' });
+    const got = Buffer.from(req.headers.authorization || '');
+    // timingSafeEqual wirft bei ungleicher Laenge — deshalb erst vergleichen,
+    // dann pruefen. Kein ===, das verraet ueber die Laufzeit den Token.
+    if (got.length !== expected.length || !crypto.timingSafeEqual(got, expected)) {
+      _logSilent('WARN', `REST-API: Zugriff ohne gueltigen Token abgelehnt (${req.method} ${req.path}, ${req.ip})`);
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    next();
+  });
+  apiApp.use(app);
+  apiApp.listen(API_PORT, () => console.log(`[INFO] REST-API auf Port ${API_PORT} (Token erforderlich)`));
+}
