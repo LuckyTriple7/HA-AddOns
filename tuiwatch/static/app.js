@@ -5013,55 +5013,118 @@
     // den editierten Text oder null bei Abbruch. `onConfirmed()` rendert den
     // Lade-Zustand für den zweiten (echten) Aufruf.
     // ── KI-Aktivitaetsanzeige neben dem Logo ─────────────────────────────────
-    // Zaehlt laufende KI-Anfragen. Erst wenn die letzte fertig ist, wechselt die
-    // Anzeige auf „fertig" — sonst meldete ein kurzer Aufruf Vollzug, waehrend
-    // ein langer noch laeuft.
-    let _aiRunning = 0, _aiDoneTimer = null;
-    const AI_BADGE_DONE_MS = 8000;
+    // Ein blosses Kreisen sagt nicht, ob noch etwas passiert oder ob es haengt —
+    // gerade bei den gruendlichen Perplexity-Stufen, die Minuten brauchen. Die
+    // Anzeige nennt deshalb die verstrichene Zeit.
+    //
+    // `_aiActive` haelt je laufender Anfrage den Startzeitpunkt. Schluessel ist
+    // bei Anfragen aus diesem Fenster eine laufende Nummer, bei nach einem
+    // Neuladen wieder aufgenommenen Auftraegen die Auftragsnummer selbst.
+    const _aiActive = new Map();
+    let _aiKeySeq = 0, _aiDoneTimer = null, _aiTick = null;
+    const AI_BADGE_DONE_MS = 20000;
+
+    function aiFmtElapsed(ms){
+      const sec = Math.max(0, Math.round(ms / 1000));
+      return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    }
     function aiBadgeRender(){
       const el = $('#ai-badge'); if(!el) return;
       const n = $('#ai-badge-n');
-      if(_aiRunning > 0){
+      if(_aiActive.size > 0){
         clearTimeout(_aiDoneTimer); _aiDoneTimer = null;
+        const oldest = Math.min(...[..._aiActive.values()].map(v => v.ts));
         el.style.display = '';
         el.className = 'ai-badge running';
         el.title = 'KI arbeitet — klicken für den KI-Verlauf';
-        if(n) n.textContent = _aiRunning > 1 ? _aiRunning : '';
-      } else if(_aiDoneTimer){
-        el.style.display = '';
-        el.className = 'ai-badge done';
-        el.title = 'KI-Antwort fertig — klicken für den KI-Verlauf';
-        if(n) n.textContent = '';
+        if(n) n.textContent = (_aiActive.size > 1 ? _aiActive.size + ' · ' : '')
+                            + aiFmtElapsed(Date.now() - oldest);
+        if(!_aiTick) _aiTick = setInterval(aiBadgeRender, 1000);
       } else {
-        el.style.display = 'none';
-        el.className = 'ai-badge';
+        if(_aiTick){ clearInterval(_aiTick); _aiTick = null; }
+        if(_aiDoneTimer){
+          el.style.display = '';
+          el.className = 'ai-badge done';
+          el.title = 'KI-Antwort fertig — klicken für den KI-Verlauf';
+          if(n) n.textContent = 'fertig';
+        } else {
+          el.style.display = 'none';
+          el.className = 'ai-badge';
+          if(n) n.textContent = '';
+        }
       }
     }
-    function aiBadgeStart(){ _aiRunning++; aiBadgeRender(); }
-    function aiBadgeEnd(){
-      _aiRunning = Math.max(0, _aiRunning - 1);
-      if(_aiRunning === 0){
+    function aiBadgeAdd(key, ts){
+      _aiActive.set(key, {ts: ts || Date.now()});
+      aiBadgeRender();
+    }
+    function aiBadgeDrop(key){
+      if(!_aiActive.delete(key)) return;
+      if(_aiActive.size === 0){
         clearTimeout(_aiDoneTimer);
-        // Kurz gruen blinken und dann von selbst verschwinden: wer im Fenster
-        // sitzt, sieht das Ergebnis ohnehin; die Anzeige ist fuer alle, die
-        // waehrenddessen woanders in der Oberflaeche waren.
         _aiDoneTimer = setTimeout(()=>{ _aiDoneTimer = null; aiBadgeRender(); },
                                   AI_BADGE_DONE_MS);
       }
       aiBadgeRender();
     }
+    function aiBadgeStart(){ const k = 'req' + (++_aiKeySeq); aiBadgeAdd(k); return k; }
+    function aiBadgeEnd(key){ aiBadgeDrop(key); }
 
-    // Wie lange auf einen Hintergrundauftrag gewartet wird, bevor das Fenster
-    // aufgibt. Grosszuegig, weil die gruendlichen Perplexity-Stufen minutenlang
-    // recherchieren; der Server hat dafuer sein eigenes, einstellbares Limit.
-    const AI_JOB_MAX_WAIT_MS = 15 * 60 * 1000;
-    const AI_JOB_POLL_MS = 2000;
+    // ── Auftraege ueber ein Neuladen retten ──────────────────────────────────
+    // Ein laufender Auftrag lebt serverseitig weiter, das Fenster wusste davon
+    // nach F5 aber nichts mehr: die Anzeige war weg, das Ergebnis tauchte nur
+    // noch im KI-Verlauf auf. Die Auftragsnummern liegen deshalb im
+    // localStorage und werden beim Laden wieder aufgenommen.
+    const AI_JOBS_KEY = 'tuiwatch_ai_jobs';
+    const AI_JOB_KEEP_MS = 60 * 60 * 1000;   // so lange haelt der Server sie vor
+    function aiJobsRead(){
+      try {
+        const v = JSON.parse(localStorage.getItem(AI_JOBS_KEY) || '[]');
+        return Array.isArray(v) ? v.filter(j => j && j.id) : [];
+      } catch(e){ return []; }
+    }
+    function aiJobsWrite(list){
+      try { localStorage.setItem(AI_JOBS_KEY, JSON.stringify(list)); } catch(e){}
+    }
+    function aiJobRemember(id, label){
+      aiJobsWrite(aiJobsRead().filter(j => j.id !== id).concat([{id, label: label || '', ts: Date.now()}]));
+    }
+    function aiJobForget(id){
+      aiJobsWrite(aiJobsRead().filter(j => j.id !== id));
+    }
 
-    // Ergaenzt den Request um `_async: true`. Der Server fuehrt die Route dann in
-    // einem Thread aus und antwortet sofort mit einer Auftragsnummer, statt die
-    // Verbindung minutenlang offen zu halten — die schnitt vorher der Browser bzw.
-    // der Ingress-Proxy durch, obwohl die Antwort serverseitig fertig wurde.
+    // Nach dem Laden alle noch offenen Auftraege weiterverfolgen. Das Ergebnis
+    // wird hier NICHT gerendert — das Fenster dazu ist ja weg —, sondern nur
+    // gemeldet: die Anzeige blinkt und ein Hinweis verweist auf den KI-Verlauf.
+    async function aiResumePendingJobs(){
+      const now = Date.now();
+      for (const job of aiJobsRead()){
+        if(now - (job.ts || 0) > AI_JOB_KEEP_MS){ aiJobForget(job.id); continue; }
+        aiBadgeAdd(job.id, job.ts);
+        (async () => {
+          try {
+            const {resp} = await aiAwaitJob({status:202}, {job: job.id}, {resumed:true});
+            if(resp && resp.status === 404) return;   // schon abgeholt oder abgelaufen
+            toast('KI-Antwort fertig' + (job.label ? ' · ' + job.label : '')
+                  + ' — im KI-Verlauf');
+          } catch(e){
+            // Nichts weiter zu tun: der Auftrag ist entweder abgelaufen oder das
+            // Warten wurde zu lang. Der KI-Verlauf hat das Ergebnis trotzdem.
+          } finally {
+            aiJobForget(job.id);
+            aiBadgeDrop(job.id);
+          }
+        })();
+      }
+    }
+
+    // Notbremse: auf false gesetzt laufen alle KI-Aufrufe wieder direkt wie bis
+    // 0.109.2 (Server versteht `_async` weiterhin, es wird nur nicht geschickt).
+    // Bleibt drin, weil der Auftragsweg die einzige Stelle ist, an der ein Fehler
+    // dazu fuehrt, dass gar nichts mehr im Fenster ankommt.
+    const AI_ASYNC_JOBS = true;
     function aiAsyncOpts(opts){
+      if(!AI_ASYNC_JOBS) return opts;
       let body = {};
       if(opts && opts.body){ try { body = JSON.parse(opts.body); } catch(e){ return opts; } }
       body._async = true;
@@ -5073,33 +5136,42 @@
 
     // Antwortete der Server mit {job}, hier warten, bis das Ergebnis vorliegt, und
     // dann so tun, als waere es direkt gekommen — die Aufrufer merken nichts davon.
-    async function aiAwaitJob(resp, d){
+    async function aiAwaitJob(resp, d, opts){
       if(!(resp.status===202 && d && d.job)) return {resp, d};
+      const resumed = !!(opts && opts.resumed);
+      // Merken, bevor gewartet wird: schliesst der Nutzer waehrenddessen den Tab
+      // oder laedt neu, findet ihn `aiResumePendingJobs` beim naechsten Start
+      // wieder. Beim bereits wieder aufgenommenen Auftrag entfaellt das.
+      if(!resumed) aiJobRemember(d.job, $('#ai-sub') ? $('#ai-sub').textContent : '');
       const until = Date.now() + AI_JOB_MAX_WAIT_MS;
-      while(Date.now() < until){
-        await new Promise(r=>setTimeout(r, AI_JOB_POLL_MS));
-        let r2, d2;
-        try {
-          r2 = await fetch(api('/api/ai/job/'+encodeURIComponent(d.job)));
-          d2 = await r2.json();
-        } catch(e){
-          // Kurzer Netz-Aussetzer: der Auftrag laeuft serverseitig weiter, also
-          // weiterfragen statt aufgeben.
-          continue;
+      try {
+        while(Date.now() < until){
+          await new Promise(r=>setTimeout(r, AI_JOB_POLL_MS));
+          let r2, d2;
+          try {
+            r2 = await fetch(api('/api/ai/job/'+encodeURIComponent(d.job)));
+            d2 = await r2.json();
+          } catch(e){
+            // Kurzer Netz-Aussetzer: der Auftrag laeuft serverseitig weiter, also
+            // weiterfragen statt aufgeben.
+            continue;
+          }
+          if(r2.status===202 && d2 && d2.job_status==='running') continue;
+          return {resp:r2, d:d2};
         }
-        if(r2.status===202 && d2 && d2.job_status==='running') continue;
-        return {resp:r2, d:d2};
+      } finally {
+        if(!resumed) aiJobForget(d.job);
       }
       throw new Error('ai job timeout');
     }
 
     async function aiFetchPreviewCore(url, opts, onPreview, onConfirmed){
       opts = opts || {};
-      aiBadgeStart();
+      const key = aiBadgeStart();
       try {
         return await aiFetchPreviewInner(url, opts, onPreview, onConfirmed);
       } finally {
-        aiBadgeEnd();
+        aiBadgeEnd(key);
       }
     }
     async function aiFetchPreviewInner(url, opts, onPreview, onConfirmed){
@@ -5115,7 +5187,7 @@
         if(opts.body){ try { body = JSON.parse(opts.body); } catch(e){} }
         body._prompt_confirmed = true;
         body._prompt_override = edited;
-        body._async = true;
+        if(AI_ASYNC_JOBS) body._async = true;
         if(onConfirmed) onConfirmed();
         resp = await fetch(url, Object.assign({}, opts, {
           method: 'POST', body: JSON.stringify(body),
@@ -5172,6 +5244,14 @@
         if(usage.estimated_usd != null) parts.push('≈ '+fmtUsd(usage.estimated_usd));
         html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)"><svg class="i"><use href="#i-hash"/></svg> '
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
+        // Eine abgeschnittene Antwort hoert einfach mittendrin auf — ohne Hinweis
+        // haelt man sie fuer vollstaendig. Das war bei fuenf Reisezielen der Fall:
+        // die Auswertung endete nach dem dritten Ziel.
+        if(usage.truncated){
+          html += '<div class="hint" style="margin-top:6px;color:var(--amber)">'
+            + '<svg class="i"><use href="#i-warn"/></svg> Die Antwort wurde am Token-Limit '
+            + 'abgeschnitten und ist unvollständig.</div>';
+        }
       }
       if(totals && totals.calls){
         html += '<div class="hint" style="margin-top:4px">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
@@ -7786,3 +7866,4 @@
       } catch(e){ toast('Umschalten fehlgeschlagen'); }
     }
     loadAiProviderFooter();
+    aiResumePendingJobs();

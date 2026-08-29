@@ -668,3 +668,65 @@ def test_perplexity_structured_output_passes_the_source_list(app_mod, monkeypatc
     _text, usage, _err = app_mod._ai_request("p-key", "pplx-fast", "Prompt", max_tokens=200,
                                              log_ctx="Test", output_schema=schema)
     assert usage["citation_urls"] == ["https://a.example", "https://b.example"]
+
+
+def test_perplexity_strips_cite_markers(app_mod, monkeypatch):
+    """Die Agent API schreibt Quellenverweise als `cite[36][web:AP2Q...]` mitten in
+    den Text. Die Kennung hinter `web:` ist eine opake ID, die sich gegen unsere
+    positionsbasierte Quellenliste nicht aufloesen laesst — der ganze Marker muss
+    weg, sonst steht er als Zeichensalat in der Antwort."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Acht Sonnenstunden. cite[36][web:AP2QHPgnj4BqitwjUF7EcRM3]",
+        results=_sources("https://a.example", "https://b.example"))))
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Acht Sonnenstunden."
+
+
+def test_perplexity_strips_cite_without_a_number(app_mod, monkeypatch):
+    """Ohne fuehrende Zahl darf kein einsames „cite" zurueckbleiben."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Badeunfaelle moeglich. cite[web:AP2QHPgnj4][web:blomINkUrk]",
+        results=_sources("https://a.example"))))
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Badeunfaelle moeglich."
+    assert "cite" not in text and "web:" not in text
+
+
+def test_perplexity_keeps_a_resolvable_number_inside_a_cite_marker(app_mod, monkeypatch):
+    """Steckt im Marker eine Nummer, die zur Quellenliste passt, wird sie verlinkt
+    statt mit weggeworfen."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Klar belegt cite[1][web:xyz] soweit.",
+        results=_sources("https://a.example", "https://b.example"))))
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Klar belegt [1](https://a.example) soweit."
+
+
+def test_region_compare_budget_grows_with_the_number_of_targets(app_mod):
+    """Feste 8192 Tokens reichten nicht: bei fuenf Zielen brach die Auswertung nach
+    dem dritten ab (8350 Output-Tokens gemeldet). Je Ziel neun Kriterien in
+    Fliesstext, dazu Tabelle und Fazit."""
+    ai_routes = importlib.import_module("ai_routes")
+    assert ai_routes._region_compare_max_tokens(2) < ai_routes._region_compare_max_tokens(5)
+    assert ai_routes._region_compare_max_tokens(5) > 20000
+    assert ai_routes._region_compare_max_tokens(99) <= 40000
+
+
+def test_truncated_answers_are_flagged(app_mod, monkeypatch):
+    """`status: incomplete` heisst abgeschnitten. Ohne Kennzeichen haelt man die
+    Antwort fuer vollstaendig — sie hoert einfach mittendrin auf."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(status="incomplete")))
+    _text, usage, err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
+                                            max_tokens=200, log_ctx="Test")
+    assert err is None
+    assert usage["truncated"] is True
+
+
+def test_complete_answers_are_not_flagged(app_mod, monkeypatch):
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload()))
+    _text, usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert "truncated" not in usage

@@ -32,10 +32,20 @@ _PERPLEXITY_DONE = ('completed', 'failed', 'cancelled', 'incomplete')
 _PERPLEXITY_HTTP_TIMEOUT = 30
 _PERPLEXITY_POLL_INTERVAL = 3
 _PERPLEXITY_CITATION_RE = re.compile(r'\[(\d+)\](?!\()')
-# Die Agent API setzt Quellenverweise auch in der Form `[web:94]` in den Text —
-# ein Format, das Sonar nicht kannte. Unbehandelt blieb es als sinnloser Rest
-# („[web:94]") in der Antwort stehen.
-_PERPLEXITY_WEB_MARKER_RE = re.compile(r'\[web:(\d+)\]')
+# Die Agent API setzt Quellenverweise in Formen in den Fliesstext, die Sonar
+# nicht kannte — unbehandelt bleiben sie als sinnloser Rest stehen:
+#   cite[36][web:AP2QHPgnj4BqitwjUF7EcRM3]
+# Die Kennung hinter `web:` ist dabei in aller Regel **keine** Zahl, sondern
+# eine opake ID, die sich gegen unsere positionsbasierte Quellenliste nicht
+# auflösen lässt. Solche Marker werden entfernt.
+#
+# `cite` samt aller unmittelbar folgenden Klammergruppen zählt als EIN Marker.
+# Sonst bliebe von `cite[36][web:…]` nach dem Entfernen des web-Teils ein
+# einsames `cite[36]` stehen — die 36 ist eine interne Nummer, die zu unserer
+# Quellenliste meist gar nicht passt.
+_PERPLEXITY_CITE_RE = re.compile(r'\bcite(?:\[[^\]\s]*\])+')
+# Dieselben Marker kommen auch ohne das vorangestellte `cite` vor.
+_PERPLEXITY_WEB_MARKER_RE = re.compile(r'\[web:[^\]\s]*\]')
 
 
 def _perplexity_output_text(data: dict):
@@ -107,25 +117,33 @@ def _perplexity_linkify_citations(text: str, urls: list | None, *, log_ctx: str 
     nicht zu unterscheiden, ob die Verlinkung ausfällt oder die Liste zu kurz ist."""
     missing = set()
 
-    def _web_sub(m):
-        """`[web:94]` -> Link, wenn die Quelle vorliegt, sonst weg.
+    def _marker_sub(m):
+        """Einen Marker durch seine Links ersetzen — oder ersatzlos streichen.
 
-        Anders als bei `[n]` wird ein unauflösbarer Marker hier **entfernt**:
-        „[web:94]" ist erkennbar ein Maschinen-Artefakt und in keinem Fall
-        gewollter Fließtext, während eine nackte `[3]` durchaus zum Text gehören
-        kann und deshalb stehen bleibt."""
-        n = int(m.group(1))
-        if urls and 1 <= n <= len(urls) and urls[n - 1]:
-            return f'[{n}]({urls[n - 1]})'
-        missing.add(n)
-        return ''
+        Verlinkt wird nur, was sich auflösen lässt: eine reine Zahl innerhalb der
+        Quellenliste. Alles andere (opake `web:`-Kennungen, Nummern jenseits der
+        gelieferten Quellen) fällt weg. Anders als bei einer nackten `[3]`, die
+        stehen bleibt, ist hier nichts zu retten: `cite[36][web:AP2Q…]` ist
+        erkennbar ein Maschinen-Artefakt und in keinem Fall gewollter Fließtext."""
+        out = []
+        for raw in re.findall(r'\[([^\]]*)\]', m.group(0)):
+            key = raw[4:] if raw.startswith('web:') else raw
+            if not key.isdigit():
+                continue
+            n = int(key)
+            if urls and 1 <= n <= len(urls) and urls[n - 1]:
+                out.append(f'[{n}]({urls[n - 1]})')
+            else:
+                missing.add(n)
+        return ''.join(out)
 
-    # Immer laufen lassen, auch ohne Quellenliste — sonst bliebe der Marker stehen.
-    text = _PERPLEXITY_WEB_MARKER_RE.sub(_web_sub, text)
-    # Doppelte Leerzeichen, die durch das Entfernen entstehen konnten, einziehen.
+    # Immer laufen lassen, auch ohne Quellenliste — sonst blieben die Marker stehen.
+    text = _PERPLEXITY_CITE_RE.sub(_marker_sub, text)
+    text = _PERPLEXITY_WEB_MARKER_RE.sub(_marker_sub, text)
+    # Leerzeichen einziehen, die durch das Entfernen entstanden sein können.
     text = re.sub(r' {2,}', ' ', text)
-    text = re.sub(r' +([.,;:!?])', r'', text)
-    text = re.sub(r'[ 	]+$', '', text, flags=re.M)
+    text = re.sub(r' +([.,;:!?])', r'\1', text)
+    text = re.sub(r'[ \t]+$', '', text, flags=re.M)
     if not urls:
         if missing:
             A.log.info("Perplexity (%s): %d web-Marker ohne Quelle entfernt",
@@ -404,9 +422,11 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
                     isinstance(data.get('error'), dict) else data.get('error'))
         return None, None, 'failed'
     text = text.strip()
-    if status == 'incomplete':
-        A.log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_output_tokens, "
-                    "%d Zeichen erhalten)", log_ctx, len(text))
+    truncated = status == 'incomplete'
+    if truncated:
+        A.log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_output_tokens=%d, "
+                    "%d Zeichen erhalten) — die Antwort ist unvollstaendig",
+                    log_ctx, max_tokens, len(text))
     if not text:
         A.log.warning("KI-Antwort (%s) leer: status=%s", log_ctx, status)
         return None, None, 'empty'
@@ -441,6 +461,11 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
         srcs = _perplexity_citation_urls(data)
         if srcs:
             usage['citation_urls'] = srcs
+    # Abgeschnittene Antworten sind auf den ersten Blick nicht als solche zu
+    # erkennen — sie hoeren einfach mittendrin auf. Das Kennzeichen wandert mit,
+    # damit die Oberflaeche darauf hinweisen kann.
+    if truncated:
+        usage['truncated'] = True
     return text, usage, None
 
 

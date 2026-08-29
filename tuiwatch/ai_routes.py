@@ -2840,6 +2840,17 @@ _MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'Aug
               'September', 'Oktober', 'November', 'Dezember')
 
 
+def _region_compare_max_tokens(n_regions: int) -> int:
+    """Ausgabe-Budget fuer einen Regionen-Vergleich.
+
+    Grundstock fuer Tabelle, Fazit und Quellen plus ein Anteil je Ziel. Die Zahl
+    ist grosszuegig gewaehlt: ein zu knappes Budget schneidet die Antwort mitten
+    im Text ab, und der Aufruf ist trotzdem voll bezahlt — zu viel Budget kostet
+    dagegen nichts, weil nur tatsaechlich erzeugte Tokens abgerechnet werden.
+    Die Deckelung schuetzt nur davor, ein Modell-Limit zu ueberschreiten."""
+    return min(6000 + 4000 * max(n_regions, 1), 40000)
+
+
 def _region_compare_prompt(regions: list[dict], month: str, instructions: str) -> str:
     """Baut den Regionen-Vergleichs-Prompt: feste Zielliste (Fakten, wie bei
     `_compare_prompt`) + editierbarer Kriterienkatalog (`instructions`)."""
@@ -2891,7 +2902,12 @@ def api_ai_region_compare():
     if (preview := _prompt_preview_response(data, prompt)):
         return preview
     prompt = _resolve_prompt(data, prompt)
-    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=8192,
+    # Der Bedarf waechst mit der Anzahl der Ziele: je Ziel neun Kriterien in
+    # Fliesstext, dazu Tabelle und Fazit. Feste 8192 reichten dafuer nicht — bei
+    # fuenf Zielen brach die Antwort nach dem dritten ab, und was fehlte, sah man
+    # der Ausgabe nicht an.
+    text, usage, err = A._ai_call(api_key, model, prompt,
+                                max_tokens=_region_compare_max_tokens(len(regions)),
                                 log_ctx=f"Regionen-Vergleich {len(regions)} Ziele ({month_label})")
     if err:
         return err

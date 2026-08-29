@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.111.1
+
+- ✂️ **Regionen-Vergleich brach mitten in der Auswertung ab.** Bei fünf Reisezielen endete die Antwort nach dem dritten — das Ausgabe-Limit lag fest bei 8.192 Tokens und reichte für neun Kriterien mal fünf Ziele nicht. Das Budget wächst jetzt mit der Anzahl der Ziele (bei fünf rund 26.000 Tokens). Es kostet nichts extra: abgerechnet wird, was tatsächlich erzeugt wird.
+- ⚠️ **Abgeschnittene Antworten werden als solche gekennzeichnet.** Sie hören einfach mittendrin auf; ohne Hinweis hält man sie für vollständig. Jetzt steht unter der Antwort eine Warnung.
+- 🧹 **„cite[36][web:AP2Q…]" verschwindet aus den Antworten.** Die Agent API schreibt Quellenverweise in dieser Form mitten in den Text; die Kennung hinter `web:` ist eine opake ID, die sich nicht in einen Link auflösen lässt. Der ganze Marker wird jetzt entfernt — bisher blieb er als Zeichensalat stehen. Steckt eine auflösbare Nummer darin, wird sie verlinkt.
+- ⏱️ **Die KI-Anzeige zeigt jetzt die verstrichene Zeit** statt nur zu kreisen — bei den gründlichen Stufen dauert es Minuten, und ein bloßes Kreisen sagt nicht, ob noch etwas passiert.
+- 🔄 **Laufende Anfragen überleben ein Neuladen der Seite.** Bisher war nach F5 die Anzeige weg und die Antwort tauchte nur noch im KI-Verlauf auf. Die Aufträge werden jetzt gemerkt, nach dem Laden weiterverfolgt und beim Fertigwerden gemeldet.
+
 ## 0.111.0
 
 - 🌍 **Regionen-Vergleich bewertet jetzt auch Informationsfreiheit und LGBTQ-Rechte.** Neben Wetter, Sicherheit, Preis, Strand, Familien- und Nightlife-Eignung kommen zwei Kriterien dazu: digitaler Alltag (Internetzensur, blockierte Dienste, VPN-Lage, rechtliche Risiken bei Onlineäußerungen) und die Lage für LGBTQ-Reisende (Rechtslage, Durchsetzung, Akzeptanz, Risiken außerhalb des Resorts). Beide können als **KO-Kriterium** gelten, das gute Noten bei Strand oder Wetter nicht ausgleichen dürfen.
