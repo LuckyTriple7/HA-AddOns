@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.111.2
+
+- 🚨 **Alle KI-Funktionen liefen sofort auf einen Fehler.** Beim Umbau der KI-Anzeige in 0.111.1 wurden zwei Konstanten mit herausgeschnitten, die weiterhin benutzt wurden. Jeder Aufruf brach dadurch im Browser ab, bevor überhaupt etwas passierte — deshalb stand auch nichts im Log. Behoben.
+- ✅ Ein neuer Test prüft `app.js` darauf, dass jede benutzte Konstante auch deklariert ist. Genau diese Fehlerart fällt weder beim Syntax-Check noch in den übrigen Tests auf.
+- 🧹 Der Hinweis „Falls die KI lange gerechnet hat…" unter Fehlermeldungen ist raus. Er stammte aus der Zeit vor den Hintergrund-Aufträgen; heute meldet sich ein fertiger Lauf von selbst.
+
 ## 0.111.1
 
 - ✂️ **Regionen-Vergleich brach mitten in der Auswertung ab.** Bei fünf Reisezielen endete die Antwort nach dem dritten — das Ausgabe-Limit lag fest bei 8.192 Tokens und reichte für neun Kriterien mal fünf Ziele nicht. Das Budget wächst jetzt mit der Anzahl der Ziele (bei fünf rund 26.000 Tokens). Es kostet nichts extra: abgerechnet wird, was tatsächlich erzeugt wird.
