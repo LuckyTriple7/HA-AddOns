@@ -730,3 +730,50 @@ def test_complete_answers_are_not_flagged(app_mod, monkeypatch):
     _text, usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
                                              max_tokens=200, log_ctx="Test")
     assert "truncated" not in usage
+
+
+def test_markers_are_removed_even_without_any_sources(app_mod, monkeypatch):
+    """Der eigentliche Fehler: die Bereinigung hing an der Quellenliste. Liefert die
+    Antwort keine Quellen mit, blieb `cite[16][19]` mitten im Text stehen."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        text="Rhodos nutzt den Euro, kein Visum noetig. cite[16][19]")))
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Rhodos nutzt den Euro, kein Visum noetig."
+
+
+def test_structured_output_is_cleaned_in_the_raw_json(app_mod, monkeypatch):
+    """Bei Structured Output ist die Antwort ein JSON-String. Die Marker muessen
+    schon dort weg — die Anzeige-Helfer sahen sie frueher nur, wenn Quellen dabei
+    waren. Reines Loeschen kann das JSON nicht beschaedigen."""
+    schema = {"type": "object", "properties": {"t": {"type": "string"}},
+              "required": ["t"], "additionalProperties": False}
+    payload_text = json.dumps({"t": "Euro cite[16][19] gilt. Wind [web:AP2Qx] stark."},
+                              ensure_ascii=False)
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(text=payload_text)))
+    text, _usage, _err = app_mod._ai_request("p-key", "pplx-low", "Prompt", max_tokens=200,
+                                             log_ctx="Test", output_schema=schema)
+    assert "cite" not in text and "web:" not in text
+    assert json.loads(text)["t"] == "Euro gilt. Wind stark."
+
+
+def test_guide_cleanup_runs_without_a_source_list(app_mod):
+    """`_guide_linkify_in_place` stieg bei leerer Quellenliste sofort aus — genau
+    der Weg, auf dem der Reisefuehrer die Marker behielt."""
+    ai_routes = importlib.import_module("ai_routes")
+    result = {"zusammenfassung": ["Euro cite[16][19] gilt."],
+              "sections": [{"einleitung": "Wind [web:AP2Qx] stark.",
+                            "punkte": [{"text": "Visum cite[3] frei."}]}]}
+    ai_routes._guide_linkify_in_place(result, None)
+    assert result["zusammenfassung"] == ["Euro gilt."]
+    assert result["sections"][0]["einleitung"] == "Wind stark."
+    assert result["sections"][0]["punkte"][0]["text"] == "Visum frei."
+
+
+def test_climate_cleanup_runs_without_a_source_list(app_mod):
+    ai_routes = importlib.import_module("ai_routes")
+    result = {"zusammenfassung": "Mild cite[16] und trocken.",
+              "months": [{"monat": 11, "hinweis": "Regenzeit [web:AP2Qx]"}]}
+    ai_routes._linkify_citations_in_place(result, None)
+    assert result["zusammenfassung"] == "Mild und trocken."
+    assert result["months"][0]["hinweis"] == "Regenzeit"

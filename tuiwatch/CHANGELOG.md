@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.113.1
+
+- 🧹 **„cite[16][19]" im Reiseführer und in der Klimatabelle ist weg.** Die Bereinigung hängte an der Quellenliste: lieferte eine Antwort keine Quellen mit, blieben die Marker unangetastet im Text stehen. Sie werden jetzt **immer** entfernt, unabhängig davon, ob Quellen dabei sind — und bei strukturierten Antworten (Reiseführer, Klimatabelle) schon im Rohtext, bevor irgendeine Anzeige sie zu sehen bekommt.
+
 ## 0.113.0
 
 - ⬇️ **Markdown-Export für KI-Antworten.** Neuer Knopf neben PDF und E-Mail: speichert die Antwort als `.md`-Datei, so wie die KI sie geliefert hat — Überschriften, Tabellen und Quellen-Links bleiben als Markdown erhalten statt in Druck-HTML zu landen. Zum Weiterverarbeiten in Obsidian, Notion, Git oder eigenen Notizen.

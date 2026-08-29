@@ -101,6 +101,33 @@ def _perplexity_citation_urls(data: dict) -> list:
     return [by_id.get(n) for n in range(1, max(by_id) + 1)]
 
 
+def _perplexity_strip_markers(text: str) -> str:
+    """Entfernt Perplexitys Maschinen-Marker (`cite[16][19]`, `[web:AP2Q…]`) aus
+    einem Text, ohne etwas zu verlinken.
+
+    Gedacht für **Structured Output**: dort ist `text` ein JSON-String, den ein
+    Aufrufer erst noch parst. Links einzusetzen wäre dort riskant (eine URL mit
+    Anführungszeichen zerlegte das JSON), reines Löschen dagegen kann die
+    Struktur nicht beschädigen — es fallen nur Zeichen innerhalb von
+    String-Werten weg.
+
+    Läuft bewusst **immer**, auch wenn die Antwort gar keine Quellen mitgeliefert
+    hat. Genau daran scheiterte es vorher: die Verlinkung hing an einer
+    Quellenliste, und ohne sie blieben die Marker unangetastet im Text stehen."""
+    if not text:
+        return text
+    text = _PERPLEXITY_CITE_RE.sub('', text)
+    text = _PERPLEXITY_WEB_MARKER_RE.sub('', text)
+    return _perplexity_tidy_spacing(text)
+
+
+def _perplexity_tidy_spacing(text: str) -> str:
+    """Leerzeichen einziehen, die durch das Entfernen von Markern entstehen."""
+    text = re.sub(r' {2,}', ' ', text)
+    text = re.sub(r' +([.,;:!?])', r'\1', text)
+    return re.sub(r'[ \t]+$', '', text, flags=re.M)
+
+
 def _perplexity_linkify_citations(text: str, urls: list | None, *, log_ctx: str = '') -> str:
     """Ersetzt Perplexitys nackte Zitat-Marker `[1]`/`[5]` im Fließtext durch
     Markdown-Links `[1](url)` auf die zugehörige Quelle — macht sie im Frontend
@@ -140,10 +167,7 @@ def _perplexity_linkify_citations(text: str, urls: list | None, *, log_ctx: str 
     # Immer laufen lassen, auch ohne Quellenliste — sonst blieben die Marker stehen.
     text = _PERPLEXITY_CITE_RE.sub(_marker_sub, text)
     text = _PERPLEXITY_WEB_MARKER_RE.sub(_marker_sub, text)
-    # Leerzeichen einziehen, die durch das Entfernen entstanden sein können.
-    text = re.sub(r' {2,}', ' ', text)
-    text = re.sub(r' +([.,;:!?])', r'\1', text)
-    text = re.sub(r'[ \t]+$', '', text, flags=re.M)
+    text = _perplexity_tidy_spacing(text)
     if not urls:
         if missing:
             A.log.info("Perplexity (%s): %d web-Marker ohne Quelle entfernt",
@@ -437,6 +461,13 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
         # JSON-String, den ein Aufrufer parst; Markdown-Syntax würde ihn zerstören.
         text = _perplexity_linkify_citations(text, _perplexity_citation_urls(data),
                                              log_ctx=log_ctx)
+    else:
+        # Bei Structured Output werden die Marker hier schon aus dem Rohtext
+        # entfernt — verlinkt wird erst nach dem Parsen. Das muss an dieser Stelle
+        # passieren und nicht erst beim Anzeigen: die Anzeige-Helfer sahen die
+        # Marker nur, wenn die Antwort auch Quellen mitbrachte, und ohne Quellen
+        # blieb „cite[16][19]" mitten im Reiseführer stehen.
+        text = _perplexity_strip_markers(text)
     # Die Cache-Zähler bleiben bewusst 0: Perplexity meldet gecachte Eingabe-Token
     # in `input_tokens_details`, zählt sie aber bereits in `input_tokens` mit —
     # durchgereicht würden sie in `_ai_call_cost` ein zweites Mal berechnet.

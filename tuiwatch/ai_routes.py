@@ -1792,10 +1792,13 @@ def _linkify_citations_in_place(result: dict, urls: list | None) -> None:
     """Perplexity setzt Quellen-Marker wie „[7][11]" auch in die Textfelder einer
     strukturierten Antwort. Dort können sie beim Abruf nicht verlinkt werden (das
     würde den JSON-String zerstören), also passiert es hier nach dem Parsen — sonst
-    bliebe im Klima-Fenster toter Text stehen. Bei den anderen Anbietern ist `urls`
-    leer und die Funktion tut nichts."""
-    if not urls:
-        return
+    bliebe im Klima-Fenster toter Text stehen.
+
+    Laeuft auch ohne Quellenliste: dann wird nicht verlinkt, aber reine
+    Maschinen-Marker werden trotzdem entfernt. Der frühere Ausstieg an dieser
+    Stelle war der Grund, warum „cite[16][19]" in Antworten ohne mitgelieferte
+    Quellen stehen blieb. Bei Claude und Gemini gibt es solche Marker nicht,
+    dort ändert das nichts."""
     from ai_client import _perplexity_linkify_citations
     if isinstance(result.get('zusammenfassung'), str):
         result['zusammenfassung'] = _perplexity_linkify_citations(
@@ -2087,9 +2090,9 @@ def _guide_prompt(label: str) -> str:
 
 def _guide_linkify_in_place(result: dict, urls: list | None) -> None:
     """Wie `_linkify_citations_in_place`, nur für die Reiseführer-Struktur — sonst
-    stünden Perplexitys Quellen-Marker („[7]") als toter Text in jedem Abschnitt."""
-    if not urls:
-        return
+    stünden Perplexitys Quellen-Marker („[7]") als toter Text in jedem Abschnitt.
+
+    Laeuft ebenfalls ohne Quellenliste — siehe `_linkify_citations_in_place`."""
     from ai_client import _perplexity_linkify_citations
 
     def lk(s):
