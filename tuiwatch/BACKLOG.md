@@ -38,6 +38,33 @@ aktiviert — bei nächster „Sensor unavailable"-Meldung zuerst dieses Log anw
 ~3.300 Zeilen; analog zu den app.py-Tranchen (#12) in Module splitten
 (Kalender / KI / Angebote / Suche je Datei). Rein intern, Tests bleiben grün.
 
+## 17. Perplexity: Preset-Modus statt fester Sonar-Modelle
+Die Agent API (seit v0.106.0 in Benutzung, siehe `ai_client.py`) kennt neben dem
+direkten `model: "perplexity/<name>"` auch `preset: "fast"|"low"|"medium"|"high"|"xhigh"`.
+Ein Preset ist ein vorkonfiguriertes Bündel aus Modell, Systemprompt und
+Suchparametern — und wählt dabei quer über Anbieter (OpenAI, Anthropic, Google,
+xAI), inklusive `models`-Fallbackkette, wenn ein Anbieter ausfällt.
+
+Reizvoll wegen der Fallbackkette und weil Perplexity die Presets pflegt, statt
+dass wir Modellnamen nachziehen müssen. Offen zu klären, bevor sich das lohnt:
+
+- **Was wird das für eine Option?** Heute ist `perplexity_model` eine Auswahl aus
+  vier Sonar-Namen. Entweder die Liste um die fünf Presets erweitern (dann muss
+  `_ai_request_perplexity_messages` je nach Wert `model` **oder** `preset` senden)
+  oder ganz auf Presets umstellen — Letzteres wäre eine Breaking-Option und
+  bräuchte eine Migration bestehender Konfigurationen.
+- **Kostenanzeige.** `_AI_PRICING`/`_AI_PERPLEXITY_REQUEST_FEE` sind auf die
+  Sonar-Namen verdrahtet; ein Preset hat kein festes Modell und damit keinen
+  Listenpreis. Seit v0.107.0 kommt der echte Betrag aus `usage.cost.total_cost`
+  mit — falls das auch bei Presets zuverlässig kommt, ist der Punkt erledigt und
+  die Schätzung wird gar nicht mehr gebraucht. **Vorher nachmessen.**
+- **Nutzungsstatistik.** Zähler-Buckets sind nach Modellname geschlüsselt. Ein
+  Preset müsste als eigener Schlüssel laufen (z. B. `preset:high`), sonst
+  vermischen sich die Zahlen mit denen der Sonar-Modelle.
+- **Datenschutz/Erwartung.** Presets schicken die Anfrage je nach Auswahl an
+  OpenAI oder Google — wer bewusst „Perplexity" eingestellt hat, rechnet damit
+  nicht unbedingt. Gehört in die Options-Beschreibung und in DOCS.md.
+
 ---
 
 ## Erledigt
