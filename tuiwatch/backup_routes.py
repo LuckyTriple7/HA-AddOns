@@ -28,6 +28,9 @@ _BACKUP_META_KEYS = (
     'custom_prompt_compare_enabled', 'custom_prompt_compare_text',
     'custom_prompt_summary_enabled', 'custom_prompt_summary_text',
     'custom_prompt_daytrip_enabled', 'custom_prompt_daytrip_text',
+    'custom_prompt_region_compare_enabled', 'custom_prompt_region_compare_text',
+    'custom_prompt_climate_enabled', 'custom_prompt_climate_text',
+    'custom_prompt_guide_enabled', 'custom_prompt_guide_text',
     'ai_provider_active', 'packing_template',
 )
 

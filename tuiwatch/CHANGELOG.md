@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.111.0
+
+- 🌍 **Regionen-Vergleich bewertet jetzt auch Informationsfreiheit und LGBTQ-Rechte.** Neben Wetter, Sicherheit, Preis, Strand, Familien- und Nightlife-Eignung kommen zwei Kriterien dazu: digitaler Alltag (Internetzensur, blockierte Dienste, VPN-Lage, rechtliche Risiken bei Onlineäußerungen) und die Lage für LGBTQ-Reisende (Rechtslage, Durchsetzung, Akzeptanz, Risiken außerhalb des Resorts). Beide können als **KO-Kriterium** gelten, das gute Noten bei Strand oder Wetter nicht ausgleichen dürfen.
+- 📖 **Der Reiseführer hat für beide Themen je einen eigenen Abschnitt** — bisher stand dazu nichts drin.
+- ✏️ **Klimatabelle und Reiseführer sind jetzt unter „KI-Prompts" editierbar.** Beide Prompts waren fest im Code verdrahtet. Das Reiseziel bleibt fest, ebenso die Vorgabe „alle zwölf Monate" bei der Klimatabelle — die Tabelle rechnet damit.
+- 📏 **Platz für längere Vorlagen:** das Limit steigt von 6.000 auf 16.000 Zeichen. Der neue Regionen-Vergleich-Standard allein braucht über 10.000 — mit dem alten Limit hätte das Speichern ihn stillschweigend abgeschnitten.
+- 🔄 **KI-Anzeige neben dem Logo:** läuft eine KI-Anfrage, kreist dort das KI-Symbol; ist sie fertig, blinkt es kurz grün und verschwindet von selbst. Klick öffnet den KI-Verlauf. So sieht man auch dann, dass noch etwas läuft, wenn man das KI-Fenster zwischenzeitlich geschlossen hat.
+- 📦 Die eigenen Prompt-Vorlagen für Regionen-Vergleich, Klimatabelle und Reiseführer wandern ins Backup — die des Regionen-Vergleichs fehlte dort bisher.
+
 ## 0.110.0
 
 - ⏳ **Lange KI-Recherchen brechen nicht mehr ab.** Die gründlichen Perplexity-Stufen (`pplx-high`, `pplx-xhigh`) rechnen minutenlang. Bisher hing die Antwort so lange in einer offenen Verbindung, dass der Browser vorher aufgab — das Fenster meldete „fehlgeschlagen", während der Server in Ruhe zu Ende rechnete und das Ergebnis nur noch im KI-Verlauf auftauchte. Bezahlt und fertig, aber als Fehler dargestellt.

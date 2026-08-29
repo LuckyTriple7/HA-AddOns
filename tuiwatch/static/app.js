@@ -5012,6 +5012,45 @@
     // Aufrufer-spezifisch — großes Modal vs. kleine Folgefrage-Box) und liefert
     // den editierten Text oder null bei Abbruch. `onConfirmed()` rendert den
     // Lade-Zustand für den zweiten (echten) Aufruf.
+    // ── KI-Aktivitaetsanzeige neben dem Logo ─────────────────────────────────
+    // Zaehlt laufende KI-Anfragen. Erst wenn die letzte fertig ist, wechselt die
+    // Anzeige auf „fertig" — sonst meldete ein kurzer Aufruf Vollzug, waehrend
+    // ein langer noch laeuft.
+    let _aiRunning = 0, _aiDoneTimer = null;
+    const AI_BADGE_DONE_MS = 8000;
+    function aiBadgeRender(){
+      const el = $('#ai-badge'); if(!el) return;
+      const n = $('#ai-badge-n');
+      if(_aiRunning > 0){
+        clearTimeout(_aiDoneTimer); _aiDoneTimer = null;
+        el.style.display = '';
+        el.className = 'ai-badge running';
+        el.title = 'KI arbeitet — klicken für den KI-Verlauf';
+        if(n) n.textContent = _aiRunning > 1 ? _aiRunning : '';
+      } else if(_aiDoneTimer){
+        el.style.display = '';
+        el.className = 'ai-badge done';
+        el.title = 'KI-Antwort fertig — klicken für den KI-Verlauf';
+        if(n) n.textContent = '';
+      } else {
+        el.style.display = 'none';
+        el.className = 'ai-badge';
+      }
+    }
+    function aiBadgeStart(){ _aiRunning++; aiBadgeRender(); }
+    function aiBadgeEnd(){
+      _aiRunning = Math.max(0, _aiRunning - 1);
+      if(_aiRunning === 0){
+        clearTimeout(_aiDoneTimer);
+        // Kurz gruen blinken und dann von selbst verschwinden: wer im Fenster
+        // sitzt, sieht das Ergebnis ohnehin; die Anzeige ist fuer alle, die
+        // waehrenddessen woanders in der Oberflaeche waren.
+        _aiDoneTimer = setTimeout(()=>{ _aiDoneTimer = null; aiBadgeRender(); },
+                                  AI_BADGE_DONE_MS);
+      }
+      aiBadgeRender();
+    }
+
     // Wie lange auf einen Hintergrundauftrag gewartet wird, bevor das Fenster
     // aufgibt. Grosszuegig, weil die gruendlichen Perplexity-Stufen minutenlang
     // recherchieren; der Server hat dafuer sein eigenes, einstellbares Limit.
@@ -5056,6 +5095,14 @@
 
     async function aiFetchPreviewCore(url, opts, onPreview, onConfirmed){
       opts = opts || {};
+      aiBadgeStart();
+      try {
+        return await aiFetchPreviewInner(url, opts, onPreview, onConfirmed);
+      } finally {
+        aiBadgeEnd();
+      }
+    }
+    async function aiFetchPreviewInner(url, opts, onPreview, onConfirmed){
       let resp = await fetch(url, aiAsyncOpts(opts));
       let d = await resp.json();
       // Die Prompt-Vorschau kommt sofort und ohne Auftrag zurueck — erst der
@@ -6027,16 +6074,39 @@
     function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
     $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
 
-    // ── KI-Prompt-Einstellungen (eigene Prompt-Vorlagen für Reiseberater/Vergleich) ──
+    // ── KI-Prompt-Einstellungen (eigene Prompt-Vorlagen) ──────────────────────
+    // Schlüssel, Symbol und Überschrift je anpassbarer Vorlage. Der Schlüssel muss
+    // zu _PROMPT_FEATURES in ai_routes.py passen; die Blöcke im Dialog entstehen
+    // daraus, statt im HTML zu stehen.
+    const PROMPTCFG_FEATURES = [
+      ['advisor',        'i-map',    'TripPilot'],
+      ['compare',        'i-hotel',  'Hotelvergleich'],
+      ['summary',        'i-ai',     'KI-Fazit'],
+      ['daytrip',        'i-car',    'Tagesausflug'],
+      ['region_compare', 'i-chart',  'Regionen-Vergleich'],
+      ['climate',        'i-climate', 'Klimatabelle'],
+      ['guide',          'i-compass', 'Reiseführer'],
+    ];
+    const PROMPTCFG_MAX = 16000;
     let promptCfgData = null;
+    function promptcfgRender(){
+      $('#promptcfg-list').innerHTML = PROMPTCFG_FEATURES.map(([f, icon, title], i) => `
+        <h3 style="margin:${i ? 20 : 14}px 0 6px"><svg class="i"><use href="#${icon}"/></svg> ${esc(title)}</h3>
+        <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-${f}-enabled"> Eigenen Prompt verwenden</label>
+        <textarea id="promptcfg-${f}-text" class="promptcfg-text" rows="10" maxlength="${PROMPTCFG_MAX}" oninput="promptcfgCount('${f}')" style="margin-top:6px"></textarea>
+        <div class="hint" id="promptcfg-${f}-count" style="text-align:right"></div>
+        <button class="btn sec" onclick="promptcfgReset('${f}')" style="margin-top:4px">Zurücksetzen auf Standard</button>`).join('');
+    }
     async function openPromptCfg(){
       $('#promptcfg-bg').classList.add('show');
+      promptcfgRender();
       try {
         const resp = await fetch(api('/api/ai/prompt-settings'));
         promptCfgData = await resp.json();
       } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
-      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
+      for (const [f] of PROMPTCFG_FEATURES){
         const d = promptCfgData[f];
+        if(!d) continue;                       // Vorlage kennt der Server (noch) nicht
         $(`#promptcfg-${f}-enabled`).checked = d.enabled;
         $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
         promptcfgCount(f);
@@ -6049,11 +6119,12 @@
       promptcfgCount(f);
     }
     function promptcfgCount(f){
-      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 6000 Zeichen';
+      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / ' + PROMPTCFG_MAX + ' Zeichen';
     }
     async function savePromptCfg(){
       const body = {};
-      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
+      for (const [f] of PROMPTCFG_FEATURES){
+        if(!promptCfgData || !promptCfgData[f]) continue;
         body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
       }
       try {

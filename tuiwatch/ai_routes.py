@@ -44,11 +44,13 @@ _AI_SECTIONS = (
 )
 
 
-_CUSTOM_PROMPT_MAX_LEN = 6000  # Zeichen — ganzer Instruktionsblock, großzügiger als
-                               # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen.
-                               # 6000 statt 4000: der Regionen-Vergleich-Standardtext
-                               # allein braucht schon knapp 4000, sonst bliebe beim
-                               # Bearbeiten kein Spielraum mehr.
+_CUSTOM_PROMPT_MAX_LEN = 16000  # Zeichen — ganzer Instruktionsblock, großzügiger als
+                                # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen.
+                                # 16000, weil der Regionen-Vergleich-Standardtext mit den
+                                # Abschnitten zu Informationsfreiheit und LGBTQ-Rechten
+                                # allein über 10000 Zeichen braucht. Zu knapp bemessen wäre
+                                # hier besonders tückisch: das Speichern schneidet still
+                                # ab, und der Nutzer merkt es erst an der Antwort.
 
 _PROMPT_OVERRIDE_MAX_LEN = 20000  # Zeichen — kompletter Prompt (Fakten+Instruktionen),
                                   # großzügiger als _CUSTOM_PROMPT_MAX_LEN (nur Instruktionen)
@@ -226,70 +228,293 @@ _DEFAULT_DAYTRIP_INSTRUCTIONS = (
     "mich noch prüfen“."
 )
 
-_DEFAULT_REGION_COMPARE_INSTRUCTIONS = (
-    "Recherchiere für die Bewertung aktuelle und verlässliche Informationen im Web. "
-    "Verwende für Klimadaten möglichst langjährige Klima-Normalwerte, für Preise "
-    "aktuelle Richtwerte des laufenden bzw. kommenden Jahres — und kennzeichne sie "
-    "klar als Richtwerte, die je nach Abflughafen, Reisedauer, Hotelstandard und "
-    "Buchungszeitpunkt schwanken. Einzelne Wettervorhersagen sind ausdrücklich "
-    "nicht gewünscht.\n\n"
-    "Bewerte jedes Reiseziel entlang dieser Kriterien, gerne ausführlich:\n\n"
-    "1. **Wetter im gewählten Monat**: typische Tages- und Nachttemperaturen, "
-    "durchschnittliche Niederschlagsmenge bzw. Regentage/Regenwahrscheinlichkeit, "
-    "typische Sonnenscheindauer (sofern verfügbar), Wassertemperatur, sowie eine "
-    "kurze Einschätzung, wie gut sich der Monat klimatisch für eine Reise eignet. "
-    "Hat ein Ziel klimatisch deutlich unterschiedliche Teilregionen (z. B. Thailand: "
-    "Andamanensee vs. Golf von Thailand), weise auf die relevanten Unterschiede hin.\n"
-    "2. **Sicherheit**: aktuelle Reise- und Sicherheitshinweise für Touristen, "
-    "allgemeines Sicherheitsniveau, typische Risiken (Kriminalität, Naturgefahren, "
-    "Verkehr, politische Situation) — keine pauschalen Aussagen, sondern eine kurze, "
-    "realistische Einschätzung.\n"
-    "3. **Preisniveau**: typische Urlaubskosten vor Ort (Essen in einfachen und "
-    "mittleren Restaurants, Getränke, Nahverkehr/Transfers, Aktivitäten/Ausflüge, "
-    "sonstige relevante Kosten) sowie aktuelle Preisrichtwerte für Pauschalreisen im "
-    "gewählten Monat und für eine Unterkunft der mittleren Kategorie — wenn sinnvoll "
-    "mit Preisunterschieden zwischen günstigem, mittlerem und gehobenem Niveau.\n"
-    "4. **Beste Reisezeit**: die insgesamt beste Reisezeit fürs Ziel und warum, wie "
-    "gut der gewählte Monat im Vergleich dazu abschneidet, mit Einstufung sehr "
-    "gut/gut/mittel/eher ungünstig.\n"
-    "5. **Strand & Natur**: Qualität und Vielfalt der Strände, Landschaft und Natur, "
-    "Schnorcheln/Tauchen (falls relevant), besondere Naturerlebnisse, Vielfalt der "
-    "Landschaften und Ausflugsmöglichkeiten.\n"
-    "6. **Familienfreundlichkeit**: Strände und Badebedingungen, Aktivitäten, "
-    "Infrastruktur, Transfers/Entfernungen, allgemeine Eignung für Familien mit "
-    "Kindern.\n"
-    "7. **Nightlife/Party**: Bars und Restaurants am Abend, Clubs/Partyszene, "
-    "Vielfalt des Nachtlebens, ob eher ruhiger Abendurlaub oder lebhaftes "
-    "Nachtleben.\n\n"
-    "Bewerte jedes Ziel bei den qualitativen Kriterien (alles außer Preisniveau) "
-    "zusätzlich auf einer Skala von 1–5 Punkten (5 = hervorragend, 4 = sehr gut, "
-    "3 = gut/durchschnittlich, 2 = eher schwach, 1 = schlecht).\n\n"
-    "Schließe mit einer kompakten Markdown-Vergleichstabelle ab: eine Zeile je "
-    "Kriterium (inkl. einer abschließenden Zeile „Gesamtbewertung“) und eine Spalte "
-    "je Reiseziel, jeweils mit Punktzahl und einer sehr kurzen Begründung. Bilde die "
-    "Gesamtbewertung nicht rein mathematisch als Durchschnitt, wenn dadurch wichtige "
-    "Unterschiede verloren gehen — berücksichtige insbesondere die Bedeutung des "
-    "Wetters im gewählten Monat und das Preis-Leistungs-Verhältnis.\n\n"
-    "Verwende für die Recherche möglichst offizielle Reise-/Sicherheitshinweise "
-    "staatlicher Stellen, seriöse Klimadatenquellen, aktuelle Reiseveranstalter-/"
-    "Hotelpreise sowie seriöse Reiseportale, und verlinke die wichtigsten Quellen "
-    "direkt bei den jeweiligen Aussagen.\n\n"
-    "Schließe mit einem Fazit von 2–4 Sätzen: welches Ziel insgesamt am "
-    "empfehlenswertesten ist, welches das beste Preis-Leistungs-Verhältnis bietet, "
-    "welches sich am besten für Familien eignet und welches am besten für Strand/"
-    "Erholung bzw. Nightlife passt — mit klarer Aussage, für welchen Urlaubstyp "
-    "welches Ziel am besten geeignet ist. Schreibe auf Deutsch, sprich den Nutzer "
-    "dabei durchgehend mit „Du“ an (informell, nicht „Sie“), sachlich und "
-    "ausschließlich basierend auf dem, was du in den Quellen findest. Wenn zu einem "
-    "Punkt nichts Verlässliches auffindbar ist, sag das kurz statt zu spekulieren. "
-    "Gib direkt die fertige Antwort aus — keine Zwischenkommentare wie „Ich werde "
-    "jetzt recherchieren“ oder „Lassen Sie mich noch prüfen“."
-)
+_DEFAULT_REGION_COMPARE_INSTRUCTIONS = """\
+Recherchiere für die Bewertung aktuelle und verlässliche Informationen im Web. \
+Verwende für Klimadaten möglichst langjährige Klima-Normalwerte, für Preise aktuelle \
+Richtwerte des laufenden beziehungsweise kommenden Jahres und kennzeichne sie klar als \
+Richtwerte, die je nach Abflughafen, Reisedauer, Hotelstandard und Buchungszeitpunkt \
+schwanken. Einzelne Wettervorhersagen sind ausdrücklich nicht gewünscht.
 
+Bewerte jedes Reiseziel entlang der folgenden Kriterien:
+
+### 1. Wetter im gewählten Monat
+
+Nenne typische Tages- und Nachttemperaturen, durchschnittliche Niederschlagsmengen \
+beziehungsweise Regentage oder Regenwahrscheinlichkeit, typische Sonnenscheindauer, \
+sofern verfügbar, und die durchschnittliche Wassertemperatur.
+
+Ordne außerdem ein, wie gut sich der Monat klimatisch für eine Reise eignet. \
+Berücksichtige dabei auch:
+
+* Luftfeuchtigkeit und Schwüle
+* typische Dauer und Art der Regenfälle
+* Sturm-, Zyklon- oder Monsunrisiken
+* Badebedingungen und mögliche Einschränkungen durch Wind oder hohen Wellengang
+
+Hat ein Ziel klimatisch deutlich unterschiedliche Teilregionen, beispielsweise \
+verschiedene Küsten, Inselgruppen oder Monsunbereiche, weise auf die für Reisende \
+relevanten Unterschiede hin.
+
+### 2. Sicherheit
+
+Berücksichtige aktuelle Reise- und Sicherheitshinweise staatlicher Stellen, das \
+allgemeine Sicherheitsniveau und typische Risiken für Touristen.
+
+Gehe insbesondere ein auf:
+
+* Kriminalität und Betrugsrisiken
+* Naturgefahren
+* Straßenverkehr und Transfers
+* politische Lage und mögliche Unruhen
+* medizinische Versorgung
+* besondere Regeln oder Verbote, die Touristen leicht übersehen können
+
+Vermeide pauschale Aussagen und gib eine kurze, realistische Einschätzung für normale \
+Urlaubsreisende.
+
+### 3. Preisniveau
+
+Nenne typische aktuelle Richtwerte für:
+
+* Essen in einfachen und mittleren Restaurants
+* alkoholfreie und alkoholische Getränke
+* Nahverkehr, Taxis und Transfers
+* Aktivitäten und Ausflüge
+* Eintrittsgelder und sonstige relevante Nebenkosten
+* Unterkünfte der mittleren Kategorie
+* Pauschalreisen im gewählten Monat
+
+Unterscheide, soweit sinnvoll, zwischen günstigem, mittlerem und gehobenem Niveau. Gib \
+bei Pauschalreisen nach Möglichkeit Richtwerte pro Person für eine typische Reisedauer \
+von 7 bis 14 Nächten ab Deutschland an.
+
+Mache deutlich, dass die Preise je nach Abflughafen, Reisedauer, Verpflegung, \
+Hotelstandard, Reiseveranstalter und Buchungszeitpunkt stark schwanken können.
+
+### 4. Beste Reisezeit
+
+Nenne die insgesamt beste Reisezeit für das Ziel und erkläre kurz, warum sie als \
+besonders geeignet gilt.
+
+Bewerte anschließend, wie der gewählte Monat im Vergleich dazu abschneidet:
+
+* sehr gut
+* gut
+* mittel
+* eher ungünstig
+* ungünstig
+
+Berücksichtige dabei nicht nur Temperatur und Niederschlag, sondern auch \
+Luftfeuchtigkeit, Wind, Meerbedingungen, Hauptsaison, Besucheraufkommen und Preisniveau.
+
+### 5. Strand und Natur
+
+Bewerte:
+
+* Qualität, Vielfalt und Zugänglichkeit der Strände
+* Wasserqualität und typische Badebedingungen
+* Landschaft und Natur
+* Schnorcheln und Tauchen
+* Korallenriffe und Unterwasserwelt
+* besondere Naturerlebnisse
+* Vielfalt der Landschaften
+* Möglichkeiten für Ausflüge außerhalb des Hotels
+
+Weise auch auf mögliche Nachteile hin, beispielsweise Korallenbruch am Strand, starke \
+Strömungen, eingeschränkten öffentlichen Strandzugang, Seegras, Erosion oder eine \
+geringe landschaftliche Abwechslung.
+
+### 6. Familienfreundlichkeit
+
+Bewerte:
+
+* Eignung der Strände für Kinder
+* Wellen, Strömungen und flach abfallendes Wasser
+* Aktivitäten für unterschiedliche Altersgruppen
+* Familienzimmer und Hotelinfrastruktur
+* medizinische Versorgung
+* Dauer und Aufwand der Transfers
+* allgemeine Bewegungsfreiheit außerhalb der Anlage
+* Eignung für Familien mit kleinen Kindern und Jugendlichen
+
+### 7. Nightlife und Abendunterhaltung
+
+Bewerte:
+
+* Bars und Restaurants am Abend
+* Clubs und Partyszene
+* Unterhaltung in Hotels und Resorts
+* Möglichkeiten, außerhalb der Unterkunft auszugehen
+* Auswahl und Vielfalt des Nachtlebens
+* Verfügbarkeit und Preis von Alkohol
+* lokale Regeln oder Einschränkungen
+
+Ordne ein, ob das Ziel eher für ruhigen Abendurlaub, gehobene Hotelunterhaltung oder \
+lebhaftes Nachtleben geeignet ist.
+
+### 8. Informationsfreiheit und digitaler Alltag
+
+Bewerte kurz, wie frei und zuverlässig Reisende das Internet und digitale Dienste \
+nutzen können.
+
+Prüfe insbesondere:
+
+* staatliche Internetzensur oder Internetsperren
+* blockierte Websites, Nachrichtenangebote, soziale Netzwerke, Messenger oder \
+Telefoniedienste
+* zeitweise Abschaltungen oder Drosselungen des Internets
+* Überwachung und Kontrolle der Internetnutzung
+* rechtliche Risiken bei kritischen politischen Äußerungen oder Beiträgen in sozialen \
+Medien
+* Einschränkungen bei VPN-Diensten und ob deren Nutzung legal, eingeschränkt oder \
+praktisch problematisch ist
+* Qualität und Verfügbarkeit von WLAN und mobilem Internet
+* Einschränkungen, die auch innerhalb von Hotels oder Resorts gelten
+
+Unterscheide klar zwischen einer lediglich eingeschränkten Pressefreiheit und konkreten \
+Auswirkungen auf Touristen im digitalen Alltag.
+
+Kennzeichne erhebliche Internetzensur, blockierte Kommunikationsdienste oder ein \
+realistisches Risiko wegen privater beziehungsweise öffentlicher Onlineäußerungen \
+deutlich als **mögliches KO-Kriterium**.
+
+### 9. LGBTQ-Reisende
+
+Bewerte sachlich die rechtliche und praktische Situation für LGBTQ-Reisende.
+
+Berücksichtige:
+
+* Rechtslage für gleichgeschlechtliche Beziehungen
+* mögliche Strafbarkeit und angedrohte Strafen
+* tatsächliche Durchsetzung der Gesetze
+* gesellschaftliche Akzeptanz
+* Risiken durch Diskriminierung, Belästigung oder Kontrollen
+* Situation in Hotels und touristischen Resorts im Vergleich zum öffentlichen Raum
+* Risiken bei öffentlichen Zuneigungsbekundungen
+* besondere Risiken für trans, nichtbinäre oder sichtbar queere Reisende
+* Einreiseprobleme oder Schwierigkeiten bei Reisedokumenten, sofern relevant
+* konkrete Hinweise offizieller Reise- und Sicherheitsbehörden
+
+Vermeide verharmlosende Aussagen wie „im Resort normalerweise kein Problem“, wenn \
+gleichzeitig strafrechtliche Risiken bestehen. Trenne klar zwischen der Rechtslage, der \
+tatsächlichen Alltagssituation und der abgeschirmten Situation in touristischen Anlagen.
+
+Kennzeichne eine mögliche Strafbarkeit, staatliche Verfolgung oder ein erhebliches \
+persönliches Sicherheitsrisiko deutlich als **mögliches KO-Kriterium**.
+
+## Bewertungssystem
+
+Bewerte jedes Ziel bei allen qualitativen Kriterien mit **1 bis 5 Punkten**:
+
+* **5 Punkte:** hervorragend beziehungsweise sehr frei und unproblematisch
+* **4 Punkte:** sehr gut, nur geringe Einschränkungen
+* **3 Punkte:** durchschnittlich beziehungsweise relevante Einschränkungen
+* **2 Punkte:** deutlich eingeschränkt oder problematisch
+* **1 Punkt:** schlecht, stark eingeschränkt oder mit erheblichen Risiken verbunden
+
+Das Preisniveau erhält keine einfache Qualitätsnote. Bewerte stattdessen das \
+**Preis-Leistungs-Verhältnis** mit 1 bis 5 Punkten.
+
+Bei den Kriterien „Informationsfreiheit und digitaler Alltag“ sowie „LGBTQ-Reisende“ \
+bedeutet eine hohe Punktzahl eine freie, rechtlich sichere und weitgehend \
+diskriminierungsarme Situation. Eine niedrige Punktzahl steht für Zensur, rechtliche \
+Risiken oder erhebliche Einschränkungen.
+
+Ein schwerwiegendes KO-Kriterium darf nicht durch gute Bewertungen bei Strand, \
+Hotelqualität oder Wetter rechnerisch ausgeglichen werden.
+
+## Vergleichstabelle
+
+Schließe mit einer kompakten Markdown-Vergleichstabelle ab.
+
+* Eine Zeile je Kriterium
+* Eine Spalte je Reiseziel
+* Jeweils Punktzahl und sehr kurze Begründung
+* Zusätzliche Zeile „Mögliche KO-Kriterien“
+* Abschließende Zeile „Gesamtbewertung“
+
+Die Tabelle soll mindestens folgende Zeilen enthalten:
+
+1. Wetter im gewählten Monat
+2. Sicherheit
+3. Preis-Leistungs-Verhältnis
+4. Beste Reisezeit
+5. Strand und Natur
+6. Familienfreundlichkeit
+7. Nightlife und Abendunterhaltung
+8. Informationsfreiheit und digitaler Alltag
+9. LGBTQ-Reisende
+10. Mögliche KO-Kriterien
+11. Gesamtbewertung
+
+Bilde die Gesamtbewertung nicht rein mathematisch als Durchschnitt, wenn dadurch \
+wichtige Unterschiede verloren gehen. Berücksichtige insbesondere:
+
+* Wetter im gewählten Monat
+* Preis-Leistungs-Verhältnis
+* persönliche Bewegungsfreiheit
+* digitale Informationsfreiheit
+* rechtliche und persönliche Sicherheit
+* mögliche KO-Kriterien
+
+Ein Ziel mit sehr guten Stränden darf nicht automatisch Gesamtsieger werden, wenn dort \
+gravierende Einschränkungen der Informationsfreiheit oder erhebliche rechtliche Risiken \
+für bestimmte Reisende bestehen.
+
+## Quellen
+
+Verwende möglichst:
+
+* offizielle Reise- und Sicherheitshinweise staatlicher Stellen
+* offizielle Gesetzes- oder Regierungsinformationen
+* seriöse internationale Menschenrechts- und Digitalfreiheitsorganisationen
+* seriöse Klimadatenquellen mit langjährigen Durchschnittswerten
+* aktuelle Reiseveranstalter- und Hotelpreise
+* seriöse Reise- und Preisportale
+
+Verlinke die wichtigsten Quellen direkt bei den jeweiligen Aussagen. Prüfe bei sensiblen \
+Themen wie Internetzensur und LGBTQ-Rechten möglichst mehr als eine aktuelle Quelle.
+
+Wenn Quellen voneinander abweichen, stelle die Unterschiede kurz dar. Wenn zu einem \
+Punkt keine verlässlichen aktuellen Informationen auffindbar sind, sage das \
+ausdrücklich, statt zu spekulieren.
+
+## Fazit
+
+Schließe mit einem klaren Fazit von 3 bis 5 Sätzen:
+
+* Welches Ziel ist insgesamt am empfehlenswertesten?
+* Welches bietet das beste Preis-Leistungs-Verhältnis?
+* Welches eignet sich am besten für Familien?
+* Welches passt am besten zu Strand und Erholung?
+* Welches bietet das bessere Nightlife?
+* Gibt es bei einem Ziel mögliche KO-Kriterien hinsichtlich Informationsfreiheit, \
+persönlicher Freiheit oder LGBTQ-Sicherheit?
+
+Sprich eine klare Empfehlung für unterschiedliche Urlaubstypen aus und relativiere \
+gravierende rechtliche oder gesellschaftliche Einschränkungen nicht allein mit dem \
+Hinweis, dass Reisende sich überwiegend im Hotel oder Resort aufhalten können.
+
+Schreibe auf Deutsch und sprich den Nutzer durchgehend mit „Du“ an. Formuliere sachlich, \
+klar und ausschließlich auf Grundlage der gefundenen Quellen. Gib direkt die fertige \
+Auswertung aus, ohne Zwischenkommentare wie „Ich werde jetzt recherchieren“, „Lassen \
+Sie mich prüfen“ oder Hinweise auf den eigenen Arbeitsprozess."""
+
+# Anpassbare KI-Vorlagen. `guide` steht als aufrufbare Funktion drin, weil sein
+# Standardtext aus `_GUIDE_SECTIONS` erzeugt wird und die Liste weiter unten in
+# der Datei definiert ist — er kann also erst zur Laufzeit gebaut werden.
 _PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS,
                     'summary': _DEFAULT_SUMMARY_INSTRUCTIONS,
                     'daytrip': _DEFAULT_DAYTRIP_INSTRUCTIONS,
-                    'region_compare': _DEFAULT_REGION_COMPARE_INSTRUCTIONS}
+                    'region_compare': _DEFAULT_REGION_COMPARE_INSTRUCTIONS,
+                    'climate': lambda: _DEFAULT_CLIMATE_INSTRUCTIONS,
+                    'guide': lambda: _default_guide_instructions()}
+
+
+def _prompt_feature_default(feature: str) -> str:
+    """Standardtext eines Features — Konstante oder erst zur Laufzeit gebaut."""
+    val = _PROMPT_FEATURES[feature]
+    return val() if callable(val) else val
 
 
 def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
@@ -1505,22 +1730,33 @@ _CLIMATE_SCHEMA = {
 }
 
 
+_DEFAULT_CLIMATE_INSTRUCTIONS = (
+    "Je Monat: durchschnittliche Tageshöchsttemperatur und Nachttemperatur in °C, "
+    "durchschnittliche Wassertemperatur in °C, Sonnenstunden pro Tag, Regentage "
+    "im Monat. Dazu ein kurzer Hinweis (höchstens acht Wörter) für Besonderes wie "
+    "Regenzeit, Hurrikansaison, Passatwind, Hitze oder Hochsaison — sonst leer "
+    "lassen.\n\n"
+    "Nenne außerdem die aus Wetter-Sicht besten Reisemonate und eine "
+    "Zusammenfassung in zwei bis drei Sätzen (Klimatyp, Regenzeit, "
+    "Badesaison).\n\n"
+    "Nutze langjährige Klima-Normalwerte (Klimamittel), keine Vorhersage für ein "
+    "einzelnes Jahr. Suche die Werte im Web und stütze dich auf gängige "
+    "Klimatabellen. Wo für das Ziel keine Wassertemperatur sinnvoll ist "
+    "(Binnenland), trage 0 ein und schreibe es in den Hinweis."
+)
+
+
 def _climate_prompt(label: str) -> str:
+    """Fester Kopf (Reiseziel und die zwölf Monate) + editierbarer Teil.
+
+    Die Zwölf-Monats-Vorgabe bleibt fest: die Klimatabelle im UI rechnet mit genau
+    zwölf Einträgen, und eine Vorlage, die das ändert, würde die Anzeige
+    zerlegen — die Route weist Antworten mit weniger Monaten ohnehin zurück."""
+    instructions = A._prompt_instructions('climate', _DEFAULT_CLIMATE_INSTRUCTIONS)
     return (
         f"Stelle mir das Klima für {label} als Jahresübersicht zusammen — für alle "
         "zwölf Monate, Januar (1) bis Dezember (12), jeder Monat genau einmal.\n\n"
-        "Je Monat: durchschnittliche Tageshöchsttemperatur und Nachttemperatur in °C, "
-        "durchschnittliche Wassertemperatur in °C, Sonnenstunden pro Tag, Regentage "
-        "im Monat. Dazu ein kurzer Hinweis (höchstens acht Wörter) für Besonderes wie "
-        "Regenzeit, Hurrikansaison, Passatwind, Hitze oder Hochsaison — sonst leer "
-        "lassen.\n\n"
-        "Nenne außerdem die aus Wetter-Sicht besten Reisemonate und eine "
-        "Zusammenfassung in zwei bis drei Sätzen (Klimatyp, Regenzeit, "
-        "Badesaison).\n\n"
-        "Nutze langjährige Klima-Normalwerte (Klimamittel), keine Vorhersage für ein "
-        "einzelnes Jahr. Suche die Werte im Web und stütze dich auf gängige "
-        "Klimatabellen. Wo für das Ziel keine Wassertemperatur sinnvoll ist "
-        "(Binnenland), trage 0 ein und schreibe es in den Hinweis."
+        + instructions
     )
 
 
@@ -1744,9 +1980,30 @@ _GUIDE_SECTIONS = (
      "Mietwagen sinnvoll?; öffentliche Verkehrsmittel; Taxi; Uber/Bolt vorhanden?; "
      "Verkehrsregeln"),
     ("Internet & Kommunikation", "Mobilfunknetz; eSIM verfügbar?; WLAN; Roaming"),
+    ("Informationsfreiheit & digitaler Alltag",
+     "Staatliche Internetzensur oder Sperren; blockierte Websites, Nachrichtenangebote, "
+     "soziale Netzwerke, Messenger oder Telefoniedienste; zeitweise Abschaltungen oder "
+     "Drosselungen; Überwachung der Internetnutzung; rechtliche Risiken bei kritischen "
+     "Äußerungen oder Beiträgen in sozialen Medien; VPN-Nutzung legal oder eingeschränkt?; "
+     "gelten Einschränkungen auch im Hotel oder Resort? Unterscheide klar zwischen bloß "
+     "eingeschränkter Pressefreiheit und konkreten Auswirkungen auf Touristen. Kennzeichne "
+     "erhebliche Zensur, blockierte Kommunikationsdienste oder ein realistisches Risiko "
+     "wegen Onlineäußerungen ausdrücklich als mögliches KO-Kriterium."),
     ("Sicherheit",
      "Allgemeine Sicherheitslage; typische Betrugsmaschen; Gegenden, die man meiden "
      "sollte; Verhalten bei Notfällen"),
+    ("LGBTQ-Reisende",
+     "Rechtslage für gleichgeschlechtliche Beziehungen; mögliche Strafbarkeit und "
+     "angedrohte Strafen; tatsächliche Durchsetzung; gesellschaftliche Akzeptanz; Risiken "
+     "durch Diskriminierung, Belästigung oder Kontrollen; Situation in Hotels und Resorts "
+     "im Vergleich zum öffentlichen Raum; Risiken bei öffentlichen Zuneigungsbekundungen; "
+     "besondere Risiken für trans, nichtbinäre oder sichtbar queere Reisende; "
+     "Einreiseprobleme oder Schwierigkeiten bei Reisedokumenten; Hinweise offizieller "
+     "Reise- und Sicherheitsbehörden. Trenne Rechtslage, Alltagssituation und die "
+     "abgeschirmte Lage in touristischen Anlagen; verharmlose eine Strafbarkeit nicht mit "
+     "dem Hinweis, im Resort sei es kein Problem. Kennzeichne Strafbarkeit, staatliche "
+     "Verfolgung oder ein erhebliches persönliches Sicherheitsrisiko ausdrücklich als "
+     "mögliches KO-Kriterium."),
     ("Kultur & Etikette",
      "Begrüßung; Kleidung; Fotografieren; religiöse Besonderheiten; Verhalten in "
      "Restaurants; Umgang mit Einheimischen"),
@@ -1766,22 +2023,37 @@ _GUIDE_SECTIONS = (
 )
 
 
-def _guide_prompt(label: str) -> str:
+def _default_guide_instructions() -> str:
+    """Editierbarer Teil des Reiseführer-Prompts: Abschnittskatalog und Regeln.
+
+    Aus `_GUIDE_SECTIONS` erzeugt statt doppelt gepflegt — die Anzahl steht damit
+    nie im Widerspruch zur Liste. Wer den Text überschreibt, bestimmt die
+    Abschnitte selbst; das Antwortschema (`_GUIDE_SCHEMA`) ist bewusst offen und
+    schreibt keine feste Zahl vor."""
     secs = '\n'.join(f"{i}. {t}\n   {d}" for i, (t, d) in enumerate(_GUIDE_SECTIONS, 1))
     return (
-        "Du bist ein erfahrener Reiseberater.\n\n"
-        f"Erstelle für das Reiseziel „{label}\" einen kompakten, aber informativen "
-        "Reiseführer.\n\n"
-        "Liefere genau die folgenden dreizehn Abschnitte in dieser Reihenfolge und mit "
-        "genau diesen Titeln. `einleitung` ist ein einleitender Satz (darf leer "
-        "bleiben), `punkte` sind die Einzelangaben: `label` die Bezeichnung, `text` "
-        "die Angabe.\n\n"
+        f"Liefere genau die folgenden {len(_GUIDE_SECTIONS)} Abschnitte in dieser "
+        "Reihenfolge und mit genau diesen Titeln. `einleitung` ist ein einleitender "
+        "Satz (darf leer bleiben), `punkte` sind die Einzelangaben: `label` die "
+        "Bezeichnung, `text` die Angabe.\n\n"
         f"{secs}\n\n"
         "Dazu `zusammenfassung`: höchstens 15 Stichpunkte mit allen wichtigen "
         "Informationen.\n\n"
         "Setze `volatil` auf true bei allem, was sich kurzfristig ändern kann — "
         "Einreisebestimmungen, Wechselkurs, Preise, Impfvorgaben, Sicherheitslage. "
         "Sonst false. Suche aktuelle Informationen im Web."
+    )
+
+
+def _guide_prompt(label: str) -> str:
+    """Fester Kopf (Rolle und Reiseziel) + editierbarer Kriterienkatalog — wie beim
+    Regionen-Vergleich. Das Reiseziel gehört bewusst NICHT in den editierbaren
+    Teil: es kommt aus der Auswahl und wäre in einer Vorlage ein Fehler."""
+    instructions = A._prompt_instructions('guide', _default_guide_instructions())
+    return (
+        "Du bist ein erfahrener Reiseberater.\n\n"
+        f"Erstelle für das Reiseziel „{label}\" einen kompakten, aber informativen "
+        "Reiseführer.\n\n" + instructions
     )
 
 
@@ -2184,11 +2456,11 @@ def api_ai_prompt_settings():
     if request.method == 'GET':
         return jsonify({
             feature: {
-                'default': default,
+                'default': _prompt_feature_default(feature),
                 'enabled': A._meta_get(f'custom_prompt_{feature}_enabled') == '1',
                 'text': A._meta_get(f'custom_prompt_{feature}_text') or '',
             }
-            for feature, default in _PROMPT_FEATURES.items()
+            for feature in _PROMPT_FEATURES
         })
     data = request.get_json(silent=True) or {}
     for feature in _PROMPT_FEATURES:

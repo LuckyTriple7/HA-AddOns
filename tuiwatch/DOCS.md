@@ -528,14 +528,28 @@ Drei Dinge sind wichtig:
 ## Eigene KI-Prompts
 
 Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für
-**TripPilot**, **Hotelvergleich**, **KI-Fazit**, **Tagesausflug** und
-**Regionen-Vergleich** einsehen und über die Checkbox „Eigenen Prompt
-verwenden" durch einen eigenen Text ersetzen (max. 6000 Zeichen,
-„Zurücksetzen auf Standard" jederzeit möglich).
+**TripPilot**, **Hotelvergleich**, **KI-Fazit**, **Tagesausflug**,
+**Regionen-Vergleich**, **Klimatabelle** und **Reiseführer** einsehen und über die
+Checkbox „Eigenen Prompt verwenden" durch einen eigenen Text ersetzen
+(max. 16.000 Zeichen, „Zurücksetzen auf Standard" jederzeit möglich).
 
 - Bei TripPilot bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
   Reisewarnungs-Check, TUI-Verfügbarkeit, Reise-DNA-Kontext) immer fix
   erhalten — nur der Recherche-/Format-/Ton-Teil des Prompts ist editierbar.
+- Das jeweilige **Ziel bzw. Hotel** steht nie im editierbaren Teil: es kommt aus
+  deiner Auswahl und wäre in einer Vorlage ein Fehler. Bei der **Klimatabelle**
+  bleibt außerdem die Vorgabe „alle zwölf Monate" fest — die Tabelle im Fenster
+  rechnet mit genau zwölf Einträgen.
+- Der Standardtext für den **Regionen-Vergleich** bewertet neben Wetter,
+  Sicherheit, Preisniveau, bester Reisezeit, Strand/Natur, Familien- und
+  Nightlife-Eignung auch **Informationsfreiheit und digitalen Alltag**
+  (Internetzensur, blockierte Dienste, VPN-Lage, rechtliche Risiken bei
+  Onlineäußerungen) sowie die Lage für **LGBTQ-Reisende** (Rechtslage,
+  Durchsetzung, gesellschaftliche Akzeptanz, Risiken im öffentlichen Raum
+  gegenüber der abgeschirmten Lage im Resort). Beide Punkte können als
+  **KO-Kriterium** gekennzeichnet werden, das gute Noten bei Strand oder Wetter
+  nicht rechnerisch ausgleichen dürfen. Der **Reiseführer** hat für beide Themen
+  je einen eigenen Abschnitt.
 - Ergebnisse werden je nach aktivem Prompt-Text separat zwischengespeichert —
   ein geänderter Prompt liefert sofort ein neues Ergebnis statt eines
   veralteten 24h-Cache-Treffers.
@@ -1136,6 +1150,12 @@ landen dauerhaft im **KI-Verlauf**.
   Adressbuch-URL, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet),
   `nc_user` und `nc_app_password` in den Add-on-Optionen eintragen. Freitext bleibt
   ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
+- **KI-Anzeige neben dem Logo** — läuft gerade eine KI-Anfrage, erscheint dort ein
+  kreisendes KI-Symbol; bei mehreren gleichzeitig steht die Anzahl daneben. Ist die
+  letzte fertig, blinkt es kurz grün und verschwindet dann von selbst. Ein Klick
+  öffnet den KI-Verlauf. Gedacht für die gründlichen Perplexity-Stufen, die
+  minutenlang recherchieren — man sieht so auch dann, dass noch etwas läuft, wenn
+  man das KI-Fenster zwischenzeitlich geschlossen hat.
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP** (Formatversion 8).
   Enthalten ist alles, was du selbst angelegt oder was TUIWatch dauerhaft erhoben hat:
 

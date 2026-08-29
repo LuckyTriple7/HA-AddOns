@@ -56,6 +56,26 @@
     .issue-badge.error:hover { background:color-mix(in srgb, var(--red) 16%, transparent); }
     @keyframes issue-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
     @media (prefers-reduced-motion:reduce) { .issue-badge.error { animation:none; } }
+    /* Laeuft gerade eine KI-Anfrage, steht das hier neben dem Logo — die
+       gruendlichen Perplexity-Stufen rechnen minutenlang, und ohne Anzeige ist
+       nicht zu erkennen, ob ueberhaupt noch etwas passiert. Nach dem Fertigwerden
+       blinkt es kurz gruen und verschwindet dann von selbst; ein Fenster soll
+       dafuer nicht aufspringen. */
+    .ai-badge { display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+                border:1px solid var(--accent); background:transparent; color:var(--accent);
+                border-radius:var(--r-pill); padding:3px 10px; font:inherit;
+                font-size:var(--fs-xs); font-weight:700; line-height:1; }
+    .ai-badge:hover { background:color-mix(in srgb, var(--accent) 16%, transparent); }
+    .ai-badge > span:empty { display:none; }
+    .ai-badge.running svg { animation:ai-spin 1.6s linear infinite; }
+    .ai-badge.done { border-color:var(--green); color:var(--green);
+                     animation:ai-blink 1s ease-in-out infinite; }
+    .ai-badge.done:hover { background:color-mix(in srgb, var(--green) 16%, transparent); }
+    @keyframes ai-spin { to { transform:rotate(360deg); } }
+    @keyframes ai-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    @media (prefers-reduced-motion:reduce) {
+      .ai-badge.running svg, .ai-badge.done { animation:none; }
+    }
     .issue-row { padding:10px 0; border-bottom:1px solid var(--border); }
     .issue-row.muted { opacity:.55; }
     .issue-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
@@ -1043,6 +1063,12 @@
                 onclick="openIssues()" title="Störungen — klicken für Details">
           <svg class="i"><use href="#i-warn"/></svg><span id="issue-badge-n"></span>
         </button>
+        <!-- KI-Aktivität: sichtbar, solange eine Anfrage läuft; danach kurz grün,
+             dann weg (siehe aiBadge* in app.js). -->
+        <button class="ai-badge" id="ai-badge" style="display:none"
+                onclick="openAiHistory()" title="KI arbeitet — klicken für den KI-Verlauf">
+          <svg class="i"><use href="#i-ai"/></svg><span id="ai-badge-n"></span>
+        </button>
       </div>
       <div class="trip-countdown" id="trip-countdown" onclick="openTrips()" title="Nächste Reise – zu „Meine Reisen“">
         <svg class="i"><use href="#i-plane"/></svg> <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
@@ -1752,35 +1778,10 @@
       <h2><svg class="i"><use href="#i-settings"/></svg> KI-Prompts</h2>
       <div class="sub">Standard ist bereits ausgefüllt. Checkbox aktivieren, um ihn zu überschreiben. Die Websuche bleibt technisch immer aktiv, auch wenn der Hinweis dazu aus dem Text entfernt wird — die KI sucht dann ggf. weniger gezielt.</div>
 
-      <h3 style="margin:14px 0 6px"><svg class="i"><use href="#i-map"/></svg> TripPilot</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-hotel"/></svg> Hotelvergleich</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-ai"/></svg> KI-Fazit</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-car"/></svg> Tagesausflug</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
-
-      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-chart"/></svg> Regionen-Vergleich</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-region_compare-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-region_compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('region_compare')" style="margin-top:6px"></textarea>
-      <div class="hint" id="promptcfg-region_compare-count" style="text-align:right"></div>
-      <button class="btn sec" onclick="promptcfgReset('region_compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+      <!-- Blöcke werden aus PROMPTCFG_FEATURES erzeugt (siehe app.js) — sonst
+           musste fuer jede neue Vorlage an drei Stellen dasselbe nachgetragen
+           werden, und eine davon wurde regelmaessig vergessen. -->
+      <div id="promptcfg-list"></div>
 
       <div style="margin-top:16px;text-align:right">
         <button class="btn" onclick="savePromptCfg()">Speichern</button>

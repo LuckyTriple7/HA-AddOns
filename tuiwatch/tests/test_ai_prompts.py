@@ -164,10 +164,16 @@ def test_summary_prompt_contains_facts_and_instructions(app_mod):
     assert "Fazit" in prompt
 
 
+# Alle anpassbaren Vorlagen. Klimatabelle und Reiseführer kamen später dazu —
+# ihre Prompts waren vorher fest verdrahtet und nur im Code änderbar.
+_FEATURES = {"advisor", "compare", "summary", "daytrip", "region_compare",
+             "climate", "guide"}
+
+
 def test_prompt_settings_includes_summary_feature(app_mod):
     c = app_mod.app.test_client()
     data = c.get("/api/ai/prompt-settings", headers=ING).get_json()
-    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip", "region_compare"}
+    assert set(data.keys()) == _FEATURES
     assert "Fazit" in data["summary"]["default"]
 
 
@@ -176,7 +182,7 @@ def test_prompt_settings_get_default(app_mod):
     r = c.get("/api/ai/prompt-settings", headers=ING)
     assert r.status_code == 200
     data = r.get_json()
-    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip", "region_compare"}
+    assert set(data.keys()) == _FEATURES
     assert data["advisor"]["enabled"] is False
     assert data["advisor"]["text"] == ""
     assert "Windverhältnisse" in data["advisor"]["default"]
@@ -204,3 +210,37 @@ def test_prompt_settings_text_capped_at_max_len(app_mod):
     })
     r = c.get("/api/ai/prompt-settings", headers=ING)
     assert len(r.get_json()["advisor"]["text"]) == app_mod._CUSTOM_PROMPT_MAX_LEN
+
+
+def test_guide_and_climate_are_editable(app_mod):
+    """Beide waren fest im Code verdrahtet. Ihr Standardtext muss im Dialog
+    ankommen, sonst steht dort ein leeres Feld statt der Vorlage."""
+    c = app_mod.app.test_client()
+    data = c.get("/api/ai/prompt-settings", headers=ING).get_json()
+    assert "Abschnitte" in data["guide"]["default"]
+    assert "LGBTQ-Reisende" in data["guide"]["default"]
+    assert "Informationsfreiheit" in data["guide"]["default"]
+    assert "Klima-Normalwerte" in data["climate"]["default"]
+
+
+def test_a_custom_guide_prompt_reaches_the_request(app_mod, monkeypatch):
+    """Nur gespeicherte Vorlagen nützen nichts — sie müssen auch im Prompt landen."""
+    c = app_mod.app.test_client()
+    c.post("/api/ai/prompt-settings", headers=ING, json={
+        "guide": {"enabled": True, "text": "NUR EIN ABSCHNITT: Wetter."}})
+    ai_routes = importlib.import_module("ai_routes")
+    prompt = ai_routes._guide_prompt("Kreta")
+    assert "NUR EIN ABSCHNITT" in prompt
+    assert "Kreta" in prompt, "das Reiseziel bleibt fest, es steht nicht in der Vorlage"
+
+
+def test_the_long_region_compare_default_is_not_truncated_on_save(app_mod):
+    """Der Standardtext ist ueber 10000 Zeichen lang. Waere das Limit zu knapp,
+    schnitte das Speichern still ab und der Nutzer merkte es erst an der Antwort."""
+    c = app_mod.app.test_client()
+    default = c.get("/api/ai/prompt-settings", headers=ING).get_json()["region_compare"]["default"]
+    assert len(default) > 6000, "Testvoraussetzung: Vorlage laenger als das alte Limit"
+    c.post("/api/ai/prompt-settings", headers=ING, json={
+        "region_compare": {"enabled": True, "text": default}})
+    back = c.get("/api/ai/prompt-settings", headers=ING).get_json()["region_compare"]["text"]
+    assert back == default.strip()
