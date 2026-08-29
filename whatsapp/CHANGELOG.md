@@ -8,6 +8,7 @@
 - Zwei Schalter, absichtlich: die Option startet den Listener, das Port-Mapping unter *Netzwerk* entscheidet ueber die Erreichbarkeit im LAN. Ohne Mapping laeuft die API nur im internen hassio-Netz
 - Der Vergleich laeuft ueber `crypto.timingSafeEqual` statt `===`, damit die Laufzeit den Token nicht verraet. Abgewiesene Zugriffe landen mit Pfad und IP als WARN in der Konsole des Add-ons
 - Port 17776 bleibt vorerst unveraendert freigegeben. In einer der naechsten Fassungen wird sein Mapping auf „nicht veroeffentlicht" umgestellt — der Zugang laeuft dann ueber HA-Ingress oder das MessengerPortal, das die Add-ons seit **MessengerPortal 1.2.20** ueber ihren Container-Namen erreicht und dafuer keinen offenen Port mehr braucht. Wer die API im LAN nutzt, sollte bis dahin auf 17786 umgestellt haben
+- `test-api.ps1` spricht jetzt 17786 an und schickt den Token mit. Der Token steht **nicht** im Skript — es liest `$env:WHATSAPP_API_TOKEN` oder fragt beim Start danach; Host und Port lassen sich ueber `WHATSAPP_HOST` und `WHATSAPP_API_PORT` uebersteuern. Bei `401` und `404` sagt es, was zu tun ist, statt die rohe Ausnahme zu zeigen
 - DOCS.md: neue Uebersicht „Zwei Ports, zwei Sicherheitsstufen", alle `curl`- und HA-Beispiele auf 17786 samt Token umgestellt (`rest_command` und `rest`-Sensor holen ihn per `!secret` aus `secrets.yaml`)
 
 ## [1.8.29] - 2026-08-28
