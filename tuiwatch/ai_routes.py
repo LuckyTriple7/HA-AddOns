@@ -130,7 +130,30 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "Wetter) — ein Land, an das der Nutzer wahrscheinlich nicht von selbst gedacht "
     "hätte. Bei Alternative und Überraschung reicht eine kurze, optionale Erwähnung "
     "möglicher Unterkünfte — die drei Kategorien Budget/Mittelklasse/Gehoben sind nur "
-    "bei den 3 Hauptvorschlägen nötig. Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
+    "bei den 3 Hauptvorschlägen nötig.\n\n"
+    "Prüfe zu jedem vorgeschlagenen Ziel zusätzlich zwei Punkte, die sich aus "
+    "Klima, Preis und Hotelqualität nicht ablesen lassen, und nenne sie in ein bis "
+    "zwei Stichpunkten:\n"
+    "- **Informationsfreiheit und digitaler Alltag**: staatliche Internetzensur, "
+    "blockierte Nachrichtenangebote, soziale Netzwerke, Messenger oder "
+    "Telefoniedienste, zeitweise Abschaltungen, Überwachung, rechtliche Risiken "
+    "wegen privater oder öffentlicher Onlineäußerungen, Rechtslage bei VPN-Nutzung. "
+    "Unterscheide dabei zwischen bloß eingeschränkter Pressefreiheit und konkreten "
+    "Auswirkungen auf Reisende.\n"
+    "- **LGBTQ-Reisende**: Rechtslage für gleichgeschlechtliche Beziehungen, "
+    "mögliche Strafbarkeit und deren tatsächliche Durchsetzung, gesellschaftliche "
+    "Akzeptanz, Risiken bei öffentlichen Zuneigungsbekundungen, besondere Risiken "
+    "für trans, nichtbinäre oder sichtbar queere Reisende. Trenne Rechtslage, "
+    "Alltagssituation und die abgeschirmte Lage in touristischen Anlagen; "
+    "verharmlose eine Strafbarkeit nicht mit dem Hinweis, im Resort sei es kein "
+    "Problem.\n\n"
+    "Ist einer der beiden Punkte gravierend — erhebliche Zensur, blockierte "
+    "Kommunikationsdienste, Strafbarkeit oder staatliche Verfolgung —, kennzeichne "
+    "das ausdrücklich als **mögliches KO-Kriterium**. Streiche das Ziel deswegen "
+    "aber nicht aus der Liste: ob das ein Ausschlussgrund ist, entscheidet der "
+    "Nutzer, nicht du. Gibt es zu einem Ziel nichts Auffälliges zu berichten, "
+    "genügt ein knapper Satz.\n\n"
+    "Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
     "(informell, nicht „Sie“), ehrlich und ohne zu übertreiben — wenn ein Wunsch (z. B. "
     "Budget, Reisezeit oder TUI-Verfügbarkeit) schwer erfüllbar ist, sag das offen."
 )
@@ -141,6 +164,11 @@ _ADVISOR_SAFETY_TRAILER = (
     "Entfernungsbegrenzung bei eigener Anreise) — auch beim "
     "Alternative- und Überraschung-Vorschlag."
 )
+# Der Hinweis zu Informationsfreiheit und LGBTQ-Rechten steht bewusst im
+# **editierbaren** Teil und nicht hier: er schliesst kein Ziel aus, sondern legt
+# etwas offen, dessen Gewicht von Person zu Person verschieden ist. Wer das nicht
+# braucht, nimmt es unter „KI-Prompts" heraus — was bei den Reisewarnungen oben
+# bewusst nicht geht.
 
 _DEFAULT_COMPARE_INSTRUCTIONS = (
     "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. HolidayCheck, "

@@ -549,7 +549,11 @@ Checkbox „Eigenen Prompt verwenden" durch einen eigenen Text ersetzen
   gegenüber der abgeschirmten Lage im Resort). Beide Punkte können als
   **KO-Kriterium** gekennzeichnet werden, das gute Noten bei Strand oder Wetter
   nicht rechnerisch ausgleichen dürfen. Der **Reiseführer** hat für beide Themen
-  je einen eigenen Abschnitt.
+  je einen eigenen Abschnitt, und **TripPilot** prüft sie zu jedem vorgeschlagenen
+  Ziel mit. Dort wird ein Ziel deswegen aber **nicht aussortiert** — ob das ein
+  Ausschlussgrund ist, entscheidest du, nicht die KI. Anders als die
+  Reisewarnungs-Prüfung steht dieser Teil im editierbaren Bereich: wer ihn nicht
+  braucht, nimmt ihn heraus.
 - Ergebnisse werden je nach aktivem Prompt-Text separat zwischengespeichert —
   ein geänderter Prompt liefert sofort ein neues Ergebnis statt eines
   veralteten 24h-Cache-Treffers.

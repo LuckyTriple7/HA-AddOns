@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.112.0
+
+- 🗺️ **TripPilot prüft jetzt auch Informationsfreiheit und LGBTQ-Rechte.** Zu jedem vorgeschlagenen Ziel kommen ein bis zwei Stichpunkte zu Internetzensur, blockierten Diensten, VPN-Lage und rechtlichen Risiken bei Onlineäußerungen sowie zur Rechtslage und Alltagssituation für LGBTQ-Reisende. Gravierendes wird als **mögliches KO-Kriterium** gekennzeichnet.
+- ℹ️ **Ein Ziel wird deswegen nicht aussortiert.** Ob das ein Ausschlussgrund ist, entscheidest du — die KI legt es nur offen. Anders als die Reisewarnungs-Prüfung steht dieser Teil im editierbaren Bereich unter „KI-Prompts": wer ihn nicht braucht, nimmt ihn heraus.
+
 ## 0.111.2
 
 - 🚨 **Alle KI-Funktionen liefen sofort auf einen Fehler.** Beim Umbau der KI-Anzeige in 0.111.1 wurden zwei Konstanten mit herausgeschnitten, die weiterhin benutzt wurden. Jeder Aufruf brach dadurch im Browser ab, bevor überhaupt etwas passierte — deshalb stand auch nichts im Log. Behoben.
