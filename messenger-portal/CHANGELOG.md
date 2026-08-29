@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [1.2.21] - 2026-08-29
+- **Sicherheitsfix: die Anmeldung liess sich mit einer selbstgesetzten Kopfzeile umgehen.** Das Portal erkannte HA-Ingress allein am Header `X-Ingress-Path` und sprang dann ueber die Passwortpruefung. Den Header setzt aber der Aufrufer, nicht der Supervisor — ein `curl -H 'X-Ingress-Path: /x' http://<HA-IP>:17770/status` aus dem LAN kam ohne Passwort durch, ebenso auf `/proxy/whatsapp/` und damit auf die komplette Oberflaeche und REST-API des jeweiligen Messengers
+- Ursache: Ingress und LAN trafen auf denselben Listener, also gab es kein faelschungssicheres Unterscheidungsmerkmal. Jetzt lauscht nginx auf **zwei getrennten Ports**: 8099 nur fuer den Supervisor (neuer `ingress_port`, bewusst nicht unter `ports:` gemappt und damit von aussen nicht erreichbar) und 17770 fuer alles andere. Nur der Ingress-Block reicht `X-Ingress-Path` weiter, der LAN-Block leert ihn — dort gilt ausnahmslos Cookie-Anmeldung
+- **Sicherheitsfix: `/api/logs` war voellig ungeschuetzt.** Ohne Anmeldung und ohne Kopfzeilen-Trick lieferte die Route 300 Log-Zeilen aus — darunter die Statusabfragen aller Messenger samt **Vorschau der zuletzt empfangenen Nachricht** im Klartext. Die Route verlangt jetzt dieselbe Anmeldung wie die Seite, auf der die Konsole angezeigt wird
+- Beide Luecken bestanden seit der Einfuehrung der jeweiligen Funktion. Wer Port 17770 nie im LAN freigegeben hatte, war nicht betroffen — ueber Ingress kommt ohnehin nur herein, wer bei Home Assistant angemeldet ist
+
 ## [1.2.20] - 2026-08-29
 - Das Portal erreicht die Messenger-Add-ons jetzt über ihren **Container-Hostnamen** (z. B. `424ccef4-whatsapp`) statt über den HA-Host und dessen veröffentlichten Port (neu: `hassio_api: true`). Der Hash davor ist der des Repositories, unterscheidet sich pro Installation und ist deshalb nicht fest verdrahtet
 - Der Name wird zweistufig ermittelt: `GET /addons` liefert die genaue Liste, verlangt aber je nach Supervisor-Fassung eine höhere Rolle. Scheitert das, reicht `GET /addons/self/info` — das darf die Default-Rolle immer, und aus dem eigenen Hostnamen lässt sich der Präfix für die Geschwister-Add-ons ableiten. Dem Portal `hassio_role: manager` zu geben (dürfte dann Add-ons starten, stoppen, installieren) war der Auskunft nicht wert

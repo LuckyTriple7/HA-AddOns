@@ -8,6 +8,12 @@ import subprocess
 import addon_hosts
 
 CONFIG_PATH = '/data/options.json'
+# Getrennte Listener: der Ingress-Port ist absichtlich NICHT unter "ports:"
+# gemappt und damit nur vom Supervisor erreichbar. Nur dort darf der Header
+# X-Ingress-Path geglaubt werden - er kommt sonst vom Client und waere als
+# Erkennungsmerkmal fuer "HA hat schon authentifiziert" faelschbar.
+INGRESS_PORT = 8099
+LAN_PORT = 17770
 NGINX_CONF   = '/etc/nginx/http.d/messenger-portal.conf'
 
 # Draggable back-to-portal button injected into every proxied page.
@@ -186,9 +192,26 @@ map $http_upgrade $connection_upgrade {{
     default  upgrade;
     ''       close;
 }}
+{server_block(INGRESS_PORT, '$http_x_ingress_path', proxy_blocks, resolvers)}
+{server_block(LAN_PORT, '""', proxy_blocks, resolvers)}
+"""
 
+    os.makedirs(os.path.dirname(NGINX_CONF), exist_ok=True)
+    with open(NGINX_CONF, 'w', encoding='utf-8') as f:
+        f.write(conf)
+    print(f'[INFO] nginx config written → {NGINX_CONF}')
+    print(f'[INFO] Ingress-Listener auf {INGRESS_PORT}, LAN-Listener auf {LAN_PORT}')
+    for slug, _name, thost, tport in targets:
+        print(f'[INFO]   /proxy/{slug}/ -> http://{thost}:{tport}/')
+
+
+def server_block(listen: int, ingress: str, proxy_blocks: str, resolvers: str) -> str:
+    """Ein server-Block. `ingress` ist der Ausdruck, den nginx als
+    X-Ingress-Path weiterreicht: auf dem Ingress-Port die Kopfzeile des
+    Supervisors, auf dem LAN-Port die leere Zeichenkette."""
+    return f"""
 server {{
-    listen 17770;
+    listen {listen};
 
     # Namen werden zur Laufzeit aufgeloest (siehe proxy_block)
     resolver {resolvers} valid=30s ipv6=off;
@@ -205,7 +228,7 @@ server {{
         proxy_set_header        Content-Length  "";
         proxy_set_header        Cookie          $http_cookie;
         proxy_set_header        X-Real-IP       $remote_addr;
-        proxy_set_header        X-Ingress-Path  $http_x_ingress_path;
+        proxy_set_header        X-Ingress-Path  {ingress};
     }}
 
     location @login_redirect {{
@@ -224,7 +247,7 @@ server {{
         proxy_pass         http://127.0.0.1:5000;
         proxy_set_header   Host           $host;
         proxy_set_header   Cookie         $http_cookie;
-        proxy_set_header   X-Ingress-Path $http_x_ingress_path;
+        proxy_set_header   X-Ingress-Path {ingress};
     }}
 
     # ── Flask app (login, portal, static) ────────────────
@@ -234,18 +257,11 @@ server {{
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_set_header   X-Ingress-Path    $http_x_ingress_path;
+        proxy_set_header   X-Ingress-Path    {ingress};
     }}
 {proxy_blocks}
 }}
 """
-
-    os.makedirs(os.path.dirname(NGINX_CONF), exist_ok=True)
-    with open(NGINX_CONF, 'w', encoding='utf-8') as f:
-        f.write(conf)
-    print(f'[INFO] nginx config written → {NGINX_CONF}')
-    for slug, _name, thost, tport in targets:
-        print(f'[INFO]   /proxy/{slug}/ -> http://{thost}:{tport}/')
 
 
 if __name__ == '__main__':

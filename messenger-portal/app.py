@@ -477,6 +477,11 @@ def health():
 
 @app.route('/api/logs')
 def api_logs():
+    # Der Puffer enthaelt die Statuszeilen der Messenger samt Vorschau der
+    # letzten Nachricht - die Konsole braucht dieselbe Anmeldung wie die Seite,
+    # auf der sie angezeigt wird.
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return '', 401
     since = int(request.args.get('since', 0))
     entries = [e for e in _log_buffer if e['ts'] > since]
     return jsonify(entries)
