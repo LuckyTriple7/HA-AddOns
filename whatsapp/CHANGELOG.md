@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.30] - 2026-08-29
+- **REST-API auf eigenem Port mit Token-Pflicht.** Neue Optionen `api_enabled` (Standard: aus) und `api_token` starten einen zweiten Listener auf **17786**, der ausschliesslich `/api/*` bedient und jeden Aufruf ohne `Authorization: Bearer <Token>` mit `401` abweist
+- Hintergrund: Port 17776 gibt Weboberflaeche **und** REST-API ohne jede Anmeldung heraus. Wer ihn im LAN erreicht, kann mitlesen, senden, Medien holen und Kontakte blockieren. Beides liegt auf demselben Express-Server, ein Schalter fuer „nur API" existierte nicht
+- Die Weboberflaeche wird ueber 17786 auch mit gueltigem Token **nicht** ausgeliefert (`404`) — sonst waere der Port ein zweiter, gleichwertiger Weg auf alles
+- Ist `api_enabled` an, aber kein Token gesetzt, startet der Port nicht und das Add-on schreibt eine Fehlerzeile ins Log. Ein offener Port ohne Token waere genau die Luecke, die er schliessen soll
+- Zwei Schalter, absichtlich: die Option startet den Listener, das Port-Mapping unter *Netzwerk* entscheidet ueber die Erreichbarkeit im LAN. Ohne Mapping laeuft die API nur im internen hassio-Netz
+- Der Vergleich laeuft ueber `crypto.timingSafeEqual` statt `===`, damit die Laufzeit den Token nicht verraet. Abgewiesene Zugriffe landen mit Pfad und IP als WARN in der Konsole des Add-ons
+- Port 17776 bleibt vorerst unveraendert freigegeben. In einer der naechsten Fassungen wird sein Mapping auf „nicht veroeffentlicht" umgestellt — der Zugang laeuft dann ueber HA-Ingress oder das MessengerPortal, das die Add-ons seit **MessengerPortal 1.2.20** ueber ihren Container-Namen erreicht und dafuer keinen offenen Port mehr braucht. Wer die API im LAN nutzt, sollte bis dahin auf 17786 umgestellt haben
+- DOCS.md: neue Uebersicht „Zwei Ports, zwei Sicherheitsstufen", alle `curl`- und HA-Beispiele auf 17786 samt Token umgestellt (`rest_command` und `rest`-Sensor holen ihn per `!secret` aus `secrets.yaml`)
+
 ## [1.8.29] - 2026-08-28
 - Fix: **Die Option „Gruppenbenachrichtigungen ueberspringen“ hatte keine Wirkung.** Der Wert wurde beim Start nie an das Add-on durchgereicht, es galt immer „aus“ — Gruppen loesten also weiter HA-Benachrichtigungen aus, egal wie der Schalter stand
 - Fix: **Geloeschter Spam kam nach einem Neustart zurueck.** Das Loeschen mehrerer Nachrichten aus einem Chat entfernte sie nur aus dem laufenden Betrieb, ohne den Verlauf auf die Platte zu schreiben

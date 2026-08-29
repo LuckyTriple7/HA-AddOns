@@ -18,6 +18,10 @@ export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true th
 export HA_NOTIFICATIONS_SKIP_GROUPS=$(jq -r 'if .ha_notifications_skip_groups == true then "true" else "false" end' /data/options.json)
 export SESSION_DIR=/config/session
 export PORT=17776
+# Zweiter Listener: nur /api/*, nur mit Token (siehe server.js)
+export API_PORT=17786
+export API_ENABLED=$(jq -r 'if .api_enabled == true then "true" else "false" end' /data/options.json)
+export API_TOKEN=$(jq -r '.api_token // ""' /data/options.json)
 
 mkdir -p "$SESSION_DIR"
 

@@ -37,13 +37,41 @@ Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automat
 Die Ausnahmen stehen in `/config/chatmedia.json` und ueberleben Neustarts. Ueber die API:
 
 ```bash
-curl http://<HA-IP>:17776/api/chat-media
-curl -X POST http://<HA-IP>:17776/api/chat-media   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
+curl http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <Token>"
+curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <Token>"   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
 ```
 
 ## REST-API
 
-Das Add-on ist über Port 17776 erreichbar (`http://<HA-IP>:17776`).
+### Zwei Ports, zwei Sicherheitsstufen
+
+| Port | Was liegt dort | Schutz |
+|------|----------------|--------|
+| 17776 | Weboberfläche **und** REST-API | keiner — wer den Port erreicht, kann mitlesen und senden |
+| 17786 | nur REST-API (`/api/*`), keine Oberfläche | Token-Pflicht |
+
+Port 17776 kennt bewusst keine Anmeldung: die Weboberfläche ruft ihre eigenen
+`/api/`-Routen aus dem Browser auf, eine Token-Pflicht würde sie lahmlegen. Sein
+Schutz ist deshalb, ihn **nicht freizugeben** — dann bleibt der Zugang über
+HA-Ingress (Anmeldung durch Home Assistant) oder das MessengerPortal.
+Gibst du 17776 unter *Netzwerk* frei, steht alles offen, was hier beschrieben ist.
+
+Port 17786 ist der Weg für Skripte und fremde Geräte. Er braucht zwei Schalter:
+
+1. Option **REST-API auf eigenem Port** (`api_enabled`) einschalten und einen
+   **API-Token** (`api_token`) setzen — ohne Token startet der Port nicht
+2. Port 17786 unter *Netzwerk* freigeben, wenn er aus dem LAN erreichbar sein soll
+
+Jeder Aufruf braucht dann die Kopfzeile `Authorization: Bearer <Token>`; ohne sie
+antwortet der Port mit `401`. Die Weboberfläche gibt es dort auch mit gültigem
+Token nicht — sie wäre sonst ein zweiter, gleichwertiger Weg auf alles.
+
+Token erzeugen:
+
+```bash
+openssl rand -hex 32
+```
+
 
 ```
 GET  /api/status                     → Verbindungsstatus (inkl. WhatsApp-Web- und Bibliotheksfassung)
@@ -91,7 +119,8 @@ POST /api/reset                      → Session zurücksetzen (neuer QR-Code)
 ### Nachricht senden
 
 ```bash
-curl -X POST http://<HA-IP>:17776/api/send \
+curl -X POST http://<HA-IP>:17786/api/send \
+  -H "Authorization: Bearer <Token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "4915123456789", "message": "Hallo aus HA!"}'
 ```
@@ -104,10 +133,17 @@ curl -X POST http://<HA-IP>:17776/api/send \
 ```yaml
 rest_command:
   whatsapp_send:
-    url: http://localhost:17776/api/send
+    url: http://localhost:17786/api/send
     method: POST
     content_type: application/json
+    headers:
+      Authorization: !secret whatsapp_api_token
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
+```
+
+`secrets.yaml`:
+```yaml
+whatsapp_api_token: "Bearer <Token>"
 ```
 
 Automatisierung:
@@ -141,7 +177,9 @@ action:
 sensor:
   - platform: rest
     name: WhatsApp letzte Nachricht
-    resource: http://localhost:17776/api/last-received
+    resource: http://localhost:17786/api/last-received
+    headers:
+      Authorization: !secret whatsapp_api_token
     value_template: "{{ value_json.iso }}"
     json_attributes:
       - chatName
@@ -243,13 +281,41 @@ Just enable `ha_notifications` — nothing else. The add-on automatically uses t
 The exceptions live in `/config/chatmedia.json` and survive restarts. Via the API:
 
 ```bash
-curl http://<HA-IP>:17776/api/chat-media
-curl -X POST http://<HA-IP>:17776/api/chat-media   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
+curl http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <token>"
+curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <token>"   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
 ```
 
 ## REST API
 
-The add-on is available on port 17776 (`http://<HA-IP>:17776`).
+### Two ports, two security levels
+
+| Port | What it serves | Protection |
+|------|----------------|------------|
+| 17776 | web interface **and** REST API | none — anyone who reaches it can read and send |
+| 17786 | REST API only (`/api/*`), no interface | token required |
+
+Port 17776 deliberately has no login: the web interface calls its own `/api/`
+routes from the browser, so requiring a token would break it. Its protection is
+therefore **not publishing it** — access then goes through HA Ingress
+(authenticated by Home Assistant) or the MessengerPortal. Publish 17776 under
+*Network* and everything described here is wide open.
+
+Port 17786 is the path for scripts and other machines. It needs two switches:
+
+1. Turn on **REST API on a separate port** (`api_enabled`) and set an
+   **API token** (`api_token`) — without a token the port does not start
+2. Publish port 17786 under *Network* if it should be reachable from the LAN
+
+Every call then needs the header `Authorization: Bearer <token>`; without it the
+port answers `401`. The web interface is not served there even with a valid
+token — it would just be a second, equally powerful way in.
+
+Generate a token:
+
+```bash
+openssl rand -hex 32
+```
+
 
 ```
 GET  /api/status                     → Connection status (incl. WhatsApp Web and library version)
@@ -296,7 +362,8 @@ POST /api/reset                      → Reset session (new QR code)
 ### Send a message
 
 ```bash
-curl -X POST http://<HA-IP>:17776/api/send \
+curl -X POST http://<HA-IP>:17786/api/send \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "4915123456789", "message": "Hello from HA!"}'
 ```
@@ -309,10 +376,17 @@ curl -X POST http://<HA-IP>:17776/api/send \
 ```yaml
 rest_command:
   whatsapp_send:
-    url: http://localhost:17776/api/send
+    url: http://localhost:17786/api/send
     method: POST
     content_type: application/json
+    headers:
+      Authorization: !secret whatsapp_api_token
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
+```
+
+`secrets.yaml`:
+```yaml
+whatsapp_api_token: "Bearer <token>"
 ```
 
 Automation:
@@ -346,7 +420,9 @@ Returns `null` if no message has been received yet.
 sensor:
   - platform: rest
     name: WhatsApp Last Message
-    resource: http://localhost:17776/api/last-received
+    resource: http://localhost:17786/api/last-received
+    headers:
+      Authorization: !secret whatsapp_api_token
     value_template: "{{ value_json.iso }}"
     json_attributes:
       - chatName
