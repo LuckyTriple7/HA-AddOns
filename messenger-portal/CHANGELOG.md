@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [1.2.24] - 2026-08-29
+- **Der Ingress-Zugang nimmt jetzt nur noch vom Supervisor an.** Die Port-Trennung aus 1.2.21 sperrte das LAN aus, aber nicht das interne `hassio`-Netz: Port 8099 ist von dort erreichbar, und **jedes andere Add-on** haette mit einem selbstgesetzten `X-Ingress-Path` weiterhin ohne Portal-Passwort hereingekommen. Der Ingress-Block laesst jetzt nur `172.30.32.2/32` zu und weist alles andere ab
+- Neue Option **Vertrauenswuerdige Ingress-Adressen** (`ingress_trusted`) fuer den Ausnahmefall. Leer bedeutet: nur der Supervisor. Mehrere Eintraege durch Komma getrennt, CIDR erlaubt
+- Ein Eintrag mit Praefixlaenge 0 (`0.0.0.0/0`, `::/0`) wird **abgelehnt** — er wuerde die Anmeldung fuer jeden aufheben, also genau die Luecke wiederherstellen. Unbrauchbare Angaben werden mit einer Warnung uebergangen; bleibt nichts uebrig, gilt wieder die Voreinstellung. Die geltende Liste steht beim Start im Log
+- Ein falscher Wert macht das Ingress-Panel unerreichbar (`403`). Die Option laesst sich in der Add-on-Konfiguration von Home Assistant wieder leeren, dafuer braucht es das Portal nicht
+- Der LAN-Listener auf 17770 bleibt wie er war: dort gilt unveraendert die Cookie-Anmeldung, eine Adressbeschraenkung waere dort der falsche Hebel
+
 ## [1.2.23] - 2026-08-29
 - Fix: nginx meldete bei jedem Start `duplicate MIME type "text/html"` — einmal je Messenger und Listener, zuletzt also sechsmal. `sub_filter_types` fuehrte `text/html` auf, das nginx ohnehin immer filtert. Der Eintrag entfaellt, gefiltert wird unveraendert
 - Bestaetigt im Betrieb: das Portal spricht die Add-ons jetzt tatsaechlich ueber ihren Container-Namen an (`/proxy/whatsapp/ -> http://3d588fb4-whatsapp:17776/`), und die Kopfzeilen-Umgehung aus 1.2.21 ist von aussen nicht mehr moeglich — `/status`, `/api/logs` und `/proxy/<messenger>/` antworten mit und ohne `X-Ingress-Path` gleich

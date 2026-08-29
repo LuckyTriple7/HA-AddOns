@@ -14,6 +14,9 @@ configuration:
   internal_host:
     name: Interne Host-IP
     description: Nur noch als Notnagel nötig. Das Portal spricht die Messenger-Add-ons über ihren Container-Namen an und kommt damit auch ohne veröffentlichten Port aus. Wer hier etwas einträgt, erzwingt stattdessen den alten Weg über den HA-Host (z. B. 172.30.32.2) und dessen Port-Freigaben.
+  ingress_trusted:
+    name: Vertrauenswürdige Ingress-Adressen
+    description: "Leer lassen. Von diesen Adressen nimmt der Ingress-Zugang ohne Portal-Passwort an — voreingestellt ist allein der Supervisor (172.30.32.2/32). Mehrere Einträge durch Komma trennen, CIDR erlaubt. Ein Eintrag wie 0.0.0.0/0 wird abgelehnt, er würde die Anmeldung für jeden aufheben. Ein falscher Wert macht das Ingress-Panel unerreichbar (403) — dann hier wieder leeren."
   messengers:
     name: Messenger
     description: Liste der konfigurierten Messenger mit Name, Icon-Typ, Port und Aktivierungsstatus.

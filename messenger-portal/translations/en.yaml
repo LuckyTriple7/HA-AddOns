@@ -14,6 +14,9 @@ configuration:
   internal_host:
     name: Internal Host IP
     description: Only needed as a fallback. The portal reaches the messenger add-ons by their container name, which works even without a published port. Setting a value here forces the old path via the HA host (e.g. 172.30.32.2) and its port mappings instead.
+  ingress_trusted:
+    name: Trusted ingress addresses
+    description: "Leave empty. Requests from these addresses are accepted through Ingress without the portal password — the default is the Supervisor alone (172.30.32.2/32). Separate several entries with commas, CIDR allowed. An entry like 0.0.0.0/0 is rejected, it would drop the login for everyone. A wrong value makes the Ingress panel unreachable (403) — clear this field again if that happens."
   messengers:
     name: Messengers
     description: List of configured messengers with name, icon type, port and enabled state.
