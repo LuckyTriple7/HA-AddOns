@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.108.0
+
+- 📦 **Das Backup war nicht so vollständig, wie es hieß.** Gespeicherte Suchen verloren ihr komplettes Suchabo (beobachten ja/nein, Schwellenpreis, bereits gemeldete Hotels), der Preisverlauf seinen Preis-Split und die Verfügbarkeitsprüfung, der KI-Verlauf seine Zuordnung zum Angebot (und damit den Buchungsscore-Verlauf). Anhänge und Packlisten von Reisen **ohne Buchungsnummer** fielen ganz heraus. Alles davon ist jetzt drin.
+- 📦 **Klimatabellen, Reiseführer, öffentliche Links und Kommentare werden jetzt mitgesichert.** Klimatabellen und Reiseführer sind KI-Ergebnisse, deren Neuerzeugung beim Anbieter Geld kostet; ein Share-Token steckt in bereits verschickten Links und lässt sich nicht neu erzeugen. Was bewusst **nicht** gesichert wird (reine Caches), steht jetzt ausdrücklich in der Doku.
+- 🛡️ **Wiederherstellung prüft die entpackte Größe des Archivs.** Das Upload-Limit deckelt nur die komprimierte Datei — ein stark komprimiertes ZIP darunter konnte sich beim Entpacken auf ein Vielfaches aufblähen und dem Add-on den Speicher nehmen. Jetzt sind Dateianzahl, Einzel- und Gesamtgröße begrenzt: eine einzelne zu große Datei wird übersprungen, ein insgesamt aufgeblähtes Archiv abgelehnt.
+- 🔗 **Datenbank erzwingt jetzt ihre Fremdschlüssel.** Die ON-DELETE-CASCADE-Regeln waren vorhanden, aber ohne das nötige SQLite-Pragma wirkungslos — Kindzeilen (Preisverlauf, Marker, Kalender-Historie) konnten unbemerkt ohne ihr Angebot zurückbleiben. Bestehende Daten bleiben unverändert.
+- ✅ Neuer Roundtrip-Test vergleicht die Tabelleninhalte vor und nach einer Wiederherstellung. Eine künftig vergessene Spalte fällt damit im Test auf statt beim Wiederherstellen.
+
 ## 0.107.0
 
 - 💰 **Perplexity-Kosten sind jetzt der echte Betrag statt einer Schätzung.** Die Agent API rechnet jeden Aufruf selbst ab und liefert die Summe aus Token-, Cache- und Suchkosten mit — TUIWatch zeigt diese Zahl unverändert an, statt sie aus der Preisliste hochzurechnen. Bei Claude und Gemini bleibt es bei der Schätzung, dort liefert die API keine Kosten mit.

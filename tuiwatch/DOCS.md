@@ -1111,23 +1111,46 @@ landen dauerhaft im **KI-Verlauf**.
   Adressbuch-URL, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet),
   `nc_user` und `nc_app_password` in den Add-on-Optionen eintragen. Freitext bleibt
   ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
-- **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
-  Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
-  Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
-  Vergleiche/TripPilot-Ergebnisse), die **KI-Einstellungen** (Reise-DNA,
-  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen) sowie die
-  **Markttrend-Datenpunkte** samt der **Barometer-Tagesbewegungen** (überleben so
-  einen Umzug auf ein anderes Add-on, auch wenn die ursprünglichen Angebote dort nicht
-  mehr existieren; die Roh-Snapshots der Messreihe sind nicht dabei, die entstehen
-  täglich neu). Die
-  Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
-  arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten
-  (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
-  gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler werden nie durch
-  ältere Backup-Werte zurückgesetzt) — nichts wird gelöscht oder doppelt angelegt. (Reine
-  Caches wie Vergleich/Kalender-Snapshot werden nicht gesichert, sie entstehen automatisch
-  neu — die Kalender-**Trend-Historie** je Angebot dagegen schon, siehe Abschnitt
-  „Preiskalender".)
+- **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP** (Formatversion 8).
+  Enthalten ist alles, was du selbst angelegt oder was TUIWatch dauerhaft erhoben hat:
+
+  - alle getrackten **Angebote inkl. Preisverlauf** (mit **Preis-Split** Hotel/Hin-/
+    Rückflug und dem Ergebnis der Verfügbarkeitsprüfung) und Diagramm-Markern,
+  - **„Meine Reisen" inkl. der Original-PDFs**, **Zusatz-Anhänge und Packlisten** —
+    auch bei Reisen **ohne Buchungsnummer**,
+  - die **gespeicherten Suchen inkl. Suchabo** (beobachten ja/nein, Schwellenpreis,
+    bereits gemeldete Hotels, letzte Treffer),
+  - der **dauerhafte KI-Verlauf** (Fazits/Vergleiche/TripPilot-Ergebnisse) **samt der
+    Zuordnung zum jeweiligen Angebot**, Grundlage des Buchungsscore-Verlaufs,
+  - die **Klimatabellen** und **Reiseführer** je Reiseziel — KI-Ergebnisse, deren
+    Neuerzeugung beim Anbieter Geld kostet,
+  - die **öffentlichen Angebots-Links** samt **Besucherkommentaren** (der Token steckt
+    in bereits verschickten Links und lässt sich nicht neu erzeugen),
+  - die **KI-Einstellungen** (Reise-DNA, kumulierte Kosten-Zähler heute/Monat/gesamt,
+    eigene KI-Prompt-Vorlagen),
+  - die **Markttrend-Datenpunkte** samt der **Barometer-Tagesbewegungen** (überleben so
+    einen Umzug auf ein anderes Add-on, auch wenn die ursprünglichen Angebote dort nicht
+    mehr existieren).
+
+  **Bewusst nicht gesichert** — alles, was sich beim nächsten Abruf von selbst wieder
+  füllt: Vergleichs-, Kalender- und Nächte-Cache, die Roh-Snapshots der
+  Barometer-Messreihe (entstehen täglich neu und werden nach 120 Tagen ohnehin
+  verworfen), Melde-Zustände und das Benachrichtigungs-Protokoll. Ausnahme: die
+  Kalender-**Trend-Historie** je Angebot ist kein Cache und wandert mit, siehe Abschnitt
+  „Preiskalender". Ebenfalls nicht im ZIP: der Schlüssel `settings.key` (siehe oben).
+
+  Die Wiederherstellung liest die ZIP (ältere Backup-Versionen und das alte reine JSON
+  werden weiterhin akzeptiert) und arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt,
+  Bestehendes bleibt erhalten (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/
+  Kosten-Zähler werden nur gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler
+  werden nie durch ältere Backup-Werte zurückgesetzt). Ein hier bereits **laufendes Suchabo**
+  bleibt aus demselben Grund unangetastet: sonst würden längst gemeldete Hotels erneut
+  gemeldet. Nichts wird gelöscht oder doppelt angelegt.
+
+  Beim Einspielen wird die **entpackte** Größe des Archivs begrenzt (Dateianzahl,
+  Einzel- und Gesamtgröße). Das Upload-Limit greift nur auf die komprimierte Datei — ein
+  stark komprimiertes ZIP darunter kann sich sonst auf ein Vielfaches aufblähen. Eine
+  einzelne zu große Datei wird übersprungen, ein insgesamt aufgeblähtes Archiv abgelehnt.
 - **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
   (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
   ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt

@@ -7384,6 +7384,8 @@
         if(d.settings) parts.push(d.settings+' KI-Einstellungen');
         toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
         loadOffers();
+      } else if(r.status===413){
+        toast('Backup-Datei zu groß bzw. verdächtig stark komprimiert');
       } else toast('Wiederherstellung fehlgeschlagen');
     }
 

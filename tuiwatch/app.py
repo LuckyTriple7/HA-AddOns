@@ -95,7 +95,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.107.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.108.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -495,6 +495,14 @@ def normalize_foreign_icon(raw) -> str:
 def db() -> sqlite3.Connection:
     con = sqlite3.connect(DB_PATH, timeout=15)
     con.row_factory = sqlite3.Row
+    # SQLite erzwingt FOREIGN KEY nur, wenn das Pragma je Verbindung gesetzt ist —
+    # ohne das waren die ON-DELETE-CASCADE-Regeln der Kindtabellen (price_history,
+    # offer_events, calendar_history …) reine Dokumentation. Muss vor der ersten
+    # Anweisung kommen: innerhalb einer Transaktion ist das Pragma wirkungslos.
+    # Die Löschpfade räumen ihre Kindzeilen weiterhin selbst auf; der Cascade ist
+    # das Netz für Pfade, die eine Tabelle vergessen, und gegen Waisen bei einem
+    # abgebrochenen Löschvorgang.
+    con.execute('PRAGMA foreign_keys=ON')
     return con
 
 
@@ -4181,6 +4189,7 @@ api_reset_offer = offers_routes.api_reset_offer
 api_check_now = offers_routes.api_check_now
 api_email = offers_routes.api_email
 _HISTORY_COLS = offers_routes._HISTORY_COLS
+_SEARCH_BACKUP_COLS = offers_routes._SEARCH_BACKUP_COLS
 _EVENT_COLS = offers_routes._EVENT_COLS
 _OFFER_RESTORE_COLS = offers_routes._OFFER_RESTORE_COLS
 api_compare_start = offers_routes.api_compare_start

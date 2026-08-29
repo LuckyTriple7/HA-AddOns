@@ -562,8 +562,17 @@ def api_search_email():
     return jsonify({'sent': True, 'to': to, 'count': len(rows)})
 
 
-_HISTORY_COLS = ('ts', 'price', 'old_price', 'discount', 'available', 'ok', 'note')
+# Spalten des Preisverlaufs, die ins Backup wandern (einziger Nutzer dieser Liste).
+# price_hotel/price_flight_* (Preis-Split) und vac_ok (Ergebnis der
+# Verfügbarkeitsprüfung, v0.69.0) kamen per Migration dazu und fehlten hier —
+# ein Restore hat den Verlauf dadurch stillschweigend abgeflacht.
+_HISTORY_COLS = ('ts', 'price', 'old_price', 'discount', 'available', 'ok', 'note',
+                 'price_hotel', 'price_flight_out', 'price_flight_ret', 'vac_ok')
 _EVENT_COLS = ('ts', 'type', 'text')
+# Spalten einer gespeicherten Suche fürs Backup — inklusive der Suchabo-Felder,
+# die früher fehlten (siehe _build_backup_zip).
+_SEARCH_BACKUP_COLS = ('name', 'payload', 'ts', 'watch', 'max_price', 'last_checked',
+                       'seen', 'hits')
 # Feste Whitelist der beim Restore einspielbaren Angebots-Spalten (Spaltennamen kommen
 # damit NIE aus den Backup-Daten → keine per String gebaute Query aus Nutzerquellen).
 _OFFER_RESTORE_COLS = (
