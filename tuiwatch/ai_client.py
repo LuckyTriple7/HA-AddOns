@@ -159,6 +159,26 @@ def _ai_request_messages(api_key: str, model: str, messages: list[dict], *, max_
                                           output_schema=output_schema)
 
 
+def _perplexity_error_detail(exc: requests.RequestException) -> str:
+    """Antwortkoerper eines fehlgeschlagenen Perplexity-Aufrufs, gekuerzt, als
+    Anhang fuer die Log-Zeile.
+
+    Ohne ihn steht bei einem 400 nur „Bad Request for url: ..." im Log — welches
+    Feld die API beanstandet, sagt allein der Koerper. Der Koerper enthaelt nur
+    die Fehlerbeschreibung der API (kein Schluessel; der steckt im Header), er
+    darf daher ins Log."""
+    resp = getattr(exc, 'response', None)
+    if resp is None:
+        return ''
+    try:
+        body = (resp.text or '').strip()
+    except (ValueError, UnicodeDecodeError, OSError):
+        return ''
+    if not body:
+        return ''
+    return ' — Antwort: ' + (body[:800] + '…' if len(body) > 800 else body)
+
+
 def _perplexity_reported_cost(usage_obj: dict, *, log_ctx: str = ''):
     """Tatsaechliche Kosten dieses Aufrufs in USD aus `usage.cost.total_cost`,
     oder `None`, wenn die Antwort keine brauchbare Zahl liefert.
@@ -245,7 +265,8 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        A.log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
+        A.log.warning("KI-Anfrage fehlgeschlagen (%s): %s%s", log_ctx, e,
+                      _perplexity_error_detail(e))
         return None, None, 'failed'
     except ValueError as e:
         A.log.error("KI-Antwort (%s) kein gültiges JSON: %s", log_ctx, e)

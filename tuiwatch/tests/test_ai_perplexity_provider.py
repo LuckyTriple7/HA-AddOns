@@ -207,6 +207,35 @@ def test_perplexity_http_error_returns_failed_code(app_mod, monkeypatch):
     assert err == "failed"
 
 
+def test_perplexity_http_error_logs_the_response_body(app_mod, monkeypatch, caplog):
+    """Ein 400 sagt fuer sich genommen nur „Bad Request" — welches Feld die API
+    beanstandet, steht allein im Antwortkoerper. Ohne ihn im Log ist der Fehler
+    nicht diagnostizierbar."""
+    err_resp = _FakeResponse(status_code=400)
+    err_resp.text = '{"error": {"message": "unknown field: preset"}}'
+    exc = requests.HTTPError("400 Client Error: Bad Request")
+    exc.response = err_resp
+    _patch_requests(monkeypatch, _FakeResponse(status_code=400, raise_exc=exc))
+    with caplog.at_level("WARNING"):
+        _text, _usage, code = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                                  max_tokens=200, log_ctx="Test")
+    assert code == "failed"
+    assert "unknown field: preset" in " ".join(r.getMessage() for r in caplog.records)
+
+
+def test_perplexity_error_without_a_body_still_logs(app_mod, monkeypatch, caplog):
+    """Verbindungsfehler haben gar keine Antwort — das darf beim Loggen nicht
+    seinerseits krachen."""
+    def fake_post(*a, **kw):
+        raise requests.ConnectionError("keine Verbindung")
+    monkeypatch.setattr(requests, "post", fake_post)
+    with caplog.at_level("WARNING"):
+        _text, _usage, code = app_mod._ai_request("p-key", "sonar", "Prompt",
+                                                  max_tokens=200, log_ctx="Test")
+    assert code == "failed"
+    assert "keine Verbindung" in " ".join(r.getMessage() for r in caplog.records)
+
+
 def test_perplexity_connection_error_returns_failed_code(app_mod, monkeypatch):
     def fake_post(*a, **kw):
         raise requests.ConnectionError("boom")

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.108.1
+
+- 🔍 **Fehlgeschlagene Perplexity-Aufrufe schreiben jetzt die Antwort der API ins Log.** Bisher stand dort bei einem Fehler nur „400 Client Error: Bad Request" — welches Feld die API beanstandet, sagt allein der Antwortkörper. Ohne ihn war so ein Fehler nicht zu diagnostizieren.
+
 ## 0.108.0
 
 - 📦 **Das Backup war nicht so vollständig, wie es hieß.** Gespeicherte Suchen verloren ihr komplettes Suchabo (beobachten ja/nein, Schwellenpreis, bereits gemeldete Hotels), der Preisverlauf seinen Preis-Split und die Verfügbarkeitsprüfung, der KI-Verlauf seine Zuordnung zum Angebot (und damit den Buchungsscore-Verlauf). Anhänge und Packlisten von Reisen **ohne Buchungsnummer** fielen ganz heraus. Alles davon ist jetzt drin.
