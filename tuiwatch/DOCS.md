@@ -246,12 +246,14 @@ Wechsel der Flugvariante den Preis springen lässt, wie beim Zimmerwechsel.
 > Add-on-Start an — das ist eine Schätzung auf Basis der Token-Zahlen,
 > **kein echtes Guthaben** und keine Abbuchung durch TUIWatch selbst; das
 > tatsächliche Guthaben/die Abrechnung zeigt nur die jeweilige
-> Anbieter-Console. Perplexity berechnet zusätzlich eine Request-Gebühr pro
-> Anfrage **mit** Websuche, gestaffelt nach Such-Kontextgröße — TUIWatch fragt
-> dafür immer die günstigste Stufe (`low`) an und rechnet genau diese feste
-> Gebühr mit in die Kostenschätzung ein. Aufrufe ohne Websuche kosten die Gebühr
-> nicht; die Schätzung zieht sie dort trotzdem ab, liegt also eher etwas zu hoch
-> als zu niedrig.
+> Anbieter-Console. **Bei Perplexity ist es keine Schätzung mehr:** die Agent
+> API rechnet jeden Aufruf selbst ab und liefert den Betrag mit (Token-, Cache-
+> und Suchkosten zusammen) — TUIWatch übernimmt diese Zahl unverändert. Nur
+> falls Perplexity sie einmal nicht mitschickt, greift ersatzweise die alte
+> Schätzung: Preistabelle plus die feste Request-Gebühr, die pro Anfrage **mit**
+> Websuche anfällt (gestaffelt nach Such-Kontextgröße, TUIWatch fragt immer die
+> günstigste Stufe `low` an). Diese Ersatzschätzung liegt eher etwas zu hoch als
+> zu niedrig, weil sie die Gebühr auch bei Aufrufen ohne Websuche ansetzt.
 
 Mit hinterlegtem API-Key (`anthropic_api_key`, `gemini_api_key` oder
 `perplexity_api_key`, je nach `ai_provider`) erscheinen zusätzliche

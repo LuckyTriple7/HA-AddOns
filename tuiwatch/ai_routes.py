@@ -356,32 +356,62 @@ _AI_PERPLEXITY_REQUEST_FEE = {
 }
 
 
-def _ai_call_cost(model: str, usage: dict) -> float:
-    """Geschätzte Kosten (USD) für genau diesen einen Aufruf."""
+def _ai_estimated_call_cost(model: str, input_tokens: int, output_tokens: int,
+                            cache_read: int, cache_creation: int, calls: int) -> float:
+    """Kostenschätzung (USD) aus Preistabelle und pauschaler Request-Gebühr —
+    der Weg für alles, was keine echten Kosten mitliefert (Claude, Gemini, und
+    Perplexity-Aufrufe von vor der Agent-API-Umstellung)."""
     price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
-    cost = usage.get('input_tokens', 0) / 1_000_000 * price['input']
-    cost += usage.get('output_tokens', 0) / 1_000_000 * price['output']
-    cost += usage.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
-    cost += usage.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
-    cost += _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
-    return round(cost, 4)
+    cost = input_tokens / 1_000_000 * price['input']
+    cost += output_tokens / 1_000_000 * price['output']
+    cost += cache_read / 1_000_000 * price['input'] * 0.1
+    cost += cache_creation / 1_000_000 * price['input'] * 1.25
+    cost += calls * _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
+    return cost
+
+
+def _ai_call_cost(model: str, usage: dict) -> float:
+    """Kosten (USD) für genau diesen einen Aufruf.
+
+    Perplexitys Agent API rechnet den Aufruf selbst ab und liefert das Ergebnis
+    als `cost_usd` mit (Token- **und** Suchgebühr, siehe
+    `ai_client.py::_perplexity_reported_cost`). Dann ist das die echte Zahl und
+    die Schätzung wird nicht gebraucht — bei allem anderen bleibt es bei der
+    Schätzung aus Preistabelle und Request-Gebühr."""
+    reported = usage.get('cost_usd')
+    if isinstance(reported, (int, float)) and not isinstance(reported, bool):
+        return round(float(reported), 4)
+    return round(_ai_estimated_call_cost(
+        model, usage.get('input_tokens', 0), usage.get('output_tokens', 0),
+        usage.get('cache_read_input_tokens', 0),
+        usage.get('cache_creation_input_tokens', 0), 1), 4)
 
 
 def _ai_usage_calc(models: dict) -> dict:
-    """Verrechnet ein {model: counters}-Dict zu Aufrufen/Tokens/geschätzten
-    Kosten (USD), je Modell mit eigenem Preis (siehe _AI_PRICING) plus — bei
-    Perplexity — der pauschalen Request-Gebühr je Aufruf (siehe
-    _AI_PERPLEXITY_REQUEST_FEE)."""
+    """Verrechnet ein {model: counters}-Dict zu Aufrufen/Tokens/Kosten (USD).
+
+    Ein Bucket kann gemischt sein: Perplexity-Aufrufe über die Agent API bringen
+    ihre echten Kosten mit (in `cost_usd` aufsummiert), Claude/Gemini und alte
+    Perplexity-Aufrufe von vor der Umstellung nicht. Damit beides nebeneinander
+    stimmt, merkt sich der Bucket zusätzlich, welche Aufrufe und Tokens schon
+    abgerechnet sind (`cost_calls`/`cost_*_tokens`, siehe
+    `_record_ai_usage_bucket`) — geschätzt wird nur noch der Rest. Ohne diese
+    Trennung würden abgerechnete Aufrufe doppelt zählen, und ein über die
+    Umstellung hinweg gewachsener Gesamtzähler müsste dauerhaft schätzen."""
     cost = 0.0
     calls = input_tokens = output_tokens = 0
     for model, t in models.items():
-        price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
         n_calls = t.get('calls', 0)
-        cost += t.get('input_tokens', 0) / 1_000_000 * price['input']
-        cost += t.get('output_tokens', 0) / 1_000_000 * price['output']
-        cost += t.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
-        cost += t.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
-        cost += n_calls * _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
+        cost += t.get('cost_usd', 0.0) or 0.0
+        cost += _ai_estimated_call_cost(
+            model,
+            max(t.get('input_tokens', 0) - t.get('cost_input_tokens', 0), 0),
+            max(t.get('output_tokens', 0) - t.get('cost_output_tokens', 0), 0),
+            max(t.get('cache_read_input_tokens', 0)
+                - t.get('cost_cache_read_input_tokens', 0), 0),
+            max(t.get('cache_creation_input_tokens', 0)
+                - t.get('cost_cache_creation_input_tokens', 0), 0),
+            max(n_calls - t.get('cost_calls', 0), 0))
         calls += n_calls
         input_tokens += t.get('input_tokens', 0)
         output_tokens += t.get('output_tokens', 0)
@@ -420,7 +450,13 @@ def _record_ai_usage_bucket(meta_key: str, id_field: str | None, current_id: str
     """Addiert einen KI-Aufruf zu einem Zähler-Bucket in `meta`. Für periodische
     Buckets (id_field gesetzt, z. B. 'date'/'month') wird bei Periodenwechsel auf
     0 zurückgesetzt statt unbegrenzt zu wachsen; für den Gesamt-Bucket (id_field
-    None) bleibt das bisherige flache {model: counters}-Format erhalten."""
+    None) bleibt das bisherige flache {model: counters}-Format erhalten.
+
+    Meldet der Anbieter echte Kosten (`usage['cost_usd']`, nur Perplexity über die
+    Agent API), werden sie zusammen mit den Tokens und dem Aufruf, für die sie
+    gelten, in `cost_*`-Feldern mitgeschrieben. `_ai_usage_calc` schätzt dann nur
+    noch den nicht abgerechneten Rest des Buckets. Alte Buckets ohne diese Felder
+    verhalten sich unverändert (alles geschätzt)."""
     try:
         stored = json.loads(A._meta_get(meta_key) or '{}')
     except (TypeError, ValueError):
@@ -434,10 +470,17 @@ def _record_ai_usage_bucket(meta_key: str, id_field: str | None, current_id: str
     t = models.setdefault(model, {'input_tokens': 0, 'output_tokens': 0,
                                    'cache_creation_input_tokens': 0,
                                    'cache_read_input_tokens': 0, 'calls': 0})
-    for key in ('input_tokens', 'output_tokens', 'cache_creation_input_tokens',
-                'cache_read_input_tokens'):
-        t[key] += usage.get(key, 0)
-    t['calls'] += 1
+    token_keys = ('input_tokens', 'output_tokens', 'cache_creation_input_tokens',
+                  'cache_read_input_tokens')
+    for key in token_keys:
+        t[key] = t.get(key, 0) + usage.get(key, 0)
+    t['calls'] = t.get('calls', 0) + 1
+    reported = usage.get('cost_usd')
+    if isinstance(reported, (int, float)) and not isinstance(reported, bool):
+        t['cost_usd'] = round(t.get('cost_usd', 0.0) + float(reported), 6)
+        t['cost_calls'] = t.get('cost_calls', 0) + 1
+        for key in token_keys:
+            t['cost_' + key] = t.get('cost_' + key, 0) + usage.get(key, 0)
     A._meta_set(meta_key, json.dumps(stored))
 
 

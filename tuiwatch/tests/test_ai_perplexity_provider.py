@@ -59,7 +59,7 @@ def _sources(*urls, start_id=1):
 
 def _agent_payload(text="Antwort", status="completed", input_tokens=100,
                    output_tokens=50, web_searches=0, results=None,
-                   extra_steps=()):
+                   extra_steps=(), cost=None):
     """Agent-API-Antwort: `output` ist ein Array typisierter Schritte, der Text
     steckt als `output_text`-Teil im `message`-Schritt."""
     output = [{"type": "message", "role": "assistant", "status": "completed",
@@ -67,12 +67,14 @@ def _agent_payload(text="Antwort", status="completed", input_tokens=100,
     if results is not None:
         output.append({"type": "search_results", "results": results})
     output.extend(extra_steps)
+    usage = {"input_tokens": input_tokens, "output_tokens": output_tokens,
+             "total_tokens": input_tokens + output_tokens,
+             "tool_calls_details": {"web_search": web_searches}}
+    if cost is not None:
+        usage["cost"] = cost
     return {
         "id": "resp_test", "object": "response", "status": status,
-        "model": "perplexity/sonar-pro", "output": output,
-        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens,
-                  "total_tokens": input_tokens + output_tokens,
-                  "tool_calls_details": {"web_search": web_searches}},
+        "model": "perplexity/sonar-pro", "output": output, "usage": usage,
     }
 
 
@@ -380,6 +382,107 @@ def test_ai_usage_calc_multiplies_perplexity_fee_by_calls(app_mod):
                             "calls": 3}}
     result = app_mod._ai_usage_calc(models)
     assert result["estimated_usd"] == pytest.approx(0.018)  # 3 × 0.006
+
+
+# -- Echte Kosten aus der Agent API statt Schaetzung ------------------------
+
+def test_perplexity_reports_real_cost_in_usage(app_mod, monkeypatch):
+    """Die Agent API rechnet den Aufruf selbst ab; `total_cost` deckt Token- UND
+    Tool-/Suchkosten ab und ersetzt damit unsere Schaetzung."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(cost={
+        "currency": "USD", "input_cost": 0.00409, "output_cost": 0.01316,
+        "cache_read_cost": 0.00045, "tool_calls_cost": 0.0025, "total_cost": 0.0202})))
+    _text, usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                            max_tokens=200, log_ctx="Test")
+    assert err is None
+    assert usage["cost_usd"] == pytest.approx(0.0202)
+    assert app_mod._ai_call_cost("sonar-pro", usage) == pytest.approx(0.0202)
+
+
+def test_perplexity_without_cost_block_falls_back_to_estimate(app_mod, monkeypatch):
+    """Perplexity garantiert das Feld nirgends fuer jedes Modell — fehlt es, muss
+    die alte Schaetzung greifen statt eine Luecke zu hinterlassen."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        input_tokens=1_000_000, output_tokens=0)))
+    _text, usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert "cost_usd" not in usage
+    assert app_mod._ai_call_cost("sonar", usage) == pytest.approx(1.005)
+
+
+def test_perplexity_ignores_cost_in_other_currency(app_mod, monkeypatch):
+    """Die gesamte Kostenanzeige ist in USD — eine fremde Waehrung ungeprueft zu
+    uebernehmen waere schlicht ein falscher Betrag."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        cost={"currency": "EUR", "total_cost": 0.5})))
+    _text, usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert "cost_usd" not in usage
+
+
+def test_perplexity_ignores_unusable_total_cost(app_mod, monkeypatch):
+    _patch_requests(monkeypatch, _FakeResponse(payload=_agent_payload(
+        cost={"currency": "USD", "total_cost": None})))
+    _text, usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert "cost_usd" not in usage
+
+
+def test_ai_call_cost_prefers_reported_over_estimate(app_mod):
+    """Gemeldete Kosten sind die echte Zahl — die Schaetzung darf nicht zusaetzlich
+    obendrauf kommen, auch nicht die pauschale Request-Gebuehr."""
+    usage = {"input_tokens": 1_000_000, "output_tokens": 0,
+             "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+             "cost_usd": 0.0202}
+    assert app_mod._ai_call_cost("sonar", usage) == pytest.approx(0.0202)
+
+
+def test_usage_bucket_records_the_settled_share(app_mod):
+    """Der Bucket merkt sich, welche Aufrufe und Tokens schon abgerechnet sind —
+    ohne das wuerden sie in _ai_usage_calc ein zweites Mal geschaetzt."""
+    app_mod._record_ai_usage("sonar-pro", {
+        "input_tokens": 1000, "output_tokens": 200,
+        "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+        "cost_usd": 0.02})
+    stored = json.loads(app_mod._meta_get("ai_usage_totals"))["sonar-pro"]
+    assert stored["calls"] == 1 and stored["cost_calls"] == 1
+    assert stored["cost_usd"] == pytest.approx(0.02)
+    assert stored["cost_input_tokens"] == 1000
+    assert stored["cost_output_tokens"] == 200
+
+
+def test_usage_calc_uses_real_cost_for_settled_calls(app_mod):
+    models = {"sonar-pro": {"input_tokens": 1000, "output_tokens": 200,
+                            "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                            "calls": 1, "cost_usd": 0.02, "cost_calls": 1,
+                            "cost_input_tokens": 1000, "cost_output_tokens": 200,
+                            "cost_cache_creation_input_tokens": 0,
+                            "cost_cache_read_input_tokens": 0}}
+    # Nur die gemeldeten 0.02 — keine Token-Schaetzung, keine Request-Gebuehr.
+    assert app_mod._ai_usage_calc(models)["estimated_usd"] == pytest.approx(0.02)
+
+
+def test_usage_calc_mixes_settled_and_estimated_calls(app_mod):
+    """Ein ueber die Umstellung hinweg gewachsener Zaehler enthaelt beides. Der
+    abgerechnete Teil zaehlt echt, der Rest wird weiter geschaetzt."""
+    models = {"sonar": {"input_tokens": 1_000_000 + 500, "output_tokens": 0,
+                        "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                        "calls": 2, "cost_usd": 0.01, "cost_calls": 1,
+                        "cost_input_tokens": 500, "cost_output_tokens": 0,
+                        "cost_cache_creation_input_tokens": 0,
+                        "cost_cache_read_input_tokens": 0}}
+    # 0.01 echt + Schaetzung fuer den Rest (1M input = $1 + 0.005 Gebuehr).
+    assert app_mod._ai_usage_calc(models)["estimated_usd"] == pytest.approx(1.015)
+
+
+def test_usage_calc_unchanged_for_legacy_buckets(app_mod):
+    """Buckets von vor der Umstellung haben keine cost_*-Felder — sie muessen sich
+    exakt wie bisher verhalten."""
+    models = {"sonar-pro": {"input_tokens": 1_000_000, "output_tokens": 1_000_000,
+                            "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                            "calls": 1}}
+    # $3 input + $15 output + 0.006 Gebuehr
+    assert app_mod._ai_usage_calc(models)["estimated_usd"] == pytest.approx(18.006)
 
 
 def test_history_repeat_accepts_perplexity_provider(app_mod, monkeypatch):

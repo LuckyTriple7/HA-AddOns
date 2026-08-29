@@ -159,6 +159,34 @@ def _ai_request_messages(api_key: str, model: str, messages: list[dict], *, max_
                                           output_schema=output_schema)
 
 
+def _perplexity_reported_cost(usage_obj: dict, *, log_ctx: str = ''):
+    """Tatsaechliche Kosten dieses Aufrufs in USD aus `usage.cost.total_cost`,
+    oder `None`, wenn die Antwort keine brauchbare Zahl liefert.
+
+    `total_cost` deckt laut Doku Ein-/Ausgabe-Token, Cache UND Tool-Aufrufe ab
+    (im Beispiel dort: 0.00409 + 0.01316 + 0.00045 + 0.0025 = 0.0202) — es ist
+    also der volle Aufruf inklusive Suchgebuehr und nicht nur der Token-Anteil.
+    Perplexity garantiert das Feld nirgends fuer jedes Modell, deshalb ist es
+    optional behandelt statt vorausgesetzt.
+
+    Eine andere Waehrung als USD wird verworfen statt umgerechnet: die gesamte
+    Kostenanzeige ist in USD, ein ungepruefter Zahlenwert waere schlicht falsch."""
+    cost = usage_obj.get('cost')
+    if not isinstance(cost, dict):
+        return None
+    currency = cost.get('currency')
+    if currency is not None and str(currency).upper() != 'USD':
+        A.log.warning("Perplexity (%s) meldet Kosten in %s statt USD — "
+                      "Schaetzung wird beibehalten", log_ctx or 'KI-Antwort', currency)
+        return None
+    total = cost.get('total_cost')
+    if isinstance(total, bool) or not isinstance(total, (int, float)):
+        return None
+    if total < 0:
+        return None
+    return float(total)
+
+
 def _ai_request_perplexity(api_key: str, model: str, prompt: str, *, max_tokens: int,
                            log_ctx: str, use_web_search: bool = True,
                            output_schema: dict | None = None):
@@ -258,6 +286,15 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
              'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0,
              'web_search_requests': (tools.get('web_search', 0) or 0)
              if isinstance(tools, dict) else 0}
+    # Die Agent API rechnet den Aufruf selbst ab und liefert das Ergebnis mit —
+    # `total_cost` enthaelt neben den Token- auch die Tool-/Suchkosten. Damit
+    # ersetzt eine gemeldete Zahl unsere Schaetzung aus Preistabelle plus
+    # pauschaler Request-Gebuehr (siehe `ai_routes.py::_ai_call_cost`). Fehlt das
+    # Feld oder ist es unbrauchbar, bleibt es bei der Schaetzung — deshalb hier
+    # streng pruefen und im Zweifel gar nichts setzen.
+    reported = _perplexity_reported_cost(u, log_ctx=log_ctx)
+    if reported is not None:
+        usage['cost_usd'] = reported
     # Quellen-URLs durchreichen: bei Structured Output stecken Perplexitys nackte
     # Marker („[7][11]") in den JSON-Strings und lassen sich erst nach dem Parsen
     # verlinken — ohne die Liste bliebe dort toter Text stehen.

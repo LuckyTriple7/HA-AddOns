@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.107.0
+
+- 💰 **Perplexity-Kosten sind jetzt der echte Betrag statt einer Schätzung.** Die Agent API rechnet jeden Aufruf selbst ab und liefert die Summe aus Token-, Cache- und Suchkosten mit — TUIWatch zeigt diese Zahl unverändert an, statt sie aus der Preisliste hochzurechnen. Bei Claude und Gemini bleibt es bei der Schätzung, dort liefert die API keine Kosten mit.
+- 📊 **Tages-, Monats- und Gesamtsumme rechnen gemischt korrekt.** Zähler, die über die Umstellung hinweg gewachsen sind, enthalten beides: abgerechnete und geschätzte Aufrufe. TUIWatch merkt sich jetzt, welcher Teil schon abgerechnet ist, und schätzt nur noch den Rest — sonst würden die echten Kosten ein zweites Mal obendrauf geschätzt. Bestehende Zähler bleiben gültig, nichts wird zurückgesetzt.
+
 ## 0.106.0
 
 - ✨ **Perplexity läuft jetzt über die Agent API.** Die bisher genutzte Sonar-Schnittstelle wird von Perplexity nur noch bis zum 27.09.2026 unterstützt — danach hätten alle KI-Funktionen mit Perplexity-Key aufgehört zu arbeiten. Die Modellauswahl (`sonar`, `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`), die Kostenanzeige und die gespeicherte Nutzungsstatistik bleiben unverändert; es ist nichts umzustellen.
