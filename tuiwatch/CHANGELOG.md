@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.3
+
+- 📋 **Der Markdown-Knopf bei KI-Antworten kopiert jetzt, statt eine Datei herunterzuladen.** Genau wie bei Klimatabelle und Reiseführer landet der Text direkt in der Zwischenablage und lässt sich sofort einfügen — auf einer eigenen Seite, in einer Notiz oder im Wiki. Der Umweg über eine `.md`-Datei im Download-Ordner ist damit weg; auf dem Handy war er ohnehin kaum zu gebrauchen. Betrifft alle KI-Fenster, also auch den Regionen-Vergleich.
+- 🧹 Im Ladehinweis des Reiseführers stand „dreizehn Abschnitte“ — die Zahl war fest eingetragen und längst überholt. Sie ist jetzt raus.
+- ✅ Ein neuer Test prüft, dass jeder Knopf in der Oberfläche auch eine Funktion hat, die es wirklich gibt. Ein umbenannter Handler fällt sonst erst beim Klick auf — und dann passiert einfach nichts.
+
 ## 0.113.2
 
 - ⚡ **Die Angebotsliste lädt rund doppelt so schnell.** Für die „Kalender hat sich geändert"-Markierung wurde bisher je Angebot der komplette Kalender-Verlauf aus der Datenbank geholt und im Speicher durchgerechnet — gebraucht wurde davon nur ein einziger Zeitstempel. Das erledigt jetzt eine Abfrage für alle Angebote zusammen. Gemessen an einer Testdatenbank: 17,7 ms → 8,4 ms pro Abruf, und die Liste holt sich jeder offene Browser alle 5 Sekunden. Je länger ein Angebot beobachtet wird, desto größer der Unterschied.

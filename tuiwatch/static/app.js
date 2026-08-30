@@ -4340,7 +4340,7 @@
     // ── Reiseführer (KI) ──────────────────────────────────────────────────────
     // Genau wie die Klimatabelle: einmal je Ziel erzeugt, dauerhaft gespeichert,
     // Neuerstellung nur auf Knopfdruck. Der Reiseführer ist der teuerste Einzelaufruf
-    // im Add-on — dreizehn Abschnitte plus zwanzig Vokabeln. Anders als beim Klima
+    // im Add-on — viele Abschnitte plus zwanzig Vokabeln. Anders als beim Klima
     // wird hier NICHT im Hintergrund vorgeladen: die Tabelle entsteht nebenbei nach
     // jeder Suche, ein Reiseführer je gesuchtem Ziel wäre Geldverbrennung.
     let guideData = null;        // {giata,label,ts,model,data,climate}
@@ -4390,7 +4390,7 @@
           if(!aiEnabled()) return null;
         }
         const busy = aiProviderName()+' stellt den Reiseführer zusammen — das dauert '
-          + 'eine Weile (dreizehn Abschnitte)…';
+          + 'eine Weile…';
         $('#guide-body').innerHTML = progBar(busy);
         const body = {giata, label, refresh};
         // Wie beim Klima-Fenster: bei aktiver Prompt-Vorschau muss die Vorschau HIER
@@ -5491,42 +5491,27 @@
     // bei jeder Folgefrage erweitert.
     let _aiMdParts = [];
 
-    // Dateiname aus Titel und Untertitel: „Regionen-Vergleich · Malediven · …"
-    // -> „regionen-vergleich-malediven-….md". Umlaute werden ersetzt statt
-    // entfernt, sonst wird aus „Ägypten" ein „gypten".
-    function aiExportFilename(title, sub){
-      const map = {'ä':'ae','ö':'oe','ü':'ue','Ä':'ae','Ö':'oe','Ü':'ue','ß':'ss'};
-      const slug = (title + ' ' + sub)
-        .replace(/[äöüÄÖÜß]/g, c => map[c])
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 80);
-      const d = new Date();
-      const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0')
-                  + String(d.getDate()).padStart(2,'0');
-      return (slug || 'ki-antwort') + '-' + stamp + '.md';
+    // Markdown der aktuell gezeigten Antwort (Regionen-Vergleich, KI-Fazit,
+    // Kalender-Analyse ...) zusammensetzen: Titel und Untertitel als Kopf, darunter
+    // der bereits als Markdown vorliegende Antworttext samt Folgefragen.
+    function aiMarkdown(){
+      const md = (_aiMdParts || []).filter(Boolean).join('\n\n').trim();
+      if(!md) return '';
+      const title = ($('#ai-title').textContent || '').trim();
+      const sub = ($('#ai-sub').textContent || '').trim();
+      const head = (title ? '# ' + title + '\n\n' : '')
+                 + (sub ? '_' + sub + '_\n\n' : '');
+      return head + md + '\n';
     }
 
-    function exportAiMarkdown(){
-      const md = (_aiMdParts || []).filter(Boolean).join('\n\n');
-      if(!md){ toast('Nichts zum Exportieren'); return; }
-      const title = $('#ai-title').textContent, sub = $('#ai-sub').textContent;
-      const head = '# ' + title + (sub ? '\n\n*' + sub + '*' : '')
-                 + '\n\n<!-- TUIWatch, ' + new Date().toLocaleString('de-DE') + ' -->\n\n';
-      // Ueber ein Blob statt eines data:-Links: der Text enthaelt Umlaute und kann
-      // mehrere hundert KB gross werden, beides vertraegt eine URL schlecht.
-      const blob = new Blob([head + md + '\n'], {type: 'text/markdown;charset=utf-8'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = aiExportFilename(title, sub);
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Erst nach dem Klick freigeben, sonst bricht der Download in manchen
-      // Browsern ab, bevor er begonnen hat.
-      setTimeout(()=>URL.revokeObjectURL(url), 10000);
+    // Bewusst Zwischenablage statt Datei-Download, genau wie copyClimateMd und
+    // copyGuideMd: der Text soll direkt irgendwo eingefuegt werden, meist auf einer
+    // Webseite. Der Umweg ueber eine .md-Datei im Download-Ordner bringt dafuer
+    // nichts -- und unter iOS/Android ist so ein Download kaum weiterzuverwenden.
+    function copyAiMd(){
+      const md = aiMarkdown();
+      if(!md){ toast('Nichts zum Kopieren'); return; }
+      copyText(md, 'Als Markdown kopiert');
     }
 
     function exportAiPdf(){

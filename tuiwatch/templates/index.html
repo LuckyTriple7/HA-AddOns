@@ -717,7 +717,7 @@
     .clim tr.clim-sel td { font-weight:600; }
     .clim .clim-note { color:var(--muted); font-size:var(--fs-sm); }
     .clim-best { color:var(--green); font-weight:600; }
-    /* Reiseführer: dreizehn Abschnitte mit Label/Wert-Paaren. Sprungmarken oben,
+    /* Reiseführer: Abschnitte mit Label/Wert-Paaren. Sprungmarken oben,
        weil die Liste sonst nur noch gescrollt werden kann. */
     /* Grün umrandet = zu diesem Ziel liegt schon ein Reiseführer bzw. eine
        Klimatabelle bereit, das Öffnen kostet keinen KI-Aufruf. */
@@ -1505,7 +1505,8 @@
         <span class="hint" style="flex:1;min-width:180px">Öffnet die Druckansicht — dort „Als PDF speichern" wählen.</span>
         <button class="btn sec" onclick="openAiEmailModal()"><svg class="i"><use href="#i-mail"/></svg> E-Mail senden</button>
         <button class="btn sec" onclick="exportAiPdf()"><svg class="i"><use href="#i-doc"/></svg> PDF exportieren</button>
-        <button class="btn sec" onclick="exportAiMarkdown()"><svg class="i"><use href="#i-download"/></svg> Markdown</button>
+        <button class="btn sec" onclick="copyAiMd()"
+                title="Antwort als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung oder auf einer Webseite"><svg class="i"><use href="#i-clipboard"/></svg> Markdown</button>
       </div>
     </div>
   </div>

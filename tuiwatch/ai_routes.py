@@ -1949,7 +1949,7 @@ def api_climate_delete(giata: int):
 # ── Reiseführer je Reiseziel ──────────────────────────────────────────────────
 # Dieselbe Bauart wie die Klimatabelle: einmal je Ziel von der KI erzeugt, dauerhaft
 # gespeichert, Auffrischen nur auf Knopfdruck. Ein Reiseführer ist der teuerste
-# Einzelaufruf im Add-on (dreizehn Abschnitte, zwanzig Vokabeln) — ihn bei jedem
+# Einzelaufruf im Add-on (siehe _GUIDE_SECTIONS, dazu zwanzig Vokabeln) — ihn bei jedem
 # Öffnen neu zu erzeugen wäre nicht vertretbar.
 #
 # Bewusst eine generische Abschnittsstruktur statt vierzehn benannter Felder: die
@@ -2172,7 +2172,7 @@ def api_ai_guide():
     if (preview := _prompt_preview_response(data, prompt)):
         return preview
     prompt = _resolve_prompt(data, prompt)
-    # 12000 statt der 3000 der Klimatabelle: dreizehn Abschnitte plus zwanzig Vokabeln
+    # 12000 statt der 3000 der Klimatabelle: alle _GUIDE_SECTIONS plus zwanzig Vokabeln
     # sprengen jedes kleinere Budget, und eine abgeschnittene Antwort ist kein
     # gültiges JSON — der Aufruf wäre komplett verloren.
     text, usage, code = A._ai_request(api_key, model, prompt, max_tokens=12000,
