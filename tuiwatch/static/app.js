@@ -3799,6 +3799,10 @@
     async function fetchClimate(giata, label, {refresh=false, silent=false}={}){
       if(climateBusy) return null;
       climateBusy = true;
+      // Waehrend des Abrufs sind Drucken/Markdown/E-Mail wirkungslos und „Erstellt am
+      // …" zeigt noch den alten Stand. Die Fusszeile kommt in `finally` zurueck, also
+      // auch nach einem Fehler — sonst fehlte der Knopf zum erneuten Versuch.
+      if(!silent) $('#climate-foot').style.display = 'none';
       try {
         // Ohne refresh zuerst der billige Weg: gespeicherte Tabelle, kein KI-Aufruf.
         if(!refresh){
@@ -3863,7 +3867,10 @@
       } catch(e){
         if(!silent) $('#climate-body').innerHTML = aiErrorBlock('Klimadaten konnten nicht geladen werden.', false);
         return null;
-      } finally { climateBusy = false; }
+      } finally {
+        climateBusy = false;
+        if(!silent) $('#climate-foot').style.display = '';
+      }
     }
     // Zwei Panels übereinander mit gemeinsamer Monatsachse: Temperaturen (°C) als
     // Linien, Regentage als Säulen. Bewusst NICHT zwei y-Achsen in einem Bild —
@@ -4172,6 +4179,7 @@
       $('#climate-stand').textContent = when
         ? `Langjährige Mittelwerte · erstellt am ${when}${d.model ? ' mit '+d.model : ''}`
         : '';
+      $('#climate-foot').style.display = '';
     }
     // Das Ziel, dessen Tabelle gerade angezeigt wird — nicht zwingend das der
     // Suchmaske: von der Hauptseite aus wird eines aus der gespeicherten Liste
@@ -4290,7 +4298,8 @@
       if(giata == null){ climateTarget = null; climateFromSearch = false; renderClimateList(); return; }
       climateTarget = {giata, label};
       climateFromSearch = fromSearch;
-      $('#climate-foot').style.display = '';
+      // Erst beim Anzeigen einblenden (renderClimate bzw. fetchClimate-`finally`).
+      $('#climate-foot').style.display = 'none';
       $('#climate-sub').textContent = label;
       // Schon geladen (z. B. vom Auto-Abruf nach der Suche) → sofort anzeigen.
       if(climateData && climateData.giata === giata){ renderClimate(climateData); return; }
@@ -4382,6 +4391,7 @@
     async function fetchGuide(giata, label, {refresh=false}={}){
       if(guideBusy) return null;
       guideBusy = true;
+      $('#guide-foot').style.display = 'none';   // siehe fetchClimate
       try {
         if(!refresh){
           try {
@@ -4426,7 +4436,10 @@
       } catch(e){
         $('#guide-body').innerHTML = aiErrorBlock('Reiseführer konnte nicht geladen werden.', false);
         return null;
-      } finally { guideBusy = false; }
+      } finally {
+        guideBusy = false;
+        $('#guide-foot').style.display = '';
+      }
     }
 
     // Baut die Abschnitte als HTML. `plain` = Druckfassung: ohne Sprungmarken und
@@ -4507,6 +4520,7 @@
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#guide-stand').textContent = when
         ? `Erstellt am ${when}${d.model ? ' mit '+d.model : ''}` : '';
+      $('#guide-foot').style.display = '';
     }
 
     async function renderGuideList(){
@@ -4559,7 +4573,7 @@
       $('#guide-bg').classList.add('show');
       if(giata == null){ guideTarget = null; renderGuideList(); return; }
       guideTarget = {giata, label};
-      $('#guide-foot').style.display = '';
+      $('#guide-foot').style.display = 'none';   // siehe openClimate
       $('#guide-sub').textContent = label;
       if(guideData && guideData.giata === giata){ renderGuide(guideData); return; }
       $('#guide-body').innerHTML = progBar('Lade…');

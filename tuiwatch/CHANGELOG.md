@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.113.6
+
+- 🧹 **Reiseführer und Klimatabelle blenden die Knöpfe aus, solange die KI arbeitet.** Drucken, Markdown, Als E-Mail und Neu abrufen sind während des Abrufs wirkungslos — und „Erstellt am …“ zeigte daneben noch den alten Stand, was bei „Neu abrufen“ besonders verwirrend war. Die Fußzeile erscheint erst wieder, wenn das Ergebnis dasteht.
+- ℹ️ Auch nach einem Fehler kommt sie zurück, damit der Knopf für den nächsten Versuch erreichbar bleibt.
+
 ## 0.113.5
 
 - 💶 **Reiseführer und Klimatabelle zeigen jetzt, was dieser eine Abruf gekostet hat.** Also Tokenzahl und Preis des KI-Aufrufs, der genau diese Tabelle bzw. diesen Reiseführer erzeugt hat — wie beim Regionen-Vergleich. Die Zahlen werden dazu beim Erstellen mitgespeichert und stehen auch beim späteren Öffnen noch da, mit dem Zusatz „einmalig beim Erstellen“. Das Wiedersehen selbst kostet weiterhin nichts.
