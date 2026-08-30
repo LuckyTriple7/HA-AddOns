@@ -15,6 +15,9 @@
   "card_mem": "RAM used",
   "card_sys_cpu": "SYS CPU",
   "card_sys_mem": "SYS RAM",
+  "card_disk_free": "Disk free",
+  "disk_refresh_hint": "Click: recalculate container sizes now (docker system df)",
+  "disk_docker_total": "Docker total",
 
   "col_name": "Name",
   "col_status": "Status",
@@ -26,6 +29,10 @@
   "net_na_hint": "No network stats available",
   "col_disk": "DISK I/O",
   "col_pids": "PIDs",
+  "col_size": "Size",
+  "col_size_hint": "Container writable layer — everything added on top of the image (Docker logs are not counted)",
+  "size_total": "incl. image layers",
+  "size_pending": "Size not calculated yet — click the \"Disk free\" tile to start the scan",
   "col_history": "History",
   "col_actions": "Actions",
 

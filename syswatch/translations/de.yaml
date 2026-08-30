@@ -20,6 +20,9 @@ configuration:
   show_stopped:
     name: Gestoppte Container anzeigen
     description: Gestoppte/beendete Container standardmäßig in der Tabelle anzeigen. Kann auch in der UI umgeschaltet werden. Standard true.
+  size_interval:
+    name: Größenabfrage-Intervall (Minuten)
+    description: "Abstand zwischen zwei Größenabfragen (docker system df) für die Spalte „Größe“ und die Docker-Aufteilung. Die Abfrage scannt das Dateisystem und dauert je nach System einige Sekunden bis Minuten — deshalb läuft sie in einem eigenen Hintergrund-Thread. 0 = aus, Bereich 1–1440, Standard 15."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt pro Abfrage-Zyklus die Anzahl Container, Worker und Dauer im Log aus. Standard false — nur Modus-Wechsel, Fehler und Aktionen werden geloggt.
@@ -35,6 +38,9 @@ configuration:
   notify_ram_threshold:
     name: RAM-Alarm-Schwellenwert (%)
     description: "Telegram-Alarm wenn System-RAM diesen Wert überschreitet. 0 = deaktiviert. Beispiel: 85 (Alarm ab 85% RAM)."
+  notify_disk_threshold:
+    name: Speicher-Alarm-Schwellenwert (%)
+    description: "Telegram-Alarm wenn die Datenpartition zu diesem Anteil belegt ist. Die Nachricht enthält die Docker-Aufteilung (Images/Container/Volumes) und die fünf größten Container-Schichten. 0 = deaktiviert. Beispiel: 85 (Alarm ab 85% belegt)."
   notify_over_duration:
     name: Alarm-Verzögerung Überschreitung (Sekunden)
     description: "Wie lange CPU/RAM ununterbrochen über dem Schwellenwert liegen muss bevor der Alarm ausgelöst wird. 0 = sofort beim ersten Überschreiten. Beispiel: 60 = Alarm erst nach 60s dauerhafter Überlast."

@@ -15,6 +15,9 @@
   "card_mem": "RAM genutzt",
   "card_sys_cpu": "SYS CPU",
   "card_sys_mem": "SYS RAM",
+  "card_disk_free": "Speicher frei",
+  "disk_refresh_hint": "Klick: Container-Größen jetzt neu berechnen (docker system df)",
+  "disk_docker_total": "Docker gesamt",
 
   "col_name": "Name",
   "col_status": "Status",
@@ -26,6 +29,10 @@
   "net_na_hint": "Keine Netzwerkstatistik verfügbar",
   "col_disk": "DISK I/O",
   "col_pids": "PIDs",
+  "col_size": "Größe",
+  "col_size_hint": "Beschreibbare Schicht des Containers — alles, was seit dem Image dazugekommen ist (Docker-Logs zählen nicht mit)",
+  "size_total": "inkl. Image-Layer",
+  "size_pending": "Größe noch nicht berechnet — Klick auf die Kachel „Speicher frei“ startet die Abfrage",
   "col_history": "Verlauf",
   "col_actions": "Aktionen",
 

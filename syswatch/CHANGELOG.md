@@ -1,5 +1,18 @@
 # Changelog — HA SysWatch
 
+## [1.4.0] - 2026-08-30
+
+### Added
+- **Kachel „Speicher frei“**: freier Platz der HA-Datenpartition, Balken zeigt die Belegung (gleiche Farbskala wie SYS CPU/RAM). Werte kommen von der Supervisor-API (`/host/info`), Fallback `statvfs` auf `/config`, `/data`, `/`. Der Tooltip listet die Docker-Aufteilung (Images / Container / Volumes / Build-Cache) samt Zeitstempel; ein Klick startet die Größenabfrage sofort neu (`POST /api/sizes/refresh`).
+- **Spalte „Größe“** in der Container-Tabelle (sortierbar): `SizeRw`, also die beschreibbare Schicht des Containers. Tooltip nennt zusätzlich `SizeRootFs` inkl. Image-Layer. Datenquelle ist `docker system df` — die Abfrage scannt das Dateisystem und läuft deshalb in einem eigenen Hintergrund-Thread, Intervall über die neue Option `size_interval` (Standard 15 Minuten, 0 = aus).
+- **Speicher-Alarm** über die neue Option `notify_disk_threshold` (% belegt, 0 = aus). Die Telegram-Nachricht nennt Belegung, freien Platz, die Docker-Aufteilung und die fünf größten Container-Schichten — also direkt die Kandidaten, die die Platte volllaufen lassen. Auslöse- und Entwarnungsverzögerung teilen sich die bestehenden Optionen `notify_over_duration` / `notify_clear_duration`.
+
+### Changed
+- Übersichts-Kacheln kompakter (Raster ab 94 px statt 110 px, kleinere Schrift und Balken), damit die siebte Kachel in dieselbe Reihe passt. Tabellen-Padding von 10 px auf 8 px reduziert, `name-cell` von 180 px auf 170 px — die neue Spalte passt ohne zusätzliches Horizontal-Scrolling.
+
+### Note
+- Docker-**Logfiles** zählen nicht zu `SizeRw`. Ein Container kann die Platte also über sein Log füllen, ohne in der Größen-Spalte aufzufallen. Dagegen hilft nur ein Log-Limit im Docker-Daemon des Hosts (`max-size` / `max-file`) — das kann ein Add-on nicht setzen. Der Speicher-Alarm schlägt aber unabhängig von der Ursache an.
+
 ## [1.3.1] - 2026-08-22
 
 ### Fixed

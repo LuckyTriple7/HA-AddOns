@@ -73,6 +73,66 @@ sessions: dict[str, float] = {}
 _prev_cpu: tuple[int, int] = (0, 0)  # (total_ticks, idle_ticks)
 
 
+# ── Festplatte (HA-Datenpartition) ────────────────────────────────────────────
+_disk_cache: dict  = {}
+_disk_ts:    float = 0.0
+DISK_CACHE_TTL     = 60                        # Sekunden
+DISK_MOUNTS        = ('/config', '/data', '/')  # Fallback-Reihenfolge fuer statvfs
+
+
+def _read_diskinfo() -> dict:
+    """Belegung der Datenpartition. Supervisor /host/info zuerst, statvfs als Fallback."""
+    global _disk_cache, _disk_ts
+    now = time.time()
+    if _disk_cache and now - _disk_ts < DISK_CACHE_TTL:
+        return _disk_cache
+
+    out: dict = {}
+
+    # 1) Supervisor kennt die echte Datenpartition des Hosts (Werte in GiB)
+    token = _supervisor_token()
+    if token:
+        import urllib.request
+        try:
+            req = urllib.request.Request(
+                f'{SUPERVISOR_API}/host/info',
+                headers={'Authorization': f'Bearer {token}'})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                d = json.loads(resp.read()).get('data', {}) or {}
+            total = float(d.get('disk_total') or 0) * 1024 ** 3
+            free  = float(d.get('disk_free')  or 0) * 1024 ** 3
+            used  = float(d.get('disk_used')  or 0) * 1024 ** 3
+            if total > 0:
+                if used <= 0:
+                    used = total - free
+                out = {'disk_total': int(total), 'disk_used': int(used),
+                       'disk_free': int(free), 'disk_src': 'supervisor'}
+        except Exception as e:
+            log.debug("Supervisor /host/info nicht lesbar: %s", e)
+
+    # 2) Fallback: statvfs auf dem ersten erreichbaren Mount
+    if not out:
+        for mnt in DISK_MOUNTS:
+            try:
+                st = os.statvfs(mnt)
+            except Exception:
+                continue
+            total = st.f_blocks * st.f_frsize
+            free  = st.f_bavail * st.f_frsize
+            if total <= 0:
+                continue
+            out = {'disk_total': total, 'disk_used': total - free,
+                   'disk_free': free, 'disk_src': mnt}
+            break
+
+    if out:
+        out['disk_pct'] = (round(out['disk_used'] / out['disk_total'] * 100, 1)
+                           if out['disk_total'] else 0.0)
+        _disk_cache = out
+        _disk_ts    = now
+    return out
+
+
 def _read_sysinfo() -> dict:
     global _prev_cpu
     info: dict = {'cpu_pct': 0.0, 'mem_total': 0, 'mem_used': 0, 'mem_pct': 0.0}
@@ -126,6 +186,8 @@ def _read_sysinfo() -> dict:
     except Exception as e:
         log.debug("/proc/cpuinfo nicht lesbar: %s", e)
 
+    info.update(_read_diskinfo())
+
     return info
 
 
@@ -148,6 +210,10 @@ _notif_cpu_over_since: float = 0.0  # seit wann CPU über Schwellenwert (für Ve
 _notif_ram_over_since: float = 0.0
 _notif_cpu_ok_since:  float = 0.0  # seit wann CPU unter Schwellenwert (für Entwarnung)
 _notif_ram_ok_since:  float = 0.0
+_notif_disk_ts:         float = 0.0   # letzter Versand Speicher-Alert
+_notif_disk_above:      bool  = False
+_notif_disk_over_since: float = 0.0
+_notif_disk_ok_since:   float = 0.0
 NOTIF_COOLDOWN               = 600  # 10 Min Cooldown zwischen gleichen Alerts
 
 # Container-Zustandsüberwachung
@@ -536,6 +602,100 @@ def _get_supervisor_stopped_addons() -> list[dict]:
     return stopped
 
 
+# ── Container-Groessen (docker system df) ─────────────────────────────────────
+# SizeRw     = beschreibbare Schicht des Containers (das, was auf der SSD waechst)
+# SizeRootFs = SizeRw + alle Image-Layer
+# /system/df scannt das Dateisystem und ist teuer -> eigener Thread, langes Intervall.
+_size_cache:  dict = {}
+_size_totals: dict = {}
+_size_ts:     float = 0.0
+_size_lock         = threading.Lock()
+_size_running      = False
+SIZE_INTERVAL_DEFAULT = 15   # Minuten (0 = aus)
+
+
+def _size_interval_min() -> int:
+    try:
+        return max(0, min(1440, int(load_config().get('size_interval', SIZE_INTERVAL_DEFAULT))))
+    except Exception:
+        return SIZE_INTERVAL_DEFAULT
+
+
+def _refresh_container_sizes() -> bool:
+    """Liest Container-/Image-/Volume-Groessen ueber den Docker-Endpoint /system/df."""
+    global _size_cache, _size_totals, _size_ts, _size_running
+    if not _docker_available:
+        return False
+    with _size_lock:
+        if _size_running:
+            return False          # laeuft bereits (manueller Refresh + Timer)
+        _size_running = True
+    try:
+        socket_path = _find_docker_socket()
+        if not socket_path:
+            return False
+        t0 = time.time()
+        try:
+            client = docker_lib.DockerClient(base_url=f'unix://{socket_path}', timeout=300)
+            df     = client.df() or {}
+        except Exception as e:
+            log.warning("Groessenabfrage (docker df) fehlgeschlagen: %s", e)
+            return False
+
+        sizes: dict = {}
+        ctr_sum = 0
+        for c in (df.get('Containers') or []):
+            rw   = int(c.get('SizeRw') or 0)
+            root = int(c.get('SizeRootFs') or 0)
+            ctr_sum += rw
+            for raw_name in (c.get('Names') or []):
+                sizes[raw_name.lstrip('/')] = {'size_rw': rw, 'size_root': root}
+
+        vol_sum = 0
+        for v in (df.get('Volumes') or []):
+            sz = int(((v.get('UsageData') or {}).get('Size')) or 0)
+            if sz > 0:
+                vol_sum += sz
+        cache_sum = sum(int(b.get('Size') or 0) for b in (df.get('BuildCache') or []))
+        img_sum   = int(df.get('LayersSize') or 0)
+
+        totals = {'images': img_sum, 'containers': ctr_sum, 'volumes': vol_sum,
+                  'build_cache': cache_sum,
+                  'total': img_sum + ctr_sum + vol_sum + cache_sum}
+        elapsed = time.time() - t0
+        with _size_lock:
+            _size_cache  = sizes
+            _size_totals = totals
+            _size_ts     = time.time()
+        # Cache sofort in die laufende Ansicht spiegeln (sonst erst nach naechstem Scan)
+        with _stats_lock:
+            for r in _stats_cache.get('containers', []):
+                sz = sizes.get(r.get('name'))
+                r['size_rw']   = sz['size_rw']   if sz else None
+                r['size_root'] = sz['size_root'] if sz else None
+        if _verbose():
+            log.info("Groessenabfrage: %d Container | Docker gesamt %s | %.1fs",
+                     len(sizes), _fmt_bytes(totals['total']), elapsed)
+        _notify_sse()
+        return True
+    finally:
+        with _size_lock:
+            _size_running = False
+
+
+def _size_collector() -> None:
+    """Hintergrund-Thread: haelt die Container-Groessen in grossem Abstand aktuell."""
+    time.sleep(20)          # ersten Stats-Zyklus nicht ausbremsen
+    while True:
+        mins = _size_interval_min()
+        if mins:
+            try:
+                _refresh_container_sizes()
+            except Exception as e:
+                log.error("Groessen-Collector-Fehler: %s", e)
+        time.sleep(max(60, (mins or SIZE_INTERVAL_DEFAULT) * 60))
+
+
 def _update_history_and_cache(results: list, warning: str | None = None) -> None:
     ts      = time.time()
     sysinfo = _read_sysinfo()
@@ -547,6 +707,12 @@ def _update_history_and_cache(results: list, warning: str | None = None) -> None
             _history[n].append({'ts': ts, 'cpu': r['cpu_pct'], 'mem': r['mem_pct']})
     for r in results:
         r['history'] = list(_history.get(r['name'], []))
+    with _size_lock:
+        sizes = _size_cache
+    for r in results:
+        sz = sizes.get(r['name'])
+        r['size_rw']   = sz['size_rw']   if sz else None
+        r['size_root'] = sz['size_root'] if sz else None
     _tick_container_history(results)
     with _stats_lock:
         _stats_cache['containers'] = results
@@ -1021,15 +1187,16 @@ def _check_container_changes() -> None:
 
 def _check_thresholds() -> None:
     """Prüft CPU/RAM-Schwellenwerte mit konfigurierbarer Auslöse- und Entwarungsverzögerung."""
-    global _notif_cpu_ts, _notif_ram_ts
-    global _notif_cpu_above, _notif_ram_above
-    global _notif_cpu_over_since, _notif_ram_over_since
-    global _notif_cpu_ok_since, _notif_ram_ok_since
+    global _notif_cpu_ts, _notif_ram_ts, _notif_disk_ts
+    global _notif_cpu_above, _notif_ram_above, _notif_disk_above
+    global _notif_cpu_over_since, _notif_ram_over_since, _notif_disk_over_since
+    global _notif_cpu_ok_since, _notif_ram_ok_since, _notif_disk_ok_since
     now = time.time()
     cfg = load_config()
     cpu_limit   = int(cfg.get('notify_cpu_threshold',   0))
     ram_limit   = int(cfg.get('notify_ram_threshold',   0))
-    if not cpu_limit and not ram_limit:
+    disk_limit  = int(cfg.get('notify_disk_threshold',  0))
+    if not cpu_limit and not ram_limit and not disk_limit:
         return
     over_delay  = max(0, int(cfg.get('notify_over_duration',  0)))
     clear_delay = max(0, int(cfg.get('notify_clear_duration', 120)))
@@ -1108,6 +1275,65 @@ def _check_thresholds() -> None:
                     _notif_ram_above    = False
                     _notif_ram_ok_since = 0.0
                     _clear('ram', ram_pct, ram_limit)
+
+    # Speicher (Datenpartition) — Entwarnung ohne Zusatzverzoegerung, der Wert
+    # springt nur nach einer echten Aufraeumaktion zurueck.
+    if disk_limit:
+        disk_pct = si.get('disk_pct')
+        if disk_pct is None:
+            return
+        if disk_pct >= disk_limit:
+            _notif_disk_ok_since = 0.0
+            if _notif_disk_over_since == 0.0:
+                _notif_disk_over_since = now
+            over_ok = now - _notif_disk_over_since >= over_delay
+            fresh   = not _notif_disk_above or now - _notif_disk_ts > NOTIF_COOLDOWN
+            if fresh and over_ok:
+                _notif_disk_above = True
+                _notif_disk_ts    = now
+                _alert_disk(si, running, disk_pct, disk_limit)
+        else:
+            _notif_disk_over_since = 0.0
+            if _notif_disk_above:
+                if _notif_disk_ok_since == 0.0:
+                    _notif_disk_ok_since = now
+                elif now - _notif_disk_ok_since >= clear_delay:
+                    _notif_disk_above    = False
+                    _notif_disk_ok_since = 0.0
+                    threading.Thread(target=_send_telegram, daemon=True, args=(
+                        f'✅ <b>HA SysWatch</b> — Speicher wieder frei\n'
+                        f'Datenträger: <b>{disk_pct:.1f}%</b> belegt '
+                        f'(unter {disk_limit}%), frei: '
+                        f'<b>{_fmt_bytes(si.get("disk_free", 0))}</b>',
+                    )).start()
+
+
+def _alert_disk(si: dict, running: list, pct: float, limit: int) -> None:
+    """Speicher-Alarm inkl. Docker-Aufteilung und der groessten Container-Schichten."""
+    with _size_lock:
+        totals = dict(_size_totals)
+    lines = [
+        '🗄️ <b>HA SysWatch</b> — Speicher wird knapp',
+        f'Datenträger: <b>{pct:.1f}%</b> belegt (Schwellenwert: {limit}%)',
+        f'Frei: <b>{_fmt_bytes(si.get("disk_free", 0))}</b> von '
+        f'{_fmt_bytes(si.get("disk_total", 0))}',
+    ]
+    if totals.get('total'):
+        lines += [
+            '',
+            f'<b>Docker gesamt:</b> {_fmt_bytes(totals["total"])}',
+            f'  Images: {_fmt_bytes(totals.get("images", 0))} · '
+            f'Container: {_fmt_bytes(totals.get("containers", 0))} · '
+            f'Volumes: {_fmt_bytes(totals.get("volumes", 0))}',
+        ]
+    top = sorted((c for c in running if c.get('size_rw')),
+                 key=lambda c: c.get('size_rw') or 0, reverse=True)[:5]
+    if top:
+        lines += ['', '<b>Top 5 Container (beschreibbare Schicht):</b>']
+        lines += [f'  {i+1}. {c["name"]}: <b>{_fmt_bytes(c.get("size_rw", 0))}</b>'
+                  for i, c in enumerate(top)]
+    threading.Thread(target=_send_telegram, daemon=True,
+                     args=('\n'.join(lines),)).start()
 
 
 def _init_history_db() -> None:
@@ -1640,10 +1866,27 @@ def api_stats():
     data['cpu_temp']       = _hw_cache.get('cpu_temp')
     data['core_temps']     = _hw_cache.get('core_temps', [])
     data['fans']           = _hw_cache.get('fans', [])
+    with _size_lock:
+        data['docker_df'] = {**_size_totals, 'ts': _size_ts,
+                             'interval_min': _size_interval_min()}
     cfg = load_config()
     sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
     data['cycle_s'] = round(_last_elapsed + sleep_s + 1.0, 1)  # 1s buffer for variability
     return jsonify(data)
+
+
+@app.route('/api/sizes/refresh', methods=['POST'])
+def api_sizes_refresh():
+    """Erzwingt eine Groessenabfrage (docker df) — laeuft im Hintergrund weiter."""
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    with _size_lock:
+        busy = _size_running
+    if busy:
+        return jsonify({'ok': True, 'busy': True})
+    threading.Thread(target=_refresh_container_sizes, daemon=True,
+                     name='size-refresh').start()
+    return jsonify({'ok': True, 'busy': False})
 
 
 @app.route('/api/container/<name>/logs')
@@ -1773,6 +2016,7 @@ _log_startup()
 _init_history_db()
 threading.Thread(target=_background_collector,   daemon=True, name='docker-collector').start()
 threading.Thread(target=_telegram_polling_loop, daemon=True, name='telegram-polling').start()
+threading.Thread(target=_size_collector,       daemon=True, name='size-collector').start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=17790, debug=False)

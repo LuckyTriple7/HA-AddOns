@@ -62,10 +62,12 @@ Echtzeit-Überwachung von CPU, RAM, Netzwerk-I/O, Disk-I/O und PID-Anzahl für a
 | `collect_workers` | `16` | Parallele Docker-Stats-Abfragen (4–64). Mehr = schneller, aber mehr CPU-Last. |
 | `viewer_timeout` | `180` | Sekunden ohne Heartbeat bis zum Idle-Modus (30–1800). |
 | `show_stopped` | `true` | Gestoppte Container standardmäßig anzeigen. |
+| `size_interval` | `15` | Minuten zwischen zwei Größenabfragen (`docker system df`). 0 = aus. |
 | `telegram_bot_token` | `""` | Telegram-Bot-Token. Leer lassen deaktiviert alle Telegram-Funktionen. |
 | `telegram_chat_id` | `""` | Empfänger-Chat-ID. **Optional** — wird automatisch erkannt wenn du dem Bot schreibst. |
 | `notify_cpu_threshold` | `0` | CPU-Alarm-Schwellenwert in %. 0 = deaktiviert. |
 | `notify_ram_threshold` | `0` | RAM-Alarm-Schwellenwert in %. 0 = deaktiviert. |
+| `notify_disk_threshold` | `0` | Speicher-Alarm-Schwellenwert in % belegt. 0 = deaktiviert. |
 | `notify_over_duration` | `0` | Sekunden, die CPU/RAM ununterbrochen überschritten sein müssen bevor der Alarm ausgelöst wird. |
 | `notify_clear_duration` | `120` | Sekunden, die CPU/RAM ununterbrochen unter dem Schwellenwert liegen müssen bevor die Entwarnung gesendet wird. |
 
@@ -173,10 +175,12 @@ Real-time CPU, RAM, Network I/O, Disk I/O and PID counts for all Docker containe
 | `collect_workers` | `16` | Parallel Docker stats calls (4–64). More = faster but higher CPU load. |
 | `viewer_timeout` | `180` | Seconds without heartbeat before switching to idle mode (30–1800). |
 | `show_stopped` | `true` | Show stopped containers by default. |
+| `size_interval` | `15` | Minutes between two size scans (`docker system df`). 0 = off. |
 | `telegram_bot_token` | `""` | Telegram bot token. Leave empty to disable all Telegram features. |
 | `telegram_chat_id` | `""` | Recipient chat ID. **Optional** — auto-detected when you message the bot. |
 | `notify_cpu_threshold` | `0` | CPU alert threshold in %. 0 = disabled. |
 | `notify_ram_threshold` | `0` | RAM alert threshold in %. 0 = disabled. |
+| `notify_disk_threshold` | `0` | Disk alert threshold in % used. 0 = disabled. |
 | `notify_over_duration` | `0` | Seconds CPU/RAM must stay above threshold before alert fires. |
 | `notify_clear_duration` | `120` | Seconds CPU/RAM must stay below threshold before all-clear is sent. |
 

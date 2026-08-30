@@ -84,14 +84,14 @@
 
     /* ── SYS-Balken in Kacheln ── */
     .sys-bar-bg {
-      width: 100%; height: 12px; background: var(--surf2);
+      width: 100%; height: 10px; background: var(--surf2);
       border-radius: 6px; overflow: hidden; margin-bottom: 4px;
     }
     .sys-bar-fill {
       height: 100%; border-radius: 6px; width: 0%;
       transition: width .5s ease, background-color .5s ease;
     }
-    .sys-bar-pct { font-size: 0.8rem; font-weight: 600; }
+    .sys-bar-pct { font-size: 0.78rem; font-weight: 600; }
     .card.clickable { cursor: pointer; }
     .card.clickable:hover { border-color: var(--accent); }
 
@@ -211,32 +211,32 @@
     /* ── Summary cards ── */
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-      gap: 8px;
-      padding: 12px 14px 8px;
+      grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+      gap: 7px;
+      padding: 10px 14px 8px;
     }
     .card {
       background: var(--surf);
       border: 1px solid var(--border);
       border-radius: var(--r);
-      padding: 10px 12px;
+      padding: 8px 9px;
       text-align: center;
     }
     .card-value {
-      font-size: 1.5rem;
+      font-size: 1.3rem;
       font-weight: 700;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
     }
     .card-label {
-      font-size: 0.65rem;
+      font-size: 0.62rem;
       color: var(--muted);
       margin-top: 3px;
       text-transform: uppercase;
       letter-spacing: .04em;
     }
     .card-sub {
-      font-size: 0.7rem;
+      font-size: 0.66rem;
       color: var(--muted);
       margin-top: 2px;
     }
@@ -294,7 +294,7 @@
       background: var(--surf);
       color: var(--muted);
       font-weight: 500;
-      padding: 7px 10px;
+      padding: 7px 8px;
       text-align: left;
       white-space: nowrap;
       border-bottom: 2px solid var(--border);
@@ -309,7 +309,7 @@
     th.sorted.asc::after  { content: ' \2191'; }
     th.sorted.desc::after { content: ' \2193'; }
     td {
-      padding: 6px 10px;
+      padding: 6px 8px;
       border-bottom: 1px solid var(--border);
       vertical-align: middle;
       white-space: nowrap;
@@ -317,7 +317,7 @@
     tr:hover td { background: rgba(88,166,255,0.04); }
 
     /* Name cell */
-    .name-cell { max-width: 180px; }
+    .name-cell { max-width: 170px; }
     .name-cell strong {
       display: block;
       overflow: hidden;
@@ -473,7 +473,7 @@
     @media (max-width: 620px) {
       .col-hide { display: none; }
       .cards { grid-template-columns: repeat(2, 1fr); }
-      .card-value { font-size: 1.2rem; }
+      .card-value { font-size: 1.15rem; }
     }
 
     /* ── Offline Banner ── */
@@ -561,6 +561,13 @@
     <div class="card-label">{{ t.card_sys_mem }}</div>
     <div class="card-sub" id="s-mem-detail"></div>
   </div>
+  <div class="card clickable" id="s-disk-card" onclick="refreshSizes()"
+       title="{{ t.disk_refresh_hint }}">
+    <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-disk-bar"></div></div>
+    <span class="sys-bar-pct" id="s-disk">-</span>
+    <div class="card-label">{{ t.card_disk_free }}</div>
+    <div class="card-sub" id="s-disk-detail"></div>
+  </div>
 </div>
 
 <!-- Controls -->
@@ -595,6 +602,8 @@
         <th data-col="net_rx" class="col-hide">{{ t.col_net }}</th>
         <th data-col="blk_r" class="col-hide">{{ t.col_disk }}</th>
         <th data-col="pids" class="col-hide">{{ t.col_pids }}</th>
+        <th data-col="size_rw" class="col-hide" id="th-size"
+            title="{{ t.col_size_hint }}">{{ t.col_size }}</th>
         <th class="col-hide">{{ t.col_history }}</th>
         <th>{{ t.col_actions }}</th>
       </tr>
@@ -912,7 +921,7 @@ async function fetchAndUpdate() {
       const lbl = document.getElementById('cycle-label');
       if (lbl) lbl.textContent = '~' + data.cycle_s.toFixed(1) + 's';
     }
-    updateCards(data.sysinfo || {}, data.ha_status || null);
+    updateCards(data.sysinfo || {}, data.ha_status || null, data.docker_df || null);
     updatePerfBtn(data.collector_mode);
     if (data.ha_status && data.ha_status.host_ip) _hostIp = data.ha_status.host_ip;
     if (data.cpu_temp   !== undefined) _lastCpuTemp   = data.cpu_temp;
@@ -943,7 +952,7 @@ async function doRefresh() {
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
-function updateCards(sys, haStatus) {
+function updateCards(sys, haStatus, dockerDf) {
   const running  = allData.filter(c => c.status === 'running');
   const totalCpu = running.reduce((s, c) => s + (c.cpu_pct || 0), 0);
   const totalMem = running.reduce((s, c) => s + (c.mem_usage || 0), 0);
@@ -988,6 +997,56 @@ function updateCards(sys, haStatus) {
     const cores = sys.cpu_count ? sys.cpu_count + ' × ' : '';
     sFreqEl.textContent = cores + sys.freq_ghz_avg.toFixed(2) + ' GHz';
   }
+
+  updateDiskCard(sys, dockerDf);
+}
+
+// Speicher-Kachel: Balken zeigt Belegung, grosse Zahl den freien Platz
+function updateDiskCard(sys, dockerDf) {
+  const valEl = document.getElementById('s-disk');
+  if (!valEl) return;
+  if (!sys.disk_total) {
+    valEl.textContent = '-';
+    return;
+  }
+  const pct   = sys.disk_pct || 0;
+  const color = sysPctColor(pct);
+  const bar   = document.getElementById('s-disk-bar');
+  if (bar) { bar.style.width = Math.min(100, pct).toFixed(1) + '%'; bar.style.background = color; }
+  valEl.textContent = fmtBytes(sys.disk_free || 0);
+  valEl.style.color = color;
+  const sub = document.getElementById('s-disk-detail');
+  if (sub) sub.textContent = fmtBytes(sys.disk_used || 0) + ' / ' + fmtBytes(sys.disk_total);
+
+  if (dockerDf) _lastDf = dockerDf;
+  const card = document.getElementById('s-disk-card');
+  if (card) {
+    const NL   = String.fromCharCode(10);   // Zeilenumbruch im title-Attribut
+    const hint = T.disk_refresh_hint || '';
+    if (_lastDf && _lastDf.total) {
+      card.title = (T.disk_docker_total || 'Docker') + ': ' + fmtBytes(_lastDf.total) +
+        ' (Images ' + fmtBytes(_lastDf.images || 0) +
+        ' · Container ' + fmtBytes(_lastDf.containers || 0) +
+        ' · Volumes ' + fmtBytes(_lastDf.volumes || 0) + ')' +
+        (_lastDf.ts ? NL + (T.updated_at || 'Stand') + ': ' +
+          new Date(_lastDf.ts * 1000).toLocaleTimeString() : '') +
+        NL + hint;
+    } else {
+      card.title = hint;
+    }
+  }
+}
+
+// Groessenabfrage (docker system df) manuell anstossen
+async function refreshSizes() {
+  const card = document.getElementById('s-disk-card');
+  if (card) card.style.opacity = '0.55';
+  try {
+    await fetch('/api/sizes/refresh', { method: 'POST' });
+  } catch (e) {
+    console.error('Size refresh failed:', e);
+  }
+  setTimeout(() => { if (card) card.style.opacity = ''; }, 1200);
 }
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
@@ -1051,6 +1110,7 @@ function rowHtml(c) {
     <td class="col-hide">${fmtNet(c, run)}</td>
     <td class="col-hide">${run ? fmtBytes(c.blk_r) + ' / ' + fmtBytes(c.blk_w) : '-'}</td>
     <td class="col-hide">${run ? (c.pids || 0) : '-'}</td>
+    <td class="col-hide">${fmtSize(c)}</td>
     <td class="col-hide">${run
       ? `<span class="spark-click" onclick="openContainerHist(${safeJsArg(c.name)})" title="${esc(T.hist_open_container||'')}">${sparkline(c.history || [])}</span>`
       : ''}</td>
@@ -1095,6 +1155,16 @@ function fmtNet(c, run) {
     return `<span style="color:var(--muted)" title="${esc(hint)}">-</span>`;
   }
   return fmtBytes(c.net_rx) + ' / ' + fmtBytes(c.net_tx);
+}
+
+// Groesse: beschreibbare Schicht (SizeRw), Tooltip zeigt inkl. Image-Layer
+function fmtSize(c) {
+  if (c.size_rw === null || c.size_rw === undefined) {
+    return `<span style="color:var(--muted)" title="${esc(T.size_pending || '')}">…</span>`;
+  }
+  const tip = (T.col_size_hint || '') +
+    (c.size_root ? ' — ' + (T.size_total || 'inkl. Image') + ': ' + fmtBytes(c.size_root) : '');
+  return `<span title="${esc(tip)}">${fmtBytes(c.size_rw)}</span>`;
 }
 
 function fmtBytes(n) {
@@ -1269,6 +1339,7 @@ function closeModal() {
 }
 
 let _portsAll = [];
+let _lastDf = null;
 let _hostIp   = '';
 
 function showPorts() {
