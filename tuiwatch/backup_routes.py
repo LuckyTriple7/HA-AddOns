@@ -17,6 +17,8 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, make_response, request
 
+import atomic_io
+
 import app as A
 
 bp = Blueprint('backup', __name__)
@@ -750,8 +752,9 @@ def api_restore():
     if settings_raw and not A.settings_store.exists():
         try:
             json.loads(settings_raw.decode('utf-8'))   # muss valides JSON sein
-            with open(A.SETTINGS_PATH, 'wb') as f:
-                f.write(settings_raw)
+            # atomar wie settings._write(); ein Abbruch hier darf keine halbe
+            # settings.json hinterlassen
+            atomic_io.write_bytes(A.SETTINGS_PATH, settings_raw, mode=0o600)
             A.settings_store.reset_cache()
             A._settings_changed()
             settings_restored = True

@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, quote, urlparse
 import anthropic
 import requests as http
 
+import atomic_io
 import settings as settings_store
 from google import genai
 from google.genai import errors as genai_errors
@@ -95,7 +96,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -354,8 +355,10 @@ def _verbose() -> bool:
 def save_sessions() -> None:
     try:
         now = time.time()
-        with open(SESSIONS_PATH, 'w') as f:
-            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+        # atomar: ein harter Stop (SIGTERM -> os._exit) mitten im Schreiben
+        # liesse sonst eine abgeschnittene Datei zurueck -> alle Logins weg
+        atomic_io.write_json(SESSIONS_PATH,
+                             {k: v for k, v in sessions.items() if v > now})
     except Exception as e:
         log.warning("Sessions konnten nicht gespeichert werden: %s", e)
 
@@ -3501,6 +3504,10 @@ def _collect_offers() -> list[dict]:
     out = []
     with db() as con:
         offers = con.execute('SELECT * FROM offers ORDER BY id').fetchall()
+        # Kalender-Bewegungen fuer ALLE Angebote in einem Query — frueher lief hier
+        # je Angebot ein _calendar_moves(), das saemtliche calendar_history-Zeilen
+        # nach Python holte, obwohl davon nur max(ts) gebraucht wird.
+        cal_last_moves = _calendar_last_move_ts(con)
         for o in offers:
             last = con.execute(
                 'SELECT * FROM price_history WHERE offer_id=? ORDER BY ts DESC LIMIT 1',
@@ -3528,8 +3535,7 @@ def _collect_offers() -> list[dict]:
             checking = o['id'] in _checking
             # Nur echte Bewegungen (>=2 bekannte Preise je Reisedatum) zaehlen als
             # Aenderung, nicht der allererste Kalender-Abruf (reine Baseline).
-            cal_moves = _calendar_moves(con, o['id'])
-            last_move_ts = max((v['ts'] for v in cal_moves.values()), default=0)
+            last_move_ts = cal_last_moves.get(o['id'], 0)
             calendar_alert = bool(last_move_ts and last_move_ts > (o['calendar_seen_ts'] or 0))
             avail = None
             if last and last['available'] is not None:
@@ -3986,6 +3992,7 @@ _format_month_list_de = price_calendar._format_month_list_de
 _check_calendar_trend_alert = price_calendar._check_calendar_trend_alert
 _run_calendar = price_calendar._run_calendar
 _calendar_moves = price_calendar._calendar_moves
+_calendar_last_move_ts = price_calendar._calendar_last_move_ts
 _calendar_top_moves = price_calendar._calendar_top_moves
 _calendar_date_history = price_calendar._calendar_date_history
 _calendar_moves_since = price_calendar._calendar_moves_since
@@ -4405,8 +4412,11 @@ def _handle_sigterm(signum, frame) -> None:
     würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
     Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
     Hintergrund-Threads sind daemon=True (siehe main()), ein harter os._exit(0)
-    ist daher sicher — kein offener State, der noch geflusht werden müsste
-    (DB-Schreibzugriffe committen bereits pro `with db() as con:`-Block)."""
+    ist daher sicher: DB-Schreibzugriffe committen bereits pro `with db() as con:`-Block
+    (SQLite ist ueber sein Journal abbruchsicher), und alle Dateischreibzugriffe
+    laufen ueber `atomic_io` — sie landen per `os.replace` im Ziel oder gar nicht,
+    nie halb. Ein Kill mitten im Schreiben kostet hoechstens eine verwaiste
+    `.tmp-*.new`-Datei, nie die Zieldatei."""
     log.info("SIGTERM empfangen, beende sauber…")
     os._exit(0)
 

@@ -37,6 +37,8 @@ import time
 
 import requests
 
+import atomic_io
+
 from scraper import USER_AGENT  # keine eigene UA-Konstante duplizieren
 
 log = logging.getLogger("tuiwatch.fraboard")
@@ -100,8 +102,7 @@ def _ensure_loaded():
 
 def _save():
     try:
-        with open(_STATE_PATH, "w", encoding="utf-8") as f:
-            json.dump(_seen, f, ensure_ascii=False)
+        atomic_io.write_json(_STATE_PATH, _seen, ensure_ascii=False)
     except Exception as e:
         log.warning("FRA-Board-Zustand nicht speicherbar (%s): %s", _STATE_PATH, e)
 

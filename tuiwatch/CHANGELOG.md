@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.113.2
+
+- ⚡ **Die Angebotsliste lädt rund doppelt so schnell.** Für die „Kalender hat sich geändert"-Markierung wurde bisher je Angebot der komplette Kalender-Verlauf aus der Datenbank geholt und im Speicher durchgerechnet — gebraucht wurde davon nur ein einziger Zeitstempel. Das erledigt jetzt eine Abfrage für alle Angebote zusammen. Gemessen an einer Testdatenbank: 17,7 ms → 8,4 ms pro Abruf, und die Liste holt sich jeder offene Browser alle 5 Sekunden. Je länger ein Angebot beobachtet wird, desto größer der Unterschied.
+- 🛡️ **Dateien werden nur noch atomar geschrieben.** Beim Stoppen oder Aktualisieren des Add-ons beendet Home Assistant den Prozess hart. Traf das den Moment eines Schreibvorgangs, konnte eine halb geschriebene Datei zurückbleiben — im schlimmsten Fall der Schlüssel `settings.key`, womit **alle gespeicherten Zugangsdaten unlesbar** geworden wären. Betroffen waren außerdem die Sitzungen (alle Logins weg), der Flugplan-Zustand und das Zurückspielen der Einstellungen aus einem Backup. Alle vier schreiben jetzt erst daneben und hängen die fertige Datei in einem Zug ein: entweder der alte oder der neue Stand, nie ein halber. Das schützt gleichermaßen gegen Stromausfall und Neustart des Hosts.
+
 ## 0.113.1
 
 - 🧹 **„cite[16][19]" im Reiseführer und in der Klimatabelle ist weg.** Die Bereinigung hängte an der Quellenliste: lieferte eine Antwort keine Quellen mit, blieben die Marker unangetastet im Text stehen. Sie werden jetzt **immer** entfernt, unabhängig davon, ob Quellen dabei sind — und bei strukturierten Antworten (Reiseführer, Klimatabelle) schon im Rohtext, bevor irgendeine Anzeige sie zu sehen bekommt.

@@ -25,6 +25,8 @@ import logging
 import os
 import threading
 
+import atomic_io
+
 log = logging.getLogger('tuiwatch')
 
 try:
@@ -326,12 +328,9 @@ def _get_fernet(create: bool = False):
             return None
         else:
             key = Fernet.generate_key()
-            with open(_key_path, 'wb') as f:
-                f.write(key)
-            try:
-                os.chmod(_key_path, 0o600)
-            except OSError:
-                pass
+            # atomar: ein halb geschriebener Schlüssel macht ALLE verschlüsselten
+            # Felder unlesbar (siehe atomic_io)
+            atomic_io.write_bytes(_key_path, key, mode=0o600)
             log.info("Schlüssel für die Einstellungen neu erzeugt")
         _fernet = Fernet(key)
         return _fernet
@@ -464,14 +463,7 @@ def save(values: dict, clear=()) -> list:
 
 def _write(raw: dict) -> None:
     global _cache, _cache_mtime
-    tmp = _path + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
-        json.dump(raw, f, indent=2, ensure_ascii=False)
-    try:
-        os.chmod(tmp, 0o600)
-    except OSError:
-        pass
-    os.replace(tmp, _path)
+    atomic_io.write_json(_path, raw, mode=0o600, indent=2, ensure_ascii=False)
     _cache = raw
     try:
         _cache_mtime = os.path.getmtime(_path)
@@ -561,12 +553,7 @@ def import_key(data: bytes, passphrase: str, overwrite: bool = False) -> int:
         if current != raw and any(load().get(k) for k in SECRET_KEYS):
             raise ValueError('exists')
     with _lock:
-        with open(_key_path, 'wb') as f:
-            f.write(raw)
-        try:
-            os.chmod(_key_path, 0o600)
-        except OSError:
-            pass
+        atomic_io.write_bytes(_key_path, raw, mode=0o600)
     reset_cache()
     return sum(1 for k in SECRET_KEYS if load().get(k))
 
