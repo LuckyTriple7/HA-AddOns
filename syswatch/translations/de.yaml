@@ -23,6 +23,9 @@ configuration:
   size_interval:
     name: Größenabfrage-Intervall (Minuten)
     description: "Abstand zwischen zwei Größenabfragen (docker system df) für die Spalte „Größe“ und die Docker-Aufteilung. Die Abfrage scannt das Dateisystem und dauert je nach System einige Sekunden bis Minuten — deshalb läuft sie in einem eigenen Hintergrund-Thread. 0 = aus, Bereich 1–1440, Standard 15."
+  allow_build_prune:
+    name: Build-Cache freigeben erlauben
+    description: "Blendet im Speicher-Dialog den Button „Build-Cache freigeben“ ein (entspricht `docker builder prune`). Die Aktion löscht nur Build-Zwischenergebnisse — Images, Container und Volumes bleiben unberührt — und verlangt wie Neustart/Kill das Passwort. Auf false setzen, wenn niemand über die Oberfläche aufräumen können soll. Standard true."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt pro Abfrage-Zyklus die Anzahl Container, Worker und Dauer im Log aus. Standard false — nur Modus-Wechsel, Fehler und Aktionen werden geloggt.

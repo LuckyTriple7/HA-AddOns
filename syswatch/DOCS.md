@@ -22,6 +22,7 @@ zusätzlich die **Supervisor API** genutzt (`hassio_api: true`, `hassio_role: ma
 | `password` | string | `secret` | Login-Passwort (auch für Start/Stop/Neustart/Kill benötigt) |
 | `session_hours` | int | `24` | Session-Dauer in Stunden |
 | `show_stopped` | bool | `true` | Gestoppte Container standardmäßig anzeigen |
+| `allow_build_prune` | bool | `true` | Button „Build-Cache freigeben“ im Speicher-Dialog anzeigen |
 | `verbose_log` | bool | `false` | Pro Zyklus Anzahl Container, Worker und Dauer loggen |
 
 ### Performance
@@ -140,6 +141,20 @@ Zeitstempel der letzten Größenabfrage. Ein Klick startet die Abfrage sofort ne
   ungenutzte Images sind gelb markiert
 - **Größte Container** (Top 10) mit `SizeRw` und `SizeRootFs`
 - **Größte Volumes** (Top 15), unbenutzte gelb markiert
+
+**Button „Build-Cache freigeben“** im Dialog führt `POST /build/prune` gegen den Docker-Socket
+aus — dasselbe wie `docker builder prune -a` auf dem Host. Gelöscht werden ausschließlich
+Build-Zwischenergebnisse; Images, Container und Volumes bleiben unberührt. Das Feld
+„GB behalten“ entspricht `--keep-storage` (0 = alles freigeben). Die Aktion verlangt wie
+Neustart und Kill das Add-on-Passwort und läuft in einem Hintergrund-Thread, weil sie bei
+großen Caches Minuten dauert; die Oberfläche pollt und zeigt danach die freigegebene Menge.
+Über `allow_build_prune: false` lässt sich der Button ganz ausblenden.
+
+> **Warum der Build-Cache überhaupt wächst:** Jedes lokal gebaute Add-on legt pro Build einen
+> vollständigen Satz Cache-Einträge an. Steht ein sich ändernder `ARG` (z. B. `BUILD_VERSION`)
+> weit oben im Dockerfile, invalidiert jede Versionserhöhung alle nachfolgenden Layer — dann
+> entsteht bei jedem Update ein kompletter neuer Satz. Der eingebaute Docker-Builder räumt
+> diese Einträge nicht von selbst auf. `ha supervisor repair` fasst sie ebenfalls nicht an.
 
 **Rechtsklick auf die Kachel** startet die Größenabfrage sofort; im Dialog macht das der
 Button „Neu berechnen“. Die Oberfläche pollt danach alle 3 s, bis ein neuer Zeitstempel

@@ -613,6 +613,8 @@ _size_volumes: list = []
 _size_ts:     float = 0.0
 _size_lock         = threading.Lock()
 _size_running      = False
+_prune_running     = False
+_prune_result: dict = {}   # letztes Ergebnis: ts, reclaimed, deleted, keep | error
 SIZE_INTERVAL_DEFAULT = 15   # Minuten (0 = aus)
 
 
@@ -747,6 +749,43 @@ def _refresh_container_sizes() -> bool:
     finally:
         with _size_lock:
             _size_running = False
+
+
+def _prune_build_cache(keep_bytes: int) -> None:
+    """Gibt den BuildKit-Cache frei (POST /build/prune). Laeuft im eigenen Thread,
+    kann bei grossen Caches Minuten dauern."""
+    global _prune_running, _prune_result
+    socket_path = _find_docker_socket() if _docker_available else None
+    if not socket_path:
+        with _size_lock:
+            _prune_result  = {'ts': time.time(), 'error': 'no_socket'}
+            _prune_running = False
+        return
+    t0 = time.time()
+    try:
+        client = docker_lib.DockerClient(base_url=f'unix://{socket_path}', timeout=1800)
+        kwargs = {'all': True}
+        if keep_bytes > 0:
+            kwargs['keep_storage'] = keep_bytes
+        try:
+            res = client.api.prune_builds(**kwargs) or {}
+        except TypeError:          # aeltere docker-py kennt die Parameter nicht
+            res = client.api.prune_builds() or {}
+        reclaimed = int(res.get('SpaceReclaimed') or 0)
+        deleted   = len(res.get('CachesDeleted') or [])
+        log.info("Build-Cache aufgeraeumt: %s freigegeben, %d Eintraege, %.1fs",
+                 _fmt_bytes(reclaimed), deleted, time.time() - t0)
+        with _size_lock:
+            _prune_result = {'ts': time.time(), 'reclaimed': reclaimed,
+                             'deleted': deleted, 'keep': keep_bytes}
+    except Exception as e:
+        log.error("Build-Cache-Prune fehlgeschlagen: %s", e)
+        with _size_lock:
+            _prune_result = {'ts': time.time(), 'error': 'prune_failed'}
+    finally:
+        with _size_lock:
+            _prune_running = False
+    _refresh_container_sizes()     # Zahlen im Dialog sofort nachziehen
 
 
 def _size_collector() -> None:
@@ -1957,14 +1996,44 @@ def api_sizes():
             'images':       list(_size_images),
             'volumes':      list(_size_volumes),
             'ts':           _size_ts,
-            'busy':         _size_running,
-            'interval_min': _size_interval_min(),
+            'busy':          _size_running,
+            'interval_min':  _size_interval_min(),
+            'prune_running': _prune_running,
+            'prune_result':  dict(_prune_result),
+            'prune_allowed': bool(load_config().get('allow_build_prune', True)),
             'disk_total':   sysinfo.get('disk_total', 0),
             'disk_used':    sysinfo.get('disk_used', 0),
             'disk_free':    sysinfo.get('disk_free', 0),
             'disk_pct':     sysinfo.get('disk_pct', 0.0),
             'disk_src':     sysinfo.get('disk_src', ''),
         })
+
+
+@app.route('/api/build/prune', methods=['POST'])
+def api_build_prune():
+    """Gibt den BuildKit-Build-Cache frei. Passwortbestaetigt wie Neustart/Kill."""
+    global _prune_running
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    cfg = load_config()
+    if not bool(cfg.get('allow_build_prune', True)):
+        return jsonify({'error': 'disabled'}), 403
+    body = request.get_json(silent=True) or {}
+    if body.get('password', '') != cfg.get('password', ''):
+        log.warning("Build-Cache-Prune abgelehnt (falsches Passwort)")
+        return jsonify({'error': 'wrong_password'}), 403
+    try:
+        keep_gb = max(0, min(500, int(body.get('keep_gb', 0) or 0)))
+    except (TypeError, ValueError):
+        keep_gb = 0
+    with _size_lock:
+        if _prune_running:
+            return jsonify({'ok': True, 'busy': True})
+        _prune_running = True
+    log.info("Build-Cache-Prune gestartet (behalte %d GiB)", keep_gb)
+    threading.Thread(target=_prune_build_cache, args=(keep_gb * 1024 ** 3,),
+                     daemon=True, name='build-prune').start()
+    return jsonify({'ok': True, 'busy': False})
 
 
 @app.route('/api/sizes/refresh', methods=['POST'])

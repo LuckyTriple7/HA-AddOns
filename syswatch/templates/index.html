@@ -708,10 +708,36 @@
     <div class="modal-hdr">
       <span class="modal-title">{{ t.storage_title }}</span>
       <span id="storage-stamp" style="font-size:0.68rem;color:var(--muted);white-space:nowrap"></span>
+      <button class="btn sm danger" id="storage-prune" onclick="askPrune()"
+              style="display:none">{{ t.prune_btn }}</button>
       <button class="btn sm" id="storage-refresh" onclick="refreshSizes(true)">{{ t.storage_refresh }}</button>
       <button class="btn sm" onclick="closeStorage()">&#10005; {{ t.btn_close }}</button>
     </div>
     <div class="modal-body" id="storage-body"></div>
+  </div>
+</div>
+
+<!-- Build-Cache-Prune bestaetigen -->
+<div class="modal-overlay restart-modal" id="prune-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">{{ t.prune_title }}</span>
+      <button class="btn sm" onclick="closePruneModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="prune-desc"></p>
+      <p style="font-size:0.76rem;color:var(--muted)">{{ t.prune_safe }}</p>
+      <label style="font-size:0.78rem;color:var(--muted);display:block;margin-bottom:4px">{{ t.prune_keep }}</label>
+      <input type="number" class="pw-input" id="prune-keep" value="0" min="0" max="500" step="1">
+      <label style="font-size:0.78rem;color:var(--muted);display:block;margin:8px 0 4px">{{ t.password }}</label>
+      <input type="password" class="pw-input" id="prune-pw"
+             placeholder="{{ t.password }}" autocomplete="current-password">
+      <div class="modal-footer">
+        <button class="btn" onclick="closePruneModal()">{{ t.btn_cancel }}</button>
+        <button class="btn danger" onclick="confirmPrune()">{{ t.prune_confirm }}</button>
+      </div>
+      <div class="pw-error" id="prune-error"></div>
+    </div>
   </div>
 </div>
 
@@ -1113,6 +1139,75 @@ async function refreshSizes(fromModal) {
   }, 3000);
 }
 
+// ── Build-Cache freigeben ─────────────────────────────────────────────────────
+// Passwortbestaetigt wie Neustart/Kill. Der Prune laeuft im Backend-Thread und
+// kann bei grossen Caches Minuten dauern, deshalb danach pollen.
+function askPrune() {
+  const el = document.getElementById('prune-modal');
+  if (!el) return;
+  document.getElementById('prune-pw').value = '';
+  document.getElementById('prune-error').textContent = '';
+  const t = (_storageData && _storageData.totals) || {};
+  const desc = document.getElementById('prune-desc');
+  if (desc) {
+    desc.textContent = (T.prune_desc || '').replace('{size}', fmtBytes(t.build_cache || 0));
+  }
+  el.classList.add('open');
+  setTimeout(() => document.getElementById('prune-pw').focus(), 50);
+}
+
+function closePruneModal() {
+  document.getElementById('prune-modal').classList.remove('open');
+}
+
+async function confirmPrune() {
+  const pw    = document.getElementById('prune-pw').value;
+  const errEl = document.getElementById('prune-error');
+  const keep  = parseInt(document.getElementById('prune-keep').value, 10);
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/api/build/prune', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw, keep_gb: isNaN(keep) ? 0 : keep }),
+    });
+    const data = await res.json();
+    if (res.status === 403 && data.error === 'disabled') {
+      errEl.textContent = T.prune_disabled || 'Disabled';
+      return;
+    }
+    if (res.status === 403 || data.error === 'wrong_password') {
+      errEl.textContent = T.error_credentials || 'Falsches Passwort.';
+      document.getElementById('prune-pw').select();
+      return;
+    }
+    if (!data.ok) {
+      errEl.textContent = (T.error_unknown || 'Error') + ': ' + (data.error || '?');
+      return;
+    }
+    closePruneModal();
+    pollPrune();
+  } catch (e) {
+    errEl.textContent = (T.error_network || 'Network error') + ': ' + e;
+  }
+}
+
+// Waehrend des Prune alle 3s nachladen; das Backend rechnet danach die Groessen neu
+function pollPrune() {
+  const btn = document.getElementById('storage-prune');
+  if (btn) { btn.disabled = true; btn.textContent = T.prune_running || '...'; }
+  if (_storagePoll) clearInterval(_storagePoll);
+  const started = Date.now();
+  _storagePoll = setInterval(async () => {
+    await loadStorage();
+    const done = _storageData && !_storageData.prune_running && !_storageData.busy;
+    if (done || Date.now() - started > 1800000) {
+      clearInterval(_storagePoll); _storagePoll = null;
+      if (btn) { btn.disabled = false; btn.textContent = T.prune_btn || 'Build-Cache freigeben'; }
+    }
+  }, 3000);
+}
+
 function storageRow(label, value, note) {
   return `<tr>
     <td style="padding:4px 8px;color:var(--muted)">${esc(label)}</td>
@@ -1130,6 +1225,17 @@ function renderStorage() {
     stamp.textContent = (d && d.ts)
       ? (T.updated_at || 'Stand') + ': ' + new Date(d.ts * 1000).toLocaleTimeString()
       : (T.storage_never || '');
+  }
+  const pruneBtn = document.getElementById('storage-prune');
+  if (pruneBtn) {
+    pruneBtn.style.display = (d && d.prune_allowed) ? '' : 'none';
+    if (d && d.prune_running) {
+      pruneBtn.disabled = true;
+      pruneBtn.textContent = T.prune_running || '...';
+    } else if (!_storagePoll) {
+      pruneBtn.disabled = false;
+      pruneBtn.textContent = T.prune_btn || 'Build-Cache freigeben';
+    }
   }
   if (!d) {
     el.innerHTML = `<div style="color:var(--muted);padding:16px">${esc(T.loading || '')}</div>`;
@@ -1245,6 +1351,18 @@ function renderStorage() {
       </div>`);
   }
 
+  const pr = d.prune_result || {};
+  if (d.prune_running) {
+    parts.push(`<div style="color:var(--yellow);font-size:0.78rem;padding:10px 0">${esc(T.prune_running_note || '')}</div>`);
+  } else if (pr.ts) {
+    const txt = pr.error
+      ? (T.prune_failed || 'Fehler')
+      : (T.prune_done || '').replace('{size}', fmtBytes(pr.reclaimed || 0))
+                            .replace('{count}', pr.deleted || 0);
+    parts.push(`<div style="color:${pr.error ? 'var(--red)' : 'var(--green)'};font-size:0.78rem;padding:10px 0">
+      ${esc(txt)} <span style="color:var(--muted)">(${new Date(pr.ts * 1000).toLocaleTimeString()})</span>
+    </div>`);
+  }
   if (!d.ts) {
     parts.push(`<div style="color:var(--muted);font-size:0.78rem;padding:10px 0">${esc(T.storage_no_data || '')}</div>`);
   }
@@ -1643,7 +1761,7 @@ document.getElementById('log-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('log-modal')) closeModal();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeRestartModal(); closePortsModal(); closeStorage(); }
+  if (e.key === 'Escape') { closeModal(); closeRestartModal(); closePortsModal(); closeStorage(); closePruneModal(); }
 });
 document.getElementById('restart-pw').addEventListener('keydown', e => {
   if (e.key === 'Enter') confirmRestart();

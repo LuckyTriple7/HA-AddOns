@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.5.0] - 2026-08-30
+
+### Added
+- **Button „Build-Cache freigeben“** im Speicher-Dialog (neue Route `POST /api/build/prune`, ruft `POST /build/prune` am Docker-Socket — dasselbe wie `docker builder prune -a`). Gelöscht werden nur Build-Zwischenergebnisse, Images/Container/Volumes bleiben unberührt. Das Feld „GB behalten“ entspricht `--keep-storage`. Die Aktion verlangt wie Neustart und Kill das Add-on-Passwort, läuft in einem Hintergrund-Thread und meldet danach die freigegebene Menge samt Anzahl der Einträge; die Größen werden automatisch neu berechnet.
+- Neue Option `allow_build_prune` (Standard `true`) blendet den Button aus, wenn niemand über die Oberfläche aufräumen können soll.
+- DOCS erklärt, warum der Build-Cache wächst: ein sich änderndes `ARG` weit oben im Dockerfile (etwa `BUILD_VERSION`) invalidiert bei jeder Versionserhöhung alle nachfolgenden Layer, und der eingebaute Docker-Builder räumt die Einträge nie von selbst auf.
+
 ## [1.4.3] - 2026-08-30
 
 ### Fixed

@@ -63,6 +63,7 @@ Echtzeit-Überwachung von CPU, RAM, Netzwerk-I/O, Disk-I/O und PID-Anzahl für a
 | `viewer_timeout` | `180` | Sekunden ohne Heartbeat bis zum Idle-Modus (30–1800). |
 | `show_stopped` | `true` | Gestoppte Container standardmäßig anzeigen. |
 | `size_interval` | `15` | Minuten zwischen zwei Größenabfragen (`docker system df`). 0 = aus. |
+| `allow_build_prune` | `true` | Button „Build-Cache freigeben“ im Speicher-Dialog anzeigen. |
 | `telegram_bot_token` | `""` | Telegram-Bot-Token. Leer lassen deaktiviert alle Telegram-Funktionen. |
 | `telegram_chat_id` | `""` | Empfänger-Chat-ID. **Optional** — wird automatisch erkannt wenn du dem Bot schreibst. |
 | `notify_cpu_threshold` | `0` | CPU-Alarm-Schwellenwert in %. 0 = deaktiviert. |
@@ -176,6 +177,7 @@ Real-time CPU, RAM, Network I/O, Disk I/O and PID counts for all Docker containe
 | `viewer_timeout` | `180` | Seconds without heartbeat before switching to idle mode (30–1800). |
 | `show_stopped` | `true` | Show stopped containers by default. |
 | `size_interval` | `15` | Minutes between two size scans (`docker system df`). 0 = off. |
+| `allow_build_prune` | `true` | Show the “Free build cache” button in the storage dialog. |
 | `telegram_bot_token` | `""` | Telegram bot token. Leave empty to disable all Telegram features. |
 | `telegram_chat_id` | `""` | Recipient chat ID. **Optional** — auto-detected when you message the bot. |
 | `notify_cpu_threshold` | `0` | CPU alert threshold in %. 0 = disabled. |
