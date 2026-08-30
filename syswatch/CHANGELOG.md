@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [1.4.2] - 2026-08-30
+
+### Fixed
+- Build-Cache im Speicher-Dialog zeigte absurde Werte (gemeldet: 169.6 GiB auf einer deutlich kleineren Platte). `GET /system/df` liefert im `BuildCache`-Array Einträge mit gesetztem `Shared`-Flag — deren Bytes gehören bereits zu einem Image- oder Container-Layer und werden dort schon gezählt. Die Summe lief über alle Einträge und hat dieselben Layer dadurch vielfach addiert. `Shared`-Einträge werden jetzt übersprungen (`docker/cli` macht in `system df` dieselbe Ausnahme). Die Docker-Gesamtsumme fällt entsprechend auf einen plausiblen Wert.
+
+### Added
+- Build-Cache-Zeile nennt jetzt zusätzlich die Anzahl der Einträge und den freigebbaren Anteil (Einträge ohne `InUse`).
+
 ## [1.4.1] - 2026-08-30
 
 ### Added

@@ -687,11 +687,23 @@ def _refresh_container_sizes() -> bool:
                            'created': int(im.get('Created') or 0)})
         images.sort(key=lambda i: i['size'], reverse=True)
 
-        cache_sum = sum(int(b.get('Size') or 0) for b in (df.get('BuildCache') or []))
-        img_sum   = int(df.get('LayersSize') or 0)
+        # Build-Cache: Eintraege mit 'Shared' zaehlen bereits bei Images/Containern
+        # mit. Ohne diesen Filter summiert sich derselbe Layer vielfach auf (docker/cli
+        # macht in 'system df' exakt dieselbe Ausnahme).
+        cache_sum = cache_recl = cache_cnt = 0
+        for b in (df.get('BuildCache') or []):
+            if b.get('Shared'):
+                continue
+            sz = int(b.get('Size') or 0)
+            cache_sum += sz
+            cache_cnt += 1
+            if not b.get('InUse'):
+                cache_recl += sz
+        img_sum = int(df.get('LayersSize') or 0)
 
         totals = {'images': img_sum, 'containers': ctr_sum, 'volumes': vol_sum,
                   'build_cache': cache_sum, 'reclaimable': reclaim,
+                  'build_cache_reclaimable': cache_recl, 'build_cache_count': cache_cnt,
                   'image_count': len(images), 'volume_count': len(volumes),
                   'total': img_sum + ctr_sum + vol_sum + cache_sum}
         elapsed = time.time() - t0

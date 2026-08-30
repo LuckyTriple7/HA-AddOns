@@ -1167,7 +1167,9 @@ function renderStorage() {
     storageRow(T.storage_containers || 'Container', fmtBytes(t.containers || 0),
       T.storage_containers_note || ''),
     storageRow(T.storage_volumes || 'Volumes', fmtBytes(t.volumes || 0), String(t.volume_count || 0)),
-    storageRow(T.storage_build_cache || 'Build-Cache', fmtBytes(t.build_cache || 0), ''),
+    storageRow(T.storage_build_cache || 'Build-Cache', fmtBytes(t.build_cache || 0),
+      (t.build_cache_count || 0) + ' · ' + (T.storage_reclaimable || '') + ' ' +
+      fmtBytes(t.build_cache_reclaimable || 0)),
   ].join('');
   parts.push(`
     <div style="margin-bottom:16px">
