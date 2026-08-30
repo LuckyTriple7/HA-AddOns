@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.1.37] - 2026-08-30
+
+### Behoben
+- **Neustart des CrowdSec-Add-ons sperrte jeden Dienst hinter dem Proxy.** Im Log stand
+  minutenlang `AppSecCheck(): Fallback because of err: timeout` gefolgt von
+  `denied '<IP>' with 'ban' (by appsec)` — für jede Anfrage, auch für die eigene
+  Healthcheck-Abfrage auf `127.0.0.1`.
+
+  Ursache ist `APPSEC_FAILURE_ACTION` in `crowdsec.conf`. Der Schlüssel bestimmt, was der
+  Bouncer tut, wenn die **AppSec-Anfrage selbst** scheitert, und die Vorgabe des Images ist
+  `deny` — also sperren. Das Add-on hat den Wert bisher nie geschrieben. Stoppt CrowdSec
+  (Neustart, Update, Herunterfahren von Home Assistant), ist AppSec ein bis zwei Minuten weg
+  und NPMplus sperrt in dieser Zeit alles.
+
+  Der Kommentar in `run.sh` und die Beschreibung von `crowdsec_fallback_remediation` haben
+  hier zusätzlich `passthrough` als Vorgabe des Images behauptet. Das war falsch.
+
+  Mit der Wartelogik aus 0.1.33 hat das nichts zu tun: die betrifft nur den *Start* von
+  NPMplus, und sie funktioniert — im Log ist zu sehen, wie sie den Bouncer nach knapp zwei
+  Minuten nachträglich scharfschaltet. Der Ausfall trat auf, während NPMplus schon lief.
+
+### Neu
+- Option `crowdsec_appsec_failure_action` (Vorgabe `passthrough`): AppSec nicht erreichbar
+  heißt jetzt „keine WAF-Prüfung", nicht mehr „alles sperren". Wer das alte Verhalten will,
+  stellt `deny` ein; das Add-on warnt dann beim Start.
+- `selftest.sh` zeigt den Wert an und warnt bei `deny`.
+
 ## [0.1.36] - 2026-08-22
 
 ### Geändert

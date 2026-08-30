@@ -74,6 +74,9 @@ configuration:
   crowdsec_fallback_remediation:
     name: Fallback remediation
     description: What the bouncer does when it cannot apply a decision from CrowdSec - an unknown decision type, or "captcha" requested without a captcha set up. "bypass" lets traffic through, "ban" blocks, "captcha" shows the challenge. "default" leaves the image default untouched, currently "ban". If CrowdSec goes down entirely this option does not apply - the bouncer then lets every request through unchecked and recovers on its own as soon as CrowdSec answers again.
+  crowdsec_appsec_failure_action:
+    name: Behaviour when AppSec fails
+    description: What happens when the AppSec request itself fails - a timeout, or AppSec unreachable, for example while the CrowdSec add-on restarts or updates. "passthrough" lets the request through unchecked, "deny" blocks it. The image default is "deny", which blocks EVERY service behind the proxy for as long as the CrowdSec restart takes; that is why the add-on sets "passthrough" here.
   crowdsec_retry_minutes:
     name: Wait for CrowdSec after start
     description: Home Assistant starts add-ons in no fixed order. If CrowdSec is not ready yet when NPMplus starts, the bouncer would stay off until the next restart. For this many minutes the add-on keeps asking every 30 seconds in the background and enables the bouncer afterwards. 0 turns the retry off.

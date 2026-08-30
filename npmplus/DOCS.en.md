@@ -728,6 +728,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `crowdsec_api_key` | – | Bouncer key from `cscli bouncers add` |
 | `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint; `auto` as above, empty = off |
 | `crowdsec_fallback_remediation` | `default` | Remediation used when a decision cannot be applied (unknown type, captcha configured but unusable): `bypass`, `captcha`, `ban`; `default` = image default (currently `ban`). Does **not** apply when the LAPI fails |
+| `crowdsec_appsec_failure_action` | `passthrough` | What happens when the AppSec request fails (timeout, AppSec unreachable): `passthrough` lets it through unchecked, `deny` blocks it. The image default is `deny`, which blocks **everything** for the duration of any CrowdSec restart. The add-on therefore sets `passthrough` |
 | `crowdsec_retry_minutes` | `15` | If the LAPI does not answer at start, keep asking every 30 s for this many minutes and enable the bouncer afterwards via an nginx reload. `0` = no retry |
 | `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` or `recaptcha`; `off` = disabled |
 | `crowdsec_captcha_site_key` | – | Public key of the provider |

@@ -62,6 +62,7 @@ CS_LAPI_OPT=$(opt_trim crowdsec_lapi_url "http://127.0.0.1:8080")
 CS_KEY_OPT=$(opt_trim crowdsec_api_key "")
 CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
 CS_FALLBACK_OPT=$(opt_trim crowdsec_fallback_remediation "default")
+CS_APPSEC_FAIL_OPT=$(opt_trim crowdsec_appsec_failure_action "passthrough")
 CS_RETRY_OPT=$(opt crowdsec_retry_minutes "15")
 CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "off")
 
@@ -381,10 +382,23 @@ cs_apply_conf() {
             warn "crowdsec_appsec_url empty if AppSec is not in use."
         fi
     fi
+    # Verhalten, wenn die AppSec-Anfrage selbst scheitert (Zeitüberschreitung,
+    # Host nicht erreichbar). Die Vorgabe des Images ist "deny" — und "deny"
+    # heißt: jede Anfrage wird gesperrt, solange AppSec nicht antwortet. Genau
+    # das passiert beim Neustart oder Update des CrowdSec-Add-ons: NPMplus läuft
+    # weiter, AppSec ist für ein bis zwei Minuten weg, und der Proxy beantwortet
+    # in dieser Zeit ALLES mit einer Sperre ("denied ... by appsec" im Log).
+    # Deshalb schreibt das Add-on den Schlüssel selbst, Vorgabe "passthrough":
+    # kein AppSec = keine WAF-Prüfung, aber auch keine Sperre.
+    set_conf APPSEC_FAILURE_ACTION "$CS_APPSEC_FAIL_OPT"
+    if [ "$CS_APPSEC_FAIL_OPT" = "deny" ]; then
+        warn "crowdsec_appsec_failure_action is \"deny\" — while AppSec is unreachable"
+        warn "(restart or update of the CrowdSec add-on) every request is blocked."
+    fi
     # Ersatz-Maßnahme, wenn der Bouncer eine Entscheidung nicht anwenden kann:
     # unbekannter Entscheidungstyp, oder Captcha ist eingestellt aber nicht
     # nutzbar. Greift außerdem bei einer gescheiterten AppSec-Anfrage, sofern
-    # APPSEC_FAILURE_ACTION auf "deny" steht (Vorgabe des Images: passthrough).
+    # APPSEC_FAILURE_ACTION auf "deny" steht.
     # NICHT das Verhalten bei Ausfall der LAPI — dort lässt der Bouncer im
     # live-Modus jede Anfrage durch. Leer gelassen bleibt der Wert aus
     # crowdsec.conf unangetastet.
