@@ -80,6 +80,9 @@ configuration:
   crowdsec_retry_minutes:
     name: Wait for CrowdSec after start
     description: Home Assistant starts add-ons in no fixed order. If CrowdSec is not ready yet when NPMplus starts, the bouncer would stay off until the next restart. For this many minutes the add-on keeps asking every 30 seconds in the background and enables the bouncer afterwards. 0 turns the retry off.
+  crowdsec_retry_restart:
+    name: Restart the add-on once CrowdSec is up
+    description: How the bouncer gets armed after the fact when CrowdSec was not running at start. Reloading nginx demonstrably does not activate it - the bouncer fetches no decisions at all afterwards, only a restart brings it to life. So the add-on restarts itself as soon as CrowdSec answers (at most every 10 minutes). Turned off, the bouncer stays inactive until someone restarts by hand.
   crowdsec_captcha_provider:
     name: Captcha provider
     description: Shows a challenge page instead of a hard block for decisions of type "captcha". "off" disables captcha. Cloudflare Turnstile is free and does not profile users.

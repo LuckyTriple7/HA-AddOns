@@ -64,6 +64,7 @@ CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
 CS_FALLBACK_OPT=$(opt_trim crowdsec_fallback_remediation "default")
 CS_APPSEC_FAIL_OPT=$(opt_trim crowdsec_appsec_failure_action "passthrough")
 CS_RETRY_OPT=$(opt crowdsec_retry_minutes "15")
+CS_RETRY_RESTART_OPT=$(opt crowdsec_retry_restart "true")
 CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "off")
 
 # Die Auswahllisten in der Add-on-Konfiguration brauchen für "nichts tun" einen
@@ -957,11 +958,28 @@ fi
 # Add-on-Neustart aus, obwohl CrowdSec kurz darauf läuft. Genau das passiert
 # nach jedem Neustart von Home Assistant OS.
 #
-# Deshalb hier im Hintergrund weiterfragen und den Bouncer per nginx-Reload
-# nachträglich scharfschalten. Bewusst erst nach dem Start des Proxys: das
-# Warten darf nginx nicht aufhalten, sonst ist die gesamte Weiterleitung
-# minutenlang tot.
+# Deshalb hier im Hintergrund weiterfragen. Bewusst erst nach dem Start des
+# Proxys: das Warten darf nginx nicht aufhalten, sonst ist die gesamte
+# Weiterleitung minutenlang tot.
+#
+# Scharfgeschaltet wird per Add-on-Neustart, NICHT per "nginx -s reload".
+# Gemessen am laufenden System: nach dem Reload holte der Bouncer keine einzige
+# Entscheidung ab, erst ein Neustart des Add-ons von Hand brachte ihn zum
+# Leben. Das Add-on meldete den Reload trotzdem als Erfolg.
+#
+# An fehlenden Hooks liegt es nicht — conf.d/crowdsec.conf mit cs.init() steckt
+# unabhängig von ENABLED in der nginx-Konfiguration. Wo genau der alte Zustand
+# den Reload übersteht (init_by_lua, das shared dict crowdsec_cache, oder die
+# noch offenen alten Worker), ist nicht ermittelt. Für das Ergebnis egal: nur
+# der Neustart ist nachweislich wirksam, also wird neu gestartet.
 ###############################################################################
+
+# Neustart über die Supervisor-API. /addons/self/restart ist mit dem eigenen
+# Token erreichbar, hassio_api: true steht in config.yaml.
+cs_restart_addon() {
+    [ -n "${SUPERVISOR_TOKEN:-}" ] || return 1
+    curl -s -m 30 -X POST         -H "Authorization: Bearer ${SUPERVISOR_TOKEN}"         "http://supervisor/addons/self/restart" >/dev/null 2>&1
+}
 if [ "$CS_RETRY_WANTED" = "true" ] && [ "${CS_RETRY_OPT:-0}" -gt 0 ] 2>/dev/null; then
     (
         CS_DEADLINE=$(( $(date +%s) + CS_RETRY_OPT * 60 ))
@@ -970,14 +988,34 @@ if [ "$CS_RETRY_WANTED" = "true" ] && [ "${CS_RETRY_OPT:-0}" -gt 0 ] 2>/dev/null
             case "$(check_lapi "$CS_LAPI_OPT" "$CS_KEY_OPT")" in
                 200|404)
                     cs_apply_conf
-                    # Der Bouncer liest crowdsec.conf in init_by_lua, also beim
-                    # Start von nginx. Ohne Reload bliebe die neue Datei liegen.
-                    if nginx -s reload 2>/dev/null; then
-                        log "CrowdSec is up now — bouncer enabled against ${CS_LAPI_OPT}, nginx reloaded"
-                    else
-                        warn "CrowdSec is up now and crowdsec.conf was written, but the nginx reload failed."
-                        warn "Restart the add-on to activate the bouncer."
+                    if [ "$CS_RETRY_RESTART_OPT" != "true" ]; then
+                        warn "CrowdSec is up now and crowdsec.conf was written, but"
+                        warn "crowdsec_retry_restart is off — the bouncer stays inactive until"
+                        warn "the add-on is restarted by hand. A reload is not enough."
+                        exit 0
                     fi
+                    # Schleifenbremse: flackert CrowdSec, würde sich das Add-on
+                    # sonst im Minutentakt selbst neu starten. Ein Stempel je
+                    # Neustart, frühestens alle 10 Minuten wieder.
+                    CS_STAMP=/data/crowdsec/.retry_restart
+                    CS_NOW=$(date +%s)
+                    CS_LAST=$(cat "$CS_STAMP" 2>/dev/null || echo 0)
+                    case "$CS_LAST" in *[!0-9]*|"") CS_LAST=0 ;; esac
+                    if [ "$(( CS_NOW - CS_LAST ))" -lt 600 ]; then
+                        warn "CrowdSec is up now, but the add-on already restarted for this"
+                        warn "less than 10 min ago — not restarting again. If CrowdSec keeps"
+                        warn "flapping, restart the add-on by hand once it is stable."
+                        exit 0
+                    fi
+                    echo "$CS_NOW" > "$CS_STAMP" 2>/dev/null || true
+                    log "CrowdSec is up now — restarting the add-on to activate the bouncer"
+                    if cs_restart_addon; then
+                        # Der Supervisor schickt gleich SIGTERM. Hier nichts mehr tun.
+                        exit 0
+                    fi
+                    warn "CrowdSec is up now and crowdsec.conf was written, but the restart"
+                    warn "via the Supervisor failed. Restart the add-on by hand — without it"
+                    warn "the bouncer fetches no decisions at all."
                     exit 0
                     ;;
             esac

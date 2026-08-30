@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.38] - 2026-08-30
+
+### Behoben
+- **Die Wartelogik auf CrowdSec meldete Erfolg, ohne den Bouncer scharfzuschalten.** Seit
+  0.1.33 fragt das Add-on im Hintergrund alle 30 s nach der LAPI und schrieb dann
+  `ENABLED=true` in `crowdsec.conf`, gefolgt von `nginx -s reload`. Im Protokoll stand
+  „CrowdSec is up now — bouncer enabled, nginx reloaded".
+
+  Der Reload aktiviert den Bouncer nicht. Am laufenden System nachgemessen: nach dem Reload
+  holte NPMplus keine einzige Entscheidung von CrowdSec ab, in CrowdSec blieb der Bouncer
+  ohne Abruf. Erst ein Neustart des Add-ons von Hand brachte ihn zum Leben. Der Bouncer war
+  damit nach jedem Neustart von Home Assistant OS tot — und das Protokoll behauptete das
+  Gegenteil, was die Fehlersuche zusätzlich in die Irre führte.
+
+  Das Add-on startet sich jetzt über die Supervisor-API selbst neu, sobald CrowdSec
+  antwortet. Eine Schleifenbremse verhindert mehr als einen Selbst-Neustart alle 10 Minuten,
+  falls CrowdSec flackert.
+
+  Woran der Reload scheitert, ist nicht ermittelt — die Lua-Einbindung (`conf.d/crowdsec.conf`
+  mit `cs.init()`) steckt unabhängig von `ENABLED` in der nginx-Konfiguration. Für die
+  Behebung ohne Belang: nur der Neustart ist nachweislich wirksam.
+
+### Neu
+- Option `crowdsec_retry_restart` (Vorgabe an): schaltet den Selbst-Neustart ab. Der Bouncer
+  bleibt dann aus, bis jemand von Hand neu startet — das Add-on sagt das im Protokoll auch so.
+
 ## [0.1.37] - 2026-08-30
 
 ### Behoben
