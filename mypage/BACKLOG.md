@@ -290,6 +290,52 @@ schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
 
 ---
 
+## robots.txt: KI-Crawler einzeln steuern
+
+**Stand:** Idee, notiert am 2026-08-30. Nichts angefangen. Nur umsetzen, wenn
+sich jemand daran stört — der heutige Zustand ist nicht kaputt.
+
+**Heute:** `design.allow_indexing` (Design-Tab, Standard an) ist ein
+Alles-oder-nichts-Schalter. `robots()` in `app.py` liefert entweder
+`User-agent: *` + `Allow: /` samt Sitemap-Verweis oder `User-agent: *` +
+`Disallow: /`; dazu setzen die öffentlichen Vorlagen `noindex, nofollow` und
+IndexNow pausiert. Einzelne Bots lassen sich nicht ansprechen.
+
+**Warum überhaupt:** KI-Crawler sind nicht eine Gruppe, sondern zwei mit
+gegensätzlichem Nutzen.
+
+- **Antwort-Bots** zitieren und verlinken die Seite, bringen also Besucher:
+  `OAI-SearchBot` (ChatGPT-Suche), `PerplexityBot`, `Google-Extended`
+  (AI Overviews), `Claude-SearchBot`. Bingbot deckt Copilot mit ab.
+- **Training-Crawler** nehmen den Inhalt ohne Gegenleistung: `GPTBot`,
+  `ClaudeBot`, `CCBot` (Common Crawl), `Bytespider`, `Meta-ExternalAgent`.
+- **Last** ist nur bei den aggressiven ein Thema (`Bytespider` ist bekannt
+  dafür). Bei einer kleinen persönlichen Seite auf der HA-Kiste kaum spürbar.
+
+Die übliche Aufteilung ist deshalb: Antwort-Bots erlauben, Training-Bots
+aussperren — genau das kann der jetzige Schalter nicht.
+
+**Vorschlag:** ein zweites Feld `design.ai_crawlers` mit drei Werten
+(`all` = Standard und heutiges Verhalten, `answers_only`, `none`). Nur `robots()`
+muss die passenden `User-agent`-Blöcke vor den `*`-Block schreiben; `noindex` und
+IndexNow bleiben unverändert an `allow_indexing` hängen. Aufwand ~1–2 h,
+inklusive Admin-Feld und `locales/de.json` + `en.json`.
+
+**Haken, die dabei zu beachten sind:**
+
+- `allow_indexing = aus` muss weiterhin gewinnen: dann `Disallow: /` für alle,
+  egal was `ai_crawlers` sagt. Sonst widersprechen sich die zwei Schalter.
+- Die Bot-Namen ändern sich. Die Liste gehört als Konstante an **eine** Stelle in
+  `app.py`, nicht verteilt in die Vorlage, damit ein Nachtrag eine Zeile bleibt.
+- robots.txt ist eine **Bitte**, kein Zugriffsschutz. Wer sie ignoriert, liest
+  weiter mit. Als Schutz taugt nur eine Sperre im Reverse-Proxy (NPMplus) oder
+  CrowdSec — das gehört nicht in dieses Add-on. In der Beschriftung des Feldes
+  ehrlich benennen, sonst verspricht die Oberfläche etwas, das sie nicht hält.
+- Mitglieder- und interne Seiten (`dm`, `leaderboard`, `directory`, `legal`,
+  `404`) haben `noindex` fest verdrahtet und bleiben davon unberührt.
+
+---
+
 ## Rauchtest über alle Routen — steht, aber nur die halbe Miete
 
 **Stand:** `test_routes.py` seit 2026-08-27, läuft in der CI
