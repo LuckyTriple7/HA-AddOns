@@ -1,5 +1,15 @@
 # Changelog — HA SysWatch
 
+## [1.4.3] - 2026-08-30
+
+### Fixed
+- Build-Cache-Größe stimmte nicht mit `docker system df` überein. 1.4.2 hatte Einträge mit `Shared`-Flag übersprungen — dadurch zeigte die Spalte Docker's *Reclaimable* statt der Gesamtgröße (165.1 GiB statt 182.1 GB). Die Gesamtgröße kommt jetzt aus dem API-Feld `BuilderSize` (Fallback: Summe aller Einträge), freigebbar ist die Gesamtgröße minus alle Einträge mit `InUse` — genau die Rechnung der CLI.
+- „Freigebbar“ bei Images und Volumes folgte einer eigenen Formel (Summe der exklusiven Layer aller Images ohne Container). Jetzt ebenfalls wie `docker system df`: Gesamtgröße minus das, was benutzt wird. Gegen eine echte Host-Ausgabe geprüft, alle vier Zeilen stimmen überein.
+
+### Added
+- Jede Zeile der Docker-Aufteilung nennt Anzahl und freigebbaren Anteil; die Überschrift zeigt zusätzlich die Gesamtsumme des freigebbaren Platzes.
+- Der Telegram-Speicher-Alarm listet den Build-Cache mit auf und nennt den gesamten freigebbaren Anteil.
+
 ## [1.4.2] - 2026-08-30
 
 ### Fixed

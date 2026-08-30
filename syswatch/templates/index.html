@@ -1161,20 +1161,22 @@ function renderStorage() {
   }
 
   // ── Docker-Aufteilung ──
+  const recl = (n, bytes) => n + ' · ' + (T.storage_reclaimable || '') + ' ' + fmtBytes(bytes || 0);
   const rows = [
     storageRow(T.storage_images || 'Images', fmtBytes(t.images || 0),
-      (t.image_count || 0) + ' · ' + (T.storage_reclaimable || '') + ' ' + fmtBytes(t.reclaimable || 0)),
+      recl(t.image_count || 0, t.images_reclaimable)),
     storageRow(T.storage_containers || 'Container', fmtBytes(t.containers || 0),
       T.storage_containers_note || ''),
-    storageRow(T.storage_volumes || 'Volumes', fmtBytes(t.volumes || 0), String(t.volume_count || 0)),
+    storageRow(T.storage_volumes || 'Volumes', fmtBytes(t.volumes || 0),
+      recl(t.volume_count || 0, t.volumes_reclaimable)),
     storageRow(T.storage_build_cache || 'Build-Cache', fmtBytes(t.build_cache || 0),
-      (t.build_cache_count || 0) + ' · ' + (T.storage_reclaimable || '') + ' ' +
-      fmtBytes(t.build_cache_reclaimable || 0)),
+      recl(t.build_cache_count || 0, t.build_cache_reclaimable)),
   ].join('');
   parts.push(`
     <div style="margin-bottom:16px">
       <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">
         ${esc(T.storage_docker || 'Docker')}: ${fmtBytes(t.total || 0)}
+        ${t.total_reclaimable ? `<span style="font-weight:400;color:var(--yellow)">&nbsp;·&nbsp;${esc(T.storage_reclaimable || '')} ${fmtBytes(t.total_reclaimable)}</span>` : ''}
       </div>
       <table style="width:100%;font-size:0.78rem;border-collapse:collapse">${rows}</table>
     </div>`);

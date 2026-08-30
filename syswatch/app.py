@@ -667,8 +667,7 @@ def _refresh_container_sizes() -> bool:
 
         # Images: 'Size' enthaelt geteilte Layer mit, 'SharedSize' beziffert diesen
         # Anteil. Nur (Size - SharedSize) verschwindet beim Loeschen wirklich.
-        images    = []
-        reclaim   = 0
+        images = []
         for im in (df.get('Images') or []):
             tags = [t for t in (im.get('RepoTags') or []) if t and t != '<none>:<none>']
             if tags:
@@ -680,32 +679,50 @@ def _refresh_container_sizes() -> bool:
             shared = max(0, int(im.get('SharedSize') or 0))
             used   = int(im.get('Containers') if im.get('Containers') is not None else -1)
             unique = max(0, size - shared)
-            if used == 0:
-                reclaim += unique
             images.append({'tag': tag or '<none>', 'size': size, 'shared': shared,
                            'unique': unique, 'containers': used,
                            'created': int(im.get('Created') or 0)})
         images.sort(key=lambda i: i['size'], reverse=True)
 
-        # Build-Cache: Eintraege mit 'Shared' zaehlen bereits bei Images/Containern
-        # mit. Ohne diesen Filter summiert sich derselbe Layer vielfach auf (docker/cli
-        # macht in 'system df' exakt dieselbe Ausnahme).
-        cache_sum = cache_recl = cache_cnt = 0
+        # Build-Cache: Gesamtgroesse ist das API-Feld 'BuilderSize', sonst die Summe
+        # aller Eintraege. Freigebbar = Gesamt minus die Eintraege mit 'InUse' — genau
+        # die Rechnung, die 'docker system df' in den Spalten SIZE/RECLAIMABLE zeigt.
+        cache_sum = cache_inuse = cache_cnt = 0
         for b in (df.get('BuildCache') or []):
-            if b.get('Shared'):
-                continue
             sz = int(b.get('Size') or 0)
             cache_sum += sz
             cache_cnt += 1
-            if not b.get('InUse'):
-                cache_recl += sz
+            if b.get('InUse'):
+                cache_inuse += sz
+        builder_size = int(df.get('BuilderSize') or 0)
+        if builder_size > 0:
+            cache_sum = builder_size
+        cache_recl = max(0, cache_sum - cache_inuse)
+
         img_sum = int(df.get('LayersSize') or 0)
 
-        totals = {'images': img_sum, 'containers': ctr_sum, 'volumes': vol_sum,
-                  'build_cache': cache_sum, 'reclaimable': reclaim,
-                  'build_cache_reclaimable': cache_recl, 'build_cache_count': cache_cnt,
-                  'image_count': len(images), 'volume_count': len(volumes),
-                  'total': img_sum + ctr_sum + vol_sum + cache_sum}
+        # Freigebbar bei Images/Volumes ebenfalls wie 'docker system df': Gesamtgroesse
+        # minus das, was tatsaechlich benutzt wird. 'containers: -1' heisst unbekannt und
+        # gilt wie benutzt.
+        img_used = sum(i['unique'] for i in images if i['containers'] != 0)
+        img_recl = max(0, img_sum - img_used)
+        vol_used = sum(v['size'] for v in volumes if v['refs'] > 0)
+        vol_recl = max(0, vol_sum - vol_used)
+
+        totals = {
+            'images':                  img_sum,
+            'images_reclaimable':      img_recl,
+            'image_count':             len(images),
+            'containers':              ctr_sum,
+            'volumes':                 vol_sum,
+            'volumes_reclaimable':     vol_recl,
+            'volume_count':            len(volumes),
+            'build_cache':             cache_sum,
+            'build_cache_reclaimable': cache_recl,
+            'build_cache_count':       cache_cnt,
+            'total':                   img_sum + ctr_sum + vol_sum + cache_sum,
+            'total_reclaimable':       img_recl + vol_recl + cache_recl,
+        }
         elapsed = time.time() - t0
         with _size_lock:
             _size_cache   = sizes
@@ -723,7 +740,8 @@ def _refresh_container_sizes() -> bool:
             log.info("Groessenabfrage: %d Container, %d Images, %d Volumes | "
                      "Docker gesamt %s (freigebbar %s) | %.1fs",
                      len(sizes), len(images), len(volumes),
-                     _fmt_bytes(totals['total']), _fmt_bytes(reclaim), elapsed)
+                     _fmt_bytes(totals['total']),
+                     _fmt_bytes(totals['total_reclaimable']), elapsed)
         _notify_sse()
         return True
     finally:
@@ -1372,7 +1390,10 @@ def _alert_disk(si: dict, running: list, pct: float, limit: int) -> None:
             f'<b>Docker gesamt:</b> {_fmt_bytes(totals["total"])}',
             f'  Images: {_fmt_bytes(totals.get("images", 0))} · '
             f'Container: {_fmt_bytes(totals.get("containers", 0))} · '
-            f'Volumes: {_fmt_bytes(totals.get("volumes", 0))}',
+            f'Volumes: {_fmt_bytes(totals.get("volumes", 0))} · '
+            f'Build-Cache: {_fmt_bytes(totals.get("build_cache", 0))}',
+            f'  Davon freigebbar: '
+            f'<b>{_fmt_bytes(totals.get("total_reclaimable", 0))}</b>',
         ]
     top = sorted((c for c in running if c.get('size_rw')),
                  key=lambda c: c.get('size_rw') or 0, reverse=True)[:5]

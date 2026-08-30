@@ -129,8 +129,13 @@ Zeitstempel der letzten Größenabfrage. Ein Klick startet die Abfrage sofort ne
 **Linksklick auf die Kachel** öffnet den Dialog **Speicherplatz** mit:
 
 - Datenpartition: Balken, freier/belegter Platz, Quelle der Werte
-- Docker-Aufteilung: Images, Container, Volumes, Build-Cache, Gesamtsumme und
-  **freigebbar** (Summe der exklusiven Layer aller Images ohne Container)
+- Docker-Aufteilung: Images, Container, Volumes, Build-Cache mit Gesamtsumme und
+  **freigebbar** je Zeile. Die Rechnung entspricht den Spalten `SIZE` / `RECLAIMABLE`
+  von `docker system df`: Gesamtgröße minus das, was tatsächlich benutzt wird.
+  Der Build-Cache ist auf HA-Systemen der häufigste Ausreißer — er wächst durch lokale
+  Docker-Builds und wird nie automatisch aufgeräumt. Freigeben auf dem Host mit
+  `docker builder prune -a` (löscht nur Build-Zwischenergebnisse, keine Images,
+  Container oder Volumes). `ha supervisor repair` fasst diesen Cache **nicht** an.
 - **Größte Images** (Top 25) mit Größe, geteiltem Anteil und Anzahl nutzender Container —
   ungenutzte Images sind gelb markiert
 - **Größte Container** (Top 10) mit `SizeRw` und `SizeRootFs`
