@@ -606,8 +606,10 @@ def _get_supervisor_stopped_addons() -> list[dict]:
 # SizeRw     = beschreibbare Schicht des Containers (das, was auf der SSD waechst)
 # SizeRootFs = SizeRw + alle Image-Layer
 # /system/df scannt das Dateisystem und ist teuer -> eigener Thread, langes Intervall.
-_size_cache:  dict = {}
-_size_totals: dict = {}
+_size_cache:   dict = {}
+_size_totals:  dict = {}
+_size_images:  list = []
+_size_volumes: list = []
 _size_ts:     float = 0.0
 _size_lock         = threading.Lock()
 _size_running      = False
@@ -624,6 +626,7 @@ def _size_interval_min() -> int:
 def _refresh_container_sizes() -> bool:
     """Liest Container-/Image-/Volume-Groessen ueber den Docker-Endpoint /system/df."""
     global _size_cache, _size_totals, _size_ts, _size_running
+    global _size_images, _size_volumes
     if not _docker_available:
         return False
     with _size_lock:
@@ -651,22 +654,53 @@ def _refresh_container_sizes() -> bool:
             for raw_name in (c.get('Names') or []):
                 sizes[raw_name.lstrip('/')] = {'size_rw': rw, 'size_root': root}
 
+        volumes = []
         vol_sum = 0
         for v in (df.get('Volumes') or []):
-            sz = int(((v.get('UsageData') or {}).get('Size')) or 0)
+            usage = v.get('UsageData') or {}
+            sz    = int(usage.get('Size') or 0)
+            refs  = int(usage.get('RefCount') if usage.get('RefCount') is not None else -1)
             if sz > 0:
                 vol_sum += sz
+            volumes.append({'name': v.get('Name', ''), 'size': max(0, sz), 'refs': refs})
+        volumes.sort(key=lambda v: v['size'], reverse=True)
+
+        # Images: 'Size' enthaelt geteilte Layer mit, 'SharedSize' beziffert diesen
+        # Anteil. Nur (Size - SharedSize) verschwindet beim Loeschen wirklich.
+        images    = []
+        reclaim   = 0
+        for im in (df.get('Images') or []):
+            tags = [t for t in (im.get('RepoTags') or []) if t and t != '<none>:<none>']
+            if tags:
+                tag = tags[0]
+            else:
+                digests = [d for d in (im.get('RepoDigests') or []) if d]
+                tag = digests[0].split('@')[0] if digests else (im.get('Id') or '')[:19]
+            size   = int(im.get('Size') or 0)
+            shared = max(0, int(im.get('SharedSize') or 0))
+            used   = int(im.get('Containers') if im.get('Containers') is not None else -1)
+            unique = max(0, size - shared)
+            if used == 0:
+                reclaim += unique
+            images.append({'tag': tag or '<none>', 'size': size, 'shared': shared,
+                           'unique': unique, 'containers': used,
+                           'created': int(im.get('Created') or 0)})
+        images.sort(key=lambda i: i['size'], reverse=True)
+
         cache_sum = sum(int(b.get('Size') or 0) for b in (df.get('BuildCache') or []))
         img_sum   = int(df.get('LayersSize') or 0)
 
         totals = {'images': img_sum, 'containers': ctr_sum, 'volumes': vol_sum,
-                  'build_cache': cache_sum,
+                  'build_cache': cache_sum, 'reclaimable': reclaim,
+                  'image_count': len(images), 'volume_count': len(volumes),
                   'total': img_sum + ctr_sum + vol_sum + cache_sum}
         elapsed = time.time() - t0
         with _size_lock:
-            _size_cache  = sizes
-            _size_totals = totals
-            _size_ts     = time.time()
+            _size_cache   = sizes
+            _size_totals  = totals
+            _size_images  = images
+            _size_volumes = volumes
+            _size_ts      = time.time()
         # Cache sofort in die laufende Ansicht spiegeln (sonst erst nach naechstem Scan)
         with _stats_lock:
             for r in _stats_cache.get('containers', []):
@@ -674,8 +708,10 @@ def _refresh_container_sizes() -> bool:
                 r['size_rw']   = sz['size_rw']   if sz else None
                 r['size_root'] = sz['size_root'] if sz else None
         if _verbose():
-            log.info("Groessenabfrage: %d Container | Docker gesamt %s | %.1fs",
-                     len(sizes), _fmt_bytes(totals['total']), elapsed)
+            log.info("Groessenabfrage: %d Container, %d Images, %d Volumes | "
+                     "Docker gesamt %s (freigebbar %s) | %.1fs",
+                     len(sizes), len(images), len(volumes),
+                     _fmt_bytes(totals['total']), _fmt_bytes(reclaim), elapsed)
         _notify_sse()
         return True
     finally:
@@ -1873,6 +1909,29 @@ def api_stats():
     sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
     data['cycle_s'] = round(_last_elapsed + sleep_s + 1.0, 1)  # 1s buffer for variability
     return jsonify(data)
+
+
+@app.route('/api/sizes')
+def api_sizes():
+    """Details fuer den Speicher-Dialog — nur auf Anfrage, nicht im Stats-Poll."""
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    with _stats_lock:
+        sysinfo = dict(_stats_cache.get('sysinfo', {}))
+    with _size_lock:
+        return jsonify({
+            'totals':       dict(_size_totals),
+            'images':       list(_size_images),
+            'volumes':      list(_size_volumes),
+            'ts':           _size_ts,
+            'busy':         _size_running,
+            'interval_min': _size_interval_min(),
+            'disk_total':   sysinfo.get('disk_total', 0),
+            'disk_used':    sysinfo.get('disk_used', 0),
+            'disk_free':    sysinfo.get('disk_free', 0),
+            'disk_pct':     sysinfo.get('disk_pct', 0.0),
+            'disk_src':     sysinfo.get('disk_src', ''),
+        })
 
 
 @app.route('/api/sizes/refresh', methods=['POST'])

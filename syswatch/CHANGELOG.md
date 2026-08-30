@@ -1,5 +1,14 @@
 # Changelog — HA SysWatch
 
+## [1.4.1] - 2026-08-30
+
+### Added
+- **Dialog „Speicherplatz“** per Linksklick auf die Kachel „Speicher frei“: Datenpartition mit Balken und Quelle, Docker-Aufteilung inklusive **freigebbar** (exklusive Layer aller Images ohne Container), die **25 größten Images** mit Größe / geteiltem Anteil / Anzahl nutzender Container, die 10 größten Container und die 15 größten Volumes. Ungenutzte Images und Volumes sind gelb markiert. Neue Route `GET /api/sizes` — die Detaillisten hängen bewusst nicht am Stats-Poll.
+- **Rechtsklick auf die Kachel** startet die Größenabfrage (vorher lag das auf dem Linksklick). Im Dialog erledigt das der Button „Neu berechnen“; danach pollt die Oberfläche alle 3 s bis ein neuer Zeitstempel vorliegt, der Scan darf also Minuten dauern.
+
+### Fixed
+- Kachel-Inhalte klebten oben, weil Kacheln mit Balken höher sind als die ohne. `.card` ist jetzt ein Flex-Container mit `justify-content: center` — „CPU GESAMT“ und „RAM GENUTZT“ sitzen wieder mittig.
+
 ## [1.4.0] - 2026-08-30
 
 ### Added

@@ -79,7 +79,7 @@ Der **Pause-Button** (⚡) pausiert die Datenerfassung manuell.
 | RAM Genutzt | Summe RAM aller laufenden Container | — |
 | SYS CPU | Host-CPU-Auslastung als Balken + % | ✅ → 24h-Chart |
 | SYS RAM | Host-RAM-Auslastung als Balken + % | ✅ → 24h-Chart |
-| Speicher frei | Freier Platz der Datenpartition, Balken = Belegung | ✅ → Größenabfrage neu starten |
+| Speicher frei | Freier Platz der Datenpartition, Balken = Belegung | ✅ Links → Detail-Dialog, Rechts → Größenabfrage |
 
 **Balken-Farbskala (SYS CPU / SYS RAM / Speicher):** grün ≤70 % · gelb ≤80 % · orange ≤90 % · rot >90 %
 
@@ -125,6 +125,25 @@ Lüfterdrehzahlen werden angezeigt wenn `fan*_input`-Einträge in `hwmon` vorhan
 primär von der Supervisor-API (`/host/info`), Fallback ist `statvfs` auf `/config`, `/data`
 oder `/`. Der Tooltip listet die Docker-Aufteilung (Images / Container / Volumes) samt
 Zeitstempel der letzten Größenabfrage. Ein Klick startet die Abfrage sofort neu.
+
+**Linksklick auf die Kachel** öffnet den Dialog **Speicherplatz** mit:
+
+- Datenpartition: Balken, freier/belegter Platz, Quelle der Werte
+- Docker-Aufteilung: Images, Container, Volumes, Build-Cache, Gesamtsumme und
+  **freigebbar** (Summe der exklusiven Layer aller Images ohne Container)
+- **Größte Images** (Top 25) mit Größe, geteiltem Anteil und Anzahl nutzender Container —
+  ungenutzte Images sind gelb markiert
+- **Größte Container** (Top 10) mit `SizeRw` und `SizeRootFs`
+- **Größte Volumes** (Top 15), unbenutzte gelb markiert
+
+**Rechtsklick auf die Kachel** startet die Größenabfrage sofort; im Dialog macht das der
+Button „Neu berechnen“. Die Oberfläche pollt danach alle 3 s, bis ein neuer Zeitstempel
+vorliegt — der Scan darf also ruhig Minuten dauern.
+
+**Hinweis zu Image-Größen:** `Size` einer Image-Zeile enthält gemeinsam genutzte Layer mit,
+`davon geteilt` beziffert diesen Anteil. Beim Löschen wird nur die Differenz frei. Die
+Zeile „Images“ in der Docker-Aufteilung nutzt deshalb `LayersSize` (entdoppelt) und ist
+kleiner als die Summe der Einzelzeilen.
 
 **Spalte „Größe“** zeigt pro Container `SizeRw` — die beschreibbare Schicht, also alles was
 seit dem Image dazugekommen ist. Der Tooltip nennt zusätzlich `SizeRootFs` (inkl. aller

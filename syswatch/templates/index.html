@@ -221,6 +221,9 @@
       border-radius: var(--r);
       padding: 8px 9px;
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
     .card-value {
       font-size: 1.3rem;
@@ -561,8 +564,8 @@
     <div class="card-label">{{ t.card_sys_mem }}</div>
     <div class="card-sub" id="s-mem-detail"></div>
   </div>
-  <div class="card clickable" id="s-disk-card" onclick="refreshSizes()"
-       title="{{ t.disk_refresh_hint }}">
+  <div class="card clickable" id="s-disk-card" onclick="showStorage()"
+       oncontextmenu="return storageCtx(event)" title="{{ t.disk_refresh_hint }}">
     <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-disk-bar"></div></div>
     <span class="sys-bar-pct" id="s-disk">-</span>
     <div class="card-label">{{ t.card_disk_free }}</div>
@@ -696,6 +699,19 @@
         </table>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Storage modal -->
+<div class="modal-overlay" id="storage-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">{{ t.storage_title }}</span>
+      <span id="storage-stamp" style="font-size:0.68rem;color:var(--muted);white-space:nowrap"></span>
+      <button class="btn sm" id="storage-refresh" onclick="refreshSizes(true)">{{ t.storage_refresh }}</button>
+      <button class="btn sm" onclick="closeStorage()">&#10005; {{ t.btn_close }}</button>
+    </div>
+    <div class="modal-body" id="storage-body"></div>
   </div>
 </div>
 
@@ -1037,16 +1053,198 @@ function updateDiskCard(sys, dockerDf) {
   }
 }
 
-// Groessenabfrage (docker system df) manuell anstossen
-async function refreshSizes() {
+// ── Speicher-Dialog ───────────────────────────────────────────────────────────
+// Linksklick auf die Kachel oeffnet die Details, Rechtsklick startet die Abfrage.
+let _storageData = null;
+let _storagePoll = null;
+
+function storageCtx(ev) {
+  ev.preventDefault();
+  refreshSizes(false);
+  return false;
+}
+
+async function showStorage() {
+  document.getElementById('storage-modal').classList.add('open');
+  renderStorage();          // zeigt sofort den letzten Stand
+  await loadStorage();
+}
+
+function closeStorage() {
+  document.getElementById('storage-modal').classList.remove('open');
+  if (_storagePoll) { clearInterval(_storagePoll); _storagePoll = null; }
+}
+
+async function loadStorage() {
+  try {
+    const res = await fetch('/api/sizes');
+    if (res.status === 401) { location.href = '/login'; return; }
+    _storageData = await res.json();
+  } catch (e) {
+    console.error('Storage load failed:', e);
+  }
+  renderStorage();
+}
+
+// Groessenabfrage (docker system df) manuell anstossen. Sie laeuft in einem
+// Backend-Thread, deshalb danach pollen bis ein neuer Zeitstempel da ist.
+async function refreshSizes(fromModal) {
   const card = document.getElementById('s-disk-card');
+  const btn  = document.getElementById('storage-refresh');
   if (card) card.style.opacity = '0.55';
+  if (btn)  { btn.disabled = true; btn.textContent = T.storage_scanning || '...'; }
+  const started = Date.now();
   try {
     await fetch('/api/sizes/refresh', { method: 'POST' });
   } catch (e) {
     console.error('Size refresh failed:', e);
   }
-  setTimeout(() => { if (card) card.style.opacity = ''; }, 1200);
+  const stop = () => {
+    if (_storagePoll) { clearInterval(_storagePoll); _storagePoll = null; }
+    if (card) card.style.opacity = '';
+    if (btn)  { btn.disabled = false; btn.textContent = T.storage_refresh || 'Neu berechnen'; }
+  };
+  if (_storagePoll) clearInterval(_storagePoll);
+  _storagePoll = setInterval(async () => {
+    await loadStorage();
+    const fresh = _storageData && !_storageData.busy &&
+                  _storageData.ts * 1000 > started - 2000;
+    if (fresh || Date.now() - started > 900000) stop();
+  }, 3000);
+}
+
+function storageRow(label, value, note) {
+  return `<tr>
+    <td style="padding:4px 8px;color:var(--muted)">${esc(label)}</td>
+    <td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums">${esc(value)}</td>
+    <td style="padding:4px 8px;color:var(--muted);font-size:0.72rem">${esc(note || '')}</td>
+  </tr>`;
+}
+
+function renderStorage() {
+  const el = document.getElementById('storage-body');
+  if (!el) return;
+  const d = _storageData;
+  const stamp = document.getElementById('storage-stamp');
+  if (stamp) {
+    stamp.textContent = (d && d.ts)
+      ? (T.updated_at || 'Stand') + ': ' + new Date(d.ts * 1000).toLocaleTimeString()
+      : (T.storage_never || '');
+  }
+  if (!d) {
+    el.innerHTML = `<div style="color:var(--muted);padding:16px">${esc(T.loading || '')}</div>`;
+    return;
+  }
+
+  const t   = d.totals || {};
+  const th  = 'padding:6px 8px;text-align:left;border-bottom:2px solid var(--border);' +
+              'position:sticky;top:0;background:var(--surf);font-weight:500;color:var(--muted)';
+  const td  = 'padding:4px 8px;border-bottom:1px solid var(--border);white-space:nowrap';
+  const num = td + ';text-align:right;font-variant-numeric:tabular-nums';
+  const parts = [];
+
+  // ── Datenpartition ──
+  if (d.disk_total) {
+    const pct = d.disk_pct || 0;
+    parts.push(`
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:6px">${esc(T.storage_partition || '')}</div>
+        <div class="sys-bar-bg" style="height:14px">
+          <div class="sys-bar-fill" style="width:${Math.min(100, pct).toFixed(1)}%;background:${sysPctColor(pct)}"></div>
+        </div>
+        <div style="font-size:0.78rem;margin-top:5px">
+          <b style="color:${sysPctColor(pct)}">${fmtBytes(d.disk_free)}</b> ${esc(T.storage_free || 'frei')}
+          &nbsp;·&nbsp; ${fmtBytes(d.disk_used)} / ${fmtBytes(d.disk_total)} (${pct.toFixed(1)}%)
+          ${d.disk_src ? `<span style="color:var(--muted)">&nbsp;·&nbsp;${esc(T.storage_source || '')}: ${esc(d.disk_src)}</span>` : ''}
+        </div>
+      </div>`);
+  }
+
+  // ── Docker-Aufteilung ──
+  const rows = [
+    storageRow(T.storage_images || 'Images', fmtBytes(t.images || 0),
+      (t.image_count || 0) + ' · ' + (T.storage_reclaimable || '') + ' ' + fmtBytes(t.reclaimable || 0)),
+    storageRow(T.storage_containers || 'Container', fmtBytes(t.containers || 0),
+      T.storage_containers_note || ''),
+    storageRow(T.storage_volumes || 'Volumes', fmtBytes(t.volumes || 0), String(t.volume_count || 0)),
+    storageRow(T.storage_build_cache || 'Build-Cache', fmtBytes(t.build_cache || 0), ''),
+  ].join('');
+  parts.push(`
+    <div style="margin-bottom:16px">
+      <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">
+        ${esc(T.storage_docker || 'Docker')}: ${fmtBytes(t.total || 0)}
+      </div>
+      <table style="width:100%;font-size:0.78rem;border-collapse:collapse">${rows}</table>
+    </div>`);
+
+  // ── Groesste Images ──
+  const imgs = (d.images || []).slice(0, 25);
+  if (imgs.length) {
+    const body = imgs.map(i => {
+      const unused = i.containers === 0;
+      return `<tr${unused ? ' style="color:var(--yellow)"' : ''}>
+        <td style="${td};max-width:340px;overflow:hidden;text-overflow:ellipsis" title="${esc(i.tag)}">${esc(i.tag)}</td>
+        <td style="${num}">${fmtBytes(i.size)}</td>
+        <td style="${num};color:var(--muted)">${i.shared ? fmtBytes(i.shared) : '-'}</td>
+        <td style="${num}">${i.containers < 0 ? '?' : i.containers}${unused ? ' · ' + esc(T.storage_unused || '') : ''}</td>
+      </tr>`;
+    }).join('');
+    const more = (d.images.length > imgs.length)
+      ? `<div style="color:var(--muted);font-size:0.72rem;padding:4px 8px">${esc(T.storage_more || '')} ${d.images.length - imgs.length}</div>`
+      : '';
+    parts.push(`
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">${esc(T.storage_top_images || '')}</div>
+        <div class="table-scroll">
+          <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+            <thead><tr>
+              <th style="${th}">${esc(T.storage_col_image || '')}</th>
+              <th style="${th};text-align:right">${esc(T.storage_col_size || '')}</th>
+              <th style="${th};text-align:right">${esc(T.storage_col_shared || '')}</th>
+              <th style="${th};text-align:right">${esc(T.storage_col_used || '')}</th>
+            </tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>${more}
+      </div>`);
+  }
+
+  // ── Groesste Container (beschreibbare Schicht, kommt aus der Haupttabelle) ──
+  const ctrs = allData.filter(c => c.size_rw).sort((a, b) => b.size_rw - a.size_rw).slice(0, 10);
+  if (ctrs.length) {
+    parts.push(`
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">${esc(T.storage_top_containers || '')}</div>
+        <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+          ${ctrs.map(c => `<tr>
+            <td style="${td};max-width:340px;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</td>
+            <td style="${num}">${fmtBytes(c.size_rw)}</td>
+            <td style="${num};color:var(--muted)" title="${esc(T.size_total || '')}">${c.size_root ? fmtBytes(c.size_root) : '-'}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`);
+  }
+
+  // ── Groesste Volumes ──
+  const vols = (d.volumes || []).filter(v => v.size > 0).slice(0, 15);
+  if (vols.length) {
+    parts.push(`
+      <div>
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">${esc(T.storage_top_volumes || '')}</div>
+        <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+          ${vols.map(v => `<tr${v.refs === 0 ? ' style="color:var(--yellow)"' : ''}>
+            <td style="${td};max-width:420px;overflow:hidden;text-overflow:ellipsis" title="${esc(v.name)}">${esc(v.name)}</td>
+            <td style="${num}">${fmtBytes(v.size)}</td>
+            <td style="${num};color:var(--muted)">${v.refs === 0 ? esc(T.storage_unused || '') : (v.refs < 0 ? '?' : v.refs)}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`);
+  }
+
+  if (!d.ts) {
+    parts.push(`<div style="color:var(--muted);font-size:0.78rem;padding:10px 0">${esc(T.storage_no_data || '')}</div>`);
+  }
+  el.innerHTML = parts.join('');
 }
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
@@ -1441,7 +1639,7 @@ document.getElementById('log-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('log-modal')) closeModal();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeRestartModal(); closePortsModal(); }
+  if (e.key === 'Escape') { closeModal(); closeRestartModal(); closePortsModal(); closeStorage(); }
 });
 document.getElementById('restart-pw').addEventListener('keydown', e => {
   if (e.key === 'Enter') confirmRestart();
@@ -1451,6 +1649,9 @@ document.getElementById('restart-modal').addEventListener('click', e => {
 });
 document.getElementById('ports-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('ports-modal')) closePortsModal();
+});
+document.getElementById('storage-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('storage-modal')) closeStorage();
 });
 
 // ── System-Verlauf (24h-Chart) ─────────────────────────────────────────────
