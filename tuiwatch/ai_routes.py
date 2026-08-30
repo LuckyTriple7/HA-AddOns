@@ -1844,7 +1844,11 @@ def api_climate_get(giata: int):
     got = _climate_load(giata)
     if not got:
         return jsonify({'found': False, 'giata': giata})
-    return jsonify(dict(got, found=True))
+    # `totals` auch ohne KI-Aufruf: die Summenzeile (gesamt/heute/Monat) gehoert
+    # unter jedes KI-Ergebnis, genau wie bei den zwischengespeicherten Antworten
+    # der uebrigen KI-Fenster. Ein eigenes `usage` gibt es hier bewusst nicht --
+    # dieser Abruf hat nichts gekostet.
+    return jsonify(dict(got, found=True, totals=_ai_usage_totals()))
 
 
 @bp.route('/api/ai/climate', methods=['POST'])
@@ -1865,7 +1869,8 @@ def api_ai_climate():
     label = (data.get('label') or '').strip()
     if not data.get('refresh'):
         if (got := _climate_load(giata)):
-            return jsonify(dict(got, found=True, cached=True))
+            return jsonify(dict(got, found=True, cached=True,
+                                totals=_ai_usage_totals()))
     if not label:
         return jsonify({'error': 'no_dest'}), 400
     api_key, model = _ai_config()
@@ -2142,7 +2147,9 @@ def api_guide_get(giata: int):
     got = _guide_load(giata)
     if not got:
         return jsonify({'found': False, 'giata': giata})
-    return jsonify(dict(got, found=True, climate=(_climate_load(giata) or {}).get('data')))
+    # Summenzeile wie bei der Klimatabelle -- siehe api_climate_get.
+    return jsonify(dict(got, found=True, totals=_ai_usage_totals(),
+                        climate=(_climate_load(giata) or {}).get('data')))
 
 
 @bp.route('/api/ai/guide', methods=['POST'])
@@ -2161,6 +2168,7 @@ def api_ai_guide():
     if not data.get('refresh'):
         if (got := _guide_load(giata)):
             return jsonify(dict(got, found=True, cached=True,
+                                totals=_ai_usage_totals(),
                                 climate=(_climate_load(giata) or {}).get('data')))
     if not label:
         return jsonify({'error': 'no_dest'}), 400

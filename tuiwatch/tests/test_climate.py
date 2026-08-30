@@ -264,3 +264,19 @@ def test_requires_auth(m):
     assert c.get("/api/climate/128").status_code == 401
     assert c.post("/api/ai/climate", json={"giata": 1, "label": "X"}).status_code == 401
     assert c.post("/api/climate/128/email", json={"to": "a@b.de"}).status_code == 401
+
+
+def test_gespeicherte_klimatabelle_liefert_die_kostenanzeige(client, ai):
+    """Wie beim Reisefuehrer: die Summenzeile kommt auch ohne KI-Aufruf mit."""
+    client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"})
+    d = client.get("/api/climate/128").get_json()
+    assert d["found"] is True
+    assert d["totals"]["calls"] >= 1
+    assert "usage" not in d
+
+
+def test_klima_kostenanzeige_erhoeht_die_summen_nicht(client, ai):
+    client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"})
+    before = client.get("/api/ai/usage").get_json()
+    client.get("/api/climate/128")
+    assert client.get("/api/ai/usage").get_json()["calls"] == before["calls"]

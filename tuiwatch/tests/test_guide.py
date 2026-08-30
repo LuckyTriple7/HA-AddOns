@@ -2,7 +2,7 @@
 
 Wie die Klimatabelle: EINMAL je Ziel erzeugt, dauerhaft gespeichert, jeder weitere
 Abruf ohne KI-Aufruf. Hier wiegt das schwerer als beim Klima — der Reiseführer ist
-mit dreizehn Abschnitten und zwanzig Vokabeln der teuerste Einzelaufruf im Add-on.
+mit allen _GUIDE_SECTIONS und zwanzig Vokabeln der teuerste Einzelaufruf im Add-on.
 """
 import importlib
 import json
@@ -102,7 +102,7 @@ def test_refresh_forces_a_new_call(client, ai):
     assert d["cached"] is False and len(ai) == 2
 
 
-def test_token_budget_is_large_enough_for_thirteen_sections(client, ai):
+def test_token_budget_is_large_enough_for_all_sections(client, ai):
     """Eine abgeschnittene Antwort ist kein gültiges JSON — der Aufruf wäre komplett
     verloren. Deshalb deutlich mehr als die 3000 der Klimatabelle."""
     client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
@@ -297,3 +297,30 @@ def test_perplexity_citations_become_links(client, m, monkeypatch):
 def test_other_providers_are_untouched(client, ai):
     d = client.post("/api/ai/guide", json={"giata": 6, "label": "Y"}).get_json()
     assert d["data"]["zusammenfassung"] == GUIDE["zusammenfassung"]
+
+
+def test_gespeicherter_reisefuehrer_liefert_die_kostenanzeige(client, ai):
+    """Die Summenzeile (gesamt/heute/Monat) gehoert unter JEDES KI-Ergebnis, auch
+    unter den aus der Datenbank geladenen Reisefuehrer. Vorher fehlte sie dort ganz,
+    weil ohne KI-Aufruf auch kein `totals` mitkam."""
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    d = client.get("/api/guide/128").get_json()
+    assert d["found"] is True
+    assert d["totals"]["calls"] >= 1
+    assert d["totals"]["estimated_usd"] is not None
+    assert "usage" not in d          # dieser Abruf selbst hat nichts gekostet
+
+
+def test_kostenanzeige_auch_beim_zwischengespeicherten_post(client, ai):
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    d = client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"}).get_json()
+    assert d["cached"] is True
+    assert d["totals"]["calls"] >= 1
+
+
+def test_kostenanzeige_erhoeht_die_summen_nicht(client, ai):
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    before = client.get("/api/ai/usage").get_json()
+    client.get("/api/guide/128")
+    client.get("/api/guide/128")
+    assert client.get("/api/ai/usage").get_json()["calls"] == before["calls"]

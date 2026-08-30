@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.4
+
+- 💶 **Reiseführer und Klimatabelle zeigen die Kostenanzeige jetzt auch dann, wenn sie aus der Datenbank kommen.** Bisher stand die Summenzeile (Aufrufe gesamt, geschätzte Kosten, davon heute und diesen Monat) nur unter einem frisch erzeugten Ergebnis — beim erneuten Öffnen war sie weg. Sie steht jetzt unter jedem KI-Ergebnis, wie in allen anderen KI-Fenstern auch.
+- ℹ️ Eine Zeile mit Tokenzahl und Kosten des einzelnen Aufrufs erscheint weiterhin nur beim frischen Abruf. Das Wiedersehen kostet nichts, also steht dort auch nichts.
+- 📋 Der Markdown-Knopf bleibt davon unberührt: kopiert wird weiterhin nur der Inhalt, ohne Tokenzahlen und Kosten. Ein Test hält das fest.
+
 ## 0.113.3
 
 - 📋 **Der Markdown-Knopf bei KI-Antworten kopiert jetzt, statt eine Datei herunterzuladen.** Genau wie bei Klimatabelle und Reiseführer landet der Text direkt in der Zwischenablage und lässt sich sofort einfügen — auf einer eigenen Seite, in einer Notiz oder im Wiki. Der Umweg über eine `.md`-Datei im Download-Ordner ist damit weg; auf dem Handy war er ohnehin kaum zu gebrauchen. Betrifft alle KI-Fenster, also auch den Regionen-Vergleich.

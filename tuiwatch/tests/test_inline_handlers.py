@@ -36,3 +36,31 @@ def test_markdown_knopf_kopiert_statt_herunterzuladen():
     assert 'onclick="copyAiMd()"' in html
     assert "exportAiMarkdown" not in html and "exportAiMarkdown" not in js
     assert "copyText(md," in js          # geht ueber denselben Helfer wie copyGuideMd
+
+
+def _funktionskoerper(js: str, name: str) -> str:
+    """Rumpf einer top-level `function name(){...}` per Klammerzaehlung."""
+    start = js.index("function " + name + "(")
+    i = js.index("{", start)
+    depth, j = 0, i
+    while j < len(js):
+        if js[j] == "{":
+            depth += 1
+        elif js[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return js[i:j + 1]
+        j += 1
+    raise AssertionError("Funktionsende von " + name + " nicht gefunden")
+
+
+def test_markdown_enthaelt_keine_kostenanzeige():
+    """Die Summen-/Kostenzeile gehoert ins Fenster, nicht in den kopierten Text --
+    der wird weiterverwendet (Webseite, Notiz), und dort haben Tokenzahlen und
+    US-Dollar-Schaetzungen nichts zu suchen."""
+    js = JS.read_text(encoding="utf-8")
+    verboten = ("aiUsageLine", "estimated_usd", "usage", "totals", "Tokens")
+    for fn in ("climateMarkdown", "guideMarkdown", "aiMarkdown"):
+        koerper = _funktionskoerper(js, fn)
+        treffer = [w for w in verboten if w in koerper]
+        assert treffer == [], fn + " zieht " + ", ".join(treffer) + " in den Markdown-Text"

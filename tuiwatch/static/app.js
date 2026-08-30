@@ -5256,7 +5256,12 @@
         }
       }
       if(totals && totals.calls){
-        html += '<div class="hint" style="margin-top:4px">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
+        // Steht die Summenzeile allein da (gespeicherte Klimatabelle/Reiseführer:
+        // der Abruf selbst hat nichts gekostet, also gibt es kein `usage`), muss sie
+        // die Trennlinie selbst mitbringen — sonst klebt sie am Inhalt darüber.
+        const sep = html ? 'margin-top:4px'
+          : 'margin-top:14px;padding-top:10px;border-top:1px solid var(--border)';
+        html += '<div class="hint" style="'+sep+'">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
           + (totals.input_tokens+totals.output_tokens).toLocaleString('de-DE')+' Tokens · geschätzt '
           + fmtUsd(totals.estimated_usd)+'</div>';
         if(totals.today || totals.month){
