@@ -266,13 +266,13 @@ def test_requires_auth(m):
     assert c.post("/api/climate/128/email", json={"to": "a@b.de"}).status_code == 401
 
 
-def test_gespeicherte_klimatabelle_liefert_die_kostenanzeige(client, ai):
-    """Wie beim Reisefuehrer: die Summenzeile kommt auch ohne KI-Aufruf mit."""
-    client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"})
+def test_gespeicherte_klimatabelle_zeigt_die_kosten_ihres_aufrufs(client, ai):
+    """Wie beim Reisefuehrer: die Zahlen des einen erzeugenden Aufrufs, keine Summe."""
+    post = client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"}).get_json()
     d = client.get("/api/climate/128").get_json()
     assert d["found"] is True
-    assert d["totals"]["calls"] >= 1
-    assert "usage" not in d
+    assert d["usage"]["estimated_usd"] == post["usage"]["estimated_usd"]
+    assert "totals" not in d
 
 
 def test_klima_kostenanzeige_erhoeht_die_summen_nicht(client, ai):
@@ -280,3 +280,11 @@ def test_klima_kostenanzeige_erhoeht_die_summen_nicht(client, ai):
     before = client.get("/api/ai/usage").get_json()
     client.get("/api/climate/128")
     assert client.get("/api/ai/usage").get_json()["calls"] == before["calls"]
+
+
+def test_klimatabelle_von_vor_der_usage_spalte_bleibt_lesbar(client, m, ai):
+    client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"})
+    with m.db() as con:
+        con.execute("UPDATE climate SET usage='' WHERE giata=128")
+    d = client.get("/api/climate/128").get_json()
+    assert d["found"] is True and "usage" not in d

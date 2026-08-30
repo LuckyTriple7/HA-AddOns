@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.113.5
+
+- 💶 **Reiseführer und Klimatabelle zeigen jetzt, was dieser eine Abruf gekostet hat.** Also Tokenzahl und Preis des KI-Aufrufs, der genau diese Tabelle bzw. diesen Reiseführer erzeugt hat — wie beim Regionen-Vergleich. Die Zahlen werden dazu beim Erstellen mitgespeichert und stehen auch beim späteren Öffnen noch da, mit dem Zusatz „einmalig beim Erstellen“. Das Wiedersehen selbst kostet weiterhin nichts.
+- 🧹 Die Gesamtsumme aus 0.113.4 ist an dieser Stelle wieder verschwunden. Sie steht in der Fußzeile der Seite und half im Fenster nicht weiter.
+- ℹ️ Reiseführer und Klimatabellen, die vor dieser Version entstanden sind, haben die Zahlen nicht gespeichert — dort steht weiterhin nichts. Eine erfundene Schätzung wäre schlechter als gar keine Angabe. Ab dem nächsten „Neu abrufen“ ist sie da.
+- 💾 Die Kosten wandern mit ins Backup und kommen bei einer Wiederherstellung wieder mit.
+
 ## 0.113.4
 
 - 💶 **Reiseführer und Klimatabelle zeigen die Kostenanzeige jetzt auch dann, wenn sie aus der Datenbank kommen.** Bisher stand die Summenzeile (Aufrufe gesamt, geschätzte Kosten, davon heute und diesen Monat) nur unter einem frisch erzeugten Ergebnis — beim erneuten Öffnen war sie weg. Sie steht jetzt unter jedem KI-Ergebnis, wie in allen anderen KI-Fenstern auch.

@@ -299,23 +299,25 @@ def test_other_providers_are_untouched(client, ai):
     assert d["data"]["zusammenfassung"] == GUIDE["zusammenfassung"]
 
 
-def test_gespeicherter_reisefuehrer_liefert_die_kostenanzeige(client, ai):
-    """Die Summenzeile (gesamt/heute/Monat) gehoert unter JEDES KI-Ergebnis, auch
-    unter den aus der Datenbank geladenen Reisefuehrer. Vorher fehlte sie dort ganz,
-    weil ohne KI-Aufruf auch kein `totals` mitkam."""
-    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+def test_gespeicherter_reisefuehrer_zeigt_die_kosten_seines_aufrufs(client, ai):
+    """Der Reisefuehrer wird EINMAL erzeugt und danach jahrelang aus der Datenbank
+    gelesen. Interessant ist, was dieser eine Aufruf gekostet hat -- die Gesamtsumme
+    steht in der Fusszeile der Oberflaeche und gehoert hier nicht hin."""
+    post = client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"}).get_json()
     d = client.get("/api/guide/128").get_json()
     assert d["found"] is True
-    assert d["totals"]["calls"] >= 1
-    assert d["totals"]["estimated_usd"] is not None
-    assert "usage" not in d          # dieser Abruf selbst hat nichts gekostet
+    assert d["usage"]["input_tokens"] == 10
+    assert d["usage"]["output_tokens"] == 20
+    assert d["usage"]["estimated_usd"] == post["usage"]["estimated_usd"]
+    assert "totals" not in d
 
 
-def test_kostenanzeige_auch_beim_zwischengespeicherten_post(client, ai):
+def test_kosten_auch_beim_zwischengespeicherten_post(client, ai):
     client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
     d = client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"}).get_json()
     assert d["cached"] is True
-    assert d["totals"]["calls"] >= 1
+    assert d["usage"]["output_tokens"] == 20
+    assert "totals" not in d
 
 
 def test_kostenanzeige_erhoeht_die_summen_nicht(client, ai):
@@ -324,3 +326,25 @@ def test_kostenanzeige_erhoeht_die_summen_nicht(client, ai):
     client.get("/api/guide/128")
     client.get("/api/guide/128")
     assert client.get("/api/ai/usage").get_json()["calls"] == before["calls"]
+
+
+def test_reisefuehrer_von_vor_der_usage_spalte_bleibt_lesbar(client, m, ai):
+    """Altbestand hat keine gespeicherte `usage`. Dann steht im Fenster nichts --
+    besser als eine erfundene Zahl."""
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    with m.db() as con:
+        con.execute("UPDATE guide SET usage='' WHERE giata=128")
+    d = client.get("/api/guide/128").get_json()
+    assert d["found"] is True
+    assert "usage" not in d
+
+
+def test_neu_erzeugter_reisefuehrer_ueberschreibt_die_alten_kosten(client, m, ai):
+    """`refresh` kostet erneut -- dann muss auch die gespeicherte Zahl die neue sein."""
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    with m.db() as con:
+        con.execute("UPDATE guide SET usage=? WHERE giata=128",
+                    ('{"input_tokens": 1, "output_tokens": 2, "estimated_usd": 0.99}',))
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria", "refresh": True})
+    d = client.get("/api/guide/128").get_json()
+    assert d["usage"]["input_tokens"] == 10

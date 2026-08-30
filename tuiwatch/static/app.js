@@ -4162,10 +4162,11 @@
         + `<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th>`
         + `<th title="Sonnenstunden pro Tag">Sonne</th><th title="Regentage im Monat">Regen</th></tr>${rows}</table>`
         + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '')
-        // Tokens und Kosten wie bei jedem anderen KI-Ergebnis. Nur beim frisch
-        // erzeugten Aufruf vorhanden — kommt die Tabelle aus der Datenbank, hat sie
-        // nichts gekostet und es steht bewusst nichts da.
-        + aiUsageLine(d && d.usage, false, d && d.totals);
+        // Tokens und Kosten des Aufrufs, der DIESE Tabelle erzeugt hat — auch dann,
+        // wenn sie aus der Datenbank kommt. Bewusst ohne Gesamtsumme: die steht in
+        // der Fußzeile der Seite und interessiert an dieser Stelle nicht.
+        + aiUsageLine(d && d.usage, false, null,
+                      (d && d.cached === false) ? '' : 'einmalig beim Erstellen');
       climateChartHover(box, c.months || []);
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#climate-stand').textContent = when
@@ -4498,9 +4499,10 @@
         + '<div class="hint" style="margin-top:14px">⏱ = kann sich kurzfristig ändern '
         + '(Einreise, Wechselkurs, Preise) · KI-generiert, ohne Gewähr — verbindliche '
         + 'Auskünfte nur beim Auswärtigen Amt und beim Veranstalter.</div>'
-        // Nur beim frisch erzeugten Reiseführer vorhanden; aus der Datenbank
-        // gelesen hat er nichts gekostet.
-        + aiUsageLine(d && d.usage, false, d && d.totals);
+        // Kosten des einen Aufrufs, der diesen Reiseführer erzeugt hat — siehe
+        // renderClimate. Gesamtsumme bewusst nicht, die steht in der Fußzeile.
+        + aiUsageLine(d && d.usage, false, null,
+                      (d && d.cached === false) ? '' : 'einmalig beim Erstellen');
       if(d.climate && (d.climate.months||[]).length) climateChartHover(box, d.climate.months);
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#guide-stand').textContent = when
@@ -5237,13 +5239,17 @@
         stars:r.stars, recommendation:r.recommendation, reviews:r.reviews, board:r.board,
         price:r.price, nights:r.nights, date:r.date};
     }
-    function aiUsageLine(usage, cached, totals){
+    // `note`: Zusatz hinter den Zahlen, z.B. „einmalig beim Erstellen“ bei einer
+    // gespeicherten Klimatabelle — die Zahlen stammen dort vom Aufruf von damals,
+    // das Wiedersehen kostet nichts.
+    function aiUsageLine(usage, cached, totals, note){
       let html = '';
       if(usage){
         const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
         if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
         if(usage.web_search_requests) parts.push('<svg class="i"><use href="#i-search"/></svg> '+usage.web_search_requests+' Websuchen');
         if(usage.estimated_usd != null) parts.push('≈ '+fmtUsd(usage.estimated_usd));
+        if(note) parts.push(note);
         html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)"><svg class="i"><use href="#i-hash"/></svg> '
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
         // Eine abgeschnittene Antwort hoert einfach mittendrin auf — ohne Hinweis

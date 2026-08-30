@@ -96,7 +96,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -901,6 +901,14 @@ def init_db() -> None:
             model   TEXT DEFAULT '',
             data    TEXT NOT NULL
         )''')
+        # `usage`: Tokenzahlen und tatsaechliche Kosten des EINEN Aufrufs, der diese
+        # Tabelle bzw. diesen Reisefuehrer erzeugt hat. Beide werden nur einmal
+        # erstellt und danach jahrelang aus der Datenbank gelesen — ohne diese Spalte
+        # waere hinterher nicht mehr feststellbar, was das Ergebnis gekostet hat.
+        for _t in ('climate', 'guide'):
+            if 'usage' not in {r['name'] for r in
+                               con.execute(f'PRAGMA table_info({_t})').fetchall()}:
+                con.execute(f"ALTER TABLE {_t} ADD COLUMN usage TEXT NOT NULL DEFAULT ''")
         # Öffentliche Angebots-Seiten (Share-Links, siehe share_routes.py). `payload`
         # ist ein beim Anlegen eingefrorener JSON-Snapshot — die öffentliche Seite
         # liest ausschließlich diese Spalte und nie die Live-Tabellen, damit kein

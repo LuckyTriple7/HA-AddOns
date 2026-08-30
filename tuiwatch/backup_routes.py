@@ -131,10 +131,12 @@ def _build_backup_zip() -> bytes:
         # bares Geld beim KI-Anbieter. Sie gehören damit zu den Nutzdaten, nicht zum
         # Cache (anders als calendar_cache/compare_cache/nights_cache, die sich beim
         # nächsten Abruf von selbst wieder füllen).
+        # `usage` mit sichern: sonst waere nach einer Wiederherstellung nicht mehr
+        # feststellbar, was die einmal erzeugte Tabelle gekostet hat.
         climate = [dict(r) for r in con.execute(
-            'SELECT giata, label, ts, model, data FROM climate ORDER BY giata').fetchall()]
+            'SELECT giata, label, ts, model, data, usage FROM climate ORDER BY giata').fetchall()]
         guide = [dict(r) for r in con.execute(
-            'SELECT giata, label, ts, model, data FROM guide ORDER BY giata').fetchall()]
+            'SELECT giata, label, ts, model, data, usage FROM guide ORDER BY giata').fetchall()]
         # Öffentliche Angebots-Links samt Besucherkommentaren: nicht rekonstruierbar
         # (der Token steckt in bereits verschickten Links) und fremde Beiträge.
         shares = [dict(r) for r in con.execute(
@@ -684,9 +686,12 @@ def api_restore():
                 if con.execute(f'SELECT 1 FROM {table} WHERE giata=?', (giata,)).fetchone():
                     continue
                 con.execute(
-                    f'INSERT INTO {table} (giata, label, ts, model, data) VALUES (?,?,?,?,?)',
+                    f'INSERT INTO {table} (giata, label, ts, model, data, usage) '
+                    'VALUES (?,?,?,?,?,?)',
                     (giata, row.get('label') or '', int(row.get('ts') or 0),
-                     row.get('model') or '', str(row['data'])))
+                     row.get('model') or '', str(row['data']),
+                     # aeltere Backups kennen die Spalte nicht -- dann bleibt sie leer
+                     str(row.get('usage') or '')))
                 climate_n[table] += 1
         # Share-Links: der Token steckt in bereits verschickten Links und lässt sich
         # nicht neu erzeugen — ein vorhandener Token bleibt deshalb unangetastet.
