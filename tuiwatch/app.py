@@ -96,7 +96,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.9"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3383,6 +3383,27 @@ def api_ai_usage():
     selbst einen KI-Aufruf auszulösen."""
     if (err := _require_api()):
         return err
+    return jsonify(_ai_usage_totals())
+
+
+@app.route('/api/ai/usage', methods=['DELETE'])
+def api_ai_usage_reset():
+    """KI-Kostenzähler auf null setzen (heute, Monat und gesamt).
+
+    Betrifft ausschließlich die drei Zähler-Buckets in `meta`. Der KI-Verlauf und
+    die je Ergebnis gespeicherten Einzelkosten bleiben unangetastet — die Zähler
+    sind eine reine Aufsummierung und lassen sich daraus nicht rekonstruieren,
+    das Zurücksetzen ist also endgültig.
+
+    Geschrieben wird '{}' statt die Zeile zu löschen: `_ai_usage_calc` liest
+    daraus sauber Nullen, und ein fehlender Schlüssel verhält sich damit genauso
+    wie ein geleerter.
+    """
+    if (err := _require_api()):
+        return err
+    for key in ('ai_usage_totals', 'ai_usage_today', 'ai_usage_month'):
+        _meta_set(key, '{}')
+    log.info("KI-Kostenzähler zurückgesetzt (heute, Monat, gesamt)")
     return jsonify(_ai_usage_totals())
 
 

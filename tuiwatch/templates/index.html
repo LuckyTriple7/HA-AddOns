@@ -1736,6 +1736,19 @@
         Verschlüsselung nicht verfügbar — geheime Felder können nicht gespeichert werden.</div>
       <div id="settings-body"><div class="cmp-load">lädt…</div></div>
 
+      <div class="set-group" id="set-aiusage-group">
+        <h3>💶 KI-Kosten</h3>
+        <div class="set-row">
+          <div class="hint">Setzt die Zähler für heute, diesen Monat und gesamt auf null — die Anzeige
+            in der Fußzeile beginnt dann wieder bei 0,00 $. Der KI-Verlauf und die bei jedem Ergebnis
+            gespeicherten Einzelkosten bleiben erhalten; die Summen selbst sind danach weg und lassen
+            sich nicht zurückholen.</div>
+          <div class="hint" id="set-aiusage-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row">
+          <button class="btn sec" type="button" onclick="resetAiUsage(this)">KI-Kosten zurücksetzen</button>
+        </div>
+      </div>
       <div class="set-group" id="set-key-group">
         <h3>🔑 Schlüssel &amp; Komplettsicherung</h3>
         <div class="set-row">

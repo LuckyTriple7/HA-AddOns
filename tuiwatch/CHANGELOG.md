@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.9
+
+- 💶 **KI-Kosten lassen sich zurücksetzen.** Neuer Abschnitt „💶 KI-Kosten" im Einstellungen-Dialog: zeigt den aktuellen Stand (heute, Monat, gesamt) und setzt ihn auf Wunsch auf null. Praktisch nach einem Umzug oder wenn die Summe aus einer Testphase stammt und die Fußzeile sonst dauerhaft einen Betrag zeigt, der nichts mehr aussagt.
+- ℹ️ Betroffen sind nur die drei Zähler. Der KI-Verlauf und die bei jedem Ergebnis gespeicherten Einzelkosten bleiben stehen. Die Summen selbst sind danach weg — sie sind eine reine Aufsummierung und lassen sich nicht zurückrechnen, deshalb fragt TUIWatch vorher nach.
+- ✅ Drei Tests: alle drei Zähler auf null, danach zählt es wieder ab 1, und ohne Anmeldung geht es nicht.
+
 ## 0.113.8
 
 - 🙈 **Ohne Home Assistant verschwinden die HA-Optionen aus den Einstellungen.** „Home-Assistant-Sensoren", „HA-Benachrichtigungen" und „Zusätzlicher HA-Notify-Dienst" laufen ausschließlich über die Supervisor-API. Läuft TUIWatch als eigener Container — Docker-Host, Server im Netz —, fehlt das `SUPERVISOR_TOKEN` und die drei Schalter bewirken nichts. Ein wirkungsloser Schalter ist schlimmer als gar keiner, deshalb werden sie dort nicht mehr angezeigt. Im Add-on bleibt alles wie gehabt.

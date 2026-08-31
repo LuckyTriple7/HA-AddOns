@@ -5900,6 +5900,7 @@
       $('#settings-bg').classList.add('show');
       loadSettings();
       loadKeyState();
+      loadAiUsageState();
       return false;
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
@@ -5998,6 +5999,31 @@
       no_key: 'Es gibt noch keinen Schlüssel zum Sichern',
       crypto_unavailable: 'Verschlüsselung nicht verfügbar',
     };
+    // KI-Kosten: Stand im Dialog zeigen und auf Wunsch nullen. Die Zaehler sind
+    // reine Summen in `meta`, aus dem KI-Verlauf nicht rekonstruierbar — deshalb
+    // die Rueckfrage vor dem Zuruecksetzen.
+    async function loadAiUsageState(){
+      const el = $('#set-aiusage-state'); if(!el) return;
+      try {
+        const d = await fetch(api('/api/ai/usage')).then(r=>r.json());
+        el.textContent = 'Aktuell: heute ' + fmtUsd(d.today && d.today.estimated_usd)
+          + ' · Monat ' + fmtUsd(d.month && d.month.estimated_usd)
+          + ' · gesamt ' + fmtUsd(d.estimated_usd);
+      } catch(e){ el.textContent = ''; }
+    }
+    async function resetAiUsage(btn){
+      if(!confirm('Die KI-Kosten für heute, diesen Monat und gesamt auf null setzen? '
+                + 'Der KI-Verlauf bleibt erhalten, die Summen sind danach weg.')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/ai/usage'), {method:'DELETE'});
+        if(!r.ok){ toast('Zurücksetzen fehlgeschlagen'); return; }
+        toast('KI-Kosten zurückgesetzt');
+        loadAiUsageState();
+        loadAiUsageFooter();
+      } catch(e){ toast('Zurücksetzen fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
     async function loadKeyState(){
       try {
         const r = await fetch(api('/api/settings/key'));
