@@ -96,7 +96,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3225,7 +3225,9 @@ def api_settings_get():
     """
     if (err := _require_api()):
         return err
-    return jsonify(settings_store.public_view(load_config()))
+    # Ohne Supervisor sind die drei HA-Felder wirkungslos (kein Token, keine
+    # Sensoren, keine persistenten Benachrichtigungen) — dann gar nicht erst zeigen.
+    return jsonify(settings_store.public_view(load_config(), ha=bool(SUPERVISOR_TOKEN)))
 
 
 @app.route('/api/settings', methods=['POST'])

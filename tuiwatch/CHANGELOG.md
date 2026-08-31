@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.113.8
+
+- 🙈 **Ohne Home Assistant verschwinden die HA-Optionen aus den Einstellungen.** „Home-Assistant-Sensoren", „HA-Benachrichtigungen" und „Zusätzlicher HA-Notify-Dienst" laufen ausschließlich über die Supervisor-API. Läuft TUIWatch als eigener Container — Docker-Host, Server im Netz —, fehlt das `SUPERVISOR_TOKEN` und die drei Schalter bewirken nichts. Ein wirkungsloser Schalter ist schlimmer als gar keiner, deshalb werden sie dort nicht mehr angezeigt. Im Add-on bleibt alles wie gehabt.
+- ✅ Zwei Tests halten beides fest: ausgeblendet ohne Token, sichtbar mit Token.
+
 ## 0.113.7
 
 - 🗂️ **Die Einsortierung in „Für andere"-Listen überlebt jetzt eine Wiederherstellung.** `is_foreign`, der Listenname und das Listen-Symbol standen zwar im Backup, fehlten aber in der Spalten-Whitelist des Restores und wurden deshalb kommentarlos verworfen — die Angebote kamen zurück, ihre Zuordnung nicht. Ebenso betroffen: die Markierung „nur Preisverlauf" (`history_only`) und die beiden Stummschalter für Benachrichtigungen. Alle sechs Felder kommen jetzt mit.

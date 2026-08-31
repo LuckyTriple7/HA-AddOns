@@ -2,6 +2,22 @@
 
 Gesammelte, noch nicht umgesetzte Verbesserungen. Reihenfolge = grobe Priorität.
 
+## 14. TUI-Aufrufe beim ersten Start senken
+Eine frische Installation verbraucht rund 2.000 TUI-Aufrufe, bevor jemand etwas
+angeklickt hat: `_ensure_dest_index()` crawlt beim Start den kompletten
+Reiseziel-Baum (`build_destination_index`, ein Aufruf je Knoten). Danach liegt der
+Index 14 Tage in `meta`, das Problem trifft also nur Neuinstallationen und Restores.
+
+- `dest_index` + `dest_index_ts` in `_BACKUP_META_KEYS` aufnehmen — dann bringt ein
+  Restore den Index mit, statt ihn neu zu crawlen.
+- Crawl erst bei der ersten Reiseziel-Suche auslösen statt beim Start; wer die
+  globale Suche nie benutzt, zahlt die Aufrufe sonst trotzdem.
+- Sofortprüfung jedes wiederhergestellten Angebots nach einem Restore
+  ([backup_routes.py](backup_routes.py), `for oid in new_ids`) weglassen — der
+  Poller holt sie ohnehin, und bei vielen Angeboten kommt so ein zweiter Schwung
+  Aufrufe obendrauf.
+- _Besprochen am 31.08.2026, bewusst zurückgestellt._
+
 ## 11. Aktionscodes mit den getrackten Angeboten verrechnen
 Die öffentlichen Aktionscodes (seit 0.26.1 erkannt/gemeldet) auf die Angebote anwenden:
 

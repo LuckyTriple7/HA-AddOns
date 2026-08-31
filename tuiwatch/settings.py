@@ -273,6 +273,14 @@ SECRET_KEYS = frozenset({
     'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key',
 })
 
+# Felder, die ohne Home Assistant nichts bewirken: die Sensoren und die
+# persistenten Benachrichtigungen laufen ausschliesslich ueber die Supervisor-API.
+# Laeuft TUIWatch als eigener Container (Docker-Host, Server im Netz), fehlt das
+# SUPERVISOR_TOKEN, die drei Schalter waeren wirkungslos — und ein wirkungsloser
+# Schalter in den Einstellungen ist schlimmer als gar keiner. Sie werden dort
+# deshalb ausgeblendet (siehe public_view).
+HA_ONLY_KEYS = frozenset({'ha_sensors', 'notify_ha', 'ha_notify_service'})
+
 # Diese Werte liest TUIWatch nur beim Start: der zweite Webserver für die
 # öffentlichen Angebots-Seiten wird einmalig gebunden (_start_public_server).
 RESTART_KEYS = frozenset({'enable_public_share', 'public_port'})
@@ -618,7 +626,7 @@ def migrate(options: dict) -> bool:
     return True
 
 
-def public_view(effective: dict) -> dict:
+def public_view(effective: dict, ha: bool = True) -> dict:
     """Ansicht für die Oberfläche: Feldbeschreibung + Werte.
 
     Geheime Felder kommen nie im Klartext zurück, sondern nur als „gesetzt".
@@ -628,6 +636,8 @@ def public_view(effective: dict) -> dict:
         items = []
         for key, spec in FIELDS.items():
             if spec[3] != group:
+                continue
+            if key in HA_ONLY_KEYS and not ha:
                 continue
             kind, default, extra = spec[0], spec[1], spec[2]
             item = {'key': key, 'kind': kind, 'label': spec[4], 'hint': spec[5],
