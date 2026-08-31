@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:26-alpine
 
 LABEL org.opencontainers.image.title="WhatsApp for Home Assistant"
 LABEL org.opencontainers.image.description="WhatsApp Web with REST API and webhook support"
