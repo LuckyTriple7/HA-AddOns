@@ -6028,6 +6028,30 @@
       } catch(e){ toast('Export fehlgeschlagen'); }
       finally { btn.disabled = false; }
     }
+    // Komplettsicherung: Backup + verpackter Schluessel in einer Datei. Nutzt
+    // dieselben zwei Felder wie der Einzel-Export (Passphrase + Login-Passwort),
+    // damit es nur einen Ort gibt, an dem eine Passphrase eingegeben wird.
+    async function backupWithKey(btn){
+      const pass = $('#set-key-pass').value, pw = $('#set-key-admin').value;
+      if(!pass || !pw){ toast('Passphrase und Passwort eingeben'); return; }
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/backup'), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ passphrase: pass, password: pw }),
+        });
+        if(!r.ok){ const d = await r.json().catch(()=>({})); toast(KEY_ERR[d.error] || 'Backup fehlgeschlagen'); return; }
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'tuiwatch-backup-mit-schluessel.zip';
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+        keyClearInputs();
+        toast('Backup mit Schlüssel heruntergeladen — sicher aufbewahren');
+      } catch(e){ toast('Backup fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
     async function importKey(file, overwrite){
       const fd = new FormData();
       fd.append('file', file);
@@ -6057,6 +6081,15 @@
         const f = e.target.files[0];
         e.target.value = '';
         if(f) importKey(f, false);
+      }
+      if(e.target && e.target.id === 'set-backup-key-file'){
+        const f = e.target.files[0];
+        e.target.value = '';
+        if(!f) return;
+        const pass = $('#set-key-pass').value, pw = $('#set-key-admin').value;
+        if(!pass || !pw){ toast('Passphrase und Passwort eingeben'); return; }
+        keyClearInputs();
+        postRestore(f, {passphrase: pass, password: pw});
       }
     });
 
@@ -7648,21 +7681,49 @@
     }
     async function restoreOffers(input){
       const f = input.files && input.files[0]; input.value=''; if(!f) return;
+      return postRestore(f, {});
+    }
+    // Ein Restore kann zwei Rueckfragen ausloesen: vorhandene Einstellungen ersetzen
+    // und einen vorhandenen Schluessel ersetzen. Beantwortet der Benutzer eine davon,
+    // laeuft derselbe Upload noch einmal mit dem Zusatzfeld. Das ist unbedenklich:
+    // der Restore ist ein Upsert per URL/Buchungsnummer, ein zweiter Lauf legt
+    // nichts doppelt an (er meldet die Angebote dann als „übersprungen“).
+    async function postRestore(f, extra){
+      extra = extra || {};
       const fd = new FormData(); fd.append('file', f);
+      Object.keys(extra).forEach(k => fd.append(k, extra[k]));
       let r; try { r = await fetch(api('/api/restore'), {method:'POST', body:fd}); }
       catch(e){ toast('Wiederherstellung fehlgeschlagen'); return; }
-      if(r.ok){
-        const d=await r.json();
-        const parts = [d.added+' Angebote'];
-        if(d.trips) parts.push(d.trips+' Reisen');
-        if(d.searches) parts.push(d.searches+' Suchen');
-        if(d.ai_history) parts.push(d.ai_history+' KI-Verlauf');
-        if(d.settings) parts.push(d.settings+' KI-Einstellungen');
-        toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
-        loadOffers();
-      } else if(r.status===413){
-        toast('Backup-Datei zu groß bzw. verdächtig stark komprimiert');
-      } else toast('Wiederherstellung fehlgeschlagen');
+      if(r.status===413){ toast('Backup-Datei zu groß bzw. verdächtig stark komprimiert'); return; }
+      if(r.status===403){
+        const d = await r.json().catch(()=>({}));
+        toast(KEY_ERR[d.error] || 'Passwort falsch'); return;
+      }
+      if(!r.ok){ toast('Wiederherstellung fehlgeschlagen'); return; }
+      const d = await r.json();
+      const parts = [d.added+' Angebote'];
+      if(d.trips) parts.push(d.trips+' Reisen');
+      if(d.searches) parts.push(d.searches+' Suchen');
+      if(d.ai_history) parts.push(d.ai_history+' KI-Verlauf');
+      if(d.settings) parts.push(d.settings+' KI-Einstellungen');
+      if(d.options_restored) parts.push('Einstellungen');
+      if(d.key_restored) parts.push('Schlüssel');
+      toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
+      loadOffers();
+      if(d.key_error === 'exists' && extra.replace_key !== '1'){
+        if(confirm('Im Backup steckt ein anderer Schlüssel als der hier hinterlegte. Wird er ersetzt, '
+                 + 'sind die bisher gespeicherten Zugangsdaten unwiderruflich unlesbar. Ersetzen?'))
+          return postRestore(f, Object.assign({}, extra, {replace_key:'1'}));
+      } else if(d.key_error === 'passphrase_missing'){
+        toast('Im Backup steckt ein Schlüssel — zum Einspielen „Backup mit Schlüssel einspielen“ im Einstellungen-Dialog nutzen');
+      } else if(d.key_error){
+        toast(KEY_ERR[d.key_error] || 'Schlüssel aus dem Backup nicht übernommen');
+      }
+      if(d.options_skipped && extra.replace_settings !== '1'){
+        if(confirm('Das Backup enthält Einstellungen, auf diesem System liegen aber schon welche. '
+                 + 'Sollen die gespeicherten Einstellungen durch die aus dem Backup ersetzt werden?'))
+          return postRestore(f, Object.assign({}, extra, {replace_settings:'1'}));
+      }
     }
 
     function renderOverview(offers){

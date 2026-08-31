@@ -286,10 +286,16 @@ _cache_mtime = -1.0
 
 
 def init(data_dir: str) -> None:
-    """Pfade festlegen. Muss einmal beim Start aufgerufen werden."""
+    """Pfade festlegen. Muss einmal beim Start aufgerufen werden.
+
+    Cache und Schlüssel werden dabei verworfen: sie gehören zum alten Datenordner
+    und wären nach einem Wechsel schlicht falsch (im Betrieb läuft `init` genau
+    einmal, in den Tests dagegen je Fixture mit einem frischen tmp-Verzeichnis).
+    """
     global _path, _key_path
     _path = os.path.join(data_dir, 'settings.json')
     _key_path = os.path.join(data_dir, 'settings.key')
+    reset_cache()
 
 
 def path() -> str:
@@ -561,6 +567,25 @@ def import_key(data: bytes, passphrase: str, overwrite: bool = False) -> int:
 def key_exists() -> bool:
     return bool(_key_path) and os.path.exists(_key_path)
 
+
+def crypto_ready() -> bool:
+    """Lassen sich geheime Felder speichern?
+
+    Nicht dasselbe wie „es gibt bereits einen Schlüssel“: auf einer frischen
+    Installation entsteht der erst beim ersten Speichern eines Geheimfeldes
+    (`_get_fernet(create=True)`). Bis 0.113.6 fragte die Oberfläche stattdessen
+    `_get_fernet()` — das legt bewusst keinen an — und meldete deshalb
+    „Verschlüsselung nicht verfügbar“, obwohl gar nichts fehlte.
+
+    Gefragt ist also: Bibliothek vorhanden, und der Schlüssel entweder da und
+    brauchbar oder im Datenordner anlegbar.
+    """
+    if not _HAS_CRYPTO or not _key_path:
+        return False
+    if os.path.exists(_key_path):
+        return _get_fernet() is not None
+    return os.access(os.path.dirname(_key_path) or '.', os.W_OK)
+
 def migrate(options: dict) -> bool:
     """Beim ersten Start die bisherigen Add-on-Optionen übernehmen.
 
@@ -621,4 +646,5 @@ def public_view(effective: dict) -> dict:
         if items:
             fields.append({'group': group, 'title': title, 'items': items})
     return {'groups': fields,
-            'crypto': _HAS_CRYPTO and _get_fernet() is not None}
+            'crypto': crypto_ready(),
+            'key': key_exists()}

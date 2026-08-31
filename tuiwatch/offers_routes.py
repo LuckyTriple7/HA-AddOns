@@ -575,12 +575,20 @@ _SEARCH_BACKUP_COLS = ('name', 'payload', 'ts', 'watch', 'max_price', 'last_chec
                        'seen', 'hits')
 # Feste Whitelist der beim Restore einspielbaren Angebots-Spalten (Spaltennamen kommen
 # damit NIE aus den Backup-Daten → keine per String gebaute Query aus Nutzerquellen).
+# Spalten, die ein Restore aus dem Backup uebernehmen darf. Feste Whitelist:
+# Spaltennamen sind hier Code-Konstanten und kommen nie aus den Backup-Daten.
+# Was hier fehlt, wird beim Wiederherstellen kommentarlos verworfen — bis 0.113.6
+# traf das `history_only`, die beiden Stummschalter und vor allem die
+# Zuordnung zu einer „Fuer andere"-Liste (`is_foreign`/`foreign_list`/
+# `foreign_icon`): die Angebote kamen zurueck, ihre Einsortierung nicht.
 _OFFER_RESTORE_COLS = (
     'url', 'label', 'hotel', 'details', 'room', 'board', 'dep_airport', 'flight_out', 'flight_ret',
     'location', 'city', 'region', 'country', 'pdf_url', 'cancellation', 'stars', 'rating',
     'rating_count', 'recommendation', 'total_price', 'travellers_count', 'paused',
-    'archived', 'return_date', 'target_price', 'booked_price', 'image_url', 'booking_code',
-    'room_booking_code', 'tags', 'check24_hotel_id', 'check24_area_id', 'check24_link', 'created',
+    'archived', 'history_only', 'return_date', 'target_price', 'booked_price', 'image_url',
+    'booking_code', 'room_booking_code', 'tags', 'check24_hotel_id', 'check24_area_id',
+    'check24_link', 'notify_muted', 'notify_calendar_muted',
+    'is_foreign', 'foreign_list', 'foreign_icon', 'created',
 )
 
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.113.7
+
+- 🗂️ **Die Einsortierung in „Für andere"-Listen überlebt jetzt eine Wiederherstellung.** `is_foreign`, der Listenname und das Listen-Symbol standen zwar im Backup, fehlten aber in der Spalten-Whitelist des Restores und wurden deshalb kommentarlos verworfen — die Angebote kamen zurück, ihre Zuordnung nicht. Ebenso betroffen: die Markierung „nur Preisverlauf" (`history_only`) und die beiden Stummschalter für Benachrichtigungen. Alle sechs Felder kommen jetzt mit.
+- ⚙️ **Einstellungen lassen sich endlich wirklich zurückspielen.** Bisher übernahm der Restore sie nur, wenn noch **keine** `settings.json` vorhanden war. Da beim allerersten Start immer eine angelegt wird, war das auf einer frischen Installation nie der Fall: die Wiederherstellung meldete Erfolg und ließ die Einstellungen liegen. Jetzt fragt TUIWatch nach und ersetzt sie auf Wunsch — und wenn es sie überspringt, steht das in der Meldung **und** im Log.
+- 🔑 **Backup mit Schlüssel in einer Datei.** Im Einstellungen-Dialog unter „Schlüssel & Komplettsicherung": ein Backup, in dem der Schlüssel bereits steckt, mit derselben Passphrase verpackt wie beim Einzel-Export. Damit ist eine Installation an einem Stück wiederherstellbar, Zugangsdaten eingeschlossen. Das normale Backup und die automatische Sicherung bleiben schlüsselfrei.
+- 🛡️ **`X-Ingress-Path` gilt nur noch mit Home-Assistant-Supervisor als Anmeldung.** Der Header kommt vom Browser und ist damit fälschbar; im Add-on setzt ihn ausschließlich der Supervisor. Lief TUIWatch dagegen ohne Supervisor — eigener Docker-Host, Server im Netz — genügte ein einziger Aufruf mit diesem Header, um den Login zu umgehen. Ohne `SUPERVISOR_TOKEN` wird er jetzt ignoriert. Für einen eigenen Reverse-Proxy, der ihn selbst setzt, lässt sich das über `TUIWATCH_TRUST_INGRESS=1` bewusst wieder einschalten. **Im Add-on ändert sich nichts.**
+- 🧹 **„Verschlüsselung nicht verfügbar" verschwindet auf frischen Installationen.** Die Meldung erschien, solange noch kein Schlüssel angelegt war — der entsteht aber erst beim ersten gespeicherten Passwort oder Token. Gefragt wird jetzt, ob sich einer anlegen lässt, nicht ob schon einer da ist. Gespeichert wurde auch vorher korrekt, die Warnung war schlicht falsch.
+- ✅ Zwölf neue Tests halten das fest: die sechs Angebots-Felder, der gemeldete und der erzwungene Einstellungs-Restore, der Schlüssel im Backup samt falscher Passphrase, und dass der Ingress-Header ohne Supervisor nicht mehr zieht.
+
 ## 0.113.6
 
 - 🧹 **Reiseführer und Klimatabelle blenden die Knöpfe aus, solange die KI arbeitet.** Drucken, Markdown, Als E-Mail und Neu abrufen sind während des Abrufs wirkungslos — und „Erstellt am …“ zeigte daneben noch den alten Stand, was bei „Neu abrufen“ besonders verwirrend war. Die Fußzeile erscheint erst wieder, wenn das Ergebnis dasteht.

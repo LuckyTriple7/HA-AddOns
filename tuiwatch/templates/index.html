@@ -1737,7 +1737,7 @@
       <div id="settings-body"><div class="cmp-load">lädt…</div></div>
 
       <div class="set-group" id="set-key-group">
-        <h3>🔑 Schlüssel sichern</h3>
+        <h3>🔑 Schlüssel &amp; Komplettsicherung</h3>
         <div class="set-row">
           <div class="hint">Der Schlüssel entschlüsselt alle gespeicherten Zugangsdaten und liegt bewusst
             <b>nicht</b> im Backup. Damit ein Restore auf einer frischen Installation trotzdem gelingt,
@@ -1762,6 +1762,17 @@
           <button class="btn sec" type="button" id="set-key-export" onclick="exportKey(this)">Schlüssel herunterladen</button>
           <button class="btn sec" type="button" onclick="$('#set-key-file').click()">Schlüssel einspielen</button>
           <input type="file" id="set-key-file" accept=".json,application/json" style="display:none">
+        </div>
+        <div class="set-row">
+          <div class="hint">Bequemer als beides einzeln: ein Backup, in dem der Schlüssel schon steckt —
+            mit derselben Passphrase verpackt. Damit lässt sich eine Installation an einem Stück
+            wiederherstellen, Einstellungen und Zugangsdaten eingeschlossen. Beim Einspielen fragt
+            TUIWatch nach, bevor es vorhandene Einstellungen oder einen vorhandenen Schlüssel ersetzt.</div>
+        </div>
+        <div class="set-row" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sec" type="button" onclick="backupWithKey(this)">Backup mit Schlüssel herunterladen</button>
+          <button class="btn sec" type="button" onclick="$('#set-backup-key-file').click()">Backup mit Schlüssel einspielen</button>
+          <input type="file" id="set-backup-key-file" accept=".zip,application/zip" style="display:none">
         </div>
       </div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">

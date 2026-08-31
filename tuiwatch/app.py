@@ -96,7 +96,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -134,6 +134,32 @@ app = Flask(__name__, template_folder=_BASE + '/templates',
 app.config['MAX_CONTENT_LENGTH'] = MAX_PDF_BYTES
 
 
+def _trust_ingress_header() -> bool:
+    """Darf `X-Ingress-Path` geglaubt werden?
+
+    Der Header kommt vom Client und ist damit fälschbar; `_auth_ok` behandelt
+    einen daraus gesetzten SCRIPT_NAME als "vom Ingress bereits
+    authentifiziert". Im Add-on ist das richtig — dort setzt ihn ausschließlich
+    der HA-Supervisor, und Port 17794 liegt hinter ihm. Läuft TUIWatch dagegen
+    ohne Supervisor (eigener Docker-Host, Server im Netz), wäre derselbe Header
+    eine Login-Umgehung: ein einziges `curl -H "X-Ingress-Path: /x"` genügte.
+
+    Deshalb gilt er nur mit SUPERVISOR_TOKEN in der Umgebung. Erzwingen oder
+    abschalten lässt sich das über TUIWATCH_TRUST_INGRESS (1/0) — etwa für einen
+    eigenen Reverse-Proxy, der den Header selbst setzt und den Zugang davor
+    absichert.
+    """
+    override = os.environ.get('TUIWATCH_TRUST_INGRESS', '').strip().lower()
+    if override in ('1', 'true', 'yes', 'on'):
+        return True
+    if override in ('0', 'false', 'no', 'off'):
+        return False
+    return bool(os.environ.get('SUPERVISOR_TOKEN', ''))
+
+
+TRUST_INGRESS = _trust_ingress_header()
+
+
 class _IngressMiddleware:
     """Setzt SCRIPT_NAME aus dem HA-Supervisor-Header, damit url_for() hinter
     dem Ingress-Proxy korrekte URLs erzeugt."""
@@ -142,7 +168,8 @@ class _IngressMiddleware:
         self._app = wsgi_app
 
     def __call__(self, environ, start_response):
-        prefix = environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
+        prefix = (environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
+                  if TRUST_INGRESS else '')
         if prefix:
             environ['SCRIPT_NAME'] = prefix
             path = environ.get('PATH_INFO', '')
