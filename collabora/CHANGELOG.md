@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.6] - 2026-09-01
+- Collabora auf Upstream-Version 26.04.3.2.1 aktualisiert
+
 ## [1.1.5] - 2026-08-17
 
 - Doku: `org.opencontainers.image.licenses` im Dockerfile stand auf MIT, obwohl das Image Collabora Online unter der MPL-2.0 enthält — auf `MPL-2.0 AND MIT` korrigiert
