@@ -5931,12 +5931,20 @@
            <b style="white-space:nowrap">${esc(value)}</b>
          </div>` + (hint ? `<div class="hint" style="margin:-2px 0 6px">${esc(hint)}</div>` : '');
       let html = row('Container gesamt', _mb(cg.current_mb),
-                     'Dieser Wert steht in Home Assistant.')
+                     'Dieser Wert steht in Home Assistant. Die Zeilen darunter ergeben ihn.')
         + row('davon echter Speicher (anon)', _mb(cg.anon_mb),
               'Python, Bibliotheken, ein laufendes Chromium — das ist wirklich belegt.')
         + row('davon Dateicache (file)', _mb(cg.file_mb),
               'Datenbank und Logdateien im Cache. Zählt mit, gibt der Kernel bei Bedarf sofort her.')
-        + row('davon Kernel (slab)', _mb(cg.slab_mb), '')
+        + row('davon Kernel', _mb(cg.kernel_mb),
+              'Verwaltung für diesen Container: Seitentabellen ' + _mb(cg.pagetables_mb)
+              + ', Thread-Stacks ' + _mb(cg.kernel_stack_mb)
+              + ' (davon slab ' + _mb(cg.slab_mb) + ').')
+        + row('darin tmpfs (shmem)', _mb(cg.shmem_mb),
+              'Teil des Dateicaches, kein eigener Posten: was im Container nach /dev/shm oder /tmp '
+              + 'geschrieben wurde. Das liegt im Speicher, nicht auf der Platte.')
+        + row('nicht zugeordnet', _mb(cg.other_mb),
+              'Rest zwischen der Summe und dem Gesamtwert.')
         + row('TUIWatch selbst', _mb(me.rss_mb) + ' · ' + (me.threads||0) + ' Threads', '')
         + row('Höchststand seit Start', _mb(me.peak_mb),
               'Liegt er weit über dem aktuellen Wert, gab es eine einmalige Spitze. '

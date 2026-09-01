@@ -98,7 +98,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.13"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.14"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2814,8 +2814,17 @@ def _poll_worker() -> None:
                     ('Preisbarometer', market_basket.maybe_run_baskets, False)):
                 if _needs_net and not online:
                     continue
+                # Wieviel Speicher kostet welcher Schritt? Der Hoechststand des
+                # Prozesses (VmHWM) sagt nur, DASS es eine Spitze gab. Waechst ein
+                # Schritt spuerbar, steht er hier mit Namen im Log — sonst muesste
+                # man beim naechsten Mal wieder raten.
+                _rss_before = _rss_mb()
                 with busy(_label):
                     _step()
+                _grew = _rss_mb() - _rss_before
+                if _grew >= 50:
+                    log.info("Schritt %s: +%.0f MB (Speicher %.0f → %.0f MB)",
+                             _label, _grew, _rss_before, _rss_before + _grew)
             # Nach den Abrufen einer Runde: eingesammelten Muell zurueckgeben. Ohne
             # das behaelt glibc die Arenen, und die Speicheranzeige des Add-ons
             # bleibt auf dem Stand der groessten Runde stehen.
@@ -4170,6 +4179,35 @@ def _process_table() -> list[dict]:
     return rows
 
 
+def _cgroup_view(cg: dict, current: int | None) -> dict:
+    """Die Posten hinter dem Wert, den Home Assistant anzeigt — vollstaendig.
+
+    `memory.current` ist die Summe. Zeigt man nur `anon`, `file` und `slab`, bleibt
+    ein Rest ohne Erklaerung stehen; genau der laesst dann an ein Leck denken. Der
+    Rest sind Kernel-Strukturen des Containers: Seitentabellen (bei vielen Threads
+    und vielen Speicher-Arenen nicht wenig), Thread-Stacks im Kernel, Sockets — und
+    `shmem`, also alles, was im Container in eine tmpfs geschrieben wurde
+    (/dev/shm, /tmp), denn das liegt im Speicher, nicht auf der Platte.
+    """
+    mb = lambda v: round(v / 1048576, 1) if v else (0.0 if v == 0 else None)  # noqa: E731
+    known = sum(cg.get(k, 0) for k in ('anon', 'file', 'kernel'))
+    # `kernel` fehlt auf aelteren Kerneln; dann bleibt slab der beste Ersatz.
+    if 'kernel' not in cg:
+        known = sum(cg.get(k, 0) for k in ('anon', 'file', 'slab'))
+    return {
+        'current_mb': mb(current),
+        'anon_mb': mb(cg.get('anon')),
+        'file_mb': mb(cg.get('file')),
+        'slab_mb': mb(cg.get('slab')),
+        'kernel_mb': mb(cg.get('kernel')),
+        'pagetables_mb': mb(cg.get('pagetables')),
+        'kernel_stack_mb': mb(cg.get('kernel_stack')),
+        'shmem_mb': mb(cg.get('shmem')),
+        'other_mb': (round(max(0, current - known) / 1048576, 1)
+                     if current and known else None),
+    }
+
+
 def _rss_mb() -> float:
     """Eigener Speicher in MB (VmRSS aus /proc/self/status)."""
     return round(_read_kv('/proc/self/status').get('VmRSS', 0) / 1024, 1)
@@ -4248,13 +4286,7 @@ def api_memory():
                  # Kalender-Runde); liegt er gleichauf, waechst der Bedarf stetig.
                  'peak_mb': round(st.get('VmHWM', 0) / 1024, 1),
                  'threads': st.get('Threads', 0)},
-        'cgroup': {
-            'current_mb': (lambda v: round(v / 1048576, 1) if v else None)(
-                _num('/sys/fs/cgroup/memory.current')),
-            'anon_mb': round(cg['anon'] / 1048576, 1) if 'anon' in cg else None,
-            'file_mb': round(cg['file'] / 1048576, 1) if 'file' in cg else None,
-            'slab_mb': round(cg['slab'] / 1048576, 1) if 'slab' in cg else None,
-        },
+        'cgroup': _cgroup_view(cg, _num('/sys/fs/cgroup/memory.current')),
         'processes': procs,
         'chromium': {'count': len(chromium),
                      'rss_mb': round(sum(p['rss_mb'] for p in chromium), 1),

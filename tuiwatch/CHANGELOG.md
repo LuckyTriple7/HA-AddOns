@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.113.14
+
+- 🧾 **Der Speicher-Tab lässt keinen Rest mehr offen.** Bisher standen dort `anon`, `file` und `slab` — zusammen deutlich weniger als der Gesamtwert, und der unerklärte Rest sah aus wie ein Leck. Jetzt kommen die fehlenden Posten dazu: **Kernel** (mit Seitentabellen und Thread-Stacks im Detail), **tmpfs/shmem** als ausgewiesener Teil des Dateicaches und eine Zeile **„nicht zugeordnet"** für den Rest zwischen Summe und Gesamtwert. Die Zeilen ergeben zusammen den Wert, den Home Assistant anzeigt.
+- 📈 **Welcher Schritt wieviel Speicher zieht, steht jetzt im Log.** Der Höchststand (VmHWM) sagt nur, *dass* es eine Spitze gab. Wächst ein Schritt der Prüfrunde um mehr als 50 MB, schreibt TUIWatch ihn mit Namen ins Log: `Schritt Preiskalender: +120 MB (Speicher 300 → 420 MB)`. Damit ist beim nächsten Mal ohne Raten klar, wer die Spitze verursacht.
+
 ## 0.113.13
 
 - 🧠 **Speicherbedarf halbiert sich erwartbar: `MALLOC_ARENA_MAX=2`.** Die Messung im neuen Speicher-Tab war eindeutig — 722 MB im Container, davon 711 MB echter Heap, 3 MB Dateicache, kein einziger Chromium-Prozess, Datenbank 10,7 MB. Das war weder der Browser-Fallback noch Cache, sondern die C-Bibliothek: TUIWatch läuft mit über 50 Threads (waitress 32, Share-Server 8, Hintergrund-Aufgaben), und glibc legt pro Thread eigene Speicher-Arenen an, die sie nach großen JSON-Antworten nicht wieder hergibt. Die Anzeige blieb dadurch dauerhaft auf dem Stand der größten Prüfrunde stehen.
