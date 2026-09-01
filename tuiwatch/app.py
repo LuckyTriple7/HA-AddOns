@@ -53,6 +53,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      room_code_from_url, transfer_included_from_url, travellers_from_url,
                      with_duration, with_room_code, with_transfer_included, with_travellers,
                      without_room_code)
+import scraper
 import check24_client
 import trippilot_questions
 from aktionscodes import fetch_aktionscodes
@@ -96,7 +97,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.10"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.11"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -377,6 +378,13 @@ def _settings_changed() -> None:
 
 def _verbose() -> bool:
     return bool(load_config().get('verbose_log', False))
+
+
+# scraper.py kennt die Einstellungen nicht (es laeuft auch als eigenes Skript und in
+# den Parsing-Tests). Statt den Wert einmal hineinzureichen, haengt hier eine
+# Funktion — so wirkt ein Umschalten in der Oberflaeche sofort, ohne Neustart.
+scraper.browser_fallback_enabled = lambda: bool(
+    load_config().get('browser_fallback', True))
 
 
 def save_sessions() -> None:
@@ -2672,6 +2680,39 @@ def _poll_gap() -> int:
         return POLL_GAP_DEFAULT
 
 
+# Kein Netz: so lange warten, bevor die Runde neu bewertet wird. Kurz genug, dass
+# der Betrieb nach einer Stoerung von selbst wieder anlaeuft, lang genug, dass die
+# Pruefung nicht selbst zur Last wird.
+NET_RETRY_INTERVAL = 300
+
+_net_state = {'online': True, 'since': 0.0, 'logged': 0.0}
+
+
+def _net_ok() -> bool:
+    """Liegt eine Internetverbindung an? Ergebnis wird protokolliert, aber nicht
+    bei jeder Runde neu: der Ausfall steht einmal im Log und danach hoechstens
+    stuendlich, die Rueckkehr wieder einmal. Sonst waere das Log nach einer Nacht
+    ohne Leitung nur noch dieselbe Zeile."""
+    now = time.time()
+    ok = scraper.internet_reachable()
+    if ok:
+        if not _net_state['online']:
+            mins = max(1, int((now - _net_state['since']) / 60))
+            log.info("Internetverbindung wieder da (nach %d min) — Pruefungen laufen weiter",
+                     mins)
+        _net_state.update(online=True, since=0.0, logged=0.0)
+        return True
+    if _net_state['online']:
+        log.warning("Keine Internetverbindung — Preisprüfungen, Suchabos und Kalender "
+                    "pausieren, naechster Versuch in %d min", NET_RETRY_INTERVAL // 60)
+        _net_state.update(online=False, since=now, logged=now)
+    elif now - _net_state['logged'] >= 3600:
+        mins = max(1, int((now - _net_state['since']) / 60))
+        log.warning("Immer noch keine Internetverbindung (seit %d min)", mins)
+        _net_state['logged'] = now
+    return False
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -2690,14 +2731,22 @@ def _poll_worker() -> None:
             # Labels landen über busy_labels()/api_offers im Logo-Tooltip. Die Funktionen
             # werden hier bei jedem Durchlauf frisch aus den Globals geholt, damit
             # spätere Neubindungen (watch/backup/digest) und Test-Patches greifen.
-            for _label, _step in (
-                    ('Selbsttest', _maybe_periodic_health),
-                    ('Zusammenfassung', _maybe_send_digest),
-                    ('Aktionscodes', _maybe_check_aktionscodes),
-                    ('Backup', _maybe_auto_backup),
-                    ('Suchabos', _maybe_check_watches),
-                    ('Preiskalender', _maybe_refresh_calendars),
-                    ('Preisbarometer', market_basket.maybe_run_baskets)):
+            # Einmal je Runde nachsehen, ob ueberhaupt eine Leitung anliegt. Ohne
+            # Netz lief bisher jeder Schritt in seine eigenen Timeouts, jedes
+            # faellige Angebot zweimal, und am Ende stand ein Fehlversuch im
+            # Verlauf, der nichts ueber den Preis aussagt. Rein oertliche Schritte
+            # (Backup, Preisbarometer) laufen weiter — die brauchen kein Netz.
+            online = _net_ok()
+            for _label, _step, _needs_net in (
+                    ('Selbsttest', _maybe_periodic_health, True),
+                    ('Zusammenfassung', _maybe_send_digest, True),
+                    ('Aktionscodes', _maybe_check_aktionscodes, True),
+                    ('Backup', _maybe_auto_backup, False),
+                    ('Suchabos', _maybe_check_watches, True),
+                    ('Preiskalender', _maybe_refresh_calendars, True),
+                    ('Preisbarometer', market_basket.maybe_run_baskets, False)):
+                if _needs_net and not online:
+                    continue
                 with busy(_label):
                     _step()
             _auto_archive_expired()
@@ -2723,6 +2772,11 @@ def _poll_worker() -> None:
                     due.append(oid)
                 else:
                     next_in = min(next_in, interval - age)
+            if due and not online:
+                log.info("%d faellige(s) Angebot(e) warten auf die Internetverbindung",
+                         len(due))
+                time.sleep(NET_RETRY_INTERVAL)
+                continue
             if due:
                 gap = _poll_gap()
                 log.info("Prüfe %d fällige(s) Angebot(e), %d s Abstand", len(due), gap)

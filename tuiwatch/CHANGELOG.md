@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.113.11
+
+- 🖥️ **Neue Einstellung „Browser-Fallback (Chromium)"** unter *Prüfen & Zeitplan*, Standard an. Antwortet die JSON-API von TUI technisch nicht, rendert TUIWatch die Angebotsseite ersatzweise in einem Headless-Chromium. Das kostet gemessen rund 400 MB leer und bis 740 MB mit geladener Seite, verteilt auf sechs bis sieben Prozesse — im Add-on zählt das alles zum Speicher des Containers, zusätzlich zu den etwa 150 MB von TUIWatch selbst. Wer das nicht will, schaltet den Fallback ab: bei API-Fehlern wird der Abruf dann als fehlgeschlagen vermerkt, statt den Browser zu starten.
+- 🌐 **Ohne Internetverbindung wird der Browser gar nicht erst gestartet.** Ist die Leitung weg, ist auch die gerenderte Seite nicht zu holen — bisher liefen bis zu 740 MB ins Leere, und zwar bei jedem fälligen Angebot nacheinander. Geprüft wird per TCP gegen zwei feste Ziele (`www.tui.com:443` und `1.1.1.1:443`, 4 s); zwei davon, damit eine einzelne Störung bei TUI nicht als „kein Internet" durchgeht.
+- ⏸️ **Der Poller pausiert bei Netzausfall, statt in Timeouts zu laufen.** Einmal je Runde wird nachgesehen; ist nichts da, werden Preisprüfungen, Suchabos, Preiskalender, Selbsttest, Aktionscodes und Wochenbericht übersprungen und in 5 Minuten neu bewertet. Rein örtliche Schritte (Backup, Preisbarometer) laufen weiter. Vorher schrieb jede Runde Fehlversuche in den Preisverlauf, die nichts über den Preis aussagen.
+- 📋 Der Ausfall steht **einmal** im Log, danach höchstens stündlich („Immer noch keine Internetverbindung (seit … min)"), die Rückkehr wieder einmal — statt derselben Zeile in Endlosschleife.
+- ✅ Sieben Tests: Fallback an/aus, ohne Netz kein Browser, Netzprüfung ohne erreichbares Ziel, Option in den Einstellungen, Log-Zeilen bei Ausfall und Rückkehr, gemerkter Zustand.
+
 ## 0.113.10
 
 - 🔎 **Filterzeile in der Hintergrund-Konsole** (Doppelklick aufs Logo): vier Knöpfe für ERROR, WARN, INFO und DEBUG sowie ein Textfeld, das die angezeigten Zeilen auf einen Ausschnitt einschränkt. Rechts steht, wie viele der geholten Zeilen gerade sichtbar sind (z. B. `12/500`). Dieselbe Bedienung wie im WhatsApp-Add-on.

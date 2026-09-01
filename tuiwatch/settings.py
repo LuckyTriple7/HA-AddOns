@@ -73,6 +73,9 @@ FIELDS: dict = {
     "calendar_archived_refresh": ("bool", True, None, "poll",
         "Kalender bei archivierten Angeboten weiterführen",
         "Ruft den Preiskalender auch für archivierte (abgelaufene) Angebote weiter ab — alle 3 Tage statt täglich, und immer erst nachdem die aktiven Angebote dran waren. Der Preis des abgelaufenen Angebots wird weiterhin NICHT geprüft; der Kalender beschreibt aber Hotel, Zimmer, Verpflegung und Dauer und schaut immer ab heute nach vorn. So wächst über Jahre ein Preisverlauf für dasselbe Hotel weiter. Fällt ein Hotel aus dem TUI-Inventar, pausiert der Kalender nach 5 Fehlschlägen in Folge von selbst. Standard an."),
+    "browser_fallback": ("bool", True, None, "poll",
+        "Browser-Fallback (Chromium)",
+        "Antwortet die JSON-API von TUI technisch nicht, liest TUIWatch den Preis ersatzweise aus der gerenderten Seite — dafür startet ein Headless-Chromium. Das kostet Zeit und viel Arbeitsspeicher: gemessen rund 400 MB leer und bis 740 MB mit geladener Seite, im Add-on-Container zusätzlich zu den etwa 150 MB von TUIWatch selbst. Aus heißt: bei API-Fehlern wird der Abruf als fehlgeschlagen vermerkt statt den Browser zu starten — die API ist der normale Weg, der Fallback greift selten. Standard an. Fällt die Internetverbindung ganz aus, wird der Browser ohnehin nicht gestartet."),
     # ── market ──
     "market_trend_threshold": ("float", 1.0, (0.0, 100.0), "market",
         "Schwelle für Markttrend (%)",
