@@ -98,7 +98,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.14"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.15"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2828,8 +2828,7 @@ def _poll_worker() -> None:
             # Nach den Abrufen einer Runde: eingesammelten Muell zurueckgeben. Ohne
             # das behaelt glibc die Arenen, und die Speicheranzeige des Add-ons
             # bleibt auf dem Stand der groessten Runde stehen.
-            gc.collect()
-            _malloc_trim()
+            _trim_once()
             _auto_archive_expired()
             share_routes.cleanup_expired()  # abgelaufene öffentliche Links entsorgen
             with db() as con:
@@ -4241,13 +4240,12 @@ def api_memory_trim():
     if (err := _require_api()):
         return err
     before = _rss_mb()
-    gc.collect()
-    ok = _malloc_trim()
-    after = _rss_mb()
+    freed = _trim_once(auto=False)
+    after = round(before - freed, 1)
     log.info("Speicher freigegeben: %.1f MB → %.1f MB (%.1f MB zurueckgegeben)",
-             before, after, round(before - after, 1))
-    return jsonify({'ok': ok, 'before_mb': before, 'after_mb': after,
-                    'freed_mb': round(before - after, 1)})
+             before, after, freed)
+    return jsonify({'ok': True, 'before_mb': before, 'after_mb': after,
+                    'freed_mb': freed})
 
 
 @app.route('/api/memory', methods=['GET'])
@@ -4295,6 +4293,8 @@ def api_memory():
                      'leftover_mb': round(sum(mb for _, mb in leftovers), 1)},
         'browser_fallback': bool(load_config().get('browser_fallback', True)),
         'malloc_arena_max': os.environ.get('MALLOC_ARENA_MAX') or '',
+        'trim': {'ts': _trim_state['ts'], 'freed_mb': _trim_state['freed_mb'],
+                 'auto': _trim_state['auto'], 'every_s': MEMORY_TRIM_INTERVAL},
         'log_buffer': len(_log_buffer),
     })
 
@@ -4688,6 +4688,50 @@ def _health_sensor_worker() -> None:
         time.sleep(120)
 
 
+# Wie oft freigewordener Speicher ans Betriebssystem zurueckgegeben wird.
+# Bewusst NICHT an die Pruefrunde gehaengt: die laeuft je nach Einstellung nur alle
+# paar Stunden (Standard 6, oft 12), und der Speicher waechst nicht nur dort — jede
+# Seite der Oberflaeche, jede KI-Antwort und jeder Kalenderabruf laeuft in einem
+# waitress-Thread mit eigener Arena. Bis zur naechsten Runde stand die Anzeige
+# deshalb hoch, obwohl Python die Daten laengst losgelassen hatte.
+MEMORY_TRIM_INTERVAL = 300
+
+# Letztes Aufraeumen, fuer die Anzeige im Speicher-Tab: ohne das laesst sich von
+# aussen nicht unterscheiden, ob der Aufraeumer laeuft und nichts findet oder ob
+# er gar nicht laeuft.
+_trim_state: dict = {'ts': 0.0, 'freed_mb': 0.0, 'auto': False}
+
+
+def _trim_once(auto: bool = True) -> float:
+    """Einmal aufraeumen: Python-Muell einsammeln, freie Arenen zurueckgeben.
+    Belegte Daten bleiben liegen — `malloc_trim` fasst nur an, was der Allocator
+    ohnehin nicht mehr benutzt. Gibt die zurueckgegebenen MB an."""
+    before = _rss_mb()
+    gc.collect()
+    _malloc_trim()
+    freed = round(before - _rss_mb(), 1)
+    _trim_state.update(ts=time.time(), freed_mb=freed, auto=auto)
+    return freed
+
+
+def _memory_janitor() -> None:
+    """Raeumt alle `MEMORY_TRIM_INTERVAL` Sekunden auf.
+
+    Geloggt wird nur, wenn es sich lohnt (ab 50 MB): sonst stuende alle fuenf
+    Minuten dieselbe Zeile im Log."""
+    time.sleep(60)          # erst hochlaufen lassen
+    while True:
+        try:
+            before = _rss_mb()
+            freed = _trim_once(auto=True)
+            if freed >= 50:
+                log.info("Speicher zurueckgegeben: %.0f MB (%.0f → %.0f MB)",
+                         freed, before, before - freed)
+        except Exception as e:
+            log.warning("Speicher-Aufraeumer: %s", e)
+        time.sleep(MEMORY_TRIM_INTERVAL)
+
+
 def _cooldown_sensor_worker() -> None:
     """Meldet den Cooldown-Sensor alle 5 Sekunden an HA — kurzes Intervall, weil der
     Cooldown selbst nur 60s dauert und sowohl den HA-Neustart überstehen als auch
@@ -4837,6 +4881,7 @@ def main() -> None:
     threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
+    threading.Thread(target=_memory_janitor, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     threading.Thread(target=_muc_flights_worker, daemon=True).start()
     threading.Thread(target=_str_flights_worker, daemon=True).start()

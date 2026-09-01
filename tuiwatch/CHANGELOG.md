@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.113.15
+
+- 🔁 **Aufgeräumt wird jetzt alle 5 Minuten von selbst — nicht mehr nur bei der Prüfrunde.** Das war der Grund, warum der Knopf „Speicher freigeben" gedrückt werden musste: der Trim hing an der Prüfrunde, und die läuft je nach Einstellung nur alle sechs oder zwölf Stunden. Bis dahin blieb die Anzeige oben stehen. Dazu kommt, dass der Speicher gar nicht nur dort wächst — jede Seite der Oberfläche, jede KI-Antwort und jeder Kalenderabruf läuft in einem eigenen waitress-Thread mit eigener Speicher-Arena.
+- 👀 **Neue Zeile „Zuletzt aufgeräumt"** im Speicher-Tab: wann, wieviel, und ob automatisch oder von Hand. Ohne die Zeile ließ sich von außen nicht unterscheiden, ob der Aufräumer läuft und nichts findet oder ob er gar nicht läuft.
+- 📋 Ins Log kommt eine Zeile nur, wenn wirklich etwas zurückging (ab 50 MB) — sonst stünde dort alle fünf Minuten dasselbe.
+- ✅ Vier Tests: gemerkter Zeitpunkt und Betrag, Intervall kurz genug, eigener Thread beim Start, Endpunkt liefert Vorher/Nachher.
+
 ## 0.113.14
 
 - 🧾 **Der Speicher-Tab lässt keinen Rest mehr offen.** Bisher standen dort `anon`, `file` und `slab` — zusammen deutlich weniger als der Gesamtwert, und der unerklärte Rest sah aus wie ein Leck. Jetzt kommen die fehlenden Posten dazu: **Kernel** (mit Seitentabellen und Thread-Stacks im Detail), **tmpfs/shmem** als ausgewiesener Teil des Dateicaches und eine Zeile **„nicht zugeordnet"** für den Rest zwischen Summe und Gesamtwert. Die Zeilen ergeben zusammen den Wert, den Home Assistant anzeigt.

@@ -5952,6 +5952,14 @@
         + row('Speicher-Arenen (MALLOC_ARENA_MAX)', d.malloc_arena_max || 'unbegrenzt',
               'Ohne Begrenzung legt die C-Bibliothek pro Thread eigene Arenen an und '
               + 'gibt sie nicht wieder her.')
+        + row('Zuletzt aufgeräumt', (function(){
+              const t = d.trim||{};
+              if(!t.ts) return 'noch nicht';
+              const min = Math.max(0, Math.round((Date.now()/1000 - t.ts)/60));
+              return (min ? 'vor ' + min + ' min' : 'gerade eben')
+                     + ' · ' + _mb(t.freed_mb) + (t.auto ? ' (automatisch)' : ' (von Hand)');
+            })(), 'Läuft von selbst alle '
+              + Math.round(((d.trim&&d.trim.every_s)||300)/60) + ' Minuten.')
         + row('Browser-Fallback', d.browser_fallback ? 'an' : 'aus', '')
         + row('Chromium-Prozesse', cr.count ? (cr.count + ' · ' + _mb(cr.rss_mb)) : 'keine',
               cr.busy ? 'Gerade läuft ein Abruf über den Browser.' : '');
