@@ -1,3 +1,9 @@
+## [1.8.61] - 2026-09-01
+
+### Aktualisiert
+
+- Angry IP Scanner: 3.9.3 → 3.10.0
+
 ## [1.8.60] - 2026-08-28
 
 ### Aktualisiert
