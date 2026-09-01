@@ -2,40 +2,58 @@
 
 MyPage ist im Kern eine normale Flask-App in einem Standard-Docker-Image — Home Assistant ist nur die bequeme Verpackung, keine Voraussetzung. Du kannst MyPage daher auf jedem Server mit **Docker** betreiben.
 
-> Das fertige Image liegt unter `ghcr.io/luckytriple7/mypage:latest` (amd64 + aarch64). Du brauchst den Quellcode **nicht** — nur Docker, eine `docker-compose.yml` und eine `options.json`.
+> Das fertige Image liegt unter `ghcr.io/luckytriple7/mypage:latest` (amd64 + aarch64). Du brauchst den Quellcode **nicht** — nur Docker und eine `docker-compose.yml`.
 
 ---
 
 ## Schnellstart
 
 ```bash
-# 1. Beispiel-Konfiguration kopieren und Passwort ändern
-cp options.example.json options.json
-nano options.json          # mindestens "password" setzen!
-
-# 2. Starten
+# 1. Starten — es ist nichts vorzubereiten
 docker compose up -d
+
+# 2. Erzeugtes Admin-Passwort aus dem Protokoll holen
+docker compose logs mypage | grep -A 3 "Neue Installation"
 
 # 3. Aufrufen
 #   Öffentliche Seite:  http://<server>:17760
-#   Admin-Panel:        http://<server>:17761   (Login: username/password aus options.json)
+#   Admin-Panel:        http://<server>:17761   (Benutzer "admin", Passwort aus Schritt 2)
 ```
 
-Beim ersten Start legt MyPage seine Daten im Ordner `./data` an (`site.json`, `uploads/`, Mitglieder, Spielstände …).
+Beim ersten Start legt MyPage seine Daten im Ordner `./data` an (`site.json`, `uploads/`, Mitglieder, Spielstände …) und erzeugt dabei ein zufälliges Admin-Passwort (16 Zeichen, Groß- und Kleinbuchstaben plus Ziffern). Es steht **nur im Protokoll** — auf der Platte liegt bloß ein Hash in `./data/admin_login.json`. Also gleich notieren und danach im Admin-Panel ein eigenes vergeben.
 
 ---
 
 ## Konfiguration
 
-### `options.json` — nur die Login-Daten
+### Admin-Zugang — Passwort ändern
 
-Die Datei wird nach `/data/options.json` im Container gemountet (read-only) und beim Start gelesen.
+Im Admin-Panel unter **System → Zugang**: aktuelles Passwort eingeben (bei aktiver 2FA zusätzlich den Code), Benutzername und neues Passwort setzen. Verlangt werden mindestens **12 Zeichen mit Groß-, Kleinbuchstaben und Ziffer**. Beim Wechsel werden alle übrigen Admin-Sitzungen beendet — die eigene bleibt.
+
+Gespeichert wird in `./data/admin_login.json`, und zwar nur der Hash. Die Datei kommt **nicht** ins Backup-ZIP: Ein Restore von letzter Woche würde sonst still das alte Passwort zurückholen.
+
+### Passwort vergessen
+
+```bash
+rm ./data/admin_login.json
+docker compose restart mypage
+docker compose logs mypage | grep -A 3 "Neue Installation"
+```
+
+MyPage erzeugt dann ein neues Passwort und schreibt es ins Protokoll. Inhalte, Mitglieder und Einstellungen bleiben unberührt. **2FA bleibt aktiv** — das Löschen der Datei ist bewusst kein kompletter Freifahrtschein für jeden mit Dateizugriff. Wer auch den zweiten Faktor verloren hat, löscht zusätzlich `./data/admin_2fa.json`.
+
+> Erscheint die Meldung „Neue Installation" unerwartet, ist meist der Volume-Pfad falsch und MyPage startet auf einem leeren Ordner. Erst das Mount prüfen, bevor du Inhalte anlegst.
+
+### `options.json` — optional
+
+Wird nicht mehr für den Login gebraucht. Wer sie mountet (nach `/data/options.json`, read-only), kann darin noch zwei Dinge setzen:
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `username` | Admin-Benutzername | `admin` |
-| `password` | **Admin-Passwort — unbedingt setzen!** | _(leer)_ |
 | `session_hours` | Gültigkeit der Admin-Sitzung in Stunden | `24` |
+| `trusted_proxies` | Adressen, deren Weiterleitungs-Kopfzeilen geglaubt werden | alle privaten Netze |
+
+Wer aus einer älteren Fassung kommt und dort `username`/`password` stehen hatte: Beim ersten Start nach dem Update übernimmt MyPage die Daten gehasht nach `admin_login.json`, die Anmeldung bleibt also unverändert. Danach sind die beiden Einträge wirkungslos und die Datei kann entfallen.
 
 ### Alles Weitere: Admin-Panel → **Einstellungen**
 
@@ -66,7 +84,6 @@ services:
       - "17761"
     volumes:
       - ./data:/config
-      - ./options.json:/data/options.json:ro
     restart: unless-stopped
 
   caddy:
@@ -130,13 +147,14 @@ Die Daten in `./data` bleiben dabei erhalten.
 Zwei Wege, am besten kombiniert:
 
 1. **Im Admin-Panel** unter *System → Backup* ein ZIP mit allen Inhalten herunterladen (und per *Backup einspielen* zurückspielen). Das ZIP enthält `settings.json`, aber **nicht** den Schlüssel `settings.key` — Zugangsdaten sind darin also nicht lesbar. Beim Einspielen auf einer frischen Installation müssen sie einmal neu eingetragen werden.
-2. Den Ordner **`./data`** sichern (enthält zusätzlich Uploads, Mitglieder-Dateien und `settings.key`) — dieser Ordner gehört an einen sicheren Ort.
+2. Den Ordner **`./data`** sichern (enthält zusätzlich Uploads, Mitglieder-Dateien, `settings.key` und `admin_login.json`) — dieser Ordner gehört an einen sicheren Ort.
 
 ---
 
 ## Sicherheitshinweise
 
-- **Starkes Admin-Passwort** in `options.json` setzen — ohne Ingress schützt nur dieses Login das Admin-Panel.
+- **Startpasswort ersetzen**: Das erzeugte Passwort steht im Container-Protokoll, und Protokolle werden weitergereicht, gesammelt und archiviert. Unter *System → Zugang* ein eigenes setzen — ohne Ingress schützt nur dieses Login das Admin-Panel.
+- **`data/admin_login.json` liegt im Datenordner**, damit man sich per SSH aussperren *und* wieder hereinlassen kann. Wer Dateizugriff auf den Server hat, kann den Zugang also zurücksetzen — bei einem gemieteten Server heißt das: dem Anbieter vertrauen oder verschlüsseltes Dateisystem verwenden.
 - `./data/settings.key` entschlüsselt alle gespeicherten Zugangsdaten: Datei nicht weitergeben und nicht in ein öffentliches Repository legen.
 - Admin-Panel **nur über HTTPS** erreichbar machen (Caddy/Cloudflare Tunnel).
 - **Brute-Force-Schutz**: fünf Fehlversuche je Adresse sperren diese für 15 Minuten, zwanzig Fehlversuche je Verbindung sperren die Gegenstelle. Bis 0.11.29 zählte nur die erste Sperre — und die Adresse stammte aus einer Kopfzeile, die jeder selbst setzen kann; durch Weiterdrehen war sie wirkungslos. **Mit älteren Fassungen als 0.11.30 darf der Admin-Port nicht öffentlich erreichbar sein.**

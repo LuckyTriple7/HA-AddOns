@@ -117,7 +117,11 @@ CONFIG_PATH   = _OPTS + '/options.json'   # Home Assistant: Login-Notzugang
 # dort der über den Samba-Share einsehbare Add-on-Konfigurationsordner, und Schloss
 # und Schlüssel nebeneinander wären keine Verschlüsselung. Standalone bleibt er bei
 # den Daten — dort ist /data nur containerintern und wäre nach einem Neuaufbau weg.
-_KEY_DIR = _OPTS if os.environ.get('SUPERVISOR_TOKEN') else _DATA
+# Läuft MyPage als Home-Assistant-Add-on? Entscheidet an mehreren Stellen, woher
+# der Admin-Login kommt: unter HA aus den Add-on-Optionen, sonst aus
+# admin_login.json im Datenordner (gehasht, beim ersten Start erzeugt).
+ON_SUPERVISOR = bool(os.environ.get('SUPERVISOR_TOKEN'))
+_KEY_DIR = _OPTS if ON_SUPERVISOR else _DATA
 settings_store.init(_DATA, _KEY_DIR)
 SETTINGS_PATH = settings_store.path()
 SETTINGS_KEY_PATH = settings_store.key_path()
@@ -230,6 +234,11 @@ USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
 TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
+# Admin-Login ohne Home Assistant: Benutzername + Passwort-Hash. Liegt bewusst
+# im gemounteten Datenordner, damit man die Datei bei vergessenem Passwort per
+# SSH löschen kann — beim nächsten Start erzeugt MyPage ein neues Passwort und
+# schreibt es ins Protokoll. Kommt aus demselben Grund NICHT ins Backup.
+ADMIN_LOGIN_PATH = _DATA + '/admin_login.json'
 SECRETKEY_PATH = _DATA + '/secret.key'      # Flask SECRET_KEY (signiert das trust2fa-Cookie)
 POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
 # Reiseblog getrennt von site.json: eine Zwei-Wochen-Reise mit Erlebnissen,
@@ -462,6 +471,7 @@ _comments_lock = threading.Lock()
 _audit_lock = threading.Lock()
 _dm_lock    = threading.Lock()
 _2fa_lock   = threading.Lock()
+_admin_login_lock = threading.Lock()
 _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
@@ -1282,6 +1292,126 @@ def _settings_changed() -> None:
     """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
     global _merged_cache, _merged_stamp
     _merged_cache, _merged_stamp = None, None
+
+
+# ── Admin-Login ohne Home Assistant ───────────────────────────────────────────
+# Unter Home Assistant stehen Benutzername und Passwort in den Add-on-Optionen —
+# daran ändert sich nichts. Ohne Supervisor (Docker, Dockge) gäbe es dafür keine
+# Oberfläche, deshalb erzeugt MyPage beim ersten Start selbst ein Passwort,
+# schreibt es ins Protokoll und legt nur den Hash ab. Ändern geht danach im
+# Admin-Panel; wer es vergisst, löscht admin_login.json und startet neu.
+
+ADMIN_PW_MIN_LEN = 12
+# Ohne 0/O und 1/l/I: das Passwort wird aus dem Protokoll abgetippt, und
+# verwechselte Zeichen kosten dort mehr als die zwei Bit Entropie.
+_PW_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+_PW_LOWER = 'abcdefghijkmnopqrstuvwxyz'
+_PW_DIGIT = '23456789'
+_PW_ALPHABET = _PW_UPPER + _PW_LOWER + _PW_DIGIT
+_GEN_PW_LEN = 16
+
+
+def _gen_admin_password() -> str:
+    """Zufälliges Passwort mit garantiert Groß-, Kleinbuchstaben und Ziffern."""
+    while True:
+        pw = ''.join(secrets.choice(_PW_ALPHABET) for _ in range(_GEN_PW_LEN))
+        if (any(c in _PW_UPPER for c in pw) and any(c in _PW_LOWER for c in pw)
+                and any(c in _PW_DIGIT for c in pw)):
+            return pw
+
+
+def password_policy_error(pw: str) -> str | None:
+    """None = in Ordnung, sonst der Übersetzungsschlüssel des Problems."""
+    pw = pw or ''
+    if len(pw) < ADMIN_PW_MIN_LEN:
+        return 'pw_too_short'
+    if not any(c.isupper() for c in pw):
+        return 'pw_no_upper'
+    if not any(c.islower() for c in pw):
+        return 'pw_no_lower'
+    if not any(c.isdigit() for c in pw):
+        return 'pw_no_digit'
+    return None
+
+
+def load_admin_login() -> dict:
+    with _admin_login_lock:
+        try:
+            with open(ADMIN_LOGIN_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            # Kaputte Datei beiseitelegen: der nächste Start erzeugt ein neues
+            # Passwort, statt dass die Anmeldung dauerhaft klemmt.
+            _quarantine_corrupt(ADMIN_LOGIN_PATH, e)
+            return {}
+
+
+def save_admin_login(data: dict) -> None:
+    with _admin_login_lock:
+        _atomic_write_json(ADMIN_LOGIN_PATH, data, indent=2, mode=0o600)
+
+
+def ensure_admin_login() -> str | None:
+    """Beim Start aufrufen. Liefert das Klartext-Passwort, wenn es neu erzeugt wurde.
+
+    Unter Home Assistant passiert nichts — dort gilt weiterhin options.json.
+    """
+    if ON_SUPERVISOR:
+        return None
+    d = load_admin_login()
+    if d.get('pw_hash'):
+        return None
+    # Bestandsinstallationen: wer bisher options.json gemountet hat, soll sich
+    # nach dem Update mit demselben Passwort anmelden können. Übernommen wird es
+    # gehasht, danach ist die Datei überflüssig.
+    opts = load_options()
+    old_pw = str(opts.get('password') or '')
+    if old_pw and old_pw != 'changeme123':
+        save_admin_login({'username': str(opts.get('username') or 'admin'),
+                          'pw_hash': generate_password_hash(old_pw),
+                          'initial': False, 'created': int(time.time()),
+                          'from_options': True})
+        log.info("Admin-Zugang aus options.json übernommen und in %s gehasht "
+                 "abgelegt — die Datei wird nicht mehr gebraucht", ADMIN_LOGIN_PATH)
+        return None
+    pw = _gen_admin_password()
+    save_admin_login({'username': 'admin', 'pw_hash': generate_password_hash(pw),
+                      'initial': True, 'created': int(time.time())})
+    return pw
+
+
+def admin_username() -> str:
+    if ON_SUPERVISOR:
+        return str(load_config().get('username', 'admin'))
+    return str(load_admin_login().get('username') or 'admin')
+
+
+def admin_password_ok(pwd: str) -> bool:
+    """Passwortprüfung für Anmeldung und alle Stellen, die es erneut abfragen."""
+    if ON_SUPERVISOR:
+        return secrets.compare_digest(str(pwd or ''),
+                                      str(load_config().get('password', '')))
+    h = str(load_admin_login().get('pw_hash') or '')
+    if not h:
+        return False
+    return check_password_hash(h, str(pwd or ''))
+
+
+def admin_login_is_initial() -> bool:
+    """True, solange noch das erzeugte Startpasswort gilt."""
+    return not ON_SUPERVISOR and bool(load_admin_login().get('initial'))
+
+
+def set_admin_credentials(username: str, password: str) -> None:
+    d = load_admin_login()
+    d['username'] = username or 'admin'
+    d['pw_hash'] = generate_password_hash(password)
+    d['initial'] = False
+    d['changed'] = int(time.time())
+    save_admin_login(d)
 
 
 def load_site() -> dict:
@@ -2193,6 +2323,20 @@ def _cookie_secure() -> bool:
         return bool(request.is_secure)
     except Exception:      # noqa: BLE001 — ausserhalb eines Anfragekontexts
         return False
+
+
+def invalidate_admin_sessions(keep: str | None = None) -> int:
+    """Alle Admin-Sitzungen bis auf `keep` beenden. Liefert die Anzahl.
+
+    Nach einem Passwortwechsel: eine mitgelesene oder geklaute Sitzung soll den
+    Wechsel nicht überleben. Die eigene bleibt, sonst fliegt man selbst raus.
+    """
+    tokens = [t for t in sessions if t != keep]
+    for t in tokens:
+        del sessions[t]
+    if tokens:
+        save_sessions()
+    return len(tokens)
 
 
 def save_sessions() -> None:
@@ -5533,8 +5677,8 @@ def login():
             # Schritt 1: Benutzername + Passwort
             uname = request.form.get('username', '')
             pwd   = request.form.get('password', '')
-            if (secrets.compare_digest(uname, str(cfg.get('username', 'admin'))) and
-                    secrets.compare_digest(pwd, str(cfg.get('password', '')))):
+            if (secrets.compare_digest(uname, admin_username())
+                    and admin_password_ok(pwd)):
                 if twofa_enabled() and not is_trusted_session_valid(request.cookies.get('trust2fa')):
                     pre = _pending_2fa_new()
                     resp = make_response(render_template('login.html', t=t, lang=lang,
@@ -5580,7 +5724,7 @@ def api_2fa_setup():
     d = load_2fa()
     d['pending'] = secret           # erst nach Code-Bestätigung aktiv
     save_2fa(d)
-    account = str(load_config().get('username', 'admin'))
+    account = admin_username()
     uri = _otpauth_uri(secret, account)
     return jsonify({'secret': secret, 'uri': uri, 'qr': _qr_svg(uri), 'account': account})
 
@@ -5619,6 +5763,53 @@ def api_2fa_disable():
     log_audit('admin_2fa_disabled')
     log.info("Admin-2FA deaktiviert")
     return jsonify({'ok': True})
+
+
+# Regeln wie bei den Mitgliedern: sichtbare Zeichen, keine Leerzeichen.
+_ADMIN_USER_RE = re.compile(r'^[A-Za-z0-9._@-]{3,64}$')
+
+
+@admin_app.route('/api/admin-login')
+def api_admin_login_state():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'on_ha': ON_SUPERVISOR,
+                    'username': admin_username(),
+                    'initial': admin_login_is_initial(),
+                    'twofa': twofa_enabled(),
+                    'min_len': ADMIN_PW_MIN_LEN})
+
+
+@admin_app.route('/api/admin-login', methods=['POST'])
+def api_admin_login_change():
+    """Benutzername und Passwort des Admins ändern (nur ohne Home Assistant).
+
+    Verlangt das aktuelle Passwort — und bei aktiver 2FA zusätzlich einen Code.
+    Sonst könnte eine offene Sitzung an einem unbeaufsichtigten Rechner den
+    Zugang übernehmen. Danach fliegen alle übrigen Sitzungen raus.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if ON_SUPERVISOR:
+        return jsonify({'error': 'on_ha'}), 400
+    body = request.get_json(silent=True) or {}
+    if (gate := _key_gate_check(body.get('current'), body.get('code'),
+                                'admin_password_denied')):
+        return gate
+    new = str(body.get('new') or '')
+    if (perr := password_policy_error(new)):
+        return jsonify({'error': perr}), 400
+    uname = _clean_str(body.get('username'), 64) or admin_username()
+    if not _ADMIN_USER_RE.match(uname):
+        return jsonify({'error': 'bad_username'}), 400
+    set_admin_credentials(uname, new)
+    ended = invalidate_admin_sessions(request.cookies.get('session'))
+    log_audit('admin_password_changed', uname)
+    log.info("Admin-Zugang geändert (Benutzer '%s') — %d weitere Sitzung(en) beendet",
+             uname, ended)
+    return jsonify({'ok': True, 'username': uname, 'sessions_ended': ended})
 
 
 @admin_app.route('/api/2fa/backup', methods=['POST'])
@@ -10352,14 +10543,19 @@ _KEY_GATE_MAX = 5
 _KEY_GATE_LOCK_S = 300
 
 
-def _key_gate_check(password: str, code: str) -> tuple | None:
-    """None = freigegeben, sonst die fertige Fehlerantwort."""
+def _key_gate_check(password: str, code: str,
+                    audit: str = 'settings_key_denied') -> tuple | None:
+    """None = freigegeben, sonst die fertige Fehlerantwort.
+
+    Gemeinsame Sperre für alle Stellen, die das Admin-Passwort erneut abfragen
+    (Schlüssel-Export/-Import, Passwortwechsel): fünf Fehlversuche, dann fünf
+    Minuten zu. `audit` benennt den Vorgang im Protokoll.
+    """
     now = time.time()
     if _key_gate['until'] > now:
         return jsonify({'error': 'locked',
                         'retry_after': int(_key_gate['until'] - now)}), 429
-    cfg = load_config()
-    ok = secrets.compare_digest(str(password or ''), str(cfg.get('password', '')))
+    ok = admin_password_ok(password)
     if ok and twofa_enabled():
         ok = totp_verify(load_2fa().get('secret', ''), code or '') or backup_code_consume(code or '')
     if not ok:
@@ -10367,7 +10563,7 @@ def _key_gate_check(password: str, code: str) -> tuple | None:
         if _key_gate['fails'] >= _KEY_GATE_MAX:
             _key_gate['until'] = now + _KEY_GATE_LOCK_S
             _key_gate['fails'] = 0
-        log_audit('settings_key_denied')
+        log_audit(audit)
         return jsonify({'error': 'auth'}), 403
     _key_gate['fails'] = 0
     return None
@@ -17225,6 +17421,32 @@ def _handle_sigterm(signum, frame) -> None:
     os._exit(0)
 
 
+def _log_admin_login_banner(generated: str | None) -> None:
+    """Zugangsdaten beim Start ins Protokoll schreiben (nur ohne Home Assistant).
+
+    Das Startpasswort steht bei JEDEM Start im Protokoll, solange es nicht
+    geändert wurde — Docker-Protokolle rotieren, und wer den allerersten Start
+    verpasst, müsste sonst gleich wieder die Datei löschen. Nach dem Wechsel im
+    Admin-Panel ist hier Ruhe.
+    """
+    if generated:
+        log.warning("=" * 68)
+        log.warning("Neue Installation — Admin-Zugang angelegt in %s", ADMIN_LOGIN_PATH)
+        log.warning("  Benutzer:  admin")
+        log.warning("  Passwort:  %s", generated)
+        log.warning("Bitte notieren und im Admin-Panel unter Einstellungen ändern.")
+        log.warning("Erscheint das unerwartet, zeigt der Datenordner ins Leere —")
+        log.warning("dann Volume prüfen, BEVOR neue Inhalte angelegt werden.")
+        log.warning("=" * 68)
+        return
+    d = load_admin_login()
+    if d.get('initial'):
+        log.warning("Admin-Zugang steht noch auf dem erzeugten Startpasswort. "
+                    "Es steht im Protokoll des ersten Starts; ändern im Admin-Panel "
+                    "unter Einstellungen → Zugang. Vergessen? %s löschen und neu starten.",
+                    ADMIN_LOGIN_PATH)
+
+
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, _handle_sigterm)
     load_sessions()
@@ -17233,8 +17455,11 @@ if __name__ == '__main__':
     settings_store.migrate(load_options())
     _settings_changed()
     cfg = load_config()
-    if cfg.get('password') in ('', 'changeme123'):
-        log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")
+    if ON_SUPERVISOR:
+        if cfg.get('password') in ('', 'changeme123'):
+            log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")
+    else:
+        _log_admin_login_banner(ensure_admin_login())
     upload_max = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
     public_app.config['MAX_CONTENT_LENGTH'] = upload_max * 1024 * 1024
     extra_nets = cfg.get('visit_bot_nets') or []

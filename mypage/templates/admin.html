@@ -2435,6 +2435,30 @@
       <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_access }}">
         <h2 class="sys-head">{{ t.sysgrp_access }}</h2>
 
+        <details class="panel fold" id="sy-adminpw" data-load="loadAdminLogin">
+          <summary><h3>{{ t.adminpw_heading }}</h3><span class="count" id="adminpw-info"></span></summary>
+          <p class="hint" id="adminpw-hint">…</p>
+          <div id="adminpw-form" style="display:none">
+            <label>{{ t.adminpw_username }}</label>
+            <input type="text" id="adminpw-user" maxlength="64" autocomplete="username" style="max-width:280px">
+            <label>{{ t.adminpw_current }}</label>
+            <input type="password" id="adminpw-cur" autocomplete="current-password" style="max-width:280px">
+            <div id="adminpw-2fa" style="display:none">
+              <label>{{ t.adminpw_code }}</label>
+              <input type="text" id="adminpw-code" inputmode="numeric" maxlength="12" style="max-width:160px" placeholder="123456">
+            </div>
+            <label>{{ t.adminpw_new }}</label>
+            <input type="password" id="adminpw-new" autocomplete="new-password" style="max-width:280px">
+            <label>{{ t.adminpw_repeat }}</label>
+            <input type="password" id="adminpw-new2" autocomplete="new-password" style="max-width:280px">
+            <p class="hint" id="adminpw-rule" style="margin-top:8px"></p>
+            <div style="margin-top:12px">
+              <button class="btn" onclick="adminPwSave()">{{ t.adminpw_save }}</button>
+            </div>
+            <p class="hint" style="margin-top:14px">{{ t.adminpw_forgot }}</p>
+          </div>
+        </details>
+
         <details class="panel fold" id="sy-twofa" data-load="loadTwofa">
           <summary><h3>{{ t.twofa_heading }}</h3><span class="count" id="twofa-info"></span></summary>
           <p class="hint">{{ t.twofa_hint }}</p>
@@ -3661,6 +3685,41 @@
       await loadTwofa();
       showBackupCodes(d.backup_codes);
     }
+    // ── Admin-Zugang (nur ohne Home Assistant) ──
+    async function loadAdminLogin() {
+      const r = await api('api/admin-login');
+      if (!r.ok) return;
+      const d = await r.json();
+      el('adminpw-rule').textContent = T.adminpw_rule.replace('{n}', d.min_len);
+      if (d.on_ha) {
+        el('adminpw-info').textContent = '';
+        el('adminpw-hint').textContent = T.adminpw_on_ha;
+        el('adminpw-form').style.display = 'none';
+        return;
+      }
+      el('adminpw-form').style.display = '';
+      el('adminpw-user').value = d.username || 'admin';
+      el('adminpw-2fa').style.display = d.twofa ? '' : 'none';
+      el('adminpw-info').textContent = d.initial ? T.adminpw_state_initial : T.adminpw_state_set;
+      el('adminpw-hint').textContent = d.initial ? T.adminpw_hint_initial : T.adminpw_hint;
+    }
+    async function adminPwSave() {
+      const pw = el('adminpw-new').value;
+      if (pw !== el('adminpw-new2').value) { toast(T.adminpw_mismatch, true); return; }
+      const r = await apiJson('api/admin-login', 'POST', {
+        username: el('adminpw-user').value,
+        current: el('adminpw-cur').value,
+        code: el('adminpw-code').value,
+        new: pw,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(T['adminpw_err_' + (d.error || '')] || T.error_save, true); return; }
+      ['adminpw-cur', 'adminpw-code', 'adminpw-new', 'adminpw-new2'].forEach(i => el(i).value = '');
+      toast(d.sessions_ended ? T.adminpw_saved_sessions.replace('{n}', d.sessions_ended)
+                             : T.adminpw_saved);
+      loadAdminLogin();
+    }
+
     function showBackupCodes(codes) {
       el('twofa-codes-list').textContent = (codes || []).join('\n');
       el('twofa-codes').style.display = '';

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.44
+
+- ✨ **Admin-Zugang ohne Home Assistant: eigenes Passwort statt options.json.** Läuft MyPage als Docker-Container (ohne Supervisor), erzeugt es beim ersten Start ein zufälliges Admin-Passwort — 16 Zeichen mit Groß-, Kleinbuchstaben und Ziffern — und schreibt es ins Protokoll. Auf der Platte landet nur ein Hash in `admin_login.json` im Datenordner. Bisher stand das Passwort im Klartext in einer von Hand angelegten `options.json`; die wird für den Login nicht mehr gebraucht.
+- ✨ **Passwort ändern im Admin-Panel** (System → Zugang): Benutzername und Passwort umstellen, mindestens 12 Zeichen mit Groß-, Kleinbuchstaben und Ziffer. Abgefragt wird das aktuelle Passwort und — bei aktiver 2FA — zusätzlich ein Code; fünf Fehlversuche sperren die Stelle für fünf Minuten. Nach dem Wechsel werden alle übrigen Admin-Sitzungen beendet, damit eine geklaute Sitzung ihn nicht überlebt. Unter Home Assistant bleibt der Reiter ein Hinweis auf die Add-on-Optionen — dort ändert sich nichts.
+- ✨ **Weg für vergessene Passwörter.** `admin_login.json` löschen, Container neu starten: MyPage erzeugt ein neues Passwort und protokolliert es. Inhalte, Mitglieder und Einstellungen bleiben unberührt, und 2FA bleibt aktiv — Dateizugriff allein ist damit kein voller Zugang. Solange noch das erzeugte Startpasswort gilt, erinnert jeder Start daran.
+- 🔒 Die Datei bleibt aus dem Backup-ZIP heraus: Ein Restore von letzter Woche hätte sonst still das alte Passwort zurückgeholt. Bestehende Standalone-Installationen werden beim ersten Start übernommen — das Passwort aus `options.json` wandert gehasht in die neue Datei, die Anmeldung bleibt unverändert.
+
 ## 0.11.43
 
 - 🐛 **Warnung beim PDF-Bau.** `word-break: break-word` stand im Stylesheet der Bibliothek-PDFs, existiert aber nicht — gültige Werte sind nur `normal`, `break-all` und `keep-all`. WeasyPrint verwarf die Regel und schrieb "Ignored word-break: break-word at 30:57, invalid value." ins Log. Da `overflow-wrap: anywhere` daneben steht und die Arbeit ohnehin allein macht, ist die Zeile ersatzlos raus — am Ergebnis ändert sich nichts, das Log ist wieder sauber.
