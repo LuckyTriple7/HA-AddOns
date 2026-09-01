@@ -1998,6 +1998,32 @@
             </select>
             <p class="hint">{{ t.forms_enabled_hint }}</p>
           </div>
+          <div class="opt">
+            <label>{{ t.field_blog_enabled }}</label>
+            <select id="d-blog_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.blog_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_library_enabled }}</label>
+            <select id="d-library_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.library_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_projects_enabled }}</label>
+            <select id="d-projects_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.projects_enabled_hint }}</p>
+          </div>
         </div>
       </details>
 
@@ -7578,6 +7604,9 @@
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
       el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
       el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
+      el('d-blog_enabled').value = d.blog_enabled !== false ? '1' : '0';
+      el('d-library_enabled').value = d.library_enabled !== false ? '1' : '0';
+      el('d-projects_enabled').value = d.projects_enabled !== false ? '1' : '0';
       el('d-default_lang').value = ['de', 'en', 'auto'].includes(d.default_lang) ? d.default_lang : 'de';
       el('d-feed_lang').value = d.feed_lang === 'en' ? 'en' : 'de';
       el('d-ai_address').value = d.ai_address === 'du' ? 'du' : 'sie';
@@ -7761,6 +7790,9 @@
         search_enabled:    el('d-search_enabled').value === '1',
         travel_enabled:    el('d-travel_enabled').value === '1',
         forms_enabled:     el('d-forms_enabled').value === '1',
+        blog_enabled:      el('d-blog_enabled').value === '1',
+        library_enabled:   el('d-library_enabled').value === '1',
+        projects_enabled:  el('d-projects_enabled').value === '1',
         default_lang:      el('d-default_lang').value,
         feed_lang:         el('d-feed_lang').value,
         ai_address:        el('d-ai_address').value,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.46
+
+- ✨ **Blog, Bibliothek und Projekte lassen sich abschalten** (Design → Module), wie bisher schon Reiseblog und Formulare. Das Auge am Abschnitt nahm sie nur von der Startseite und aus der Navigation — `/blog`, `/bibliothek` und `/p/…` antworteten weiter, und die Einträge standen in Sitemap, RSS, Suche und statischem Export. Ein NEIN schließt jetzt alles davon; die Adressen antworten mit 404. Standard ist AN, bestehende Seiten ändern sich also nicht.
+- 🎯 Die Admin-Reiter bleiben in allen drei Fällen stehen. Anders als beim Reiseblog will man Beiträge und Einträge vorbereiten, bevor der Bereich online geht — und der GitHub-Import der Projekte läuft weiter.
+
 ## 0.11.45
 
 - 📚 **Standalone-Anleitung: mehrere Instanzen auf einem Server.** Neuer Abschnitt in `STANDALONE.md` / `STANDALONE.en.md` mit fertigen Dockge-Stacks (ein Stack je Instanz, eigener Ordner, eigene Host-Ports) und den Punkten, an denen es sonst hakt: getrennte Datenordner, öffentliche URL je Instanz, SMB-Unterverzeichnisse, Brute-Force-Zählung je Container. Der Abschnitt „Passwort vergessen" nennt jetzt den Stack-Ordner und den Log-Tab.

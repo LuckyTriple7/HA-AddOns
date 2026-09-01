@@ -621,6 +621,14 @@ DEFAULT_SITE = {
         # sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
         'travel_enabled': False,
         'forms_enabled': True,
+        # Blog, Bibliothek und Projekte waren immer da — deshalb hier AN als
+        # Standard. Aus heisst: keine Startseite, keine Navigation, eigene
+        # Adressen antworten mit 404, nichts in Sitemap, Feed und Suche. Die
+        # Admin-Reiter bleiben stehen, damit man den Bereich vorbereiten kann,
+        # bevor er online geht.
+        'blog_enabled': True,
+        'library_enabled': True,
+        'projects_enabled': True,
         # RSS-Feed: Sprache fest wählen statt am Browser des Abrufers hängen zu
         # lassen (siehe _feed_lang). Blog und Reiseblog stehen immer drin,
         # Projekte und Bibliothek nur auf Wunsch — sie ändern sich selten und
@@ -4780,9 +4788,7 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool,
         body = ' '.join([loc(p, 'text'), ' '.join(p.get('tags', []))])
         consider('blog', loc(p, 'title'), '/blog/' + p['id'], body, p.get('members_only'))
 
-    for p in site.get('projects', []):
-        if not project_visible(p):
-            continue
+    for p in projects_public(site):
         body = ' '.join([loc(p, 'desc'), loc(p, 'long'), ' '.join(p.get('tags', []))])
         url = '/p/' + p['id'] if _has_detail(p) else (p.get('url') or '/#projects')
         consider('project', p.get('title', ''), url, body, False)
@@ -4839,9 +4845,27 @@ def project_visible(p: dict) -> bool:
     return bool(p.get('published', True))
 
 
+def blog_public(site: dict) -> bool:
+    """Ist der Blog fuer die Website freigegeben? (Admin-Reiter bleibt davon unberuehrt.)"""
+    return site['design'].get('blog_enabled', True) is not False
+
+
+def library_public(site: dict) -> bool:
+    return site['design'].get('library_enabled', True) is not False
+
+
+def projects_public(site: dict) -> list:
+    """Sichtbare Projekte — leer, solange der Bereich nicht freigegeben ist."""
+    if site['design'].get('projects_enabled', True) is False:
+        return []
+    return [p for p in site.get('projects', []) if project_visible(p)]
+
+
 def sorted_posts(site: dict, public_only: bool = False) -> list:
     posts = sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
-    return [p for p in posts if post_visible(p)] if public_only else posts
+    if not public_only:
+        return posts
+    return [p for p in posts if post_visible(p)] if blog_public(site) else []
 
 
 def _albums_for_public(site: dict, viewer_member: bool = False) -> list:
@@ -5244,11 +5268,19 @@ def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> tuple[str, bool]:
 
 
 def _find_lib_entry(site: dict, slug: str) -> dict | None:
+    if not library_public(site):
+        return None
     return next((e for e in _library(site).get('entries', []) if e.get('slug') == slug), None)
 
 
 def _lib_public_entries(site: dict) -> list:
-    """Veröffentlichte Einträge (Mitglieder-only bleibt gelistet, nur der Text ist gesperrt)."""
+    """Veröffentlichte Einträge (Mitglieder-only bleibt gelistet, nur der Text ist gesperrt).
+
+    Leer, solange die Bibliothek in den Einstellungen nicht für die Website
+    freigegeben ist — der Admin-Reiter bleibt davon unberührt.
+    """
+    if not library_public(site):
+        return []
     return [e for e in _library(site).get('entries', []) if e.get('visible')]
 
 
@@ -6035,6 +6067,7 @@ def api_design():
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
                  'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review',
                  'travel_enabled', 'forms_enabled', 'feed_projects', 'feed_library',
+                 'blog_enabled', 'library_enabled', 'projects_enabled',
                  'visit_archive'):
         if flag in raw:
             d[flag] = bool(raw[flag])
@@ -11025,8 +11058,8 @@ def api_export():
     for p in site.get('pages', []):
         if p.get('visible'):
             pages[f"seite/{p['slug']}/index.html"] = f"/seite/{p['slug']}"
-    for p in site['projects']:
-        if _has_detail(p) and project_visible(p):
+    for p in projects_public(site):
+        if _has_detail(p):
             pages[f"p/{p['id']}/index.html"] = f"/p/{p['id']}"
     posts = sorted_posts(site, public_only=True)
     if posts:
@@ -11571,7 +11604,7 @@ def _public_urls(site: dict) -> list:
             out.append({'url': f"/reiseblog/{tr['slug']}/{d['slug']}", 'kind': 'travel',
                         'label': art.get('title') or d.get('slug', '')})
     out += [{'url': '/p/' + p['id'], 'kind': 'project', 'label': p.get('title') or p['id']}
-            for p in site.get('projects', []) if _has_detail(p) and project_visible(p)]
+            for p in projects_public(site) if _has_detail(p)]
     out += [{'url': '/formular/' + f['slug'], 'kind': 'form', 'label': loc(f, 'title')}
             for f in _public_forms(site) if f.get('slug')]
     return out
@@ -12681,7 +12714,7 @@ def _public_url_list(site: dict, base: str) -> list:
     """
     urls = [base + '/']
     urls += [f"{base}/seite/{p['slug']}" for p in site.get('pages', []) if p.get('visible')]
-    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
+    urls += [f"{base}/p/{p['id']}" for p in projects_public(site) if _has_detail(p)]
     posts = sorted_posts(site, public_only=True)
     if posts:
         urls.append(base + '/blog')
@@ -12753,13 +12786,14 @@ def indexnow_submit(urls: list) -> None:
 
 def _indexnow_ping_post(site: dict, post: dict) -> None:
     base = (site['design'].get('public_url') or '').rstrip('/')
-    if base.startswith(('http://', 'https://')) and post_visible(post):
+    if base.startswith(('http://', 'https://')) and post_visible(post) and blog_public(site):
         indexnow_submit([base + '/', base + '/blog', f"{base}/blog/{post['id']}"])
 
 
 def _indexnow_ping_project(site: dict, proj: dict) -> None:
     base = (site['design'].get('public_url') or '').rstrip('/')
-    if base.startswith(('http://', 'https://')) and _has_detail(proj) and project_visible(proj):
+    if (base.startswith(('http://', 'https://')) and _has_detail(proj)
+            and proj in projects_public(site)):
         indexnow_submit([base + '/', f"{base}/p/{proj['id']}"])
 
 
@@ -14900,8 +14934,8 @@ def sitemap():
             entries += [(f"{base}/reiseblog/{tr['slug']}/{d['slug']}",
                          d['date'] if _valid_date(d.get('date')) else '')
                         for d in _trav_public_days(tr)]
-    entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
-                if _has_detail(p) and project_visible(p)]
+    entries += [(f"{base}/p/{p['id']}", '') for p in projects_public(site)
+                if _has_detail(p)]
     if posts:
         entries.append((base + '/blog', newest))
         entries += [(f"{base}/blog/{p['id']}", p['date'] if _valid_date(p.get('date')) else '')
@@ -15143,9 +15177,7 @@ def _feed_items(site: dict, lang: str, t: dict, loc, base: str) -> list:
                     image=photo, locked=locked)
 
     if d.get('feed_projects'):
-        for p in site.get('projects', []):
-            if not project_visible(p):
-                continue
+        for p in projects_public(site):
             # Ohne Detailseite gäbe es keine Adresse, auf die der Eintrag zeigen
             # könnte — ein Feed-Eintrag ohne Ziel ist wertlos
             if not _has_detail(p):
@@ -15371,7 +15403,7 @@ def public_index():
     loc = _loc_factory(lang)
     email = site['profile'].get('email', '')
     email_parts = email.split('@', 1) if '@' in email else None
-    projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
+    projects = [dict(p, has_detail=_has_detail(p)) for p in projects_public(site)]
     static_export = bool(request.args.get('static'))
     viewer_member = is_member(request) and not static_export
     font_family, font_faces = font_css(site['design'])
@@ -15704,8 +15736,8 @@ def blog_post(pid: str):
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
-    if post is None or not post_visible(post):
+    post = _visible_post(site, pid)
+    if post is None:
         abort(404)
     count_visit(request)
     views = bump_post_view(pid, request)
@@ -15754,6 +15786,8 @@ def _thread_comments(clist: list) -> list:
 
 
 def _visible_post(site: dict, pid: str) -> dict | None:
+    if not blog_public(site):
+        return None
     post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
     return post if post is not None and post_visible(post) else None
 
@@ -15940,8 +15974,8 @@ def project_detail(pid: str):
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    proj = next((p for p in site['projects'] if p.get('id') == pid), None)
-    if proj is None or not _has_detail(proj) or not project_visible(proj):
+    proj = next((p for p in projects_public(site) if p.get('id') == pid), None)
+    if proj is None or not _has_detail(proj):
         abort(404)
     count_visit(request)
     t = load_translations(lang)
