@@ -5924,8 +5924,7 @@
     function _mb(v){ return v==null ? '–' : (v>=1024 ? (v/1024).toFixed(2)+' GB' : v.toFixed(1)+' MB'); }
     function renderMemory(d){
       const cg = d.cgroup||{}, me = d.self||{}, cr = d.chromium||{};
-      $('#syslog-sub').textContent =
-        'Was Home Assistant beim Add-on als Speicher anzeigt, und wer ihn hält.';
+      $('#syslog-sub').textContent = '';
       const row = (label, value, hint) =>
         `<div style="display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border)">
            <span style="flex:1;min-width:150px">${esc(label)}</span>
@@ -5939,6 +5938,12 @@
               'Datenbank und Logdateien im Cache. Zählt mit, gibt der Kernel bei Bedarf sofort her.')
         + row('davon Kernel (slab)', _mb(cg.slab_mb), '')
         + row('TUIWatch selbst', _mb(me.rss_mb) + ' · ' + (me.threads||0) + ' Threads', '')
+        + row('Höchststand seit Start', _mb(me.peak_mb),
+              'Liegt er weit über dem aktuellen Wert, gab es eine einmalige Spitze. '
+              + 'Liegt er gleichauf, wächst der Bedarf stetig.')
+        + row('Speicher-Arenen (MALLOC_ARENA_MAX)', d.malloc_arena_max || 'unbegrenzt',
+              'Ohne Begrenzung legt die C-Bibliothek pro Thread eigene Arenen an und '
+              + 'gibt sie nicht wieder her.')
         + row('Browser-Fallback', d.browser_fallback ? 'an' : 'aus', '')
         + row('Chromium-Prozesse', cr.count ? (cr.count + ' · ' + _mb(cr.rss_mb)) : 'keine',
               cr.busy ? 'Gerade läuft ein Abruf über den Browser.' : '');
@@ -5950,6 +5955,12 @@
           <button class="btn sec" style="margin-top:6px" onclick="reapChromium()">Jetzt beenden</button>
         </div>`;
       }
+      html += `<div style="margin:12px 0">
+          <button class="btn sec" onclick="trimMemory()"
+            title="Python-Müll einsammeln und freie Speicher-Arenen ans Betriebssystem zurückgeben">Speicher freigeben</button>
+          <div class="hint">Läuft ohnehin nach jeder Prüfrunde mit. Gibt nur zurück, was
+            wirklich frei ist — belegte Daten bleiben unangetastet.</div>
+        </div>`;
       html += '<div style="margin-top:12px;font-weight:600">Größte Prozesse im Container</div>'
         + (d.processes||[]).map(p =>
             `<div style="display:flex;gap:8px;padding:3px 0;font-size:.8rem;font-family:ui-monospace,monospace">
@@ -5958,6 +5969,16 @@
                <span>${esc(_mb(p.rss_mb))}</span>
              </div>`).join('');
       $('#syslog-body').innerHTML = html;
+    }
+    async function trimMemory(){
+      try {
+        const r = await fetch(api('/api/memory/trim'), {method:'POST'});
+        const d = await r.json();
+        toast(d.freed_mb > 0 ? _mb(d.freed_mb) + ' zurückgegeben (' + _mb(d.before_mb)
+                               + ' → ' + _mb(d.after_mb) + ')'
+                             : 'Nichts zurückzugeben — der Speicher ist wirklich belegt');
+      } catch(e){ toast('Fehlgeschlagen'); }
+      openSyslog('memory');
     }
     async function reapChromium(){
       try {
@@ -8093,7 +8114,10 @@
         const el = $('#ai-provider-foot');
         if(!d.both_configured){ el.style.display = 'none'; return; }
         el.style.display = '';
-        el.textContent = '· ' + (AI_PROVIDER_LABEL[d.active] || d.active) + ' aktiv';
+        // Ohne führendes „·": die KI-Angaben stehen in einer eigenen Fußzeile, der
+        // Abstand trennt sie. Als Trennzeichen wäre es beim Umbruch allein am
+        // Zeilenanfang gelandet.
+        el.textContent = (AI_PROVIDER_LABEL[d.active] || d.active) + ' aktiv';
       } catch(e){}
     }
     async function toggleAiProvider(){

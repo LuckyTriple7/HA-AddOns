@@ -9,6 +9,7 @@ import csv
 import hashlib
 import html as htmllib
 import io
+import gc
 import ipaddress
 import json
 import logging
@@ -97,7 +98,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.12"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.13"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2815,6 +2816,11 @@ def _poll_worker() -> None:
                     continue
                 with busy(_label):
                     _step()
+            # Nach den Abrufen einer Runde: eingesammelten Muell zurueckgeben. Ohne
+            # das behaelt glibc die Arenen, und die Speicheranzeige des Add-ons
+            # bleibt auf dem Stand der groessten Runde stehen.
+            gc.collect()
+            _malloc_trim()
             _auto_archive_expired()
             share_routes.cleanup_expired()  # abgelaufene öffentliche Links entsorgen
             with db() as con:
@@ -4164,6 +4170,48 @@ def _process_table() -> list[dict]:
     return rows
 
 
+def _rss_mb() -> float:
+    """Eigener Speicher in MB (VmRSS aus /proc/self/status)."""
+    return round(_read_kv('/proc/self/status').get('VmRSS', 0) / 1024, 1)
+
+
+def _malloc_trim() -> bool:
+    """Freigegebenen Speicher aus den glibc-Arenen ans Betriebssystem zurueckgeben.
+
+    Python gibt freigewordene Bloecke an seinen Allocator zurueck, der sie in den
+    Arenen der C-Bibliothek behaelt — fuer das Betriebssystem bleibt der Speicher
+    damit belegt. Bei vielen Threads (waitress 32 + Share-Server 8 + Hintergrund)
+    legt glibc viele solcher Arenen an; nach einer Runde grosser JSON-Antworten
+    steht die Anzeige dauerhaft hoch, obwohl Python die Daten laengst losgelassen
+    hat. `malloc_trim(0)` gibt die zusammenhaengenden freien Teile zurueck.
+
+    Gibt es nur mit glibc (Debian-Basis des Add-ons); auf musl fehlt die Funktion,
+    dann passiert schlicht nichts."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL('libc.so.6')
+        libc.malloc_trim(0)
+        return True
+    except Exception:
+        return False
+
+
+@app.route('/api/memory/trim', methods=['POST'])
+def api_memory_trim():
+    """Aufraeumen von Hand: Python-Muell einsammeln, dann die Arenen zurueckgeben.
+    Antwortet mit dem Vorher/Nachher, damit sichtbar wird, ob es etwas gebracht hat."""
+    if (err := _require_api()):
+        return err
+    before = _rss_mb()
+    gc.collect()
+    ok = _malloc_trim()
+    after = _rss_mb()
+    log.info("Speicher freigegeben: %.1f MB → %.1f MB (%.1f MB zurueckgegeben)",
+             before, after, round(before - after, 1))
+    return jsonify({'ok': ok, 'before_mb': before, 'after_mb': after,
+                    'freed_mb': round(before - after, 1)})
+
+
 @app.route('/api/memory', methods=['GET'])
 def api_memory():
     """Woher der Speicherverbrauch kommt, den Home Assistant beim Add-on anzeigt.
@@ -4195,6 +4243,10 @@ def api_memory():
     leftovers = [] if scraper.browser_busy() else _chromium_leftovers()
     return jsonify({
         'self': {'rss_mb': round(st.get('VmRSS', 0) / 1024, 1),
+                 # VmHWM: hoechster Stand seit dem Start. Liegt er weit ueber dem
+                 # aktuellen Wert, gab es eine einmalige Spitze (PDF-Import,
+                 # Kalender-Runde); liegt er gleichauf, waechst der Bedarf stetig.
+                 'peak_mb': round(st.get('VmHWM', 0) / 1024, 1),
                  'threads': st.get('Threads', 0)},
         'cgroup': {
             'current_mb': (lambda v: round(v / 1048576, 1) if v else None)(

@@ -779,6 +779,7 @@
     .foot-status, .foot-tools { display:flex; flex-wrap:wrap; justify-content:center;
                                 gap:4px 20px; min-width:0; }
     .foot-status span span { color:var(--text); }
+    body.ai-disabled .foot-ai { display:none; }
     .hc-foot { cursor:pointer; }
     .foot-tools .hc-foot:hover { color:var(--accent); }
     /* Als <a> (Download-Links, z. B. „Als Kalender (.ics)") sonst im Browser-Blau
@@ -1211,6 +1212,11 @@
         <span>DB <span id="db-size">…</span></span>
         <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">TUI-Aufrufe heute <span id="tui-calls">…</span></span>
         <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API <span id="hc-dot">…</span></span>
+      </div>
+      <!-- KI-Kosten und aktiver Anbieter in eigener Zeile: zusammen mit Version,
+           Intervall, DB und API-Status in einer Reihe brach die Zeile mitten in den
+           KI-Angaben um, und das "· <Anbieter> aktiv" stand allein am Zeilenanfang. -->
+      <div class="foot-status foot-ai">
         <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span>
         <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
       </div>

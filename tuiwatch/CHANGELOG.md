@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.113.13
+
+- 🧠 **Speicherbedarf halbiert sich erwartbar: `MALLOC_ARENA_MAX=2`.** Die Messung im neuen Speicher-Tab war eindeutig — 722 MB im Container, davon 711 MB echter Heap, 3 MB Dateicache, kein einziger Chromium-Prozess, Datenbank 10,7 MB. Das war weder der Browser-Fallback noch Cache, sondern die C-Bibliothek: TUIWatch läuft mit über 50 Threads (waitress 32, Share-Server 8, Hintergrund-Aufgaben), und glibc legt pro Thread eigene Speicher-Arenen an, die sie nach großen JSON-Antworten nicht wieder hergibt. Die Anzeige blieb dadurch dauerhaft auf dem Stand der größten Prüfrunde stehen.
+- ♻️ **Nach jeder Prüfrunde wird aufgeräumt:** `gc.collect()` und `malloc_trim(0)` geben freien Speicher ans Betriebssystem zurück, statt ihn in den Arenen liegen zu lassen. Belegte Daten bleiben unangetastet — zurückgegeben wird nur, was ohnehin frei ist.
+- 🔘 Im Speicher-Tab dazu der Knopf **„Speicher freigeben"** (zeigt Vorher/Nachher) sowie zwei neue Zeilen: **Höchststand seit Start** — liegt er weit über dem aktuellen Wert, gab es eine einmalige Spitze; liegt er gleichauf, wächst der Bedarf stetig — und der Stand von `MALLOC_ARENA_MAX`.
+- 🧹 Die Kopfzeile „Was Home Assistant beim Add-on als Speicher anzeigt…" ist raus; die Zeilen erklären sich selbst.
+- 📐 **Fußzeile: KI-Kosten und aktiver Anbieter stehen jetzt in einer eigenen Zeile.** Zusammen mit Version, Prüfintervall, Datenbankgröße und API-Status in einer Reihe brach die Zeile mitten in den KI-Angaben um, und „· Perplexity aktiv" landete allein am Zeilenanfang. Das führende „·" ist damit auch weg — getrennt wird über den Abstand.
+
 ## 0.113.12
 
 - 🧮 **Neuer Tab „Speicher"** unter *Meldungen & Fehler*. Er beantwortet die Frage, warum Home Assistant beim Add-on so viel RAM anzeigt: Home Assistant liest den Wert aus der cgroup des Containers, und darin steckt neben dem echten Heap (`anon`) auch der **Dateicache** (`file`, Datenbank und Logs) — der zählt mit, ist aber jederzeit rückholbar. Ohne diese Aufteilung sieht ein großer Dateicache aus wie ein Speicherleck. Dazu: RSS und Threads von TUIWatch selbst, Anzahl und Speicher laufender Chromium-Prozesse, Stand des Fallback-Schalters und die größten Prozesse im Container.
