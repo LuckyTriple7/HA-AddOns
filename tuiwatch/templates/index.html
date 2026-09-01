@@ -812,6 +812,16 @@
     #tw-console-title{ color:#8b949e; font-size:11px; font-weight:600; letter-spacing:.05em; }
     #tw-console-close{ background:none; border:none; color:#8b949e; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1; }
     #tw-console-close:hover{ color:#f85149; }
+    #tw-console-filter{ display:flex; align-items:center; gap:4px; padding:4px 8px; background:#0f1319; border-bottom:1px solid #30363d; flex-shrink:0; flex-wrap:wrap; }
+    #tw-console-filter button{ background:none; border:1px solid #30363d; color:#6e7681; font:inherit; font-size:10px; padding:1px 6px; border-radius:4px; cursor:pointer; letter-spacing:.04em; }
+    #tw-console-filter button:hover{ border-color:#6e7681; }
+    #tw-console-filter button.on[data-lvl=ERROR]{ color:#f85149; border-color:#f85149; }
+    #tw-console-filter button.on[data-lvl=WARNING]{ color:#d29922; border-color:#d29922; }
+    #tw-console-filter button.on[data-lvl=INFO]{ color:#3fb950; border-color:#3fb950; }
+    #tw-console-filter button.on[data-lvl=DEBUG]{ color:#8b949e; border-color:#8b949e; }
+    #tw-console-search{ flex:1; min-width:70px; background:#161b22; border:1px solid #30363d; color:#c9d1d9; font:inherit; font-size:10px; padding:2px 6px; border-radius:4px; }
+    #tw-console-search:focus{ outline:none; border-color:#6e7681; }
+    #tw-console-count{ color:#6e7681; font-size:10px; white-space:nowrap; }
     #tw-console-body{ flex:1; overflow-y:auto; padding:6px 10px; line-height:1.6; color:#c9d1d9; }
     #tw-console-body::-webkit-scrollbar{ width:5px; } #tw-console-body::-webkit-scrollbar-thumb{ background:#30363d; border-radius:3px; }
     .twc-info{color:#8b949e;} .twc-warn{color:#d29922;} .twc-error{color:#f85149;} .twc-debug{color:#6e7681;}
@@ -2181,6 +2191,14 @@
     <div id="tw-console-header">
       <span id="tw-console-title"><svg class="i"><use href="#i-terminal"/></svg> KONSOLE — TUIWatch · Hintergrund</span>
       <button id="tw-console-close" onclick="consoleToggle()">✕</button>
+    </div>
+    <div id="tw-console-filter">
+      <button data-lvl="ERROR" class="on" title="Fehler und Abstürze">ERROR</button>
+      <button data-lvl="WARNING" class="on" title="Warnungen">WARN</button>
+      <button data-lvl="INFO" class="on" title="Normale Meldungen">INFO</button>
+      <button data-lvl="DEBUG" class="on" title="Details für die Fehlersuche">DEBUG</button>
+      <input id="tw-console-search" type="text" placeholder="Text filtern…">
+      <span id="tw-console-count"></span>
     </div>
     <div id="tw-console-body"></div>
   </div>

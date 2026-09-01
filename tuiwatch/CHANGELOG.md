@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.10
+
+- 🔎 **Filterzeile in der Hintergrund-Konsole** (Doppelklick aufs Logo): vier Knöpfe für ERROR, WARN, INFO und DEBUG sowie ein Textfeld, das die angezeigten Zeilen auf einen Ausschnitt einschränkt. Rechts steht, wie viele der geholten Zeilen gerade sichtbar sind (z. B. `12/500`). Dieselbe Bedienung wie im WhatsApp-Add-on.
+- ⚙️ Gefiltert wird im Browser über die bereits geholten Zeilen, ein Wechsel wirkt deshalb sofort auch auf ältere Meldungen und nicht erst auf die nächsten. `CRITICAL` läuft unter ERROR mit, unbekannte Stufen unter INFO — so verschwindet keine Zeile nur deshalb, weil ihre Stufe keinen eigenen Knopf hat.
+- 💾 Die Auswahl der Stufen bleibt im Browser gespeichert (`tw-console-levels`), der Suchtext bewusst nicht — er gilt nur für die laufende Sitzung.
+
 ## 0.113.9
 
 - 💶 **KI-Kosten lassen sich zurücksetzen.** Neuer Abschnitt „💶 KI-Kosten" im Einstellungen-Dialog: zeigt den aktuellen Stand (heute, Monat, gesamt) und setzt ihn auf Wunsch auf null. Praktisch nach einem Umzug oder wenn die Summe aus einer Testphase stammt und die Fußzeile sonst dauerhaft einen Betrag zeigt, der nichts mehr aussagt.

@@ -77,10 +77,58 @@
     window.consoleToggle=consoleToggle;
     try{ if(localStorage.getItem('tw-console-open')==='1') setTimeout(function(){_setOpen(true);},100); }catch(e){}
     function _cls(l){ return (l==='WARNING'||l==='WARN')?'twc-warn':(l==='ERROR'||l==='CRITICAL')?'twc-error':(l==='DEBUG')?'twc-debug':'twc-info'; }
+    // Stufen des Python-Loggings auf die vier Filterknöpfe abbilden: CRITICAL läuft
+    // unter ERROR mit, alles Unbekannte unter INFO — sonst verschwände eine Zeile
+    // still, nur weil ihre Stufe keinen eigenen Knopf hat.
+    function _grp(l){ return (l==='CRITICAL')?'ERROR':(l==='WARN')?'WARNING':((l==='ERROR'||l==='WARNING'||l==='DEBUG')?l:'INFO'); }
     // Live-Ticker: nur die letzten 500 Zeilen. Der Puffer fasst 2000, die hier alle
     // zwei Sekunden komplett neu zu rendern wäre Verschwendung — wer im ganzen Log
     // suchen will, nimmt den Konsolen-Tab unter „Meldungen & Fehler" (mit Filter).
     var _CONSOLE_TAIL=500;
+    // Zeilen aufheben, damit ein Filterwechsel auch auf die bereits geholten
+    // Meldungen wirkt und nicht erst auf die nächsten.
+    var _lines=[],_older=0;
+    var _levels={ERROR:true,WARNING:true,INFO:true,DEBUG:true};
+    try{
+      var _saved=JSON.parse(localStorage.getItem('tw-console-levels')||'null');
+      if(_saved)['ERROR','WARNING','INFO','DEBUG'].forEach(function(l){ if(l in _saved) _levels[l]=!!_saved[l]; });
+    }catch(e){}
+    var _search='';
+    var searchEl=document.getElementById('tw-console-search');
+    var countEl=document.getElementById('tw-console-count');
+    function _matches(e){
+      if(!_levels[_grp(e.level)])return false;
+      if(_search&&(e.msg||'').toLowerCase().indexOf(_search)<0)return false;
+      return true;
+    }
+    function _render(){
+      var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+      body.innerHTML='';
+      if(_older>0){
+        var h=document.createElement('div'); h.className='twc-debug';
+        h.textContent='… ältere '+_older+' Zeilen: Konsolen-Tab unter „Meldungen & Fehler"';
+        body.appendChild(h);
+      }
+      var shown=0;
+      _lines.forEach(function(e){
+        if(!_matches(e))return;
+        shown++;
+        var d2=document.createElement('div'); d2.className=_cls(e.level); d2.textContent=e.msg; body.appendChild(d2);
+      });
+      if(countEl)countEl.textContent=shown+'/'+_lines.length;
+      if(atBottom)body.scrollTop=body.scrollHeight;
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#tw-console-filter button'),function(btn){
+      var lvl=btn.dataset.lvl;
+      btn.classList.toggle('on',!!_levels[lvl]);
+      btn.addEventListener('click',function(){
+        _levels[lvl]=!_levels[lvl];
+        btn.classList.toggle('on',_levels[lvl]);
+        try{localStorage.setItem('tw-console-levels',JSON.stringify(_levels));}catch(e){}
+        _render();
+      });
+    });
+    if(searchEl)searchEl.addEventListener('input',function(){ _search=searchEl.value.trim().toLowerCase(); _render(); });
     async function _poll(){
       try{
         var base=(window.G&&G.base)||'';
@@ -89,15 +137,9 @@
         var sig=lines.length+':'+(lines.length?lines[lines.length-1].ts:0);
         if(sig===_seen)return;            // nichts Neues
         _seen=sig;
-        var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
-        body.innerHTML='';
-        if((d.total||0)>lines.length){
-          var h=document.createElement('div'); h.className='twc-debug';
-          h.textContent='… ältere '+((d.total||0)-lines.length)+' Zeilen: Konsolen-Tab unter „Meldungen & Fehler"';
-          body.appendChild(h);
-        }
-        lines.forEach(function(e){ var d2=document.createElement('div'); d2.className=_cls(e.level); d2.textContent=e.msg; body.appendChild(d2); });
-        if(atBottom)body.scrollTop=body.scrollHeight;
+        _lines=lines;
+        _older=Math.max(0,(d.total||0)-lines.length);
+        _render();
       }catch(e){}
     }
   })();
