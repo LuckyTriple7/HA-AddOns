@@ -1962,6 +1962,7 @@
             </select>
             <p class="hint">{{ t.dm_enabled_hint }}</p>
           </div>
+          {% if on_ha %}
           <div class="opt">
             <label>{{ t.field_dm_ha_notify }}</label>
             <select id="d-dm_ha_notify">
@@ -1970,6 +1971,7 @@
             </select>
             <p class="hint">{{ t.dm_ha_notify_hint }}</p>
           </div>
+          {% endif %}
         </div>
         <div class="row">
           <div class="opt">
@@ -2058,7 +2060,7 @@
               <option value="0">{{ t.no }}</option>
               <option value="1">{{ t.yes }}</option>
             </select>
-            <p class="hint">{{ t.weekly_review_hint }}</p>
+            <p class="hint">{% if on_ha %}{{ t.weekly_review_hint }}{% else %}{{ t.weekly_review_hint_docker }}{% endif %}</p>
           </div>
         </div>
       </details>
@@ -2306,7 +2308,7 @@
 
         <details class="panel fold" id="sy-log" data-load="loadLog">
           <summary><h3>{{ t.log_heading }}</h3><span class="count" id="log-info"></span></summary>
-          <p class="hint">{{ t.log_hint }}</p>
+          <p class="hint">{% if on_ha %}{{ t.log_hint }}{% else %}{{ t.log_hint_docker }}{% endif %}</p>
           <div class="media-bar">
             <label class="checkbox"><input type="checkbox" id="log-errors-only" onchange="renderLog()"> {{ t.log_errors_only }}</label>
             <button type="button" class="btn secondary small" onclick="loadLog()">{{ t.nf_reload }}</button>
@@ -2468,10 +2470,12 @@
           <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
         </details>
 
+        {% if on_ha %}
         <details class="panel fold" id="sy-sensors">
           <summary><h3>{{ t.sensors_heading }}</h3></summary>
           <p class="hint">{{ t.sensors_hint }}</p>
         </details>
+        {% endif %}
       </div>
 
       <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_access }}">
@@ -2503,7 +2507,7 @@
 
         <details class="panel fold" id="sy-twofa" data-load="loadTwofa">
           <summary><h3>{{ t.twofa_heading }}</h3><span class="count" id="twofa-info"></span></summary>
-          <p class="hint">{{ t.twofa_hint }}</p>
+          <p class="hint">{% if on_ha %}{{ t.twofa_hint }}{% else %}{{ t.twofa_hint_docker }}{% endif %}</p>
           <div id="twofa-status" class="hint" style="margin-bottom:12px">…</div>
           <div id="twofa-off" style="display:none">
             <button class="btn" onclick="twofaSetup()">{{ t.twofa_enable_btn }}</button>
@@ -3623,6 +3627,10 @@
 
   <script>
     const T = {{ t|tojson }};
+    // Laeuft MyPage als Home-Assistant-Add-on? Ohne Supervisor hat alles, was
+    // mit HA zu tun hat, hier nichts verloren — Sensoren, Benachrichtigungen
+    // und Hinweise auf das Add-on-Protokoll gehen ins Leere.
+    const ON_HA = {{ on_ha|tojson }};
     const GAME_NAMES = { '66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen', 'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy', 'gluecksrad': 'Glücksrad', 'kniffel': 'Kniffel', 'chicago': 'Chicago' };
     let SITE = null;
     let editingId = null;
@@ -7006,7 +7014,7 @@
       });
     }
     async function clearLog() {
-      if (!confirm(T.log_clear_confirm)) return;
+      if (!confirm(ON_HA ? T.log_clear_confirm : T.log_clear_confirm_docker)) return;
       const r = await apiJson('api/log/clear', 'POST', {});
       if (!r.ok) { toast(T.error_save, true); return; }
       loadLog();
@@ -7659,7 +7667,7 @@
       el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
       el('d-share_enabled').value = d.share_enabled ? '1' : '0';
       el('d-dm_enabled').value = d.dm_enabled ? '1' : '0';
-      el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
+      if (el('d-dm_ha_notify')) el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
       el('d-directory_enabled').value = d.directory_enabled ? '1' : '0';
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
       el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
@@ -7845,7 +7853,8 @@
         comments_enabled: el('d-comments_enabled').value === '1',
         share_enabled:    el('d-share_enabled').value === '1',
         dm_enabled:       el('d-dm_enabled').value === '1',
-        dm_ha_notify:     el('d-dm_ha_notify').value === '1',
+        dm_ha_notify:     el('d-dm_ha_notify') ? el('d-dm_ha_notify').value === '1'
+                                              : !!(SITE.design || {}).dm_ha_notify,
         directory_enabled: el('d-directory_enabled').value === '1',
         search_enabled:    el('d-search_enabled').value === '1',
         travel_enabled:    el('d-travel_enabled').value === '1',

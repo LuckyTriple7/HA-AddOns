@@ -6033,7 +6033,8 @@ def admin_index():
         return redir
     lang = detect_language(request)
     t = load_translations(lang)
-    return render_template('admin.html', t=t, lang=lang, ingress=_is_ingress())
+    return render_template('admin.html', t=t, lang=lang, ingress=_is_ingress(),
+                           on_ha=ON_SUPERVISOR)
 
 
 @admin_app.route('/api/site')

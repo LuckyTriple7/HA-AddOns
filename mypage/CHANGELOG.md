@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.48
+
+- 🧹 **Ohne Home Assistant verschwindet alles Übrige, was HA betrifft.** Der Bereich *Home-Assistant-Sensoren* unter System und die Auswahl *HA-Benachrichtigung bei neuer Nachricht* unter Design werden gar nicht erst ausgeliefert, wenn kein Supervisor da ist. Bisher standen sie auch im reinen Docker-Betrieb da und versprachen etwas, das dort nicht passieren kann.
+- 🧹 Vier Hinweistexte gab es nur in der HA-Fassung und zeigten unter Docker ins Leere: das Protokoll verwies auf „Einstellungen → Add-ons → MyPage → Protokoll", die Wochenzusammenfassung auf eine HA-Benachrichtigung, und der 2FA-Hinweis erklärte den Ingress-Weg, den es dort nicht gibt. Jede dieser Stellen hat jetzt eine eigene Docker-Fassung (Protokoll per `docker compose logs`, Zusammenfassung per E-Mail, 2FA als einziger Zugang).
+
 ## 0.11.47
 
 - ✨ **Speicherlimit für den gesamten Datenordner.** Neu als Add-on-Option *Speicherlimit (MB)* bzw. als `MYPAGE_STORAGE_MAX_MB` in der compose.yaml — bewusst **nicht** im Admin-Panel: Ein Limit, das der Inhalts-Admin selbst hochdrehen kann, ist keins. 0 heißt unbegrenzt, bestehende Installationen ändern ihr Verhalten also nicht. Gezählt wird alles im Datenordner: Bilder, Bibliothek-PDFs, Logos, Mitglieder-Dateien, Anhänge, Spielstände und Sicherungen. Liegen die Mitglieder-Dateien auf einer SMB-Freigabe, zählen sie nicht mit.
