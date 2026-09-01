@@ -25,7 +25,7 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
 # Layer (inkl. LibreOffice, XFCE, etc.) beim nächsten "Neu Aufbauen" rebuilt.
 # BUILD_VERSION kommt aus config.yaml und wird von HA bei jedem Update übergeben.
 ARG BUILD_VERSION
-ARG IPSCAN_VERSION=3.9.3
+ARG IPSCAN_VERSION=3.10.0
 ARG BITWARDEN_VERSION=2026.8.0
 ARG VSCODE_VERSION=1.135.0
 ARG GH_CLI_VERSION=2.98.0
