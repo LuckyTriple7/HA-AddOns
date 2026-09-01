@@ -101,6 +101,21 @@ MyPage erzeugt dann ein neues Passwort und schreibt es ins Protokoll. Inhalte, M
 
 > Erscheint die Meldung „Neue Installation" unerwartet, ist meist der Volume-Pfad falsch und MyPage startet auf einem leeren Ordner. Erst das Mount prüfen, bevor du Inhalte anlegst.
 
+### Speicherlimit (nur über die compose.yaml)
+
+Standardmäßig darf MyPage so viel Platz belegen, wie die Platte hergibt. Ein Gesamtlimit setzt du in der compose.yaml:
+
+```yaml
+    environment:
+      MYPAGE_STORAGE_MAX_MB: 2048     # 0 oder weglassen = unbegrenzt
+```
+
+Gezählt wird alles im Datenordner: Bilder, Bibliothek-PDFs, Logos, Mitglieder-Dateien, Anhänge, Spielstände und die automatischen Sicherungen. Liegen die Mitglieder-Dateien auf einer SMB-Freigabe, stehen sie außerhalb und zählen nicht mit.
+
+Ist das Limit erreicht, werden **neue Uploads abgewiesen** — Bedienen, Löschen und Aufräumen laufen weiter, damit man sich wieder Luft verschaffen kann. Statt eines neuen automatischen Backups werden die vorhandenen ausgedünnt. Mitglieder sehen in ihrem Bereich das kleinere von persönlicher Quote und verbleibendem Gesamtplatz.
+
+Das Limit steht **absichtlich nicht im Admin-Panel**: Wer es dort ändern könnte, hätte keins. Im Panel gibt es unter **System → Speicherbelegung** nur die Anzeige — Balken, Gesamtwert und eine Aufschlüsselung nach Bereichen (Bilder, PDFs, Mitglieder-Dateien, Sicherungen …), damit man sieht, was den Platz frisst. Bei mehreren Instanzen setzt du je Stack einen eigenen Wert.
+
 ### `options.json` — optional
 
 Wird nicht mehr für den Login gebraucht. Wer sie mountet (nach `/data/options.json`, read-only), kann darin noch zwei Dinge setzen:

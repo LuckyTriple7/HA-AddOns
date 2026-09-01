@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.11.46"
+version: "0.11.47"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -53,6 +53,10 @@ options:
   # Co.) auch von Adressen ausserhalb der privaten Netze geglaubt werden sollen
   # - oder wenn das eigene LAN ausdruecklich NICHT als Zwischenglied gelten soll.
   trusted_proxies: ""
+  # Gesamtlimit fuer den Datenordner in MB. 0 = unbegrenzt. Bewusst hier und
+  # nicht im Admin-Panel: Ein Limit, das der Inhalts-Admin selbst hochdrehen
+  # kann, ist keins.
+  storage_max_mb: 0
 
 schema:
   username: str
@@ -60,3 +64,4 @@ schema:
   session_hours: int
   ingress_trust_net: "str?"
   trusted_proxies: "str?"
+  storage_max_mb: "int(0,10000000)?"

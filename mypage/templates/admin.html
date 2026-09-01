@@ -2446,6 +2446,22 @@
           <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
         </details>
 
+        <details class="panel fold" id="sy-storage" data-load="loadStorage">
+          <summary><h3>{{ t.diskuse_heading }}</h3><span class="count" id="storage-info"></span></summary>
+          <p class="hint">{{ t.diskuse_hint }}</p>
+          <div id="storage-bar" style="height:10px;border-radius:5px;background:var(--bg);border:1px solid var(--border);overflow:hidden;margin:10px 0;display:none">
+            <div id="storage-bar-fill" style="height:100%;width:0;background:var(--accent)"></div>
+          </div>
+          <p class="hint" id="storage-total">…</p>
+          <div style="overflow-x:auto">
+            <table class="tbl" id="storage-table" style="width:100%;margin-top:10px">
+              <thead><tr><th>{{ t.diskuse_col_group }}</th><th style="text-align:right">{{ t.diskuse_col_size }}</th><th style="text-align:right">{{ t.diskuse_col_share }}</th></tr></thead>
+              <tbody id="storage-rows"></tbody>
+            </table>
+          </div>
+          <p class="hint" id="storage-smb" style="display:none">{{ t.diskuse_smb_note }}</p>
+        </details>
+
         <details class="panel fold" id="sy-export">
           <summary><h3>{{ t.export_heading }}</h3></summary>
           <p class="hint">{{ t.export_hint }}</p>
@@ -3711,6 +3727,50 @@
       await loadTwofa();
       showBackupCodes(d.backup_codes);
     }
+    // ── Speicherbelegung ──
+    function fmtBytes(n) {
+      if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
+      if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+      if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+      return n + ' B';
+    }
+    async function loadStorage() {
+      const r = await api('api/diskuse');
+      if (!r.ok) return;
+      const d = await r.json();
+      const rows = el('storage-rows');
+      rows.innerHTML = '';
+      (d.groups || []).forEach(g => {
+        const tr = document.createElement('tr');
+        const share = d.total ? Math.round(g.bytes * 100 / d.total) : 0;
+        [T['diskuse_grp_' + g.key] || g.key, fmtBytes(g.bytes), share + ' %'].forEach((v, i) => {
+          const td = document.createElement('td');
+          td.textContent = v;
+          if (i) td.style.textAlign = 'right';
+          tr.appendChild(td);
+        });
+        rows.appendChild(tr);
+      });
+      el('storage-info').textContent = fmtBytes(d.total);
+      el('storage-smb').style.display = d.smb ? '' : 'none';
+      if (d.limit) {
+        el('storage-bar').style.display = '';
+        const fill = el('storage-bar-fill');
+        fill.style.width = Math.min(100, d.pct) + '%';
+        fill.style.background = d.pct >= 100 ? 'var(--danger, #f85149)'
+                              : d.pct >= 80 ? '#d29922' : 'var(--accent)';
+        el('storage-total').textContent = T.diskuse_total_limit
+          .replace('{used}', fmtBytes(d.total))
+          .replace('{limit}', fmtBytes(d.limit))
+          .replace('{pct}', d.pct);
+      } else {
+        el('storage-bar').style.display = 'none';
+        el('storage-total').textContent = T.diskuse_total_nolimit
+          .replace('{used}', fmtBytes(d.total))
+          .replace('{free}', fmtBytes(d.disk_free));
+      }
+    }
+
     // ── Admin-Zugang (nur ohne Home Assistant) ──
     async function loadAdminLogin() {
       const r = await api('api/admin-login');

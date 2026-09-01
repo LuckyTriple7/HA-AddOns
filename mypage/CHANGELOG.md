@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.47
+
+- ✨ **Speicherlimit für den gesamten Datenordner.** Neu als Add-on-Option *Speicherlimit (MB)* bzw. als `MYPAGE_STORAGE_MAX_MB` in der compose.yaml — bewusst **nicht** im Admin-Panel: Ein Limit, das der Inhalts-Admin selbst hochdrehen kann, ist keins. 0 heißt unbegrenzt, bestehende Installationen ändern ihr Verhalten also nicht. Gezählt wird alles im Datenordner: Bilder, Bibliothek-PDFs, Logos, Mitglieder-Dateien, Anhänge, Spielstände und Sicherungen. Liegen die Mitglieder-Dateien auf einer SMB-Freigabe, zählen sie nicht mit.
+- 🎯 **Geprüft wird an einer einzigen Stelle**, bevor Flask den Rumpf einliest — das trifft jeden Weg, auf dem Dateien hereinkommen, auch künftige. Abgewiesen werden nur Uploads; Bedienen, Löschen und Aufräumen laufen weiter, damit man sich wieder Luft verschaffen kann. Wird abgewiesen, zählt MyPage vorher noch einmal frisch nach, damit gerade Gelöschtes sofort zählt.
+- ✨ **Neue Anzeige System → Speicherbelegung**: Balken, Gesamtwert und eine Aufschlüsselung nach Bereichen (Bilder, PDFs, Logos, Mitglieder-Dateien, Profilbilder, Anhänge, Sicherungen, Spielstände, Besucher-Archiv …) mit Anteil in Prozent. Ohne gesetztes Limit steht dort der freie Platz der Platte. Dazu eine Zeile im Systemzustand, die ab 80 % warnt.
+- 🎯 Ist das Limit erreicht, legt MyPage **kein neues automatisches Backup** mehr an, sondern dünnt die vorhandenen aus — sie geben Platz frei, ohne dass Inhalte verloren gehen. Mitglieder sehen im Dateibereich das kleinere von persönlicher Quote und verbleibendem Gesamtplatz.
+
 ## 0.11.46
 
 - ✨ **Blog, Bibliothek und Projekte lassen sich abschalten** (Design → Module), wie bisher schon Reiseblog und Formulare. Das Auge am Abschnitt nahm sie nur von der Startseite und aus der Navigation — `/blog`, `/bibliothek` und `/p/…` antworteten weiter, und die Einträge standen in Sitemap, RSS, Suche und statischem Export. Ein NEIN schließt jetzt alles davon; die Adressen antworten mit 404. Standard ist AN, bestehende Seiten ändern sich also nicht.

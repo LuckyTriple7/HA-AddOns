@@ -227,6 +227,7 @@
       {% if msg == 'uploaded' %}<div class="msg ok">{{ t.member_uploaded }}</div>{% endif %}
       {% if msg == 'storage' %}<div class="msg err">{{ t.member_err_storage }}</div>{% endif %}
       {% if msg == 'quota' %}<div class="msg err">{{ t.member_err_quota }}</div>{% endif %}
+      {% if msg == 'storage' %}<div class="msg err">{{ t.member_err_storage }}</div>{% endif %}
       {% if msg == 'nofile' %}<div class="msg err">{{ t.member_err_nofile }}</div>{% endif %}
       {% set pct = (used / quota * 100) if quota else 0 %}
       <div class="meta-row">

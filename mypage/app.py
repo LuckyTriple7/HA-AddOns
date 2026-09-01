@@ -3971,6 +3971,144 @@ def store_user_file(d: Path, f) -> Path | None:
     return target
 
 
+# ── Gesamt-Speicherlimit ──────────────────────────────────────────────────────
+# Bewusst NICHT im Admin-Panel einstellbar: Ein Limit, das der Inhalts-Admin
+# selbst hochdrehen kann, ist keins. Es kommt vom Betreiber — per Umgebungs-
+# variable in der compose.yaml oder als Add-on-Option unter Home Assistant.
+# 0 (oder nicht gesetzt) heisst unbegrenzt, damit bestehende Installationen ihr
+# Verhalten nicht aendern.
+#
+# Gezaehlt wird alles unter dem Datenordner: Bilder, Bibliothek-PDFs, Logos,
+# Mitglieder-Dateien, Anhaenge, Spielstaende, Sicherungen. Liegen die Mitglieder-
+# Dateien auf einer SMB-Freigabe, stehen sie ausserhalb dieses Ordners und
+# zaehlen damit von selbst nicht mit.
+
+STORAGE_RESCAN_S = 300          # Drift ausgleichen, ohne bei jedem Upload zu zaehlen
+_storage_lock = threading.Lock()
+_storage_bytes = 0
+_storage_stamp = 0.0
+
+
+def storage_limit_bytes() -> int:
+    """Gesamtlimit in Bytes, 0 = unbegrenzt."""
+    raw = os.environ.get('MYPAGE_STORAGE_MAX_MB')
+    if raw is None or str(raw).strip() == '':
+        # load_options() statt load_config(): Was in settings.json steht, pflegt
+        # der Admin selbst — genau das soll hier nicht greifen.
+        raw = load_options().get('storage_max_mb')
+    try:
+        mb = int(raw or 0)
+    except (TypeError, ValueError):
+        mb = 0
+    return max(0, mb) * 1048576
+
+
+def _scan_storage_bytes() -> int:
+    total = 0
+    for root, _dirs, files in os.walk(_DATA):
+        for name in files:
+            try:
+                total += os.stat(os.path.join(root, name)).st_size
+            except OSError:      # waehrend des Zaehlens geloescht — nicht schlimm
+                pass
+    return total
+
+
+def storage_used_bytes(refresh: bool = False) -> int:
+    """Belegter Platz im Datenordner, gepuffert.
+
+    Der Wert wird nach jedem Schreiben fortgeschrieben (`storage_note_delta`)
+    und alle `STORAGE_RESCAN_S` neu gezaehlt. Ohne Puffer laege bei jedem Upload
+    ein vollstaendiger Durchlauf ueber alle Dateien im Anfragepfad.
+    """
+    global _storage_bytes, _storage_stamp
+    with _storage_lock:
+        if refresh or not _storage_stamp or time.time() - _storage_stamp > STORAGE_RESCAN_S:
+            _storage_bytes = _scan_storage_bytes()
+            _storage_stamp = time.time()
+        return _storage_bytes
+
+
+def storage_note_delta(n: int) -> None:
+    """Bekannte Aenderung einrechnen (positiv beim Schreiben, negativ beim Loeschen)."""
+    global _storage_bytes
+    with _storage_lock:
+        _storage_bytes = max(0, _storage_bytes + int(n))
+
+
+def storage_room_bytes() -> int | None:
+    """Verbleibender Platz bis zum Limit. None = kein Limit gesetzt."""
+    limit = storage_limit_bytes()
+    if not limit:
+        return None
+    return max(0, limit - storage_used_bytes())
+
+
+def storage_would_exceed(extra: int) -> bool:
+    room = storage_room_bytes()
+    return room is not None and int(extra or 0) > room
+
+
+# Woraus sich der belegte Platz zusammensetzt. Die Reihenfolge ist die der
+# Anzeige; Beschriftungen holt die Oberflaeche ueber `storage_grp_<key>` aus den
+# Uebersetzungen, damit hier kein deutscher Text im Code steht.
+STORAGE_GROUPS = ('uploads', 'docs', 'logos', 'users', 'member_avatars', 'dm_files',
+                  'autobackup', 'revisions', 'games', 'visits', 'wm_cache', 'ai_tmp',
+                  'geoip')
+
+
+def _dir_bytes(path: Path) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.stat(os.path.join(root, name)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def storage_breakdown() -> dict:
+    """Belegter Platz je Ordner plus Gesamtwerte — Grundlage der Anzeige im Admin.
+
+    `rest` faengt alles ab, was direkt im Datenordner liegt (site.json, stats,
+    Schluessel …). So ergibt die Summe der Zeilen immer den Gesamtwert, statt
+    dass ein Teil unerklaert fehlt.
+    """
+    groups = []
+    counted = 0
+    for key in STORAGE_GROUPS:
+        d = Path(_DATA) / key
+        if key == 'users' and SMB_MOUNTED:
+            continue          # liegt auf der Freigabe, zaehlt nicht mit
+        if not d.is_dir():
+            continue
+        size = _dir_bytes(d)
+        counted += size
+        if size:
+            groups.append({'key': key, 'bytes': size})
+    total = storage_used_bytes(refresh=True)
+    rest = max(0, total - counted)
+    if rest:
+        groups.append({'key': 'rest', 'bytes': rest})
+    groups.sort(key=lambda g: g['bytes'], reverse=True)
+    limit = storage_limit_bytes()
+    return {'groups': groups, 'total': total, 'limit': limit,
+            'pct': (total * 100 // limit) if limit else 0,
+            'disk_free': int((_health_dir_free_mb(_DATA) or 0) * 1048576),
+            'smb': SMB_MOUNTED}
+
+
+def _storage_worker() -> None:
+    """Zaehlt im Hintergrund nach, damit der gepufferte Wert nicht wegdriftet."""
+    while True:
+        time.sleep(STORAGE_RESCAN_S)
+        try:
+            storage_used_bytes(refresh=True)
+        except Exception as e:
+            log.warning("Speicherstand konnte nicht ermittelt werden: %s", e)
+
+
 def user_usage_bytes(user: dict) -> int:
     return sum(f.stat().st_size for f in user_dir(user).iterdir() if f.is_file())
 
@@ -5801,6 +5939,16 @@ def api_2fa_disable():
 _ADMIN_USER_RE = re.compile(r'^[A-Za-z0-9._@-]{3,64}$')
 
 
+@admin_app.route('/api/diskuse')
+def api_diskuse():
+    """Belegter Platz je Ordner. Reine Anzeige — das Limit selbst ist hier nicht
+    zu ändern, es kommt aus der Add-on-Konfiguration bzw. der compose.yaml."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify(storage_breakdown())
+
+
 @admin_app.route('/api/admin-login')
 def api_admin_login_state():
     err = _api_auth()
@@ -6652,7 +6800,15 @@ def auto_backup_loop() -> None:
     while True:
         try:
             keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
-            if keep > 0:
+            room = storage_room_bytes()
+            if keep > 0 and room is not None and room <= 0:
+                # Voll: die vorhandenen Sicherungen ausduennen statt eine weitere
+                # anzulegen. Sie sind das Erste, was Platz freigibt, ohne dass
+                # Inhalte verloren gehen.
+                _rotate_auto_backups(max(1, keep - 1))
+                log.warning("Speicherlimit erreicht — kein neues automatisches Backup, "
+                            "Aufbewahrung vorübergehend auf %d Datei(en) verkürzt", max(1, keep - 1))
+            elif keep > 0:
                 if not (BACKUPS_DIR / f'mypage-auto-{date.today().isoformat()}.zip').exists():
                     create_auto_backup(keep)
                 else:
@@ -11688,6 +11844,16 @@ def health_checks() -> list:
         add('disk', 'err' if free < 200 else 'warn' if free < 1000 else 'ok',
             f'{free / 1024:.1f} GB')
 
+    # Gesamt-Speicherlimit des Betreibers (0 = keins gesetzt)
+    limit = storage_limit_bytes()
+    if not limit:
+        add('storage', 'off')
+    else:
+        used = storage_used_bytes()
+        pct = used * 100 // limit
+        add('storage', 'err' if pct >= 100 else 'warn' if pct >= 80 else 'ok',
+            f'{used / 1048576:.0f} / {limit // 1048576} MB ({pct} %)')
+
     # Mailversand
     if not (cfg.get('smtp_host') or '').strip():
         add('smtp', 'off')
@@ -12433,6 +12599,56 @@ def _seo_urls(lang: str) -> dict:
     alts = [(lg, base if lg == default else f'{base}{sep}lang={lg}') for lg in SITE_LANGS]
     canonical = base if (default == 'auto' or lang == default) else f'{base}{sep}lang={lang}'
     return {'canonical_url': canonical, 'hreflang_urls': alts + [('x-default', base)]}
+
+
+# Eine Stelle fuer alle Uploads: geprueft wird die angekuendigte Laenge, bevor
+# Flask den Rumpf ueberhaupt einliest. Das trifft jeden Weg, auf dem Dateien
+# hereinkommen (Bilder, PDFs, Logos, Avatare, Anhaenge, Mitglieder-Dateien,
+# Restore) — auch kuenftige, ohne dass man daran denken muss. Anfragen ohne
+# Datei laufen woanders und bleiben unberuehrt, damit sich bei vollem Speicher
+# weiterhin aufraeumen, loeschen und bedienen laesst.
+def _storage_guard():
+    if request.method not in ('POST', 'PUT', 'PATCH'):
+        return None
+    if not (request.content_type or '').startswith('multipart/form-data'):
+        return None
+    if not storage_would_exceed(request.content_length or 0):
+        return None
+    # Zweite Meinung mit frisch gezaehltem Stand: Geloeschtes wird im Puffer
+    # nicht mitgefuehrt, sonst wuerde nach dem Aufraeumen bis zu fuenf Minuten
+    # lang weiter abgewiesen.
+    storage_used_bytes(refresh=True)
+    if not storage_would_exceed(request.content_length or 0):
+        return None
+    limit_mb = storage_limit_bytes() // 1048576
+    log.warning("Upload abgewiesen: Speicherlimit von %d MB erreicht (%s)",
+                limit_mb, request.path)
+    # Der Mitgliederbereich arbeitet mit Formularen und Weiterleitungen, der
+    # Admin mit JSON — eine JSON-Antwort im Browser waere dort eine leere Seite.
+    if request.path.startswith('/bereich'):
+        return redirect('/bereich?msg=storage')
+    return jsonify({'error': 'storage_full', 'limit_mb': limit_mb,
+                    'used_mb': storage_used_bytes() // 1048576}), 413
+
+
+def _storage_after(resp):
+    """Angenommene Uploads gleich einrechnen, statt auf den naechsten Durchlauf
+    zu warten. Gezaehlt wird die angekuendigte Laenge — etwas mehr als die Datei
+    am Ende belegt, und in dieser Richtung ist die Schaetzung die richtige."""
+    try:
+        if (request.method in ('POST', 'PUT', 'PATCH')
+                and (request.content_type or '').startswith('multipart/form-data')
+                and resp.status_code < 400):
+            storage_note_delta(request.content_length or 0)
+    except Exception:      # noqa: BLE001 — Buchhaltung darf keine Antwort kippen
+        pass
+    return resp
+
+
+public_app.before_request(_storage_guard)
+admin_app.before_request(_storage_guard)
+public_app.after_request(_storage_after)
+admin_app.after_request(_storage_after)
 
 
 @public_app.context_processor
@@ -16011,6 +16227,13 @@ def _member_page(member: dict | None, msg: str = ''):
             log.warning("Dateiliste für '%s' fehlgeschlagen: %s", member['email'], e)
             storage_down = True
             files = []
+        # Liegen die Mitglieder-Dateien auf dem Server selbst, gilt zusaetzlich
+        # das Gesamtlimit des Betreibers. Angezeigt wird das kleinere von beidem
+        # — sonst versprechen wir Platz, den es gar nicht gibt.
+        if not SMB_MOUNTED:
+            room = storage_room_bytes()
+            if room is not None:
+                quota = min(quota, used + room)
     login_msg_html = render_md(member.get('login_message', '')) if member else ''
     achievements = _member_achievements(member, len(files)) if member else []
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
@@ -17511,6 +17734,10 @@ if __name__ == '__main__':
                         "Watchdog versucht es jede Minute erneut")
     log.info("Mitglieder-Bereich: Speicher unter %s, Upload-Limit %d MB",
              userfiles_root(), upload_max)
+    _limit = storage_limit_bytes()
+    if _limit:
+        log.info("Speicherlimit: %d MB, belegt %d MB",
+                 _limit // 1048576, storage_used_bytes(refresh=True) // 1048576)
 
     # Aufbewahrung des Besucher-Archivs auch beim Start durchsetzen, nicht erst
     # beim nächsten Monatswechsel. Wer die Frist herunterdreht, will die alten
@@ -17533,6 +17760,7 @@ if __name__ == '__main__':
     threading.Thread(target=_dm_reminder_worker, daemon=True).start()
     threading.Thread(target=_weekly_review_worker, daemon=True).start()
     threading.Thread(target=auto_backup_loop, daemon=True).start()
+    threading.Thread(target=_storage_worker, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     # Acht Threads wie oeffentlich: Der Admin laedt beim Oeffnen eines Reiters

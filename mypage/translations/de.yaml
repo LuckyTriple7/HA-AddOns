@@ -30,6 +30,17 @@ configuration:
       geben und damit die Login-Sperre umgehen. Hier eingetragene Netze (CIDR,
       mehrere durch Leerzeichen) ersetzen diese Regel vollständig: Dann gelten
       ausschließlich sie als Zwischenglied — auch das eigene LAN nicht mehr.
+  storage_max_mb:
+    name: Speicherlimit (MB)
+    description: >-
+      Gesamtgrenze für den Datenordner in MB — Bilder, Bibliothek-PDFs, Logos,
+      Mitglieder-Dateien, Anhänge, Spielstände und Sicherungen zusammen. Ist sie
+      erreicht, werden neue Uploads abgewiesen; Bedienung, Löschen und Aufräumen
+      laufen weiter, und statt eines neuen automatischen Backups werden die
+      vorhandenen ausgedünnt. 0 = unbegrenzt (Standard). Liegen die
+      Mitglieder-Dateien auf einer SMB-Freigabe, zählen sie nicht mit. Die
+      Belegung steht im Admin unter System → Speicherbelegung; ändern lässt sich
+      das Limit nur hier.
   github_token:
     name: GitHub-Token
     description: Optionales Token — erhöht das API-Limit für GitHub-Import und Sterne-Updates.

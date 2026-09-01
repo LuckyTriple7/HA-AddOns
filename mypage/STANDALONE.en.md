@@ -101,6 +101,21 @@ MyPage then generates a new password and writes it to the log. Content, members 
 
 > If the "Neue Installation" message shows up unexpectedly, the volume path is usually wrong and MyPage started on an empty folder. Check the mount before adding content.
 
+### Storage limit (compose.yaml only)
+
+By default MyPage may use as much space as the disk offers. Set an overall limit in the compose.yaml:
+
+```yaml
+    environment:
+      MYPAGE_STORAGE_MAX_MB: 2048     # 0 or omitted = unlimited
+```
+
+Everything in the data folder counts: images, library PDFs, logos, member files, attachments, game states and the automatic backups. Member files on an SMB share sit outside the folder and do not count.
+
+Once the limit is reached, **new uploads are rejected** — browsing, deleting and cleaning up keep working so you can make room again. Instead of writing a new automatic backup, the existing ones are thinned out. Members see the smaller of their personal quota and the remaining overall space.
+
+The limit is deliberately **not in the admin panel**: a limit the content admin can raise is no limit. The panel only shows usage under **System → Storage usage** — a bar, the total and a breakdown by area (images, PDFs, member files, backups …) so you can see what is eating the space. With several instances, set a value per stack.
+
 ### `options.json` — optional
 
 No longer needed for the login. If you do mount it (read-only to `/data/options.json`), it can still carry two things:

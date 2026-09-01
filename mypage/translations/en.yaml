@@ -30,6 +30,16 @@ configuration:
       lockout. Networks entered here (CIDR, several separated by spaces) replace
       that rule entirely: only they count as an intermediary — your own LAN no
       longer does.
+  storage_max_mb:
+    name: Storage limit (MB)
+    description: >-
+      Overall limit for the data folder in MB — images, library PDFs, logos,
+      member files, attachments, game states and backups combined. Once reached,
+      new uploads are rejected; browsing, deleting and cleaning up keep working,
+      and instead of writing a new automatic backup the existing ones are thinned
+      out. 0 = unlimited (default). Member files on an SMB share do not count.
+      Usage is shown in the admin under System → Storage usage; the limit itself
+      can only be changed here.
   github_token:
     name: GitHub token
     description: Optional token — raises the API limit for GitHub import and star updates.
