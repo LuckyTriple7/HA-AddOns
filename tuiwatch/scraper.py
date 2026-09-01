@@ -17,6 +17,7 @@ import logging
 import os
 import re
 import socket
+import threading
 import time
 from datetime import date, datetime, timedelta
 from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
@@ -331,6 +332,23 @@ def _empty_result() -> dict:
 #      faelligen Angebot nacheinander.
 def browser_fallback_enabled() -> bool:
     return True
+
+
+# Eindeutiges Erkennungszeichen an jedem Chromium, das dieser Scraper startet.
+# Chromium nimmt unbekannte --flags kommentarlos hin; dafuer laesst sich ein
+# haengengebliebener Prozess spaeter zweifelsfrei als unserer erkennen, ohne
+# fremde Browser im selben Namensraum anzufassen (_reap_orphan_chromium in app.py).
+BROWSER_MARKER = "--tuiwatch-fallback"
+
+_browser_lock = threading.Lock()
+_browser_running = 0
+
+
+def browser_busy() -> bool:
+    """Laeuft gerade ein Fallback-Browser? Solange das True ist, darf niemand
+    Chromium-Prozesse aufraeumen — sie gehoeren zu einem laufenden Abruf."""
+    with _browser_lock:
+        return _browser_running > 0
 
 
 # Feste Ziele, absichtlich nicht aus der Angebots-URL abgeleitet: geprueft wird die
@@ -2099,10 +2117,14 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
     r = _empty_result()
     r["source"] = "browser"
     chromium_path = os.environ.get("CHROMIUM_PATH") or None
+    global _browser_running
+    with _browser_lock:
+        _browser_running += 1
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, executable_path=chromium_path,
-                                        args=["--no-sandbox", "--disable-dev-shm-usage"])
+                                        args=["--no-sandbox", "--disable-dev-shm-usage",
+                                              BROWSER_MARKER])
             ctx = browser.new_context(locale="de-DE", user_agent=USER_AGENT,
                                       viewport={"width": 1366, "height": 2200})
             page = ctx.new_page()
@@ -2221,6 +2243,9 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
         r["note"] = "Abruf fehlgeschlagen"
         r["detail"] = f"{type(e).__name__}: {e}"[:300]
         return r
+    finally:
+        with _browser_lock:
+            _browser_running = max(0, _browser_running - 1)
 
 
 if __name__ == "__main__":

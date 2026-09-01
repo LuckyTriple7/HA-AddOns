@@ -5863,6 +5863,7 @@
       $('#syslog-tab-notify').classList.toggle('sec', tab!=='notify');
       $('#syslog-tab-errors').classList.toggle('sec', tab!=='errors');
       $('#syslog-tab-console').classList.toggle('sec', tab!=='console');
+      $('#syslog-tab-memory').classList.toggle('sec', tab!=='memory');
       // Filterzeile gehört nur zur Konsole — die anderen Tabs liefern zu wenig Zeilen,
       // als dass Filtern lohnte.
       $('#syslog-filter').style.display = tab==='console' ? 'flex' : 'none';
@@ -5874,12 +5875,14 @@
         const q = ($('#syslog-q').value||'').trim(), lv = $('#syslog-level').value||'';
         url = '/api/logs?q=' + encodeURIComponent(q) + '&level=' + encodeURIComponent(lv);
       }
+      if(tab==='memory') url = '/api/memory';
       let d;
       try {
         const r = await fetch(api(url));
         if(!r.ok) throw 0; d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Konnte nicht geladen werden.</div>'; return; }
       const items = d.items||[];
+      if(tab==='memory'){ renderMemory(d); return; }
       if(tab==='console'){
         $('#syslog-sub').textContent =
           `Add-on-Log seit dem Start, neueste zuerst — ${items.length} von ${d.total||0} Zeilen `
@@ -5913,6 +5916,58 @@
       }
     }
     function closeSyslog(){ $('#syslog-bg').classList.remove('show'); }
+
+    // Speicher-Tab: beantwortet die Frage „warum zeigt Home Assistant so viel RAM?"
+    // Home Assistant liest den Wert aus der cgroup des Containers. Darin steckt neben
+    // dem echten Heap auch der Dateicache — der zählt mit, ist aber jederzeit
+    // rückholbar. Ohne diese Aufteilung sieht Dateicache aus wie ein Leck.
+    function _mb(v){ return v==null ? '–' : (v>=1024 ? (v/1024).toFixed(2)+' GB' : v.toFixed(1)+' MB'); }
+    function renderMemory(d){
+      const cg = d.cgroup||{}, me = d.self||{}, cr = d.chromium||{};
+      $('#syslog-sub').textContent =
+        'Was Home Assistant beim Add-on als Speicher anzeigt, und wer ihn hält.';
+      const row = (label, value, hint) =>
+        `<div style="display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border)">
+           <span style="flex:1;min-width:150px">${esc(label)}</span>
+           <b style="white-space:nowrap">${esc(value)}</b>
+         </div>` + (hint ? `<div class="hint" style="margin:-2px 0 6px">${esc(hint)}</div>` : '');
+      let html = row('Container gesamt', _mb(cg.current_mb),
+                     'Dieser Wert steht in Home Assistant.')
+        + row('davon echter Speicher (anon)', _mb(cg.anon_mb),
+              'Python, Bibliotheken, ein laufendes Chromium — das ist wirklich belegt.')
+        + row('davon Dateicache (file)', _mb(cg.file_mb),
+              'Datenbank und Logdateien im Cache. Zählt mit, gibt der Kernel bei Bedarf sofort her.')
+        + row('davon Kernel (slab)', _mb(cg.slab_mb), '')
+        + row('TUIWatch selbst', _mb(me.rss_mb) + ' · ' + (me.threads||0) + ' Threads', '')
+        + row('Browser-Fallback', d.browser_fallback ? 'an' : 'aus', '')
+        + row('Chromium-Prozesse', cr.count ? (cr.count + ' · ' + _mb(cr.rss_mb)) : 'keine',
+              cr.busy ? 'Gerade läuft ein Abruf über den Browser.' : '');
+      if(cr.leftover_count){
+        html += `<div class="hc-row bad" style="margin:10px 0;padding:8px;border:1px solid var(--red);border-radius:8px">
+          <b>${cr.leftover_count} hängengebliebene(r) Fallback-Browser · ${esc(_mb(cr.leftover_mb))}</b>
+          <div class="hint">Gehören zu einem beendeten Abruf und geben den Speicher nicht mehr her.
+            Der Poller räumt sie bei der nächsten Runde selbst weg — oder jetzt:</div>
+          <button class="btn sec" style="margin-top:6px" onclick="reapChromium()">Jetzt beenden</button>
+        </div>`;
+      }
+      html += '<div style="margin-top:12px;font-weight:600">Größte Prozesse im Container</div>'
+        + (d.processes||[]).map(p =>
+            `<div style="display:flex;gap:8px;padding:3px 0;font-size:.8rem;font-family:ui-monospace,monospace">
+               <span class="hint" style="width:60px">${p.pid}</span>
+               <span style="flex:1;word-break:break-all">${esc(p.name)}</span>
+               <span>${esc(_mb(p.rss_mb))}</span>
+             </div>`).join('');
+      $('#syslog-body').innerHTML = html;
+    }
+    async function reapChromium(){
+      try {
+        const r = await fetch(api('/api/memory/reap'), {method:'POST'});
+        const d = await r.json();
+        toast(d.ok ? (d.killed ? d.killed + ' Browser beendet' : 'Nichts zu beenden')
+                   : (d.error || 'Fehlgeschlagen'));
+      } catch(e){ toast('Fehlgeschlagen'); }
+      openSyslog('memory');
+    }
 
     // ── Störungen (Ausrufezeichen neben dem Logo) ─────────────────────────
     // Die Zahl kommt bei jedem /api/offers mit (alle 5 s) — kein eigener Timer. Die

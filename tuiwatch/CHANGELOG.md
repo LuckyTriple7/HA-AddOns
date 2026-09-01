@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.113.12
+
+- 🧮 **Neuer Tab „Speicher"** unter *Meldungen & Fehler*. Er beantwortet die Frage, warum Home Assistant beim Add-on so viel RAM anzeigt: Home Assistant liest den Wert aus der cgroup des Containers, und darin steckt neben dem echten Heap (`anon`) auch der **Dateicache** (`file`, Datenbank und Logs) — der zählt mit, ist aber jederzeit rückholbar. Ohne diese Aufteilung sieht ein großer Dateicache aus wie ein Speicherleck. Dazu: RSS und Threads von TUIWatch selbst, Anzahl und Speicher laufender Chromium-Prozesse, Stand des Fallback-Schalters und die größten Prozesse im Container.
+- 🧹 **Hängengebliebene Fallback-Browser werden erkannt und beendet.** `_fetch_price_browser()` schließt den Browser im `finally` — bleibt der Abruf aber im Netz hängen oder stirbt der Thread darunter weg, überlebt Chromium bis zum Neustart des Add-ons und hält mehrere hundert MB, die niemand mehr benutzt. Genau das sieht aus wie „das Add-on braucht dauerhaft 800 MB", auch wenn der Fallback längst abgeschaltet ist: **ein abgeschalteter Schalter beendet keinen Browser, der schon läuft.**
+- 🔖 Jedes vom Add-on gestartete Chromium trägt dafür ein eigenes Erkennungszeichen in der Kommandozeile (`--tuiwatch-fallback`). Aufgeräumt wird ausschließlich, was dieses Zeichen trägt — fremde Browser im selben Namensraum bleiben unangetastet — und nie, während gerade ein Abruf über den Browser läuft.
+- ⏱️ Der Aufräumer läuft bei jeder Poll-Runde mit (Schritt „Aufraeumen") und schreibt, was er beendet hat, als Warnung ins Log. Im Speicher-Tab steht zusätzlich ein Knopf **„Jetzt beenden"**, wenn etwas gefunden wurde.
+- ✅ Vier weitere Tests: Marker sitzt am Browser-Aufruf, `browser_busy()` meldet den laufenden Abruf, der Aufräumer fasst währenddessen nichts an, und ohne Marker findet er nichts.
+
 ## 0.113.11
 
 - 🖥️ **Neue Einstellung „Browser-Fallback (Chromium)"** unter *Prüfen & Zeitplan*, Standard an. Antwortet die JSON-API von TUI technisch nicht, rendert TUIWatch die Angebotsseite ersatzweise in einem Headless-Chromium. Das kostet gemessen rund 400 MB leer und bis 740 MB mit geladener Seite, verteilt auf sechs bis sieben Prozesse — im Add-on zählt das alles zum Speicher des Containers, zusätzlich zu den etwa 150 MB von TUIWatch selbst. Wer das nicht will, schaltet den Fallback ab: bei API-Fehlern wird der Abruf dann als fehlgeschlagen vermerkt, statt den Browser zu starten.

@@ -109,6 +109,12 @@ Prozesse, die im Add-on alle zum Speicher des Containers zählen:
   zu holen — der Browser bliebe 740 MB für nichts, und das bei jedem fälligen Angebot
   nacheinander.
 
+Jedes gestartete Chromium bekommt zusätzlich `--tuiwatch-fallback` in die Kommandozeile
+(`BROWSER_MARKER`). Chromium ignoriert das Flag; für uns ist es das Erkennungszeichen,
+an dem `_reap_orphan_chromium()` in [app.py](app.py) einen hängengebliebenen Browser
+zweifelsfrei von einem fremden im selben Namensraum unterscheidet. Aufgeräumt wird bei
+jeder Poll-Runde und nie, solange `scraper.browser_busy()` einen laufenden Abruf meldet.
+
 Denselben Test nutzt der Poller einmal je Runde (`_net_ok()` in [app.py](app.py)): ohne
 Netz pausieren Preisprüfungen, Suchabos, Kalender, Selbsttest, Aktionscodes und
 Wochenbericht, während örtliche Schritte (Backup, Preisbarometer) weiterlaufen. Der

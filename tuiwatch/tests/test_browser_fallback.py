@@ -65,3 +65,28 @@ def test_option_steht_in_den_einstellungen():
     settings = importlib.import_module("settings")
     typ, default, _extra, group = settings.FIELDS["browser_fallback"][:4]
     assert (typ, default, group) == ("bool", True, "poll")
+
+
+# ── Hängengebliebene Fallback-Browser ────────────────────────────────────────
+# Der Fallback schließt den Browser im `finally`. Bleibt der Aufruf im Netz hängen
+# oder stirbt der Thread darunter weg, überlebt Chromium bis zum Neustart — mit
+# mehreren hundert MB, die niemand mehr benutzt. Genau das sieht dann aus, als
+# bräuchte das Add-on dauerhaft so viel Speicher.
+
+def test_marker_haengt_am_browser_aufruf():
+    """Ohne eindeutigen Marker ließe sich unser Chromium nicht von einem fremden
+    im selben Namensraum unterscheiden — dann dürfte gar nichts aufgeräumt werden."""
+    assert scraper.BROWSER_MARKER.startswith("--")
+    import inspect
+    src = inspect.getsource(scraper._fetch_price_browser)
+    assert "BROWSER_MARKER" in src and "args=[" in src
+
+
+def test_browser_busy_meldet_laufenden_abruf(monkeypatch):
+    assert scraper.browser_busy() is False
+    scraper._browser_running += 1
+    try:
+        assert scraper.browser_busy() is True
+    finally:
+        scraper._browser_running -= 1
+    assert scraper.browser_busy() is False

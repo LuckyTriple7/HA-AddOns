@@ -97,7 +97,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.11"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.12"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2680,6 +2680,71 @@ def _poll_gap() -> int:
         return POLL_GAP_DEFAULT
 
 
+def _chromium_leftovers() -> list[tuple[int, float]]:
+    """Chromium-Prozesse, die zu einem beendeten Fallback-Abruf gehoeren.
+
+    Erkannt werden ausschliesslich Prozesse mit unserem Marker in der Kommandozeile
+    (`scraper.BROWSER_MARKER`) — fremde Browser im selben Namensraum bleiben
+    unangetastet. Der Marker steht nur an dem Chromium, das `_fetch_price_browser`
+    selbst startet; seine Kindprozesse (Renderer, GPU) erben die Kommandozeile
+    nicht, sie sterben aber mit dem Elternprozess.
+    """
+    out = []
+    for pid in os.listdir('/proc'):
+        if not pid.isdigit() or int(pid) == os.getpid():
+            continue
+        try:
+            with open(f'/proc/{pid}/cmdline', 'rb') as f:
+                cmd = f.read().decode('utf-8', 'replace')
+            if scraper.BROWSER_MARKER not in cmd:
+                continue
+            rss = 0
+            with open(f'/proc/{pid}/status', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('VmRSS:'):
+                        rss = int(line.split()[1])
+                        break
+        except (OSError, ValueError, IndexError):
+            continue
+        out.append((int(pid), round(rss / 1024, 1)))
+    return out
+
+
+def _reap_orphan_chromium() -> int:
+    """Haengengebliebene Fallback-Browser beenden; gibt die Anzahl zurueck.
+
+    `_fetch_price_browser` schliesst den Browser im `finally`. Bleibt der Aufruf
+    aber im Netz haengen oder stirbt der Thread darunter weg, ueberlebt Chromium
+    bis zum Neustart des Add-ons — mit mehreren hundert MB, die niemand mehr
+    benutzt. Genau das sieht man dann als "das Add-on braucht 800 MB", auch wenn
+    der Fallback laengst abgeschaltet ist.
+
+    Laeuft gerade ein Abruf, wird nichts angefasst.
+    """
+    if scraper.browser_busy():
+        return 0
+    leftovers = _chromium_leftovers()
+    if not leftovers:
+        return 0
+    freed = round(sum(mb for _, mb in leftovers), 1)
+    log.warning("Aufraeumen: %d haengengebliebene(r) Fallback-Browser (%.1f MB) werden beendet",
+                len(leftovers), freed)
+    for pid, _mb in leftovers:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    time.sleep(3)
+    for pid, _mb in leftovers:
+        try:
+            os.kill(pid, 0)          # noch da? dann hart beenden
+            os.kill(pid, signal.SIGKILL)
+            log.warning("Fallback-Browser %d reagierte nicht auf SIGTERM — SIGKILL", pid)
+        except OSError:
+            pass
+    return len(leftovers)
+
+
 # Kein Netz: so lange warten, bevor die Runde neu bewertet wird. Kurz genug, dass
 # der Betrieb nach einer Stoerung von selbst wieder anlaeuft, lang genug, dass die
 # Pruefung nicht selbst zur Last wird.
@@ -2742,6 +2807,7 @@ def _poll_worker() -> None:
                     ('Zusammenfassung', _maybe_send_digest, True),
                     ('Aktionscodes', _maybe_check_aktionscodes, True),
                     ('Backup', _maybe_auto_backup, False),
+                    ('Aufraeumen', _reap_orphan_chromium, False),
                     ('Suchabos', _maybe_check_watches, True),
                     ('Preiskalender', _maybe_refresh_calendars, True),
                     ('Preisbarometer', market_basket.maybe_run_baskets, False)):
@@ -4049,6 +4115,116 @@ def api_errors():
     if (err := _require_api()):
         return err
     return jsonify({'items': list(reversed(_warn_buffer))})
+
+
+def _read_kv(path: str) -> dict:
+    """Zeilen der Form "schluessel wert" (cgroup memory.stat, /proc/meminfo) lesen.
+    Fehlt die Datei — anderer Kernel, cgroup v1, kein Container —, kommt ein leeres
+    Ergebnis zurueck; die Anzeige laesst die Zeile dann einfach weg."""
+    out: dict = {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1].isdigit():
+                    out[parts[0].rstrip(':')] = int(parts[1])
+    except OSError:
+        pass
+    return out
+
+
+def _process_table() -> list[dict]:
+    """Alle Prozesse dieses Containers mit ihrem RSS, groesster zuerst.
+
+    Der Add-on-Container hat einen eigenen PID-Namensraum: hier steht genau das,
+    was Home Assistant als Speicher des Add-ons ausweist — TUIWatch selbst und
+    jedes Chromium, das der Browser-Fallback gestartet hat."""
+    rows = []
+    for pid in os.listdir('/proc'):
+        if not pid.isdigit():
+            continue
+        name, rss, threads = '', 0, 0
+        try:
+            with open(f'/proc/{pid}/status', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('Name:'):
+                        name = line.split(None, 1)[1].strip()
+                    elif line.startswith('VmRSS:'):
+                        rss = int(line.split()[1])
+                    elif line.startswith('Threads:'):
+                        threads = int(line.split()[1])
+                        break          # steht in /proc/<pid>/status nach VmRSS
+        except (OSError, ValueError, IndexError):
+            continue                   # Prozess ist zwischendurch beendet worden
+        if not name:
+            continue
+        rows.append({'pid': int(pid), 'name': name,
+                     'rss_mb': round(rss / 1024, 1), 'threads': threads})
+    rows.sort(key=lambda r: r['rss_mb'], reverse=True)
+    return rows
+
+
+@app.route('/api/memory', methods=['GET'])
+def api_memory():
+    """Woher der Speicherverbrauch kommt, den Home Assistant beim Add-on anzeigt.
+
+    Home Assistant liest den Wert aus der cgroup des Containers. Darin steckt
+    dreierlei, das sich sehr unterschiedlich anfuehlt:
+      * `anon` — echter Heap: Python selbst, geladene Bibliotheken, ein laufendes
+        Chromium. Nur das ist wirklich belegt.
+      * `file` — Dateicache (SQLite-Datenbank, Logs). Zaehlt mit, ist aber jederzeit
+        rueckholbar; der Kernel gibt ihn unter Druck von selbst wieder her.
+      * Rest — Kernel-Strukturen, Sockets, Stacks.
+    Ohne diese Aufteilung sieht ein grosser Dateicache aus wie ein Speicherleck."""
+    if (err := _require_api()):
+        return err
+    st = _read_kv('/proc/self/status')
+    cg = _read_kv('/sys/fs/cgroup/memory.stat')
+    def _num(path: str):
+        try:
+            with open(path, encoding='utf-8') as f:
+                v = f.read().strip()
+            return int(v) if v.isdigit() else None
+        except OSError:
+            return None
+    procs = _process_table()
+    # Chromium ueber ALLE Prozesse zaehlen, nicht nur ueber die angezeigten:
+    # die Renderer-Kinder liegen einzeln oft weit unter den groessten Prozessen.
+    chromium = [p for p in procs if 'chrom' in p['name'].lower()]
+    procs = procs[:15]
+    leftovers = [] if scraper.browser_busy() else _chromium_leftovers()
+    return jsonify({
+        'self': {'rss_mb': round(st.get('VmRSS', 0) / 1024, 1),
+                 'threads': st.get('Threads', 0)},
+        'cgroup': {
+            'current_mb': (lambda v: round(v / 1048576, 1) if v else None)(
+                _num('/sys/fs/cgroup/memory.current')),
+            'anon_mb': round(cg['anon'] / 1048576, 1) if 'anon' in cg else None,
+            'file_mb': round(cg['file'] / 1048576, 1) if 'file' in cg else None,
+            'slab_mb': round(cg['slab'] / 1048576, 1) if 'slab' in cg else None,
+        },
+        'processes': procs,
+        'chromium': {'count': len(chromium),
+                     'rss_mb': round(sum(p['rss_mb'] for p in chromium), 1),
+                     'busy': scraper.browser_busy(),
+                     'leftover_count': len(leftovers),
+                     'leftover_mb': round(sum(mb for _, mb in leftovers), 1)},
+        'browser_fallback': bool(load_config().get('browser_fallback', True)),
+        'malloc_arena_max': os.environ.get('MALLOC_ARENA_MAX') or '',
+        'log_buffer': len(_log_buffer),
+    })
+
+
+@app.route('/api/memory/reap', methods=['POST'])
+def api_memory_reap():
+    """Haengengebliebene Fallback-Browser von Hand beenden (Knopf im Speicher-Tab).
+    Derselbe Aufraeumer laeuft ohnehin bei jeder Poll-Runde mit."""
+    if (err := _require_api()):
+        return err
+    if scraper.browser_busy():
+        return jsonify({'ok': False, 'killed': 0,
+                        'error': 'Gerade laeuft ein Abruf ueber den Browser'}), 409
+    return jsonify({'ok': True, 'killed': _reap_orphan_chromium()})
 
 
 @app.route('/api/logs', methods=['GET'])

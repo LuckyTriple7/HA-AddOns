@@ -49,3 +49,20 @@ def test_zustand_merkt_sich_den_ausfall(m, monkeypatch):
     monkeypatch.setattr(scraper, "internet_reachable", lambda *a, **k: True)
     m._net_ok()
     assert m._net_state["online"] is True and m._net_state["since"] == 0.0
+
+
+def test_reaper_fasst_nichts_an_waehrend_ein_abruf_laeuft(m, monkeypatch):
+    """Solange ein Fallback-Abruf läuft, gehören die Chromium-Prozesse dazu —
+    sie zu beenden würde genau den Abruf abschießen, auf dessen Ergebnis wir warten."""
+    import scraper
+    monkeypatch.setattr(scraper, "browser_busy", lambda: True)
+    monkeypatch.setattr(m, "_chromium_leftovers",
+                        lambda: [(1234, 500.0)])   # dürfte nicht abgefragt werden
+    assert m._reap_orphan_chromium() == 0
+
+
+def test_reaper_findet_ohne_marker_nichts(m):
+    """Läuft kein Fallback-Browser, ist die Liste leer — fremde Prozesse im selben
+    Namensraum (Testlauf, Entwicklungsrechner) tragen unseren Marker nicht."""
+    assert m._chromium_leftovers() == []
+    assert m._reap_orphan_chromium() == 0
