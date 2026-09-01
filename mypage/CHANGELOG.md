@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.45
+
+- 📚 **Standalone-Anleitung: mehrere Instanzen auf einem Server.** Neuer Abschnitt in `STANDALONE.md` / `STANDALONE.en.md` mit fertigen Dockge-Stacks (ein Stack je Instanz, eigener Ordner, eigene Host-Ports) und den Punkten, an denen es sonst hakt: getrennte Datenordner, öffentliche URL je Instanz, SMB-Unterverzeichnisse, Brute-Force-Zählung je Container. Der Abschnitt „Passwort vergessen" nennt jetzt den Stack-Ordner und den Log-Tab.
+
 ## 0.11.44
 
 - ✨ **Admin-Zugang ohne Home Assistant: eigenes Passwort statt options.json.** Läuft MyPage als Docker-Container (ohne Supervisor), erzeugt es beim ersten Start ein zufälliges Admin-Passwort — 16 Zeichen mit Groß-, Kleinbuchstaben und Ziffern — und schreibt es ins Protokoll. Auf der Platte landet nur ein Hash in `admin_login.json` im Datenordner. Bisher stand das Passwort im Klartext in einer von Hand angelegten `options.json`; die wird für den Login nicht mehr gebraucht.

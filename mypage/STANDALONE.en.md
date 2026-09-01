@@ -24,6 +24,60 @@ On first start MyPage creates its data in the `./data` folder (`site.json`, `upl
 
 ---
 
+## Several instances on one server (Dockge)
+
+MyPage has no instance limit: any number of containers can run side by side on one server, as long as each gets its **own host ports** and its **own data folder**. In [Dockge](https://github.com/louislam/dockge) that means **one stack per instance**. Each stack has its own folder under `/opt/docker/stacks/`, and `./data` resolves there automatically — nothing to name or separate by hand.
+
+```
+/opt/docker/stacks/
+├── mypagea/       compose.yaml  data
+└── mypageb/       compose.yaml  data
+```
+
+`/opt/docker/stacks/mypagea/compose.yaml`:
+
+```yaml
+services:
+  mypage:
+    image: ghcr.io/luckytriple7/mypage:latest
+    container_name: mypagea
+    ports:
+      - "17760:17760"        # public site
+      - "17761:17761"        # admin panel
+    volumes:
+      - ./data:/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:17760/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+`/opt/docker/stacks/mypageb/compose.yaml` — the same file, three lines different:
+
+```yaml
+    container_name: mypageb
+    ports:
+      - "17770:17760"
+      - "17771:17761"
+```
+
+Ports **17760** and **17761** on the right of the colon are hard-wired inside the container and stay the same in every instance; only the left, server-wide unique side has to differ.
+
+After *Deploy*, pick up the generated password from the stack's log tab (user `admin`), sign in and set your own under **System → Access** — a different one per instance. There is no shared login across containers.
+
+Then set the matching address in each instance under **Design → Public URL**. Without it MyPage guesses `http://<host>:17760`, which is wrong for every instance but the first, affecting preview, sitemap, RSS, PWA and mail links.
+
+**Things to watch:**
+
+- **Never point two containers at the same data folder.** `site.json`, the visitor counter, game states and sessions would overwrite each other.
+- **SMB storage** needs `cap_add: [SYS_ADMIN, DAC_READ_SEARCH]` and `security_opt: [apparmor:unconfined]` per container. Two instances must not use the same subfolder of the share — give each its own *subdirectory* in the settings.
+- **Brute-force protection counts per container**, not server-wide. Behind a reverse proxy, set `trusted_proxies` in every instance (see below), otherwise MyPage only ever sees the proxy address and one attack locks out all visitors at once.
+- **Memory**: roughly 200–400 MB per instance. Worth counting on a small VPS.
+
+---
+
 ## Configuration
 
 ### Admin access — changing the password
@@ -35,10 +89,13 @@ Stored in `./data/admin_login.json` as a hash only. The file is **not** part of 
 ### Forgotten password
 
 ```bash
+cd /opt/docker/stacks/mypagea      # folder of the stack / compose file
 rm ./data/admin_login.json
-docker compose restart mypage
-docker compose logs mypage | grep -A 3 "Neue Installation"
+docker compose restart
+docker compose logs | grep -A 3 "Neue Installation"
 ```
+
+The password also shows up in the stack's log tab in Dockge. With several instances this only affects the one whose folder you deleted in; the others stay as they are.
 
 MyPage then generates a new password and writes it to the log. Content, members and settings are untouched. **2FA stays on** — deleting the file is deliberately not a full bypass for anyone with file access. If the second factor is lost too, also delete `./data/admin_2fa.json`.
 

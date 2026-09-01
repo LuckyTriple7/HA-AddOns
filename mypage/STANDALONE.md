@@ -24,6 +24,60 @@ Beim ersten Start legt MyPage seine Daten im Ordner `./data` an (`site.json`, `u
 
 ---
 
+## Mehrere Instanzen auf einem Server (Dockge)
+
+MyPage kennt keine Instanzsperre: Auf einem Server laufen beliebig viele Container nebeneinander, solange jeder **eigene Host-Ports** und einen **eigenen Datenordner** bekommt. In [Dockge](https://github.com/louislam/dockge) heißt das: **ein Stack pro Instanz**. Jeder Stack hat seinen eigenen Ordner unter `/opt/docker/stacks/`, und `./data` zeigt automatisch dorthin — es ist nichts zu benennen oder zu trennen.
+
+```
+/opt/docker/stacks/
+├── mypagea/       compose.yaml  data
+└── mypageb/       compose.yaml  data
+```
+
+`/opt/docker/stacks/mypagea/compose.yaml`:
+
+```yaml
+services:
+  mypage:
+    image: ghcr.io/luckytriple7/mypage:latest
+    container_name: mypagea
+    ports:
+      - "17760:17760"        # öffentliche Homepage
+      - "17761:17761"        # Admin-Panel
+    volumes:
+      - ./data:/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:17760/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+`/opt/docker/stacks/mypageb/compose.yaml` — dieselbe Datei, drei Zeilen anders:
+
+```yaml
+    container_name: mypageb
+    ports:
+      - "17770:17760"
+      - "17771:17761"
+```
+
+Die Ports **17760** und **17761** rechts vom Doppelpunkt sind containerintern fest verdrahtet und bleiben in jeder Instanz gleich; unterscheiden muss sich nur die linke, serverweit eindeutige Seite.
+
+Nach *Deploy* das erzeugte Passwort im Log-Tab des Stacks abholen (Benutzer `admin`), einloggen und unter **System → Zugang** ein eigenes setzen — je Instanz ein anderes. Es gibt keine gemeinsame Anmeldung über mehrere Container.
+
+Danach in jeder Instanz unter **Design → Öffentliche URL** die passende Adresse eintragen. Ohne diesen Eintrag rät MyPage `http://<host>:17760` — bei jeder Instanz außer der ersten also falsch, mit Folgen für Vorschau, Sitemap, RSS, PWA und Mail-Links.
+
+**Worauf zu achten ist:**
+
+- **Nie zwei Container auf denselben Datenordner.** `site.json`, Besucherzähler, Spielstände und Sitzungen würden sich gegenseitig überschreiben.
+- **SMB-Speicher** braucht je Container `cap_add: [SYS_ADMIN, DAC_READ_SEARCH]` und `security_opt: [apparmor:unconfined]`. Zwei Instanzen dürfen nicht denselben Unterordner der Freigabe benutzen — in den Einstellungen je Instanz ein eigenes *Unterverzeichnis* setzen.
+- **Der Brute-Force-Schutz zählt je Container**, nicht serverweit. Hinter einem Reverse Proxy in jeder Instanz `trusted_proxies` setzen (siehe unten), sonst sieht MyPage nur die Proxy-Adresse und sperrt bei einem Angriff alle Besucher zugleich aus.
+- **Speicher**: grob 200–400 MB je Instanz. Auf einem kleinen VPS mitrechnen.
+
+---
+
 ## Konfiguration
 
 ### Admin-Zugang — Passwort ändern
@@ -35,10 +89,13 @@ Gespeichert wird in `./data/admin_login.json`, und zwar nur der Hash. Die Datei 
 ### Passwort vergessen
 
 ```bash
+cd /opt/docker/stacks/mypagea      # Ordner des Stacks bzw. der Compose-Datei
 rm ./data/admin_login.json
-docker compose restart mypage
-docker compose logs mypage | grep -A 3 "Neue Installation"
+docker compose restart
+docker compose logs | grep -A 3 "Neue Installation"
 ```
+
+Das Passwort steht danach auch im Log-Tab des Stacks in Dockge. Bei mehreren Instanzen betrifft das nur die eine, in deren Ordner du gelöscht hast — die übrigen bleiben unverändert.
 
 MyPage erzeugt dann ein neues Passwort und schreibt es ins Protokoll. Inhalte, Mitglieder und Einstellungen bleiben unberührt. **2FA bleibt aktiv** — das Löschen der Datei ist bewusst kein kompletter Freifahrtschein für jeden mit Dateizugriff. Wer auch den zweiten Faktor verloren hat, löscht zusätzlich `./data/admin_2fa.json`.
 
