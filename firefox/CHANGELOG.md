@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.8] - 2026-09-02
+
+### Behoben
+- "Sync with Host Clipboard" bleibt jetzt eingeschaltet. Die Web-Oberfläche speicherte ein dauerhaftes "aus", sobald der Browser den Zwischenablage-Zugriff einmal ablehnte (etwa wenn der Tab beim Sperren des Rechners den Fokus verliert). Beim Laden der Oberfläche wird der gespeicherte Wert nun wieder auf den Standard "an" gesetzt
+
 ## [1.0.7] - 2026-09-01
 
 ### Geändert

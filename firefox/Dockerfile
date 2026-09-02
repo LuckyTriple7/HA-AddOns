@@ -56,3 +56,13 @@ RUN chmod +x /startapp.sh \
     /etc/cont-env.d/VNC_PASSWORD \
     /etc/cont-env.d/KEEP_APP_RUNNING \
     /etc/cont-env.d/TZ
+
+# "Sync with Host Clipboard" bei jedem Verbindungsaufbau wieder einschalten.
+# Die Web-UI merkt sich die Einstellung in localStorage und schreibt dort ein
+# hartes "false", sobald der Browser den Clipboard-Zugriff einmal ablehnt (z. B.
+# wenn der Tab beim Sperren des Rechners den Fokus verliert). Nach dem Reload
+# blieb die Option deshalb dauerhaft aus. Wir überschreiben den gespeicherten
+# Wert beim Start der Oberfläche wieder mit dem Standard "an".
+RUN grep -q "UI.initSetting('host_clipboard_sync', true);" /opt/noVNC/app/ui.js \
+    && sed -i "s|UI.initSetting('host_clipboard_sync', true);|UI.initSetting('host_clipboard_sync', true); WebUtil.setSetting('host_clipboard_sync', true); UI.updateSetting('host_clipboard_sync');|" /opt/noVNC/app/ui.js \
+    && sed -i 's|?v=\([A-Za-z0-9._-]*\)"|?v=\1-hcs1"|g' /opt/noVNC/index.html
