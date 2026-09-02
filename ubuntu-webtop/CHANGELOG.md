@@ -1,3 +1,12 @@
+## [1.8.62] - 2026-09-02
+
+### Aktualisiert
+
+- GitHub CLI: 2.98.0 → 2.99.0
+- Firefox: 154.0.1 → 155.0
+- Thunderbird: 154.0 → 155.0
+- OpenCode: 1.18.25 → 1.18.26
+
 ## [1.8.61] - 2026-09-01
 
 ### Aktualisiert
