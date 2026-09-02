@@ -8837,9 +8837,13 @@ def _seo_objects(site: dict) -> list[tuple[str, str, dict]]:
     """(Art, Id, Objekt) für alles mit eigenem SEO-Feld — eine Quelle für
     Übersicht, Speichern und KI-Knopf."""
     out: list[tuple[str, str, dict]] = [('home', '', site['design'])]
-    out += [('post', p.get('id', ''), p) for p in site.get('posts', [])]
+    # Abgeschaltete Bereiche bleiben draussen: Ihre Adressen antworten mit 404,
+    # eine SEO-Zeile dafuer waere Arbeit an einer Seite, die es nicht gibt.
+    if blog_public(site):
+        out += [('post', p.get('id', ''), p) for p in site.get('posts', [])]
     out += [('page', p.get('id', ''), p) for p in site.get('pages', [])]
-    out += [('library', e.get('id', ''), e) for e in _library(site).get('entries', [])]
+    if library_public(site):
+        out += [('library', e.get('id', ''), e) for e in _library(site).get('entries', [])]
     return out
 
 

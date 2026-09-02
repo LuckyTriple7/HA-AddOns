@@ -641,11 +641,11 @@
       <nav>
         <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
-        <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
-        <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
+        <button class="tab-btn" data-tab="projects" id="tab-btn-projects">{{ t.tab_projects }}</button>
+        <button class="tab-btn" data-tab="blog" id="tab-btn-blog">{{ t.tab_blog }}</button>
         <button class="tab-btn" data-tab="travel" id="tab-btn-travel">{{ t.tab_travel }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
-        <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
+        <button class="tab-btn" data-tab="library" id="tab-btn-library">{{ t.tab_library }}</button>
         <button class="tab-btn" data-tab="ai" id="tab-btn-ai" style="display:none">✦ {{ t.tab_ai }}</button>
         <button class="tab-btn" data-tab="forms" id="tab-btn-forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
@@ -1045,7 +1045,7 @@
 
     <!-- Blog -->
     <section class="tab" id="tab-blog">
-      <div class="panel">
+      <div class="panel" id="blog-panel">
         <h3 style="display:flex;justify-content:space-between;align-items:center">
           {{ t.blog_heading }}
           <button class="btn small" onclick="openPostModal()">+ {{ t.new_post }}</button>
@@ -7744,10 +7744,24 @@
     // gespeichert; auch Reihenfolge und Augen-Zustand des Abschnitts bleiben
     // erhalten, weil das Panel im DOM stehen bleibt (`saveSectionOrder` liest
     // alle `.acc`, `toggleSectionVisible` nur die mit `acc-hidden`).
-    const MODULE_TABS = ['travel', 'forms'];
+    // Der Blog-Reiter beherbergt zusaetzlich den Newsletter — der hat einen
+    // eigenen Schalter. Steht der auf JA, bleibt der Reiter stehen und zeigt
+    // dann nur noch das Newsletter-Panel, sonst waere die Abonnentenliste mit
+    // dem Blog verschwunden.
+    const MODULE_TABS = ['travel', 'forms', 'blog', 'library', 'projects'];
     function applyModuleVisibility() {
       const d = (SITE && SITE.design) || {};
-      const on = { travel: !!d.travel_enabled, forms: d.forms_enabled !== false };
+      const blog = d.blog_enabled !== false;
+      const on = { travel: !!d.travel_enabled, forms: d.forms_enabled !== false,
+                   blog: blog || !!d.newsletter_enabled,
+                   library: d.library_enabled !== false,
+                   projects: d.projects_enabled !== false };
+      if (el('blog-panel')) el('blog-panel').style.display = blog ? '' : 'none';
+      // Sorten des Textstudios, die in einen abgeschalteten Bereich fuehren
+      [['blog', blog], ['project', on.projects], ['library', on.library]].forEach(([v, ok]) => {
+        const opt = document.querySelector('#ai-txt-kind option[value="' + v + '"]');
+        if (opt) opt.hidden = !ok;
+      });
       MODULE_TABS.forEach(key => {
         const btn = el('tab-btn-' + key);
         const acc = document.querySelector('#section-acc .acc[data-key="' + key + '"]');
@@ -7760,6 +7774,11 @@
           document.querySelector('.tab-btn[data-tab=design]').click();
         }
       });
+      // Nach der Schleife, damit sie es nicht wieder ueberschreibt: Die Karte im
+      // Reiter Inhalte verweist nur auf den Blog-Reiter — ohne Blog fuehrt der
+      // Knopf ins Leere, auch wenn der Newsletter den Reiter am Leben haelt.
+      const blogAcc = document.querySelector('#section-acc .acc[data-key="blog"]');
+      if (blogAcc) blogAcc.style.display = blog ? '' : 'none';
     }
 
     // ── Design-Vorlagen (1-Klick-Stile) ──

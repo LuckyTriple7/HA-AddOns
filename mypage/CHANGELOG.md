@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.49
+
+- 🎯 **Ein abgeschalteter Bereich verschwindet jetzt auch aus dem Admin.** Steht Blog, Bibliothek oder Projekte unter Design → Module auf NEIN, ist der zugehörige Reiter weg — wie beim Reiseblog und den Formularen. Bisher blieb er stehen, damit sich Inhalte vorbereiten lassen; wer den Bereich gar nicht nutzt, hatte den Reiter aber dauerhaft im Weg. Zum Vorbereiten kurz auf JA stellen, füllen, wieder auf NEIN — die Inhalte bleiben dabei unangetastet.
+- 🎯 Mit dem Reiter geht auch die Karte im Reiter *Inhalte*: Sie besteht nur aus einem Knopf zum Reiter und hätte ins Leere geführt.
+- 🐛 **Der Newsletter hängt nicht mehr am Blog.** Seine Verwaltung sitzt im Blog-Reiter, hat aber einen eigenen Schalter — ein abgeschalteter Blog hätte die Abonnentenliste mitgenommen. Steht der Newsletter auf JA, bleibt der Reiter stehen und zeigt dann nur noch dessen Panel.
+- 🧹 Zwei Folgeanzeigen aufgeräumt: Die SEO-Übersicht listet keine Beiträge und Bibliothek-Einträge mehr, deren Adressen ohnehin mit 404 antworten, und das KI-Textstudio bietet die Sorten *Blog*, *Projekt* und *Bibliothek* nur noch an, solange der jeweilige Bereich eingeschaltet ist.
+
 ## 0.11.48
 
 - 🧹 **Ohne Home Assistant verschwindet alles Übrige, was HA betrifft.** Der Bereich *Home-Assistant-Sensoren* unter System und die Auswahl *HA-Benachrichtigung bei neuer Nachricht* unter Design werden gar nicht erst ausgeliefert, wenn kein Supervisor da ist. Bisher standen sie auch im reinen Docker-Betrieb da und versprachen etwas, das dort nicht passieren kann.
