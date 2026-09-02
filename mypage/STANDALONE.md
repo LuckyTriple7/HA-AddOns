@@ -116,6 +116,20 @@ Ist das Limit erreicht, werden **neue Uploads abgewiesen** — Bedienen, Lösche
 
 Das Limit steht **absichtlich nicht im Admin-Panel**: Wer es dort ändern könnte, hätte keins. Im Panel gibt es unter **System → Speicherbelegung** nur die Anzeige — Balken, Gesamtwert und eine Aufschlüsselung nach Bereichen (Bilder, PDFs, Mitglieder-Dateien, Sicherungen …), damit man sieht, was den Platz frisst. Bei mehreren Instanzen setzt du je Stack einen eigenen Wert.
 
+### Seite im Aufbau ansehen (Vorschau-Link)
+
+Im Wartungsmodus antwortet jede öffentliche Adresse mit 503, und abgeschaltete Bereiche mit 404 — auch für dich. Unter **System → Betrieb → Vorschau-Link** erzeugst du deshalb eine Adresse, die genau das aufhebt:
+
+```
+https://deine-domain.de/?vorschau=<token>
+```
+
+Beim ersten Aufruf wandert der Token in einen Cookie und aus der Adresse heraus. Ab da siehst du die echte Seite mit Navigation und Unterseiten — inklusive der Bereiche, die unter Design auf NEIN stehen. Alle anderen sehen weiterhin die Wartungsseite.
+
+Ein schmaler Balken unten erinnert daran, dass die Vorschau läuft, und beendet sie auf Klick. Gültigkeit wählbar (1 Stunde, 8 Stunden, 7 Tage), Antworten tragen `noindex, nofollow` und `private, no-store`, eigene Aufrufe zählt der Besucherzähler nicht mit. *Alle Links zurückziehen* macht jede ausgegebene Adresse sofort ungültig.
+
+Der Link ist teilbar — Vorstand, Kunde oder Partner können vor dem Livegang draufschauen, ohne Zugang zum Admin.
+
 ### `options.json` — optional
 
 Wird nicht mehr für den Login gebraucht. Wer sie mountet (nach `/data/options.json`, read-only), kann darin noch zwei Dinge setzen:

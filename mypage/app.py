@@ -239,6 +239,9 @@ TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-
 # SSH löschen kann — beim nächsten Start erzeugt MyPage ein neues Passwort und
 # schreibt es ins Protokoll. Kommt aus demselben Grund NICHT ins Backup.
 ADMIN_LOGIN_PATH = _DATA + '/admin_login.json'
+# Grundlage der Vorschau-Links. Wird der Wert erneuert, sind alle bisher
+# ausgegebenen Links sofort ungueltig — das ist der Widerruf.
+PREVIEW_PATH = _DATA + '/preview.json'
 SECRETKEY_PATH = _DATA + '/secret.key'      # Flask SECRET_KEY (signiert das trust2fa-Cookie)
 POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
 # Reiseblog getrennt von site.json: eine Zwei-Wochen-Reise mit Erlebnissen,
@@ -2673,6 +2676,88 @@ def _trusted_prune(entries: dict) -> dict:
     return {k: v for k, v in (entries or {}).items() if v > now}
 
 
+# ── Vorschau-Sitzung ──────────────────────────────────────────────────────────
+# Der Wartungsmodus liefert jede oeffentliche Seite als 503 aus, und ein
+# abgeschaltetes Modul antwortet mit 404. Zum Aufbauen einer Seite braucht man
+# aber genau den echten Blick darauf — mit Navigation und Unterseiten, nicht nur
+# den Vorschaurahmen der Startseite. Ein signierter Link setzt dafuer einen
+# Cookie: Wer ihn hat, sieht die Seite, alle anderen weiterhin die Wartungsseite.
+#
+# Der Link ist absichtlich teilbar (Vorstand, Kunde, Partner) — deshalb laeuft er
+# ab, traegt noindex und laesst sich mit einem Knopf vollstaendig zurueckziehen.
+
+PREVIEW_COOKIE = 'mypage_preview'
+PREVIEW_PARAM = 'vorschau'
+PREVIEW_HOURS = (1, 8, 168)      # 1 Stunde, 8 Stunden, 7 Tage
+_preview_lock = threading.Lock()
+
+
+def _preview_nonce() -> str:
+    """Zufallswert, der in den Signatur-Salt eingeht. Erneuern = alles widerrufen."""
+    with _preview_lock:
+        try:
+            with open(PREVIEW_PATH, encoding='utf-8') as f:
+                n = (json.load(f) or {}).get('nonce')
+            if isinstance(n, str) and n:
+                return n
+        except (OSError, ValueError):
+            pass
+        n = secrets.token_hex(8)
+        try:
+            _atomic_write_json(PREVIEW_PATH, {'nonce': n}, mode=0o600)
+        except Exception as e:      # noqa: BLE001 — ohne Datei gilt der Wert nur bis zum Neustart
+            log.warning("Vorschau-Grundlage konnte nicht gespeichert werden: %s", e)
+        return n
+
+
+def preview_revoke() -> None:
+    with _preview_lock:
+        _atomic_write_json(PREVIEW_PATH, {'nonce': secrets.token_hex(8)}, mode=0o600)
+
+
+def _preview_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(str(admin_app.config.get('SECRET_KEY', '')),
+                                  salt='preview:' + _preview_nonce())
+
+
+def preview_token(hours: int) -> str:
+    """Signierter Token. Die Laufzeit steht mit drin, damit sie beim Lesen gilt."""
+    return _preview_serializer().dumps({'h': int(hours)})
+
+
+def preview_token_hours(token: str) -> int | None:
+    """Restlaufzeit-Grundlage in Stunden, wenn der Token gueltig ist — sonst None."""
+    if not token:
+        return None
+    try:
+        data = _preview_serializer().loads(token, max_age=168 * 3600)
+    except (BadSignature, SignatureExpired, ValueError):
+        return None
+    hours = int((data or {}).get('h') or 0)
+    if hours not in PREVIEW_HOURS:
+        return None
+    # Zweiter Durchlauf mit der eigenen Laufzeit: `max_age` oben ist nur die
+    # Obergrenze, gelten soll die im Token vermerkte Dauer.
+    try:
+        _preview_serializer().loads(token, max_age=hours * 3600)
+    except (BadSignature, SignatureExpired):
+        return None
+    return hours
+
+
+def preview_active() -> bool:
+    """Laeuft die aktuelle Anfrage in einer Vorschau-Sitzung?"""
+    try:
+        return preview_token_hours(request.cookies.get(PREVIEW_COOKIE, '')) is not None
+    except Exception:      # noqa: BLE001 — ausserhalb eines Anfragekontexts
+        return False
+
+
+def maintenance_active(site: dict) -> bool:
+    """Wartungsmodus fuer diese Anfrage — in der Vorschau ist er aufgehoben."""
+    return bool(site['design'].get('maintenance')) and not preview_active()
+
+
 def _trusted_cookie_serializer() -> URLSafeTimedSerializer:
     """Signiert/liest den trust2fa-Cookie-Wert — der rohe Token landet nie im Klartext im Cookie."""
     return URLSafeTimedSerializer(str(admin_app.config.get('SECRET_KEY', '')), salt='trust2fa')
@@ -3430,6 +3515,8 @@ def count_visit(req) -> None:
     global _seen_today, _seen_day
     if req.headers.get('X-MyPage-Export'):
         return  # interner Abruf für den statischen Export
+    if preview_active():
+        return  # eigener Blick beim Aufbauen der Seite
     ua = req.headers.get('User-Agent') or ''
     ip = get_client_ip(req)
     # Rechenzentrums-Adressen zählen unabhängig von der Browserkennung als Bot:
@@ -4984,17 +5071,21 @@ def project_visible(p: dict) -> bool:
 
 
 def blog_public(site: dict) -> bool:
-    """Ist der Blog fuer die Website freigegeben? (Admin-Reiter bleibt davon unberuehrt.)"""
-    return site['design'].get('blog_enabled', True) is not False
+    """Ist der Blog fuer die Website freigegeben? (Admin-Reiter bleibt davon unberuehrt.)
+
+    In einer Vorschau-Sitzung gilt er als freigegeben — sonst liesse sich ein
+    Bereich nicht aufbauen, ohne ihn zwischendurch fuer alle einzuschalten.
+    """
+    return site['design'].get('blog_enabled', True) is not False or preview_active()
 
 
 def library_public(site: dict) -> bool:
-    return site['design'].get('library_enabled', True) is not False
+    return site['design'].get('library_enabled', True) is not False or preview_active()
 
 
 def projects_public(site: dict) -> list:
     """Sichtbare Projekte — leer, solange der Bereich nicht freigegeben ist."""
-    if site['design'].get('projects_enabled', True) is False:
+    if site['design'].get('projects_enabled', True) is False and not preview_active():
         return []
     return [p for p in site.get('projects', []) if project_visible(p)]
 
@@ -5666,7 +5757,7 @@ def _public_forms(site: dict) -> list:
     Der Schalter unter Design → Module steuert die Website als Ganzes, der
     Schalter am Formular das einzelne Formular. Beides muss zusammenkommen.
     """
-    if not site['design'].get('forms_enabled', True):
+    if not site['design'].get('forms_enabled', True) and not preview_active():
         return []
     return [f for f in site.get('forms', []) if f.get('enabled') and f.get('slug')]
 
@@ -5937,6 +6028,42 @@ def api_2fa_disable():
 
 # Regeln wie bei den Mitgliedern: sichtbare Zeichen, keine Leerzeichen.
 _ADMIN_USER_RE = re.compile(r'^[A-Za-z0-9._@-]{3,64}$')
+
+
+@admin_app.route('/api/preview-link', methods=['POST'])
+def api_preview_link():
+    """Vorschau-Link erzeugen. Zeigt die echte Seite trotz Wartungsmodus."""
+    err = _api_auth()
+    if err:
+        return err
+    hours = int((request.get_json(silent=True) or {}).get('hours') or 0)
+    if hours not in PREVIEW_HOURS:
+        return jsonify({'error': 'bad_hours'}), 400
+    site = load_site()
+    # Die eingetragene oeffentliche Adresse zuerst: Der Link soll auf die Seite
+    # zeigen, wie Besucher sie erreichen — nicht auf den Admin-Host.
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        host = (request.host or '').split(':')[0]
+        base = f'{request.scheme}://{host}:{PUBLIC_PORT}'
+    token = preview_token(hours)
+    log_audit('preview_link', f'{hours} h')
+    return jsonify({'url': f'{base}/?{PREVIEW_PARAM}={token}',
+                    'hours': hours,
+                    'expires': int(time.time()) + hours * 3600,
+                    'public_url_set': bool(site['design'].get('public_url'))})
+
+
+@admin_app.route('/api/preview-link/revoke', methods=['POST'])
+def api_preview_revoke():
+    """Alle ausgegebenen Vorschau-Links auf einen Schlag ungültig machen."""
+    err = _api_auth()
+    if err:
+        return err
+    preview_revoke()
+    log_audit('preview_revoke')
+    log.info("Vorschau-Links zurückgezogen")
+    return jsonify({'ok': True})
 
 
 @admin_app.route('/api/diskuse')
@@ -12656,6 +12783,73 @@ public_app.after_request(_storage_after)
 admin_app.after_request(_storage_after)
 
 
+# Einstieg in die Vorschau: ?vorschau=<token> an einer beliebigen oeffentlichen
+# Adresse. Der Token wandert in einen Cookie und aus der Adresse heraus — sonst
+# steht er im Verlauf, im Referrer und in jedem geteilten Screenshot.
+def _preview_entry():
+    token = request.args.get(PREVIEW_PARAM)
+    if not token:
+        return None
+    hours = preview_token_hours(token)
+    args = {k: v for k, v in request.args.items(multi=True) if k != PREVIEW_PARAM}
+    target = request.path + ('?' + urlencode(args, doseq=True) if args else '')
+    resp = redirect(target)
+    if hours is None:
+        # Abgelaufen oder zurueckgezogen: Cookie weg, Seite verhaelt sich wieder
+        # wie fuer jeden anderen Besucher.
+        resp.delete_cookie(PREVIEW_COOKIE)
+        log.info("Vorschau-Link abgelehnt (abgelaufen oder zurückgezogen)")
+        return resp
+    resp.set_cookie(PREVIEW_COOKIE, token, httponly=True, samesite='Lax',
+                    secure=_cookie_secure(), max_age=hours * 3600)
+    log.info("Vorschau-Sitzung begonnen (%d h)", hours)
+    return resp
+
+
+public_app.before_request(_preview_entry)
+
+
+@public_app.route('/vorschau-ende')
+def preview_end():
+    resp = redirect('/')
+    resp.delete_cookie(PREVIEW_COOKIE)
+    return resp
+
+
+@public_app.after_request
+def _preview_marks(resp):
+    """Balken und noindex, solange die Vorschau laeuft.
+
+    Der Balken kommt hier statt in die Vorlagen: Es sind zwanzig oeffentliche
+    Seiten, und vergessen wuerde man genau die, auf der man sich dann wundert.
+    """
+    if not preview_active():
+        return resp
+    # Auch wenn der Link irgendwo aufgeschnappt wird: nichts davon gehoert in
+    # einen Suchindex.
+    resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    if resp.mimetype != 'text/html' or resp.direct_passthrough:
+        return resp
+    try:
+        html = resp.get_data(as_text=True)
+    except (RuntimeError, UnicodeDecodeError):
+        return resp
+    if '</body>' not in html:
+        return resp
+    t = load_translations(detect_language(request))
+    bar = (
+        '<div style="position:fixed;left:0;right:0;bottom:0;z-index:99999;'
+        'background:#d29922;color:#1c1c1c;font:600 13px/1.4 system-ui,sans-serif;'
+        'padding:8px 14px;display:flex;gap:12px;align-items:center;'
+        'justify-content:center;flex-wrap:wrap">'
+        f'<span>{html_mod.escape(t.get("preview_bar", ""))}</span>'
+        '<a href="/vorschau-ende" style="color:#1c1c1c;text-decoration:underline">'
+        f'{html_mod.escape(t.get("preview_bar_end", ""))}</a></div>'
+    )
+    resp.set_data(html.replace('</body>', bar + '</body>', 1))
+    return resp
+
+
 @public_app.context_processor
 def _inject_seo():
     return _seo_urls(detect_language(request))
@@ -12714,7 +12908,10 @@ def _cache_headers(resp):
     # den Auslieferrouten fuer Dateien).
     if resp.direct_passthrough or resp.headers.get('Cache-Control'):
         return resp
-    if request.cookies.get('usession'):
+    # Vorschau wie eine Mitglieder-Sitzung behandeln: Die Seite zeigt dort Dinge,
+    # die fuer alle anderen gesperrt sind. Landete sie in einem gemeinsamen
+    # Zwischenspeicher, bekaeme sie der naechste Besucher zu sehen.
+    if request.cookies.get('usession') or request.cookies.get(PREVIEW_COOKIE):
         resp.headers['Cache-Control'] = 'private, no-store'
         return resp
     resp.headers['Cache-Control'] = 'public, max-age=0, must-revalidate'
@@ -13345,7 +13542,7 @@ def _gsess_sweep(uid: str) -> list:
 def game66_page():
     """Vollfenster-Spielseite (wird vom Mitgliederbereich als Iframe geöffnet)."""
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13622,7 +13819,7 @@ def _leaderboard(users: list) -> dict:
 @public_app.route('/bereich/bestenliste')
 def leaderboard_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13714,7 +13911,7 @@ def _record_20ab_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/20ab')
 def game20ab_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13872,7 +14069,7 @@ def api_20ab_session():
 @public_app.route('/bereich/kniffel')
 def gamekniffel_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14031,7 +14228,7 @@ def api_kniffel_session():
 @public_app.route('/bereich/chicago')
 def gamechicago_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14254,7 +14451,7 @@ def _record_schwimmen_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/schwimmen')
 def schwimmen_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14479,7 +14676,7 @@ def _record_maumau_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/maumau')
 def maumau_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14666,7 +14863,7 @@ def _record_praesident_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/praesident')
 def praesident_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14898,7 +15095,7 @@ def _record_jeopardy_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/jeopardy')
 def jeopardy_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -15036,7 +15233,7 @@ def _record_gluecksrad_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/gluecksrad')
 def gluecksrad_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -15616,7 +15813,7 @@ def public_index():
     count_visit(request)
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     t = load_translations(lang)
     stats = load_stats()
@@ -15831,7 +16028,7 @@ def public_index():
 def blog_index():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     all_posts = sorted_posts(site, public_only=True)
     if not all_posts:
@@ -15861,7 +16058,7 @@ def blog_index():
 def site_search_page():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     if not site['design'].get('search_enabled'):
         abort(404)
@@ -15955,7 +16152,7 @@ def newsletter_unsubscribe(sid: str, token: str):
 def blog_post(pid: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     post = _visible_post(site, pid)
     if post is None:
@@ -16018,7 +16215,7 @@ def api_poll_vote():
     """Stimme zur Startseiten-Umfrage abgeben (Mitglied per Konto, Gast per Cookie).
     Erneutes Abstimmen ändert die eigene Stimme."""
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return jsonify({'error': 'disabled'}), 403
     poll = _active_poll(site)
     if poll is None or 'poll' in (site.get('hidden_sections') or []):
@@ -16060,7 +16257,7 @@ def api_poll_vote():
 @public_app.route('/blog/<pid>/comment', methods=['POST'])
 def blog_comment(pid: str):
     site = load_site()
-    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+    if maintenance_active(site) or not site['design'].get('comments_enabled'):
         abort(403)
     member = current_member(request)
     if member is None:
@@ -16107,7 +16304,7 @@ def blog_comment(pid: str):
 @public_app.route('/blog/<pid>/react', methods=['POST'])
 def blog_react(pid: str):
     site = load_site()
-    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+    if maintenance_active(site) or not site['design'].get('comments_enabled'):
         return jsonify({'error': 'disabled'}), 403
     member = current_member(request)
     if member is None:
@@ -16193,7 +16390,7 @@ def admin_form_preview(fid: str):
 def project_detail(pid: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     proj = next((p for p in projects_public(site) if p.get('id') == pid), None)
     if proj is None or not _has_detail(proj):
@@ -16275,7 +16472,7 @@ def _member_auth_page(view: str, **extra):
 @public_app.route('/bereich')
 def member_area():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     return _member_page(current_member(request), request.args.get('msg', ''))
 
@@ -16314,7 +16511,7 @@ def member_login():
 @public_app.route('/bereich/forgot', methods=['GET', 'POST'])
 def member_forgot():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     if not reset_enabled():
         return redirect('/bereich')
@@ -16341,7 +16538,7 @@ def member_forgot():
 @public_app.route('/bereich/reset/<uid>/<token>', methods=['GET', 'POST'])
 def member_reset(uid: str, token: str):
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     users = load_users()
     user = _find_reset_user(users, uid, token)
@@ -16367,7 +16564,7 @@ def member_reset(uid: str, token: str):
 @public_app.route('/bereich/register', methods=['GET', 'POST'])
 def member_register():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     if not registration_open():
         return redirect('/bereich')
@@ -16429,7 +16626,7 @@ def member_register():
 @public_app.route('/bereich/verify/<uid>/<token>')
 def member_verify(uid: str, token: str):
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     users = load_users()
     user = _find_verify_user(users, uid, token)
@@ -16852,7 +17049,7 @@ def contact_captcha():
 @public_app.route('/contact', methods=['POST'])
 def contact():
     site = load_site()
-    if site['design'].get('maintenance') or not site['design'].get('contact_enabled'):
+    if maintenance_active(site) or not site['design'].get('contact_enabled'):
         return jsonify({'error': 'disabled'}), 403
     # Honeypot: Bots füllen das versteckte Feld aus → still verwerfen
     if (request.form.get('website') or '').strip():
@@ -16927,7 +17124,7 @@ def _render_form(form: dict, site: dict, lang: str, *, error: str = '', ok: bool
 def custom_form(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
     if form is None:
@@ -16940,7 +17137,7 @@ def custom_form(slug: str):
 def custom_form_submit(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
     if form is None:
@@ -17001,7 +17198,7 @@ def custom_form_submit(slug: str):
 def _legal_page(kind: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     t = load_translations(lang)
     text = _loc_factory(lang)(site.get('legal', {}), kind)
@@ -17038,7 +17235,7 @@ def datenschutz():
 def custom_page(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     page = _find_page(site, slug)
     if page is None or not page.get('visible'):
@@ -17134,7 +17331,7 @@ def _lib_filter_url(cat: str = '', tag: str = '', query: str = '') -> str:
 def library_index():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     if not _lib_public_entries(site):
         abort(404)
@@ -17200,7 +17397,7 @@ def _render_library_entry(site: dict, entry: dict, lang: str, preview: bool = Fa
 def library_entry(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     entry = _find_lib_entry(site, slug)
     if entry is None or not entry.get('visible'):
@@ -17217,7 +17414,7 @@ def library_entry_pdf(slug: str):
     Adresse im statischen Export eine ganz normale Datei, der Link bleibt gleich.
     """
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         abort(404)
     entry = _find_lib_entry(site, slug)
     if entry is None or not entry.get('visible'):
@@ -17248,7 +17445,7 @@ def public_download(name: str):
     gesperrter Bibliothek-Einträge liegen.
     """
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         abort(404)
     if not _DOC_FILE_RE.match(name or ''):
         abort(404)
@@ -17337,7 +17534,7 @@ def _trav_public_trips(site: dict, data: dict | None = None) -> list:
     Leer, solange der Reiseblog in den Einstellungen nicht für die Website
     freigegeben ist — der Admin-Reiter bleibt davon unberührt.
     """
-    if not site['design'].get('travel_enabled'):
+    if not site['design'].get('travel_enabled') and not preview_active():
         return []
     data = load_travel() if data is None else data
     return [t for t in (data.get('trips') or [])
@@ -17509,7 +17706,7 @@ def _trav_head(site: dict, lang: str):
 def travel_index():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     trips = _trav_public_trips(site)
     if not trips:
@@ -17531,7 +17728,7 @@ def travel_index():
 def travel_trip_page(tslug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
     if trip is None:
@@ -17603,7 +17800,7 @@ def _render_travel_day(site: dict, trip: dict, day: dict, lang: str, preview: bo
 def travel_day_page(tslug: str, dslug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
     day = next((d for d in _trav_public_days(trip) if d.get('slug') == dslug),

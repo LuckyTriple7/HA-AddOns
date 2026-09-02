@@ -2448,6 +2448,34 @@
           <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
         </details>
 
+        <details class="panel fold" id="sy-preview">
+          <summary><h3>{{ t.pvlink_heading }}</h3></summary>
+          <p class="hint">{{ t.pvlink_hint }}</p>
+          <div class="row">
+            <div>
+              <label>{{ t.preview_duration }}</label>
+              <select id="pv-hours">
+                <option value="1">{{ t.preview_1h }}</option>
+                <option value="8" selected>{{ t.preview_8h }}</option>
+                <option value="168">{{ t.preview_7d }}</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" onclick="previewLink()">{{ t.preview_create }}</button>
+            <button class="btn danger secondary" onclick="previewRevoke()">{{ t.preview_revoke }}</button>
+          </div>
+          <div id="pv-result" style="display:none;margin-top:14px">
+            <label>{{ t.preview_link_label }}</label>
+            <div class="upload-row">
+              <input type="text" id="pv-url" readonly onclick="this.select()">
+              <button class="btn secondary small" onclick="previewCopy()">{{ t.preview_copy }}</button>
+              <button class="btn secondary small" onclick="window.open(el('pv-url').value, '_blank')">{{ t.pvlink_open }}</button>
+            </div>
+            <p class="hint" id="pv-note"></p>
+          </div>
+        </details>
+
         <details class="panel fold" id="sy-storage" data-load="loadStorage">
           <summary><h3>{{ t.diskuse_heading }}</h3><span class="count" id="storage-info"></span></summary>
           <p class="hint">{{ t.diskuse_hint }}</p>
@@ -3735,6 +3763,34 @@
       await loadTwofa();
       showBackupCodes(d.backup_codes);
     }
+    // ── Vorschau-Link ──
+    async function previewLink() {
+      const hours = parseInt(el('pv-hours').value, 10);
+      const r = await apiJson('api/preview-link', 'POST', { hours });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(T.error_save, true); return; }
+      el('pv-url').value = d.url;
+      el('pv-result').style.display = '';
+      const until = new Date(d.expires * 1000).toLocaleString();
+      el('pv-note').textContent = T.preview_valid_until.replace('{until}', until)
+        + (d.public_url_set ? '' : ' ' + T.preview_no_public_url);
+      previewCopy();
+    }
+    function previewCopy() {
+      const inp = el('pv-url');
+      inp.select();
+      (navigator.clipboard ? navigator.clipboard.writeText(inp.value) : Promise.reject())
+        .then(() => toast(T.preview_copied))
+        .catch(() => { try { document.execCommand('copy'); toast(T.preview_copied); } catch { } });
+    }
+    async function previewRevoke() {
+      if (!confirm(T.preview_revoke_confirm)) return;
+      const r = await apiJson('api/preview-link/revoke', 'POST', {});
+      if (!r.ok) { toast(T.error_save, true); return; }
+      el('pv-result').style.display = 'none';
+      toast(T.preview_revoked);
+    }
+
     // ── Speicherbelegung ──
     function fmtBytes(n) {
       if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
@@ -8700,6 +8756,8 @@
         user_games: T.audit_user_games, user_password: T.audit_user_password,
         user_resend: T.audit_user_resend, restore: T.audit_restore,
         newsletter_send: T.audit_newsletter,
+        preview_link: T.audit_preview_link, preview_revoke: T.audit_preview_revoke,
+        admin_password_changed: T.audit_admin_password,
         legal_import_pdf: T.audit_legal_import,
       };
       box.innerHTML = '';

@@ -116,6 +116,20 @@ Once the limit is reached, **new uploads are rejected** — browsing, deleting a
 
 The limit is deliberately **not in the admin panel**: a limit the content admin can raise is no limit. The panel only shows usage under **System → Storage usage** — a bar, the total and a breakdown by area (images, PDFs, member files, backups …) so you can see what is eating the space. With several instances, set a value per stack.
 
+### Viewing the site while it is being built (preview link)
+
+In maintenance mode every public address answers with 503, and switched-off areas with 404 — for you as well. Under **System → Operations → Preview link** you create an address that lifts exactly that:
+
+```
+https://your-domain.tld/?vorschau=<token>
+```
+
+On the first visit the token moves into a cookie and out of the address. From then on you see the real site with navigation and subpages, including the areas set to NO under Design. Everyone else keeps seeing the maintenance page.
+
+A slim bar at the bottom reminds you the preview is running and ends it on click. The lifetime is selectable (1 hour, 8 hours, 7 days), responses carry `noindex, nofollow` and `private, no-store`, and your own visits are not counted. *Revoke all links* invalidates every address issued so far, immediately.
+
+The link can be shared — a board member, client or partner can take a look before go-live without admin access.
+
 ### `options.json` — optional
 
 No longer needed for the login. If you do mount it (read-only to `/data/options.json`), it can still carry two things:

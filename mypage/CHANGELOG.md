@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.50
+
+- ✨ **Vorschau-Link: die Seite im Aufbau ansehen, ohne den Wartungsmodus abzuschalten.** Unter System → Betrieb erzeugt ein Knopf eine signierte Adresse; beim ersten Aufruf wandert der Token in einen Cookie und aus der Adresse heraus. Ab da liefert MyPage die echte Seite aus — mit Navigation, Unterseiten und allem, was der Vorschaurahmen im Design-Reiter nicht kann. Alle anderen sehen weiterhin die Wartungsseite.
+- 🎯 **Abgeschaltete Bereiche sind in der Vorschau sichtbar.** Blog, Bibliothek, Projekte, Reiseblog und Formulare lassen sich damit aufbauen und ansehen, während sie für Besucher aus sind — das Vorbereiten braucht kein kurzzeitiges Einschalten für alle mehr.
+- 🔒 Gültigkeit wählbar (1 Stunde, 8 Stunden, 7 Tage), signiert mit dem vorhandenen `secret.key`. Antworten tragen `noindex, nofollow` und `private, no-store`, damit weder ein Suchindex noch ein vorgeschalteter Zwischenspeicher etwas davon behält. Eigene Aufrufe zählt der Besucherzähler nicht mit. *Alle Links zurückziehen* macht jede ausgegebene Adresse sofort ungültig, auch die eigene.
+- 🎯 Ein Balken am unteren Rand erinnert an die laufende Vorschau und beendet sie auf Klick — ohne ihn vergisst man den Modus und wundert sich, warum Besucher etwas anderes berichten.
+- 🧹 Die 33 verstreuten Wartungsmodus-Abfragen laufen jetzt über einen gemeinsamen Helfer. Bisher stand die Bedingung an jeder Route einzeln; eine vergessene wäre in der Vorschau ein 503 mitten im Rundgang gewesen.
+
 ## 0.11.49
 
 - 🎯 **Ein abgeschalteter Bereich verschwindet jetzt auch aus dem Admin.** Steht Blog, Bibliothek oder Projekte unter Design → Module auf NEIN, ist der zugehörige Reiter weg — wie beim Reiseblog und den Formularen. Bisher blieb er stehen, damit sich Inhalte vorbereiten lassen; wer den Bereich gar nicht nutzt, hatte den Reiter aber dauerhaft im Weg. Zum Vorbereiten kurz auf JA stellen, füllen, wieder auf NEIN — die Inhalte bleiben dabei unangetastet.
