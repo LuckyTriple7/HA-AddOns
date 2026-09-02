@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.51
+
+- 🔒 **Offene Weiterleitung im Einstieg der Vorschau geschlossen** (CodeQL `py/url-redirection`). Nach dem Setzen des Cookies leitet MyPage auf dieselbe Adresse ohne den Token weiter — dafür wurde der angefragte Pfad unverändert übernommen. Ein Aufruf von `//fremde-seite.de/?vorschau=…` hätte darin eine protokollrelative Adresse ergeben und damit nach draußen geführt. Das Ziel läuft jetzt über `_safe_next()`, wie alle anderen Weiterleitungen im Add-on.
+
 ## 0.11.50
 
 - ✨ **Vorschau-Link: die Seite im Aufbau ansehen, ohne den Wartungsmodus abzuschalten.** Unter System → Betrieb erzeugt ein Knopf eine signierte Adresse; beim ersten Aufruf wandert der Token in einen Cookie und aus der Adresse heraus. Ab da liefert MyPage die echte Seite aus — mit Navigation, Unterseiten und allem, was der Vorschaurahmen im Design-Reiter nicht kann. Alle anderen sehen weiterhin die Wartungsseite.

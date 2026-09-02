@@ -12792,7 +12792,11 @@ def _preview_entry():
         return None
     hours = preview_token_hours(token)
     args = {k: v for k, v in request.args.items(multi=True) if k != PREVIEW_PARAM}
-    target = request.path + ('?' + urlencode(args, doseq=True) if args else '')
+    # Ueber _safe_next, obwohl der Pfad vom Server geparst kommt: Ein Aufruf von
+    # `//fremde-seite.de/?vorschau=…` ergibt einen Pfad, der mit zwei Schraegstrichen
+    # beginnt — als `Location` waere das eine protokollrelative Adresse und damit
+    # eine Weiterleitung nach draussen.
+    target = _safe_next(request.path + ('?' + urlencode(args, doseq=True) if args else ''))
     resp = redirect(target)
     if hours is None:
         # Abgelaufen oder zurueckgezogen: Cookie weg, Seite verhaelt sich wieder
