@@ -21,6 +21,14 @@ ENV APP_NAME="Firefox DE" \
     USER_ID=0 \
     GROUP_ID=0
 
+# Favicon und Web-App-Icons aus dem Add-on-Icon erzeugen; ohne das zeigt der
+# Browser-Tab das generische Icon des Basis-Images. Muss VOR dem Kopieren der
+# Firefox-Laufzeit-Libs laufen: install_app_icon.sh installiert ImageMagick
+# temporär und entfernt es danach wieder, was gemeinsam genutzte Bibliotheken
+# aus Stage 1 mit löschen könnte.
+COPY icon.png /opt/master_icon.png
+RUN install_app_icon.sh /opt/master_icon.png
+
 # Firefox-Laufzeit-Libs, Fonts und Fontconfig-Config aus Stage 1 übernehmen
 COPY --from=deps /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 COPY --from=deps /etc/fonts /etc/fonts

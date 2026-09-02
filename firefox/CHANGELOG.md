@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.9] - 2026-09-02
+
+### Hinzugefügt
+- Eigenes Favicon: Browser-Tab und Web-App-Icons werden jetzt aus dem Add-on-Icon erzeugt statt das generische Symbol des Basis-Images zu zeigen
+
+### Entfernt
+- Ungenutzte `rootfs/opt/novnc/index.html`. nginx liefert aus `/opt/noVNC` aus, die Datei lag unter `/opt/novnc` und wurde nie ausgeliefert
+
 ## [1.0.8] - 2026-09-02
 
 ### Behoben
