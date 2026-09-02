@@ -692,3 +692,43 @@ dazu, gehört der Dialog zu den globalen Funktionen, nicht in die Modulliste.
 1 (freie Überschriften, erledigt) und 4 (vier neue Module, erledigt) sind durch. Offen:
 2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → Hero-Erweiterung → CTA/Teaser als
 Freitext-Vorlagen.
+
+---
+
+## Daten auf dem Server: Verschlüsselung und Personenbezug
+
+**Stand (Analyse vom 02.09.2026, v0.11.51).** Verschlüsselt sind nur die geheimen
+Einstellungsfelder (`settings.json` + `settings.key`, Fernet) und die Direktnachrichten
+(`dm.json` + `dm.key`). Gehasht sind das Admin-Passwort (`admin_login.json`) und die
+Mitglieder-Passwörter (`users.json`), beides scrypt. Alles andere liegt im Klartext:
+Inhalte, Uploads, Mitglieder-Dateien — und vor allem die drei Ablagen mit Personenbezug:
+
+- `messages.json` — Kontaktformular: Name, E-Mail, Nachrichtentext
+- `subscribers.json` und `users.json` — E-Mail-Adressen der Abonnenten und Mitglieder
+- `visits/*.csv`, das Besucher-Log, `audit.json` und das Benutzer-Journal — jeweils mit
+  **ungekürzten IP-Adressen**
+
+**Einordnung, damit sie später nicht neu erarbeitet werden muss:** Verschlüsselung auf der
+Platte hilft nur gegen kalte Kopien (gestohlener Datenträger, verschlampte Sicherung,
+Snapshot beim Hoster). Gegen einen Angreifer, der die laufende Anwendung übernimmt, hilft
+sie nicht — der Schlüssel muss auf derselben Maschine liegen. Der grösste Hebel liegt
+deshalb ausserhalb des Add-ons (verschlüsseltes Dateisystem, verschlüsselte Backups,
+Dateirechte 700 auf den Datenordner, kurze Aufbewahrung des Besucher-Archivs). Standalone
+liegt `settings.key` zwangsläufig neben `settings.json`, siehe die Begründung in
+`settings.py` — wer den Datenordner hat, hat auch die Tokens.
+
+**Zwei Vorhaben, die das Add-on selbst verbessern würden:**
+
+1. **Automatische Backups mit Passphrase verschlüsseln.** In `autobackup/` liegen heute
+   Mitglieder-Adressen und Kontaktnachrichten lesbar. Das Backup-ZIP lässt `settings.key`
+   bewusst weg, Tokens sind darin also unlesbar — der Rest nicht. Zu klären: Wo die
+   Passphrase herkommt (Betreiber-Seite wie beim Speicherlimit, nicht im Admin-Panel?),
+   und wie das Einspielen mit einem vergessenen Kennwort umgeht.
+2. **IP-Kürzung als Option** (letztes Oktett bei IPv4, untere 80 Bit bei IPv6) für
+   Besucher-Log, Besucher-Archiv, Audit und Benutzer-Journal. Datenschutzrechtlich der
+   grössere Hebel als jede Verschlüsselung. Zu klären: Was das für die Bot-Erkennung über
+   Rechenzentrums-Netze und für die Länderzuordnung bedeutet — beide arbeiten heute auf der
+   vollen Adresse. Der Brute-Force-Schutz muss unangetastet bleiben, dort ist die genaue
+   Adresse der Zweck.
+
+**Guardrail-Regel beachten:** Beides als abschaltbare Option bauen, Standard sicher.
