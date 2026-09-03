@@ -19,6 +19,9 @@ COPY netcore.py .
 COPY mailauth.py .
 COPY blocklists.py .
 COPY tlscheck.py .
+COPY domaininfo.py .
+COPY httpcheck.py .
+COPY smtpcheck.py .
 COPY probes.py .
 COPY remote.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.

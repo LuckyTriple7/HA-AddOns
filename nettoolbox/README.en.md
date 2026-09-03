@@ -19,6 +19,9 @@ about your domains leaves your own infrastructure.
   names
 - **Blocklists** — an IP checked against 15 public DNSBL/RBL lists in parallel, with reason text
 - **SSL/TLS** — certificate chain, expiry, hostname coverage, negotiated TLS version
+- **Whois/RDAP** — registrar, registration/expiry dates, name servers; RDAP first, WHOIS fallback for TLDs without RDAP (e.g. .de)
+- **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
+- **SMTP** — banner, EHLO capabilities, STARTTLS, open-relay test (never actually delivers mail)
 - **DNSSEC** — DS/DNSKEY status, whether the resolver validated the answer (AD flag)
 - **Root-server worker** — the same instance can act as a target for a second one: with a fixed
   IPv4 and an open port 25, lookups run where blocklists actually answer and SMTP tests are

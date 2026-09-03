@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.0.7] - 2026-09-03
+
+### Added
+- **Whois/RDAP.** Neuer Reiter „Whois": RDAP zuerst (JSON, Server über die IANA-Bootstrap-Liste
+  gefunden — genau wie jeder RDAP-Client), klassisches WHOIS (Port 43) als Fallback für Endungen
+  ohne RDAP-Server. `.de` ist der auffälligste Fall: DENIC betreibt bis heute kein öffentliches
+  RDAP (live gegen die echte IANA-Liste geprüft, nicht angenommen) und gibt über das
+  Whois-Protokoll aus Datenschutzgründen weder Registrar noch irgendein Datum heraus — nur
+  Nameserver und Status. Wird dem Nutzer als genau das erklärt, nicht als Fehler des Tools.
+  Zwei echte Bugs beim Testen gegen echtes DNS gefunden: DENICs Kurzantwort ohne `-T dn`-Flag
+  enthält keine Nameserver (jetzt per Sonderfall behandelt), und alle Feld-Regexe (Registrar,
+  Datumsfelder) fehlte `re.M` — `^`/`$` griffen dadurch nie bei mehrzeiligem Text.
+- **HTTP-Header-Analyse + HTTP/3-Signal.** Neuer Reiter „HTTP-Header": folgt der
+  Weiterleitungskette von Hand (jeder Sprung einzeln über den bestehenden SSRF-Schutz geprüft —
+  ein Server kann NetToolbox über eine Weiterleitung nicht ins eigene Netz locken), listet die
+  gängigen Security-Header (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy,
+  Permissions-Policy) mit eigenem 0–100-Punktestand, meldet preisgegebene Server/Technologie-
+  Header. HTTP/3 wird nur über den Alt-Svc-Header (RFC 7838) als **Ankündigung** erkannt, kein
+  echter QUIC-Verbindungsaufbau — bewusst, da eine echte Prüfung `aioquic`+`cryptography`
+  bräuchte und Alpine mit sehr neuem Python (3.14) ein unsicheres Wheel-Risiko ist. Klar als
+  Ankündigungs-Erkennung gekennzeichnet, nicht als Verbindungsnachweis.
+- **SMTP-Test.** Neuer Reiter „SMTP": Banner, EHLO-Fähigkeiten, STARTTLS (nur Protokoll/Chiffre
+  gemeldet, keine Zertifikatsvertrauensprüfung — anders als beim SSL/TLS-Reiter ist ein
+  selbstsigniertes Zertifikat bei opportunistischem STARTTLS auf Port 25 normal), Banner-vs-PTR-
+  Abgleich, und ein Offene-Relais-Test. Der Relais-Test sendet MAIL FROM + RCPT TO an eine
+  Adresse unter example.com (IANA-reservierte Test-Domain, RFC 2606) und danach immer RSET/QUIT
+  — **niemals DATA**, es wird also nie tatsächlich eine Mail zugestellt, egal wie der Server
+  antwortet. Dieselbe Technik, die jedes seriöse Mailserver-Prüfwerkzeug seit jeher verwendet.
+  Live gegen Googles und mailbox.orgs echte MX-Server getestet (beide korrekt: STARTTLS zu
+  TLS 1.3, Relais korrekt geschlossen). Dabei einen echten smtplib-Stolperstein gefunden: der
+  private `_host`-Attributwert wird nur vom Konstruktor selbst gesetzt, nicht von einem separat
+  aufgerufenen `.connect()` — STARTTLS brauchte ihn für SNI und schlug sonst mit einer kryptischen
+  ValueError fehl.
+
+### Fixed
+- `http_get()` erlaubte bisher nur `https://` — für die Weiterleitungs-Verfolgung (z. B. HTTP→
+  HTTPS-Redirect prüfen) musste auch `http://` möglich sein.
+
 ## [0.0.6] - 2026-09-03
 
 ### Fixed

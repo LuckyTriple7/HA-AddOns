@@ -136,6 +136,9 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
   <button data-tab="blacklist"><svg viewBox="0 0 24 24"><path d="M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M4,12C4,7.58 7.58,4 12,4C13.85,4 15.55,4.63 16.9,5.69L5.69,16.9C4.63,15.55 4,13.85 4,12M12,20C10.15,20 8.45,19.37 7.1,18.31L18.31,7.1C19.37,8.45 20,10.15 20,12C20,16.42 16.42,20 12,20Z"/></svg>{{ t.nav_blacklist }}</button>
   <button data-tab="tls"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.nav_tls }}</button>
+  <button data-tab="whois"><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.nav_whois }}</button>
+  <button data-tab="http"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.nav_http }}</button>
+  <button data-tab="smtp"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="9.5" width="18" height="5" rx="1"/><rect x="3" y="16" width="18" height="5" rx="1"/><circle cx="7" cy="5.5" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18.5" r="1"/></svg>{{ t.nav_smtp }}</button>
   <button data-tab="dnssec"><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/></svg>{{ t.nav_dnssec }}</button>
   <button data-tab="history"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.nav_history }}</button>
 </nav>
@@ -272,6 +275,57 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.tls_hint }}</p>
     <div id="tlsResult"></div>
+  </div>
+</section>
+
+<section id="tab-whois">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.whois_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="whoisDomain">{{ t.field_domain }}</label>
+        <input type="text" id="whoisDomain" placeholder="example.com" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="whoisRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.whois_hint }}</p>
+    <div id="whoisResult"></div>
+  </div>
+</section>
+
+<section id="tab-http">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.http_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="httpTarget">{{ t.field_url }}</label>
+        <input type="text" id="httpTarget" placeholder="example.com oder https://example.com/pfad" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="httpRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.http_hint }}</p>
+    <div id="httpResult"></div>
+  </div>
+</section>
+
+<section id="tab-smtp">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="9.5" width="18" height="5" rx="1"/><rect x="3" y="16" width="18" height="5" rx="1"/><circle cx="7" cy="5.5" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18.5" r="1"/></svg>{{ t.smtp_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="smtpTarget">{{ t.field_host_port }}</label>
+        <input type="text" id="smtpTarget" placeholder="mail.example.com oder mail.example.com:587" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="smtpRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.smtp_hint }}</p>
+    <div id="smtpResult"></div>
   </div>
 </section>
 
@@ -858,6 +912,188 @@ async function tlsCheck(){
 
 $('tlsRun').addEventListener('click', tlsCheck);
 $('tlsTarget').addEventListener('keydown', e => { if (e.key === 'Enter') tlsCheck(); });
+
+// ── Whois tab ─────────────────────────────────────────────────────────────
+
+async function whoisCheck(){
+  const domain = $('whoisDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('whoisResult'); showLoading(box);
+  try {
+    const data = await runProbe('whois', { domain: domain }, domain, $('whoisRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'chip', r.source === 'rdap' ? 'RDAP' : 'WHOIS'));
+    if (r.source === 'whois' && r.whois_server) badges.appendChild(el('span', 'chip', r.whois_server));
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.found) {
+      const grid = el('div', 'subgrid');
+      const c1 = el('div', 'subcard');
+      c1.appendChild(el('h4', '', T.field_registrar));
+      [[T.field_registrar, r.registrar], [T.field_registered, r.registered],
+       [T.field_expires, r.expires], [T.field_last_changed, r.last_changed]]
+        .forEach(([label, value]) => {
+          const row = el('div', 'kv');
+          row.appendChild(el('span', '', label));
+          row.appendChild(el('span', 'mono', value || '—'));
+          c1.appendChild(row);
+        });
+      grid.appendChild(c1);
+
+      const c2 = el('div', 'subcard');
+      c2.appendChild(el('h4', '', T.field_nameservers));
+      if (r.nameservers.length) {
+        r.nameservers.forEach(ns => c2.appendChild(el('div', 'mono', ns)));
+      } else {
+        c2.appendChild(el('p', 'result-empty', T.no_records));
+      }
+      grid.appendChild(c2);
+
+      if (r.status && r.status.length) {
+        const c3 = el('div', 'subcard');
+        c3.appendChild(el('h4', '', T.field_status));
+        const chips = el('div', 'chips');
+        r.status.forEach(s => chips.appendChild(el('span', 'chip', s)));
+        c3.appendChild(chips);
+        grid.appendChild(c3);
+      }
+      wrap.appendChild(grid);
+
+      if (r.raw) wrap.appendChild(el('div', 'record-code', r.raw));
+    }
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('whoisRun').addEventListener('click', whoisCheck);
+$('whoisDomain').addEventListener('keydown', e => { if (e.key === 'Enter') whoisCheck(); });
+
+// ── HTTP header tab ───────────────────────────────────────────────────────
+
+async function httpCheck(){
+  const target = $('httpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('httpResult'); showLoading(box);
+  try {
+    const data = await runProbe('http', { target: target }, target, $('httpRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.mail_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    wrap.appendChild(score);
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.https ? 'ok' : 'warn'), r.https ? 'HTTPS' : 'HTTP'));
+    badges.appendChild(el('span', 'badge ' + (r.http3_advertised ? 'ok' : 'info'),
+      'HTTP/3: ' + (r.http3_advertised ? T.http3_yes : T.http3_no)));
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.chain.length > 1) {
+      const h = el('h3', '', T.field_redirect_chain);
+      wrap.appendChild(h);
+      const table = el('table');
+      const thead = el('thead');
+      const trh = el('tr');
+      [T.field_url, T.field_status_code].forEach(x => trh.appendChild(el('th', '', x)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody');
+      r.chain.forEach(hop => {
+        const tr = el('tr');
+        tr.appendChild(el('td', 'mono', hop.url));
+        tr.appendChild(el('td', '', String(hop.status)));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+    }
+
+    const h2 = el('h3', '', T.field_security_headers);
+    wrap.appendChild(h2);
+    const grid = el('div', 'subgrid');
+    Object.keys(r.security_headers).forEach(name => {
+      const value = r.security_headers[name];
+      const c = el('div', 'subcard');
+      const hd = el('h4');
+      hd.appendChild(el('span', '', name));
+      hd.appendChild(el('span', 'badge ' + (value ? 'ok' : 'warn'), value ? T.level_ok : T.level_warn));
+      c.appendChild(hd);
+      if (value) c.appendChild(el('div', 'mono', value));
+      grid.appendChild(c);
+    });
+    wrap.appendChild(grid);
+
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('httpRun').addEventListener('click', httpCheck);
+$('httpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') httpCheck(); });
+
+// ── SMTP tab ──────────────────────────────────────────────────────────────
+
+async function smtpCheck(){
+  const target = $('smtpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('smtpResult'); showLoading(box);
+  try {
+    const data = await runProbe('smtp', { target: target }, target, $('smtpRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.starttls_ok ? 'ok' : (r.starttls_offered ? 'warn' : 'fail')),
+      r.starttls_ok ? T.smtp_starttls_badge_ok : (r.starttls_offered ? T.smtp_starttls_badge_failed : T.smtp_starttls_badge_none)));
+    if (r.relay_open !== null) {
+      badges.appendChild(el('span', 'badge ' + (r.relay_open ? 'fail' : 'ok'),
+        r.relay_open ? T.smtp_relay_badge_open : T.smtp_relay_badge_closed));
+    }
+    if (r.tls_protocol) badges.appendChild(el('span', 'chip', r.tls_protocol));
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    const grid = el('div', 'subgrid');
+    const c1 = el('div', 'subcard');
+    c1.appendChild(el('h4', '', T.field_banner));
+    c1.appendChild(el('div', 'mono', r.banner || '—'));
+    grid.appendChild(c1);
+
+    if (r.features.length) {
+      const c2 = el('div', 'subcard');
+      c2.appendChild(el('h4', '', T.field_features));
+      const chips = el('div', 'chips');
+      r.features.forEach(f => chips.appendChild(el('span', 'chip', f)));
+      c2.appendChild(chips);
+      grid.appendChild(c2);
+    }
+    wrap.appendChild(grid);
+
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('smtpRun').addEventListener('click', smtpCheck);
+$('smtpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') smtpCheck(); });
 
 // ── DNSSEC tab ────────────────────────────────────────────────────────────
 

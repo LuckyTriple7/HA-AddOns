@@ -256,8 +256,8 @@ def guard_target(ctx: Context, host: str) -> list:
 
 def http_get(ctx: Context, url: str, max_bytes: int = 128 * 1024,
              accept: str = '*/*') -> dict:
-    """A guarded GET. Only https, only public targets, size-capped."""
-    if not url.lower().startswith('https://'):
+    """A guarded GET. Only http(s), only public targets, size-capped."""
+    if not url.lower().startswith(('https://', 'http://')):
         raise ProbeError('bad_url', url)
     host = url.split('://', 1)[1].split('/', 1)[0].split(':', 1)[0]
     host = host.strip('[]')

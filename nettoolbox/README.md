@@ -17,6 +17,9 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **Reverse-DNS / MX** — PTR mit Vorwärts-Abgleich, MX-Server mit Adressen und Reverse-Namen
 - **Sperrlisten** — eine IP gegen 15 öffentliche DNSBL/RBL parallel geprüft, mit Begründungstext
 - **SSL/TLS** — Zertifikatskette, Ablaufdatum, Hostname-Abdeckung, ausgehandelte TLS-Version
+- **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
+- **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
+- **SMTP** — Banner, EHLO-Fähigkeiten, STARTTLS, Offene-Relais-Test (liefert nie tatsächlich Mail aus)
 - **DNSSEC** — DS/DNSKEY-Status, ob der Resolver die Antwort validiert (AD-Flag)
 - **Root-Server-Worker** — dieselbe Instanz kann als Ziel für eine zweite dienen: mit fester
   IPv4 und offenem Port 25 laufen Abfragen dort, wo Sperrlisten antworten und SMTP-Tests möglich

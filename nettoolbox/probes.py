@@ -7,7 +7,10 @@ root server.
 """
 
 import blocklists
+import domaininfo
+import httpcheck
 import mailauth
+import smtpcheck
 import tlscheck
 from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
                      clean_ip, clean_rrtype, ip_is_public, mx_hosts,
@@ -237,6 +240,18 @@ def p_tls(ctx: Context, params: dict) -> dict:
     return tlscheck.check_tls(ctx, _str(params, 'target'))
 
 
+def p_whois(ctx: Context, params: dict) -> dict:
+    return domaininfo.check_domain(ctx, _str(params, 'domain'))
+
+
+def p_http(ctx: Context, params: dict) -> dict:
+    return httpcheck.check_http(ctx, _str(params, 'target'))
+
+
+def p_smtp(ctx: Context, params: dict) -> dict:
+    return smtpcheck.check_smtp(ctx, _str(params, 'target'))
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 PROBES = {
@@ -250,6 +265,9 @@ PROBES = {
     'mx': p_mx,
     'blacklist': p_blacklist,
     'tls': p_tls,
+    'whois': p_whois,
+    'http': p_http,
+    'smtp': p_smtp,
     'spf': p_spf,
     'dkim': p_dkim,
     'dmarc': p_dmarc,
@@ -263,7 +281,8 @@ PROBES = {
 TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'mx': 'domain',
-    'blacklist': 'ip', 'tls': 'target',
+    'blacklist': 'ip', 'tls': 'target', 'whois': 'domain',
+    'http': 'target', 'smtp': 'target',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',
     'mail_health': 'domain',
