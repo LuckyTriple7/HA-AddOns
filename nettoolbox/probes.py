@@ -6,6 +6,7 @@ the same function runs locally in the add-on and remotely in the worker on the
 root server.
 """
 
+import blocklists
 import mailauth
 from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
                      clean_ip, clean_rrtype, ip_is_public, mx_hosts,
@@ -227,6 +228,10 @@ def p_mx(ctx: Context, params: dict) -> dict:
     return {'domain': domain, 'mx': rows}
 
 
+def p_blacklist(ctx: Context, params: dict) -> dict:
+    return blocklists.check_blacklist(ctx, _str(params, 'ip'))
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 PROBES = {
@@ -238,6 +243,7 @@ PROBES = {
     'txt': p_txt,
     'soa': p_soa,
     'mx': p_mx,
+    'blacklist': p_blacklist,
     'spf': p_spf,
     'dkim': p_dkim,
     'dmarc': p_dmarc,
@@ -251,6 +257,7 @@ PROBES = {
 TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'mx': 'domain',
+    'blacklist': 'ip',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',
     'mail_health': 'domain',

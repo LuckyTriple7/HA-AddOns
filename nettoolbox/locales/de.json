@@ -14,6 +14,7 @@
   "nav_mail": "Mail-Gesundheit",
   "nav_propagation": "Propagation",
   "nav_reverse": "Reverse / MX",
+  "nav_blacklist": "Sperrlisten",
   "nav_dnssec": "DNSSEC",
   "nav_history": "Verlauf",
 
@@ -23,6 +24,8 @@
   "propagation_title": "DNS-Propagation über mehrere Resolver",
   "reverse_title": "Reverse-DNS (PTR)",
   "mx_title": "MX-Server prüfen",
+  "blacklist_title": "Sperrlisten-Check (DNSBL/RBL)",
+  "blacklist_hint": "Prüft eine IP-Adresse gegen 15 öffentliche Sperrlisten parallel. Manche Betreiber (z. B. Spamhaus) weisen Anfragen von stark genutzten öffentlichen DNS-Resolvern ab — das erscheint dann als „nicht prüfbar“, nicht als Treffer. Über den Root-Server-Worker mit eigenem Resolver umgehbar.",
   "dnssec_title": "DNSSEC-Status",
   "history_title": "Verlauf",
   "history_empty": "Noch keine Abfragen.",
@@ -45,6 +48,9 @@
   "field_target": "Ziel",
   "field_result": "Ergebnis",
   "field_backend": "Quelle",
+  "field_list": "Sperrliste",
+  "field_status": "Status",
+  "field_reason": "Begründung",
 
   "action_lookup": "Abfragen",
   "action_lookup_all": "Alle Standard-Typen",
@@ -85,6 +91,13 @@
   "rev_mismatch": "stimmt nicht überein",
 
   "mail_score_label": "Gesundheits-Punktestand",
+
+  "rbl_status_listed": "gelistet",
+  "rbl_status_clean": "sauber",
+  "rbl_code_typo": "Zonenname falsch",
+  "rbl_code_excluded": "ausgeschlossen",
+  "rbl_code_open_resolver": "nicht prüfbar (öffentlicher Resolver blockiert)",
+  "rbl_code_rate_limited": "nicht prüfbar (Anfragelimit erreicht)",
 
   "f_spf_ptr": "SPF benutzt den veralteten ptr-Mechanismus — von RFC 7208 als 'not recommended' eingestuft.",
   "f_spf_macro": "SPF-Term {term} enthält ein Makro und wurde nicht aufgelöst.",
@@ -162,6 +175,11 @@
 
   "f_probe_failed": "Teilprüfung {probe} konnte nicht abgeschlossen werden ({reason}).",
 
+  "f_rbl_listed": "Auf {count} von 15 Sperrlisten gelistet: {lists}.",
+  "f_rbl_clean": "Auf keiner der {count} geprüften Sperrlisten gelistet.",
+  "f_rbl_provider_blocked": "{count} Sperrlisten ließen sich nicht sicher prüfen — Betreiber weist die Anfrage ab: {lists}.",
+  "f_rbl_errors": "{count} Sperrlisten haben nicht rechtzeitig geantwortet.",
+
   "err_generic": "Unbekannter Fehler.",
   "err_empty_target": "Bitte ein Ziel eingeben.",
   "err_target_too_long": "Eingabe ist zu lang für einen Domainnamen.",
@@ -196,5 +214,7 @@
   "err_unauthorized": "Nicht angemeldet.",
   "err_csrf": "Formular abgelaufen. Bitte Seite neu laden.",
   "err_aborted": "Abgebrochen.",
-  "err_network": "Verbindung fehlgeschlagen."
+  "err_network": "Verbindung fehlgeschlagen.",
+  "err_ipv6_unsupported": "IPv6 wird von den meisten Sperrlisten nicht geführt — nur IPv4 prüfbar.",
+  "err_unexpected_response": "Betreiber hat unerwartet geantwortet — kein normaler Listing-Code."
 }

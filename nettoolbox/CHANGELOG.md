@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.3] - 2026-09-03
+
+### Added
+- **Sperrlisten-Check (DNSBL/RBL).** Neuer Reiter „Sperrlisten": eine IP-Adresse gegen 15 öffentliche
+  Sperrlisten parallel geprüft (Spamhaus ZEN, SORBS, Barracuda, SpamCop, UCEPROTECT L1–L3, PSBL,
+  CBL, Blocklist.de, Mailspike BL/Z, GBUdb, JustSpam, SpamEatingMonkey), mit Begründungstext, wo
+  die Liste einen liefert. Alle 15 Zonen vorab live gegen die RFC-5782-Testadresse 127.0.0.2
+  verifiziert, nicht nur aus Dokumentation übernommen — dabei zwei reale Fallstricke gefunden und
+  abgefangen: SORBS antwortet mit einer festen, listungsunabhängigen Info-Adresse statt einem
+  127.x-Code (wird als „nicht auswertbar" erkannt, nicht als Treffer gewertet), und Spamhaus- wie
+  CBL-Anfragen über stark genutzte öffentliche Resolver (Quad9, Cloudflare) bekommen oft den
+  Meta-Code „öffentlicher Resolver blockiert" zurück statt eines echten Ergebnisses — wird als
+  eigener Zustand angezeigt statt fälschlich als sauber oder gelistet. Genau der Fall, für den der
+  Root-Server-Worker gedacht ist. Nur IPv4, da fast keine öffentliche Sperrliste IPv6 führt.
+
 ## [0.0.2] - 2026-09-03
 
 ### Fixed

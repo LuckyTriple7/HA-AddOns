@@ -134,6 +134,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   <button data-tab="mail"><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.nav_mail }}</button>
   <button data-tab="propagation"><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.nav_propagation }}</button>
   <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
+  <button data-tab="blacklist"><svg viewBox="0 0 24 24"><path d="M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M4,12C4,7.58 7.58,4 12,4C13.85,4 15.55,4.63 16.9,5.69L5.69,16.9C4.63,15.55 4,13.85 4,12M12,20C10.15,20 8.45,19.37 7.1,18.31L18.31,7.1C19.37,8.45 20,10.15 20,12C20,16.42 16.42,20 12,20Z"/></svg>{{ t.nav_blacklist }}</button>
   <button data-tab="dnssec"><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/></svg>{{ t.nav_dnssec }}</button>
   <button data-tab="history"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.nav_history }}</button>
 </nav>
@@ -236,6 +237,23 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       </div>
     </div>
     <div id="mxResult"></div>
+  </div>
+</section>
+
+<section id="tab-blacklist">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M4,12C4,7.58 7.58,4 12,4C13.85,4 15.55,4.63 16.9,5.69L5.69,16.9C4.63,15.55 4,13.85 4,12M12,20C10.15,20 8.45,19.37 7.1,18.31L18.31,7.1C19.37,8.45 20,10.15 20,12C20,16.42 16.42,20 12,20Z"/></svg>{{ t.blacklist_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="rblIp">{{ t.field_ip }}</label>
+        <input type="text" id="rblIp" placeholder="203.0.113.10" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="rblRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.blacklist_hint }}</p>
+    <div id="rblResult"></div>
   </div>
 </section>
 
@@ -717,6 +735,45 @@ $('revRun').addEventListener('click', revCheck);
 $('revIp').addEventListener('keydown', e => { if (e.key === 'Enter') revCheck(); });
 $('mxRun').addEventListener('click', mxCheck);
 $('mxDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mxCheck(); });
+
+// ── Blacklist tab ─────────────────────────────────────────────────────────
+
+function rblRowBadge(row){
+  if (row.listed) return el('span', 'badge fail', T.rbl_status_listed);
+  if (row.provider_code) return el('span', 'badge info', T['rbl_code_' + row.provider_code] || row.provider_code);
+  if (row.error) return el('span', 'badge info', errText(row.error));
+  return el('span', 'badge ok', T.rbl_status_clean);
+}
+
+async function rblCheck(){
+  const ip = $('rblIp').value.trim();
+  if (!ip) { toast(T.err_empty_target, true); return; }
+  const box = $('rblResult'); showLoading(box);
+  try {
+    const data = await runProbe('blacklist', { ip: ip }, ip, $('rblRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    box.appendChild(renderFindings(r.findings));
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_list, T.field_status, T.field_reason].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', row.label));
+      const td = el('td'); td.appendChild(rblRowBadge(row)); tr.appendChild(td);
+      tr.appendChild(el('td', 'mono', row.listed ? (row.reason || row.records.join(', ')) : ''));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('rblRun').addEventListener('click', rblCheck);
+$('rblIp').addEventListener('keydown', e => { if (e.key === 'Enter') rblCheck(); });
 
 // ── DNSSEC tab ────────────────────────────────────────────────────────────
 

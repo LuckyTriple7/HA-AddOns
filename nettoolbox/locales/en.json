@@ -14,6 +14,7 @@
   "nav_mail": "Mail health",
   "nav_propagation": "Propagation",
   "nav_reverse": "Reverse / MX",
+  "nav_blacklist": "Blacklists",
   "nav_dnssec": "DNSSEC",
   "nav_history": "History",
 
@@ -23,6 +24,8 @@
   "propagation_title": "DNS propagation across multiple resolvers",
   "reverse_title": "Reverse DNS (PTR)",
   "mx_title": "Check MX servers",
+  "blacklist_title": "Blacklist check (DNSBL/RBL)",
+  "blacklist_hint": "Checks an IP address against 15 public blocklists in parallel. Some operators (e.g. Spamhaus) reject queries from heavily-used public DNS resolvers — that shows up as \"could not check\", not as a hit. Works around this via the root-server worker with its own resolver.",
   "dnssec_title": "DNSSEC status",
   "history_title": "History",
   "history_empty": "No lookups yet.",
@@ -45,6 +48,9 @@
   "field_target": "Target",
   "field_result": "Result",
   "field_backend": "Source",
+  "field_list": "Blocklist",
+  "field_status": "Status",
+  "field_reason": "Reason",
 
   "action_lookup": "Look up",
   "action_lookup_all": "All common types",
@@ -85,6 +91,13 @@
   "rev_mismatch": "does not match",
 
   "mail_score_label": "Health score",
+
+  "rbl_status_listed": "listed",
+  "rbl_status_clean": "clean",
+  "rbl_code_typo": "wrong zone name",
+  "rbl_code_excluded": "excluded",
+  "rbl_code_open_resolver": "could not check (public resolver blocked)",
+  "rbl_code_rate_limited": "could not check (rate limit reached)",
 
   "f_spf_ptr": "SPF uses the deprecated ptr mechanism — RFC 7208 marks it 'not recommended'.",
   "f_spf_macro": "SPF term {term} contains a macro and was not expanded.",
@@ -162,6 +175,11 @@
 
   "f_probe_failed": "Sub-check {probe} could not complete ({reason}).",
 
+  "f_rbl_listed": "Listed on {count} of 15 blocklists: {lists}.",
+  "f_rbl_clean": "Not listed on any of the {count} checked blocklists.",
+  "f_rbl_provider_blocked": "{count} blocklists could not be checked reliably — operator rejected the query: {lists}.",
+  "f_rbl_errors": "{count} blocklists did not answer in time.",
+
   "err_generic": "Unknown error.",
   "err_empty_target": "Please enter a target.",
   "err_target_too_long": "Input is too long for a domain name.",
@@ -196,5 +214,7 @@
   "err_unauthorized": "Not signed in.",
   "err_csrf": "Form expired. Please reload the page.",
   "err_aborted": "Cancelled.",
-  "err_network": "Connection failed."
+  "err_network": "Connection failed.",
+  "err_ipv6_unsupported": "Most blocklists do not index IPv6 — only IPv4 can be checked.",
+  "err_unexpected_response": "Operator answered unexpectedly — not a normal listing code."
 }
