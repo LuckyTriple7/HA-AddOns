@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.32] - 2026-09-03
+- **Sicherheitsupdate: qs auf 6.16.0.** Schliesst CVE-2026-82562 (GHSA-x5fp-wj9c-mxmx, mittel) — beim Parsen von Bracket-Keys mit Kommagruppen liess sich das `arrayLimit` umgehen
+- qs kommt ueber `express` und `body-parser` herein, beide pinnen `~6.15.1`. Ein `overrides`-Eintrag in der `package.json` erzwingt daher qs `^6.16.0`, ohne express auf 5.x anheben zu muessen
+
 ## [1.8.31] - 2026-08-29
 - **Breaking Change: Port 17776 wird nicht mehr veroeffentlicht.** Er gab Weboberflaeche und REST-API ohne jede Anmeldung an das ganze LAN heraus — wer die Adresse kannte, konnte mitlesen, senden, Medien holen und Kontakte blockieren. Das Mapping steht jetzt auf `null`
 - **Unveraendert erreichbar:** die Oberflaeche ueber das HA-Panel (Ingress, Anmeldung durch Home Assistant) und ueber das MessengerPortal. Das Portal spricht das Add-on seit **1.2.20** ueber seinen Container-Namen an und braucht den Host-Port nicht mehr

@@ -12,6 +12,7 @@
     "archiver": "^7.0.1"
   },
   "overrides": {
-    "minimatch": "^10.2.2"
+    "minimatch": "^10.2.2",
+    "qs": "^6.16.0"
   }
 }
