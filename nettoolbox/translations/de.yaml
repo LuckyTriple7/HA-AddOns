@@ -1,0 +1,60 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Benutzername für die Anmeldung über den direkten Port. Über die Home-Assistant-Seitenleiste wird nicht nach einer Anmeldung gefragt.
+  password:
+    name: Passwort
+    description: Passwort für die Anmeldung über den direkten Port. Unbedingt ändern — die Vorgabe changeme123 ist öffentlich bekannt.
+  session_hours:
+    name: Sitzungsdauer (Stunden)
+    description: Wie lange eine Anmeldung gültig bleibt, bevor erneut angemeldet werden muss.
+  worker_url:
+    name: Root-Server-Worker — Adresse
+    description: >-
+      Adresse einer zweiten NetToolbox-Instanz (z. B. auf einem Root-Server mit fester IPv4),
+      an die diese Instanz ihre Prüfungen weiterreicht — etwa https://tools.example.com. Leer
+      lassen, dann prüft diese Instanz selbst, mit den Einschränkungen der eigenen Internetleitung
+      (Port 25 meist gesperrt, manche Sperrlisten antworten öffentlichen Resolvern nicht).
+  worker_token:
+    name: Root-Server-Worker — Zugriffsschlüssel
+    description: >-
+      Muss mit dem worker_token der Ziel-Instanz übereinstimmen. Dort zusätzlich worker_enabled
+      einschalten.
+  worker_tls_verify:
+    name: Root-Server-Worker — TLS-Zertifikat prüfen
+    description: Nur bei einer https-Adresse mit selbstsigniertem Zertifikat abschalten.
+  worker_enabled:
+    name: Als Worker für andere Instanzen bereitstehen
+    description: >-
+      Schaltet die Endpunkte /worker/info und /worker/probe frei. Nur mit einem starken,
+      zufälligen worker_token einschalten — jeder mit gültigem Schlüssel kann diese Instanz für
+      DNS- und HTTP-Abfragen benutzen.
+  resolvers:
+    name: DNS-Resolver
+    description: >-
+      Bis zu acht Resolver-Adressen, die für gewöhnliche Abfragen benutzt werden. Vorgabe sind
+      Quad9 und Cloudflare. Für Sperrlisten- und DNSSEC-Abfragen lohnt sich ein eigener
+      rekursiver Resolver (z. B. unbound) auf demselben Rechner wie diese Instanz.
+  dns_timeout:
+    name: DNS-Zeitlimit (Sekunden)
+    description: Wie lange auf die Antwort eines Nameservers gewartet wird.
+  http_timeout:
+    name: HTTP-Zeitlimit (Sekunden)
+    description: Wie lange auf die Antwort eines Webservers gewartet wird (MTA-STS-Policy, BIMI-Logo).
+  allow_private_targets:
+    name: Private Adressen erlauben
+    description: >-
+      Erlaubt Abfragen gegen Adressen im eigenen Netz (10.x, 192.168.x, 172.16–31.x, localhost).
+      Ausgeschaltet verhindert das, dass NetToolbox als offener Scan-Proxy in das eigene LAN
+      missbraucht werden kann. Nur einschalten, wenn gezielt das eigene Netz geprüft werden soll.
+  rate_limit_per_min:
+    name: Prüfungen je Minute
+    description: Obergrenze für Prüfungen pro Minute, egal ob über die Oberfläche oder als Worker angefragt. 0 schaltet die Grenze ab.
+  history_size:
+    name: Verlauf — Anzahl Einträge
+    description: Wie viele zurückliegende Prüfungen im Verlauf aufgehoben werden. 0 schaltet den Verlauf ab.
+  verbose_log:
+    name: Ausführliches Protokoll
+    description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.
+network:
+  17798/tcp: NetToolbox Web-UI (direkt, Anmeldung erforderlich)

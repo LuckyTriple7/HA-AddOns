@@ -1,0 +1,271 @@
+"""The probe registry.
+
+Every tool the web interface offers is one entry in PROBES. A probe takes a
+plain dict of parameters and returns a plain dict — no Flask, no globals — so
+the same function runs locally in the add-on and remotely in the worker on the
+root server.
+"""
+
+import mailauth
+from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
+                     clean_ip, clean_rrtype, ip_is_public, mx_hosts,
+                     query, reverse_name, txt_strings)
+
+# Resolvers used for the propagation view. Public, free, no registration, and
+# spread over enough operators that a disagreement means something.
+PUBLIC_RESOLVERS = (
+    ('Quad9', '9.9.9.9'),
+    ('Cloudflare', '1.1.1.1'),
+    ('Google', '8.8.8.8'),
+    ('OpenDNS', '208.67.222.222'),
+    ('DNS.WATCH', '84.200.69.80'),
+    ('Level3', '4.2.2.1'),
+    ('AdGuard', '94.140.14.140'),
+    ('dns0.eu', '193.110.81.0'),
+)
+
+COMMON_TYPES = ('A', 'AAAA', 'MX', 'NS', 'TXT', 'SOA', 'CAA')
+
+
+def _str(params: dict, key: str, default: str = '') -> str:
+    value = params.get(key, default)
+    if value is None:
+        return default
+    if not isinstance(value, (str, int, float)):
+        raise ProbeError('bad_param', key)
+    return str(value).strip()
+
+
+def _list(params: dict, key: str) -> list:
+    value = params.get(key) or []
+    if isinstance(value, str):
+        value = [p for p in value.replace(',', ' ').split() if p]
+    if not isinstance(value, list):
+        raise ProbeError('bad_param', key)
+    if len(value) > 20:
+        raise ProbeError('too_many_values', key)
+    return [str(v).strip() for v in value if str(v).strip()]
+
+
+def _resolver_arg(ctx: Context, params: dict) -> list:
+    """An explicit resolver may be given, but not one inside the LAN."""
+    raw = _str(params, 'resolver')
+    if not raw:
+        return []
+    server = clean_ip(raw)
+    if not ctx.allow_private and not ip_is_public(server):
+        raise ProbeError('private_target', server)
+    return [server]
+
+
+# ── DNS ───────────────────────────────────────────────────────────────────────
+
+
+def p_dns(ctx: Context, params: dict) -> dict:
+    name = clean_domain(_str(params, 'name'))
+    rrtype = clean_rrtype(_str(params, 'type', 'A'))
+    answer = query(ctx, name, rrtype, servers=_resolver_arg(ctx, params))
+    return {'name': answer.name, 'type': answer.rrtype,
+            'records': answer.records, 'ttl': answer.ttl,
+            'dnssec': answer.authenticated, 'ms': answer.ms,
+            'nameserver': answer.nameserver}
+
+
+def p_dns_all(ctx: Context, params: dict) -> dict:
+    name = clean_domain(_str(params, 'name'))
+    servers = _resolver_arg(ctx, params)
+    sets, errors = [], []
+    for rrtype in COMMON_TYPES:
+        try:
+            answer = query(ctx, name, rrtype, servers=servers)
+        except ProbeError as e:
+            errors.append({'type': rrtype, 'code': e.code})
+            continue
+        sets.append({'type': rrtype, 'records': answer.records,
+                     'ttl': answer.ttl, 'ms': answer.ms})
+    return {'name': name, 'sets': sets, 'errors': errors}
+
+
+def p_reverse(ctx: Context, params: dict) -> dict:
+    """PTR plus the forward-confirmation mail servers actually care about."""
+    ip = clean_ip(_str(params, 'ip'))
+    ptr_name = reverse_name(ip)
+    names = [n.strip('.') for n in query(ctx, ptr_name, 'PTR').records]
+    hosts = []
+    for host in names:
+        addresses = []
+        for rrtype in ('A', 'AAAA'):
+            try:
+                addresses.extend(query(ctx, host, rrtype).records)
+            except ProbeError:
+                pass
+        hosts.append({'host': host, 'addresses': addresses,
+                      'confirmed': ip in addresses})
+    return {'ip': ip, 'ptr_name': ptr_name, 'hosts': hosts,
+            'confirmed': any(h['confirmed'] for h in hosts),
+            'public': ip_is_public(ip)}
+
+
+def p_propagation(ctx: Context, params: dict) -> dict:
+    """The same question to many resolvers — shows a rollout still in flight."""
+    name = clean_domain(_str(params, 'name'))
+    rrtype = clean_rrtype(_str(params, 'type', 'A'))
+    rows, seen = [], {}
+    for label, server in PUBLIC_RESOLVERS:
+        row = {'label': label, 'server': server, 'records': [], 'ms': 0,
+               'error': ''}
+        try:
+            answer = query(ctx, name, rrtype, servers=[server])
+            row['records'] = answer.records
+            row['ms'] = answer.ms
+            row['ttl'] = answer.ttl
+        except ProbeError as e:
+            row['error'] = e.code
+        rows.append(row)
+        if not row['error']:
+            seen.setdefault('|'.join(row['records']), []).append(label)
+    return {'name': name, 'type': rrtype, 'rows': rows,
+            'variants': [{'records': k.split('|') if k else [],
+                          'resolvers': v} for k, v in seen.items()],
+            'consistent': len(seen) <= 1}
+
+
+def p_dnssec(ctx: Context, params: dict) -> dict:
+    """Is the zone signed, and does a validating resolver accept the answer?"""
+    name = clean_domain(_str(params, 'name'))
+    ds = query(ctx, name, 'DS')
+    dnskey = query(ctx, name, 'DNSKEY')
+    probe = query(ctx, name, 'SOA')
+    signed = bool(ds.records) and bool(dnskey.records)
+    return {'name': name, 'ds': ds.records, 'dnskey_count': len(dnskey.records),
+            'signed': signed, 'validated': probe.authenticated,
+            'parent_ds': bool(ds.records)}
+
+
+def p_txt(ctx: Context, params: dict) -> dict:
+    name = clean_domain(_str(params, 'name'))
+    return {'name': name, 'records': txt_strings(ctx, name)}
+
+
+def p_soa(ctx: Context, params: dict) -> dict:
+    """SOA at the zone plus the serial each authoritative server reports."""
+    name = clean_domain(_str(params, 'name'))
+    soa = query(ctx, name, 'SOA')
+    nameservers = [n.strip('.') for n in query(ctx, name, 'NS').records]
+    rows = []
+    for host in nameservers:
+        row = {'host': host, 'serial': 0, 'error': ''}
+        try:
+            addresses = query(ctx, host, 'A').records
+            if not addresses:
+                row['error'] = 'no_address'
+            else:
+                answer = query(ctx, name, 'SOA', servers=[addresses[0]])
+                parts = answer.records[0].split() if answer.records else []
+                row['serial'] = int(parts[2]) if len(parts) > 2 else 0
+        except (ProbeError, ValueError, IndexError):
+            row['error'] = row['error'] or 'unreachable'
+        rows.append(row)
+    serials = {r['serial'] for r in rows if not r['error']}
+    return {'name': name, 'soa': soa.records, 'nameservers': rows,
+            'in_sync': len(serials) <= 1}
+
+
+# ── Mail ──────────────────────────────────────────────────────────────────────
+
+
+def p_spf(ctx: Context, params: dict) -> dict:
+    return mailauth.check_spf(ctx, _str(params, 'domain'))
+
+
+def p_dkim(ctx: Context, params: dict) -> dict:
+    return mailauth.check_dkim(ctx, _str(params, 'domain'),
+                               _list(params, 'selectors'))
+
+
+def p_dmarc(ctx: Context, params: dict) -> dict:
+    return mailauth.check_dmarc(ctx, _str(params, 'domain'))
+
+
+def p_mta_sts(ctx: Context, params: dict) -> dict:
+    return mailauth.check_mta_sts(ctx, _str(params, 'domain'))
+
+
+def p_tls_rpt(ctx: Context, params: dict) -> dict:
+    return mailauth.check_tls_rpt(ctx, _str(params, 'domain'))
+
+
+def p_bimi(ctx: Context, params: dict) -> dict:
+    return mailauth.check_bimi(ctx, _str(params, 'domain'),
+                               _str(params, 'selector', 'default'))
+
+
+def p_mail_health(ctx: Context, params: dict) -> dict:
+    return mailauth.check_mail_health(ctx, _str(params, 'domain'),
+                                      _list(params, 'selectors'))
+
+
+def p_mx(ctx: Context, params: dict) -> dict:
+    domain = clean_domain(_str(params, 'domain'))
+    rows = []
+    for pref, host in mx_hosts(ctx, domain):
+        entry = {'preference': pref, 'host': host, 'addresses': [],
+                 'reverse': []}
+        for rrtype in ('A', 'AAAA'):
+            try:
+                entry['addresses'].extend(query(ctx, host, rrtype).records)
+            except ProbeError:
+                pass
+        for address in entry['addresses']:
+            try:
+                names = query(ctx, reverse_name(address), 'PTR').records
+            except ProbeError:
+                names = []
+            entry['reverse'].append({'ip': address,
+                                     'names': [n.strip('.') for n in names]})
+        rows.append(entry)
+    return {'domain': domain, 'mx': rows}
+
+
+# ── Registry ──────────────────────────────────────────────────────────────────
+
+PROBES = {
+    'dns': p_dns,
+    'dns_all': p_dns_all,
+    'reverse': p_reverse,
+    'propagation': p_propagation,
+    'dnssec': p_dnssec,
+    'txt': p_txt,
+    'soa': p_soa,
+    'mx': p_mx,
+    'spf': p_spf,
+    'dkim': p_dkim,
+    'dmarc': p_dmarc,
+    'mta_sts': p_mta_sts,
+    'tls_rpt': p_tls_rpt,
+    'bimi': p_bimi,
+    'mail_health': p_mail_health,
+}
+
+# What the front end shows in the target field, per probe.
+TARGET_KIND = {
+    'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
+    'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'mx': 'domain',
+    'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
+    'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',
+    'mail_health': 'domain',
+}
+
+
+def run(name: str, params: dict, ctx: Context) -> dict:
+    fn = PROBES.get(name)
+    if fn is None:
+        raise ProbeError('unknown_probe', str(name)[:40])
+    if not isinstance(params, dict):
+        raise ProbeError('bad_params')
+    return fn(ctx, params)
+
+
+# Re-exported so app.py does not have to reach into two modules.
+__all__ = ['PROBES', 'PUBLIC_RESOLVERS', 'TARGET_KIND', 'run', 'Context',
+           'ProbeError', 'clean_host_or_ip']

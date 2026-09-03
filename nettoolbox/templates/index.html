@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ t.app_title }}</title>
+<meta name="theme-color" content="#0d1117">
+<link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<style>
+:root { --bg:#0d1117; --surf:#161b22; --surf2:#1c2128; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --green:#238636; --green-h:#2ea043; --red:#f85149; --amber:#d29922; --blue:#58a6ff; }
+[data-theme="light"] { --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e; --amber:#9a6700; --blue:#0969da; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: var(--bg); color: var(--text); font-size: 0.9rem; min-height: 100vh; }
+a { color: var(--accent); }
+header { background: var(--surf); border-bottom: 1px solid var(--border);
+         padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 20; }
+.logo-row { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+.logo { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+.version { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border);
+        border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.ok .dot { background: var(--green-h); } .pill.ok { color: var(--green-h); border-color: var(--green-h); }
+.pill.bad .dot { background: var(--red); } .pill.bad { color: var(--red); border-color: var(--red); }
+.btn { background: var(--surf2); border: 1px solid var(--border); color: var(--text);
+       padding: 5px 10px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--green); border-color: var(--green-h); color: #fff; font-weight: 600; }
+.btn.primary:hover { background: var(--green-h); }
+.btn:disabled { opacity: .5; cursor: default; }
+.lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 8px;
+            border-radius: 4px; font-size: 0.75rem; text-decoration: none; }
+.lang-btn.active { border-color: var(--accent); color: var(--accent); }
+.theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px;
+             border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; }
+.theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+.icon-moon { display: block; } .icon-sun { display: none; }
+[data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+nav { display: flex; gap: 2px; padding: 0 16px; background: var(--surf); border-bottom: 1px solid var(--border);
+      overflow-x: auto; position: sticky; top: 49px; z-index: 19; }
+nav button { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted);
+             padding: 10px 12px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s; }
+nav button svg { width: 15px; height: 15px; fill: currentColor; opacity: .85; flex: none; }
+nav button:hover { color: var(--text); }
+nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+section { display: none; }
+section.active { display: block; animation: fadein .18s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+h2 { font-size: 1rem; margin-bottom: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+h2 svg { width: 17px; height: 17px; fill: var(--accent); flex: none; }
+h3 { font-size: 0.87rem; color: var(--text); margin-bottom: 8px; font-weight: 600; }
+.card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 14px;
+        transition: border-color .15s, box-shadow .15s; }
+.card:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--accent)); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grow { flex: 1 1 220px; }
+label.field { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
+input[type="text"], select {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 10px; border-radius: 6px; font-size: 0.87rem;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+.hint { font-size: 0.76rem; color: var(--muted); margin-top: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .03em; }
+tr:last-child td { border-bottom: none; }
+.mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.82rem; word-break: break-all; }
+.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600; }
+.badge.ok { background: rgba(35,134,54,.15); color: var(--green-h); }
+.badge.info { background: rgba(88,166,255,.15); color: var(--blue); }
+.badge.warn { background: rgba(210,153,34,.15); color: var(--amber); }
+.badge.fail { background: rgba(248,81,73,.15); color: var(--red); }
+.finding-list { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+.finding-list li { display: flex; gap: 8px; align-items: baseline; font-size: 0.83rem;
+                    border-left: 2px solid var(--border); padding: 2px 0 2px 9px; }
+.finding-list li:has(.badge.ok) { border-left-color: var(--green-h); }
+.finding-list li:has(.badge.warn) { border-left-color: var(--amber); }
+.finding-list li:has(.badge.fail) { border-left-color: var(--red); }
+.finding-list li:has(.badge.info) { border-left-color: var(--blue); }
+.score-ring { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+.score-donut { position: relative; width: 84px; height: 84px; border-radius: 50%; flex: none;
+               background: conic-gradient(var(--ring, var(--accent)) calc(var(--pct, 0) * 3.6deg), var(--border) 0); }
+.score-donut::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: var(--surf); }
+.score-donut .score-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                           font-size: 1.5rem; font-weight: 700; z-index: 1; }
+.score-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+.result-empty { color: var(--muted); font-size: 0.85rem; padding: 8px 0; }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent);
+           border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.subgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 10px; margin-top: 10px; }
+.subcard { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surf2);
+           transition: border-color .15s; }
+.subcard:hover { border-color: color-mix(in srgb, var(--border) 30%, var(--accent)); }
+.subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 0.8rem; }
+.kv span:first-child { color: var(--muted); }
+.toast-wrap { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+.toast { background: var(--surf); border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px;
+         font-size: 0.82rem; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.toast.bad { border-color: var(--red); color: var(--red); }
+.record-code { background: var(--surf2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+               font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted); }
+footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size: 0.75rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo-row">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm-4 7a4 4 0 1 1 8 0 4 4 0 0 1-8 0z"/></svg>
+    <div class="logo">{{ t.app_title }}</div>
+    <span class="version">{{ version }}</span>
+  </div>
+  <span class="pill" id="backendPill"><span class="dot"></span><span id="backendLabel">…</span></span>
+  <a href="{{ url_for('set_lang', lang='de', next=request.path) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+  <a href="{{ url_for('set_lang', lang='en', next=request.path) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+  <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="theme">
+    <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+    <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+  </button>
+  {% if not ingress %}<a class="btn" href="{{ url_for('logout') }}">{{ t.logout }}</a>{% endif %}
+</header>
+
+<nav id="tabs">
+  <button data-tab="dns" class="active"><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.nav_dns }}</button>
+  <button data-tab="mail"><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.nav_mail }}</button>
+  <button data-tab="propagation"><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.nav_propagation }}</button>
+  <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
+  <button data-tab="dnssec"><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/></svg>{{ t.nav_dnssec }}</button>
+  <button data-tab="history"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.nav_history }}</button>
+</nav>
+
+<main>
+
+<section id="tab-dns" class="active">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.dns_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="dnsName">{{ t.field_name }}</label>
+        <input type="text" id="dnsName" placeholder="example.com" autocomplete="off">
+      </div>
+      <div style="width:120px">
+        <label class="field" for="dnsType">{{ t.field_type }}</label>
+        <select id="dnsType">
+          {% for rr in rr_types %}<option value="{{ rr }}">{{ rr }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="dnsRun">{{ t.action_lookup }}</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="dnsRunAll">{{ t.action_lookup_all }}</button>
+      <button class="btn" id="dnsRunTxt">TXT</button>
+      <button class="btn" id="dnsRunSoa">SOA / {{ t.field_nameservers }}</button>
+    </div>
+    <div id="dnsResult"></div>
+  </div>
+</section>
+
+<section id="tab-mail">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.mail_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="mailDomain">{{ t.field_domain }}</label>
+        <input type="text" id="mailDomain" placeholder="example.com" autocomplete="off">
+      </div>
+      <div class="grow">
+        <label class="field" for="mailSelectors">{{ t.field_dkim_selectors }}</label>
+        <input type="text" id="mailSelectors" placeholder="default, google" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="mailRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.mail_hint }}</p>
+    <div id="mailResult"></div>
+  </div>
+</section>
+
+<section id="tab-propagation">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.propagation_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="propName">{{ t.field_name }}</label>
+        <input type="text" id="propName" placeholder="example.com" autocomplete="off">
+      </div>
+      <div style="width:120px">
+        <label class="field" for="propType">{{ t.field_type }}</label>
+        <select id="propType">
+          {% for rr in ['A','AAAA','MX','NS','TXT','CAA'] %}<option value="{{ rr }}">{{ rr }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="propRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div id="propResult"></div>
+  </div>
+</section>
+
+<section id="tab-reverse">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.reverse_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="revIp">{{ t.field_ip }}</label>
+        <input type="text" id="revIp" placeholder="203.0.113.10" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="revRun">{{ t.action_lookup }}</button>
+      </div>
+    </div>
+    <div id="revResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.mx_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="mxDomain">{{ t.field_domain }}</label>
+        <input type="text" id="mxDomain" placeholder="example.com" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="mxRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div id="mxResult"></div>
+  </div>
+</section>
+
+<section id="tab-dnssec">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/></svg>{{ t.dnssec_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="secName">{{ t.field_name }}</label>
+        <input type="text" id="secName" placeholder="example.com" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="secRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div id="secResult"></div>
+  </div>
+</section>
+
+<section id="tab-history">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin-bottom:0"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.history_title }}</h2>
+      <button class="btn" id="historyClear">{{ t.action_clear }}</button>
+    </div>
+    <div id="historyResult"><p class="result-empty">{{ t.loading }}</p></div>
+  </div>
+</section>
+
+</main>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const T = {{ t|tojson }};
+const G = {
+  base: {{ request.script_root|tojson }},
+  csrf: {{ csrf|tojson }},
+  lang: {{ lang|tojson }}
+};
+
+(function () {
+  let theme = localStorage.getItem('nt-theme');
+  if (!theme) {
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+function toggleTheme(){
+  const n = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', n);
+  localStorage.setItem('nt-theme', n);
+}
+
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;
+  return n;
+}
+
+function showLoading(box){
+  box.innerHTML = '';
+  box.appendChild(el('p', 'result-empty', ''));
+  box.lastChild.innerHTML = '<span class="spinner"></span> ' + T.loading;
+}
+
+function toast(msg, bad){
+  const n = el('div', 'toast' + (bad ? ' bad' : ''), msg);
+  $('toasts').appendChild(n);
+  setTimeout(() => n.remove(), 6000);
+}
+
+function errText(code){
+  const key = 'err_' + String(code || '').replace(/[^a-z_]/gi, '_');
+  return T[key] || T.err_generic || code;
+}
+
+async function api(path, opts){
+  opts = opts || {};
+  const res = await fetch(G.base + path, {
+    method: opts.method || 'GET',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': G.csrf },
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) {
+    const e = new Error('api');
+    e.code = (data && data.error) || 'internal';
+    throw e;
+  }
+  return data || {};
+}
+
+async function runProbe(name, params, target, button){
+  if (button) { button.disabled = true; }
+  try {
+    const data = await api('/api/probe', { method: 'POST', body: { probe: name, params: params } });
+    return data;
+  } catch (e) {
+    toast(errText(e.code), true);
+    throw e;
+  } finally {
+    if (button) { button.disabled = false; }
+  }
+}
+
+// ── Status pill ─────────────────────────────────────────────────────────────
+
+async function loadStatus(){
+  try {
+    const data = await api('/api/status');
+    const pill = $('backendPill');
+    const ok = data.backend && data.backend.ok;
+    pill.className = 'pill ' + (ok ? 'ok' : 'bad');
+    const label = data.backend && data.backend.kind === 'remote'
+      ? (ok ? T.status_worker_connected : T.status_worker_down)
+      : (ok ? T.status_local : T.status_local);
+    $('backendLabel').textContent = label;
+  } catch (e) {
+    $('backendLabel').textContent = T.status_unknown || '?';
+  }
+}
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('#tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('main section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'history') loadHistory();
+  });
+});
+
+// ── Findings / badges ─────────────────────────────────────────────────────
+
+function levelBadge(level){
+  const b = el('span', 'badge ' + (level || 'info'), (T['level_' + level] || level || ''));
+  return b;
+}
+
+function findingText(f){
+  const key = 'f_' + f.code;
+  let text = T[key] || f.code;
+  if (f.args) {
+    Object.keys(f.args).forEach(k => {
+      let v = f.args[k];
+      if (Array.isArray(v)) v = v.join(', ');
+      text = text.split('{' + k + '}').join(v);
+    });
+  }
+  return text;
+}
+
+function renderFindings(findings){
+  const ul = el('ul', 'finding-list');
+  (findings || []).forEach(f => {
+    const li = el('li');
+    li.appendChild(levelBadge(f.level));
+    li.appendChild(el('span', '', findingText(f)));
+    ul.appendChild(li);
+  });
+  return ul;
+}
+
+function recordsTable(records, ttl){
+  if (!records || !records.length) return el('p', 'result-empty', T.no_records);
+  const table = el('table');
+  const thead = el('thead');
+  const trh = el('tr');
+  trh.appendChild(el('th', '', T.field_value));
+  if (ttl !== undefined) trh.appendChild(el('th', '', 'TTL'));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  records.forEach(r => {
+    const tr = el('tr');
+    tr.appendChild(el('td', 'mono', r));
+    if (ttl !== undefined) tr.appendChild(el('td', '', String(ttl)));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+// ── DNS tab ───────────────────────────────────────────────────────────────
+
+async function dnsLookup(){
+  const name = $('dnsName').value.trim();
+  const type = $('dnsType').value;
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('dns', { name: name, type: type }, name, $('dnsRun'));
+    const r = data.result;
+    const wrap = el('div');
+    const meta = el('div', 'row', '');
+    meta.appendChild(el('span', 'chip', r.nameserver || ''));
+    meta.appendChild(el('span', 'chip', r.dnssec ? T.dnssec_ad : T.dnssec_no_ad));
+    meta.appendChild(el('span', 'chip', r.ms + ' ms'));
+    wrap.appendChild(meta);
+    wrap.appendChild(recordsTable(r.records, r.ttl));
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dnsLookupAll(){
+  const name = $('dnsName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('dns_all', { name: name }, name, $('dnsRunAll'));
+    const r = data.result;
+    const grid = el('div', 'subgrid');
+    r.sets.forEach(s => {
+      const c = el('div', 'subcard');
+      const h = el('h4');
+      h.appendChild(el('span', '', s.type));
+      h.appendChild(el('span', 'chip', s.records.length + ''));
+      c.appendChild(h);
+      if (!s.records.length) { c.appendChild(el('p', 'result-empty', T.no_records)); }
+      else { s.records.forEach(rec => c.appendChild(el('div', 'mono', rec))); }
+      grid.appendChild(c);
+    });
+    box.appendChild(grid);
+    if (r.errors && r.errors.length) {
+      const p = el('p', 'hint');
+      p.textContent = r.errors.map(e => e.type + ': ' + errText(e.code)).join(' · ');
+      box.appendChild(p);
+    }
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dnsLookupTxt(){
+  const name = $('dnsName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('txt', { name: name }, name, $('dnsRunTxt'));
+    box.appendChild(recordsTable(data.result.records));
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dnsLookupSoa(){
+  const name = $('dnsName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('soa', { name: name }, name, $('dnsRunSoa'));
+    const r = data.result;
+    const wrap = el('div');
+    if (r.soa && r.soa.length) {
+      const pre = el('div', 'record-code', r.soa[0]);
+      wrap.appendChild(pre);
+    }
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_nameservers, T.field_serial, ''].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    (r.nameservers || []).forEach(ns => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', ns.host));
+      tr.appendChild(el('td', '', ns.error ? errText(ns.error) : String(ns.serial)));
+      tr.appendChild(el('td', '', ns.error ? '' : (ns.serial ? '' : '')));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    const status = el('p', 'hint', r.in_sync ? T.soa_in_sync : T.soa_out_of_sync);
+    wrap.appendChild(status);
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('dnsRun').addEventListener('click', dnsLookup);
+$('dnsRunAll').addEventListener('click', dnsLookupAll);
+$('dnsRunTxt').addEventListener('click', dnsLookupTxt);
+$('dnsRunSoa').addEventListener('click', dnsLookupSoa);
+$('dnsName').addEventListener('keydown', e => { if (e.key === 'Enter') dnsLookup(); });
+
+// ── Mail health tab ─────────────────────────────────────────────────────────
+
+function mailSubcard(title, part){
+  const c = el('div', 'subcard');
+  const h = el('h4');
+  h.appendChild(el('span', '', title));
+  h.appendChild(levelBadge(part.level));
+  c.appendChild(h);
+  if (part.record) c.appendChild(el('div', 'record-code', part.record));
+  c.appendChild(renderFindings(part.findings));
+  return c;
+}
+
+async function mailCheck(){
+  const domain = $('mailDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const selectors = $('mailSelectors').value.split(',').map(s => s.trim()).filter(Boolean);
+  const box = $('mailResult'); box.innerHTML = '<p class="result-empty"><span class="spinner"></span> ' + T.loading + '</p>';
+  try {
+    const data = await runProbe('mail_health', { domain: domain, selectors: selectors }, domain, $('mailRun'));
+    const r = data.result;
+    box.innerHTML = '';
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.mail_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    box.appendChild(score);
+
+    if (r.mx && r.mx.length) {
+      const h = el('h3', '', T.field_mx);
+      box.appendChild(h);
+      const table = el('table');
+      const thead = el('thead');
+      const trh = el('tr');
+      [T.field_priority, T.field_host, T.field_ip].forEach(x => trh.appendChild(el('th', '', x)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody');
+      r.mx.forEach(m => {
+        const tr = el('tr');
+        tr.appendChild(el('td', '', String(m.preference)));
+        tr.appendChild(el('td', 'mono', m.host));
+        tr.appendChild(el('td', 'mono', (m.addresses || []).join(', ')));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      box.appendChild(table);
+    }
+
+    const grid = el('div', 'subgrid');
+    grid.appendChild(mailSubcard('SPF', r.parts.spf));
+    grid.appendChild(mailSubcard('DKIM', r.parts.dkim));
+    grid.appendChild(mailSubcard('DMARC', r.parts.dmarc));
+    grid.appendChild(mailSubcard('MTA-STS', r.parts.mta_sts));
+    grid.appendChild(mailSubcard('TLS-RPT', r.parts.tls_rpt));
+    grid.appendChild(mailSubcard('BIMI', r.parts.bimi));
+    box.appendChild(grid);
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  }
+}
+
+$('mailRun').addEventListener('click', mailCheck);
+$('mailDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mailCheck(); });
+
+// ── Propagation tab ─────────────────────────────────────────────────────────
+
+async function propCheck(){
+  const name = $('propName').value.trim();
+  const type = $('propType').value;
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('propResult'); showLoading(box);
+  try {
+    const data = await runProbe('propagation', { name: name, type: type }, name, $('propRun'));
+    const r = data.result;
+    const banner = el('p', 'hint', r.consistent ? T.prop_consistent : T.prop_inconsistent);
+    box.appendChild(banner);
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_resolver, T.field_value, 'ms'].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', row.label + ' (' + row.server + ')'));
+      const td = el('td', 'mono', row.error ? errText(row.error) : (row.records.join(', ') || T.no_records));
+      tr.appendChild(td);
+      tr.appendChild(el('td', '', row.error ? '' : String(row.ms)));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('propRun').addEventListener('click', propCheck);
+$('propName').addEventListener('keydown', e => { if (e.key === 'Enter') propCheck(); });
+
+// ── Reverse DNS tab ───────────────────────────────────────────────────────
+
+async function revCheck(){
+  const ip = $('revIp').value.trim();
+  if (!ip) { toast(T.err_empty_target, true); return; }
+  const box = $('revResult'); showLoading(box);
+  try {
+    const data = await runProbe('reverse', { ip: ip }, ip, $('revRun'));
+    const r = data.result;
+    const wrap = el('div');
+    wrap.appendChild(el('p', 'hint', (r.confirmed ? T.rev_confirmed : T.rev_unconfirmed) +
+      (r.public ? '' : (' · ' + T.rev_private))));
+    if (!r.hosts.length) { wrap.appendChild(el('p', 'result-empty', T.no_records)); }
+    r.hosts.forEach(h => {
+      const c = el('div', 'subcard');
+      const hd = el('h4');
+      hd.appendChild(el('span', 'mono', h.host));
+      hd.appendChild(el('span', 'badge ' + (h.confirmed ? 'ok' : 'warn'), h.confirmed ? T.rev_match : T.rev_mismatch));
+      c.appendChild(hd);
+      c.appendChild(el('div', 'mono', (h.addresses || []).join(', ') || T.no_records));
+      wrap.appendChild(c);
+    });
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function mxCheck(){
+  const domain = $('mxDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('mxResult'); showLoading(box);
+  try {
+    const data = await runProbe('mx', { domain: domain }, domain, $('mxRun'));
+    const r = data.result;
+    if (!r.mx.length) { box.appendChild(el('p', 'result-empty', T.no_records)); return; }
+    r.mx.forEach(m => {
+      const c = el('div', 'subcard');
+      const hd = el('h4');
+      hd.appendChild(el('span', 'mono', m.host));
+      hd.appendChild(el('span', 'chip', String(m.preference)));
+      c.appendChild(hd);
+      m.reverse.forEach(rv => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', '', rv.ip));
+        row.appendChild(el('span', 'mono', (rv.names || []).join(', ') || T.no_records));
+        c.appendChild(row);
+      });
+      box.appendChild(c);
+    });
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('revRun').addEventListener('click', revCheck);
+$('revIp').addEventListener('keydown', e => { if (e.key === 'Enter') revCheck(); });
+$('mxRun').addEventListener('click', mxCheck);
+$('mxDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mxCheck(); });
+
+// ── DNSSEC tab ────────────────────────────────────────────────────────────
+
+async function secCheck(){
+  const name = $('secName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('secResult'); showLoading(box);
+  try {
+    const data = await runProbe('dnssec', { name: name }, name, $('secRun'));
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.signed ? 'ok' : 'warn'), r.signed ? T.dnssec_signed : T.dnssec_unsigned));
+    badges.appendChild(el('span', 'badge ' + (r.validated ? 'ok' : 'info'), r.validated ? T.dnssec_validated : T.dnssec_not_validated));
+    wrap.appendChild(badges);
+    if (r.ds && r.ds.length) {
+      wrap.appendChild(el('h3', '', 'DS'));
+      wrap.appendChild(recordsTable(r.ds));
+    }
+    wrap.appendChild(el('p', 'hint', T.field_dnskey_count + ': ' + r.dnskey_count));
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('secRun').addEventListener('click', secCheck);
+$('secName').addEventListener('keydown', e => { if (e.key === 'Enter') secCheck(); });
+
+// ── History tab ───────────────────────────────────────────────────────────
+
+async function loadHistory(){
+  const box = $('historyResult');
+  box.innerHTML = '<p class="result-empty">' + T.loading + '</p>';
+  try {
+    const data = await api('/api/history');
+    box.innerHTML = '';
+    if (!data.rows.length) { box.appendChild(el('p', 'result-empty', T.history_empty)); return; }
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_time, T.field_probe, T.field_target, T.field_result, T.field_backend].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    data.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', new Date(row.ts * 1000).toLocaleString()));
+      tr.appendChild(el('td', '', row.probe));
+      tr.appendChild(el('td', 'mono', row.target));
+      const td = el('td'); td.appendChild(levelBadge(row.level)); tr.appendChild(td);
+      tr.appendChild(el('td', '', row.backend));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('historyClear').addEventListener('click', async () => {
+  try { await api('/api/history/clear', { method: 'POST' }); loadHistory(); }
+  catch (e) { toast(errText(e.code), true); }
+});
+
+loadStatus();
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

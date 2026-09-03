@@ -1,0 +1,58 @@
+configuration:
+  username:
+    name: Username
+    description: Username for signing in on the direct port. The Home Assistant sidebar never asks for credentials.
+  password:
+    name: Password
+    description: Password for signing in on the direct port. Change it — the default changeme123 is public knowledge.
+  session_hours:
+    name: Session duration (hours)
+    description: How long a login stays valid before signing in again is required.
+  worker_url:
+    name: Root-server worker — address
+    description: >-
+      Address of a second NetToolbox instance (for example on a root server with a fixed IPv4)
+      that this instance hands its probes to — e.g. https://tools.example.com. Leave empty to
+      probe locally instead, with the limits of a typical home connection (port 25 usually
+      blocked, some blocklists refuse public resolvers).
+  worker_token:
+    name: Root-server worker — access token
+    description: Must match the target instance's worker_token. Also enable worker_enabled there.
+  worker_tls_verify:
+    name: Root-server worker — verify TLS certificate
+    description: Only disable for an https address with a self-signed certificate.
+  worker_enabled:
+    name: Act as a worker for other instances
+    description: >-
+      Exposes the /worker/info and /worker/probe endpoints. Only enable with a strong, random
+      worker_token — anyone holding a valid token can use this instance to run DNS and HTTP
+      probes.
+  resolvers:
+    name: DNS resolvers
+    description: >-
+      Up to eight resolver addresses used for ordinary lookups. Defaults to Quad9 and Cloudflare.
+      For blocklist and DNSSEC lookups a recursive resolver of your own (e.g. unbound) on the
+      same machine pays off.
+  dns_timeout:
+    name: DNS timeout (seconds)
+    description: How long to wait for a name server's answer.
+  http_timeout:
+    name: HTTP timeout (seconds)
+    description: How long to wait for a web server's answer (MTA-STS policy, BIMI logo).
+  allow_private_targets:
+    name: Allow private addresses
+    description: >-
+      Allows probes against addresses on your own network (10.x, 192.168.x, 172.16-31.x,
+      localhost). Disabled, this stops NetToolbox from being used as an open scanning proxy into
+      your LAN. Only enable when deliberately checking your own network.
+  rate_limit_per_min:
+    name: Probes per minute
+    description: Upper bound on probes per minute, whether requested through the UI or as a worker. 0 removes the limit.
+  history_size:
+    name: History — entry count
+    description: How many past probes are kept in the history. 0 disables history.
+  verbose_log:
+    name: Verbose logging
+    description: Writes extra lines to the add-on log. For troubleshooting only.
+network:
+  17798/tcp: NetToolbox web UI (direct, sign-in required)
