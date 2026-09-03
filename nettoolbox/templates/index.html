@@ -405,13 +405,13 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <div class="grow">
         <label class="field" for="monTarget">{{ t.field_target }}</label>
         <input type="text" id="monTarget" placeholder="example.com" autocomplete="off">
-        <div class="hint" id="monTargetHint" hidden>{{ t.monitor_aaaa_hint }}</div>
       </div>
       <div style="width:110px">
         <label class="field" for="monInterval">{{ t.field_interval_hours }}</label>
         <input type="text" id="monInterval" value="6" inputmode="numeric">
       </div>
     </div>
+    <div class="hint" id="monTargetHint" hidden>{{ t.monitor_aaaa_hint }}</div>
     <div class="row" style="margin-top:8px; align-items:center">
       <label style="display:flex; align-items:center; gap:5px; font-size:0.82rem">
         <input type="checkbox" id="monEmail" checked> {{ t.field_notify_email }}

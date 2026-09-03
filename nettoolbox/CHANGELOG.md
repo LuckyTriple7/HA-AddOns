@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11] - 2026-09-03
+
+### Fixed
+- **Monitor-Formular: Zeile verrutscht.** Der neue AAAA-Hinweistext saß innerhalb der Ziel-Spalte,
+  machte sie dadurch höher als Name/Prüfung/Intervall — bei `align-items:center` auf der Zeile
+  wurden die kürzeren Spalten dagegen zentriert, sichtbar als versetzte Labels. Hinweis jetzt als
+  eigene volle Zeile unter dem ganzen Formular statt in der Ziel-Spalte.
+
 ## [0.1.10] - 2026-09-03
 
 ### Added
