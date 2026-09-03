@@ -457,6 +457,25 @@
     .set-warn { color:var(--bad, #ef4444); }
     .modal h2 { font-size:var(--fs-lg); margin-bottom:4px; }
     .modal .sub { font-size:var(--fs-sm); color:var(--muted); margin-bottom:14px; }
+    /* Nextcloud-Kontakte im E-Mail-Dialog: Name und Adresse in je einer Zeile,
+       tippen im Feld filtert, Pfeiltasten waehlen. */
+    .nc-box { margin-top:8px; }
+    .nc-head { display:flex; gap:6px; align-items:center; }
+    .nc-toggle { flex:1; text-align:left; background:none; border:none; padding:4px 2px;
+                 color:var(--muted); font-size:var(--fs-sm); cursor:pointer; }
+    .nc-toggle:hover { color:var(--text); }
+    .nc-reload { background:none; border:none; color:var(--muted); font-size:var(--fs-md);
+                 cursor:pointer; padding:2px 6px; line-height:1; }
+    .nc-reload:hover { color:var(--text); }
+    .nc-list { max-height:210px; overflow-y:auto; margin-top:4px; border:1px solid var(--border);
+               border-radius:var(--r-ui); background:var(--surf2); }
+    .nc-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline;
+              padding:6px 10px; cursor:pointer; border-bottom:1px solid var(--border); }
+    .nc-row:last-child { border-bottom:none; }
+    .nc-row:hover, .nc-row.sel { background:var(--surf); }
+    .nc-name { font-size:var(--fs-sm); font-weight:600; }
+    .nc-mail { font-size:var(--fs-xs); color:var(--muted); overflow-wrap:anywhere; }
+    .nc-none { padding:8px 10px; font-size:var(--fs-sm); color:var(--muted); }
     #hist-canvas { width:100%; height:300px; display:block; }
     .chart-tip { position:absolute; transform:translateX(-50%); top:6px; pointer-events:none; z-index:5; background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); padding:5px 8px; font-size:var(--fs-xs); max-width:240px; box-shadow:0 4px 12px rgba(0,0,0,.3); }
     .chart-tip .tt-date { color:var(--muted); font-size:var(--fs-2xs); }
@@ -1671,9 +1690,23 @@
       </button>
       <h2>Als E-Mail senden</h2>
       <div class="sub">Adresse eingeben oder aus dem Nextcloud-Adressbuch wählen.</div>
-      <input type="email" id="email-to" list="nc-contacts" placeholder="E-Mail-Adresse"
-             style="width:100%;margin-top:10px" onkeydown="if(event.key==='Enter')submitEmail()">
-      <datalist id="nc-contacts"></datalist>
+      <!-- data-*-ignore: Bitwarden/1Password/LastPass legen sonst ihr Ausfuell-Overlay
+           ueber das Feld und verdecken jede Vorschlagsliste. -->
+      <input type="email" id="email-to" placeholder="E-Mail-Adresse" autocomplete="off"
+             data-bwignore="true" data-lpignore="true" data-1p-ignore
+             style="width:100%;margin-top:10px" oninput="ncFilter()" onkeydown="ncKey(event)">
+      <!-- Eigene Kontaktliste statt <datalist>: Firefox zeigt in einem datalist nur
+           den `value` (die Adresse), nie den Namen aus dem Option-Text — und blendet
+           die Vorschlaege ganz aus, sobald das Feld schon gefuellt ist (Standard-
+           Empfaenger). Das Adressbuch war dort praktisch unsichtbar. -->
+      <div id="nc-box" class="nc-box" hidden>
+        <div class="nc-head">
+          <button type="button" class="nc-toggle" id="nc-toggle" onclick="ncToggle()"></button>
+          <button type="button" class="nc-reload" title="Kontakte neu laden"
+                  onclick="ncReload()">↻</button>
+        </div>
+        <div id="nc-list" class="nc-list" hidden></div>
+      </div>
       <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
         <button class="btn sec" onclick="closeEmailModal()">Abbrechen</button>
         <button class="btn" onclick="submitEmail()">Senden</button>

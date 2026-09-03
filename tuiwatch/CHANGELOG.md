@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.113.17
+
+- 📇 **Das Nextcloud-Adressbuch ist wieder sichtbar — und benutzbar.** Die Empfängerauswahl hing an einem `<datalist>`, und das ist in Firefox praktisch unbrauchbar: Dort erscheint nur die **Adresse**, nie der Name, und sobald im Feld schon ein Standard-Empfänger steht, zeigt Firefox gar keine Vorschläge mehr. Dazu legen Passwortmanager wie Bitwarden ihr Ausfüll-Overlay über genau dieses Feld. Neu steht die Kontaktliste als eigener, aufklappbarer Block **unter** dem Eingabefeld — unabhängig von Browser-Eigenheiten und Overlays.
+- 🔎 **Übersichtlich statt Rateliste:** je Zeile **Name** und **Adresse**, Tippen filtert nach beidem („peter" findet Peter Beispiel ebenso wie peter@…), die Kopfzeile zeigt „3 Kontakte" bzw. „1 von 3 passen". Pfeiltasten wählen aus, Enter übernimmt den markierten Kontakt (ohne Auswahl sendet Enter wie bisher), Esc klappt zu, `↻` lädt das Adressbuch neu.
+- 🙈 Der Block erscheint nur, wenn ein Adressbuch hinterlegt ist. Ist es hinterlegt, kam aber nichts an, bleibt er sichtbar und sagt das — vorher war ein fehlgeschlagener Abruf nicht von „kein Adressbuch eingerichtet" zu unterscheiden.
+- ✅ 8 Tests plus ein Durchlauf im echten Browser (Aufklappen, Filtern, Klick-Auswahl, Pfeiltasten + Enter).
+
 ## 0.113.16
 
 - 📧📇 **Der API-Status prüft jetzt auch Mailserver und Nextcloud-Adressbuch.** Bisher testete der Selbsttest nur die TUI-Endpunkte — dass der Mailversand oder das Adressbuch klemmt, fiel erst auf, wenn eine Mail ausblieb oder die Empfängerliste leer war. Neu stehen im Dialog „API-Status" zwei weitere Zeilen, sobald die Dienste eingerichtet sind: **Mailserver (SMTP)** (verbindet sich, verhandelt STARTTLS/SSL und meldet sich an — ohne eine Mail zu verschicken) und **Nextcloud-Adressbuch** (fragt nur die Eigenschaften des Adressbuchs ab, lädt also nicht alle Kontakte). Beide sind bewusst **nicht kritisch**: ein toter Mailserver zieht weder den Sensor `binary_sensor.tuiwatch_api_available` auf „off" noch löst er den API-Alarm aus, die Ampel im Fuß zeigt ihn aber als Hinweis.

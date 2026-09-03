@@ -7726,11 +7726,7 @@
       let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
       if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return false; }
       $('#email-to').value = localStorage.getItem('tw-mailto') || cfg.default_to || '';
-      try {
-        const c = await fetch(api('/api/contacts')).then(r=>r.json());
-        $('#nc-contacts').innerHTML = (c.contacts||[])
-          .map(k=>`<option value="${esc(k.email)}">${esc(k.name)}</option>`).join('');
-      } catch(e){ $('#nc-contacts').innerHTML = ''; }
+      await ncLoad(false);
       // über anderen Modals (z.B. Reisen-Zusammenfassung) geöffnet -> gleicher
       // z-index wie alle .modal-bg, DOM-Reihenfolge würde sonst dahinter landen
       $('#email-bg').style.zIndex = 60;
@@ -7758,6 +7754,114 @@
       await _openEmailModalCommon();
     }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); $('#email-bg').style.zIndex = ''; }
+
+    // ── Nextcloud-Kontakte im E-Mail-Dialog ─────────────────────────────────
+    // Bewusst eine eigene Liste statt <datalist>: Firefox zeigt dort nur den
+    // `value` (die Adresse), nie den Namen, und unterdrueckt die Vorschlaege
+    // ganz, wenn im Feld schon ein Standard-Empfaenger steht. Dazu legen sich
+    // Passwortmanager (Bitwarden) mit ihrem Overlay ueber das Feld. Eine sicht-
+    // bare Liste unter dem Feld ist von all dem unabhaengig.
+    let ncContacts = [];      // [{name, email}] aus /api/contacts
+    let ncConfigured = false; // Adressbuch in den Einstellungen hinterlegt?
+    let ncShown = [];         // aktuell angezeigte (gefilterte) Teilmenge
+    let ncSel = -1;           // Tastatur-Auswahl innerhalb von ncShown
+    let ncOpen = false;       // Liste aufgeklappt?
+
+    async function ncLoad(force){
+      const box = $('#nc-box');
+      try {
+        const c = await fetch(api('/api/contacts' + (force ? '?refresh=1' : ''))).then(r=>r.json());
+        ncConfigured = !!c.configured;
+        ncContacts = (ncConfigured && Array.isArray(c.contacts)) ? c.contacts : [];
+      } catch(e){ ncConfigured = false; ncContacts = []; }
+      // Kein Adressbuch hinterlegt: gar keinen Block zeigen, der Dialog bleibt fuer
+      // Freitext-Empfaenger so schlicht wie bisher. Hinterlegt, aber leer: Block
+      // bleibt sichtbar und sagt, dass nichts ankam — sonst sieht es aus wie "kein
+      // Adressbuch eingerichtet", obwohl nur der Abruf scheiterte.
+      box.hidden = !ncConfigured;
+      ncOpen = false;
+      ncFilter();
+    }
+
+    async function ncReload(){
+      $('#nc-toggle').textContent = 'Adressbuch wird geladen…';
+      await ncLoad(true);
+      if(!ncContacts.length) toast('Adressbuch nicht erreichbar — siehe API-Status');
+    }
+
+    function ncToggle(){
+      ncOpen = !ncOpen;
+      ncRender();
+    }
+
+    function ncFilter(){
+      const q = ($('#email-to').value || '').trim().toLowerCase();
+      ncShown = q ? ncContacts.filter(k =>
+        (k.name || '').toLowerCase().includes(q) || (k.email || '').toLowerCase().includes(q)) : ncContacts;
+      // Beim Tippen automatisch aufklappen, solange etwas passt — aber nicht,
+      // wenn die Eingabe bereits genau eine Adresse aus der Liste ist (dann ist
+      // die Auswahl erledigt und die Liste nur noch im Weg).
+      if(q && ncShown.length && !ncContacts.some(k => (k.email||'').toLowerCase() === q)) ncOpen = true;
+      ncSel = -1;
+      ncRender();
+    }
+
+    function ncRender(){
+      const list = $('#nc-list'), tog = $('#nc-toggle');
+      if(!list || !tog) return;
+      const total = ncContacts.length, shown = ncShown.length;
+      tog.textContent = !total
+        ? '📇 Adressbuch — keine Kontakte geladen (↻ erneut versuchen)'
+        : (ncOpen ? '▾ ' : '▸ ') + '📇 Adressbuch — '
+          + (shown === total ? total + ' Kontakte' : shown + ' von ' + total + ' passen');
+      if(!total){ list.hidden = true; return; }
+      list.hidden = !ncOpen;
+      if(!ncOpen) return;
+      list.innerHTML = shown
+        ? ncShown.map((k, i) => `<div class="nc-row${i===ncSel?' sel':''}" data-nc="${i}">`
+            + `<span class="nc-name">${esc(k.name || '(ohne Namen)')}</span>`
+            + `<span class="nc-mail">${esc(k.email)}</span></div>`).join('')
+        : '<div class="nc-none">Kein Kontakt passt zur Eingabe.</div>';
+    }
+
+    function ncPick(i){
+      const k = ncShown[i];
+      if(!k) return;
+      $('#email-to').value = k.email;
+      ncOpen = false;
+      ncSel = -1;
+      ncRender();
+      $('#email-to').focus();
+    }
+
+    function ncKey(e){
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        if(!ncShown.length) return;
+        e.preventDefault();
+        if(!ncOpen){ ncOpen = true; }
+        ncSel += (e.key === 'ArrowDown' ? 1 : -1);
+        if(ncSel < 0) ncSel = ncShown.length - 1;
+        if(ncSel >= ncShown.length) ncSel = 0;
+        ncRender();
+        const row = $('#nc-list').querySelector('.nc-row.sel');
+        if(row) row.scrollIntoView({block:'nearest'});
+        return;
+      }
+      if(e.key === 'Escape' && ncOpen){ e.preventDefault(); ncOpen = false; ncRender(); return; }
+      if(e.key === 'Enter'){
+        // Enter waehlt den markierten Kontakt, sonst sendet es wie bisher
+        if(ncOpen && ncSel >= 0){ e.preventDefault(); ncPick(ncSel); return; }
+        submitEmail();
+      }
+    }
+
+    // Delegation: die Zeilen entstehen bei jedem Filtern neu, einzeln gebundene
+    // Zuhoerer waeren danach verwaist. Adresse steht in data-nc als Index, nie
+    // als Text im onclick.
+    document.addEventListener('click', e => {
+      const row = e.target.closest && e.target.closest('#nc-list .nc-row');
+      if(row) ncPick(parseInt(row.dataset.nc, 10));
+    });
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
     async function submitEmail(){
       const to = $('#email-to').value;

@@ -1158,10 +1158,17 @@ landen dauerhaft im **KI-Verlauf**.
   Verbindung wieder da ist.
 - **Als E-Mail senden** — verschickt alle (oder markierte) Angebote als HTML-Mail;
   benötigt SMTP-Optionen. Der Empfänger-Dialog bietet optional ein **Nextcloud-
-  Adressbuch** (CardDAV) als Autocomplete an — dazu `nc_addressbook_url` (die volle
+  Adressbuch** (CardDAV) an — dazu `nc_addressbook_url` (die volle
   Adressbuch-URL, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet),
-  `nc_user` und `nc_app_password` in den Add-on-Optionen eintragen. Freitext bleibt
-  ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
+  `nc_user` und `nc_app_password` in den Einstellungen eintragen. Die Kontakte stehen
+  als aufklappbare Liste **unter** dem Eingabefeld: Name und Adresse je Zeile, Tippen
+  filtert nach beidem, Pfeiltasten wählen aus, Enter übernimmt (ohne Auswahl sendet
+  Enter wie bisher), `↻` lädt das Adressbuch neu. Freitext bleibt ohne Adressbuch
+  weiterhin möglich; ohne Konfiguration ändert sich nichts.
+  Bewusst **kein** `<datalist>` mehr: Firefox zeigt dort nur die Adresse, nie den
+  Namen, blendet die Vorschläge ganz aus, sobald ein Standard-Empfänger im Feld
+  steht, und Passwortmanager wie Bitwarden legen ihr Ausfüll-Overlay über das Feld —
+  das Adressbuch war dadurch praktisch unsichtbar.
 - **KI-Anzeige neben dem Logo** — läuft gerade eine KI-Anfrage, erscheint dort ein
   kreisendes KI-Symbol; bei mehreren gleichzeitig steht die Anzahl daneben. Ist die
   letzte fertig, blinkt es kurz grün und verschwindet dann von selbst. Ein Klick
