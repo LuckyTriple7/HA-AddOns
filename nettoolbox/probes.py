@@ -8,6 +8,7 @@ root server.
 
 import blocklists
 import mailauth
+import tlscheck
 from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
                      clean_ip, clean_rrtype, ip_is_public, mx_hosts,
                      query, reverse_name, txt_strings)
@@ -232,6 +233,10 @@ def p_blacklist(ctx: Context, params: dict) -> dict:
     return blocklists.check_blacklist(ctx, _str(params, 'ip'))
 
 
+def p_tls(ctx: Context, params: dict) -> dict:
+    return tlscheck.check_tls(ctx, _str(params, 'target'))
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 PROBES = {
@@ -244,6 +249,7 @@ PROBES = {
     'soa': p_soa,
     'mx': p_mx,
     'blacklist': p_blacklist,
+    'tls': p_tls,
     'spf': p_spf,
     'dkim': p_dkim,
     'dmarc': p_dmarc,
@@ -257,7 +263,7 @@ PROBES = {
 TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'mx': 'domain',
-    'blacklist': 'ip',
+    'blacklist': 'ip', 'tls': 'target',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',
     'mail_health': 'domain',

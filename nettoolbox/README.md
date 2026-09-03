@@ -16,6 +16,7 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **Propagation** — dieselbe Abfrage gegen acht öffentliche Resolver gleichzeitig
 - **Reverse-DNS / MX** — PTR mit Vorwärts-Abgleich, MX-Server mit Adressen und Reverse-Namen
 - **Sperrlisten** — eine IP gegen 15 öffentliche DNSBL/RBL parallel geprüft, mit Begründungstext
+- **SSL/TLS** — Zertifikatskette, Ablaufdatum, Hostname-Abdeckung, ausgehandelte TLS-Version
 - **DNSSEC** — DS/DNSKEY-Status, ob der Resolver die Antwort validiert (AD-Flag)
 - **Root-Server-Worker** — dieselbe Instanz kann als Ziel für eine zweite dienen: mit fester
   IPv4 und offenem Port 25 laufen Abfragen dort, wo Sperrlisten antworten und SMTP-Tests möglich

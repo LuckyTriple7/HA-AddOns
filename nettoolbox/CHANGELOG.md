@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.5] - 2026-09-03
+
+### Added
+- **SSL/TLS-Zertifikatsprüfung.** Neuer Reiter „SSL/TLS": verbindet sich zu Host (Vorgabe Port
+  443, auch host:port), prüft die Kette gegen den Systemspeicher, Ablaufdatum, SAN-Abdeckung und
+  ausgehandelte TLS-Version — reine Python-Stdlib (`ssl`-Modul), keine zusätzliche Abhängigkeit.
+  Live gegen echte Endpunkte getestet (github.com sowie expired/self-signed/wrong-host von
+  badssl.com) — alle vier Fälle korrekt erkannt, inklusive Grund. Bei nicht vertrauenswürdiger
+  Kette liefert `getpeercert()` in Python leer zurück (dokumentiertes Verhalten) — Protokoll,
+  Chiffre und der genaue Verify-Fehlergrund werden trotzdem angezeigt, nur die Zertifikatsfelder
+  selbst nicht; ehrlich als solches gekennzeichnet statt geraten.
+
+### Fixed
+- `bad_port` und `ipv6_unsupported` lieferten HTTP 502 statt 400 (fehlten in der
+  Fehler-Status-Zuordnung).
+
 ## [0.0.4] - 2026-09-03
 
 ### Fixed

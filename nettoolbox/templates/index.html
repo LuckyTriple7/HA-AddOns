@@ -135,6 +135,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   <button data-tab="propagation"><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.nav_propagation }}</button>
   <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
   <button data-tab="blacklist"><svg viewBox="0 0 24 24"><path d="M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M4,12C4,7.58 7.58,4 12,4C13.85,4 15.55,4.63 16.9,5.69L5.69,16.9C4.63,15.55 4,13.85 4,12M12,20C10.15,20 8.45,19.37 7.1,18.31L18.31,7.1C19.37,8.45 20,10.15 20,12C20,16.42 16.42,20 12,20Z"/></svg>{{ t.nav_blacklist }}</button>
+  <button data-tab="tls"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.nav_tls }}</button>
   <button data-tab="dnssec"><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/></svg>{{ t.nav_dnssec }}</button>
   <button data-tab="history"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.nav_history }}</button>
 </nav>
@@ -254,6 +255,23 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.blacklist_hint }}</p>
     <div id="rblResult"></div>
+  </div>
+</section>
+
+<section id="tab-tls">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.tls_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="tlsTarget">{{ t.field_host_port }}</label>
+        <input type="text" id="tlsTarget" placeholder="example.com oder example.com:8443" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="tlsRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.tls_hint }}</p>
+    <div id="tlsResult"></div>
   </div>
 </section>
 
@@ -774,6 +792,72 @@ async function rblCheck(){
 
 $('rblRun').addEventListener('click', rblCheck);
 $('rblIp').addEventListener('keydown', e => { if (e.key === 'Enter') rblCheck(); });
+
+// ── TLS tab ───────────────────────────────────────────────────────────────
+
+async function tlsCheck(){
+  const target = $('tlsTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('tlsResult'); showLoading(box);
+  try {
+    const data = await runProbe('tls', { target: target }, target, $('tlsRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.trusted ? 'ok' : 'fail'),
+      r.trusted ? T.tls_trusted_badge : T.tls_untrusted_badge));
+    if (r.protocol) badges.appendChild(el('span', 'chip', r.protocol));
+    if (r.cipher) badges.appendChild(el('span', 'chip', r.cipher + (r.cipher_bits ? ' · ' + r.cipher_bits + ' bit' : '')));
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.details_available) {
+      const grid = el('div', 'subgrid');
+      const c1 = el('div', 'subcard');
+      c1.appendChild(el('h4', '', T.field_certificate));
+      [[T.field_subject, r.subject], [T.field_issuer, r.issuer],
+       [T.field_serial, r.serial]].forEach(([label, value]) => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', '', label));
+        row.appendChild(el('span', 'mono', value || '—'));
+        c1.appendChild(row);
+      });
+      grid.appendChild(c1);
+
+      const c2 = el('div', 'subcard');
+      c2.appendChild(el('h4', '', T.field_validity));
+      [[T.field_not_before, r.not_before], [T.field_not_after, r.not_after],
+       [T.field_days_left, r.days_left === null ? '—' : String(r.days_left)]]
+        .forEach(([label, value]) => {
+          const row = el('div', 'kv');
+          row.appendChild(el('span', '', label));
+          row.appendChild(el('span', 'mono', value || '—'));
+          c2.appendChild(row);
+        });
+      grid.appendChild(c2);
+
+      if (r.san && r.san.length) {
+        const c3 = el('div', 'subcard');
+        c3.appendChild(el('h4', '', 'SAN'));
+        const chips = el('div', 'chips');
+        r.san.forEach(name => chips.appendChild(el('span', 'chip', name)));
+        c3.appendChild(chips);
+        grid.appendChild(c3);
+      }
+      wrap.appendChild(grid);
+    } else if (r.verify_error) {
+      wrap.appendChild(el('p', 'hint', T.tls_no_details + ' ' + r.verify_error));
+    }
+
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('tlsRun').addEventListener('click', tlsCheck);
+$('tlsTarget').addEventListener('keydown', e => { if (e.key === 'Enter') tlsCheck(); });
 
 // ── DNSSEC tab ────────────────────────────────────────────────────────────
 

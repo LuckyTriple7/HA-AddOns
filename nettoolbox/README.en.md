@@ -18,6 +18,7 @@ about your domains leaves your own infrastructure.
 - **Reverse DNS / MX** — PTR with forward confirmation, MX servers with addresses and reverse
   names
 - **Blocklists** — an IP checked against 15 public DNSBL/RBL lists in parallel, with reason text
+- **SSL/TLS** — certificate chain, expiry, hostname coverage, negotiated TLS version
 - **DNSSEC** — DS/DNSKEY status, whether the resolver validated the answer (AD flag)
 - **Root-server worker** — the same instance can act as a target for a second one: with a fixed
   IPv4 and an open port 25, lookups run where blocklists actually answer and SMTP tests are
