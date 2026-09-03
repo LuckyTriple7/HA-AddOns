@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.6.2] - 2026-09-03
+
+### Changed
+- **Die Übersicht ist neu aufgebaut.** Bisher standen in einer Reihe drei Zahlen
+  und zwei Balkenlisten nebeneinander — zwei Informationsdichten, zwischen denen
+  das Auge keinen Anker fand. Oben stehen jetzt vier Kennzahlen mit Symbol:
+  Alarme, aktive Sperren, Blocklisten-Updates und der Zustand der LAPI. Der
+  Zustand stand vorher nur in der kleinen Pille oben rechts, und ohne LAPI sind
+  alle Zahlen daneben von gestern.
+- **Der Verlauf ist ein richtiges Diagramm.** Statt gestapelter Streifen ohne
+  Achse: Y-Achse, Gitter, Legende und zwei Balken nebeneinander. Gestapelt
+  drückte ein Blocklisten-Abgleich mit zehntausend Einträgen jeden echten Alarm
+  auf zwei Bildpunkte. Dagegen hilft zusätzlich der Umschalter Linear/Symlog.
+  Der zweite Umschalter wechselt zwischen Tagen und den letzten 48 Stunden —
+  ein Tagesbalken verwischt, ob zweihundert Erkennungen über den Tag verteilt
+  kamen oder in zehn Minuten. Gezeichnet wird von Hand als SVG, ohne fremde
+  Bibliothek, die über Ingress nachgeladen werden müsste.
+- **Die Weltkarte färbt die Länder ein**, in fünf logarithmischen Stufen nach
+  Zahl der Erkennungen. Liegen dreihundert Punkte übereinander, sagte die Karte
+  bisher nichts mehr. Die Angriffsmarkierungen lassen sich abschalten, die Wahl
+  bleibt im Browser gespeichert.
+- **Balkenlisten zeigen einen eigenen Balken** statt eines Farbverlaufs hinter
+  dem Text — der war ab etwa zehn Prozent nicht mehr von Null zu unterscheiden.
+  Ein Umschalter stellt alle Listen zugleich von Anzahl auf Anteil. Länder
+  stehen mit Namen da, nicht mehr nur als zwei Buchstaben.
+- Ruhigere Kacheln: mehr Innenabstand, größerer Radius, weicher Schatten, und
+  Überschriften in Normalschrift statt in Großbuchstaben.
+
+### Added
+- **Häufigste Netze (AS)** als vierte Liste der Übersicht. Der Name des Netzes
+  steht in jedem angereicherten Alarm und sagt mehr als das Land: ein
+  Rechenzentrum ist keine Wohngegend.
+- `GET /api/history?bucket=hour` liefert den Verlauf in Stundenschritten;
+  das Archiv beantwortet ihn aus `created_ts`, ohne Archiv die LAPI.
+
 ## [0.6.1] - 2026-08-22
 
 ### Fixed

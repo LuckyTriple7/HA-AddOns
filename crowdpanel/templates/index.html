@@ -46,7 +46,7 @@
     section { display: none; }
     section.active { display: block; }
     h2 { font-size: 1rem; margin-bottom: 12px; font-weight: 600; }
-    h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    h3 { font-size: 0.9rem; color: var(--text); margin-bottom: 10px; font-weight: 600; }
     /* Mercator ist deutlich hoeher als Plate carree (1,47 statt 2,5 zu 1). Ohne
        Deckel schiebt die Karte alles andere aus der Uebersicht. Begrenzt wird
        am Rahmen, nicht am SVG — sonst entstuenden leere Raender im Kartenfeld.
@@ -97,8 +97,9 @@
 
     /* minmax(0,1fr) allein reicht nicht: ein langes Wort ohne Trennstelle —
        ein AS-Name, ein Szenarienpfad — waechst sonst ueber die Kachel hinaus. */
-    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px;
-            padding: 14px 16px; min-width: 0; overflow-wrap: anywhere; }
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 12px;
+            padding: 16px 18px; min-width: 0; overflow-wrap: anywhere;
+            box-shadow: 0 1px 2px rgba(0,0,0,.14); }
     /* white-space: nowrap ist Pflicht — .card erlaubt Umbrueche an jeder Stelle,
        und eine mittendrin getrennte Zahl liest sich als zwei Zahlen. Dass sie
        trotzdem passt, besorgt statNum(): ab sechs Stellen kompakte Schreibweise
@@ -162,13 +163,6 @@
     .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
     .icon-moon { display: block; } .icon-sun { display: none; }
     [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
-    .spark { display: flex; align-items: flex-end; gap: 4px; height: 90px; margin-top: 6px; }
-    .spark > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
-                   gap: 2px; min-width: 0; }
-    .spark i { display: block; background: var(--accent); border-radius: 2px 2px 0 0; }
-    .spark i.lists { background: var(--border); }
-    .spark span { font-size: 0.62rem; color: var(--muted); text-align: center;
-                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     th.sortable { cursor: pointer; user-select: none; }
     th.sortable:hover { color: var(--text); }
     th.sortable::after { content: ''; }
@@ -176,6 +170,82 @@
     th.sortable.desc::after { content: ' ▼'; }
     @media (max-width: 640px) { nav { top: 47px; } }
     @media (max-width: 820px) { .hide-narrow { display: none; } }
+
+    /* ── Uebersicht ────────────────────────────────────────────────────────── */
+    /* Kennzahl-Kachel: Symbol links, Beschriftung und Zahl rechts. Die Zahlen
+       sind das Erste, wonach jemand sucht; der farbige Kreis gibt jeder einen
+       Ankerpunkt, statt drei gleich aussehende Kaesten nebeneinander zu stellen. */
+    .kpi { display: flex; align-items: center; gap: 14px; }
+    .kpi-icon { width: 44px; height: 44px; border-radius: 50%; flex: none;
+                display: flex; align-items: center; justify-content: center; }
+    .kpi-icon svg { width: 22px; height: 22px; fill: currentColor; }
+    .kpi-icon.blue  { color: var(--accent);  background: rgba(88,166,255,.14); }
+    .kpi-icon.red   { color: var(--red);     background: rgba(248,81,73,.14); }
+    .kpi-icon.amber { color: var(--amber);   background: rgba(210,153,34,.14); }
+    .kpi-icon.green { color: var(--green-h); background: rgba(46,160,67,.14); }
+    .kpi-icon.grey  { color: var(--muted);   background: var(--surf2); }
+    .kpi .stat-label { margin: 0 0 1px; }
+
+    .sec-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+                margin: 20px 0 10px; }
+    .sec-head h2 { margin: 0; font-size: 1.02rem; }
+    .sec-head .sec-icon { color: var(--accent); display: inline-flex; }
+    .sec-head .sec-icon svg { width: 17px; height: 17px; fill: currentColor; display: block; }
+    .sec-head .push { margin-left: auto; }
+
+    .card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .card-head h3 { margin: 0; margin-right: auto; }
+
+    /* Umschalter. Ein Paar Knoepfe statt eines Auswahlfeldes: es sind immer
+       zwei Zustaende, und beide sollen ohne Aufklappen sichtbar sein. */
+    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+    .seg button { background: none; border: none; color: var(--muted); font: inherit;
+                  font-size: 0.76rem; padding: 3px 11px; cursor: pointer; white-space: nowrap; }
+    .seg button.on { background: var(--surf2); color: var(--text); }
+    .seg button:hover { color: var(--text); }
+
+    /* Balkenliste: eigener Balken unter der Zeile statt eines Farbverlaufs
+       hinter dem Text. Der Verlauf war ab etwa zehn Prozent nicht mehr von
+       Null zu unterscheiden. */
+    .barlist { display: flex; flex-direction: column; gap: 9px; }
+    .barrow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; font-size: 0.83rem; }
+    .barrow .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .barrow .val { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+    .bartrack { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--surf2); }
+    .bartrack i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+
+    /* Verlaufsdiagramm. Handgezeichnetes SVG statt einer Bibliothek: keine
+       fremde Datei, die ueber Ingress geladen werden muesste. */
+    .chart { width: 100%; height: auto; display: block; overflow: visible; }
+    .chart .gridline { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .chart .axis { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .chart text { fill: var(--muted); font-size: 9px; font-family: inherit; }
+    /* Das Diagramm skaliert ueber die viewBox: auf dem Telefon schrumpfen die
+       Beschriftungen mit. Groessere Nutzereinheiten gleichen das aus. */
+    @media (max-width: 700px) { .chart text { font-size: 14px; } }
+    .chart text.ytick { text-anchor: end; }
+    .chart text.xtick { text-anchor: middle; }
+    .chart .b-det { fill: var(--accent); }
+    .chart .b-list { fill: var(--amber); }
+    .chart rect.hit { fill: transparent; }
+    .legend { display: flex; gap: 16px; align-items: center; font-size: 0.76rem; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    .legend i.det { background: var(--accent); }
+    .legend i.list { background: var(--amber); }
+
+    /* Laenderfaerbung. Fuenf Stufen, damit ein Land mit drei Erkennungen nicht
+       aussieht wie eines mit dreihundert. color-mix mischt gegen die Flaechen-
+       farbe des Themas, also stimmt der Kontrast hell wie dunkel. */
+    .map-wrap .cc.l1 { fill: color-mix(in srgb, var(--red) 16%, var(--surf2)); }
+    .map-wrap .cc.l2 { fill: color-mix(in srgb, var(--red) 32%, var(--surf2)); }
+    .map-wrap .cc.l3 { fill: color-mix(in srgb, var(--red) 50%, var(--surf2)); }
+    .map-wrap .cc.l4 { fill: color-mix(in srgb, var(--red) 68%, var(--surf2)); }
+    .map-wrap .cc.l5 { fill: color-mix(in srgb, var(--red) 88%, var(--surf2)); }
+    .map-wrap.no-pts .map-pt, .map-wrap.no-pts .map-hit { display: none; }
+    .map-scale { display: inline-flex; align-items: center; gap: 4px; }
+    .map-scale i { width: 14px; height: 9px; border-radius: 2px; display: inline-block;
+                   border: 1px solid var(--border); }
   </style>
 </head>
 <body>
@@ -211,26 +281,78 @@
     <div id="setupBanner" class="banner" hidden></div>
 
     <section id="tab-overview" class="active">
-      <div class="row" style="--cols:5">
-        <div class="card"><div class="stat" id="ovDecisions">–</div><div class="stat-label">{{ t.ov_decisions_total }}</div></div>
-        <div class="card"><div class="stat" id="ovAlerts">–</div><div class="stat-label">{{ t.ov_alerts_24h }}</div></div>
-        <div class="card"><div class="stat" id="ovLists">–</div><div class="stat-label">{{ t.ov_list_updates }}</div></div>
-        <div class="card"><h3>{{ t.ov_by_type }}</h3><div class="bar" id="ovByType"></div></div>
-        <div class="card"><h3>{{ t.ov_by_origin }}</h3><div class="bar" id="ovByOrigin"></div></div>
+      <div class="row" style="--cols:4">
+        <div class="card kpi">
+          <span class="kpi-icon red"><svg viewBox="0 0 24 24"><path d="M12 2 3 6v6c0 5 3.8 9.7 9 10 5.2-.3 9-5 9-10V6l-9-4zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z"/></svg></span>
+          <div><div class="stat-label">{{ t.ov_alerts_24h }}</div><div class="stat" id="ovAlerts">–</div></div>
+        </div>
+        <div class="card kpi">
+          <span class="kpi-icon blue"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.9 0 3.6.7 5 1.8L5.8 17A8 8 0 0 1 12 4zm0 16c-1.9 0-3.6-.7-5-1.8L18.2 7A8 8 0 0 1 12 20z"/></svg></span>
+          <div><div class="stat-label">{{ t.ov_decisions_total }}</div><div class="stat" id="ovDecisions">–</div></div>
+        </div>
+        <div class="card kpi">
+          <span class="kpi-icon amber"><svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h12v2H3v-2z"/></svg></span>
+          <div><div class="stat-label">{{ t.ov_list_updates }}</div><div class="stat" id="ovLists">–</div></div>
+        </div>
+        <div class="card kpi">
+          <span class="kpi-icon grey" id="ovLapiIcon"><svg viewBox="0 0 24 24"><path d="M2 12h4l2-6 4 12 2-6h8v2h-6.6l-3.4 9-4-12-1 3H2z"/></svg></span>
+          <div><div class="stat-label">{{ t.ov_lapi }}</div>
+               <div class="stat" id="ovLapi" style="font-size:1.15rem">–</div></div>
+        </div>
       </div>
-      <div class="grid" style="margin-top:12px">
-        <div class="card" style="grid-column: 1 / -1; min-width: 0">
-          <h3>{{ t.map_title }}</h3><div id="ovMap"></div></div>
+
+      <div class="sec-head">
+        <span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M4 20V10h4v10H4zm6 0V4h4v16h-4zm6 0v-7h4v7h-4z"/></svg></span>
+        <h2 id="ovStatsTitle">{{ t.h_title }}</h2>
       </div>
-      <div class="grid" style="margin-top:12px">
+
+      <div class="grid">
         <div class="card" style="grid-column: span 2; min-width: 0">
-          <h3>{{ t.h_title }}</h3><div id="ovHistory"></div></div>
+          <div class="card-head">
+            <h3>{{ t.h_title }}</h3>
+            <div class="seg" id="hScale">
+              <button type="button" data-v="linear" class="on">{{ t.h_scale_linear }}</button>
+              <button type="button" data-v="log">{{ t.h_scale_log }}</button>
+            </div>
+            <div class="seg" id="hBucket">
+              <button type="button" data-v="day" class="on">{{ t.h_bucket_day }}</button>
+              <button type="button" data-v="hour">{{ t.h_bucket_hour }}</button>
+            </div>
+          </div>
+          <div id="ovHistory"></div>
+        </div>
         <div class="card"><h3>{{ t.b_title }}</h3><div class="bar" id="ovBouncers"></div></div>
       </div>
-      <div class="row" style="--cols:3; margin-top:12px">
+
+      <div class="grid" style="margin-top:12px">
+        <div class="card" style="grid-column: 1 / -1; min-width: 0">
+          <div class="card-head">
+            <h3>{{ t.map_title }}</h3>
+            <div class="seg" id="mapMarkers">
+              <button type="button" class="on">{{ t.map_markers }}</button>
+            </div>
+          </div>
+          <div id="ovMap"></div>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <span class="sec-icon"><svg viewBox="0 0 24 24"><path d="M3 4h18v2H3V4zm0 5h13v2H3V9zm0 5h9v2H3v-2zm0 5h5v2H3v-2z"/></svg></span>
+        <h2>{{ t.ov_distribution }}</h2>
+        <div class="seg push" id="ovShare">
+          <button type="button" data-v="count" class="on">{{ t.ov_count }}</button>
+          <button type="button" data-v="share">{{ t.ov_share }}</button>
+        </div>
+      </div>
+      <div class="row" style="--cols:4">
         <div class="card"><h3>{{ t.ov_top_countries }}</h3><div class="bar" id="ovCountries"></div></div>
         <div class="card"><h3>{{ t.ov_top_scenarios }}</h3><div class="bar" id="ovScenarios"></div></div>
+        <div class="card"><h3>{{ t.ov_top_as }}</h3><div class="bar" id="ovAs"></div></div>
         <div class="card"><h3>{{ t.ov_alert_scenarios }}</h3><div class="bar" id="ovAlertScenarios"></div></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div class="card"><h3>{{ t.ov_by_type }}</h3><div class="bar" id="ovByType"></div></div>
+        <div class="card"><h3>{{ t.ov_by_origin }}</h3><div class="bar" id="ovByOrigin"></div></div>
       </div>
     </section>
 
@@ -497,20 +619,67 @@
       values.forEach(v => sel.appendChild(new Option(labelFn ? labelFn(v) : v, v)));
     }
 
-    function bars(container, pairs, titleFn) {
+    // Anzahl oder Anteil gilt fuer alle Listen zugleich: zwei Karten neben-
+    // einander in verschiedenen Einheiten liest niemand richtig. Was zuletzt
+    // gezeichnet wurde, bleibt hier stehen, damit der Umschalter neu zeichnen
+    // kann, ohne die Daten noch einmal zu holen.
+    const barData = new Map();
+    let shareMode = localStorage.getItem('cp-share') === 'share';
+
+    function bars(container, pairs, titleFn, labelFn) {
+      barData.set(container, [pairs || [], titleFn || null, labelFn || null]);
+      drawBars(container);
+    }
+
+    function drawBars(container) {
+      const entry = barData.get(container) || [[], null, null];
+      const pairs = entry[0], titleFn = entry[1], labelFn = entry[2];
       container.textContent = '';
-      if (!pairs || !pairs.length) { container.appendChild(el('div', 'muted', T.empty)); return; }
-      const max = Math.max.apply(null, pairs.map(p => p[1])) || 1;
+      container.classList.add('barlist');
+      if (!pairs.length) { container.appendChild(el('div', 'muted', T.empty)); return; }
+      const max = Math.max.apply(null, pairs.map(p => Number(p[1]) || 0)) || 1;
+      const sum = pairs.reduce((a, p) => a + (Number(p[1]) || 0), 0) || 1;
       pairs.forEach(p => {
-        const row = el('div', 'kv');
-        const label = el('span', null, p[0] || T.none);
+        const value = Number(p[1]) || 0;
+        const row = el('div', 'barrow');
+        const name = el('span', 'name',
+          (labelFn ? labelFn(p[0]) : p[0]) || T.none);
         const hint = titleFn ? titleFn(p[0]) : '';
-        if (hint) { label.title = hint; row.title = hint; }
-        row.appendChild(label);
-        row.appendChild(el('span', null, p[1]));
-        row.style.background = 'linear-gradient(to right, rgba(88,166,255,.13) '
-          + Math.round(p[1] / max * 100) + '%, transparent 0)';
+        if (hint) { name.title = hint; row.title = hint; }
+        const val = el('span', 'val', shareMode
+          ? (Math.round(value / sum * 1000) / 10).toLocaleString(G.lang || 'de') + ' %'
+          : num(value));
+        val.title = num(value);
+        // Mindestens zwei Prozent Breite: ein Balken, den man nicht sieht,
+        // ist keine Angabe, sondern ein Zweifel an den Daten.
+        const track = el('div', 'bartrack');
+        const fill = el('i');
+        fill.style.width = Math.max(2, Math.round(value / max * 100)) + '%';
+        track.appendChild(fill);
+        row.appendChild(name);
+        row.appendChild(val);
+        row.appendChild(track);
         container.appendChild(row);
+      });
+    }
+
+    function setShareMode(on) {
+      shareMode = on;
+      localStorage.setItem('cp-share', on ? 'share' : 'count');
+      barData.forEach((v, c) => drawBars(c));
+    }
+
+    // Ein Paar Knoepfe, von denen genau einer leuchtet.
+    function segWire(id, initial, apply) {
+      const box = $(id);
+      if (!box) return;
+      const buttons = Array.prototype.slice.call(box.querySelectorAll('button'));
+      buttons.forEach(b => {
+        b.classList.toggle('on', b.dataset.v === initial);
+        b.addEventListener('click', () => {
+          buttons.forEach(o => o.classList.toggle('on', o === b));
+          apply(b.dataset.v);
+        });
       });
     }
 
@@ -582,6 +751,7 @@
         const ok = d.lapi && d.lapi.ok;
         pill.className = 'pill ' + (ok ? 'ok' : 'bad');
         text.textContent = ok ? T.status_connected : T.status_disconnected;
+        setLapiCard(ok);
         $('sUrl').textContent = d.url || T.none;
         $('sMachine').textContent = d.machine_id || T.none;
         $('sStatus').textContent = ok ? T.status_connected : errText(d.lapi && d.lapi.code);
@@ -615,8 +785,20 @@
       } catch (e) {
         pill.className = 'pill bad';
         text.textContent = T.status_disconnected;
+        setLapiCard(false);
         return false;
       }
+    }
+
+    // Derselbe Zustand noch einmal als Kennzahl: die Pille oben ist klein und
+    // wird uebersehen, und ohne LAPI sind alle drei Zahlen daneben von gestern.
+    function setLapiCard(ok) {
+      const v = $('ovLapi');
+      if (!v) return;
+      v.textContent = ok ? T.status_connected : T.status_disconnected;
+      v.style.color = ok ? 'var(--green-h)' : 'var(--red)';
+      const icon = $('ovLapiIcon');
+      if (icon) icon.className = 'kpi-icon ' + (ok ? 'green' : 'red');
     }
 
     // ── overview ──────────────────────────────────────────────────────────────
@@ -627,32 +809,134 @@
       setStat($('ovLists'), d.list_updates_24h);
       bars($('ovByType'), d.by_type);
       bars($('ovByOrigin'), d.by_origin);
-      bars($('ovCountries'), d.top_countries, countryName);
+      bars($('ovCountries'), d.top_countries, null, cc => {
+        const name = countryName(cc);
+        return name ? name + ' (' + cc + ')' : (cc || T.none);
+      });
       bars($('ovScenarios'), d.top_scenarios);
+      bars($('ovAs'), d.top_as);
       bars($('ovAlertScenarios'), d.top_alert_scenarios);
+    }
+
+    // ── Verlauf ───────────────────────────────────────────────────────────────
+    let histBucket = localStorage.getItem('cp-hbucket') === 'hour' ? 'hour' : 'day';
+    let histScale = localStorage.getItem('cp-hscale') === 'log' ? 'log' : 'linear';
+
+    async function reloadHistory() {
+      try {
+        const d = await api('/api/history' + (histBucket === 'hour' ? '?bucket=hour' : ''));
+        cache.history = d;
+        renderHistory(d);
+      } catch (e) { /* der Verlauf ist Beiwerk, die Uebersicht steht ohne ihn */ }
+    }
+
+    // Eine runde Zahl in der Naehe von v — 1, 2, 5 mal Zehnerpotenz. Ohne das
+    // stehen an der Achse Werte wie 137, und niemand rechnet in 137ern.
+    function niceStep(v) {
+      const base = Math.pow(10, Math.floor(Math.log10(v || 1)));
+      const r = (v || 1) / base;
+      return (r <= 1 ? 1 : r <= 2 ? 2 : r <= 5 ? 5 : 10) * base;
+    }
+
+    function histTicks(max) {
+      if (histScale === 'log') {
+        const out = [0];
+        for (let p = 1; p <= max; p *= 10) out.push(p);
+        if (out[out.length - 1] !== max) out.push(max);
+        return out;
+      }
+      const step = niceStep(max / 4);
+      const out = [];
+      for (let v = 0; v <= max + step / 2; v += step) out.push(Math.round(v));
+      return out;
+    }
+
+    function histLabel(key) {
+      return histBucket === 'hour' ? String(key).slice(11) + ':00' : String(key).slice(5);
     }
 
     function renderHistory(d) {
       const box = $('ovHistory');
       box.textContent = '';
       const series = d.series || [];
+      const title = $('ovStatsTitle');
+      if (title) {
+        title.textContent = T.h_title + ' — ' + (d.bucket === 'hour'
+          ? T.h_hours : fmt('h_days', { n: Math.round(d.days || 7) }));
+      }
       if (!series.length) { box.appendChild(el('div', 'muted', T.h_none)); return; }
-      const max = Math.max.apply(null, series.map(s => s.detections + s.list_updates)) || 1;
-      const chart = el('div', 'spark');
-      series.forEach(s => {
-        const col = el('div');
-        const lists = el('i', 'lists');
-        lists.style.height = Math.round(s.list_updates / max * 70) + 'px';
-        const det = el('i');
-        det.style.height = Math.max(2, Math.round(s.detections / max * 70)) + 'px';
-        col.title = s.day + ' · ' + T.h_detections + ': ' + s.detections
-                  + ' · ' + T.h_list_updates + ': ' + s.list_updates;
-        col.appendChild(lists);
-        col.appendChild(det);
-        col.appendChild(el('span', null, s.day.slice(5)));
-        chart.appendChild(col);
+
+      const NS = 'http://www.w3.org/2000/svg';
+      const W = 720, H = 235, padL = 46, padR = 10, padT = 12, padB = 26;
+      const plotW = W - padL - padR, plotH = H - padT - padB;
+      // Der groesste Einzelwert, nicht die Summe: die beiden Reihen stehen
+      // nebeneinander, nicht uebereinander.
+      const max = Math.max(1, Math.max.apply(null,
+        series.map(s2 => Math.max(s2.detections || 0, s2.list_updates || 0))));
+      // Symlog: ein Blocklisten-Abgleich mit zehntausend Eintraegen druecke
+      // sonst jeden echten Alarm auf zwei Bildpunkte.
+      const yOf = v => {
+        const frac = histScale === 'log'
+          ? Math.log10(1 + Math.max(0, v)) / Math.log10(1 + max)
+          : Math.max(0, v) / max;
+        return padT + plotH - frac * plotH;
+      };
+
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('class', 'chart');
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      const add = (tag, attrs, text) => {
+        const n = document.createElementNS(NS, tag);
+        for (const k in attrs) n.setAttribute(k, attrs[k]);
+        if (text !== undefined) n.textContent = text;
+        svg.appendChild(n);
+        return n;
+      };
+
+      histTicks(max).forEach(v => {
+        const y = yOf(v);
+        add('line', { class: 'gridline', x1: padL, x2: W - padR, y1: y, y2: y,
+                      'stroke-dasharray': v === 0 ? '' : '3 4' });
+        add('text', { class: 'ytick', x: padL - 6, y: y + 3 }, num(v));
       });
-      box.appendChild(chart);
+
+      const slot = plotW / series.length;
+      const barW = Math.max(2, Math.min(16, slot * 0.34));
+      const every = Math.max(1, Math.ceil(series.length / 12));
+      series.forEach((s2, i) => {
+        const mid = padL + slot * (i + 0.5);
+        [['b-det', s2.detections || 0, -1], ['b-list', s2.list_updates || 0, 1]].forEach(pair => {
+          const v = pair[1];
+          if (!v) return;
+          const y = yOf(v);
+          add('rect', { class: pair[0], x: mid + (pair[2] < 0 ? -barW - 1 : 1),
+                        y: y, width: barW, height: Math.max(1, padT + plotH - y), rx: 2 });
+        });
+        // Eine Trefferflaeche ueber der ganzen Spalte, sonst muesste man einen
+        // drei Bildpunkte breiten Balken treffen, um die Zahl zu sehen.
+        const hit = add('rect', { class: 'hit', x: padL + slot * i, y: padT,
+                                  width: slot, height: plotH });
+        const tip = document.createElementNS(NS, 'title');
+        tip.textContent = s2.day + ' · ' + T.h_detections + ': ' + num(s2.detections || 0)
+                        + ' · ' + T.h_list_updates + ': ' + num(s2.list_updates || 0);
+        hit.appendChild(tip);
+        if (i % every === 0) {
+          add('text', { class: 'xtick', x: mid, y: H - 8 }, histLabel(s2.day));
+        }
+      });
+      add('line', { class: 'axis', x1: padL, x2: W - padR, y1: yOf(0), y2: yOf(0) });
+
+      box.appendChild(svg);
+
+      const legend = el('div', 'legend');
+      [['det', T.h_detections], ['list', T.h_list_updates]].forEach(pair => {
+        const item = el('span');
+        item.appendChild(el('i', pair[0]));
+        item.appendChild(el('span', null, pair[1]));
+        legend.appendChild(item);
+      });
+      legend.style.marginTop = '8px';
+      box.appendChild(legend);
     }
 
     function ageLabel(stamp) {
@@ -731,6 +1015,10 @@
     // reicht eine Zeile Rechnung statt einer Kartenbibliothek.
     const MAP_LAT_LIMIT = 85;
     const mapX = lon => lon + 180;
+    // Marker an oder aus. Der Zustand liegt im Browser: wer die Faerbung
+    // allein sehen will, will das beim naechsten Aufruf wieder.
+    let mapMarkers = localStorage.getItem('cp-mapmarkers') !== 'off';
+
     const mapY = function (lat) {
       const clamped = Math.max(-MAP_LAT_LIMIT, Math.min(MAP_LAT_LIMIT, lat));
       return 180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + clamped * Math.PI / 360));
@@ -921,6 +1209,28 @@
       }
       const svg = document.importNode(parsed.documentElement, true);
       const NS = 'http://www.w3.org/2000/svg';
+
+      // Laenderfaerbung aus denselben Punkten. Ohne sie sagt die Karte bei
+      // dreihundert uebereinanderliegenden Punkten nichts mehr; mit ihr sieht
+      // man die Verteilung auch dann, wenn die Marker ausgeschaltet sind.
+      // Logarithmisch gestuft, weil ein Land fast immer alle anderen erschlaegt.
+      const perCountry = new Map();
+      (d.points || []).forEach(pt => {
+        const cc = String(pt.country || '').trim().toUpperCase();
+        if (/^[A-Z]{2}$/.test(cc)) perCountry.set(cc, (perCountry.get(cc) || 0) + (pt.count || 0));
+      });
+      if (perCountry.size) {
+        const top = Math.max.apply(null, Array.from(perCountry.values())) || 1;
+        perCountry.forEach((n, cc) => {
+          const path = svg.querySelector('[data-cc="' + cc + '"]');
+          if (!path) return;
+          const frac = Math.log10(1 + n) / Math.log10(1 + top);
+          path.setAttribute('class', 'cc l' + Math.min(5, Math.max(1, Math.ceil(frac * 5))));
+          const t = document.createElementNS(NS, 'title');
+          t.textContent = fmt('map_country_hits', { name: countryName(cc) || cc, n: num(n) });
+          path.appendChild(t);
+        });
+      }
       // Die Trefferflaechen kommen zum Schluss obenauf, damit keine von einem
       // spaeter gezeichneten Punkt verdeckt wird.
       const hits = [];
@@ -991,7 +1301,7 @@
         svg.appendChild(g);
       }
 
-      const wrap = el('div', 'map-wrap');
+      const wrap = el('div', 'map-wrap' + (mapMarkers ? '' : ' no-pts'));
       wrap.appendChild(svg);
       box.textContent = '';
       box.appendChild(wrap);
@@ -1026,6 +1336,16 @@
           T.map_home + ((home.label || '').trim() ? ': ' + home.label.trim() : '')));
         foot.appendChild(legend);
       }
+      if (perCountry.size) {
+        const scale = el('span', 'map-scale muted');
+        scale.appendChild(el('span', null, T.map_shading));
+        [16, 32, 50, 68, 88].forEach(pct => {
+          const sw = el('i');
+          sw.style.background = 'color-mix(in srgb, var(--red) ' + pct + '%, var(--surf2))';
+          scale.appendChild(sw);
+        });
+        foot.appendChild(scale);
+      }
       foot.appendChild(el('span', 'muted', T.map_zoom_hint));
       box.appendChild(foot);
 
@@ -1039,7 +1359,7 @@
     async function loadSidecars() {
       try {
         const [hist, bnc, map] = await Promise.all([
-          api('/api/history').catch(() => null),
+          api('/api/history' + (histBucket === 'hour' ? '?bucket=hour' : '')).catch(() => null),
           api('/api/bouncers').catch(() => null),
           api('/api/map').catch(() => null),
         ]);
@@ -1060,7 +1380,7 @@
         cache.overview = d;
         renderOverview(d);
       } catch (e) {
-        [ 'ovByType','ovByOrigin','ovCountries','ovScenarios','ovAlertScenarios' ]
+        [ 'ovByType','ovByOrigin','ovCountries','ovScenarios','ovAs','ovAlertScenarios' ]
           .forEach(id => { const n = $(id); n.textContent = ''; n.appendChild(el('div','muted',errText(e.code))); });
       }
     };
@@ -1951,6 +2271,31 @@
     });
     $('nScope').addEventListener('change', updateHint);
     updateHint();
+
+    segWire('hScale', histScale, v => {
+      histScale = v;
+      localStorage.setItem('cp-hscale', v);
+      if (cache.history) renderHistory(cache.history);
+    });
+    segWire('hBucket', histBucket, v => {
+      histBucket = v;
+      localStorage.setItem('cp-hbucket', v);
+      reloadHistory();
+    });
+    segWire('ovShare', shareMode ? 'share' : 'count', v => setShareMode(v === 'share'));
+    (function () {
+      const box = $('mapMarkers');
+      const b = box && box.querySelector('button');
+      if (!b) return;
+      b.classList.toggle('on', mapMarkers);
+      b.addEventListener('click', () => {
+        mapMarkers = !mapMarkers;
+        localStorage.setItem('cp-mapmarkers', mapMarkers ? 'on' : 'off');
+        b.classList.toggle('on', mapMarkers);
+        const w = document.querySelector('#ovMap .map-wrap');
+        if (w) w.classList.toggle('no-pts', !mapMarkers);
+      });
+    })();
 
     showTab((location.hash || '').slice(1));
     loadStatus();

@@ -1190,6 +1190,8 @@ def prometheus_metrics():
 def history():
     """Detections per day for the last week. A single number for 24 hours says
     nothing about whether something is building up."""
+    if _arg('bucket', 8) == 'hour':
+        return _history_hours()
     days = _cfg_int('history_days', 7, 1, 3650)
     arch = archive_ready()
     source = 'archive'
@@ -1216,7 +1218,44 @@ def history():
         series.append({'day': day,
                        'detections': detections.get(day, 0),
                        'list_updates': syncs.get(day, 0)})
-    return jsonify({'days': days, 'series': series, 'source': source,
+    return jsonify({'days': days, 'bucket': 'day', 'series': series,
+                    'source': source,
+                    'total': sum(s['detections'] for s in series)})
+
+
+HISTORY_HOURS = 48
+
+
+def _history_hours():
+    """Derselbe Verlauf in Stundenschritten. Der Schlüssel heißt weiter „day“,
+    damit die Oberfläche beide Auflösungen gleich behandeln kann; welche
+    gemeint ist, sagt „bucket“."""
+    arch = archive_ready()
+    source = 'archive'
+    if arch is not None:
+        detections, syncs = arch.history_hours(HISTORY_HOURS)
+    else:
+        source = 'lapi'
+        detections, syncs = Counter(), Counter()
+        for alert in get_client().list_alerts(limit=ALERT_FETCH_LIMIT,
+                                              since=f'{HISTORY_HOURS}h'):
+            if not isinstance(alert, dict):
+                continue
+            stamp = str(alert.get('created_at') or alert.get('start_at') or '')
+            # 2026-09-03T14:… — Datum und Stunde, wie die Archivabfrage sie bildet.
+            if len(stamp) < 13 or stamp[10] != 'T':
+                continue
+            (syncs if _is_list_sync(alert) else detections)[stamp[:13]] += 1
+
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    series = []
+    for back in range(HISTORY_HOURS - 1, -1, -1):
+        slot = (now - timedelta(hours=back)).strftime('%Y-%m-%dT%H')
+        series.append({'day': slot,
+                       'detections': detections.get(slot, 0),
+                       'list_updates': syncs.get(slot, 0)})
+    return jsonify({'days': HISTORY_HOURS / 24, 'bucket': 'hour',
+                    'series': series, 'source': source,
                     'total': sum(s['detections'] for s in series)})
 
 
@@ -1485,6 +1524,13 @@ def overview():
     detections = [a for a in alerts if not _is_list_sync(a)]
     alert_scenarios = Counter(a.get('scenario') for a in detections
                               if a.get('scenario'))
+    # Das Netz hinter der Adresse. Es steht in jedem angereicherten Alarm und
+    # sagt mehr als das Land: ein Rechenzentrum ist keine Wohngegend.
+    top_as = Counter()
+    for alert in detections:
+        name = ((alert.get('source') or {}).get('as_name') or '').strip()
+        if name:
+            top_as[name] += 1
     return jsonify({
         'decisions_total': stats['total'],
         'alerts_24h': len(detections),
@@ -1494,6 +1540,7 @@ def overview():
         'top_scenarios': stats['top_scenarios'],
         'by_origin': stats['by_origin'],
         'top_alert_scenarios': alert_scenarios.most_common(10),
+        'top_as': top_as.most_common(10),
     })
 
 

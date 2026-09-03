@@ -325,6 +325,35 @@ class Archive:
             out.append({r['day']: int(r['n']) for r in rows})
         return out[0], out[1]
 
+    def history_hours(self, hours: int) -> tuple:
+        """Dasselbe je Stunde. Ein Tagesbalken verwischt, ob die zweihundert
+        Erkennungen über den Tag verteilt kamen oder in zehn Minuten."""
+        cutoff = int(time.time()) - hours * 3600
+        out = []
+        for table in ('alerts', 'syncs'):
+            try:
+                rows = self._connect().execute(
+                    "SELECT strftime('%Y-%m-%dT%H', created_ts, 'unixepoch') AS slot, "
+                    'COUNT(*) AS n FROM ' + table + ' WHERE created_ts >= ? '
+                    'GROUP BY slot', (cutoff,)).fetchall()
+            except sqlite3.Error:
+                rows = []
+            out.append({r['slot']: int(r['n']) for r in rows})
+        return out[0], out[1]
+
+    def top_as(self, since_ts: int, limit: int) -> list:
+        """Häufigste Netze. Der Name steht schon in der Tabelle, gezählt wird
+        er bisher nirgends."""
+        try:
+            rows = self._connect().execute(
+                'SELECT as_name, COUNT(*) AS n FROM alerts '
+                "WHERE created_ts >= ? AND as_name <> '' "
+                'GROUP BY as_name ORDER BY n DESC, as_name LIMIT ?',
+                (since_ts, limit)).fetchall()
+        except sqlite3.Error:
+            return []
+        return [[r['as_name'], int(r['n'])] for r in rows]
+
     def points(self, since_ts: int, limit: int) -> tuple:
         """Adressen mit Koordinaten, nach Zahl der Erkennungen. Gibt die Liste
         und die Gesamtzahl verorteter Adressen zurück, damit der Aufrufer
