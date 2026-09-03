@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.2] - 2026-09-03
+
+### Fixed
+- **Ladeanzeige blieb nach jedem Ergebnis hängen.** Der Kringel für „Lädt …" wurde vor jeder Anfrage
+  eingeblendet, aber beim Eintreffen der Antwort nicht mehr entfernt — das Ergebnis wurde einfach
+  darunter angehängt und drehte scheinbar endlos weiter. Betraf alle Reiter außer Mail-Gesundheit.
+
+### Added
+- Laufende Anfragen lassen sich abbrechen: Klick auf „Abbrechen" neben dem Ladekringel, oder eine
+  neue Anfrage bricht automatisch die noch laufende vorherige ab (verhindert nebenbei, dass eine
+  spät eintreffende alte Antwort ein neueres Ergebnis überschreibt).
+
 ## [0.0.1] - 2026-09-03
 
 ### Added

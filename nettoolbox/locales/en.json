@@ -50,6 +50,7 @@
   "action_lookup_all": "All common types",
   "action_check": "Check",
   "action_clear": "Clear history",
+  "action_cancel": "Cancel",
 
   "loading": "Loading…",
   "no_records": "No records found.",
@@ -193,5 +194,7 @@
   "err_rate_limited": "Too many checks in a short time — please wait a moment.",
   "err_internal": "Internal error.",
   "err_unauthorized": "Not signed in.",
-  "err_csrf": "Form expired. Please reload the page."
+  "err_csrf": "Form expired. Please reload the page.",
+  "err_aborted": "Cancelled.",
+  "err_network": "Connection failed."
 }

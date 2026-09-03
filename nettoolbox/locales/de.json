@@ -50,6 +50,7 @@
   "action_lookup_all": "Alle Standard-Typen",
   "action_check": "Prüfen",
   "action_clear": "Verlauf löschen",
+  "action_cancel": "Abbrechen",
 
   "loading": "Lädt …",
   "no_records": "Keine Einträge gefunden.",
@@ -193,5 +194,7 @@
   "err_rate_limited": "Zu viele Prüfungen in kurzer Zeit — bitte kurz warten.",
   "err_internal": "Interner Fehler.",
   "err_unauthorized": "Nicht angemeldet.",
-  "err_csrf": "Formular abgelaufen. Bitte Seite neu laden."
+  "err_csrf": "Formular abgelaufen. Bitte Seite neu laden.",
+  "err_aborted": "Abgebrochen.",
+  "err_network": "Verbindung fehlgeschlagen."
 }

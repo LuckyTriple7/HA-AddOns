@@ -89,6 +89,8 @@ tr:last-child td { border-bottom: none; }
                            font-size: 1.5rem; font-weight: 700; z-index: 1; }
 .score-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
 .result-empty { color: var(--muted); font-size: 0.85rem; padding: 8px 0; }
+.cancel-link { color: var(--accent); text-decoration: none; }
+.cancel-link:hover { text-decoration: underline; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent);
            border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -296,10 +298,21 @@ function el(tag, cls, text){
   return n;
 }
 
+let currentAbort = null;
+
+function cancelActiveProbe(){
+  if (currentAbort) { currentAbort.abort(); }
+}
+
 function showLoading(box){
   box.innerHTML = '';
-  box.appendChild(el('p', 'result-empty', ''));
-  box.lastChild.innerHTML = '<span class="spinner"></span> ' + T.loading;
+  const p = el('p', 'result-empty');
+  p.innerHTML = '<span class="spinner"></span> ' + T.loading + ' · ';
+  const cancel = el('a', 'cancel-link', T.action_cancel);
+  cancel.href = '#';
+  cancel.addEventListener('click', ev => { ev.preventDefault(); cancelActiveProbe(); });
+  p.appendChild(cancel);
+  box.appendChild(p);
 }
 
 function toast(msg, bad){
@@ -315,12 +328,20 @@ function errText(code){
 
 async function api(path, opts){
   opts = opts || {};
-  const res = await fetch(G.base + path, {
-    method: opts.method || 'GET',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': G.csrf },
-    body: opts.body ? JSON.stringify(opts.body) : undefined
-  });
+  let res;
+  try {
+    res = await fetch(G.base + path, {
+      method: opts.method || 'GET',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': G.csrf },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal
+    });
+  } catch (err) {
+    const e = new Error('api');
+    e.code = err.name === 'AbortError' ? 'aborted' : 'network';
+    throw e;
+  }
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
   if (!res.ok) {
@@ -332,15 +353,21 @@ async function api(path, opts){
 }
 
 async function runProbe(name, params, target, button){
+  if (currentAbort) { currentAbort.abort(); }
+  const controller = new AbortController();
+  currentAbort = controller;
   if (button) { button.disabled = true; }
   try {
-    const data = await api('/api/probe', { method: 'POST', body: { probe: name, params: params } });
+    const data = await api('/api/probe', {
+      method: 'POST', body: { probe: name, params: params }, signal: controller.signal
+    });
     return data;
   } catch (e) {
-    toast(errText(e.code), true);
+    if (e.code !== 'aborted') toast(errText(e.code), true);
     throw e;
   } finally {
     if (button) { button.disabled = false; }
+    if (currentAbort === controller) { currentAbort = null; }
   }
 }
 
@@ -433,6 +460,7 @@ async function dnsLookup(){
   const box = $('dnsResult'); showLoading(box);
   try {
     const data = await runProbe('dns', { name: name, type: type }, name, $('dnsRun'));
+    box.innerHTML = '';
     const r = data.result;
     const wrap = el('div');
     const meta = el('div', 'row', '');
@@ -451,6 +479,7 @@ async function dnsLookupAll(){
   const box = $('dnsResult'); showLoading(box);
   try {
     const data = await runProbe('dns_all', { name: name }, name, $('dnsRunAll'));
+    box.innerHTML = '';
     const r = data.result;
     const grid = el('div', 'subgrid');
     r.sets.forEach(s => {
@@ -478,6 +507,7 @@ async function dnsLookupTxt(){
   const box = $('dnsResult'); showLoading(box);
   try {
     const data = await runProbe('txt', { name: name }, name, $('dnsRunTxt'));
+    box.innerHTML = '';
     box.appendChild(recordsTable(data.result.records));
   } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
@@ -488,6 +518,7 @@ async function dnsLookupSoa(){
   const box = $('dnsResult'); showLoading(box);
   try {
     const data = await runProbe('soa', { name: name }, name, $('dnsRunSoa'));
+    box.innerHTML = '';
     const r = data.result;
     const wrap = el('div');
     if (r.soa && r.soa.length) {
@@ -538,7 +569,7 @@ async function mailCheck(){
   const domain = $('mailDomain').value.trim();
   if (!domain) { toast(T.err_empty_target, true); return; }
   const selectors = $('mailSelectors').value.split(',').map(s => s.trim()).filter(Boolean);
-  const box = $('mailResult'); box.innerHTML = '<p class="result-empty"><span class="spinner"></span> ' + T.loading + '</p>';
+  const box = $('mailResult'); showLoading(box);
   try {
     const data = await runProbe('mail_health', { domain: domain, selectors: selectors }, domain, $('mailRun'));
     const r = data.result;
@@ -603,6 +634,7 @@ async function propCheck(){
   const box = $('propResult'); showLoading(box);
   try {
     const data = await runProbe('propagation', { name: name, type: type }, name, $('propRun'));
+    box.innerHTML = '';
     const r = data.result;
     const banner = el('p', 'hint', r.consistent ? T.prop_consistent : T.prop_inconsistent);
     box.appendChild(banner);
@@ -636,6 +668,7 @@ async function revCheck(){
   const box = $('revResult'); showLoading(box);
   try {
     const data = await runProbe('reverse', { ip: ip }, ip, $('revRun'));
+    box.innerHTML = '';
     const r = data.result;
     const wrap = el('div');
     wrap.appendChild(el('p', 'hint', (r.confirmed ? T.rev_confirmed : T.rev_unconfirmed) +
@@ -660,6 +693,7 @@ async function mxCheck(){
   const box = $('mxResult'); showLoading(box);
   try {
     const data = await runProbe('mx', { domain: domain }, domain, $('mxRun'));
+    box.innerHTML = '';
     const r = data.result;
     if (!r.mx.length) { box.appendChild(el('p', 'result-empty', T.no_records)); return; }
     r.mx.forEach(m => {
@@ -692,6 +726,7 @@ async function secCheck(){
   const box = $('secResult'); showLoading(box);
   try {
     const data = await runProbe('dnssec', { name: name }, name, $('secRun'));
+    box.innerHTML = '';
     const r = data.result;
     const wrap = el('div');
     const badges = el('div', 'row');
