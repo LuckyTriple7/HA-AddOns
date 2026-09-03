@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3] - 2026-09-03
+
+### Fixed
+- Einstellungen-Dialog: uneinheitliches Layout — Absender-/Empfängeradresse standen ohne
+  erkennbaren Grund nebeneinander, alle anderen Felder einzeln untereinander. Jetzt durchgehend
+  einspaltig.
+
 ## [0.1.2] - 2026-09-03
 
 ### Added

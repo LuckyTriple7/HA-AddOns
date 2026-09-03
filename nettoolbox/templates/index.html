@@ -454,16 +454,14 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         <label class="field" for="setSmtpHost">{{ t.field_smtp_host }}</label>
         <input type="text" id="setSmtpHost" autocomplete="off" placeholder="mail.example.com">
       </div>
-      <div class="row">
-        <div class="grow set-row">
-          <label class="field" for="setSmtpPort">{{ t.field_smtp_port }}</label>
-          <input type="text" id="setSmtpPort" inputmode="numeric" placeholder="587">
-        </div>
-        <div class="grow set-row">
-          <label class="set-check" style="margin-top:20px">
-            <input type="checkbox" id="setSmtpTls" checked> {{ t.field_smtp_tls }}
-          </label>
-        </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpPort">{{ t.field_smtp_port }}</label>
+        <input type="text" id="setSmtpPort" inputmode="numeric" placeholder="587">
+      </div>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="setSmtpTls" checked> {{ t.field_smtp_tls }}
+        </label>
       </div>
       <div class="set-row">
         <label class="field" for="setSmtpUser">{{ t.field_smtp_user }}</label>
@@ -474,15 +472,13 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         <input type="password" id="setSmtpPassword" autocomplete="new-password">
         <div class="hint" id="setSmtpPasswordState"></div>
       </div>
-      <div class="row">
-        <div class="grow set-row">
-          <label class="field" for="setSmtpFrom">{{ t.field_smtp_from }}</label>
-          <input type="text" id="setSmtpFrom" autocomplete="off">
-        </div>
-        <div class="grow set-row">
-          <label class="field" for="setSmtpTo">{{ t.field_smtp_to }}</label>
-          <input type="text" id="setSmtpTo" autocomplete="off">
-        </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpFrom">{{ t.field_smtp_from }}</label>
+        <input type="text" id="setSmtpFrom" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpTo">{{ t.field_smtp_to }}</label>
+        <input type="text" id="setSmtpTo" autocomplete="off">
       </div>
     </div>
 
