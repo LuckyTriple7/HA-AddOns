@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY netcore.py .
 COPY mailauth.py .
+COPY blocklists.py .
 COPY probes.py .
 COPY remote.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.

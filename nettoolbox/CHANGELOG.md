@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.4] - 2026-09-03
+
+### Fixed
+- **Container startete gar nicht mehr.** `blocklists.py` fehlte in der Dockerfile-COPY-Liste
+  (jede Datei einzeln, kein Platzhalter) — `ModuleNotFoundError` beim Start, Neustart-Schleife.
+
 ## [0.0.3] - 2026-09-03
 
 ### Added
