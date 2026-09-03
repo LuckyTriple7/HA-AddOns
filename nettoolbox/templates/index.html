@@ -38,6 +38,19 @@ header { background: var(--surf); border-bottom: 1px solid var(--border);
 .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px;
              border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; }
 .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100;
+            align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; }
+.modal-bg.open { display: flex; }
+.modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 24px;
+         width: 100%; max-width: 560px; position: relative; }
+.modal-close { position: absolute; top: 12px; right: 12px; background: none; border: 1px solid var(--border);
+               color: var(--muted); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
+.modal-close:hover { border-color: var(--accent); }
+.set-group { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.set-group h3 { font-size: 0.85rem; margin-bottom: 10px; }
+.set-row { margin-bottom: 12px; }
+.set-lbl { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; }
+.set-check { display: flex; align-items: center; gap: 6px; font-size: 0.83rem; }
 .icon-moon { display: block; } .icon-sun { display: none; }
 [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
 nav { display: flex; gap: 2px; padding: 0 16px; background: var(--surf); border-bottom: 1px solid var(--border);
@@ -124,6 +137,9 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   <span class="pill" id="backendPill"><span class="dot"></span><span id="backendLabel">…</span></span>
   <a href="{{ url_for('set_lang', lang='de', next=request.path) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
   <a href="{{ url_for('set_lang', lang='en', next=request.path) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+  <button class="theme-btn" onclick="openSettings()" type="button" aria-label="settings" title="{{ t.settings_title }}">
+    <svg viewBox="0 0 24 24"><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
   <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="theme">
     <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
     <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -402,6 +418,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         <input type="checkbox" id="monTelegram" checked> {{ t.field_notify_telegram }}
       </label>
       <button class="btn primary" id="monAdd">{{ t.action_add_monitor }}</button>
+      <button class="btn" id="monCancelEdit" style="display:none">{{ t.action_cancel }}</button>
     </div>
   </div>
   <div class="card">
@@ -421,6 +438,73 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
 </section>
 
 </main>
+
+<div class="modal-bg" id="settingsBg">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSettings()" type="button" aria-label="close">✕</button>
+    <h2 style="margin-bottom:4px">{{ t.settings_title }}</h2>
+    <p class="hint" style="margin-bottom:0">{{ t.settings_hint }}</p>
+    <div class="hint" id="setCryptoWarn" style="display:none; color:var(--red); margin-top:8px">
+      {{ t.settings_crypto_warn }}
+    </div>
+
+    <div class="set-group">
+      <h3>{{ t.settings_group_mail }}</h3>
+      <div class="set-row">
+        <label class="field" for="setSmtpHost">{{ t.field_smtp_host }}</label>
+        <input type="text" id="setSmtpHost" autocomplete="off" placeholder="mail.example.com">
+      </div>
+      <div class="row">
+        <div class="grow set-row">
+          <label class="field" for="setSmtpPort">{{ t.field_smtp_port }}</label>
+          <input type="text" id="setSmtpPort" inputmode="numeric" placeholder="587">
+        </div>
+        <div class="grow set-row">
+          <label class="set-check" style="margin-top:20px">
+            <input type="checkbox" id="setSmtpTls" checked> {{ t.field_smtp_tls }}
+          </label>
+        </div>
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpUser">{{ t.field_smtp_user }}</label>
+        <input type="text" id="setSmtpUser" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpPassword">{{ t.field_smtp_password }}</label>
+        <input type="password" id="setSmtpPassword" autocomplete="new-password">
+        <div class="hint" id="setSmtpPasswordState"></div>
+      </div>
+      <div class="row">
+        <div class="grow set-row">
+          <label class="field" for="setSmtpFrom">{{ t.field_smtp_from }}</label>
+          <input type="text" id="setSmtpFrom" autocomplete="off">
+        </div>
+        <div class="grow set-row">
+          <label class="field" for="setSmtpTo">{{ t.field_smtp_to }}</label>
+          <input type="text" id="setSmtpTo" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <div class="set-group">
+      <h3>{{ t.settings_group_telegram }}</h3>
+      <div class="set-row">
+        <label class="field" for="setTelegramToken">{{ t.field_telegram_token }}</label>
+        <input type="password" id="setTelegramToken" autocomplete="new-password" placeholder="123456:AAExample">
+        <div class="hint" id="setTelegramTokenState"></div>
+      </div>
+      <div class="set-row">
+        <label class="field" for="setTelegramChatId">{{ t.field_telegram_chat_id }}</label>
+        <input type="text" id="setTelegramChatId" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:18px; justify-content:flex-end">
+      <button class="btn" onclick="loadSettings()" type="button">{{ t.action_reload }}</button>
+      <button class="btn primary" id="setSave" onclick="saveSettings()" type="button">{{ t.action_save }}</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast-wrap" id="toasts"></div>
 
@@ -524,6 +608,57 @@ async function runProbe(name, params, target, button){
     if (button) { button.disabled = false; }
     if (currentAbort === controller) { currentAbort = null; }
   }
+}
+
+// ── Settings (SMTP / Telegram) ──────────────────────────────────────────────
+
+function openSettings(){
+  $('settingsBg').classList.add('open');
+  loadSettings();
+}
+
+function closeSettings(){
+  $('settingsBg').classList.remove('open');
+}
+
+async function loadSettings(){
+  try {
+    const data = await api('/api/settings');
+    const v = data.values;
+    $('setCryptoWarn').style.display = data.crypto_available ? 'none' : 'block';
+    $('setSmtpHost').value = v.smtp_host || '';
+    $('setSmtpPort').value = v.smtp_port || 587;
+    $('setSmtpUser').value = v.smtp_user || '';
+    $('setSmtpPassword').value = '';
+    $('setSmtpPasswordState').textContent = v.smtp_password_set ? T.settings_secret_set : T.settings_secret_unset;
+    $('setSmtpFrom').value = v.smtp_from || '';
+    $('setSmtpTo').value = v.smtp_to || '';
+    $('setSmtpTls').checked = v.smtp_tls !== false;
+    $('setTelegramToken').value = '';
+    $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
+    $('setTelegramChatId').value = v.telegram_chat_id || '';
+  } catch (e) { toast(errText(e.code), true); }
+}
+
+async function saveSettings(){
+  const btn = $('setSave');
+  btn.disabled = true;
+  try {
+    await api('/api/settings', { method: 'POST', body: {
+      smtp_host: $('setSmtpHost').value.trim(),
+      smtp_port: $('setSmtpPort').value.trim(),
+      smtp_user: $('setSmtpUser').value.trim(),
+      smtp_password: $('setSmtpPassword').value,
+      smtp_from: $('setSmtpFrom').value.trim(),
+      smtp_to: $('setSmtpTo').value.trim(),
+      smtp_tls: $('setSmtpTls').checked,
+      telegram_bot_token: $('setTelegramToken').value.trim(),
+      telegram_chat_id: $('setTelegramChatId').value.trim(),
+    } });
+    toast(T.settings_saved);
+    await loadSettings();
+  } catch (e) { toast(errText(e.code), true); }
+  finally { btn.disabled = false; }
 }
 
 // ── Status pill ─────────────────────────────────────────────────────────────
@@ -1251,6 +1386,28 @@ $('smtpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') smtpCh
 // ── Monitoring tab ────────────────────────────────────────────────────────
 
 const monitorHistoryOpen = {};
+let editingMonitorId = null;
+
+function startEditMonitor(m){
+  editingMonitorId = m.id;
+  $('monName').value = m.name;
+  $('monProbe').value = m.probe;
+  $('monTarget').value = m.target;
+  $('monInterval').value = m.interval_hours;
+  $('monEmail').checked = !!m.notify_email;
+  $('monTelegram').checked = !!m.notify_telegram;
+  $('monAdd').textContent = T.action_save_monitor;
+  $('monCancelEdit').style.display = '';
+  $('monName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelEditMonitor(){
+  editingMonitorId = null;
+  $('monName').value = ''; $('monTarget').value = ''; $('monInterval').value = '6';
+  $('monEmail').checked = true; $('monTelegram').checked = true;
+  $('monAdd').textContent = T.action_add_monitor;
+  $('monCancelEdit').style.display = 'none';
+}
 const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist, mail_health: T.nav_mail });
 
 async function loadMonitors(){
@@ -1301,6 +1458,10 @@ async function renderMonitorCard(m){
   });
   btns.appendChild(histBtn);
 
+  const editBtn = el('button', 'btn', T.action_edit);
+  editBtn.addEventListener('click', () => startEditMonitor(m));
+  btns.appendChild(editBtn);
+
   const delBtn = el('button', 'btn danger', T.action_delete);
   delBtn.addEventListener('click', async () => {
     if (!confirm(T.monitor_delete_confirm)) return;
@@ -1346,16 +1507,24 @@ $('monAdd').addEventListener('click', async () => {
   const target = $('monTarget').value.trim();
   if (!name || !target) { toast(T.err_empty_target, true); return; }
   const interval = parseInt($('monInterval').value, 10) || 6;
+  const body = {
+    name: name, probe: $('monProbe').value, target: target,
+    interval_hours: interval, notify_email: $('monEmail').checked,
+    notify_telegram: $('monTelegram').checked,
+  };
   try {
-    await api('/api/monitors', { method: 'POST', body: {
-      name: name, probe: $('monProbe').value, target: target,
-      interval_hours: interval, notify_email: $('monEmail').checked,
-      notify_telegram: $('monTelegram').checked,
-    } });
-    $('monName').value = ''; $('monTarget').value = '';
+    if (editingMonitorId !== null) {
+      await api('/api/monitors/' + editingMonitorId, { method: 'PUT', body: body });
+      cancelEditMonitor();
+    } else {
+      await api('/api/monitors', { method: 'POST', body: body });
+      $('monName').value = ''; $('monTarget').value = '';
+    }
     await loadMonitors();
   } catch (e) { toast(errText(e.code), true); }
 });
+
+$('monCancelEdit').addEventListener('click', cancelEditMonitor);
 
 // ── DNSSEC tab ────────────────────────────────────────────────────────────
 

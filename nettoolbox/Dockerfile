@@ -25,6 +25,7 @@ COPY smtpcheck.py .
 COPY quiccheck.py .
 COPY netutils.py .
 COPY monitor.py .
+COPY settings.py .
 COPY probes.py .
 COPY remote.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.

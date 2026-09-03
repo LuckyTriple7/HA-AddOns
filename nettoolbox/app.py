@@ -25,6 +25,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import monitor
+import settings as usersettings
 import probes
 from netcore import Context, ProbeError
 from remote import TOKEN_HEADER, LocalBackend, RemoteBackend
@@ -182,17 +183,10 @@ def build_context() -> Context:
 
 
 def notify_config() -> dict:
-    """Read fresh every time a notification is about to be sent, so an
-    options change takes effect on the next monitor run without a restart."""
-    cfg = load_config()
-    return {
-        'smtp_host': cfg.get('smtp_host'), 'smtp_port': cfg.get('smtp_port'),
-        'smtp_user': cfg.get('smtp_user'), 'smtp_password': cfg.get('smtp_password'),
-        'smtp_from': cfg.get('smtp_from'), 'smtp_to': cfg.get('smtp_to'),
-        'smtp_tls': cfg.get('smtp_tls', True),
-        'telegram_bot_token': cfg.get('telegram_bot_token'),
-        'telegram_chat_id': cfg.get('telegram_chat_id'),
-    }
+    """Read fresh every time a notification is about to be sent, so a saved
+    change takes effect on the next monitor run without a restart. Add-on
+    options are the fallback; settings.json (edited in the UI) wins."""
+    return usersettings.effective(load_config())
 
 
 _monitor_store = monitor.MonitorStore(MONITOR_DB_PATH)
@@ -797,10 +791,32 @@ def monitors_history(monitor_id: int):
     return jsonify({'rows': _monitor_store.history(monitor_id)})
 
 
+# ── In-app settings (SMTP / Telegram) ──────────────────────────────────────────
+
+
+@api('/api/settings')
+def settings_get():
+    return jsonify({'values': usersettings.public_view(load_config()),
+                    'crypto_available': usersettings.crypto_available()})
+
+
+@api('/api/settings', methods=('POST',))
+def settings_save():
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        raise ProbeError('bad_params')
+    changed = usersettings.save(body)
+    return jsonify({'ok': True, 'changed': changed})
+
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 
 def _startup_checks() -> None:
+    usersettings.init(_DATA)
+    if not usersettings.crypto_available():
+        log.warning("cryptography package unavailable — SMTP/Telegram secrets "
+                    "entered in the UI cannot be saved")
     cfg = load_config()
     if str(cfg.get('password') or '') == 'changeme123' and not SUPERVISOR_TOKEN:
         log.warning("the default password is still set — change it in the "

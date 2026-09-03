@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.2] - 2026-09-03
+
+### Added
+- **Mail/Telegram-Konfiguration in die Oberfläche verlagert.** Zahnradsymbol im Header (wie bei
+  TUIWatch) öffnet einen Einstellungen-Dialog für SMTP und Telegram — nicht mehr nur über die
+  Home-Assistant-Add-on-Optionen erreichbar. Gespeichert wird in `settings.json` im
+  Datenverzeichnis, Passwort und Bot-Token dabei mit einem eigenen Fernet-Schlüssel
+  (`settings.key`) verschlüsselt statt im Klartext — genau das Muster aus TUIWatchs
+  `settings.py` übernommen. Ein leeres Geheimfeld beim Speichern heißt „unverändert lassen",
+  nie „löschen". `cryptography` ist jetzt eine eigene, direkte Abhängigkeit (vorher nur
+  transitiv über `aioquic` vorhanden — hätte sonst beim nächsten QUIC-Rückbau die
+  Verschlüsselung stillschweigend mitgerissen).
+  Add-on-Optionen bleiben als Notzugang für `monitoring_enabled`/`monitoring_poll_seconds`
+  bestehen; `smtp_*`/`telegram_*` sind komplett aus `config.yaml` raus, Vorrang beim Lesen:
+  Standardwerte < Add-on-Optionen < `settings.json` — ein vorher über die Optionen gesetzter
+  Wert bleibt also aktiv, bis er in der Oberfläche überschrieben wird.
+- **Bearbeiten-Button für Monitore.** Füllt das Anlegen-Formular mit den aktuellen Werten,
+  Button wechselt auf „Änderungen speichern" (PUT statt POST), mit Abbrechen-Möglichkeit.
+
+### Fixed
+- Lokal end-to-end getestet: Speichern/Laden der Einstellungen (Secrets verschlüsselt auf
+  Platte, `geheim123` nicht im Klartext in der Datei gefunden), „gesetzt"-Anzeige nach dem
+  Speichern, Monitor-Bearbeiten über die echte HTTP-API (Umbenennen, Intervall ändern).
+
 ## [0.1.1] - 2026-09-03
 
 ### Added

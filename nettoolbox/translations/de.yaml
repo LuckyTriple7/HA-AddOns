@@ -66,34 +66,5 @@ configuration:
     description: >-
       Wie oft der Hintergrunddienst nachsieht, ob ein Monitor fällig ist. Bestimmt nur die
       Genauigkeit, nicht wie oft tatsächlich geprüft wird — das steht je Monitor einzeln.
-  smtp_host:
-    name: Mail-Versand — SMTP-Server
-    description: Adresse des SMTP-Servers für Monitoring-Benachrichtigungen. Leer lassen, um Mail-Benachrichtigungen abzuschalten.
-  smtp_port:
-    name: Mail-Versand — Port
-    description: Meist 587 (STARTTLS) oder 465/25 ohne TLS-Aushandlung.
-  smtp_user:
-    name: Mail-Versand — Benutzername
-    description: Leer lassen, wenn der Server keine Anmeldung verlangt.
-  smtp_password:
-    name: Mail-Versand — Passwort
-    description: Passwort zum obigen Benutzernamen.
-  smtp_from:
-    name: Mail-Versand — Absenderadresse
-    description: Leer lassen, dann wird der Benutzername als Absender verwendet.
-  smtp_to:
-    name: Mail-Versand — Empfängeradresse
-    description: Wohin Monitoring-Benachrichtigungen per Mail gehen.
-  smtp_tls:
-    name: Mail-Versand — STARTTLS verwenden
-    description: Für die meisten Server (Port 587) eingeschaltet lassen.
-  telegram_bot_token:
-    name: Telegram — Bot-Token
-    description: >-
-      Token eines eigenen Telegram-Bots (von @BotFather). Leer lassen, um Telegram-
-      Benachrichtigungen abzuschalten. Unabhängig vom Telegram-Add-on dieses Repositorys.
-  telegram_chat_id:
-    name: Telegram — Chat-ID
-    description: An welchen Chat der Bot Nachrichten schickt.
 network:
   17798/tcp: NetToolbox Web-UI (direkt, Anmeldung erforderlich)
