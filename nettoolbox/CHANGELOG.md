@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.8] - 2026-09-03
+
+### Changed
+- **Gesamt-Ampel ignoriert reine Hinweise.** Bisher zog jede rein informative Einzelmeldung (nur
+  1 MX-Eintrag, optionale TLS-RPT/BIMI-Records fehlen, DMARC auf quarantine statt reject, kurzlebiger
+  Zertifikatstyp) den Gesamtstatus einer Prüfung auf "Hinweis" runter, selbst wenn inhaltlich alles
+  in Ordnung war — verwirrend, wirkte wie ein Problem. `_worst()` (mailauth/tlscheck/httpcheck/
+  domaininfo/quiccheck/smtpcheck — 6× identischer Code) zählt INFO jetzt nicht mehr für die
+  Gesamt-Ampel, nur noch FAIL/WARN. Einzelne Hinweis-Zeilen bleiben wie gehabt sichtbar, nur die
+  Kopf-Ampel wird jetzt grün, wenn nichts Echtes vorliegt. Verifiziert: `mail_health` für
+  gizmonet.eu (nur OK/Info-Funde) liefert jetzt `level: ok` statt `info`.
+- **Label-Umbenennung:** "Warnung" → "Achtung", "Fehler" → "Kritisch" (EN: "Fail" → "Critical"),
+  für eine klarere Drei-Stufen-Ampel OK/Achtung/Kritisch. "Hinweis" (info, einzelne Fundzeilen)
+  bleibt unverändert.
+
+### Fixed
+- **TLS-Ablauf: 24h-Notfall-Floor.** Die anteilige Ablauf-Bewertung (Warnstufe ab <34%,
+  Kritisch ab <10% der Zertifikats-Lebensdauer) konnte bei kurzlebigen Zertifikaten (z. B.
+  10-Tage-Cert) mit genau noch 1 vollem Tag Rest bei "Achtung" hängenbleiben (1/10 = 10%, knapp
+  über der Kritisch-Schwelle), obwohl real nur noch <24h bis zum Ablauf bleiben. Fester Floor
+  ergänzt: unter 24 Stunden Restlaufzeit (sekundengenau, nicht die auf ganze Tage abgerundete
+  Anzeige) ist immer Kritisch, unabhängig von der Lebensdauer-Quote.
+
 ## [0.1.7] - 2026-09-03
 
 ### Security

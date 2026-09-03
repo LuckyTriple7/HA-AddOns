@@ -31,7 +31,12 @@ def _finding(level: str, code: str, **args) -> dict:
 
 
 def _worst(findings: list) -> str:
-    for level in (FAIL, WARN, INFO, OK):
+    """The overall pill only reflects real problems (FAIL/WARN); a purely
+    informational finding (single MX, missing optional record, short-lived
+    cert *type*) stays visible on its own line but never keeps the summary
+    from going green. An actual near-expiry or similar risk is its own
+    separate WARN/FAIL finding, unaffected by this."""
+    for level in (FAIL, WARN):
         if any(f['level'] == level for f in findings):
             return level
     return OK

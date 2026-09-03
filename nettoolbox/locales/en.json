@@ -142,7 +142,7 @@
   "level_ok": "OK",
   "level_info": "Info",
   "level_warn": "Warning",
-  "level_fail": "Fail",
+  "level_fail": "Critical",
   "dnssec_ad": "DNSSEC confirmed (AD)",
   "dnssec_no_ad": "no AD flag",
   "dnssec_signed": "signed",

@@ -31,7 +31,12 @@ def _finding(level: str, code: str, **args) -> dict:
 
 
 def _worst(findings: list) -> str:
-    for level in (FAIL, WARN, INFO, OK):
+    """The overall pill only reflects real problems (FAIL/WARN); a purely
+    informational finding (single MX, missing optional record, short-lived
+    cert *type*) stays visible on its own line but never keeps the summary
+    from going green. An actual near-expiry or similar risk is its own
+    separate WARN/FAIL finding, unaffected by this."""
+    for level in (FAIL, WARN):
         if any(f['level'] == level for f in findings):
             return level
     return OK
@@ -205,7 +210,8 @@ def check_tls(ctx: Context, target: str) -> dict:
         result['serial'] = str(cert.get('serialNumber', ''))
         try:
             expires = _parse_time(not_after_raw)
-            days_left = (expires - datetime.now(timezone.utc)).days
+            remaining = expires - datetime.now(timezone.utc)
+            days_left = remaining.days
             result['days_left'] = days_left
 
             # Fixed day thresholds are wrong for short-lived certificates —
@@ -225,6 +231,14 @@ def check_tls(ctx: Context, target: str) -> dict:
                 pass
             result['lifetime_days'] = lifetime_days
 
+            # A hard floor under the fraction math below: for a genuinely
+            # short-lived cert (lifetime under ~10 days), 1 full day left can
+            # still be >=10% of its lifetime and only reach WARN there, even
+            # though "renews or breaks within the next 24h" is urgent in
+            # absolute terms regardless of the cert's own lifetime. Checked
+            # in seconds, not the truncated days_left, so 23h59m still counts.
+            under_24h = 0 <= remaining.total_seconds() < 86400
+
             if days_left < 0:
                 findings.append(_finding(FAIL, 'tls_expired', days=abs(days_left)))
             elif lifetime_days and lifetime_days > 0:
@@ -232,7 +246,7 @@ def check_tls(ctx: Context, target: str) -> dict:
                     findings.append(_finding(INFO, 'tls_short_lived',
                                              lifetime=lifetime_days))
                 fraction_left = days_left / lifetime_days
-                if fraction_left < 0.10:
+                if under_24h or fraction_left < 0.10:
                     findings.append(_finding(FAIL, 'tls_expiring_urgent', days=days_left))
                 elif fraction_left < 0.34:
                     findings.append(_finding(WARN, 'tls_expiring_soon', days=days_left))
