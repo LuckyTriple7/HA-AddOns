@@ -1288,6 +1288,21 @@ Buchbarkeits-Check zählt nicht ein einzelnes Angebot: Erst wenn mehrere Testang
 in Folge nicht bestätigt werden, meldet der Selbsttest ein Problem — ein ausgebuchtes
 Angebot ist kein API-Ausfall.
 
+Sind ein **Mailserver** und/oder ein **Nextcloud-Adressbuch** eingerichtet, prüft der
+Selbsttest sie mit: **Mailserver (SMTP)** verbindet sich, verhandelt STARTTLS bzw. SSL
+und meldet sich an — **ohne eine Mail zu verschicken**; **Nextcloud-Adressbuch** fragt
+per `PROPFIND` nur die Eigenschaften des Adressbuchs ab, lädt also nicht bei jedem Test
+alle Kontakte. Beide gelten als **unkritisch**: sie färben die Ampel gelb, ziehen aber
+weder den Sensor `binary_sensor.tuiwatch_api_available` auf „off" noch lösen sie den
+API-Alarm aus — die Preisverfolgung läuft ja weiter.
+
+Läuft eine dieser Prüfungen in eine **Zeitüberschreitung**, obwohl der Server im
+Browser normal erreichbar ist, steckt oft ein **AAAA-Eintrag (IPv6)** dahinter, der ins
+Leere zeigt: Der Aufruf probiert zuerst IPv6 und wartet den vollen Timeout ab, statt
+IPv4 zu nehmen. Dafür gibt es in den Einstellungen unter **Sonstiges** den Schalter
+**„Nur IPv4 verwenden"** (Standard aus); er gilt für alle ausgehenden Verbindungen und
+wirkt sofort nach dem Speichern.
+
 Daneben steht **„📡 TUI-Aufrufe heute"**: ein einfacher Zähler, wie oft TUIWatch seit
 Mitternacht bei TUI angefragt hat (Angebote, Preiskalender, Suche, Reiseziele, …).
 Setzt sich automatisch um 0 Uhr zurück.

@@ -268,6 +268,9 @@ FIELDS: dict = {
     "verbose_log": ("bool", False, None, "misc",
         "Ausführliches Logging",
         "Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt."),
+    "force_ipv4": ("bool", False, None, "misc",
+        "Nur IPv4 verwenden",
+        "Schaltet IPv6 für alle ausgehenden Verbindungen ab. Hilft, wenn ein Server einen AAAA-Eintrag hat, der ins Leere zeigt (falscher DNS-Eintrag, kein IPv6-Routing): der Aufruf läuft dann zuerst in den vollen Zeitüberschreitungs-Fehler, obwohl er über IPv4 sofort ginge. Typisches Anzeichen im Log: „ConnectTimeout … connect timeout=20\" bei einem Server, der im Browser normal erreichbar ist. Standard aus."),
 }
 
 # Verschlüsselt gespeichert und nie an den Browser zurückgegeben.

@@ -18,6 +18,10 @@ _REPORT_BODY = (
     '<d:prop><d:getetag/><c:address-data/></d:prop>'
     '</c:addressbook-query>'
 )
+_PROPFIND_BODY = (
+    '<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/></d:prop>'
+    '</d:propfind>'
+)
 _EMAIL_RE = re.compile(r"^EMAIL[^:]*:(.+)$", re.MULTILINE)
 _FN_RE = re.compile(r"^FN:(.+)$", re.MULTILINE)
 
@@ -77,3 +81,34 @@ def fetch_contacts(addressbook_url: str, user: str, app_password: str,
     if verbose:
         log.info("Nextcloud-Kontakte: %d gefunden", len(contacts))
     return contacts
+
+
+def check_addressbook(addressbook_url: str, user: str, app_password: str,
+                      *, verbose: bool = False) -> tuple[bool, str]:
+    """Leichter Erreichbarkeits-Test des Adressbuchs für den Selbsttest — PROPFIND mit
+    `Depth: 0` fragt nur die Eigenschaften des Adressbuchs ab, nicht seine Kontakte.
+    Bewusst kein `fetch_contacts()`: das lädt bei jedem Selbsttest alle vCards, und
+    dessen leere Liste kann „Adressbuch leer" wie „Server tot" bedeuten.
+
+    Rückgabe (ok, Detailtext) — wirft nie."""
+    if not addressbook_url or not user:
+        return False, "nicht konfiguriert"
+    try:
+        resp = requests.request(
+            "PROPFIND", addressbook_url, auth=(user, app_password), data=_PROPFIND_BODY,
+            headers={"Content-Type": "application/xml; charset=utf-8", "Depth": "0"},
+            timeout=20)
+    except Exception as e:
+        if verbose:
+            log.warning("Nextcloud-Selbsttest: %s: %s", type(e).__name__, e)
+        return False, type(e).__name__
+    if resp.status_code not in (200, 207):
+        return False, f"HTTP {resp.status_code}"
+    name = ""
+    try:
+        root = ET.fromstring(resp.content)
+        el = root.find("d:response/d:propstat/d:prop/d:displayname", _NS)
+        name = (el.text or "").strip() if el is not None else ""
+    except Exception:
+        pass
+    return True, (f'Adressbuch „{name}"' if name else "erreichbar")

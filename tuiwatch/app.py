@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, quote, urlparse
 
 import anthropic
 import requests as http
+import urllib3.util.connection
 
 import atomic_io
 import settings as settings_store
@@ -58,6 +59,7 @@ import scraper
 import check24_client
 import trippilot_questions
 from aktionscodes import fetch_aktionscodes
+import nextcloud
 from nextcloud import fetch_contacts
 from packliste import PACKING_TEMPLATE, default_packing_rows
 from tripparser import (_clean_text, _fmt_eur, _parse_eur, apply_derived_fields,
@@ -98,7 +100,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.15"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.16"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -375,6 +377,29 @@ def _settings_changed() -> None:
     """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
     global _merged_cache, _merged_stamp
     _merged_cache, _merged_stamp = None, None
+    _apply_ipv4_pref()
+
+
+# Ausgangslage merken: `force_ipv4` aus soll den vom System erkannten Wert
+# wiederherstellen, nicht blind True setzen (in einem Container ohne IPv6-Stack
+# steht hier bereits False).
+_HAS_IPV6_DEFAULT = urllib3.util.connection.HAS_IPV6
+
+
+def _apply_ipv4_pref() -> None:
+    """Einstellung `force_ipv4` auf die HTTP-Schicht anwenden.
+
+    Hat ein Server einen AAAA-Eintrag, der ins Leere zeigt (falsch gepflegter DNS
+    oder kein IPv6-Routing), probiert requests zuerst IPv6 und läuft in den vollen
+    Zeitüberschreitungs-Fehler, obwohl IPv4 sofort antworten würde — im Log sichtbar
+    als `ConnectTimeout ... (connect timeout=20)` bei einem Server, der im Browser
+    normal erreichbar ist. urllib3 wählt die Adressfamilie über `HAS_IPV6`; steht das
+    auf False, fragt getaddrinfo nur noch A-Einträge ab. Gilt prozessweit für alle
+    ausgehenden Aufrufe (TUI-API, Nextcloud, KI, Telegram) und wirkt ohne Neustart,
+    da diese Funktion nach jedem Speichern läuft.
+    """
+    want_v4_only = bool(load_config().get('force_ipv4', False))
+    urllib3.util.connection.HAS_IPV6 = False if want_v4_only else _HAS_IPV6_DEFAULT
 
 
 def _verbose() -> bool:
@@ -1412,6 +1437,40 @@ def nc_configured() -> bool:
     cfg = load_config()
     return bool((cfg.get('nc_addressbook_url') or '').strip()
                 and (cfg.get('nc_user') or '').strip())
+
+
+def smtp_probe() -> tuple[bool, str]:
+    """Verbindet sich einmal mit dem Mailserver, ohne eine Mail zu schicken — für den
+    Selbsttest. Geprüft wird genau das, woran der Versand sonst scheitert: Erreichbar-
+    keit des Hosts, STARTTLS/SSL und, falls hinterlegt, die Anmeldung.
+
+    Rückgabe (ok, Detailtext) — wirft nie."""
+    cfg = load_config()
+    host = (cfg.get('smtp_host') or '').strip()
+    if not host:
+        return False, 'nicht konfiguriert'
+    port = int(cfg.get('smtp_port') or 587)
+    user = (cfg.get('smtp_user') or '').strip()
+    password = (cfg.get('smtp_password') or '').strip()
+    use_tls = bool(cfg.get('smtp_tls', True))
+    mode = 'STARTTLS' if use_tls else 'SSL'
+    try:
+        if use_tls:
+            with smtplib.SMTP(host, port, timeout=20) as s:
+                s.ehlo(); s.starttls(); s.ehlo()
+                if user and password:
+                    s.login(user, password)
+                s.noop()
+        else:
+            with smtplib.SMTP_SSL(host, port, timeout=20) as s:
+                if user and password:
+                    s.login(user, password)
+                s.noop()
+    except smtplib.SMTPAuthenticationError:
+        return False, f'{host}:{port} — Anmeldung abgelehnt'
+    except Exception as e:
+        return False, f'{host}:{port} — {type(e).__name__}'
+    return True, f'{host}:{port} ({mode}{", angemeldet" if user and password else ""})'
 
 
 def send_email(subject: str, html_body: str, to: str) -> None:
@@ -3179,6 +3238,41 @@ def _flight_healthchecks() -> list[dict]:
     return checks
 
 
+def _integration_healthchecks() -> list[dict]:
+    """Selbsttest für die angebundenen Fremddienste: Mailserver und Nextcloud-
+    Adressbuch. Nur wenn konfiguriert — wer keine Mail verschickt, soll dafür keine
+    Zeile im API-Status sehen.
+
+    Wie die Flugplan-Checks bewusst nicht `critical`: fällt der Mailserver aus, ist
+    die Preisverfolgung selbst nicht kaputt, und der HA-Sensor
+    `binary_sensor.tuiwatch_api_available` (der nur auf kritische Checks schaut)
+    darf davon nicht auf 'off' gehen. Sichtbar wird der Ausfall trotzdem: die Ampel
+    im Fuß der Seite zeigt ihn als Hinweis.
+
+    Es wird nichts verschickt und nichts geschrieben — nur verbunden und gelesen."""
+    checks: list[dict] = []
+    if smtp_configured():
+        try:
+            ok, detail = smtp_probe()
+        except Exception as e:                      # noqa: BLE001 — Diagnose-Beiwerk
+            ok, detail = False, type(e).__name__
+        checks.append({'name': 'Mailserver (SMTP)', 'ok': ok, 'detail': detail,
+                       'critical': False})
+    if nc_configured():
+        cfg = load_config()
+        try:
+            ok, detail = nextcloud.check_addressbook(
+                (cfg.get('nc_addressbook_url') or '').strip(),
+                (cfg.get('nc_user') or '').strip(),
+                (cfg.get('nc_app_password') or '').strip(),
+                verbose=_verbose())
+        except Exception as e:                      # noqa: BLE001
+            ok, detail = False, type(e).__name__
+        checks.append({'name': 'Nextcloud-Adressbuch', 'ok': ok, 'detail': detail,
+                       'critical': False})
+    return checks
+
+
 def _run_healthcheck(wait: bool = False) -> dict:
     """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab.
     Läuft bereits einer, liefert `wait=False` sofort den alten Stand; `wait=True`
@@ -3205,6 +3299,12 @@ def _run_healthcheck(wait: bool = False) -> dict:
             res['checks'] = list(res.get('checks') or []) + _flight_healthchecks()
         except Exception as e:
             log.error("Flugplan-Selbsttest fehlgeschlagen: %s", e)
+        # eigener try: ein Fehler in den Flugplan-Checks darf die Mail-/Adressbuch-
+        # Checks nicht mit verschlucken (und umgekehrt)
+        try:
+            res['checks'] = list(res.get('checks') or []) + _integration_healthchecks()
+        except Exception as e:
+            log.error("Dienste-Selbsttest fehlgeschlagen: %s", e)
         with _health_lock:
             _health_state.clear()
             _health_state.update(res)
