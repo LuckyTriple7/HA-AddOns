@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.6] - 2026-09-03
+
+### Fixed
+- **Falscher Alarm bei kurzlebigen Zertifikaten.** Die Ablauf-Bewertung nutzte feste Tagesgrenzen
+  (14 / 30 Tage) — bei einem Kurzlebig-Zertifikat mit z. B. 6 Tagen Gesamtlaufzeit (Let's-Encrypt-
+  Short-Lived-Profil und ähnliche) meldete das „läuft in 6 Tagen ab — dringend erneuern", obwohl
+  frisch ausgestellt und völlig normal. Bewertung läuft jetzt über den *Anteil* der verbleibenden
+  Zeit an der Gesamtlaufzeit des Zertifikats (unter 10 % = dringend, unter einem Drittel =
+  Warnung — an der üblichen CA-Erneuerungsschwelle orientiert), nicht mehr an absoluten Tagen.
+  Ein 90-Tage-Zertifikat mit nur noch 6 Tagen bleibt zu Recht ein echter Alarm (6 %), ein
+  6-Tage-Zertifikat mit 6 Tagen Rest jetzt korrekt „OK" (83 %). Kurzlebige Zertifikate (≤15 Tage
+  Gesamtlaufzeit) bekommen zusätzlich einen erklärenden Hinweis dazu. Nachgerechnet, nicht nur
+  angenommen — vier Fälle durchgespielt (frisch/kurzlebig, spät/kurzlebig, spät/langlebig,
+  normal/langlebig), alle vier korrekt eingestuft.
+
 ## [0.0.5] - 2026-09-03
 
 ### Added

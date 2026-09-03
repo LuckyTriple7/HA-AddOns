@@ -209,6 +209,7 @@
   "f_tls_expiring_soon": "Zertifikat läuft in {days} Tagen ab.",
   "f_tls_expiry_ok": "Zertifikat ist noch {days} Tage gültig.",
   "f_tls_expiry_unparsed": "Ablaufdatum konnte nicht gelesen werden.",
+  "f_tls_short_lived": "Kurzlebiges Zertifikat (Gesamtlaufzeit {lifetime} Tage) — eine kurze Restlaufzeit ist hier normal, kein Warnzeichen für sich.",
   "f_tls_details_unavailable": "Zertifikatsdetails ohne vertrauenswürdige Kette nicht abrufbar.",
 
   "err_generic": "Unbekannter Fehler.",

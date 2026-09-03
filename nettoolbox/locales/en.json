@@ -209,6 +209,7 @@
   "f_tls_expiring_soon": "Certificate expires in {days} days.",
   "f_tls_expiry_ok": "Certificate is valid for {days} more days.",
   "f_tls_expiry_unparsed": "Could not parse the expiry date.",
+  "f_tls_short_lived": "Short-lived certificate (total lifetime {lifetime} days) — a short time remaining is normal here, not a warning sign by itself.",
   "f_tls_details_unavailable": "Certificate details unavailable without a trusted chain.",
 
   "err_generic": "Unknown error.",

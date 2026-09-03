@@ -123,7 +123,8 @@ def check_tls(ctx: Context, target: str) -> dict:
         'host': host, 'port': port, 'protocol': '', 'cipher': '',
         'cipher_bits': 0, 'trusted': False, 'details_available': False,
         'verify_error': '', 'subject': '', 'issuer': '', 'san': [],
-        'not_before': '', 'not_after': '', 'days_left': None, 'serial': '',
+        'not_before': '', 'not_after': '', 'days_left': None,
+        'lifetime_days': None, 'serial': '',
         'self_signed': False, 'hostname_match': False, 'findings': findings,
     }
 
@@ -186,16 +187,46 @@ def check_tls(ctx: Context, target: str) -> dict:
             if not result['hostname_match']:
                 findings.append(_finding(WARN, 'tls_hostname_not_in_san', host=host))
 
+        not_before_raw = cert.get('notBefore', '')
         not_after_raw = cert.get('notAfter', '')
-        result['not_before'] = cert.get('notBefore', '')
+        result['not_before'] = not_before_raw
         result['not_after'] = not_after_raw
         result['serial'] = str(cert.get('serialNumber', ''))
         try:
             expires = _parse_time(not_after_raw)
             days_left = (expires - datetime.now(timezone.utc)).days
             result['days_left'] = days_left
+
+            # Fixed day thresholds are wrong for short-lived certificates —
+            # some CAs now issue 6-7 day certs (e.g. Let's Encrypt's
+            # short-lived profile) that are renewed automatically well
+            # before expiry; "6 days left" there is the normal, healthy
+            # state, not an emergency. Judged as a fraction of the
+            # certificate's own lifetime instead, matching how CAs
+            # themselves define a renewal window (commonly: renew once
+            # about a third of the lifetime remains). Falls back to the
+            # old fixed-day thresholds only if notBefore can't be parsed.
+            lifetime_days = None
+            try:
+                issued = _parse_time(not_before_raw)
+                lifetime_days = (expires - issued).days
+            except (ValueError, TypeError):
+                pass
+            result['lifetime_days'] = lifetime_days
+
             if days_left < 0:
                 findings.append(_finding(FAIL, 'tls_expired', days=abs(days_left)))
+            elif lifetime_days and lifetime_days > 0:
+                if lifetime_days <= 15:
+                    findings.append(_finding(INFO, 'tls_short_lived',
+                                             lifetime=lifetime_days))
+                fraction_left = days_left / lifetime_days
+                if fraction_left < 0.10:
+                    findings.append(_finding(FAIL, 'tls_expiring_urgent', days=days_left))
+                elif fraction_left < 0.34:
+                    findings.append(_finding(WARN, 'tls_expiring_soon', days=days_left))
+                else:
+                    findings.append(_finding(OK, 'tls_expiry_ok', days=days_left))
             elif days_left < EXPIRY_URGENT_DAYS:
                 findings.append(_finding(FAIL, 'tls_expiring_urgent', days=days_left))
             elif days_left < EXPIRY_WARN_DAYS:
