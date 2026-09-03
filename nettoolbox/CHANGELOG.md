@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.9] - 2026-09-03
+
+### Fixed
+- **Ladekringel blieb im Fehlerfall überall hängen — nicht nur bei HTTP/3.** Alle 16 Fehlerpfade
+  der Oberfläche hängten die Fehlermeldung nur unter den Kringel, statt ihn zu ersetzen (derselbe
+  Bug wie in 0.0.2, diesmal im `catch`-Zweig statt im Erfolgspfad — betraf jeden einzelnen Reiter
+  seit der ersten Version, fiel aber erst jetzt auf, weil frühere Tests direkt gegen die JSON-API
+  liefen statt gegen den echten Browser-DOM). Der tote „Abbrechen"-Link daneben tat nichts mehr,
+  weil die Anfrage längst durch war.
+- **Echtes HTTP/3 konnte hängen bleiben, auch gegen Server, die HTTP/3 wirklich sprechen.**
+  `aioquic.connect()` löst den Host über ein eigenes, unge­filtertes `getaddrinfo()` auf und nimmt
+  das erste Ergebnis — ohne Happy-Eyeballs, ohne IPv4-Vorzug (im Quellcode nachgeschaut, nicht
+  angenommen). Bekam der Host eine IPv6-Antwort zuerst und der Container hatte kein echtes
+  IPv6-Routing, blieb die QUIC-Verbindung tot, während die Alt-Svc-Erkennung über `requests`
+  (die IPv4 zuverlässiger bevorzugt) weiterhin funktionierte — genau das gemeldete Bild. Jetzt
+  wird die Adresse vorher gezielt über die eigene DNS-Schicht als A-Eintrag aufgelöst (AAAA nur
+  als Rückfall, wenn wirklich keine IPv4-Adresse existiert) und aioquic bekommt die fertige
+  Adresse statt selbst zu raten. Zusätzlich eine harte äußere Zeitgrenze um den ganzen Handschlag
+  gelegt (nicht nur um die Antwort danach) — falls der interne `idle_timeout` aus irgendeinem
+  Grund nicht feuert, kann die Anfrage jetzt nicht mehr unbegrenzt hängen bleiben.
+
 ## [0.0.8] - 2026-09-03
 
 ### Added

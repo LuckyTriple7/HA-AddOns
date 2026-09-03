@@ -580,7 +580,7 @@ async function dnsLookup(){
     wrap.appendChild(meta);
     wrap.appendChild(recordsTable(r.records, r.ttl));
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 async function dnsLookupAll(){
@@ -608,7 +608,7 @@ async function dnsLookupAll(){
       p.textContent = r.errors.map(e => e.type + ': ' + errText(e.code)).join(' · ');
       box.appendChild(p);
     }
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 async function dnsLookupTxt(){
@@ -619,7 +619,7 @@ async function dnsLookupTxt(){
     const data = await runProbe('txt', { name: name }, name, $('dnsRunTxt'));
     box.innerHTML = '';
     box.appendChild(recordsTable(data.result.records));
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 async function dnsLookupSoa(){
@@ -653,7 +653,7 @@ async function dnsLookupSoa(){
     const status = el('p', 'hint', r.in_sync ? T.soa_in_sync : T.soa_out_of_sync);
     wrap.appendChild(status);
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('dnsRun').addEventListener('click', dnsLookup);
@@ -764,7 +764,7 @@ async function propCheck(){
     });
     table.appendChild(tbody);
     box.appendChild(table);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('propRun').addEventListener('click', propCheck);
@@ -794,7 +794,7 @@ async function revCheck(){
       wrap.appendChild(c);
     });
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 async function mxCheck(){
@@ -820,7 +820,7 @@ async function mxCheck(){
       });
       box.appendChild(c);
     });
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('revRun').addEventListener('click', revCheck);
@@ -854,7 +854,7 @@ async function pingCheck(){
       wrap.appendChild(table);
     }
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 async function tracerouteCheck(){
@@ -886,7 +886,7 @@ async function tracerouteCheck(){
     table.appendChild(tbody);
     wrap.appendChild(table);
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('pingRun').addEventListener('click', pingCheck);
@@ -926,7 +926,7 @@ async function rblCheck(){
     });
     table.appendChild(tbody);
     box.appendChild(table);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('rblRun').addEventListener('click', rblCheck);
@@ -992,7 +992,7 @@ async function tlsCheck(){
     }
 
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('tlsRun').addEventListener('click', tlsCheck);
@@ -1053,7 +1053,7 @@ async function whoisCheck(){
       if (r.raw) wrap.appendChild(el('div', 'record-code', r.raw));
     }
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('whoisRun').addEventListener('click', whoisCheck);
@@ -1127,7 +1127,7 @@ async function httpCheck(){
     wrap.appendChild(grid);
 
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('httpRun').addEventListener('click', httpCheck);
@@ -1150,7 +1150,7 @@ async function quicCheck(){
     wrap.appendChild(badges);
     wrap.appendChild(renderFindings(r.findings));
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('quicRun').addEventListener('click', quicCheck);
@@ -1196,7 +1196,7 @@ async function smtpCheck(){
     wrap.appendChild(grid);
 
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('smtpRun').addEventListener('click', smtpCheck);
@@ -1223,7 +1223,7 @@ async function secCheck(){
     }
     wrap.appendChild(el('p', 'hint', T.field_dnskey_count + ': ' + r.dnskey_count));
     box.appendChild(wrap);
-  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
 $('secRun').addEventListener('click', secCheck);

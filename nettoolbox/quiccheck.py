@@ -21,7 +21,7 @@ from aioquic.h3.events import DataReceived, HeadersReceived
 from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.events import ConnectionTerminated, ProtocolNegotiated
 
-from netcore import Context, ProbeError, clean_host_or_ip, guard_target
+from netcore import Context, ProbeError, clean_host_or_ip, guard_target, query
 
 OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
 DEFAULT_PORT = 443
@@ -97,11 +97,11 @@ class _H3ClientProtocol(QuicConnectionProtocol):
         self.transmit()
 
 
-async def _run(host: str, port: int, timeout: float) -> dict:
+async def _run_inner(connect_host: str, host: str, port: int, timeout: float) -> dict:
     config = QuicConfiguration(is_client=True, alpn_protocols=H3_ALPN,
                                server_name=host, idle_timeout=timeout)
     started = time.monotonic()
-    async with connect(host, port, configuration=config,
+    async with connect(connect_host, port, configuration=config,
                        create_protocol=_H3ClientProtocol) as protocol:
         handshake_ms = int((time.monotonic() - started) * 1000)
         await protocol.get(host)
@@ -125,9 +125,55 @@ async def _run(host: str, port: int, timeout: float) -> dict:
         }
 
 
+async def _run(connect_host: str, host: str, port: int, timeout: float) -> dict:
+    # QuicConfiguration(idle_timeout=...) is meant to bound the handshake
+    # too, but relying on aioquic's own internal timer as the *only* limit
+    # is a hard thing to be fully certain of from the outside -- a UDP path
+    # that is completely silent (no packet at all comes back, common with
+    # firewalls that drop rather than reject) must not be able to hang this
+    # coroutine, and by extension the request thread serving it, forever.
+    # A hard outer bound is cheap insurance regardless of whether the inner
+    # one is reliable.
+    try:
+        return await asyncio.wait_for(_run_inner(connect_host, host, port, timeout),
+                                      timeout=timeout + 3)
+    except asyncio.TimeoutError:
+        raise ProbeError('quic_unreachable', f'{host}:{port}')
+
+
+def _resolve_ipv4_first(ctx: Context, host: str) -> str:
+    """The address aioquic's connect() is handed.
+
+    aioquic resolves the host itself via a bare getaddrinfo() and connects
+    to whichever address comes back first -- no Happy-Eyeballs, no IPv4
+    preference (checked against its source, not assumed). Where a system
+    resolver happens to list AAAA before A, that silently sends every QUIC
+    attempt out over IPv6; on a host or container without a real IPv6
+    route, that hangs or fails while an ordinary HTTPS request (which most
+    HTTP client stacks make Happy-Eyeballs-aware, or which simply prefer
+    IPv4) keeps working fine -- the exact "definitely does HTTP/3, still no
+    answer" symptom this resolves. A record looked up through our own DNS
+    layer first, falling back to AAAA only if the name truly has none.
+    """
+    try:
+        import ipaddress
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        pass
+    a_records = query(ctx, host, 'A').records
+    if a_records:
+        return a_records[0]
+    aaaa_records = query(ctx, host, 'AAAA').records
+    if aaaa_records:
+        return aaaa_records[0]
+    raise ProbeError('quic_unreachable', f'{host}: no A/AAAA record')
+
+
 def check_quic(ctx: Context, target: str) -> dict:
     host, port = _parse_target(target)
     guard_target(ctx, host)
+    connect_host = _resolve_ipv4_first(ctx, host)
 
     findings = []
     result = {
@@ -137,7 +183,7 @@ def check_quic(ctx: Context, target: str) -> dict:
     }
 
     try:
-        outcome = asyncio.run(_run(host, port, ctx.http_timeout))
+        outcome = asyncio.run(_run(connect_host, host, port, ctx.http_timeout))
     except ProbeError:
         raise
     except (ssl.SSLError,) as e:
