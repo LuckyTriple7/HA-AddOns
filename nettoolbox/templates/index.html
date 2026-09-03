@@ -242,6 +242,21 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <div id="mxResult"></div>
   </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M3,12H7L9,6L13,18L15,12H21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t.ping_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="pingTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="pingTarget" placeholder="example.com oder 203.0.113.10" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="pingRun">{{ t.action_ping }}</button>
+        <button class="btn" id="tracerouteRun">{{ t.action_traceroute }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.ping_hint }}</p>
+    <div id="pingResult"></div>
+  </div>
 </section>
 
 <section id="tab-blacklist">
@@ -309,6 +324,11 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.http_hint }}</p>
     <div id="httpResult"></div>
+    <div class="row" style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px">
+      <button class="btn" id="quicRun">{{ t.action_quic_test }}</button>
+      <span class="hint" style="margin:0">{{ t.quic_hint }}</span>
+    </div>
+    <div id="quicResult"></div>
   </div>
 </section>
 
@@ -808,6 +828,71 @@ $('revIp').addEventListener('keydown', e => { if (e.key === 'Enter') revCheck();
 $('mxRun').addEventListener('click', mxCheck);
 $('mxDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mxCheck(); });
 
+async function pingCheck(){
+  const target = $('pingTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('pingResult'); showLoading(box);
+  try {
+    const data = await runProbe('ping', { target: target }, target, $('pingRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.received + '/' + r.sent + ' · ' + r.loss_pct + '% ' + T.ping_loss_label));
+    if (r.rtt) badges.appendChild(el('span', 'chip', 'avg ' + r.rtt.avg + ' ms'));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+    if (r.rtt) {
+      const table = el('table');
+      const thead = el('thead'); const trh = el('tr');
+      ['min','avg','max','mdev'].forEach(k => trh.appendChild(el('th', '', k)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody'); const tr = el('tr');
+      ['min','avg','max','mdev'].forEach(k => tr.appendChild(el('td', '', r.rtt[k] + ' ms')));
+      tbody.appendChild(tr); table.appendChild(tbody);
+      wrap.appendChild(table);
+    }
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function tracerouteCheck(){
+  const target = $('pingTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('pingResult'); showLoading(box);
+  try {
+    const data = await runProbe('traceroute', { target: target }, target, $('tracerouteRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.reached ? T.traceroute_reached_label : T.traceroute_not_reached_label));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    ['#', T.field_ip, 'ms'].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.hops.forEach(hop => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', String(hop.hop)));
+      tr.appendChild(el('td', 'mono', hop.address || '*'));
+      tr.appendChild(el('td', '', hop.ms !== null ? hop.ms + ' ms' : '—'));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('pingRun').addEventListener('click', pingCheck);
+$('tracerouteRun').addEventListener('click', tracerouteCheck);
+$('pingTarget').addEventListener('keydown', e => { if (e.key === 'Enter') pingCheck(); });
+
 // ── Blacklist tab ─────────────────────────────────────────────────────────
 
 function rblRowBadge(row){
@@ -1047,6 +1132,28 @@ async function httpCheck(){
 
 $('httpRun').addEventListener('click', httpCheck);
 $('httpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') httpCheck(); });
+
+async function quicCheck(){
+  const target = $('httpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('quicResult'); showLoading(box);
+  try {
+    const data = await runProbe('quic', { target: target }, target, $('quicRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.connected ? 'ok' : 'warn'),
+      r.connected ? T.quic_connected_badge : T.quic_failed_badge));
+    if (r.handshake_ms !== null) badges.appendChild(el('span', 'chip', r.handshake_ms + ' ms'));
+    if (r.status) badges.appendChild(el('span', 'chip', 'HTTP ' + r.status));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+    box.appendChild(wrap);
+  } catch (e) { box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('quicRun').addEventListener('click', quicCheck);
 
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 

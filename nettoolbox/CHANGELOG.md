@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.8] - 2026-09-03
+
+### Added
+- **Echtes HTTP/3 (QUIC).** Zweiter Button im HTTP-Header-Reiter: echter QUIC-Handschlag über
+  UDP/443 plus eine HTTP/3-Anfrage (`aioquic`), nicht nur die Alt-Svc-Ankündigung. Die
+  Wheel-Sorge aus 0.0.7 (Alpine + Python 3.14) war unbegründet — live gegen PyPI geprüft: sowohl
+  `aioquic` als auch `cryptography` und die transitive Abhängigkeit `pylsqpack` haben
+  `abi3`+`musllinux`-Wheels für amd64 und aarch64, keine Kompilierung im Image nötig. Jede
+  benutzte aioquic-API (H3Connection, QuicConnectionProtocol, ProtocolNegotiated-Event, …) wurde
+  vor dem Schreiben gegen die echte installierte Bibliothek geprüft, nicht aus der Erinnerung
+  übernommen. Live gegen cloudflare.com und google.com getestet (echte Handschläge, ~25 ms,
+  echte HTTP/3-Antworten mit Status und Inhalt).
+- **Ping / Traceroute.** Als weitere Karten im bestehenden „Netzwerk-Tools"-Reiter (vormals
+  „Reverse / MX") statt neuer Nav-Punkte — die Leiste hat genug Einträge. Ruft die
+  System-Programme `ping` (iputils) und `traceroute` im Container auf statt eigene ICMP-Sockets
+  zu bauen; die Standard-Capabilities des Containers reichen dafür, live bestätigt. Live gegen
+  echte Ziele getestet, dabei einen Parsing-Bug gefunden: `"4.633 ms"` sind bei traceroute zwei
+  durch Leerzeichen getrennte Tokens, keins — die Laufzeit blieb dadurch immer leer.
+
+### Changed
+- Reiter „Reverse / MX" heißt jetzt „Netzwerk-Tools" (deckt jetzt auch Ping/Traceroute ab).
+
 ## [0.0.7] - 2026-09-03
 
 ### Added

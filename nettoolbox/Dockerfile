@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.description="Network and mail diagnostics for Hom
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl iputils traceroute
 
 WORKDIR /app
 
@@ -22,6 +22,8 @@ COPY tlscheck.py .
 COPY domaininfo.py .
 COPY httpcheck.py .
 COPY smtpcheck.py .
+COPY quiccheck.py .
+COPY netutils.py .
 COPY probes.py .
 COPY remote.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.
