@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1] - 2026-09-03
+
+### Added
+- **Echtes HTTP/3 (QUIC) wieder eingebaut.** War in 0.0.10 entfernt worden, weil auf einem
+  Netcup-Server per Paketmitschnitt scheinbar eine Netzwerksperre nachgewiesen wurde — stellte
+  sich beim Nachtesten als **abgelaufener/falscher AAAA-Eintrag** der geprüften Domain heraus,
+  kein Netzwerkproblem. Genau der Fehlertyp, für den der IPv4-Vorzug-Fix aus 0.0.9 gedacht war
+  (aioquics eigene Adressauswahl bevorzugt IPv6 ohne Rückfall, hängt bei einer toten Route);
+  nur traf es hier den eigenen DNS-Eintrag, nicht den Server. Unverändert aus der Git-Historie
+  wiederhergestellt (inklusive beider 0.0.9-Fixes: IPv4-Vorzug über die eigene DNS-Schicht,
+  harte äußere Zeitgrenze um den ganzen Handschlag). Erneut live gegen cloudflare.com und
+  google.com bestätigt (~25 ms, echte HTTP/3-Antworten).
+
 ## [0.1.0] - 2026-09-03
 
 ### Added

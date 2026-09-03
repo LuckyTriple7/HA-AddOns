@@ -2,3 +2,7 @@ flask==3.1.3
 requests==2.34.2
 itsdangerous==2.2.0
 dnspython==2.8.0
+# QUIC/HTTP3-Check. Pulls cryptography, pylsqpack, service_identity — alle
+# vier haben abi3+musllinux-Wheels (geprüft für Python 3.14 auf Alpine,
+# amd64 und aarch64), keine Kompilierung im Image nötig.
+aioquic==1.3.0

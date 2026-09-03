@@ -11,6 +11,7 @@ import domaininfo
 import httpcheck
 import mailauth
 import netutils
+import quiccheck
 import smtpcheck
 import tlscheck
 from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
@@ -253,6 +254,10 @@ def p_smtp(ctx: Context, params: dict) -> dict:
     return smtpcheck.check_smtp(ctx, _str(params, 'target'))
 
 
+def p_quic(ctx: Context, params: dict) -> dict:
+    return quiccheck.check_quic(ctx, _str(params, 'target'))
+
+
 def p_ping(ctx: Context, params: dict) -> dict:
     return netutils.check_ping(ctx, _str(params, 'target'))
 
@@ -277,6 +282,7 @@ PROBES = {
     'whois': p_whois,
     'http': p_http,
     'smtp': p_smtp,
+    'quic': p_quic,
     'ping': p_ping,
     'traceroute': p_traceroute,
     'spf': p_spf,
@@ -293,7 +299,7 @@ TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'whois': 'domain',
-    'http': 'target', 'smtp': 'target',
+    'http': 'target', 'smtp': 'target', 'quic': 'target',
     'ping': 'ip', 'traceroute': 'ip',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',

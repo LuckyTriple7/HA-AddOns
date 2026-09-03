@@ -327,6 +327,11 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.http_hint }}</p>
     <div id="httpResult"></div>
+    <div class="row" style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px">
+      <button class="btn" id="quicRun">{{ t.action_quic_test }}</button>
+      <span class="hint" style="margin:0">{{ t.quic_hint }}</span>
+    </div>
+    <div id="quicResult"></div>
   </div>
 </section>
 
@@ -1173,6 +1178,28 @@ async function httpCheck(){
 
 $('httpRun').addEventListener('click', httpCheck);
 $('httpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') httpCheck(); });
+
+async function quicCheck(){
+  const target = $('httpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('quicResult'); showLoading(box);
+  try {
+    const data = await runProbe('quic', { target: target }, target, $('quicRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.connected ? 'ok' : 'warn'),
+      r.connected ? T.quic_connected_badge : T.quic_failed_badge));
+    if (r.handshake_ms !== null) badges.appendChild(el('span', 'chip', r.handshake_ms + ' ms'));
+    if (r.status) badges.appendChild(el('span', 'chip', 'HTTP ' + r.status));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('quicRun').addEventListener('click', quicCheck);
 
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 

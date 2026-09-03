@@ -335,5 +335,17 @@
   "err_ping_timeout": "Ping timed out.",
   "err_ping_unavailable": "ping program not found in the container.",
   "err_traceroute_timeout": "Traceroute timed out.",
-  "err_traceroute_unavailable": "traceroute program not found in the container."
+  "err_traceroute_unavailable": "traceroute program not found in the container.",
+  "quic_hint": "A real QUIC handshake over UDP/443 plus one HTTP/3 request — slower than the Alt-Svc advertisement above, but actually confirms working HTTP/3.",
+  "action_quic_test": "Run real HTTP/3 test",
+  "quic_connected_badge": "HTTP/3 connected",
+  "quic_failed_badge": "no HTTP/3",
+  "f_quic_connected": "Real HTTP/3 handshake succeeded ({ms} ms).",
+  "f_quic_response_ok": "Response received, status {status}.",
+  "f_quic_alpn_mismatch": "Server answered, but not with HTTP/3 (ALPN: {alpn}).",
+  "f_quic_closed": "QUIC connection was refused: {reason}",
+  "err_quic_unreachable": "No answer over UDP/443 — either no HTTP/3 support, or a firewall blocks UDP.",
+  "err_quic_response_timeout": "Handshake succeeded, but no answer to the request.",
+  "err_quic_tls_error": "TLS error during the QUIC handshake.",
+  "err_quic_error": "QUIC connection failed."
 }

@@ -22,6 +22,7 @@ about your domains leaves your own infrastructure.
 - **Whois/RDAP** — registrar, registration/expiry dates, name servers; RDAP first, WHOIS fallback for TLDs without RDAP (e.g. .de)
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
 - **SMTP** — banner, EHLO capabilities, STARTTLS, open-relay test (never actually delivers mail)
+- **HTTP/3 (QUIC)** — a real handshake over UDP/443, not just the Alt-Svc advertisement
 - **Ping / Traceroute** — via the container's own system tools
 - **DNSSEC** — DS/DNSKEY status, whether the resolver validated the answer (AD flag)
 - **Monitoring** — check domains/IPs automatically at a chosen interval (TLS expiry, blocklists,

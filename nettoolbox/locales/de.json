@@ -335,5 +335,17 @@
   "err_ping_timeout": "Ping hat zu lange gedauert.",
   "err_ping_unavailable": "ping-Programm im Container nicht gefunden.",
   "err_traceroute_timeout": "Traceroute hat zu lange gedauert.",
-  "err_traceroute_unavailable": "traceroute-Programm im Container nicht gefunden."
+  "err_traceroute_unavailable": "traceroute-Programm im Container nicht gefunden.",
+  "quic_hint": "Echter QUIC-Handshake über UDP/443 plus eine HTTP/3-Anfrage — dauert länger als die Alt-Svc-Ankündigung oben, bestätigt aber wirklich funktionierendes HTTP/3.",
+  "action_quic_test": "Echten HTTP/3-Test starten",
+  "quic_connected_badge": "HTTP/3 verbunden",
+  "quic_failed_badge": "kein HTTP/3",
+  "f_quic_connected": "Echter HTTP/3-Handschlag erfolgreich ({ms} ms).",
+  "f_quic_response_ok": "Antwort erhalten, Status {status}.",
+  "f_quic_alpn_mismatch": "Server hat geantwortet, aber nicht mit HTTP/3 (ALPN: {alpn}).",
+  "f_quic_closed": "QUIC-Verbindung wurde abgelehnt: {reason}",
+  "err_quic_unreachable": "Keine Antwort über UDP/443 — entweder kein HTTP/3-Support oder eine Firewall blockiert UDP.",
+  "err_quic_response_timeout": "Handschlag gelang, aber keine Antwort auf die Anfrage.",
+  "err_quic_tls_error": "TLS-Fehler beim QUIC-Handschlag.",
+  "err_quic_error": "QUIC-Verbindung fehlgeschlagen."
 }
