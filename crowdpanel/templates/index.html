@@ -246,6 +246,48 @@
     .map-scale { display: inline-flex; align-items: center; gap: 4px; }
     .map-scale i { width: 14px; height: 9px; border-radius: 2px; display: inline-block;
                    border: 1px solid var(--border); }
+
+    /* ── Metriken ──────────────────────────────────────────────────────────── */
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .chip { border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px;
+            background: var(--surf2); min-width: 0; }
+    .chip span { display: block; font-size: 0.68rem; color: var(--muted); }
+    .chip b { font-size: 0.82rem; font-weight: 600; overflow-wrap: anywhere; }
+
+    /* Ein Block je Quelle, Bouncer oder Engine. Feste Mindestbreite statt
+       Spaltenzahl: die Zahl der Bloecke steht erst zur Laufzeit fest. */
+    .mgrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .mblock { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+              background: var(--surf2); min-width: 0; }
+    .mblock-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;
+                   flex-wrap: wrap; }
+    .mblock-head .name { font-weight: 600; font-size: 0.85rem; overflow-wrap: anywhere;
+                         min-width: 0; }
+    .mblock-head .tag { white-space: nowrap; flex: none; }
+    .mblock-head .right { margin-left: auto; font-variant-numeric: tabular-nums;
+                          font-size: 0.85rem; flex: none; }
+    .mblock-head .right.ok { color: var(--green-h); }
+    .mblock-head .right.warn { color: var(--amber); }
+    .mblock-head .right.big { font-size: 1.05rem; font-weight: 700; color: var(--accent); }
+    .mblock .kv { font-size: 0.78rem; }
+    .mblock .kv b.method { color: var(--accent); font-weight: 600; margin-right: 4px; }
+    .small { font-size: 0.75rem; }
+
+    /* Balken aus mehreren Stuecken. Ohne Werte bleibt ein flacher Streifen
+       stehen — er sagt "nichts gezaehlt", nicht "kein Balken vorgesehen". */
+    .segbar { display: flex; height: 6px; border-radius: 3px; overflow: hidden;
+              background: var(--bg); margin-bottom: 8px; }
+    .segbar.flat { background: var(--border); opacity: .45; }
+    .segbar i { display: block; height: 100%; }
+
+    .numrow { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+    .numrow div { min-width: 0; }
+    .numrow b { display: block; font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+    .numrow span { font-size: 0.7rem; color: var(--muted); }
+
+    .kpi .sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .bartrack.mini { height: 4px; margin-top: 4px; width: 70px; margin-left: auto; }
+    th.right, td.right { text-align: right; }
   </style>
 </head>
 <body>
@@ -2070,27 +2112,280 @@
       }
     };
 
+    // ── Metriken ──────────────────────────────────────────────────────────────
+    // metrics.py liefert generische Tabellen: Kennung, Spaltennamen, Zeilen.
+    // Gezeichnet wird nach Kennung, wo eine Zahlenreihe fuer sich nichts sagt —
+    // ein Anteil, ein Balken, eine Gruppierung. Kennt die Oberflaeche eine
+    // Kennung nicht, faellt sie auf die Tabelle zurueck; eine CrowdSec-Version
+    // mit neuen Zaehlern zeigt also weiter alles an, nur schmuckloser.
+    function mCols() { return T.m_cols || {}; }
+
+    function pctOf(part, whole) {
+      const w = Number(whole) || 0;
+      if (!w) return null;
+      return Math.round((Number(part) || 0) / w * 1000) / 10;
+    }
+
+    function pctText(v) {
+      return v === null ? '–' : v.toLocaleString(G.lang || 'de') + ' %';
+    }
+
+    // Ein Balken aus mehreren Stuecken: [Wert, Farbe, Beschriftung].
+    function segBar(parts) {
+      const total = parts.reduce((a, p) => a + (Number(p[0]) || 0), 0);
+      const bar = el('div', 'segbar');
+      if (!total) { bar.classList.add('flat'); return bar; }
+      parts.forEach(part => {
+        const v = Number(part[0]) || 0;
+        if (!v) return;
+        const piece = el('i');
+        piece.style.width = (v / total * 100) + '%';
+        piece.style.background = part[1];
+        piece.title = part[2] + ': ' + num(v);
+        bar.appendChild(piece);
+      });
+      return bar;
+    }
+
+    // Zahlenreihe unter einem Balken: Wert gross, Bedeutung klein darunter.
+    function numRow(pairs) {
+      const row = el('div', 'numrow');
+      pairs.forEach(pair => {
+        if (pair[1] === undefined || pair[1] === null) return;
+        const cell = el('div');
+        cell.appendChild(el('b', null, num(pair[1])));
+        cell.appendChild(el('span', null, pair[0]));
+        row.appendChild(cell);
+      });
+      return row;
+    }
+
+    function mBlockHead(name, tag, right, rightClass) {
+      const head = el('div', 'mblock-head');
+      head.appendChild(el('span', 'mono name', name || T.none));
+      if (tag) head.appendChild(el('span', 'tag', tag));
+      if (right !== undefined) head.appendChild(el('span', 'right ' + (rightClass || ''), right));
+      return head;
+    }
+
+    // Datenquellen: was hereinkam und wie weit es kam.
+    function mAcquisition(tbl) {
+      const C = mCols();
+      const grid = el('div', 'mgrid');
+      (tbl.rows || []).forEach(r => {
+        const block = el('div', 'mblock');
+        const pct = pctOf(r.parsed, r.read);
+        block.appendChild(mBlockHead(r.source, r.type, pctText(pct),
+          pct !== null && pct < 90 ? 'warn' : 'ok'));
+        block.appendChild(segBar([[r.parsed, 'var(--green-h)', C.parsed || 'parsed'],
+                                  [r.unparsed, 'var(--amber)', C.unparsed || 'unparsed']]));
+        block.appendChild(numRow([[C.read, r.read], [C.parsed, r.parsed],
+                                  [C.unparsed, r.unparsed], [C.poured, r.poured],
+                                  [C.whitelisted, r.whitelisted]]));
+        grid.appendChild(block);
+      });
+      return grid;
+    }
+
+    // Bouncer: eine leere Antwort ist keine Stoerung, aber ein Bouncer, der nur
+    // leere bekommt, setzt auch nichts durch. Genau das zeigt der Balken.
+    function mBouncers(tbl) {
+      const C = mCols();
+      const grid = el('div', 'mgrid');
+      (tbl.rows || []).forEach(r => {
+        const block = el('div', 'mblock');
+        block.appendChild(mBlockHead(r.bouncer, null, num(r.requests)));
+        block.appendChild(segBar([[r.with_decisions, 'var(--accent)', C.with_decisions || ''],
+                                  [r.empty, 'var(--border)', C.empty || '']]));
+        block.appendChild(numRow([[C.requests, r.requests],
+                                  [C.with_decisions, r.with_decisions],
+                                  [C.empty, r.empty]]));
+        grid.appendChild(block);
+      });
+      return grid;
+    }
+
+    // LAPI je Maschine: eine Karte je Maschine, darin ihre Pfade. Als flache
+    // Tabelle stand derselbe Maschinenname zwanzig Mal untereinander.
+    function mMachines(tbl) {
+      const grid = el('div', 'mgrid');
+      const byMachine = new Map();
+      (tbl.rows || []).forEach(r => {
+        const key = r.machine || T.none;
+        if (!byMachine.has(key)) byMachine.set(key, []);
+        byMachine.get(key).push(r);
+      });
+      byMachine.forEach((rows, machine) => {
+        const total = rows.reduce((a, r) => a + (Number(r.count) || 0), 0);
+        const block = el('div', 'mblock');
+        block.appendChild(mBlockHead(machine, null, num(total)));
+        rows.sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 12).forEach(r => {
+          const row = el('div', 'kv');
+          const left = el('span', 'mono');
+          left.appendChild(el('b', 'method', r.method || ''));
+          left.appendChild(document.createTextNode(' ' + (r.route || '')));
+          row.appendChild(left);
+          row.appendChild(el('span', 'mono', num(r.count)));
+          block.appendChild(row);
+        });
+        grid.appendChild(block);
+      });
+      return grid;
+    }
+
+    function mAppsec(tbl) {
+      const C = mCols();
+      const grid = el('div', 'mgrid');
+      (tbl.rows || []).forEach(r => {
+        const passed = Math.max(0, (Number(r.requests) || 0) - (Number(r.blocked) || 0));
+        const pct = pctOf(r.blocked, r.requests);
+        const block = el('div', 'mblock');
+        block.appendChild(mBlockHead(r.appsec_engine, r.source, pctText(pct),
+          (pct || 0) > 0 ? 'warn' : 'ok'));
+        block.appendChild(segBar([[passed, 'var(--green-h)', C.requests || ''],
+                                  [r.blocked, 'var(--red)', C.blocked || '']]));
+        block.appendChild(numRow([[C.requests, r.requests], [C.blocked, r.blocked]]));
+        grid.appendChild(block);
+      });
+      return grid;
+    }
+
+    // Laufzeiten: die Zahl ist die Aussage, nicht die Zeile drumherum.
+    function mLatency(tbl) {
+      const C = mCols();
+      const grid = el('div', 'mgrid');
+      (tbl.rows || []).forEach(r => {
+        const block = el('div', 'mblock');
+        const head = el('div', 'mblock-head');
+        head.appendChild(el('span', 'mono name', r.label || T.none));
+        head.appendChild(el('span', 'right big', num(r.avg_ms) + ' ms'));
+        block.appendChild(head);
+        block.appendChild(el('div', 'muted small', (r.metric || '').replace(/^cs_/, '')
+          + ' · ' + (C.count || 'count') + ': ' + num(r.count)));
+        grid.appendChild(block);
+      });
+      return grid;
+    }
+
+    const METRIC_VIEWS = {
+      acquisition: mAcquisition,
+      lapi_bouncers: mBouncers,
+      lapi_machines: mMachines,
+      appsec: mAppsec,
+      latency: mLatency,
+    };
+
+    // Anteilsspalte fuer die Tabellen, bei denen ein Verhaeltnis die eigentliche
+    // Aussage ist: ein Parser mit 4000 Treffern und 0 % Erfolg faellt sonst nicht auf.
+    const METRIC_RATIO = {
+      parsers: ['parsed', 'hits'],
+      whitelists: ['whitelisted', 'hits'],
+    };
+
+    function metricTable(tbl) {
+      const C = mCols();
+      const ratio = METRIC_RATIO[tbl.id];
+      const numeric = tbl.cols.map(c => (tbl.rows || []).some(r => typeof r[c] === 'number'));
+      const wrap = el('div', 'table-wrap');
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const hr = el('tr');
+      tbl.cols.forEach((c, i) => {
+        hr.appendChild(el('th', numeric[i] ? 'right' : null, C[c] || c));
+      });
+      if (ratio) hr.appendChild(el('th', 'right', T.m_share));
+      thead.appendChild(hr);
+      table.appendChild(thead);
+      const body = document.createElement('tbody');
+      (tbl.rows || []).forEach(row => {
+        const tr = el('tr');
+        tbl.cols.forEach((c, i) => {
+          const raw = row[c];
+          if (i === 0) {
+            tr.appendChild(el('td', 'mono', raw === '' || raw == null ? T.none : raw));
+          } else if (typeof raw === 'number') {
+            // Eine Null ist eine Angabe, aber keine, die auffallen muss.
+            tr.appendChild(el('td', 'right mono' + (raw ? '' : ' muted'), num(raw)));
+          } else if (numeric[i]) {
+            tr.appendChild(el('td', 'right muted', raw === '' || raw == null ? T.none : raw));
+          } else {
+            tr.appendChild(el('td', 'muted', raw === '' || raw == null ? T.none : raw));
+          }
+        });
+        if (ratio) {
+          const pct = pctOf(row[ratio[0]], row[ratio[1]]);
+          const cell = el('td', 'right');
+          cell.appendChild(el('span', 'mono', pctText(pct)));
+          const track = el('div', 'bartrack mini');
+          const fill = el('i');
+          fill.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+          if (pct !== null && pct < 50) fill.style.background = 'var(--amber)';
+          track.appendChild(fill);
+          cell.appendChild(track);
+          tr.appendChild(cell);
+        }
+        body.appendChild(tr);
+      });
+      table.appendChild(body);
+      wrap.appendChild(table);
+      return wrap;
+    }
+
     function metricsHead(d) {
       const card = el('div', 'card');
-      card.appendChild(el('h2', null, T.m_title));
-      card.appendChild(el('p', 'note', T.m_hint));
-      const kv = (label, value, mono) => {
-        const row = el('div', 'kv');
-        row.appendChild(el('span', null, label));
-        row.appendChild(el('span', mono ? 'mono' : null, value || T.none));
-        card.appendChild(row);
-      };
-      kv(T.m_endpoint, d.url, true);
-      if (d.available) {
-        if (d.version) kv(T.m_version, d.version, true);
-        kv(T.m_metrics_count, num(d.metrics));
-        kv(T.m_updated, d.fetched ? new Date(d.fetched * 1000).toLocaleString() : T.none);
-      }
+      const head = el('div', 'card-head');
+      head.appendChild(el('h2', null, T.m_title));
       const btn = el('button', 'btn', T.m_reload);
-      btn.style.marginTop = '10px';
       btn.addEventListener('click', () => loaders.metrics(true));
-      card.appendChild(btn);
+      head.appendChild(btn);
+      card.appendChild(head);
+
+      const chips = el('div', 'chips');
+      const chip = (label, value, mono) => {
+        if (!value) return;
+        const c = el('div', 'chip');
+        c.appendChild(el('span', null, label));
+        c.appendChild(el('b', mono ? 'mono' : null, value));
+        chips.appendChild(c);
+      };
+      chip(T.m_endpoint, d.url, true);
+      if (d.available) {
+        chip(T.m_version, d.version, true);
+        chip(T.m_metrics_count, num(d.metrics));
+        chip(T.m_updated, d.fetched ? new Date(d.fetched * 1000).toLocaleTimeString() : '');
+      }
+      card.appendChild(chips);
+      card.appendChild(el('p', 'note', T.m_hint));
       return card;
+    }
+
+    // Kennzahl mit Symbol und, wo es eine gibt, einer Einordnung darunter:
+    // "18.922 Zeilen gelesen" allein sagt nicht, ob CrowdSec sie versteht.
+    const METRIC_KPI = [
+      ['lines_read', 'blue', 'M4 3h11l5 5v13H4V3zm10 1.5V9h4.5L14 4.5zM7 12h10v1.6H7V12zm0 4h10v1.6H7V16z'],
+      ['lines_unparsed', 'amber', 'M12 2 1 21h22L12 2zm0 5 7.5 12.9h-15L12 7zm-1 4v4.2h2V11h-2zm0 5.6v1.8h2v-1.8h-2z'],
+      ['overflows', 'red', 'M13 2 4 14h6l-1 8 9-12h-6l1-8z'],
+      ['active_decisions', 'blue', 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.9 0 3.6.7 5 1.8L5.8 17A8 8 0 0 1 12 4zm0 16c-1.9 0-3.6-.7-5-1.8L18.2 7A8 8 0 0 1 12 20z'],
+      ['lapi_requests', 'green', 'M4 4h16v2H4V4zm0 5h16v2H4V9zm0 5h10v2H4v-2zm12.5 0 4.5 3-4.5 3v-6z'],
+      ['appsec_blocked', 'red', 'M12 1 3 5v6c0 5.05 3.84 9.77 9 11 5.16-1.23 9-5.95 9-11V5l-9-4zm0 5.6 4 4-1.4 1.4L12 9.4l-2.6 2.6L8 10.6l4-4z'],
+    ];
+
+    function metricSub(key, sums, tables) {
+      if (key === 'lines_read') {
+        const pct = pctOf(sums.lines_unparsed, sums.lines_read);
+        return pct === null ? '' : fmt('m_sub_unparsed', { pct: pctText(pct) });
+      }
+      if (key === 'appsec_blocked') {
+        const appsec = tables.find(t => t.id === 'appsec');
+        const reqs = appsec ? (appsec.rows || []).reduce((a, r) => a + (Number(r.requests) || 0), 0) : 0;
+        const pct = pctOf(sums.appsec_blocked, reqs);
+        return pct === null ? '' : fmt('m_sub_blocked', { pct: pctText(pct) });
+      }
+      if (key === 'lapi_requests') {
+        const routes = tables.find(t => t.id === 'lapi_routes');
+        return routes ? fmt('m_sub_routes', { n: num(routes.total || (routes.rows || []).length) }) : '';
+      }
+      return '';
     }
 
     function renderMetrics(box, d) {
@@ -2110,54 +2405,46 @@
       }
 
       const sums = d.summary || {};
-      const keys = ['lines_read', 'lines_unparsed', 'overflows', 'active_decisions',
-                    'lapi_requests', 'appsec_blocked'];
+      const tables = d.tables || [];
       const grid = el('div', 'row');
-      grid.style.setProperty('--cols', String(keys.length));
+      grid.style.setProperty('--cols', String(METRIC_KPI.length));
       grid.style.marginTop = '12px';
-      keys.forEach(key => {
-        const card = el('div', 'card');
+      METRIC_KPI.forEach(item => {
+        const card = el('div', 'card kpi');
+        const icon = el('span', 'kpi-icon ' + item[1]);
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', item[2]);
+        svg.appendChild(path);
+        icon.appendChild(svg);
+        card.appendChild(icon);
+        const text = el('div');
+        text.appendChild(el('div', 'stat-label', T['m_sum_' + item[0]] || item[0]));
         const stat = el('div', 'stat');
-        setStat(stat, sums[key] || 0);
-        card.appendChild(stat);
-        card.appendChild(el('div', 'stat-label', T['m_sum_' + key] || key));
+        setStat(stat, sums[item[0]] || 0);
+        text.appendChild(stat);
+        const sub = metricSub(item[0], sums, tables);
+        if (sub) text.appendChild(el('div', 'sub', sub));
+        card.appendChild(text);
         grid.appendChild(card);
       });
       box.appendChild(grid);
 
-      const titles = T.m_tables || {}, cols = T.m_cols || {};
-      const tables = d.tables || [];
       if (!tables.length) {
         box.appendChild(el('div', 'empty', T.m_none));
         return;
       }
+      const titles = T.m_tables || {};
       tables.forEach(tbl => {
         const card = el('div', 'card');
         card.style.marginTop = '12px';
-        card.appendChild(el('h2', null,
-          (titles[tbl.id] || tbl.id) + ' (' + num(tbl.total) + ')'));
-        const wrap = el('div', 'table-wrap');
-        const table = document.createElement('table');
-        const thead = document.createElement('thead');
-        const hr = el('tr');
-        tbl.cols.forEach(c => hr.appendChild(el('th', null, cols[c] || c)));
-        thead.appendChild(hr);
-        table.appendChild(thead);
-        const body = document.createElement('tbody');
-        (tbl.rows || []).forEach(row => {
-          const tr = el('tr');
-          tbl.cols.forEach((c, i) => {
-            const raw = row[c];
-            // First column is the name of the thing, the rest are numbers.
-            if (i === 0) tr.appendChild(el('td', 'mono', raw === '' || raw == null ? T.none : raw));
-            else if (typeof raw === 'number') tr.appendChild(el('td', null, num(raw)));
-            else tr.appendChild(el('td', 'muted', raw === '' || raw == null ? T.none : raw));
-          });
-          body.appendChild(tr);
-        });
-        table.appendChild(body);
-        wrap.appendChild(table);
-        card.appendChild(wrap);
+        const head = el('div', 'card-head');
+        head.appendChild(el('h3', null, titles[tbl.id] || tbl.id));
+        head.appendChild(el('span', 'muted', num(tbl.total)));
+        card.appendChild(head);
+        const view = METRIC_VIEWS[tbl.id];
+        card.appendChild(view ? view(tbl) : metricTable(tbl));
         if (tbl.truncated) {
           card.appendChild(el('p', 'note',
             fmt('m_truncated', { shown: num((tbl.rows || []).length), total: num(tbl.total) })));

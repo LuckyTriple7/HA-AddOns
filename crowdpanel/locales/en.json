@@ -277,6 +277,10 @@
   "m_sum_active_decisions": "active decisions",
   "m_sum_lapi_requests": "LAPI requests",
   "m_sum_appsec_blocked": "AppSec blocks",
+  "m_share": "Share",
+  "m_sub_unparsed": "{pct} unparsed",
+  "m_sub_blocked": "{pct} of AppSec requests",
+  "m_sub_routes": "across {n} routes",
   "m_tables": {
     "acquisition": "Data sources",
     "parsers": "Parsers",

@@ -277,6 +277,10 @@
   "m_sum_active_decisions": "aktive Sperren",
   "m_sum_lapi_requests": "LAPI-Anfragen",
   "m_sum_appsec_blocked": "AppSec-Blockaden",
+  "m_share": "Anteil",
+  "m_sub_unparsed": "{pct} nicht erkannt",
+  "m_sub_blocked": "{pct} der AppSec-Anfragen",
+  "m_sub_routes": "über {n} Pfade",
   "m_tables": {
     "acquisition": "Datenquellen",
     "parsers": "Parser",

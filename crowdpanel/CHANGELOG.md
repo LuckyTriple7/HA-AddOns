@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.6.3] - 2026-09-03
+
+### Changed
+- **Die Metrikenseite zeigt Verhältnisse statt nur Zahlenkolonnen.** Bisher
+  standen dreizehn gleich aussehende Tabellen untereinander. Wo eine Reihe von
+  Zahlen für sich nichts sagt, zeichnet die Seite jetzt Blöcke mit Balken:
+  - *Datenquellen* je Quelle mit dem Anteil erkannter Zeilen,
+  - *LAPI je Bouncer* mit dem Verhältnis von Antworten mit und ohne Sperren —
+    ein Bouncer, der nur leere bekommt, setzt nichts durch,
+  - *LAPI je Maschine* als eine Karte je Maschine mit ihren Pfaden, statt
+    denselben Maschinennamen zwanzig Zeilen lang zu wiederholen,
+  - *AppSec* mit zugelassen gegen blockiert,
+  - *Laufzeiten* als Kacheln, weil dort die Zahl die Aussage ist.
+- *Parser* und *Whitelists* bekommen eine Anteilsspalte mit kleinem Balken:
+  ein Parser mit 18.000 Treffern und 0 % Erfolg fiel vorher nicht auf.
+- Die Kennzahlen oben tragen Symbole und, wo es eine gibt, eine Einordnung —
+  „31 % nicht erkannt“ unter den gelesenen Zeilen, „über 8 Pfade“ unter den
+  LAPI-Anfragen.
+- Endpunkt, Version, Anzahl und Abrufzeit stehen als kompakte Marken in der
+  Kopfzeile statt als vier Zeilen einer Liste.
+- In allen Tabellen sind nur noch Zahlenspalten rechtsbündig, Nullen gedämpft.
+
+Neue Tabellen einer künftigen CrowdSec-Version zeigt die Seite weiterhin
+an — kennt sie eine Kennung nicht, fällt sie auf die schmucklose Tabelle
+zurück.
+
 ## [0.6.2] - 2026-09-03
 
 ### Changed
