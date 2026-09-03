@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.5] - 2026-09-03
+
+### Fixed
+- **Passwortfelder im Einstellungen-Dialog schmaler als alle anderen.** `width:100%` galt nur für
+  `input[type="text"]`, nicht für `input[type="password"]` — beide Geheimfelder fielen auf die
+  Browser-Standardbreite zurück.
+- **Zahnrad-Symbol sah aus wie eine Sonne.** Der verwendete Pfad war ein Feather-Icons-Umriss
+  (für `stroke`, nicht `fill` gedacht) — als Fläche gefüllt wurden aus den Zähnen einzelne
+  Keile statt eines zusammenhängenden Zahnrads. Durch einen echten, für Flächenfüllung gedachten
+  Zahnrad-Pfad ersetzt.
+
 ## [0.1.4] - 2026-09-03
 
 ### Fixed
