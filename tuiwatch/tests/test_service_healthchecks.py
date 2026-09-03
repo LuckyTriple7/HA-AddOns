@@ -101,7 +101,10 @@ def test_smtp_probe_ok(m, monkeypatch):
 
     assert ok
     assert fake.calls == [("smtp.example.com", 587)]
-    assert "smtp.example.com:587" in detail and "STARTTLS" in detail
+    # Ganzer Text statt `"host:port" in detail`: CodeQL wertet ein Teilstring-
+    # Match auf einer URL/Host-Angabe als unvollstaendige Pruefung
+    # (py/incomplete-url-substring-sanitization).
+    assert detail == "smtp.example.com:587 (STARTTLS, angemeldet)"
 
 
 def test_smtp_probe_connect_error(m, monkeypatch):
