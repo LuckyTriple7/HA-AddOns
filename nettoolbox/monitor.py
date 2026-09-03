@@ -239,26 +239,34 @@ class MonitorStore:
 
 
 def summarize(probe: str, result: dict) -> str:
-    level = (result.get('level') or 'ok').upper()
+    """Plain description, no level prefix -- notify() and the monitor card
+    both show the level as its own colored badge/emoji already; repeating it
+    as text in front of the summary just duplicated it ("WARN WARN...")."""
     if probe == 'tls':
         days = result.get('days_left')
         if not result.get('trusted'):
-            return f"{level}: Zertifikatskette nicht vertrauenswürdig ({result.get('verify_error') or '?'})"
+            return f"Zertifikatskette nicht vertrauenswürdig ({result.get('verify_error') or '?'})"
         if days is not None:
-            return f"{level}: Zertifikat noch {days} Tage gültig"
-        return f"{level}: Details nicht verfügbar"
+            return f"Zertifikat noch {days} Tage gültig"
+        return "Details nicht verfügbar"
     if probe == 'blacklist':
         listed = result.get('listed_count', 0)
         if listed:
             names = ', '.join(r['label'] for r in result.get('rows', []) if r.get('listed'))
-            return f"{level}: auf {listed} Sperrliste(n) gelistet — {names}"
-        return f"{level}: auf keiner Sperrliste gelistet"
+            return f"auf {listed} Sperrliste(n) gelistet — {names}"
+        return "auf keiner Sperrliste gelistet"
     if probe == 'mail_health':
-        return f"{level}: Punktestand {result.get('score', '?')}/100"
-    return level
+        return f"Punktestand {result.get('score', '?')}/100"
+    return (result.get('level') or 'ok').upper()
 
 
 # ── Notifications ─────────────────────────────────────────────────────────────
+
+# Colored dot + German label instead of a bare "WARN"/"FAIL" -- notification
+# text is deliberately hardcoded German throughout this module already (not
+# run through translations/*.yaml), matching the wording in summarize() above.
+_LEVEL_EMOJI = {'ok': '🟢', 'info': '🔵', 'warn': '🟡', 'fail': '🔴'}
+_LEVEL_LABEL = {'ok': 'OK', 'info': 'Hinweis', 'warn': 'Achtung', 'fail': 'Kritisch'}
 
 
 def send_email(cfg: dict, subject: str, body: str) -> tuple:
@@ -320,7 +328,9 @@ def send_telegram(cfg: dict, text: str) -> tuple:
 def notify(cfg: dict, monitor: dict, level: str, summary: str) -> bool:
     """Sends on every call -- the caller decides whether a state change (or a
     reminder) warrants one; this only knows how to deliver, not when to."""
-    subject = f"[NetToolbox] {monitor['name']}: {level.upper()}"
+    emoji = _LEVEL_EMOJI.get(level, '⚪')
+    label = _LEVEL_LABEL.get(level, level.upper())
+    subject = f"{emoji} [NetToolbox] {monitor['name']}: {label}"
     body = (f"{monitor['name']} ({monitor['probe']}: {monitor['target']})\n\n"
            f"{summary}\n\n-- NetToolbox")
     sent_any = False

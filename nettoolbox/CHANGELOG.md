@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.9] - 2026-09-03
+
+### Fixed
+- **Monitor-Benachrichtigungen zeigten den Level doppelt.** Betreff endete auf `: WARN` und die
+  erste Zeile der Kurzbeschreibung fing selbst nochmal mit `WARN:` an — in Telegram/E-Mail stand
+  "WARN WARN ..." bzw. "INFO INFO ...". `summarize()` gibt jetzt nur noch die reine Beschreibung
+  zurück (kein Level-Präfix mehr); Betreff trägt den Level stattdessen einmalig als farbiger Punkt
+  + deutsches Wort: 🟢 OK, 🔵 Hinweis, 🟡 Achtung, 🔴 Kritisch — passend zur neuen
+  OK/Achtung/Kritisch-Ampel aus 0.1.8.
+
 ## [0.1.8] - 2026-09-03
 
 ### Changed
