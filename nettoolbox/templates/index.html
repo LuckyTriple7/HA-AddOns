@@ -79,6 +79,7 @@ input[type="text"], input[type="password"], select {
 }
 input:focus, select:focus { outline: none; border-color: var(--accent); }
 .hint { font-size: 0.76rem; color: var(--muted); margin-top: 6px; }
+#pingLiveChart { display: block; width: 100%; height: 160px; margin-top: 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .03em; }
@@ -268,13 +269,51 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         <label class="field" for="pingTarget">{{ t.field_host_or_ip }}</label>
         <input type="text" id="pingTarget" placeholder="example.com oder 203.0.113.10" autocomplete="off">
       </div>
+      <div style="width:100px">
+        <label class="field" for="pingFamily">{{ t.field_ip_family }}</label>
+        <select id="pingFamily">
+          <option value="">{{ t.ip_family_auto }}</option>
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </div>
       <div style="align-self:flex-end">
         <button class="btn primary" id="pingRun">{{ t.action_ping }}</button>
-        <button class="btn" id="tracerouteRun">{{ t.action_traceroute }}</button>
+        <button class="btn" id="pingLiveRun">{{ t.action_ping_live_start }}</button>
       </div>
     </div>
     <p class="hint">{{ t.ping_hint }}</p>
+    <div id="pingLiveBox" hidden>
+      <div class="row" style="align-items:center; margin-top:4px">
+        <span class="chip" id="pingLiveCur">--</span>
+        <span class="chip" id="pingLiveStats">min -- / avg -- / max -- ms</span>
+        <span class="chip" id="pingLiveLoss">0 {{ t.ping_loss_label }}</span>
+      </div>
+      <canvas id="pingLiveChart" height="160"></canvas>
+    </div>
     <div id="pingResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M13,7V13L17.25,15.15L16.5,16.5L11,13.5V7H13Z"/></svg>{{ t.traceroute_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="traceTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="traceTarget" placeholder="example.com oder 203.0.113.10" autocomplete="off">
+      </div>
+      <div style="width:100px">
+        <label class="field" for="traceFamily">{{ t.field_ip_family }}</label>
+        <select id="traceFamily">
+          <option value="">{{ t.ip_family_auto }}</option>
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="tracerouteRun">{{ t.action_traceroute }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.traceroute_hint }}</p>
+    <div id="tracerouteResult"></div>
   </div>
 </section>
 
@@ -751,6 +790,12 @@ function findingText(f){
   return text;
 }
 
+function fmtStr(template, args){
+  let text = template;
+  Object.keys(args).forEach(k => { text = text.split('{' + k + '}').join(args[k]); });
+  return text;
+}
+
 function renderFindings(findings){
   const ul = el('ul', 'finding-list');
   (findings || []).forEach(f => {
@@ -1054,7 +1099,7 @@ async function pingCheck(){
   if (!target) { toast(T.err_empty_target, true); return; }
   const box = $('pingResult'); showLoading(box);
   try {
-    const data = await runProbe('ping', { target: target }, target, $('pingRun'));
+    const data = await runProbe('ping', { target: target, family: $('pingFamily').value }, target, $('pingRun'));
     box.innerHTML = '';
     const r = data.result;
     const wrap = el('div');
@@ -1079,11 +1124,11 @@ async function pingCheck(){
 }
 
 async function tracerouteCheck(){
-  const target = $('pingTarget').value.trim();
+  const target = $('traceTarget').value.trim();
   if (!target) { toast(T.err_empty_target, true); return; }
-  const box = $('pingResult'); showLoading(box);
+  const box = $('tracerouteResult'); showLoading(box);
   try {
-    const data = await runProbe('traceroute', { target: target }, target, $('tracerouteRun'));
+    const data = await runProbe('traceroute', { target: target, family: $('traceFamily').value }, target, $('tracerouteRun'));
     box.innerHTML = '';
     const r = data.result;
     const wrap = el('div');
@@ -1113,6 +1158,117 @@ async function tracerouteCheck(){
 $('pingRun').addEventListener('click', pingCheck);
 $('tracerouteRun').addEventListener('click', tracerouteCheck);
 $('pingTarget').addEventListener('keydown', e => { if (e.key === 'Enter') pingCheck(); });
+$('traceTarget').addEventListener('keydown', e => { if (e.key === 'Enter') tracerouteCheck(); });
+
+// ── Dauerping (continuous ping, own loop -- deliberately not runProbe()'s
+// shared abort controller, so a click elsewhere in the app can't kill a
+// running live session and starting one doesn't kill some other tab's
+// request either) ───────────────────────────────────────────────────────
+
+let pingLiveActive = false;
+let pingLiveSamples = [];  // {ms: number|null} in arrival order, newest last
+const PING_LIVE_MAX_POINTS = 120;
+
+function pingLiveStop(){
+  pingLiveActive = false;
+  $('pingLiveRun').textContent = T.action_ping_live_start;
+  $('pingLiveRun').classList.remove('danger');
+}
+
+function pingLiveDraw(){
+  const canvas = $('pingLiveChart');
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.round(160 * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = rect.width, h = 160;
+  ctx.clearRect(0, 0, w, h);
+  const style = getComputedStyle(document.documentElement);
+  const border = style.getPropertyValue('--border').trim();
+  const blue = style.getPropertyValue('--blue').trim();
+  const red = style.getPropertyValue('--red').trim();
+
+  const values = pingLiveSamples.map(s => s.ms).filter(v => v !== null);
+  const maxMs = values.length ? Math.max(...values) * 1.15 : 100;
+
+  ctx.strokeStyle = border; ctx.lineWidth = 1;
+  for (let i = 1; i <= 3; i++) {
+    const y = h - (h * i / 4);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  if (pingLiveSamples.length < 2) return;
+  const stepX = w / (PING_LIVE_MAX_POINTS - 1);
+  const xFor = i => w - (pingLiveSamples.length - 1 - i) * stepX;
+
+  ctx.beginPath();
+  let started = false;
+  pingLiveSamples.forEach((s, i) => {
+    if (s.ms === null) { started = false; return; }
+    const x = xFor(i), y = h - (s.ms / maxMs) * h;
+    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+  });
+  ctx.strokeStyle = blue; ctx.lineWidth = 1.5; ctx.stroke();
+
+  pingLiveSamples.forEach((s, i) => {
+    if (s.ms !== null) return;
+    const x = xFor(i);
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h);
+    ctx.strokeStyle = red; ctx.lineWidth = 1; ctx.stroke();
+  });
+}
+
+function pingLiveUpdateStats(){
+  const values = pingLiveSamples.map(s => s.ms).filter(v => v !== null);
+  const lost = pingLiveSamples.filter(s => s.ms === null).length;
+  if (values.length) {
+    const min = Math.min(...values).toFixed(1);
+    const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+    const max = Math.max(...values).toFixed(1);
+    $('pingLiveStats').textContent = fmtStr(T.ping_live_stats, { min, avg, max });
+  }
+  $('pingLiveLoss').textContent = lost + ' ' + T.ping_loss_label;
+}
+
+async function pingLiveTick(target, family){
+  if (!pingLiveActive) return;
+  let ms = null;
+  try {
+    const data = await api('/api/probe', { method: 'POST',
+      body: { probe: 'ping', params: { target: target, count: 1, family: family } } });
+    const r = data.result;
+    ms = (r.replies && r.replies[0]) ? r.replies[0].ms : null;
+  } catch (e) {
+    // A dropped/rate-limited tick is a gap in the chart, not a reason to
+    // stop a session meant to run "until Stop is pressed".
+    ms = null;
+  }
+  if (!pingLiveActive) return;  // Stop clicked while the request was in flight
+  pingLiveSamples.push({ ms });
+  if (pingLiveSamples.length > PING_LIVE_MAX_POINTS) pingLiveSamples.shift();
+  $('pingLiveCur').textContent = ms !== null ? (ms + ' ms') : T.ping_live_timeout;
+  pingLiveUpdateStats();
+  pingLiveDraw();
+  setTimeout(() => pingLiveTick(target, family), 700);
+}
+
+function pingLiveStart(){
+  const target = $('pingTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const family = $('pingFamily').value;  // locked in for the whole session
+  pingLiveSamples = [];
+  pingLiveActive = true;
+  $('pingLiveBox').hidden = false;
+  $('pingLiveRun').textContent = T.action_ping_live_stop;
+  $('pingLiveRun').classList.add('danger');
+  pingLiveTick(target, family);
+}
+
+$('pingLiveRun').addEventListener('click', () => {
+  if (pingLiveActive) { pingLiveStop(); } else { pingLiveStart(); }
+});
 
 // ── Blacklist tab ─────────────────────────────────────────────────────────
 

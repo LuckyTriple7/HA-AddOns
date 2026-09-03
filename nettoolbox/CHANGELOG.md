@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.12] - 2026-09-03
+
+### Added
+- **Ping und Traceroute in getrennte Boxen aufgeteilt.** Bisher ein Kasten mit zwei Buttons (einer
+  grün, einer nicht) und gemeinsamem Zielfeld/Ergebnisbereich — jetzt zwei eigenständige Karten,
+  je mit eigenem Ziel-Feld und Ergebnisbereich.
+- **Dauerping.** Neuer Button "Dauerping starten" — pingt fortlaufend (1 Paket pro Tick, alle
+  700ms) bis "Stoppen" gedrückt wird, mit Live-Diagramm (Canvas, kein externes JS), aktuellem
+  Wert, min/avg/max der laufenden Session und Verlustzähler. Läuft über eine eigene Schleife statt
+  über den geteilten Abbruch-Controller der übrigen Buttons — ein Klick anderswo in der App killt
+  die Sitzung nicht, und umgekehrt. Ein einzelner verlorener/rate-limitierter Tick zeigt nur eine
+  Lücke im Diagramm statt die Sitzung abzubrechen.
+- **IPv4/IPv6 wählbar, bei Ping, Dauerping und Traceroute.** Neues Feld "IP-Version" (Auto/IPv4/
+  IPv6) je Box — reicht `-4`/`-6` an ping/traceroute durch. `guard_target()` prüft ohnehin schon
+  alle Adressen (beide Familien) einer Domain, also keine Lücke bei der SSRF-Prüfung durch die
+  erzwungene Familie. Traceroutes "Ziel erreicht"-Abgleich holte sich bisher immer nur den
+  A-Record zum Vergleich — bei erzwungenem IPv6 hätte das nie gepasst; jetzt AAAA bei family=6.
+  Live getestet: `ping -4`/`-6` und `traceroute -4`/`-6` gegen google.com liefern beide
+  jeweils die passende Adressfamilie.
+
 ## [0.1.11] - 2026-09-03
 
 ### Fixed

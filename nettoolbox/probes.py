@@ -298,11 +298,20 @@ def p_quic(ctx: Context, params: dict) -> dict:
 
 
 def p_ping(ctx: Context, params: dict) -> dict:
-    return netutils.check_ping(ctx, _str(params, 'target'))
+    count = params.get('count')
+    if count is None:
+        count = netutils.PING_COUNT
+    try:
+        count = int(count)
+    except (TypeError, ValueError):
+        raise ProbeError('bad_param', 'count')
+    return netutils.check_ping(ctx, _str(params, 'target'), count=count,
+                                family=_str(params, 'family'))
 
 
 def p_traceroute(ctx: Context, params: dict) -> dict:
-    return netutils.check_traceroute(ctx, _str(params, 'target'))
+    return netutils.check_traceroute(ctx, _str(params, 'target'),
+                                     family=_str(params, 'family'))
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
