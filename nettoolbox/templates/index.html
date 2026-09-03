@@ -399,11 +399,13 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
           <option value="tls">SSL/TLS</option>
           <option value="blacklist">{{ t.nav_blacklist }}</option>
           <option value="mail_health">{{ t.nav_mail }}</option>
+          <option value="aaaa_guard">{{ t.monitor_probe_aaaa }}</option>
         </select>
       </div>
       <div class="grow">
         <label class="field" for="monTarget">{{ t.field_target }}</label>
         <input type="text" id="monTarget" placeholder="example.com" autocomplete="off">
+        <div class="hint" id="monTargetHint" hidden>{{ t.monitor_aaaa_hint }}</div>
       </div>
       <div style="width:110px">
         <label class="field" for="monInterval">{{ t.field_interval_hours }}</label>
@@ -1426,6 +1428,14 @@ $('smtpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') smtpCh
 const monitorHistoryOpen = {};
 let editingMonitorId = null;
 
+function updateMonTargetHint(){
+  const aaaa = $('monProbe').value === 'aaaa_guard';
+  $('monTargetHint').hidden = !aaaa;
+  $('monTarget').placeholder = aaaa ? 'example.com, example.org, ...' : 'example.com';
+}
+$('monProbe').addEventListener('change', updateMonTargetHint);
+updateMonTargetHint();
+
 function startEditMonitor(m){
   editingMonitorId = m.id;
   $('monName').value = m.name;
@@ -1436,6 +1446,7 @@ function startEditMonitor(m){
   $('monTelegram').checked = !!m.notify_telegram;
   $('monAdd').textContent = T.action_save_monitor;
   $('monCancelEdit').style.display = '';
+  updateMonTargetHint();
   $('monName').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -1443,10 +1454,12 @@ function cancelEditMonitor(){
   editingMonitorId = null;
   $('monName').value = ''; $('monTarget').value = ''; $('monInterval').value = '6';
   $('monEmail').checked = true; $('monTelegram').checked = true;
+  $('monProbe').value = 'tls';
   $('monAdd').textContent = T.action_add_monitor;
   $('monCancelEdit').style.display = 'none';
+  updateMonTargetHint();
 }
-const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist, mail_health: T.nav_mail });
+const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist, mail_health: T.nav_mail, aaaa_guard: T.monitor_probe_aaaa });
 
 async function loadMonitors(){
   const box = $('monitorList');

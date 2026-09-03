@@ -113,6 +113,45 @@ def p_reverse(ctx: Context, params: dict) -> dict:
             'public': ip_is_public(ip)}
 
 
+def p_aaaa_guard(ctx: Context, params: dict) -> dict:
+    """Warns if any of the given domains has grown an AAAA record.
+
+    Built for a home server with no properly working IPv6 path: a stray AAAA
+    (leftover from a router or DDNS client that briefly saw an IPv6 address)
+    makes IPv6-preferring clients try that address first and fail, with
+    nothing in the logs pointing at DNS. Several domains at once, since
+    checking a dozen of them one-by-one would mean a dozen separate monitors.
+    """
+    domains = _list(params, 'domains')
+    if not domains:
+        raise ProbeError('empty_target')
+    rows = []
+    for raw in domains:
+        # A typo'd domain must not abort the other eleven -- it's marked
+        # errored on its own row instead of raising out of the whole probe.
+        try:
+            name = clean_domain(raw)
+            records = query(ctx, name, 'AAAA').records
+            rows.append({'domain': name, 'records': records, 'error': ''})
+        except ProbeError as e:
+            rows.append({'domain': raw.strip(), 'records': [], 'error': e.code})
+
+    flagged = [r for r in rows if r['records']]
+    errored = [r for r in rows if r['error']]
+    if flagged:
+        level = 'warn'
+        summary = 'AAAA-Eintrag gefunden bei: ' + ', '.join(
+            f"{r['domain']} ({', '.join(r['records'])})" for r in flagged)
+    elif errored:
+        level = 'warn'
+        summary = 'DNS-Abfrage fehlgeschlagen bei: ' + ', '.join(r['domain'] for r in errored)
+    else:
+        level = 'ok'
+        summary = f"Kein AAAA-Eintrag bei {len(rows)} Domain(s)"
+    return {'domains': rows, 'flagged': [r['domain'] for r in flagged],
+            'level': level, 'summary': summary}
+
+
 def p_propagation(ctx: Context, params: dict) -> dict:
     """The same question to many resolvers — shows a rollout still in flight."""
     name = clean_domain(_str(params, 'name'))
@@ -272,6 +311,7 @@ PROBES = {
     'dns': p_dns,
     'dns_all': p_dns_all,
     'reverse': p_reverse,
+    'aaaa_guard': p_aaaa_guard,
     'propagation': p_propagation,
     'dnssec': p_dnssec,
     'txt': p_txt,
@@ -297,7 +337,7 @@ PROBES = {
 # What the front end shows in the target field, per probe.
 TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
-    'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'mx': 'domain',
+    'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
     'ping': 'ip', 'traceroute': 'ip',

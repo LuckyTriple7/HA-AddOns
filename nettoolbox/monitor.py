@@ -28,6 +28,10 @@ MONITOR_PROBES = {
     'tls': 'target',
     'blacklist': 'ip',
     'mail_health': 'domain',
+    # 'target' here holds a comma-separated domain list -- probes.py's
+    # _list() splits it, so one monitor covers as many domains as needed
+    # instead of one monitor per domain.
+    'aaaa_guard': 'domains',
 }
 
 HISTORY_KEEP = 200  # rows per monitor
@@ -257,6 +261,8 @@ def summarize(probe: str, result: dict) -> str:
         return "auf keiner Sperrliste gelistet"
     if probe == 'mail_health':
         return f"Punktestand {result.get('score', '?')}/100"
+    if probe == 'aaaa_guard':
+        return result.get('summary') or 'Keine Details'
     return (result.get('level') or 'ok').upper()
 
 

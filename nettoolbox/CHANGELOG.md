@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.10] - 2026-09-03
+
+### Added
+- **Neuer Monitor-Typ: AAAA-Wächter.** Warnt, sobald bei einer beobachteten Domain ein AAAA-Eintrag
+  (IPv6) auftaucht — gedacht für einen Heimserver ohne sauberen IPv6-Pfad, wo ein verirrter AAAA
+  (Router/DDNS-Client, der kurz eine IPv6-Adresse hatte) IPv6-bevorzugende Clients auf eine
+  Adresse schickt, die nicht durchkommt, ohne dass sich das irgendwo außer im DNS zeigt. Ein
+  Monitor deckt mehrere Domains gleichzeitig ab (Komma-getrennt im Ziel-Feld, bis zu 20) — kein
+  Einzelmonitor pro Domain nötig. Neuer Probe `aaaa_guard` in probes.py, ein fehlerhafter Eintrag
+  in der Liste bricht die restlichen nicht ab (pro Domain einzeln gefangen). Live getestet:
+  google.com (hat AAAA) korrekt als Achtung geflaggt, gizmonet.eu (keine AAAA) korrekt OK.
+- `monitor_hint` korrigiert — verwies noch auf die Add-on-Optionen für Mail/Telegram, die seit
+  0.1.2 im Zahnrad-Dialog liegen.
+
 ## [0.1.9] - 2026-09-03
 
 ### Fixed
