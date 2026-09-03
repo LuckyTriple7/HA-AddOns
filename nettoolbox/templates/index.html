@@ -309,10 +309,15 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         </select>
       </div>
       <div style="align-self:flex-end">
+        <label style="display:flex; align-items:center; gap:5px; font-size:0.82rem; height:36px">
+          <input type="checkbox" id="traceIcmp"> {{ t.field_traceroute_icmp }}
+        </label>
+      </div>
+      <div style="align-self:flex-end">
         <button class="btn primary" id="tracerouteRun">{{ t.action_traceroute }}</button>
       </div>
     </div>
-    <p class="hint">{{ t.traceroute_hint }}</p>
+    <p class="hint">{{ t.traceroute_hint }} {{ t.traceroute_icmp_hint }}</p>
     <div id="tracerouteResult"></div>
   </div>
 </section>
@@ -1128,7 +1133,9 @@ async function tracerouteCheck(){
   if (!target) { toast(T.err_empty_target, true); return; }
   const box = $('tracerouteResult'); showLoading(box);
   try {
-    const data = await runProbe('traceroute', { target: target, family: $('traceFamily').value }, target, $('tracerouteRun'));
+    const data = await runProbe('traceroute',
+      { target: target, family: $('traceFamily').value, icmp: $('traceIcmp').checked },
+      target, $('tracerouteRun'));
     box.innerHTML = '';
     const r = data.result;
     const wrap = el('div');

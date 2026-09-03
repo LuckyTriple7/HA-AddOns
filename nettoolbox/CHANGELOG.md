@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.13] - 2026-09-03
+
+### Added
+- **Traceroute: ICMP statt UDP.** Neue Checkbox "ICMP statt UDP" — schaltet `-I` an (ICMP-Echo-
+  Sonden statt traceroutes UDP-Standard). Anlass: eine Cloud-Firewall, die nur ICMP durchlässt und
+  UDP komplett verwirft, ließ Traceroute scheitern, obwohl die ICMP-Regeln (ein-/ausgehend, v4+v6)
+  korrekt standen. `-I` braucht hier keine Zusatzrechte (live geprüft, unprivilegiert lauffähig,
+  genau wie schon Pings Raw-Socket). Live gegen 1.1.1.1 getestet: mit `-I` `reached: true`.
+
 ## [0.1.12] - 2026-09-03
 
 ### Added

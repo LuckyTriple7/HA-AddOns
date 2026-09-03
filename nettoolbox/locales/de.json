@@ -31,6 +31,8 @@
   "ping_hint": "Nutzt das System-Werkzeug ping im Container (kein selbstgebautes ICMP) — 4 Pakete pro Durchlauf.",
   "traceroute_title": "Traceroute",
   "traceroute_hint": "Nutzt das System-Werkzeug traceroute im Container — bis zu 20 Sprünge.",
+  "field_traceroute_icmp": "ICMP statt UDP",
+  "traceroute_icmp_hint": "Standard-Sonden sind UDP; manche Cloud-Firewalls lassen nur ICMP durch — dann diese Option anhaken.",
   "action_ping_live_start": "Dauerping starten",
   "action_ping_live_stop": "Dauerping stoppen",
   "ping_live_stats": "min {min} / avg {avg} / max {max} ms",

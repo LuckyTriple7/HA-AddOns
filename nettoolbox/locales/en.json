@@ -31,6 +31,8 @@
   "ping_hint": "Uses the container's own ping system tool (no home-grown ICMP) — 4 packets per run.",
   "traceroute_title": "Traceroute",
   "traceroute_hint": "Uses the container's own traceroute system tool — up to 20 hops.",
+  "field_traceroute_icmp": "ICMP instead of UDP",
+  "traceroute_icmp_hint": "Default probes are UDP; some cloud firewalls only allow ICMP through — check this if so.",
   "action_ping_live_start": "Start continuous ping",
   "action_ping_live_stop": "Stop continuous ping",
   "ping_live_stats": "min {min} / avg {avg} / max {max} ms",

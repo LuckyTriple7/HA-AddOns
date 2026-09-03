@@ -118,14 +118,21 @@ def check_ping(ctx: Context, target: str, count: int = PING_COUNT,
     }
 
 
-def check_traceroute(ctx: Context, target: str, family: str = '') -> dict:
+def check_traceroute(ctx: Context, target: str, family: str = '',
+                     icmp: bool = False) -> dict:
     host = clean_host_or_ip((target or '').strip())
     guard_target(ctx, host)  # checks every address the host resolves to, both families
     target_ip = _resolved_ip(ctx, host, family)
 
+    # Default probe is UDP (traceroute's own default) -- some networks allow
+    # that straight through. Others (some cloud firewalls) allow ICMP only
+    # and drop UDP outright; -I switches to ICMP echo probes, same as ping
+    # uses, and needs no extra privilege here (verified live: works
+    # unprivileged in this container, same as ping's raw socket already does).
+    icmp_flag = ['-I'] if icmp else []
     try:
         proc = subprocess.run(
-            ['traceroute'] + _family_flag(family) +
+            ['traceroute'] + _family_flag(family) + icmp_flag +
             ['-n', '-w', str(TRACEROUTE_TIMEOUT_S),
              '-m', str(TRACEROUTE_MAX_HOPS), '-q', '1', host],
             capture_output=True, text=True,

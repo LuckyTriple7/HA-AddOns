@@ -311,7 +311,8 @@ def p_ping(ctx: Context, params: dict) -> dict:
 
 def p_traceroute(ctx: Context, params: dict) -> dict:
     return netutils.check_traceroute(ctx, _str(params, 'target'),
-                                     family=_str(params, 'family'))
+                                     family=_str(params, 'family'),
+                                     icmp=bool(params.get('icmp')))
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
