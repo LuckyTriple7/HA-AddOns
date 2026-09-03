@@ -480,6 +480,10 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         <label class="field" for="setSmtpTo">{{ t.field_smtp_to }}</label>
         <input type="text" id="setSmtpTo" autocomplete="off">
       </div>
+      <div class="set-row">
+        <button class="btn" id="setTestEmail" type="button">{{ t.action_test_email }}</button>
+        <span class="hint" id="setTestEmailResult"></span>
+      </div>
     </div>
 
     <div class="set-group">
@@ -492,6 +496,10 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <div class="set-row">
         <label class="field" for="setTelegramChatId">{{ t.field_telegram_chat_id }}</label>
         <input type="text" id="setTelegramChatId" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <button class="btn" id="setTestTelegram" type="button">{{ t.action_test_telegram }}</button>
+        <span class="hint" id="setTestTelegramResult"></span>
       </div>
     </div>
 
@@ -636,26 +644,53 @@ async function loadSettings(){
   } catch (e) { toast(errText(e.code), true); }
 }
 
+function settingsFormValues(){
+  return {
+    smtp_host: $('setSmtpHost').value.trim(),
+    smtp_port: $('setSmtpPort').value.trim(),
+    smtp_user: $('setSmtpUser').value.trim(),
+    smtp_password: $('setSmtpPassword').value,
+    smtp_from: $('setSmtpFrom').value.trim(),
+    smtp_to: $('setSmtpTo').value.trim(),
+    smtp_tls: $('setSmtpTls').checked,
+    telegram_bot_token: $('setTelegramToken').value.trim(),
+    telegram_chat_id: $('setTelegramChatId').value.trim(),
+  };
+}
+
 async function saveSettings(){
   const btn = $('setSave');
   btn.disabled = true;
   try {
-    await api('/api/settings', { method: 'POST', body: {
-      smtp_host: $('setSmtpHost').value.trim(),
-      smtp_port: $('setSmtpPort').value.trim(),
-      smtp_user: $('setSmtpUser').value.trim(),
-      smtp_password: $('setSmtpPassword').value,
-      smtp_from: $('setSmtpFrom').value.trim(),
-      smtp_to: $('setSmtpTo').value.trim(),
-      smtp_tls: $('setSmtpTls').checked,
-      telegram_bot_token: $('setTelegramToken').value.trim(),
-      telegram_chat_id: $('setTelegramChatId').value.trim(),
-    } });
+    await api('/api/settings', { method: 'POST', body: settingsFormValues() });
     toast(T.settings_saved);
     await loadSettings();
   } catch (e) { toast(errText(e.code), true); }
   finally { btn.disabled = false; }
 }
+
+function testFailReason(code){
+  // 'not_configured' is one of ours (translated); everything else is a raw
+  // SMTP/Telegram error message from the library itself — shown as-is, not
+  // run through errText(), which would just flatten it to "unknown error".
+  return code === 'not_configured' ? T.settings_test_not_configured : code;
+}
+
+async function sendSettingsTest(path, btnId, resultId){
+  const btn = $(btnId); const out = $(resultId);
+  btn.disabled = true; out.textContent = T.loading;
+  try {
+    const data = await api(path, { method: 'POST', body: settingsFormValues() });
+    out.textContent = data.ok ? T.settings_test_ok
+      : (T.settings_test_failed + ' ' + testFailReason(data.error));
+  } catch (e) { out.textContent = T.settings_test_failed + ' ' + errText(e.code); }
+  finally { btn.disabled = false; }
+}
+
+$('setTestEmail').addEventListener('click', () =>
+  sendSettingsTest('/api/settings/test-email', 'setTestEmail', 'setTestEmailResult'));
+$('setTestTelegram').addEventListener('click', () =>
+  sendSettingsTest('/api/settings/test-telegram', 'setTestTelegram', 'setTestTelegramResult'));
 
 // ── Status pill ─────────────────────────────────────────────────────────────
 

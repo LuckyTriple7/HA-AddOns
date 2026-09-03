@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6] - 2026-09-03
+
+### Added
+- **Testversand für Mail und Telegram.** Je ein Button im Einstellungen-Dialog, direkt neben den
+  jeweiligen Feldern — schickt eine echte Testnachricht mit den gerade eingetippten Werten, ohne
+  vorher speichern zu müssen (leere Felder fallen auf die bereits gespeicherten Werte zurück,
+  dieselbe Regel wie beim Speichern selbst). Live getestet: echte Telegram-API lehnt einen
+  Fake-Token korrekt mit 401 ab, echter SMTP-Server (Google) lehnt Fake-Zugangsdaten korrekt mit
+  535 ab — beide Fehlermeldungen kommen unverändert im UI an statt in „Unbekannter Fehler"
+  aufzugehen, da SMTP-/Telegram-Fehlertexte bewusst nicht durch die feste Fehlercode-Übersetzung
+  laufen.
+
 ## [0.1.5] - 2026-09-03
 
 ### Fixed

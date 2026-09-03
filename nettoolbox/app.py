@@ -809,6 +809,40 @@ def settings_save():
     return jsonify({'ok': True, 'changed': changed})
 
 
+def _test_cfg(body: dict) -> dict:
+    """The already-saved settings, with whatever non-empty fields the form
+    currently holds layered on top -- so a test can run before hitting Save,
+    the same 'empty secret means keep the saved one' rule as saving itself."""
+    cfg = usersettings.effective(load_config())
+    for key in usersettings.FIELDS:
+        if key in body and body[key] not in (None, ''):
+            cfg[key] = body[key]
+    return cfg
+
+
+@api('/api/settings/test-email', methods=('POST',))
+def settings_test_email():
+    body = request.get_json(silent=True) or {}
+    cfg = _test_cfg(body if isinstance(body, dict) else {})
+    ok, error = monitor.send_email(
+        cfg, '[NetToolbox] Testmail',
+        'Diese Testmail bestätigt, dass die SMTP-Einstellungen von NetToolbox funktionieren.')
+    if not ok:
+        return jsonify({'ok': False, 'error': error or 'not_configured'}), 200
+    return jsonify({'ok': True})
+
+
+@api('/api/settings/test-telegram', methods=('POST',))
+def settings_test_telegram():
+    body = request.get_json(silent=True) or {}
+    cfg = _test_cfg(body if isinstance(body, dict) else {})
+    ok, error = monitor.send_telegram(
+        cfg, '[NetToolbox] Testnachricht — die Telegram-Einstellungen funktionieren.')
+    if not ok:
+        return jsonify({'ok': False, 'error': error or 'not_configured'}), 200
+    return jsonify({'ok': True})
+
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 
