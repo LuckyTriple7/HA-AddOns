@@ -109,8 +109,12 @@ def _bootstrap_options() -> None:
     except OSError:
         log.error("could not write %s — direct-port login stays unusable", CONFIG_PATH)
         return
+    # The generated password itself never goes to the log -- add-on logs are
+    # visible to anyone with HA UI access and may be retained/exported far
+    # longer than options.json. It's written to CONFIG_PATH above; that file
+    # already needs the same filesystem access as reading this log would.
     log.info("no options.json found — created one with username 'admin' and "
-             "password '%s'. Change it in %s.", password, CONFIG_PATH)
+             "a generated password. Read it from %s.", CONFIG_PATH)
 
 
 def load_config() -> dict:
@@ -601,7 +605,10 @@ def manifest():
 
 @app.route('/set-lang/<lang>')
 def set_lang(lang: str):
-    lang = lang if lang in ('de', 'en') else 'en'
+    # Fixed-literal lookup, not a membership-checked passthrough of the
+    # tainted path segment -- the cookie value is always one of these two
+    # hardcoded strings, never the request data itself.
+    lang = {'de': 'de', 'en': 'en'}.get(lang, 'en')
     resp = make_response(redirect(_safe_next(request.args.get('next', '/'))))
     resp.set_cookie('lang', lang, max_age=365 * 24 * 3600, samesite='Lax')
     return resp

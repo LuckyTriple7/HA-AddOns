@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.1.7] - 2026-09-03
+
+### Security
+- **CodeQL: Information exposure through an exception (2× app.py, Mail-/Telegram-Testversand).**
+  `send_email`/`send_telegram` in monitor.py gaben bei Fehlschlag bisher `str(e)` roh zurück, und
+  die Test-Endpunkte reichten das unverändert ins UI durch — genau das Muster, das im letzten
+  Changelog noch als Feature beschrieben war ("Fehlertexte laufen bewusst nicht durch die feste
+  Übersetzung"), tatsächlich aber SMTP-/Telegram-Ausnahmetext (Hostnamen, Server-Antworten) an den
+  Browser weiterreichte. Jetzt liefern beide Funktionen nur noch eine von fünf festen
+  Kategorien (`auth_failed`, `recipient_refused`, `timeout`, `connection_failed`,
+  `not_configured`) plus bei Telegram `http_NNN`; der volle `str(e)` geht weiterhin (wie schon
+  vorher) ins Log, aber nicht mehr ins JSON. Neue Übersetzungen für alle vier Kategorien in
+  de/en.json.
+- **CodeQL: Clear-text logging of sensitive information (app.py, Erstlogin-Passwort).** Das beim
+  ersten Start generierte Admin-Passwort landete per `log.info` im Klartext im Add-on-Log
+  (HA-UI-sichtbar, potenziell länger aufbewahrt als options.json). Das Passwort wird weiterhin wie
+  bisher in options.json geschrieben, aber nicht mehr geloggt — die Log-Zeile verweist nur noch auf
+  die Datei.
+- **CodeQL: Construction of a cookie using user-supplied input (app.py, `/set-lang`).** Die
+  Sprache kam als `lang if lang in ('de','en') else 'en'` in `set_cookie` — durch die
+  Mitgliedschaftsprüfung praktisch harmlos, aber für CodeQLs Taint-Tracking noch derselbe
+  Request-Wert. Auf eine feste Zwei-Werte-Lookup-Tabelle umgestellt, deren Rückgabe garantiert
+  eines von zwei hartkodierten Literalen ist.
+- **CodeQL: Use of insecure SSL/TLS version (2× tlscheck.py) — geprüft, kein Fix.** Beide Treffer
+  markieren die TLS-Handshakes, mit denen dieses Modul absichtlich beliebige Fremd-Server abfragt,
+  um u. a. veraltete Protokollversionen (TLSv1/1.1/SSLv3) als Befund zu melden
+  (`_WEAK_PROTOCOLS`). Ein `minimum_version`-Pin auf TLSv1.2 würde genau die Verbindungen, die
+  dieses Feature erkennen soll, schon am Handshake scheitern lassen statt sie zu melden — kein
+  NetToolbox-Geheimnis läuft über diese Sockets. Code-Kommentar an beiden Stellen ergänzt; Alerts
+  #224/#225 sollten in GitHub als "used in code, false positive" geschlossen werden statt per
+  Autofix verändert.
+
 ## [0.1.6] - 2026-09-03
 
 ### Added

@@ -9,6 +9,7 @@ lock so two threads never commit at once.
 
 import logging
 import smtplib
+import socket
 import sqlite3
 import threading
 import time
@@ -283,8 +284,18 @@ def send_email(cfg: dict, subject: str, body: str) -> tuple:
             server.quit()
         return True, ''
     except (smtplib.SMTPException, OSError) as e:
+        # Full detail (host, port, server banner text) goes to the log only --
+        # callers (including the settings-test API, which echoes this to the
+        # browser) get a short category code, never str(e). A raw exception
+        # can carry internal hostnames or auth-server responses.
         log.warning("monitor email notification failed: %s", e)
-        return False, str(e)
+        if isinstance(e, smtplib.SMTPAuthenticationError):
+            return False, 'auth_failed'
+        if isinstance(e, smtplib.SMTPRecipientsRefused):
+            return False, 'recipient_refused'
+        if isinstance(e, (socket.timeout, TimeoutError)):
+            return False, 'timeout'
+        return False, 'connection_failed'
 
 
 def send_telegram(cfg: dict, text: str) -> tuple:
@@ -301,7 +312,9 @@ def send_telegram(cfg: dict, text: str) -> tuple:
         return True, ''
     except requests.RequestException as e:
         log.warning("monitor telegram notification failed: %s", e)
-        return False, str(e)
+        if isinstance(e, requests.Timeout):
+            return False, 'timeout'
+        return False, 'connection_failed'
 
 
 def notify(cfg: dict, monitor: dict, level: str, summary: str) -> bool:

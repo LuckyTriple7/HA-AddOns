@@ -90,6 +90,14 @@ def _hostname_covered(host: str, san: list) -> bool:
 
 
 def _fetch_verified(host: str, port: int, timeout: float):
+    # No explicit minimum_version pin here on purpose: this connects to
+    # arbitrary user-specified targets to REPORT what protocol they
+    # negotiate (_WEAK_PROTOCOLS above), which is the whole point of this
+    # module. Pinning TLSv1_2 would make the handshake itself fail against a
+    # TLSv1/1.1 server instead of connecting and flagging it as weak --
+    # exactly the case this tool exists to surface. No NetToolbox secret
+    # crosses this socket. (CodeQL py/insecure-protocol: intentional, not a
+    # missed hardening step.)
     context = ssl.create_default_context()
     with socket.create_connection((host, port), timeout=timeout) as sock:
         with context.wrap_socket(sock, server_hostname=host) as ssock:
@@ -97,6 +105,9 @@ def _fetch_verified(host: str, port: int, timeout: float):
 
 
 def _fetch_unverified(host: str, port: int, timeout: float):
+    # Same rationale as _fetch_verified above -- also drops chain validation
+    # so a self-signed/expired/wrong-host cert still yields a protocol and
+    # cipher reading instead of aborting the handshake outright.
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE

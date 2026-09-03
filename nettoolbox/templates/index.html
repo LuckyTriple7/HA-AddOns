@@ -670,10 +670,17 @@ async function saveSettings(){
 }
 
 function testFailReason(code){
-  // 'not_configured' is one of ours (translated); everything else is a raw
-  // SMTP/Telegram error message from the library itself — shown as-is, not
-  // run through errText(), which would just flatten it to "unknown error".
-  return code === 'not_configured' ? T.settings_test_not_configured : code;
+  // monitor.py only ever returns one of these short category codes (or
+  // 'http_NNN' for a Telegram status code) -- never the raw exception text,
+  // so nothing here can leak an internal hostname or server response.
+  const known = {
+    not_configured: T.settings_test_not_configured,
+    auth_failed: T.settings_test_auth_failed,
+    recipient_refused: T.settings_test_recipient_refused,
+    timeout: T.settings_test_timeout,
+    connection_failed: T.settings_test_connection_failed,
+  };
+  return known[code] || code;
 }
 
 async function sendSettingsTest(path, btnId, resultId){
