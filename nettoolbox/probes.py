@@ -28,7 +28,7 @@ PUBLIC_RESOLVERS = (
     ('DNS.WATCH', '84.200.69.80'),
     ('Level3', '4.2.2.1'),
     ('AdGuard', '94.140.14.140'),
-    ('dns0.eu', '193.110.81.0'),
+    ('CleanBrowsing', '185.228.168.9'),
 )
 
 COMMON_TYPES = ('A', 'AAAA', 'MX', 'NS', 'TXT', 'SOA', 'CAA')

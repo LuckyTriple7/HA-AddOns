@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.4] - 2026-09-03
+
+### Fixed
+- **Propagation-Check: dns0.eu-Resolver antwortete nie.** Sowohl die Resolver-IP (193.110.81.0)
+  als auch dns0.eus eigene Webseite waren beim Nachtesten von zwei unabhängigen Netzen aus
+  komplett unerreichbar (Timeout bzw. Verbindung abgelehnt) — sieht nach echtem Ausfall bei
+  dns0.eu aus, nicht nach einem Problem auf einer Seite. Da sich keine aktuelle IP verifizieren
+  ließ, ersetzt statt geraten: CleanBrowsing (185.228.168.9), live getestet und schnell.
+
 ## [0.1.3] - 2026-09-03
 
 ### Fixed
