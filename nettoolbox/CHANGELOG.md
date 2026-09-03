@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.10] - 2026-09-03
+
+### Removed
+- **Echter HTTP/3-Test (QUIC) wieder entfernt.** Beim Testen auf einem echten Netcup-Server
+  zeigte sich per Paketmitschnitt zweifelsfrei: ausgehende QUIC-Pakete verlassen den Server
+  korrekt (richtige Quell-IP, korrekte Paketgröße, sauberes Retry-Backoff), aber es kommt nie
+  eine Antwort zurück — weder von der eigenen Domain noch von cloudflare.com. Lokale und
+  Netcup-Cloud-Firewall waren beide aus; die Ursache liegt vermutlich am Netzwerkrand
+  (Backbone/DDoS-Schutz filtert eingehendes UDP/443 asymmetrisch, wie bei vielen VPS-Hostern
+  üblich) und ist von innerhalb der VM aus nicht behebbar. Damit war die Funktion für den
+  eigentlichen Anwendungsfall dauerhaft unbrauchbar — auf Wunsch entfernt. Die zuverlässige
+  Alt-Svc-Ankündigungserkennung im HTTP-Header-Reiter bleibt unverändert bestehen, dafür reicht
+  ein normaler HTTPS-Request, kein eigener UDP-Roundtrip nötig.
+- Abhängigkeit `aioquic` (und damit transitiv `cryptography`, `pylsqpack`, `service_identity`)
+  wieder aus `requirements.txt` entfernt.
+
 ## [0.0.9] - 2026-09-03
 
 ### Fixed

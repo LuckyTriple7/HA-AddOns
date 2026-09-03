@@ -22,7 +22,6 @@ COPY tlscheck.py .
 COPY domaininfo.py .
 COPY httpcheck.py .
 COPY smtpcheck.py .
-COPY quiccheck.py .
 COPY netutils.py .
 COPY probes.py .
 COPY remote.py .

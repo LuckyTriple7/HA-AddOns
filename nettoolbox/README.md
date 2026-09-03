@@ -20,7 +20,6 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
 - **SMTP** — Banner, EHLO-Fähigkeiten, STARTTLS, Offene-Relais-Test (liefert nie tatsächlich Mail aus)
-- **HTTP/3 (QUIC)** — echter Handschlag über UDP/443, nicht nur die Alt-Svc-Ankündigung
 - **Ping / Traceroute** — über die System-Werkzeuge im Container
 - **DNSSEC** — DS/DNSKEY-Status, ob der Resolver die Antwort validiert (AD-Flag)
 - **Root-Server-Worker** — dieselbe Instanz kann als Ziel für eine zweite dienen: mit fester

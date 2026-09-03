@@ -9,7 +9,6 @@
   "error_credentials": "Invalid credentials.",
   "error_locked": "Too many attempts. Please wait 15 minutes.",
   "error_expired": "Form expired. Please reload the page.",
-
   "nav_dns": "DNS",
   "nav_mail": "Mail health",
   "nav_propagation": "Propagation",
@@ -21,7 +20,6 @@
   "nav_smtp": "SMTP",
   "nav_dnssec": "DNSSEC",
   "nav_history": "History",
-
   "dns_title": "DNS lookup",
   "mail_title": "Mail health (SPF · DKIM · DMARC · MTA-STS · TLS-RPT · BIMI)",
   "mail_hint": "Checks every mail authentication mechanism for a domain in one pass and assigns its own 0-100 score.",
@@ -38,13 +36,11 @@
   "whois_hint": "Queries RDAP first via the IANA bootstrap list, falls back to classic WHOIS for TLDs without an RDAP server (e.g. .de). DENIC (.de) withholds both registrar and every date field from the public WHOIS protocol for privacy reasons — that is not a limitation of this tool.",
   "http_title": "HTTP headers, redirects and HTTP/3",
   "http_hint": "Follows the redirect chain (each hop re-validated by the SSRF guard), lists the final address's security headers and shows whether the server advertises HTTP/3 via the Alt-Svc header. No actual QUIC connection is attempted — that is a separate protocol over UDP and would need an extra dependency; only the advertisement is checked here, clearly labelled as such.",
-  "quic_hint": "A real QUIC handshake over UDP/443 plus one HTTP/3 request — slower than the Alt-Svc advertisement above, but actually confirms working HTTP/3.",
   "smtp_title": "Check SMTP server",
   "smtp_hint": "Connects to the mail server (default port 25), reads the banner and EHLO capabilities, checks STARTTLS and whether the server is open for unauthorised relaying. The relay test always stops before actually sending (no DATA command) — no mail is ever delivered, whatever the server answers.",
   "dnssec_title": "DNSSEC status",
   "history_title": "History",
   "history_empty": "No lookups yet.",
-
   "field_name": "Name",
   "field_type": "Type",
   "field_domain": "Domain",
@@ -85,7 +81,6 @@
   "field_security_headers": "Security headers",
   "field_banner": "Banner",
   "field_features": "EHLO capabilities",
-
   "action_lookup": "Look up",
   "action_lookup_all": "All common types",
   "action_ping": "Ping",
@@ -93,67 +88,51 @@
   "action_check": "Check",
   "action_clear": "Clear history",
   "action_cancel": "Cancel",
-  "action_quic_test": "Run real HTTP/3 test",
-
   "loading": "Loading…",
   "no_records": "No records found.",
-
   "status_local": "Local",
   "status_worker_connected": "Worker connected",
   "status_worker_down": "Worker unreachable",
   "status_unknown": "unknown",
-
   "level_ok": "OK",
   "level_info": "Info",
   "level_warn": "Warning",
   "level_fail": "Fail",
-
   "dnssec_ad": "DNSSEC confirmed (AD)",
   "dnssec_no_ad": "no AD flag",
   "dnssec_signed": "signed",
   "dnssec_unsigned": "unsigned",
   "dnssec_validated": "validated by resolver",
   "dnssec_not_validated": "not validated",
-
   "soa_in_sync": "All name servers report the same serial.",
   "soa_out_of_sync": "Name servers report different serials — the zone has not fully propagated yet.",
-
   "prop_consistent": "Every queried resolver returned the same answer.",
   "prop_inconsistent": "Resolvers disagree — a change is likely still rolling out.",
-
   "rev_confirmed": "Forward-confirmed reverse DNS matches.",
   "rev_unconfirmed": "None of the returned names resolve back to the checked IP.",
   "rev_private": "Address is in a private range.",
   "rev_match": "matches",
   "rev_mismatch": "does not match",
-
   "mail_score_label": "Health score",
-
   "rbl_status_listed": "listed",
   "rbl_status_clean": "clean",
   "rbl_code_typo": "wrong zone name",
   "rbl_code_excluded": "excluded",
   "rbl_code_open_resolver": "could not check (public resolver blocked)",
   "rbl_code_rate_limited": "could not check (rate limit reached)",
-
   "tls_trusted_badge": "trusted",
   "tls_untrusted_badge": "untrusted",
   "tls_no_details": "Certificate details unavailable because the chain is not trusted:",
-
   "http3_yes": "advertised",
   "http3_no": "not advertised",
-
   "smtp_starttls_badge_ok": "STARTTLS active",
   "smtp_starttls_badge_failed": "STARTTLS offered, failed",
   "smtp_starttls_badge_none": "no STARTTLS",
   "smtp_relay_badge_open": "open relay",
   "smtp_relay_badge_closed": "relay closed",
-  "quic_connected_badge": "HTTP/3 connected",
-  "quic_failed_badge": "no HTTP/3",
   "ping_loss_label": "loss",
   "traceroute_reached_label": "target reached",
   "traceroute_not_reached_label": "target not reached",
-
   "f_spf_ptr": "SPF uses the deprecated ptr mechanism — RFC 7208 marks it 'not recommended'.",
   "f_spf_macro": "SPF term {term} contains a macro and was not expanded.",
   "f_spf_bad_term": "SPF term {term} is not a valid domain.",
@@ -172,7 +151,6 @@
   "f_spf_lookups_tight": "{count} of {limit} allowed DNS lookups used — little room left for further includes.",
   "f_spf_lookups_ok": "{count} of {limit} allowed DNS lookups used.",
   "f_spf_too_many_voids": "{count} of {limit} allowed void lookups exceeded.",
-
   "f_dkim_revoked": "Selector {selector} is deliberately revoked (p= is empty).",
   "f_dkim_bad_key": "Selector {selector}: the public key could not be parsed.",
   "f_dkim_ok": "Selector {selector}: valid {key_type} key with {bits} bits.",
@@ -181,7 +159,6 @@
   "f_dkim_testing": "Selector {selector} is in testing mode (t=y) — receivers do not enforce failures strictly.",
   "f_dkim_missing": "Given selector {selector} returns no DKIM record.",
   "f_dkim_none_guessed": "None of {count} common selectors returned a record — that proves nothing, DKIM has no way to enumerate selectors.",
-
   "f_dmarc_missing": "No DMARC record found for {domain}.",
   "f_dmarc_multiple": "{count} DMARC records found — exactly one is allowed.",
   "f_dmarc_no_policy": "DMARC record has no valid p= tag.",
@@ -195,7 +172,6 @@
   "f_dmarc_no_rua": "No rua report recipient set — no aggregate reports will arrive.",
   "f_dmarc_rua": "{count} rua report recipients set.",
   "f_dmarc_external_unauthorised": "External report domains without authorisation: {domains}.",
-
   "f_mtasts_missing": "No MTA-STS record for {domain} — SMTP connections can silently downgrade to plaintext.",
   "f_mtasts_multiple": "{count} MTA-STS TXT records found — exactly one is allowed.",
   "f_mtasts_no_id": "MTA-STS record has no id tag.",
@@ -210,11 +186,9 @@
   "f_mtasts_no_mx": "Policy file contains no mx line.",
   "f_mtasts_mx_uncovered": "These MX hosts are not covered by the policy: {hosts}.",
   "f_mtasts_mx_ok": "All {count} MX hosts are covered by the policy.",
-
   "f_tlsrpt_missing": "No TLS-RPT record for {domain} — downgrade or certificate failures go unnoticed.",
   "f_tlsrpt_no_rua": "TLS-RPT record has no rua report recipient.",
   "f_tlsrpt_ok": "{count} TLS-RPT report recipients set.",
-
   "f_bimi_missing": "No BIMI record for {domain} (optional).",
   "f_bimi_no_logo": "BIMI record has no l= tag with a logo URL.",
   "f_bimi_logo_status": "Logo URL responded with status {status} instead of 200.",
@@ -222,19 +196,15 @@
   "f_bimi_logo_ok": "Logo is reachable and served as SVG.",
   "f_bimi_logo_unreachable": "Logo URL unreachable ({reason}).",
   "f_bimi_no_vmc": "No VMC certificate (a= tag) set — most mailboxes will not show the logo without one.",
-
   "f_mx_missing": "No MX records found for {domain} — the domain cannot receive mail.",
   "f_mx_found": "{count} MX records found.",
   "f_mx_single": "Only one MX record — no fallback server if it goes down.",
   "f_mx_no_address": "MX host {host} does not resolve to an A/AAAA address.",
-
   "f_probe_failed": "Sub-check {probe} could not complete ({reason}).",
-
   "f_rbl_listed": "Listed on {count} of 15 blocklists: {lists}.",
   "f_rbl_clean": "Not listed on any of the {count} checked blocklists.",
   "f_rbl_provider_blocked": "{count} blocklists could not be checked reliably — operator rejected the query: {lists}.",
   "f_rbl_errors": "{count} blocklists did not answer in time.",
-
   "f_tls_trusted": "Certificate chain is trusted.",
   "f_tls_self_signed": "Self-signed certificate — no public issuer vouches for it.",
   "f_tls_hostname_mismatch": "Certificate is not valid for {host} — hostname check failed.",
@@ -251,7 +221,6 @@
   "f_tls_expiry_unparsed": "Could not parse the expiry date.",
   "f_tls_short_lived": "Short-lived certificate (total lifetime {lifetime} days) — a short time remaining is normal here, not a warning sign by itself.",
   "f_tls_details_unavailable": "Certificate details unavailable without a trusted chain.",
-
   "f_domain_not_found": "Domain {domain} is not registered.",
   "f_domain_on_hold": "Domain is on hold (status: {status}) — may no longer resolve.",
   "f_domain_pending_delete": "Domain is in its deletion phase.",
@@ -262,7 +231,6 @@
   "f_domain_registrar_redacted": "No registrar given in the RDAP response.",
   "f_domain_found": "Domain is registered.",
   "f_whois_fields_withheld": "{server} does not release registrar or date fields via the public WHOIS protocol (registry privacy policy, e.g. DENIC for .de).",
-
   "f_http_redirects_to_https": "HTTP correctly redirects to HTTPS.",
   "f_http_no_https_redirect": "HTTP does not redirect to HTTPS — an unencrypted connection stays possible.",
   "f_header_strict_transport_security_present": "Strict-Transport-Security set — browsers enforce HTTPS for this domain.",
@@ -282,7 +250,6 @@
   "f_http3_advertised": "Server advertises HTTP/3 via Alt-Svc.",
   "f_http3_not_advertised": "No HTTP/3 advertised via Alt-Svc.",
   "f_http_long_redirect_chain": "Unusually long redirect chain ({count} hops).",
-
   "f_smtp_connected": "Connection established, server answered with 220.",
   "f_smtp_bad_banner": "Server answered with unexpected code {code} instead of 220.",
   "f_smtp_banner_ptr_match": "Banner hostname matches the IP's PTR record.",
@@ -294,19 +261,12 @@
   "f_smtp_no_starttls": "Server does not offer STARTTLS — connection would stay unencrypted.",
   "f_smtp_open_relay": "Server accepted relaying to an unrelated domain without authentication — possible open relay. Nothing was actually sent (no DATA command).",
   "f_smtp_relay_closed": "Server refuses to relay to an unrelated domain without authentication — correct behaviour.",
-
   "f_ping_no_reply": "No reply to any packet.",
   "f_ping_partial_loss": "Partial packet loss: {loss}%.",
   "f_ping_ok": "All packets answered, average {avg} ms.",
   "f_traceroute_reached": "Target reached after {hops} hops.",
   "f_traceroute_incomplete": "Target not reached after {hops} hops — later networks often filter ICMP, which is not a fault of this tool.",
   "f_traceroute_no_hops": "Not a single hop answered.",
-
-  "f_quic_connected": "Real HTTP/3 handshake succeeded ({ms} ms).",
-  "f_quic_response_ok": "Response received, status {status}.",
-  "f_quic_alpn_mismatch": "Server answered, but not with HTTP/3 (ALPN: {alpn}).",
-  "f_quic_closed": "QUIC connection was refused: {reason}",
-
   "err_generic": "Unknown error.",
   "err_empty_target": "Please enter a target.",
   "err_target_too_long": "Input is too long for a domain name.",
@@ -355,10 +315,6 @@
   "err_too_many_redirects": "Too many redirects (more than 8).",
   "err_smtp_timeout": "SMTP connection timed out.",
   "err_smtp_unreachable": "SMTP server unreachable — port 25 is blocked on many home connections. Can be checked via the root-server worker.",
-  "err_quic_unreachable": "No answer over UDP/443 — either no HTTP/3 support, or a firewall blocks UDP.",
-  "err_quic_response_timeout": "Handshake succeeded, but no answer to the request.",
-  "err_quic_tls_error": "TLS error during the QUIC handshake.",
-  "err_quic_error": "QUIC connection failed.",
   "err_ping_timeout": "Ping timed out.",
   "err_ping_unavailable": "ping program not found in the container.",
   "err_traceroute_timeout": "Traceroute timed out.",

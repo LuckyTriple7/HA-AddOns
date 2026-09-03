@@ -385,7 +385,7 @@ _ERROR_STATUS = {
     'nxdomain': 404, 'no_records': 404, 'whois_no_referral': 404,
     'dns_timeout': 504, 'http_timeout': 504, 'worker_timeout': 504,
     'tls_timeout': 504, 'whois_timeout': 504, 'smtp_timeout': 504,
-    'quic_response_timeout': 504, 'ping_timeout': 504, 'traceroute_timeout': 504,
+    'ping_timeout': 504, 'traceroute_timeout': 504,
     'worker_auth': 502, 'worker_unreachable': 502, 'worker_tls': 502,
     'worker_bad_response': 502, 'worker_error': 502,
 }
