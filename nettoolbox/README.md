@@ -34,16 +34,15 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 |------|----------|
 | 17798 | NetToolbox Web-UI (direkt, Anmeldung erforderlich) |
 
-## Standalone (ohne Home Assistant)
+## Standalone (ohne Home Assistant, z. B. mit Dockge)
 
-Dasselbe Image läuft auch ohne Supervisor — Optionen kommen dann über Umgebungsvariablen statt
-`/data/options.json`:
+Dasselbe Image läuft auch ohne Supervisor — siehe [docker-compose.yml](docker-compose.yml):
 
 ```sh
-docker run -d --name nettoolbox -p 17798:17798 \
-  -e NETTOOLBOX_OPTIONS=/config \
-  -v /pfad/zu/config:/config \
-  ghcr.io/luckytriple7/nettoolbox
+docker compose up -d
+docker compose logs nettoolbox   # zeigt das erzeugte Passwort für "admin"
 ```
 
-`/config/options.json` muss dabei existieren (siehe `dev_run.py` für ein Beispiel).
+Beim ersten Start legt NetToolbox `data/options.json` selbst an, mit einem zufälligen Passwort
+fürs Protokoll. Genau dieselbe Instanz eignet sich als Root-Server-Worker (`worker_enabled` +
+`worker_token` in der Datei setzen) oder als Client einer solchen (`worker_url` + `worker_token`).

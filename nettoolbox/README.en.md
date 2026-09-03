@@ -36,16 +36,15 @@ about your domains leaves your own infrastructure.
 |------|---------|
 | 17798 | NetToolbox web UI (direct, sign-in required) |
 
-## Standalone (without Home Assistant)
+## Standalone (without Home Assistant, e.g. with Dockge)
 
-The same image also runs without the Supervisor — options then come from environment variables
-instead of `/data/options.json`:
+The same image also runs without the Supervisor — see [docker-compose.yml](docker-compose.yml):
 
 ```sh
-docker run -d --name nettoolbox -p 17798:17798 \
-  -e NETTOOLBOX_OPTIONS=/config \
-  -v /path/to/config:/config \
-  ghcr.io/luckytriple7/nettoolbox
+docker compose up -d
+docker compose logs nettoolbox   # shows the generated password for "admin"
 ```
 
-`/config/options.json` must exist (see `dev_run.py` for an example).
+On first start NetToolbox creates `data/options.json` itself, with a random password printed to
+the log. That same instance can act as a root-server worker (set `worker_enabled` and
+`worker_token` in the file) or as a client of one (`worker_url` and `worker_token`).

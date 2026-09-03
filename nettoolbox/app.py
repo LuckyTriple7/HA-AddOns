@@ -79,6 +79,37 @@ _config_cache: dict = {}
 _config_mtime: float = 0.0
 
 
+# Standalone (no Supervisor) has nothing that writes options.json from the
+# config.yaml schema the way the Supervisor does — without this, the direct
+# port would have no username/password and login could never succeed.
+_STANDALONE_DEFAULTS = {
+    'username': 'admin',
+    'session_hours': 24,
+    'worker_url': '', 'worker_token': '', 'worker_tls_verify': True,
+    'worker_enabled': False,
+    'resolvers': ['9.9.9.9', '1.1.1.1', '8.8.8.8'],
+    'dns_timeout': 5, 'http_timeout': 10,
+    'allow_private_targets': False,
+    'rate_limit_per_min': 60, 'history_size': 200, 'verbose_log': False,
+}
+
+
+def _bootstrap_options() -> None:
+    if SUPERVISOR_TOKEN or os.path.exists(CONFIG_PATH):
+        return
+    password = secrets.token_urlsafe(9)
+    options = dict(_STANDALONE_DEFAULTS, password=password)
+    try:
+        os.makedirs(_OPTS, exist_ok=True)
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(options, f, indent=2)
+    except OSError:
+        log.error("could not write %s — direct-port login stays unusable", CONFIG_PATH)
+        return
+    log.info("no options.json found — created one with username 'admin' and "
+             "password '%s'. Change it in %s.", password, CONFIG_PATH)
+
+
 def load_config() -> dict:
     global _config_cache, _config_mtime
     try:
@@ -710,6 +741,7 @@ def _startup_checks() -> None:
 
 
 if __name__ == '__main__':
+    _bootstrap_options()
     load_sessions()
     history_load()
     _startup_checks()

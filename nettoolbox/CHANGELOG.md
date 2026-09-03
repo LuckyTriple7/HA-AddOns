@@ -23,6 +23,9 @@
   einem offenen Scan-Proxy ins eigene Netz.
 - Verlauf der letzten Prüfungen, Rate-Limit je Minute, DE/EN, Dark/Light, HA Ingress, direkter
   Port mit eigener Anmeldung (Benutzername/Passwort, CSRF, Rate-Limit auf Fehlversuche).
+- `docker-compose.yml` für Standalone-Betrieb (Dockge & Co.): Beim ersten Start ohne Supervisor
+  legt NetToolbox `data/options.json` selbst mit einem zufälligen Passwort an und schreibt es
+  ins Protokoll — kein manuelles Anlegen der Datei mehr nötig.
 
 ### Noch nicht enthalten (geplante nächste Schritte)
 - SMTP-Test (Banner, STARTTLS, Open-Relay, Reverse-Match) — braucht offenen Port 25, sinnvoll
