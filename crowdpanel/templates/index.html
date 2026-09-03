@@ -285,6 +285,10 @@
     .numrow b { display: block; font-size: 0.86rem; font-variant-numeric: tabular-nums; }
     .numrow span { font-size: 0.7rem; color: var(--muted); }
 
+    /* Ampelpunkt vor dem Namen. Farbe allein traegt die Aussage nicht: die
+       Zeitangabe rechts ist genauso eingefaerbt und nennt die Zahl dazu. */
+    .state-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+                 margin-right: 7px; flex: none; vertical-align: 1px; }
     .kpi .sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
     .bartrack.mini { height: 4px; margin-top: 4px; width: 70px; margin-left: auto; }
     th.right, td.right { text-align: right; }
@@ -992,6 +996,30 @@
       return Math.round(secs / 86400) + ' d';
     }
 
+    // Ampel fuer Zeitstempel. Die Grenzen sind dieselben, nach denen der
+    // Server einen Bouncer als abgehaengt meldet (BOUNCER_STALE_SECONDS = 600):
+    // bis zwei Minuten gruen, bis zehn gelb, danach rot. Gelb heisst nicht
+    // kaputt, sondern "laenger her als ueblich" — ein Bouncer holt normalerweise
+    // alle paar Sekunden ab.
+    function ageState(stamp, warnSecs, badSecs) {
+      if (!stamp) return 'bad';
+      const ts = Date.parse(stamp);
+      if (isNaN(ts)) return 'idle';
+      const secs = (Date.now() - ts) / 1000;
+      if (secs > badSecs) return 'bad';
+      if (secs > warnSecs) return 'warn';
+      return 'ok';
+    }
+
+    const STATE_COLOR = { ok: 'var(--green-h)', warn: 'var(--amber)',
+                          bad: 'var(--red)', idle: 'var(--muted)' };
+
+    function stateDot(state) {
+      const dot = el('span', 'state-dot');
+      dot.style.background = STATE_COLOR[state] || STATE_COLOR.idle;
+      return dot;
+    }
+
     function renderBouncers(d) {
       const box = $('ovBouncers');
       box.textContent = '';
@@ -999,8 +1027,16 @@
       const rows = d.bouncers || [];
       if (!rows.length) { box.appendChild(el('div', 'muted', T.b_none)); return; }
       rows.forEach(b => {
+        // Ein Bouncer, der seit Minuten nicht abgeholt hat, setzt keine Sperren
+        // mehr durch — deshalb steht genau diese Zahl hier. Kindeinträge sind
+        // davon ausgenommen, bei ihnen ist ein alter Zeitstempel der Normalfall.
+        const state = b.auto_created ? 'idle'
+                    : b.revoked ? 'bad'
+                    : ageState(b.last_pull, 120, 600);
         const row = el('div', 'kv');
-        const left = el('span', null, b.name || T.none);
+        const left = el('span', null);
+        left.appendChild(stateDot(state));
+        left.appendChild(document.createTextNode(b.name || T.none));
         left.title = [b.type, b.version, b.ip_address].filter(Boolean).join(' · ');
         row.appendChild(left);
         if (b.auto_created) {
@@ -1008,16 +1044,12 @@
           left.appendChild(el('span', 'tag', T.b_auto));
           left.title = T.b_auto_hint + (left.title ? ' · ' + left.title : '');
         }
-        // Ein Bouncer, der seit Minuten nicht abgeholt hat, setzt keine Sperren
-        // mehr durch — deshalb steht genau diese Zahl hier. Kindeinträge sind
-        // davon ausgenommen, bei ihnen ist ein alter Zeitstempel der Normalfall.
-        const stale = !b.auto_created
-                   && (b.revoked || !b.last_pull
-                       || (Date.now() - Date.parse(b.last_pull)) > 600000);
         const right = el('span', null,
           b.revoked ? T.b_revoked : (T.b_lastpull + ': ' + ageLabel(b.last_pull)));
-        if (stale) right.style.color = 'var(--red)';
-        if (b.auto_created) right.style.color = 'var(--muted)';
+        right.style.color = STATE_COLOR[state];
+        // Die genaue Zeit gehoert in den Tooltip: "28 d" beantwortet nicht,
+        // seit wann genau.
+        if (b.last_pull) right.title = relTime(b.last_pull);
         row.appendChild(right);
         box.appendChild(row);
       });
@@ -1029,23 +1061,25 @@
       box.textContent = '';
       if (!d.available) { box.appendChild(el('div', 'muted', T.b_unavailable)); return; }
       (d.machines || []).forEach(m => {
+        // Lebenszeichen schicken nur Agenten. Ein Zugang, der die API bloss
+        // benutzt, hat hier dauerhaft nichts stehen — das ist kein Ausfall,
+        // also grau statt rot. Ein Agent meldet sich im Minutentakt.
+        const state = m.last_heartbeat ? ageState(m.last_heartbeat, 300, 1800) : 'idle';
         const row = el('div', 'kv');
-        const left = el('span', 'mono', m.machine_id || T.none);
+        const left = el('span', 'mono');
+        left.appendChild(stateDot(state));
+        left.appendChild(document.createTextNode(m.machine_id || T.none));
         left.title = [m.version, m.ip_address].filter(Boolean).join(' · ');
         row.appendChild(left);
         if (m.self) {
           left.appendChild(document.createTextNode(' '));
           left.appendChild(el('span', 'tag', T.b_self));
         }
-        // Lebenszeichen schicken nur Agenten. Ein Zugang, der die API bloss
-        // benutzt, hat hier dauerhaft nichts stehen — das ist kein Ausfall.
         const right = el('span', null,
           m.last_heartbeat ? T.b_heartbeat + ': ' + ageLabel(m.last_heartbeat)
                            : T.b_no_agent);
-        if (!m.last_heartbeat) {
-          right.style.color = 'var(--muted)';
-          right.title = T.b_no_agent_hint;
-        }
+        right.style.color = STATE_COLOR[state];
+        right.title = m.last_heartbeat ? relTime(m.last_heartbeat) : T.b_no_agent_hint;
         row.appendChild(right);
         box.appendChild(row);
       });

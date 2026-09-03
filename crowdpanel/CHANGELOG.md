@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0] - 2026-09-03
+
+### Changed
+- **Bouncer und Maschinen tragen eine Ampel.** Bisher war ein Eintrag entweder
+  unauffällig oder rot, und rot wurde er erst nach zehn Minuten. Jetzt steht ein
+  Punkt vor dem Namen und die Zeitangabe rechts ist mitgefärbt: grün bis zwei
+  Minuten, gelb bis zehn, danach rot — dieselbe Grenze, nach der auch die
+  Home-Assistant-Sensoren einen Bouncer als abgehängt melden. Gelb heißt nicht
+  kaputt, sondern „länger her als üblich"; ein Bouncer holt sonst alle paar
+  Sekunden ab. Gesperrte Bouncer sind rot, abgeleitete Kindeinträge bleiben
+  grau, denn bei ihnen ist ein alter Zeitstempel der Normalfall.
+- Bei den Maschinen gilt dieselbe Ampel für das Lebenszeichen, mit weiteren
+  Grenzen (fünf und dreißig Minuten). Ein Zugang ohne Agent bleibt grau statt
+  rot — er schickt grundsätzlich keine Lebenszeichen.
+- Die genaue Zeit steht jetzt im Tooltip. „28 d" beantwortet nicht, seit wann.
+
 ## [0.6.3] - 2026-09-03
 
 ### Changed
