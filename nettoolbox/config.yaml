@@ -1,3 +1,4 @@
+# version bump löst den Build-Workflow aus (siehe .github/workflows/build-nettoolbox.yml)
 name: NetToolbox
 description: Netzwerk- und Mail-Diagnose — DNS-Abfragen, SPF, DKIM, DMARC, MTA-STS
 version: "0.0.1"
