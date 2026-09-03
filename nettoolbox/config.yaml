@@ -1,6 +1,6 @@
 name: NetToolbox
 description: Netzwerk- und Mail-Diagnose — DNS-Abfragen, SPF, DKIM, DMARC, MTA-STS
-version: "0.0.10"
+version: "0.1.0"
 slug: nettoolbox
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -45,6 +45,17 @@ options:
   rate_limit_per_min: 60
   history_size: 200
   verbose_log: false
+  monitoring_enabled: true
+  monitoring_poll_seconds: 60
+  smtp_host: ""
+  smtp_port: 587
+  smtp_user: ""
+  smtp_password: ""
+  smtp_from: ""
+  smtp_to: ""
+  smtp_tls: true
+  telegram_bot_token: ""
+  telegram_chat_id: ""
 
 schema:
   username: str
@@ -62,3 +73,14 @@ schema:
   rate_limit_per_min: int(0,6000)?
   history_size: int(0,5000)?
   verbose_log: bool?
+  monitoring_enabled: bool?
+  monitoring_poll_seconds: int(10,3600)?
+  smtp_host: str?
+  smtp_port: int(1,65535)?
+  smtp_user: str?
+  smtp_password: password?
+  smtp_from: str?
+  smtp_to: str?
+  smtp_tls: bool?
+  telegram_bot_token: password?
+  telegram_chat_id: str?

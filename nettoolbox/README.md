@@ -22,6 +22,8 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **SMTP** — Banner, EHLO-Fähigkeiten, STARTTLS, Offene-Relais-Test (liefert nie tatsächlich Mail aus)
 - **Ping / Traceroute** — über die System-Werkzeuge im Container
 - **DNSSEC** — DS/DNSKEY-Status, ob der Resolver die Antwort validiert (AD-Flag)
+- **Monitoring** — Domains/IPs automatisch im gewählten Abstand prüfen (TLS-Ablauf, Sperrlisten,
+  Mail-Gesundheit), Benachrichtigung per Mail oder Telegram bei Zustandswechsel
 - **Root-Server-Worker** — dieselbe Instanz kann als Ziel für eine zweite dienen: mit fester
   IPv4 und offenem Port 25 laufen Abfragen dort, wo Sperrlisten antworten und SMTP-Tests möglich
   sind, statt hinter einem gewöhnlichen Internetanschluss

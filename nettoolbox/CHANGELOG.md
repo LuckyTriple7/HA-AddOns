@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.0] - 2026-09-03
+
+### Added
+- **Monitoring mit Benachrichtigung.** Neuer Reiter „Monitoring": beliebig viele Domains/IPs
+  automatisch im gewählten Abstand prüfen lassen (SSL/TLS-Ablauf, Sperrlisten, Mail-Gesundheit),
+  mit Verlauf pro Monitor. Benachrichtigt nur bei **Zustandswechsel** (ok→warn, warn→fail,
+  fail→ok — „wieder repariert" zählt genauso), nicht bei jedem Lauf. Beim allerersten Lauf nur
+  bei einem sofortigen `fail` eine Benachrichtigung, ein routinemäßiges `info` (fehlendes BIMI,
+  ein einzelner MX — beides normal) setzt still die Basislinie.
+  - Zwei Kanäle, beide optional und unabhängig voneinander: **Mail** per SMTP (eigener Server,
+    Zugangsdaten in den Add-on-Optionen) und **Telegram** (eigener Bot-Token, unabhängig vom
+    Telegram-Add-on dieses Repositorys — kein Installationszwang).
+  - Läuft als eigener Hintergrund-Dienst (kein Cronjob nötig), SQLite unter `/data/monitors.db`
+    im selben Muster wie crowdpanels Alarm-Archiv (thread-lokale Verbindungen, WAL, ein
+    Schreib-Lock) — jeder Thread bekommt seine eigene Verbindung, Flask bedient mehrere Anfragen
+    gleichzeitig neben dem Prüf-Thread.
+  - Neue Optionen: `monitoring_enabled`, `monitoring_poll_seconds`, `smtp_host/port/user/
+    password/from/to/tls`, `telegram_bot_token`, `telegram_chat_id`.
+  - Lokal end-to-end getestet: vollständiger CRUD-Zyklus über die echte HTTP-API (Anlegen,
+    Auflisten, manuell Ausführen, Verlauf, Ändern, Löschen, 404 nach Löschen), echte TLS-Probe
+    gegen github.com, echte Blacklist-/Mail-Gesundheit-Proben, Zustandswechsel-Erkennung,
+    Validierungsfehler (unbekannte Prüfung, leeres Ziel).
+
 ## [0.0.10] - 2026-09-03
 
 ### Removed

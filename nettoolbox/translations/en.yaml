@@ -54,5 +54,44 @@ configuration:
   verbose_log:
     name: Verbose logging
     description: Writes extra lines to the add-on log. For troubleshooting only.
+  monitoring_enabled:
+    name: Monitoring active
+    description: >-
+      Turns on the background service that checks configured monitors (the "Monitoring" tab)
+      automatically at their chosen interval. Has no effect with no monitors set up.
+  monitoring_poll_seconds:
+    name: Monitoring — background poll interval (seconds)
+    description: >-
+      How often the background service checks whether a monitor is due. Only affects accuracy,
+      not how often a check actually runs — that is set per monitor.
+  smtp_host:
+    name: Mail sending — SMTP server
+    description: Address of the SMTP server used for monitoring notifications. Leave empty to disable email notifications.
+  smtp_port:
+    name: Mail sending — port
+    description: Usually 587 (STARTTLS) or 465/25 without TLS negotiation.
+  smtp_user:
+    name: Mail sending — username
+    description: Leave empty if the server does not require a login.
+  smtp_password:
+    name: Mail sending — password
+    description: Password for the username above.
+  smtp_from:
+    name: Mail sending — from address
+    description: Leave empty to use the username as the sender.
+  smtp_to:
+    name: Mail sending — to address
+    description: Where monitoring notifications go by email.
+  smtp_tls:
+    name: Mail sending — use STARTTLS
+    description: Leave on for most servers (port 587).
+  telegram_bot_token:
+    name: Telegram — bot token
+    description: >-
+      Token of a bot you control (from @BotFather). Leave empty to disable Telegram
+      notifications. Independent of this repository's Telegram add-on.
+  telegram_chat_id:
+    name: Telegram — chat ID
+    description: Which chat the bot sends messages to.
 network:
   17798/tcp: NetToolbox web UI (direct, sign-in required)

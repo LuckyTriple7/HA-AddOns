@@ -24,6 +24,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
+import monitor
 import probes
 from netcore import Context, ProbeError
 from remote import TOKEN_HEADER, LocalBackend, RemoteBackend
@@ -43,6 +44,7 @@ CONFIG_PATH = _OPTS + '/options.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 SECRET_PATH = _DATA + '/secret.key'
 HISTORY_PATH = _DATA + '/history.json'
+MONITOR_DB_PATH = _DATA + '/monitors.db'
 LOCALES_PATH = _BASE + '/locales'
 
 PORT = int(os.environ.get('NETTOOLBOX_PORT', '17798'))
@@ -177,6 +179,23 @@ def build_context() -> Context:
         http_timeout=float(_cfg_int('http_timeout', 10, 1, 120)),
         allow_private=bool(cfg.get('allow_private_targets')),
         user_agent='NetToolbox/' + (APP_VERSION or '0'))
+
+
+def notify_config() -> dict:
+    """Read fresh every time a notification is about to be sent, so an
+    options change takes effect on the next monitor run without a restart."""
+    cfg = load_config()
+    return {
+        'smtp_host': cfg.get('smtp_host'), 'smtp_port': cfg.get('smtp_port'),
+        'smtp_user': cfg.get('smtp_user'), 'smtp_password': cfg.get('smtp_password'),
+        'smtp_from': cfg.get('smtp_from'), 'smtp_to': cfg.get('smtp_to'),
+        'smtp_tls': cfg.get('smtp_tls', True),
+        'telegram_bot_token': cfg.get('telegram_bot_token'),
+        'telegram_chat_id': cfg.get('telegram_chat_id'),
+    }
+
+
+_monitor_store = monitor.MonitorStore(MONITOR_DB_PATH)
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
@@ -388,6 +407,7 @@ _ERROR_STATUS = {
     'ping_timeout': 504, 'traceroute_timeout': 504,
     'worker_auth': 502, 'worker_unreachable': 502, 'worker_tls': 502,
     'worker_bad_response': 502, 'worker_error': 502,
+    'monitor_not_found': 404, 'bad_probe': 400,
 }
 
 
@@ -407,6 +427,8 @@ def api(rule: str, methods=('GET',)):
             except ProbeError as e:
                 return (jsonify({'error': e.code, 'detail': e.detail}),
                         _ERROR_STATUS.get(e.code, 502))
+            except monitor.MonitorError as e:
+                return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
             except Exception:
                 log.exception("unhandled error in %s", rule)
                 return jsonify({'error': 'internal'}), 500
@@ -716,6 +738,65 @@ def history_clear():
     return jsonify({'ok': True})
 
 
+# ── Monitoring ────────────────────────────────────────────────────────────────
+
+
+@api('/api/monitors')
+def monitors_list():
+    return jsonify({'rows': _monitor_store.list_monitors(),
+                    'probes': sorted(monitor.MONITOR_PROBES),
+                    'available': _monitor_store.available()})
+
+
+@api('/api/monitors', methods=('POST',))
+def monitors_create():
+    body = request.get_json(silent=True) or {}
+    name = str(body.get('name') or '').strip()
+    target = str(body.get('target') or '').strip()
+    probe_name = str(body.get('probe') or '')
+    if not name or not target:
+        raise ProbeError('empty_target')
+    if probe_name not in monitor.MONITOR_PROBES:
+        raise monitor.MonitorError('bad_probe')
+    mid = _monitor_store.create_monitor(
+        name, probe_name, target,
+        interval_hours=int(body.get('interval_hours') or 6),
+        notify_email=bool(body.get('notify_email', True)),
+        notify_telegram=bool(body.get('notify_telegram', True)),
+        enabled=bool(body.get('enabled', True)))
+    return jsonify({'id': mid})
+
+
+@api('/api/monitors/<int:monitor_id>', methods=('PUT',))
+def monitors_update(monitor_id: int):
+    body = request.get_json(silent=True) or {}
+    fields = {k: body[k] for k in
+             ('name', 'probe', 'target', 'interval_hours', 'enabled',
+              'notify_email', 'notify_telegram') if k in body}
+    _monitor_store.update_monitor(monitor_id, **fields)
+    return jsonify({'ok': True})
+
+
+@api('/api/monitors/<int:monitor_id>', methods=('DELETE',))
+def monitors_delete(monitor_id: int):
+    _monitor_store.get_monitor(monitor_id)
+    _monitor_store.delete_monitor(monitor_id)
+    return jsonify({'ok': True})
+
+
+@api('/api/monitors/<int:monitor_id>/run', methods=('POST',))
+def monitors_run(monitor_id: int):
+    m = _monitor_store.get_monitor(monitor_id)
+    result = monitor.run_monitor(_monitor_store, m, build_context(), notify_config())
+    return jsonify(result)
+
+
+@api('/api/monitors/<int:monitor_id>/history')
+def monitors_history(monitor_id: int):
+    _monitor_store.get_monitor(monitor_id)
+    return jsonify({'rows': _monitor_store.history(monitor_id)})
+
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 
@@ -742,6 +823,16 @@ def _startup_checks() -> None:
             else:
                 log.warning("probe worker not usable yet: %s",
                             state.get('error'))
+
+    if bool(cfg.get('monitoring_enabled', True)):
+        if _monitor_store.open():
+            poll = _cfg_int('monitoring_poll_seconds', 60, 10, 3600)
+            threading.Thread(target=monitor.worker_loop,
+                             args=(_monitor_store, build_context, notify_config, poll),
+                             daemon=True).start()
+            log.info("monitoring worker started (%ds poll)", poll)
+        else:
+            log.warning("monitor store could not be opened — monitoring disabled")
 
 
 if __name__ == '__main__':

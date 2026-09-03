@@ -24,6 +24,8 @@ about your domains leaves your own infrastructure.
 - **SMTP** — banner, EHLO capabilities, STARTTLS, open-relay test (never actually delivers mail)
 - **Ping / Traceroute** — via the container's own system tools
 - **DNSSEC** — DS/DNSKEY status, whether the resolver validated the answer (AD flag)
+- **Monitoring** — check domains/IPs automatically at a chosen interval (TLS expiry, blocklists,
+  mail health), notification by email or Telegram on a state change
 - **Root-server worker** — the same instance can act as a target for a second one: with a fixed
   IPv4 and an open port 25, lookups run where blocklists actually answer and SMTP tests are
   possible, instead of behind a typical home connection
