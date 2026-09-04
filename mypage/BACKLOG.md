@@ -735,20 +735,46 @@ liegt `settings.key` zwangsläufig neben `settings.json`, siehe die Begründung 
 
 ## Sicherheits-Kopfzeilen: Stufe 2 (offen seit 0.11.52)
 
-Seit 0.11.52 liegt eine Content-Security-Policy an, ab Werk als
-`Content-Security-Policy-Report-Only` (Einstellung `csp_mode`). Zwei Punkte fehlen
-noch, um sie wirklich scharf zu bekommen:
+Stand nach 0.11.54: Die Content-Security-Policy liegt an, die Einstellung `csp_mode`
+schaltet zwischen *Nur melden*, *Durchsetzen* und *Aus*. Auf gizmonet.de läuft sie
+durchgesetzt; ein Playwright-Durchlauf über 81 Seitenaufrufe (alle 32 sitemap-Adressen,
+beide Sprachen, dazu Suche, Blog-Blätterung, `/bereich`, 404) fand null Verstöße —
+abgesichert über eine Positivkontrolle, die absichtlich `connect-src` verletzt. Vom
+vorgeschalteten Proxy kommen HSTS, `X-Frame-Options`, `Origin-Agent-Cluster`,
+`X-DNS-Prefetch-Control` und `X-Permitted-Cross-Domain-Policies`.
 
-1. **Markdown sanitisieren.** `render_md()` reicht rohes HTML unverändert durch —
-   `markdown.markdown('<script>alert(1)</script>')` liefert genau das zurück. Solange
-   nur der Admin schreibt, ist das gewollt (eigene `<div>`-Blöcke in Beiträgen). Über
-   `fetch_github_readme()` landet aber **fremdes** Markdown in `long_de` eines Projekts
-   und damit auf einer öffentlichen Seite. Naheliegend: `nh3` mit einer Erlaubnisliste,
-   entweder generell oder nur auf dem Import-Pfad. Die CSP ist dafür nur die zweite
-   Verteidigungslinie, nicht der Ersatz.
-2. **`'unsafe-inline'` loswerden.** Dafür müssen die Inline-Handler weg: rund 376 in
-   `admin.html`, 237 in den Spiele-Vorlagen, 50 in den öffentlichen — umzubauen auf
-   `data-*`-Attribute plus Event-Delegation. Erst danach trägt
+Offen, nach Gewicht:
+
+1. **Markdown sanitisieren — die eigentliche Lücke.** `render_md()` reicht rohes HTML
+   unverändert durch; `markdown.markdown('<script>alert(1)</script>')` liefert genau das
+   zurück. Solange nur der Admin schreibt, ist das gewollt (eigene `<div>`-Blöcke in
+   Beiträgen). Über `fetch_github_readme()` landet aber **fremdes** Markdown in `long_de`
+   eines Projekts und damit auf einer öffentlichen Seite. Naheliegend: `nh3` mit einer
+   Erlaubnisliste, entweder generell oder nur auf dem Import-Pfad. Die CSP fängt davon
+   heute den Skript-Aufruf ab, aber weder ein `<img onerror=…>` noch eingeschleustes
+   Layout — sie ist die zweite Verteidigungslinie, nicht der Ersatz.
+2. **`'unsafe-inline'` loswerden.** Solange es in `script-src` steht, greift die Regel nur
+   gegen fremde Quellen, nicht gegen eingeschleusten Code im eigenen HTML. Dafür müssen die
+   Inline-Handler weg: rund 376 in `admin.html`, 237 in den Spiele-Vorlagen, 50 in den
+   öffentlichen — umzubauen auf `data-*`-Attribute plus Event-Delegation. Erst danach trägt
    `script-src 'self' 'nonce-…'`. Für die Stile geht ein Zwischenschritt schon vorher:
    `style-src 'self' 'nonce-…'; style-src-attr 'unsafe-inline'` blockiert eingeschleuste
    `<style>`-Blöcke und lässt die rund 600 `style="…"`-Attribute in Ruhe.
+3. **Meldeweg für Verstöße.** Heute sieht man einen Treffer nur, wenn man selbst die
+   Konsole offen hat — bricht etwas bei einem Besucher, bleibt es unbemerkt. Mit `report-to`
+   plus einer Sammelroute (gedrosselt, Höchstzahl je Stunde, nur eigene Direktiven, sonst
+   füllen fremde Erweiterungen die Datei) landen sie im Admin. Der Punkt, der beim Umstellen
+   auf *Durchsetzen* am meisten Arbeit abnimmt — auch für alle, die MyPage sonst noch
+   einsetzen.
+
+Kleinkram, mitzunehmen wenn ohnehin am Kopfzeilen-Block gearbeitet wird:
+
+- `Cross-Origin-Opener-Policy` und `Cross-Origin-Resource-Policy` fehlen. Billig, aber von
+  geringem Nutzen bei einer Seite ohne Popups und ohne fremde Einbindung.
+- `img-src http:` könnte für die öffentliche Seite auf `https:` eingedampft werden — der
+  `http:`-Eintrag ist für den LAN-Betrieb drin, öffentlich läuft ohnehin nur TLS. Dann aber
+  als Fallunterscheidung wie bei `_cookie_secure()`, nicht hart.
+- Das `pollvid`-Cookie geht ohne `Secure` raus (`app.py`, Abstimmungs-Kennung, kein Token).
+  Einzeiler, gleiche Herleitung wie `_cookie_secure()`.
+- `frame-src` mit YouTube und Vimeo ist bisher **ungeprüft**: Auf der Seite steckt kein
+  einziges `<iframe>`. Beim ersten eingebetteten Video dort zuerst nachsehen.
