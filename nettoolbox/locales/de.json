@@ -418,5 +418,12 @@
   "err_geoip_failed": "ip-api.com konnte diese Adresse nicht zuordnen.",
   "err_geoip_rate_limited": "ip-api.com hat zu viele Abfragen gemeldet (Limit rund 45 pro Minute) — bitte kurz warten.",
   "err_geoip_error": "ip-api.com hat mit einem Fehler geantwortet.",
-  "err_geoip_bad_response": "ip-api.com hat eine unlesbare Antwort geschickt."
+  "err_geoip_bad_response": "ip-api.com hat eine unlesbare Antwort geschickt.",
+  "provider_label": "Erkannter Betreiber:",
+  "provider_unknown": "kein bekannter Anbieter — vermutlich selbst gehostet",
+  "provider_partly_unknown": "weitere MX-Namen nicht zugeordnet",
+  "software_label": "Software",
+  "software_unknown": "nicht erkannt (Banner nennt kein Produkt)",
+  "software_from_banner": "Aus dem SMTP-Banner gelesen — der Betreiber kann den Text frei setzen.",
+  "software_from_ehlo": "Aus herstellerspezifischen EHLO-Erweiterungen geschlossen, da das Banner nichts verriet."
 }

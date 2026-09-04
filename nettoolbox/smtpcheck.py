@@ -21,6 +21,7 @@ import smtplib
 import socket
 import ssl
 
+import mailprovider
 from netcore import Context, ProbeError, clean_host_or_ip, guard_target, query, reverse_name
 
 OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
@@ -76,7 +77,12 @@ def check_smtp(ctx: Context, target: str) -> dict:
         'host': host, 'port': port, 'banner': '', 'banner_host': '',
         'ehlo_ok': False, 'features': [], 'starttls_offered': False,
         'starttls_ok': False, 'tls_protocol': '', 'tls_cipher': '',
-        'reverse_match': None, 'relay_open': None, 'findings': findings,
+        'reverse_match': None, 'relay_open': None,
+        'software': mailprovider.detect_software(''),
+        # The target host itself is often enough to name the operator --
+        # smtpin.rzone.de is STRATO whether or not the banner says so.
+        'provider': mailprovider.detect_provider([host]),
+        'findings': findings,
     }
 
     smtp = smtplib.SMTP(timeout=ctx.http_timeout)
@@ -99,6 +105,10 @@ def check_smtp(ctx: Context, target: str) -> dict:
         smtp.close()
         return result
     findings.append(_finding(OK, 'smtp_connected'))
+
+    # Identified from the greeting straight away, so an early return further
+    # down (EHLO refused, for instance) still carries the software guess.
+    result['software'] = mailprovider.detect_software(banner_text)
 
     m = re.match(r'^(\S+)', banner_text)
     if m:
@@ -137,6 +147,11 @@ def check_smtp(ctx: Context, target: str) -> dict:
     result['ehlo_ok'] = code == 250
     if result['ehlo_ok']:
         result['features'] = sorted(smtp.esmtp_features.keys())
+        if not result['software']['known']:
+            # Second chance for a banner that gave nothing away: a couple of
+            # ESMTP extensions are vendor-specific enough to name the product.
+            result['software'] = mailprovider.detect_software(
+                banner_text, result['features'])
         findings.append(_finding(OK, 'smtp_ehlo_ok'))
     else:
         findings.append(_finding(FAIL, 'smtp_ehlo_failed', reason=_text(ehlo_resp)))

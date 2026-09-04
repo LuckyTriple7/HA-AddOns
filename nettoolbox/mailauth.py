@@ -8,6 +8,7 @@ English text, so the checks stay free of language.
 import base64
 import re
 
+import mailprovider
 from netcore import (Context, ProbeError, clean_domain, clean_selector,
                      http_get, mx_hosts, query, txt_strings)
 
@@ -612,6 +613,7 @@ def check_mail_health(ctx: Context, domain: str, selectors=None) -> dict:
     findings.extend(parts['dkim'].get('findings', []))
 
     return {'domain': domain, 'mx': mx, 'parts': parts,
+            'provider': mailprovider.detect_provider([e['host'] for e in mx]),
             'findings': findings, 'level': _worst(findings),
             'score': _score(findings)}
 

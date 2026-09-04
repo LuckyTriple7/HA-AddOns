@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.16] - 2026-09-04
+
+### Added
+- **Anbieter- und Software-Erkennung.** Neues Modul `mailprovider.py` (rein rechnend, keine
+  eigenen Netzabfragen) beantwortet zwei Fragen aus Daten, die die bestehenden Prüfungen ohnehin
+  holen:
+  - *Wer betreibt den Mailserver?* — aus den MX-Hostnamen, weil die pro Produkt fest sind
+    (alles unter `mail.protection.outlook.com` ist Microsoft 365, egal welche Domain davor steht).
+    Rund 70 Muster: Google Workspace, Microsoft 365, IONOS, STRATO, ALL-INKL, Netcup, Hetzner,
+    GMX/WEB.DE, mailbox.org, Posteo, Proton, Fastmail, Zoho, Amazon SES/WorkMail, Cloudflare
+    Email Routing, Mimecast, Proofpoint, Hornetsecurity, Barracuda, OVH, Gandi, GoDaddy u. a.
+    Abgleich immer als Suffix, nie als Teilstring — `google.com.angreifer.net` matcht nicht.
+  - *Welche Software läuft dort?* — aus dem SMTP-Banner (Postfix, Exim, Sendmail, Microsoft
+    Exchange, OpenSMTPD, Haraka, Zimbra, RZmta, qmail, Stalwart, MDaemon, Kerio, IceWarp u. a.,
+    inkl. Version wenn genannt), ersatzweise aus herstellerspezifischen EHLO-Erweiterungen
+    (`XEXCH50` → Exchange), wenn das Banner nichts verrät.
+- Angezeigt wird das an drei Stellen: Zeile "Erkannter Betreiber" in der MX-Karte und in der
+  Mail-Gesundheit, sowie Chips (Betreiber + Software) und eine Zeile "Software" in der
+  SMTP-Karte.
+- Beides ist ausdrücklich nur eine Vermutung und färbt keine Ampel: ein Banner ist frei
+  wählbarer Text, und ein selbst gehosteter Server passt auf kein MX-Muster — der wird als
+  "kein bekannter Anbieter — vermutlich selbst gehostet" ausgewiesen.
+
 ## [0.1.15] - 2026-09-04
 
 ### Fixed

@@ -11,6 +11,7 @@ import domaininfo
 import geoip
 import httpcheck
 import mailauth
+import mailprovider
 import netutils
 import quiccheck
 import smtpcheck
@@ -271,7 +272,9 @@ def p_mx(ctx: Context, params: dict) -> dict:
             entry['reverse'].append({'ip': address,
                                      'names': [n.strip('.') for n in names]})
         rows.append(entry)
-    return {'domain': domain, 'mx': rows}
+    return {'domain': domain, 'mx': rows,
+            'provider': mailprovider.detect_provider(
+                [r['host'] for r in rows])}
 
 
 def p_blacklist(ctx: Context, params: dict) -> dict:

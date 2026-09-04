@@ -126,6 +126,12 @@ tr:last-child td { border-bottom: none; }
              align-items: baseline; padding: 3px 0; font-size: 0.8rem; }
 .ipinfo-kv > span:first-child { color: var(--muted); }
 .ipinfo-kv > :last-child { text-align: left; word-break: normal; overflow-wrap: anywhere; }
+.detect-label { font-size: 0.78rem; color: var(--muted); align-self: center; }
+/* Schmalere Beschriftungsspalte fuer Zeilen in den engen Unterkarten. */
+.kv-tight { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline;
+            margin-top: 6px; font-size: 0.8rem; }
+.kv-tight > span:first-child { color: var(--muted); }
+.kv-tight > :last-child { word-break: normal; overflow-wrap: anywhere; }
 .toast-wrap { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
 .toast { background: var(--surf); border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px;
          font-size: 0.82rem; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
@@ -996,6 +1002,8 @@ async function mailCheck(){
     if (r.mx && r.mx.length) {
       const h = el('h3', '', T.field_mx);
       box.appendChild(h);
+      const line = providerLine(r.provider);
+      if (line) box.appendChild(line);
       const table = el('table');
       const thead = el('thead');
       const trh = el('tr');
@@ -1092,6 +1100,33 @@ async function revCheck(){
   } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 
+// ── Erkennung: Betreiber (aus MX-Namen) und Software (aus Banner) ───────────
+
+function providerLine(provider){
+  // Zeile "Erkannt: ..." -- bewusst als Hinweis und nicht als Fund, weil eine
+  // Namensliste nichts ueber die Gesundheit der Domain aussagt.
+  if (!provider) return null;
+  const row = el('div', 'row');
+  row.appendChild(el('span', 'detect-label', T.provider_label));
+  if (provider.known) {
+    provider.names.forEach(n => row.appendChild(el('span', 'chip', n)));
+    if (provider.unknown && provider.unknown.length) {
+      row.appendChild(el('span', 'chip', T.provider_partly_unknown));
+    }
+  } else {
+    row.appendChild(el('span', 'chip', T.provider_unknown));
+  }
+  return row;
+}
+
+function softwareChip(software){
+  if (!software || !software.known) return null;
+  const label = software.name + (software.version ? ' ' + software.version : '');
+  const chip = el('span', 'chip', label);
+  chip.title = software.source === 'ehlo' ? T.software_from_ehlo : T.software_from_banner;
+  return chip;
+}
+
 async function mxCheck(){
   const domain = $('mxDomain').value.trim();
   if (!domain) { toast(T.err_empty_target, true); return; }
@@ -1101,6 +1136,8 @@ async function mxCheck(){
     box.innerHTML = '';
     const r = data.result;
     if (!r.mx.length) { box.appendChild(el('p', 'result-empty', T.no_records)); return; }
+    const line = providerLine(r.provider);
+    if (line) box.appendChild(line);
     r.mx.forEach(m => {
       const c = el('div', 'subcard');
       const hd = el('h4');
@@ -1686,6 +1723,11 @@ async function smtpCheck(){
         r.relay_open ? T.smtp_relay_badge_open : T.smtp_relay_badge_closed));
     }
     if (r.tls_protocol) badges.appendChild(el('span', 'chip', r.tls_protocol));
+    if (r.provider && r.provider.known) {
+      r.provider.names.forEach(n => badges.appendChild(el('span', 'chip', n)));
+    }
+    const soft = softwareChip(r.software);
+    if (soft) badges.appendChild(soft);
     wrap.appendChild(badges);
 
     wrap.appendChild(renderFindings(r.findings));
@@ -1694,6 +1736,12 @@ async function smtpCheck(){
     const c1 = el('div', 'subcard');
     c1.appendChild(el('h4', '', T.field_banner));
     c1.appendChild(el('div', 'mono', r.banner || '—'));
+    const row = el('div', 'kv-tight');
+    row.appendChild(el('span', '', T.software_label));
+    row.appendChild(el('span', '', r.software && r.software.known
+      ? r.software.name + (r.software.version ? ' ' + r.software.version : '')
+      : T.software_unknown));
+    c1.appendChild(row);
     grid.appendChild(c1);
 
     if (r.features.length) {

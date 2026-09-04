@@ -418,5 +418,12 @@
   "err_geoip_failed": "ip-api.com could not locate this address.",
   "err_geoip_rate_limited": "ip-api.com reported too many queries (limit is about 45 per minute) — please wait a moment.",
   "err_geoip_error": "ip-api.com answered with an error.",
-  "err_geoip_bad_response": "ip-api.com sent an unreadable response."
+  "err_geoip_bad_response": "ip-api.com sent an unreadable response.",
+  "provider_label": "Detected operator:",
+  "provider_unknown": "no known provider — probably self-hosted",
+  "provider_partly_unknown": "further MX names unmatched",
+  "software_label": "Software",
+  "software_unknown": "not identified (banner names no product)",
+  "software_from_banner": "Read from the SMTP banner — the operator is free to set that text.",
+  "software_from_ehlo": "Inferred from vendor-specific EHLO extensions, because the banner gave nothing away."
 }
