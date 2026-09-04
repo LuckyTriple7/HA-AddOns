@@ -12824,7 +12824,11 @@ CSP_ADMIN = _CSP_COMMON + "; frame-src 'self'"
 # Video-Eintraege nennen die Embed-Hosts, sonst fehlt im eingebetteten Video der
 # Vollbild-Knopf. `clipboard-write` bleibt fuer die Kopier-Knoepfe.
 PERMISSIONS_POLICY = (
-    "accelerometer=(), ambient-light-sensor=(), camera=(), display-capture=(), "
+    # Nur Namen, die Browser auch kennen — ein unbekannter (etwa
+    # `ambient-light-sensor`, in Chrome hinter einem Flag) wird zwar nur
+    # uebersprungen, schreibt aber bei jedem Seitenaufruf eine Fehlermeldung
+    # in die Konsole, in der spaeter die echten Treffer untergehen.
+    "accelerometer=(), camera=(), display-capture=(), "
     "geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), "
     "payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), "
     "usb=(), xr-spatial-tracking=(), clipboard-write=(self), "

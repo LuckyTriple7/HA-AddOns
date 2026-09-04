@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.53
+
+- 🐛 **Konsolen-Warnung der Permissions-Policy behoben.** Die Kopfzeile nannte `ambient-light-sensor`; Chrome kennt den Namen nicht (er steckt dort hinter einem Flag) und meldete bei jedem Seitenaufruf `Unrecognized feature`. Wirksam war die Kopfzeile trotzdem — unbekannte Einträge werden übersprungen, nicht die ganze Regel —, aber in einer Konsole voller Warnungen geht der echte Treffer unter. Der Eintrag ist raus, der Sensor bleibt über `accelerometer`/`gyroscope`/`magnetometer` ohnehin ohne Zugriff.
+
 ## 0.11.52
 
 - 🔒 **Sicherheits-Kopfzeilen für den Browser.** Jede Antwort trägt jetzt eine Content-Security-Policy, eine Permissions-Policy sowie `X-Content-Type-Options: nosniff` und `Referrer-Policy: strict-origin-when-cross-origin`. Die Policy sagt dem Browser vorweg, was eine Seite darf: Skripte, Stile, Schriften und Verbindungen nur vom eigenen Server, eingebettete Videos nur von `youtube-nocookie.com` und `player.vimeo.com`, keine `<object>`, kein umgebogenes `<base>`, Formulare nur an die eigene App. Die öffentliche Seite darf zusätzlich nirgends eingebettet werden (`frame-ancestors 'none'`).
