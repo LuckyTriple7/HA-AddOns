@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.28] - 2026-09-04
+
+### Added
+- **Zertifikatsangaben auch für nicht vertrauenswürdige Zertifikate.** Bisher blieben Aussteller,
+  Name, Seriennummer und Laufzeit leer, sobald die Prüfung fehlschlug — genau im interessantesten
+  Fall also. Grund war eine Einschränkung von `getpeercert()`, das ohne Verifizierung ein leeres
+  Wörterbuch liefert. Das rohe Zertifikat wird jetzt mit `cryptography` (ohnehin schon
+  Abhängigkeit für die verschlüsselten Einstellungen) in dieselbe Form gebracht. Ein Fragezeichen
+  an der Karte sagt dazu, dass die Angaben aus einem nicht bestandenen Zertifikat stammen.
+- **Erkennung von Platzhalter-Zertifikaten.** Selbst ausgestellt, kein passender Name, Laufzeit
+  über zehn Jahre — das ist das Standardzertifikat eines Webservers oder Reverse-Proxys, weil für
+  den Namen kein Host eingerichtet ist. Statt eines nackten „selbstsigniert" steht das jetzt als
+  Diagnose da (geprüft an gizmonet.eu: NPMplus antwortet mit CN `*`, gültig bis 3026).
+- Eine Laufzeit von über zehn Jahren wird als eigener Hinweis gemeldet, statt als grünes
+  „noch 364996 Tage gültig" durchzugehen.
+
+### Fixed
+- Beschriftung „Aussteller für" hieß richtig **„Ausgestellt für"**.
+
 ## [0.1.27] - 2026-09-04
 
 ### Added

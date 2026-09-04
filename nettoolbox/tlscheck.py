@@ -4,18 +4,23 @@ Standard-library ssl module only. Once OpenSSL has verified a certificate,
 SSLSocket.getpeercert() already hands back parsed subject/issuer/validity/SAN
 fields — no X.509/ASN.1 parsing, no cryptography dependency needed.
 
-The one real limitation: with verify_mode=CERT_NONE, getpeercert() returns an
-empty dict — OpenSSL only populates the parsed fields for a chain it accepted.
-So a broken chain (expired, self-signed, wrong host) still reports protocol,
-cipher and the exact verification failure, but not the parsed certificate
-fields themselves. Getting those too would need raw DER parsing or a
-cryptography dependency, both skipped here — the failure reason is normally
-the actionable part anyway.
+With verify_mode=CERT_NONE, getpeercert() returns an empty dict — OpenSSL
+only populates the parsed fields for a chain it accepted. The raw DER is
+still available, so for an untrusted certificate it is parsed with the
+cryptography package (already a dependency for the settings encryption) into
+the same shape getpeercert() produces. That matters in practice: a reverse
+proxy answering with its own default certificate, because no host is
+configured for the name, looked like a bare "self-signed certificate" with no
+further detail — with the fields parsed, its issuer and subject say plainly
+whose certificate it is.
 """
 
 import socket
 import ssl
 from datetime import datetime, timezone
+
+from cryptography import x509
+from cryptography.hazmat.primitives.serialization import Encoding
 
 from netcore import Context, ProbeError, clean_host_or_ip, guard_target
 
@@ -24,6 +29,9 @@ OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
 _WEAK_PROTOCOLS = {'TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2'}
 EXPIRY_WARN_DAYS = 30
 EXPIRY_URGENT_DAYS = 14
+# Oeffentliche CAs stellen laengst nichts mehr ueber ein Jahr aus. Was
+# jahrzehntelang gilt, ist selbst ausgestellt -- und meistens ein Platzhalter.
+ABSURD_LIFETIME_DAYS = 3650
 
 
 def _finding(level: str, code: str, **args) -> dict:
@@ -112,13 +120,73 @@ def _fetch_verified(host: str, port: int, timeout: float):
 def _fetch_unverified(host: str, port: int, timeout: float):
     # Same rationale as _fetch_verified above -- also drops chain validation
     # so a self-signed/expired/wrong-host cert still yields a protocol and
-    # cipher reading instead of aborting the handshake outright.
+    # cipher reading instead of aborting the handshake outright. The DER form
+    # comes along because getpeercert() itself stays empty without
+    # verification.
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
     with socket.create_connection((host, port), timeout=timeout) as sock:
         with context.wrap_socket(sock, server_hostname=host) as ssock:
-            return ssock.version(), ssock.cipher()
+            return (ssock.version(), ssock.cipher(),
+                    ssock.getpeercert(binary_form=True))
+
+
+def _der_to_certdict(der: bytes) -> dict:
+    """The DER certificate in the shape getpeercert() would have produced.
+
+    Same keys, same value formats -- including OpenSSL's odd time strings --
+    so everything downstream treats a verified and an unverified certificate
+    exactly alike.
+    """
+    if not der:
+        return {}
+    try:
+        cert = x509.load_der_x509_certificate(der)
+    except Exception:  # noqa: BLE001 — ein unlesbares Zertifikat ist ein Befund
+        return {}
+
+    def name_pairs(name):
+        out = []
+        for attribute in name:
+            label = _OID_NAMES.get(attribute.oid.dotted_string)
+            if label:
+                out.append(((label, str(attribute.value)),))
+        return tuple(out)
+
+    def stamp(value):
+        return value.strftime('%b %e %H:%M:%S %Y GMT').replace('  ', ' ' * 2)
+
+    try:
+        names = cert.extensions.get_extension_for_class(
+            x509.SubjectAlternativeName).value.get_values_for_type(x509.DNSName)
+    except x509.ExtensionNotFound:
+        names = []
+
+    # cryptography deprecated the naive not_valid_after in favour of the
+    # timezone-aware *_utc variants; both are handled so a version bump in
+    # either direction cannot break this.
+    not_before = getattr(cert, 'not_valid_before_utc', None) or cert.not_valid_before
+    not_after = getattr(cert, 'not_valid_after_utc', None) or cert.not_valid_after
+    return {
+        'subject': name_pairs(cert.subject),
+        'issuer': name_pairs(cert.issuer),
+        'subjectAltName': tuple(('DNS', n) for n in names),
+        'notBefore': stamp(not_before),
+        'notAfter': stamp(not_after),
+        'serialNumber': format(cert.serial_number, 'X'),
+    }
+
+
+# Nur die Felder, die die Oberflaeche zeigt -- getpeercert() benennt sie genau so.
+_OID_NAMES = {
+    '2.5.4.3': 'commonName',
+    '2.5.4.10': 'organizationName',
+    '2.5.4.11': 'organizationalUnitName',
+    '2.5.4.6': 'countryName',
+    '2.5.4.7': 'localityName',
+    '2.5.4.8': 'stateOrProvinceName',
+}
 
 
 def _connection_error(e: Exception, where: str) -> ProbeError:
@@ -141,7 +209,8 @@ def check_tls(ctx: Context, target: str) -> dict:
         'verify_error': '', 'subject': '', 'issuer': '', 'san': [],
         'not_before': '', 'not_after': '', 'days_left': None,
         'lifetime_days': None, 'serial': '',
-        'self_signed': False, 'hostname_match': False, 'findings': findings,
+        'self_signed': False, 'hostname_match': False,
+        'details_verified': True, 'findings': findings,
     }
 
     cert = None
@@ -155,7 +224,12 @@ def check_tls(ctx: Context, target: str) -> dict:
         reason = getattr(e, 'verify_message', '') or str(e)
         result['verify_error'] = reason
         try:
-            proto, cipher = _fetch_unverified(host, port, ctx.http_timeout)
+            proto, cipher, der = _fetch_unverified(host, port, ctx.http_timeout)
+            cert = _der_to_certdict(der)
+            result['details_available'] = bool(cert)
+            # Ausdruecklich vermerkt: die Angaben stammen aus einem
+            # Zertifikat, das die Pruefung nicht bestanden hat.
+            result['details_verified'] = False
         except ssl.SSLError as e2:
             raise ProbeError('tls_error', str(e2))
         except Exception as e2:
@@ -192,7 +266,7 @@ def check_tls(ctx: Context, target: str) -> dict:
         issuer = cert.get('issuer', ())
         result['subject'] = _cn(subject) or _name_str(subject)
         result['issuer'] = _cn(issuer) or _name_str(issuer)
-        if _name_str(subject) == _name_str(issuer):
+        if _name_str(subject) == _name_str(issuer) and not result['self_signed']:
             result['self_signed'] = True
             findings.append(_finding(WARN, 'tls_self_signed'))
 
@@ -241,6 +315,12 @@ def check_tls(ctx: Context, target: str) -> dict:
 
             if days_left < 0:
                 findings.append(_finding(FAIL, 'tls_expired', days=abs(days_left)))
+            elif days_left > ABSURD_LIFETIME_DAYS:
+                # "Noch 364996 Tage gueltig" als gruener Haken zu melden waere
+                # Unfug -- das ist kein gesundes Zertifikat, sondern ein
+                # Hinweis darauf, dass hier gar keins eingerichtet wurde.
+                findings.append(_finding(INFO, 'tls_absurd_lifetime',
+                                         years=days_left // 365))
             elif lifetime_days and lifetime_days > 0:
                 if lifetime_days <= 15:
                     findings.append(_finding(INFO, 'tls_short_lived',
@@ -263,5 +343,25 @@ def check_tls(ctx: Context, target: str) -> dict:
     else:
         findings.append(_finding(INFO, 'tls_details_unavailable'))
 
+    if _looks_like_placeholder(result):
+        findings.append(_finding(INFO, 'tls_default_certificate'))
+
     result['level'] = _worst(findings)
     return result
+
+
+def _looks_like_placeholder(result: dict) -> bool:
+    """Erkennt das Standardzertifikat eines Webservers oder Reverse-Proxys.
+
+    Ist fuer einen Namen kein Host eingerichtet, antwortet der Proxy trotzdem
+    -- mit einem selbst ausgestellten Platzhalter ohne passenden Namen und
+    mit absurder Laufzeit (NPMplus: CN "*", gueltig bis 3026). Als blosser
+    "self-signed"-Fehler ist das schwer zu deuten; benannt ist es eine
+    Diagnose.
+    """
+    if not result['self_signed'] or result['hostname_match']:
+        return False
+    if (result.get('days_left') or 0) <= ABSURD_LIFETIME_DAYS:
+        return False
+    subject = (result.get('subject') or '').strip().lower()
+    return not result.get('san') or subject in ('*', 'localhost', '')

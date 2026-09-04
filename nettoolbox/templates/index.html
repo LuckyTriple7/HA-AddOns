@@ -1834,7 +1834,16 @@ async function tlsCheck(){
     if (r.details_available) {
       const grid = el('div', 'subgrid');
       const c1 = el('div', 'subcard');
-      c1.appendChild(el('h4', '', T.field_certificate));
+      const certHead = el('h4');
+      certHead.appendChild(el('span', '', T.field_certificate));
+      if (r.details_verified === false) {
+        // Die Felder stammen dann aus dem rohen Zertifikat, nicht aus einer
+        // bestandenen Pruefung -- das gehoert dazugesagt.
+        const mark = el('span', 'badge warn', '?');
+        mark.title = T.tls_details_unverified;
+        certHead.appendChild(mark);
+      }
+      c1.appendChild(certHead);
       [[T.field_subject, r.subject], [T.field_issuer, r.issuer],
        [T.field_serial, r.serial]].forEach(([label, value]) => {
         const row = el('div', 'kv');

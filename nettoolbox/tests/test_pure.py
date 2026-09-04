@@ -22,6 +22,7 @@ import netcore  # noqa: E402
 import netutils  # noqa: E402
 import seocheck  # noqa: E402
 import smtpcheck  # noqa: E402
+import tlscheck  # noqa: E402
 
 
 # ── netcore: input validation ────────────────────────────────────────────────
@@ -270,6 +271,35 @@ def test_score_ignores_info_findings():
     findings.append({'level': 'fail', 'code': 'y', 'args': {}})
     assert seocheck._score(findings) == 85
     assert seocheck._score([{'level': 'fail', 'code': 'z', 'args': {}}] * 20) == 0
+
+
+# ── tlscheck: Platzhalter-Zertifikat ─────────────────────────────────────────
+
+def _tls_result(**over):
+    base = {'self_signed': True, 'hostname_match': False, 'days_left': 365000,
+            'subject': '*', 'san': []}
+    base.update(over)
+    return base
+
+
+def test_placeholder_certificate_detected():
+    """Das Standardzertifikat von NPMplus: CN "*", keine SAN, gueltig bis 3026."""
+    assert tlscheck._looks_like_placeholder(_tls_result()) is True
+
+
+@pytest.mark.parametrize('over', [
+    {'self_signed': False},          # regulaer ausgestellt
+    {'hostname_match': True},        # passt zum Namen, also kein Platzhalter
+    {'days_left': 90},               # normale Laufzeit
+    {'subject': 'intern.example', 'san': ['intern.example']},  # eigene CA
+])
+def test_placeholder_certificate_not_overreported(over):
+    assert tlscheck._looks_like_placeholder(_tls_result(**over)) is False
+
+
+def test_der_to_certdict_survives_garbage():
+    assert tlscheck._der_to_certdict(b'') == {}
+    assert tlscheck._der_to_certdict(b'kein zertifikat') == {}
 
 
 # ── translations ─────────────────────────────────────────────────────────────

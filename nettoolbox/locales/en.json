@@ -563,5 +563,8 @@
   "snapshot_now": "now",
   "err_snapshot_not_found": "This snapshot no longer exists.",
   "err_snapshot_store_broken": "The snapshot store cannot be opened — see the add-on log.",
-  "err_snapshot_domain_mismatch": "The two snapshots belong to different domains."
+  "err_snapshot_domain_mismatch": "The two snapshots belong to different domains.",
+  "f_tls_absurd_lifetime": "A lifetime of about {years} years — no public certificate authority issues that; the certificate is self-generated.",
+  "f_tls_default_certificate": "Looks like the default certificate of a web server or reverse proxy: self-issued, no matching name, absurdly long lifetime. Typically no host is configured for this name at all — the proxy answers anyway, with its own landing page.",
+  "tls_details_unverified": "Details from a certificate that failed verification — they state what the server sent, not that it is valid."
 }
