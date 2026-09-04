@@ -117,6 +117,15 @@ tr:last-child td { border-bottom: none; }
 .subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
 .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 0.8rem; }
 .kv span:first-child { color: var(--muted); }
+/* Eigene Zeilen für den IP-Lookup: feste Beschriftungsspalte statt
+   space-between, und Werte brechen an Wortgrenzen -- .mono bricht sonst
+   mitten in "Baden-Wuerttemberg" um, was bei IPs richtig ist und bei
+   Ortsnamen nicht. */
+.ipinfo-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.ipinfo-kv { display: grid; grid-template-columns: 106px 1fr; gap: 10px;
+             align-items: baseline; padding: 3px 0; font-size: 0.8rem; }
+.ipinfo-kv > span:first-child { color: var(--muted); }
+.ipinfo-kv > :last-child { text-align: left; word-break: normal; overflow-wrap: anywhere; }
 .toast-wrap { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
 .toast { background: var(--surf); border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px;
          font-size: 0.82rem; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
@@ -1116,11 +1125,11 @@ $('mxDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mxCheck(
 
 // ── IP-Lookup (Geolocation / ISP / ASN via ip-api.com) ──────────────────────
 
-function ipinfoRow(card, label, value){
+function ipinfoRow(card, label, value, mono){
   if (value === undefined || value === null || value === '') return;
-  const row = el('div', 'kv');
+  const row = el('div', 'ipinfo-kv');
   row.appendChild(el('span', '', label));
-  row.appendChild(el('span', 'mono', String(value)));
+  row.appendChild(el('span', mono ? 'mono' : '', String(value)));
   card.appendChild(row);
 }
 
@@ -1165,7 +1174,7 @@ async function ipinfoCheck(own){
     wrap.appendChild(renderFindings(r.findings));
 
     if (r.public) {
-      const grid = el('div', 'subgrid');
+      const grid = el('div', 'subgrid ipinfo-grid');
 
       const place = el('div', 'subcard');
       place.appendChild(el('h4', '', T.ipinfo_location));
@@ -1173,9 +1182,9 @@ async function ipinfoCheck(own){
       ipinfoRow(place, T.ipinfo_region, [r.region, r.region_code].filter(Boolean).join(' · '));
       ipinfoRow(place, T.ipinfo_city, [r.zip, r.city, r.district].filter(Boolean).join(' '));
       ipinfoRow(place, T.ipinfo_continent, r.continent);
-      ipinfoRow(place, T.ipinfo_timezone, r.timezone + ipinfoOffset(r.utc_offset));
+      ipinfoRow(place, T.ipinfo_timezone, r.timezone + ipinfoOffset(r.utc_offset), true);
       if (r.lat !== null && r.lat !== undefined && r.lon !== null && r.lon !== undefined) {
-        const row = el('div', 'kv');
+        const row = el('div', 'ipinfo-kv');
         row.appendChild(el('span', '', T.ipinfo_coords));
         const link = el('a', 'mono', r.lat + ', ' + r.lon);
         link.href = 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(r.lat) +
@@ -1193,8 +1202,8 @@ async function ipinfoCheck(own){
       net.appendChild(el('h4', '', T.ipinfo_network));
       ipinfoRow(net, T.ipinfo_isp, r.isp);
       ipinfoRow(net, T.ipinfo_org, r.org);
-      ipinfoRow(net, 'AS', [r.asn, r.as_name].filter(Boolean).join(' · '));
-      ipinfoRow(net, 'PTR', (r.ptr || []).join(', ') || T.no_records);
+      ipinfoRow(net, 'AS', [r.asn, r.as_name].filter(Boolean).join(' · '), true);
+      ipinfoRow(net, 'PTR', (r.ptr || []).join(', ') || T.no_records, true);
       const flags = [];
       if (r.hosting) flags.push(T.ipinfo_flag_hosting);
       if (r.mobile) flags.push(T.ipinfo_flag_mobile);
@@ -1206,7 +1215,7 @@ async function ipinfoCheck(own){
     } else if ((r.ptr || []).length) {
       const net = el('div', 'subcard');
       net.appendChild(el('h4', '', T.ipinfo_network));
-      ipinfoRow(net, 'PTR', r.ptr.join(', '));
+      ipinfoRow(net, 'PTR', r.ptr.join(', '), true);
       wrap.appendChild(net);
     }
     box.appendChild(wrap);

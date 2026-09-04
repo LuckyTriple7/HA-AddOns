@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.15] - 2026-09-04
+
+### Fixed
+- **IP-Lookup: Zeilenlayout aufgeräumt.** Die Wertespalte hing an `.kv` (Flex mit
+  `space-between`) und an `.mono` mit `word-break: break-all` — dadurch standen die Werte
+  rechtsbündig auf wechselnden Positionen und Wörter wurden mitten drin umbrochen
+  ("Baden-Württem/berg", "Stiegeler Internet S/ervice GmbH"). Jetzt eigenes Raster mit fester
+  Beschriftungsspalte (106px), linksbündigen Werten und Umbruch nur an Wortgrenzen. Monospace
+  bleibt den technischen Werten (Zeitzone, Koordinaten, AS, PTR) vorbehalten, Orts- und
+  Firmennamen laufen als normaler Text. Die beiden Unterkarten bekommen zudem ein breiteres
+  Raster (320px statt 230px Mindestbreite), damit Anbieternamen in eine Zeile passen.
+
 ## [0.1.14] - 2026-09-04
 
 ### Added
