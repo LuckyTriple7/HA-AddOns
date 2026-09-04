@@ -33,6 +33,7 @@ Das HTML wird mit dem Parser aus seocheck gelesen, damit es nur einen gibt,
 der Tag-Suppe verdauen muss.
 """
 
+import calendar
 import re
 import time
 from urllib.parse import urljoin, urlparse
@@ -350,6 +351,138 @@ def _apply_implies(rules: list, hits: _Hits) -> None:
                 queue.append(target_key)
 
 
+# ── Cookies ──────────────────────────────────────────────────────────────────
+
+# Chrome kappt seit 2022 jede Lebensdauer bei 400 Tagen; alles darueber ist
+# ohnehin Wunschdenken und wird als solches gemeldet.
+COOKIE_MAX_DAYS = 400
+_COOKIE_DATE_FORMATS = (
+    '%a, %d-%b-%Y %H:%M:%S %Z', '%a, %d %b %Y %H:%M:%S %Z',
+    '%A, %d-%b-%y %H:%M:%S %Z', '%a %b %d %H:%M:%S %Y',
+)
+
+
+def _cookie_lifetime(attrs: dict) -> int:
+    """Lebensdauer in Tagen; -1 heisst Sitzungscookie (faellt beim Schliessen weg).
+
+    Max-Age geht laut RFC 6265 vor Expires, auch wenn beides dasteht.
+    """
+    if 'max-age' in attrs:
+        try:
+            return max(0, int(attrs['max-age'])) // 86400
+        except ValueError:
+            return -1
+    raw = attrs.get('expires', '')
+    if not raw:
+        return -1
+    for shape in _COOKIE_DATE_FORMATS:
+        try:
+            when = time.strptime(raw.strip(), shape)
+        except ValueError:
+            continue
+        seconds = calendar.timegm(when) - time.time()
+        return max(0, int(seconds // 86400))
+    return -1
+
+
+def _parse_cookies(raw_headers: list) -> list:
+    """Jedes Set-Cookie in seine Bestandteile.
+
+    Der Wert selbst wird nie mitgenommen -- er ist bei einer Sitzung genau das
+    Geheimnis, das niemand in einem Bericht oder Schnappschuss haben will.
+    Gemeldet wird nur seine Laenge.
+    """
+    rows = []
+    for raw in raw_headers or []:
+        parts = str(raw).split(';')
+        name, _sep, value = parts[0].partition('=')
+        name = name.strip()
+        if not name:
+            continue
+        attrs = {}
+        for piece in parts[1:]:
+            key, _sep2, attr_value = piece.partition('=')
+            attrs[key.strip().lower()] = attr_value.strip()
+        days = _cookie_lifetime(attrs)
+        rows.append({
+            'name': name[:80],
+            'value_length': len(value.strip()),
+            'secure': 'secure' in attrs,
+            'http_only': 'httponly' in attrs,
+            'same_site': (attrs.get('samesite') or '').title()[:8],
+            'path': (attrs.get('path') or '')[:60],
+            'domain': (attrs.get('domain') or '').lstrip('.')[:80],
+            'session': days < 0,
+            'days': days,
+        })
+    return rows
+
+
+def _cookie_findings(rows: list, https: bool) -> list:
+    """Was an gesetzten Cookies auffaellt.
+
+    Alles nur ueber die Cookies *dieser einen Antwort*: was JavaScript spaeter
+    im Browser setzt, steht in keinem Header und ist von hier aus unsichtbar.
+    """
+    findings = []
+    if not rows:
+        return findings
+    insecure = [c['name'] for c in rows if https and not c['secure']]
+    if insecure:
+        findings.append(_finding(WARN, 'tech_cookie_insecure',
+                                 count=len(insecure), names=insecure[:5]))
+    open_to_js = [c['name'] for c in rows if not c['http_only']]
+    if open_to_js:
+        findings.append(_finding(INFO, 'tech_cookie_no_httponly',
+                                 count=len(open_to_js), names=open_to_js[:5]))
+    no_samesite = [c['name'] for c in rows if not c['same_site']]
+    if no_samesite:
+        findings.append(_finding(INFO, 'tech_cookie_no_samesite',
+                                 count=len(no_samesite), names=no_samesite[:5]))
+    long_lived = [c for c in rows if c['days'] > COOKIE_MAX_DAYS]
+    if long_lived:
+        findings.append(_finding(INFO, 'tech_cookie_long_lived',
+                                 count=len(long_lived),
+                                 days=max(c['days'] for c in long_lived),
+                                 max=COOKIE_MAX_DAYS))
+    return findings
+
+
+def _registrable(host: str) -> str:
+    """Grob die Domain hinter einem Host -- die letzten zwei Labels, bei den
+    bekannten zweistufigen Endungen drei. Reicht, um "eigener Auftritt" von
+    "fremder Anbieter" zu unterscheiden; eine vollstaendige Liste aller
+    oeffentlichen Suffixe waere ein eigener Datensatz mit eigener Pflege."""
+    parts = [p for p in (host or '').lower().split('.') if p]
+    if len(parts) < 3:
+        return '.'.join(parts)
+    if parts[-2] in ('co', 'com', 'org', 'net', 'gov', 'ac') and len(parts[-1]) == 2:
+        return '.'.join(parts[-3:])
+    return '.'.join(parts[-2:])
+
+
+# Adressen, die im Markup stehen, aber nie abgerufen werden: Namensraeume in
+# SVG und XHTML. Sie als "fremder Host" zu melden waere schlicht falsch.
+NON_FETCHED_HOSTS = frozenset({'www.w3.org', 'w3.org', 'schema.org',
+                               'www.schema.org', 'purl.org', 'ogp.me'})
+
+
+def _third_party(resources: list, own_host: str) -> list:
+    """Fremde Hosts, von denen die Seite etwas nachlaedt -- jeder davon kann
+    beim Abruf eigene Cookies setzen, die hier nicht sichtbar sind."""
+    own = _registrable(own_host)
+    seen = {}
+    for ref in resources:
+        if '://' not in ref:
+            continue
+        host = ref.split('://', 1)[1].split('/', 1)[0].split(':', 1)[0].lower()
+        if not host or host in NON_FETCHED_HOSTS or _registrable(host) == own:
+            continue
+        seen[host] = seen.get(host, 0) + 1
+    return [{'host': host, 'count': count}
+            for host, count in sorted(seen.items(), key=lambda kv: (-kv[1], kv[0]))][:30]
+
+
 # ── DNS-Seite ────────────────────────────────────────────────────────────────
 
 def _suffix_match(host: str, table) -> str:
@@ -468,6 +601,7 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
         if name:
             cookies.append((name, rest.split(';', 1)[0].strip()))
 
+    cookie_rows = _parse_cookies(resp.get('cookies', []))
     subject = _Subject(headers, page.metas, cookies, resources, body, final_url)
 
     rules = list(_builtin_rules())
@@ -481,6 +615,7 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
     _apply_implies(rules, hits)
 
     parsed = urlparse(final_url)
+    third_party = _third_party(resources, parsed.hostname or '')
     dns_info = {}
     if not parsed.hostname or not parsed.hostname.replace('.', '').isdigit():
         try:
@@ -524,6 +659,7 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
             # Kein Urteil ueber die Rechtslage -- nur der Befund, dass Messung
             # da ist und eine Einwilligungsloesung nicht erkannt wurde.
             findings.append(_finding(INFO, 'tech_no_consent'))
+    findings.extend(_cookie_findings(cookie_rows, parsed.scheme == 'https'))
     if _SPA_ROOT_RE.search(body):
         findings.append(_finding(INFO, 'tech_spa'))
     if not technologies:
@@ -548,6 +684,8 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
         'groups': groups,
         'counts': counts,
         'cookies': [name for name, _value in cookies][:20],
+        'cookie_details': cookie_rows[:40],
+        'third_party': third_party,
         'headers': {k: v[:200] for k, v in headers.items()},
         'dns': dns_info,
         'rules_used': {'builtin': len(_builtin_rules()), 'extra': len(extra)},

@@ -36,6 +36,10 @@ about your domains leaves your own infrastructure.
   and how certain it is. Only the delivered response is judged — technology that JavaScript
   loads in the browser stays invisible, and history or market share as offered by paid
   services is not available here.
+  - **Cookies and third-party hosts**: which cookies the response sets (lifetime, Secure,
+    HttpOnly, SameSite, scope — never the value itself) and which foreign hosts the page
+    loads from. Again only what the server sends: whatever JavaScript sets later in the
+    browser appears in no header.
   - 169 built-in fingerprints ship with the add-on (MIT, like the add-on itself). In the
     **settings** the community-maintained dataset (formerly Wappalyzer, **GPL-3.0**) can be
     requested on top: around 5000 technologies, about 3 MB fetched, roughly 1 MB in the data

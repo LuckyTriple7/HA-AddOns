@@ -8,6 +8,7 @@ suite nobody runs.
 Run with:  python3 -m pytest tests -q     (from the add-on directory)
 """
 
+import json
 import os
 import socket
 import sys
@@ -793,6 +794,51 @@ def test_same_technology_from_both_sets_lands_in_one_row():
     row = hits.by_name[nettech._key('nginx')]
     # Der eigene Satz bestimmt Name und Kategorie, weil die Oberflaeche daran haengt.
     assert (row['name'], row['cat'], row['source']) == ('nginx', 'server', nettech.BUILTIN)
+
+
+def test_cookie_parsing_keeps_flags_and_never_the_value():
+    rows = nettech._parse_cookies([
+        'sid=geheim123; Path=/; HttpOnly; Secure; SameSite=Lax',
+        'tracker=xyz; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Domain=.example.com',
+        'tmp=1; Max-Age=3600',
+    ])
+    assert [r['name'] for r in rows] == ['sid', 'tracker', 'tmp']
+    # Der Wert selbst darf nirgends im Ergebnis stehen -- nur seine Laenge.
+    assert 'geheim123' not in json.dumps(rows)
+    assert rows[0]['value_length'] == len('geheim123')
+    assert (rows[0]['secure'], rows[0]['http_only'], rows[0]['same_site']) == (True, True, 'Lax')
+    assert rows[0]['session'] is True
+    # Max-Age geht laut RFC 6265 vor Expires und zaehlt in Sekunden.
+    assert rows[2]['session'] is False and rows[2]['days'] == 0
+    # Ein festes Datum in der Zukunft: die Restlaufzeit schrumpft mit jedem
+    # Tag, gepruefte Eigenschaft ist deshalb nur "persistent, nicht Sitzung".
+    assert rows[1]['domain'] == 'example.com'
+    assert rows[1]['session'] is False and rows[1]['days'] > 0
+
+
+def test_cookie_findings_only_fire_when_something_is_missing():
+    good = nettech._parse_cookies(['a=1; Secure; HttpOnly; SameSite=Strict'])
+    assert nettech._cookie_findings(good, https=True) == []
+    bad = nettech._parse_cookies(['a=1'])
+    codes = [f['code'] for f in nettech._cookie_findings(bad, https=True)]
+    assert codes == ['tech_cookie_insecure', 'tech_cookie_no_httponly',
+                     'tech_cookie_no_samesite']
+    # Ohne HTTPS ist ein fehlendes Secure kein Vorwurf.
+    assert 'tech_cookie_insecure' not in [
+        f['code'] for f in nettech._cookie_findings(bad, https=False)]
+
+
+def test_third_party_hosts_skip_own_domain_and_namespaces():
+    hosts = nettech._third_party([
+        'https://www.example.com/a.js',
+        'https://cdn.example.com/b.js',
+        'https://fonts.gstatic.com/x.woff',
+        'https://fonts.gstatic.com/y.woff',
+        'http://www.w3.org/2000/svg',
+        '/relativ.js',
+    ], 'www.example.com')
+    assert [h['host'] for h in hosts] == ['fonts.gstatic.com']
+    assert hosts[0]['count'] == 2
 
 
 def test_category_mapping_falls_back_to_misc():

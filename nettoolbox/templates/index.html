@@ -878,7 +878,7 @@ async function loadSettings(){
     $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
     $('setTelegramChatId').value = v.telegram_chat_id || '';
   } catch (e) { toast(errText(e.code), true); }
-  loadTechRules();
+  loadTechRules(true);
 }
 
 function techRulesState(info){
@@ -899,15 +899,21 @@ function techRulesState(info){
   }) + (info.stale ? ' · ' + T.tech_rules_stale : '');
 }
 
-async function loadTechRules(){
+// applyToggles nur, wenn der Server gerade die Wahrheit ist (nach dem Oeffnen
+// und nach dem Speichern). Beim Nachsehen waehrend eines Abrufs bleibt die
+// Form unangetastet -- sonst wuerde ein gesetzter, aber noch nicht
+// gespeicherter Haken zwei Sekunden spaeter von selbst wieder verschwinden.
+async function loadTechRules(applyToggles){
   try {
     const info = await api('/api/tech-rules');
-    $('setTechExtra').checked = !!info.enabled;
-    $('setTechAuto').checked = info.auto_update !== false;
+    if (applyToggles) {
+      $('setTechExtra').checked = !!info.enabled;
+      $('setTechAuto').checked = info.auto_update !== false;
+    }
     techRulesState(info);
     // Waehrend ein Abruf laeuft, alle drei Sekunden nachsehen -- er dauert
-    // je nach Leitung eine halbe bis mehrere Minuten.
-    if (info.updating) setTimeout(loadTechRules, 3000);
+    // je nach Leitung ein paar Sekunden bis einige Minuten.
+    if (info.updating) setTimeout(() => loadTechRules(false), 3000);
   } catch (e) { /* Einstellungen bleiben nutzbar, auch wenn das fehlschlaegt */ }
 }
 
@@ -915,9 +921,20 @@ async function fetchTechRules(){
   const btn = $('setTechFetch');
   btn.disabled = true;
   try {
-    await api('/api/tech-rules/update', { method: 'POST', body: {} });
+    // Erst sichern, was in der Form steht: wer den Haken setzt und dann
+    // herunterlaedt, will den Datensatz auch benutzen -- sonst laege er
+    // ungenutzt im Datenordner.
+    await api('/api/settings', { method: 'POST', body: settingsFormValues() });
+    try {
+      await api('/api/tech-rules/update', { method: 'POST', body: {} });
+    } catch (e) {
+      // Das Speichern stoesst den Abruf selbst schon an, wenn noch nichts da
+      // ist -- dass hier "laeuft bereits" zurueckkommt, ist der Normalfall und
+      // kein Fehler.
+      if (e.code !== 'update_running') throw e;
+    }
     $('setTechState').textContent = T.tech_rules_updating;
-    setTimeout(loadTechRules, 2000);
+    setTimeout(() => loadTechRules(false), 2000);
   } catch (e) { toast(errText(e.code), true); }
   finally { btn.disabled = false; }
 }
@@ -926,7 +943,7 @@ async function removeTechRules(){
   if (!confirm(T.tech_rules_remove_confirm)) return;
   try {
     await api('/api/tech-rules/remove', { method: 'POST', body: {} });
-    await loadTechRules();
+    await loadTechRules(false);
   } catch (e) { toast(errText(e.code), true); }
 }
 
@@ -956,7 +973,6 @@ async function saveSettings(){
     await api('/api/settings', { method: 'POST', body: settingsFormValues() });
     toast(T.settings_saved);
     await loadSettings();
-    await loadTechRules();
   } catch (e) { toast(errText(e.code), true); }
   finally { btn.disabled = false; }
 }
@@ -2742,7 +2758,8 @@ async function techCheck(){
       [T.tech_field_server, r.server || '—', true],
       [T.tech_field_powered, r.powered_by || '—', true],
       [T.tech_field_generator, r.generator || '—', true],
-      [T.tech_field_cookies, (r.cookies || []).join(', ') || '—', true],
+      [T.tech_field_cookies, (r.cookie_details || []).length || '0'],
+      [T.tech_field_third_party, (r.third_party || []).length || '0'],
     ]));
     if (dns.domain) {
       extra.appendChild(seoCard(T.tech_group_dns, [
@@ -2753,6 +2770,54 @@ async function techCheck(){
       ]));
     }
     box.appendChild(extra);
+
+    const cookies = r.cookie_details || [];
+    if (cookies.length) {
+      const card = el('div', 'subcard');
+      card.appendChild(el('h4', '', T.tech_cookies_title));
+      const table = el('table');
+      const head = el('tr');
+      [T.tech_cookie_name, T.tech_cookie_life, 'Secure', 'HttpOnly', 'SameSite',
+       T.tech_cookie_scope].forEach(h => head.appendChild(el('th', '', h)));
+      const thead = el('thead'); thead.appendChild(head); table.appendChild(thead);
+      const tbody = el('tbody');
+      cookies.forEach(c => {
+        const tr = el('tr');
+        tr.appendChild(el('td', 'mono', c.name));
+        tr.appendChild(el('td', '', c.session ? T.tech_cookie_session
+          : (c.days >= 1 ? fmtStr(T.tech_cookie_days, { days: c.days })
+                         : T.tech_cookie_short)));
+        // Fehlendes Secure ist auf einer HTTPS-Seite ein echter Mangel, die
+        // anderen beiden sind Haertung -- deshalb nur das erste rot.
+        tr.appendChild(el('td', c.secure ? '' : 'diff-removed', c.secure ? '✓' : '—'));
+        tr.appendChild(el('td', '', c.http_only ? '✓' : '—'));
+        tr.appendChild(el('td', '', c.same_site || '—'));
+        tr.appendChild(el('td', 'mono', (c.domain || T.tech_cookie_host)
+          + (c.path && c.path !== '/' ? ' ' + c.path : '')));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      const wrap = el('div'); wrap.style.overflowX = 'auto';
+      wrap.appendChild(table);
+      card.appendChild(wrap);
+      card.appendChild(el('p', 'hint', T.tech_cookies_hint));
+      box.appendChild(card);
+    }
+
+    const third = r.third_party || [];
+    if (third.length) {
+      const card = el('div', 'subcard');
+      card.appendChild(el('h4', '', fmtStr(T.tech_third_party_title, { count: third.length })));
+      const chips = el('div', 'chips');
+      third.forEach(t => {
+        const chip = el('span', 'chip', t.host);
+        chip.title = fmtStr(T.tech_third_party_count, { count: t.count });
+        chips.appendChild(chip);
+      });
+      card.appendChild(chips);
+      card.appendChild(el('p', 'hint', T.tech_third_party_hint));
+      box.appendChild(card);
+    }
   } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
 }
 

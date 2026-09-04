@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.39] - 2026-09-04
+
+### Added
+- **Cookie-Analyse in der Technik-Erkennung.** Tabelle aller Cookies, die die Antwort setzt:
+  Name, Lebensdauer (Sitzung oder Tage), Secure, HttpOnly, SameSite und Geltungsbereich.
+  **Der Wert selbst wird nie mitgenommen** — bei einem Sitzungscookie ist er genau das
+  Geheimnis, das in keinem Bericht stehen darf; gemeldet wird nur seine Länge.
+  - Neue Hinweise: fehlendes `Secure` auf einer HTTPS-Seite (Achtung), fehlendes `HttpOnly`,
+    fehlendes `SameSite` und Laufzeiten über 400 Tagen — die kappen Browser ohnehin.
+  - Gesagt statt verschwiegen: sichtbar sind nur die Cookies **dieser einen Antwort**. Was
+    JavaScript später im Browser setzt — bei Messung und Werbung die meisten — steht in
+    keinem Header.
+- **Fremde Hosts.** Von welchen anderen Domains die Seite nachlädt, mit Anzahl der
+  eingebundenen Dateien. Jeder davon sieht die IP des Besuchers und kann eigene Cookies
+  setzen, die in der Antwort nicht auftauchen. Namensraum-Adressen (w3.org, schema.org)
+  zählen nicht mit, die werden nie abgerufen.
+
+### Changed
+- Reiter **„HTTP-Header" heißt jetzt „Web"** — er enthält längst mehr als Header: HTTP/3,
+  SEO-Check und Technik-Erkennung.
+
+### Fixed
+- **Haken beim Zusatz-Datensatz verschwand nach zwei Sekunden wieder.** Die Statusabfrage
+  während des Abrufs setzte die Schalter auf den *gespeicherten* Stand zurück — und gespeichert
+  war der frisch gesetzte Haken noch nicht. Jetzt werden die Schalter nur beim Öffnen und nach
+  dem Speichern aus dem Server-Stand gefüllt, und „Jetzt herunterladen" sichert die Form vorher.
+  Dass der parallel schon laufende Abruf dabei mit „läuft bereits" antwortet, ist der Normalfall
+  und wird nicht mehr als Fehler gemeldet.
+
 ## [0.1.38] - 2026-09-04
 
 ### Added

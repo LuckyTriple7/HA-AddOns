@@ -34,6 +34,10 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   eingebundene Datei) und wie sicher er ist. Beurteilt wird nur die ausgelieferte Antwort —
   Technik, die erst JavaScript im Browser nachlädt, bleibt unsichtbar, und Historie oder
   Marktanteile wie bei kostenpflichtigen Diensten gibt es hier nicht.
+  - **Cookies und fremde Hosts**: welche Cookies die Antwort setzt (Lebensdauer, Secure,
+    HttpOnly, SameSite, Geltungsbereich — nie der Wert selbst) und von welchen fremden Hosts
+    die Seite nachlädt. Auch hier nur, was der Server schickt: was JavaScript später im
+    Browser setzt, steht in keinem Header.
   - Mitgeliefert sind 169 eigene Fingerabdrücke (MIT, wie das Add-on). In den **Einstellungen**
     lässt sich zusätzlich der weitergepflegte Gemeinschafts-Datensatz (ehemals Wappalyzer,
     **GPL-3.0**) anfordern: rund 5000 Techniken, etwa 3 MB Abruf, rund 1 MB im Datenordner.
