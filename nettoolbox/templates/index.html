@@ -193,7 +193,6 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   <button data-tab="report" class="active"><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8,12H16V14H8V12M8,16H13V18H8V16Z"/></svg>{{ t.nav_report }}</button>
   <button data-tab="dns"><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.nav_dns }}</button>
   <button data-tab="mail"><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.nav_mail_group }}</button>
-  <button data-tab="propagation"><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.nav_propagation }}</button>
   <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
   <button data-tab="tls"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.nav_tls }}</button>
   <button data-tab="whois"><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.nav_whois }}</button>
@@ -259,6 +258,25 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       </div>
     </div>
     <div id="secResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.propagation_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="propName">{{ t.field_name }}</label>
+        <input type="text" id="propName" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="width:120px">
+        <label class="field" for="propType">{{ t.field_type }}</label>
+        <select id="propType">
+          {% for rr in ['A','AAAA','MX','NS','TXT','CAA'] %}<option value="{{ rr }}">{{ rr }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="propRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div id="propResult"></div>
   </div>
   <div class="card">
     <h2><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.snapshot_title }}</h2>
@@ -365,28 +383,6 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <span class="hint" style="margin:0">{{ t.header_hint }}</span>
     </div>
     <div id="hdrResult"></div>
-  </div>
-</section>
-
-<section id="tab-propagation">
-  <div class="card">
-    <h2><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.propagation_title }}</h2>
-    <div class="row">
-      <div class="grow">
-        <label class="field" for="propName">{{ t.field_name }}</label>
-        <input type="text" id="propName" placeholder="{{ t.ph_domain }}" autocomplete="off">
-      </div>
-      <div style="width:120px">
-        <label class="field" for="propType">{{ t.field_type }}</label>
-        <select id="propType">
-          {% for rr in ['A','AAAA','MX','NS','TXT','CAA'] %}<option value="{{ rr }}">{{ rr }}</option>{% endfor %}
-        </select>
-      </div>
-      <div style="align-self:flex-end">
-        <button class="btn primary" id="propRun">{{ t.action_check }}</button>
-      </div>
-    </div>
-    <div id="propResult"></div>
   </div>
 </section>
 

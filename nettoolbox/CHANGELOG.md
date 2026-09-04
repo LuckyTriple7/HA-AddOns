@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.41] - 2026-09-04
+
+### Changed
+- **Propagation sitzt jetzt ebenfalls im DNS-Reiter**, unter Abfrage und DNSSEC. Damit steht
+  alles, was dieselbe Frage beantwortet — was steht im DNS, ist es signiert, sehen es alle
+  Auflöser gleich — auf einer Seite statt auf dreien. Die Prüfungen selbst sind unverändert.
+
 ## [0.1.40] - 2026-09-04
 
 ### Changed
