@@ -521,6 +521,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   <div class="card">
     <h2><svg viewBox="0 0 24 24"><path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/></svg>{{ t.monitor_title }}</h2>
     <p class="hint">{{ t.monitor_hint }}</p>
+    <p class="hint" id="monHaHint" hidden>{{ t.monitor_ha_hint }}</p>
     <div class="row">
       <div class="grow">
         <label class="field" for="monName">{{ t.field_name }}</label>
@@ -863,6 +864,9 @@ async function loadStatus(){
     }
     $('backendLabel').textContent = label;
     pill.title = hint;
+    // Der Hinweis steht nur dann da, wenn wirklich Entitäten geschrieben
+    // werden -- außerhalb des Supervisors wäre er eine leere Versprechung.
+    $('monHaHint').hidden = !data.ha_sensors;
   } catch (e) {
     $('backendLabel').textContent = T.status_unknown || '?';
     $('backendPill').title = '';

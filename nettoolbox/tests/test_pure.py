@@ -17,6 +17,7 @@ import pytest  # noqa: E402
 
 import blocklists  # noqa: E402
 import geoip  # noqa: E402
+import hasensors  # noqa: E402
 import mailprovider  # noqa: E402
 import netcore  # noqa: E402
 import netutils  # noqa: E402
@@ -318,6 +319,75 @@ def test_placeholder_certificate_not_overreported(over):
 def test_der_to_certdict_survives_garbage():
     assert tlscheck._der_to_certdict(b'') == {}
     assert tlscheck._der_to_certdict(b'kein zertifikat') == {}
+
+
+# ── hasensors: Entitaeten fuer Home Assistant ────────────────────────────────
+
+class _FakeResponse:
+    status_code = 200
+
+
+class _FakeSession:
+    """Faengt die Schreibzugriffe ab -- kein Test schreibt in ein echtes
+    Home Assistant."""
+
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, headers=None, json=None, timeout=None):
+        self.calls.append((url.rsplit('/states/', 1)[-1], json))
+        return _FakeResponse()
+
+
+@pytest.fixture
+def pushed(monkeypatch):
+    session = _FakeSession()
+    monkeypatch.setattr(hasensors.requests, 'Session', lambda: session)
+    monkeypatch.setattr(hasensors, 'SUPERVISOR_TOKEN', 'test-token')
+    monitors = [
+        {'id': 1, 'name': 'Mein Server', 'probe': 'tls', 'target': 'example.com',
+         'interval_hours': 6, 'enabled': 1, 'last_level': 'ok',
+         'last_summary': 'Zertifikat noch 60 Tage gültig', 'last_run_ts': 1700000000,
+         'last_error': ''},
+        {'id': 2, 'name': 'Mein Server', 'probe': 'seo', 'target': 'example.com',
+         'interval_hours': 24, 'enabled': 1, 'last_level': 'warn',
+         'last_summary': 'SEO-Punktestand 71/100', 'last_run_ts': 1700000001,
+         'last_error': ''},
+    ]
+    written = hasensors.push(monitors)
+    return session, written
+
+
+def test_push_writes_one_entity_per_monitor_plus_summaries(pushed):
+    session, written = pushed
+    assert written == 4
+    assert [entity for entity, _payload in session.calls] == [
+        'sensor.nettoolbox_mein_server',
+        'sensor.nettoolbox_mein_server_2',   # gleicher Name -> ID haengt dran
+        'sensor.nettoolbox_probleme',
+        'binary_sensor.nettoolbox_problem',
+    ]
+
+
+def test_push_carries_state_and_attributes(pushed):
+    session, _written = pushed
+    _entity, payload = session.calls[0]
+    assert payload['state'] == 'ok'
+    assert payload['attributes']['ziel'] == 'example.com'
+    assert payload['attributes']['pruefung'] == 'TLS-Zertifikat'
+    assert payload['attributes']['friendly_name'] == 'NetToolbox Mein Server'
+
+
+def test_push_counts_only_warn_and_fail_as_problems(pushed):
+    session, _written = pushed
+    problems = dict(session.calls)['sensor.nettoolbox_probleme']
+    assert problems['state'] == 1
+    assert dict(session.calls)['binary_sensor.nettoolbox_problem']['state'] == 'on'
+
+
+def test_push_without_supervisor_does_nothing(monkeypatch):
+    monkeypatch.setattr(hasensors, 'SUPERVISOR_TOKEN', '')
+    assert hasensors.push([{'id': 1, 'name': 'x'}]) == 0
 
 
 # ── translations ─────────────────────────────────────────────────────────────

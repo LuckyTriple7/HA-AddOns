@@ -1,6 +1,6 @@
 name: NetToolbox
 description: Netzwerk- und Mail-Diagnose — DNS-Abfragen, SPF, DKIM, DMARC, MTA-STS
-version: "0.1.29"
+version: "0.1.30"
 slug: nettoolbox
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -17,6 +17,7 @@ init: true
 panel_icon: mdi:lan-connect
 panel_title: NetToolbox
 
+homeassistant_api: true
 ingress: true
 ingress_port: 17798
 ingress_stream: true
@@ -47,6 +48,7 @@ options:
   verbose_log: false
   monitoring_enabled: true
   monitoring_poll_seconds: 60
+  ha_sensors: true
 
 schema:
   username: str
@@ -66,3 +68,4 @@ schema:
   verbose_log: bool?
   monitoring_enabled: bool?
   monitoring_poll_seconds: int(10,3600)?
+  ha_sensors: bool?

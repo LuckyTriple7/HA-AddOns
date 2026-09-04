@@ -25,6 +25,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
+import hasensors
 import monitor
 import settings as usersettings
 import snapshots as dnssnapshots
@@ -701,6 +702,7 @@ def status():
         'backend': state,
         'worker_enabled': worker_enabled(),
         'allow_private': bool(load_config().get('allow_private_targets')),
+        'ha_sensors': ha_sensors_enabled(),
         'resolvers': build_context().resolvers,
     })
 
@@ -908,6 +910,7 @@ def monitors_create():
         notify_email=bool(body.get('notify_email', True)),
         notify_telegram=bool(body.get('notify_telegram', True)),
         enabled=bool(body.get('enabled', True)))
+    push_ha_sensors()
     return jsonify({'id': mid})
 
 
@@ -918,6 +921,7 @@ def monitors_update(monitor_id: int):
              ('name', 'probe', 'target', 'interval_hours', 'enabled',
               'notify_email', 'notify_telegram') if k in body}
     _monitor_store.update_monitor(monitor_id, **fields)
+    push_ha_sensors()
     return jsonify({'ok': True})
 
 
@@ -925,6 +929,7 @@ def monitors_update(monitor_id: int):
 def monitors_delete(monitor_id: int):
     _monitor_store.get_monitor(monitor_id)
     _monitor_store.delete_monitor(monitor_id)
+    push_ha_sensors()
     return jsonify({'ok': True})
 
 
@@ -932,6 +937,7 @@ def monitors_delete(monitor_id: int):
 def monitors_run(monitor_id: int):
     m = _monitor_store.get_monitor(monitor_id)
     result = monitor.run_monitor(_monitor_store, m, build_context(), notify_config())
+    push_ha_sensors()
     return jsonify(result)
 
 
@@ -996,6 +1002,52 @@ def settings_test_telegram():
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 
+# ── Home-Assistant-Entitäten ─────────────────────────────────────────────────
+
+HA_PUSH_SECONDS = 60
+_ha_push_failed = False
+
+
+def ha_sensors_enabled() -> bool:
+    return bool(load_config().get('ha_sensors', True)) and hasensors.available()
+
+
+def push_ha_sensors() -> None:
+    """Zustände aller Wächter nach Home Assistant schreiben.
+
+    Bewusst wegwerfbar: schlägt das fehl, läuft das Monitoring unverändert
+    weiter — die Entitäten sind eine Zugabe, keine Voraussetzung.
+    """
+    if not ha_sensors_enabled() or not _monitor_store.available():
+        return
+    global _ha_push_failed
+    try:
+        written = hasensors.push(_monitor_store.list_monitors())
+        if _verbose() and written:
+            log.info("%d Home-Assistant-Entitäten aktualisiert", written)
+        # Eine abgelehnte Schreiboperation wirft nichts -- ohne diese Meldung
+        # bliebe "es erscheint einfach nichts in Home Assistant" unerklärt.
+        # Nur einmal, sonst füllt es bei dauerhaftem Fehler das Protokoll.
+        if not written and not _ha_push_failed:
+            _ha_push_failed = True
+            log.warning("Home Assistant hat die Entitäten nicht angenommen — "
+                        "steht homeassistant_api in der Add-on-Konfiguration?")
+        elif written:
+            _ha_push_failed = False
+    except Exception:  # noqa: BLE001
+        log.warning("Home-Assistant-Entitäten konnten nicht geschrieben werden",
+                    exc_info=_verbose())
+
+
+def _ha_push_loop() -> None:
+    # Regelmäßig statt nur bei Änderungen: Zustände, die per States-API
+    # gesetzt wurden, überleben einen Neustart von Home Assistant nicht und
+    # müssen danach von selbst wieder auftauchen.
+    while True:
+        time.sleep(HA_PUSH_SECONDS)
+        push_ha_sensors()
+
+
 def _startup_checks() -> None:
     usersettings.init(_DATA)
     if not usersettings.crypto_available():
@@ -1037,6 +1089,11 @@ def _startup_checks() -> None:
                              args=(_monitor_store, build_context, notify_config, poll),
                              daemon=True).start()
             log.info("monitoring worker started (%ds poll)", poll)
+            if ha_sensors_enabled():
+                threading.Thread(target=_ha_push_loop, daemon=True).start()
+                push_ha_sensors()
+                log.info("Home-Assistant-Entitäten aktiv (alle %ds)",
+                         HA_PUSH_SECONDS)
         else:
             log.warning("monitor store could not be opened — monitoring disabled")
 

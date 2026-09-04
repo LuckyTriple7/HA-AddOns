@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.30] - 2026-09-04
+
+### Added
+- **Wächter erscheinen als Entitäten in Home Assistant.** Je Wächter ein `sensor.nettoolbox_<name>`
+  mit dem Zustand (`ok`/`info`/`warn`/`fail`) und den Einzelheiten als Attribute — Prüfung, Ziel,
+  Zusammenfassung, Intervall, Zeitpunkt der letzten Prüfung. Dazu `sensor.nettoolbox_probleme`
+  (Anzahl der Wächter auf Achtung oder Kritisch, mit Namensliste) und
+  `binary_sensor.nettoolbox_problem` mit `device_class: problem`. Damit lassen sich die Zustände
+  auf Dashboards zeigen und in Automationen verwenden, statt nur per Mail oder Telegram zu melden.
+- Geschrieben wird über die Core-API des Supervisors (`homeassistant_api: true`), also ohne MQTT
+  und ohne Broker. Sofort nach jeder Änderung an einem Wächter und zusätzlich jede Minute, weil
+  auf diesem Weg gesetzte Zustände einen Neustart von Home Assistant nicht überleben und danach
+  von selbst wieder auftauchen müssen.
+- Abschaltbar über die neue Option **`ha_sensors`** (Vorgabe an). Außerhalb des Supervisors
+  passiert ohnehin nichts; im Monitoring-Reiter steht der Hinweis nur dann, wenn wirklich
+  geschrieben wird.
+- Lehnt Home Assistant die Entitäten ab, sagt das Protokoll das **einmal** deutlich (samt
+  Verweis auf `homeassistant_api`) statt stillschweigend nichts zu tun.
+
 ## [0.1.29] - 2026-09-04
 
 ### Added

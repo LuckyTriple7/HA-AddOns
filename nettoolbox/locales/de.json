@@ -570,5 +570,6 @@
   "software_style": "{name}-Stil (kein Nachweis)",
   "software_from_greeting": "Aus dem Wortlaut der EHLO-Begrüßung geschlossen. Mehrere Mailserver haben sendmails Formulierungen übernommen — das ist ein Stilhinweis, kein Produktnachweis.",
   "field_ehlo_greeting": "EHLO-Antwort",
-  "ehlo_greeting_title": "Erste Zeile der EHLO-Antwort. Oft das Einzige, was ein Server über sich verrät, wenn das Banner anonymisiert wurde."
+  "ehlo_greeting_title": "Erste Zeile der EHLO-Antwort. Oft das Einzige, was ein Server über sich verrät, wenn das Banner anonymisiert wurde.",
+  "monitor_ha_hint": "Jeder Wächter erscheint zusätzlich als Entität in Home Assistant (sensor.nettoolbox_<name>), dazu sensor.nettoolbox_probleme und binary_sensor.nettoolbox_problem — damit lassen sich Zustände auf Dashboards zeigen und in Automationen verwenden. Abschaltbar über die Add-on-Option „Wächter als Home-Assistant-Entitäten“."
 }

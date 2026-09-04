@@ -41,6 +41,8 @@ about your domains leaves your own infrastructure.
   on a root server, where port 25 is open and blocklists answer. Running NetToolbox on the root
   server in the first place makes this unnecessary — see
   [Do I need the root-server worker?](#do-i-need-the-root-server-worker)
+- **Home Assistant entities** — every monitor as a sensor (`sensor.nettoolbox_<name>`) plus
+  summary sensors, so states can be used on dashboards and in automations
 - History, rate limiting, dark/light · DE/EN · HA Ingress
 
 ## Quick start

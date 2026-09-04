@@ -71,5 +71,13 @@ configuration:
     description: >-
       Wie oft der Hintergrunddienst nachsieht, ob ein Monitor fällig ist. Bestimmt nur die
       Genauigkeit, nicht wie oft tatsächlich geprüft wird — das steht je Monitor einzeln.
+  ha_sensors:
+    name: Wächter als Home-Assistant-Entitäten
+    description: >-
+      Legt je Wächter einen Sensor in Home Assistant an (sensor.nettoolbox_<name>) sowie
+      sensor.nettoolbox_probleme und binary_sensor.nettoolbox_problem. Damit lassen sich die
+      Zustände auf Dashboards zeigen und in Automationen verwenden. Wird jede Minute
+      aktualisiert, weil solche Zustände einen Neustart von Home Assistant nicht überleben.
+      Ohne Wirkung außerhalb des Supervisors.
 network:
   17798/tcp: NetToolbox Web-UI (direkt, Anmeldung erforderlich)

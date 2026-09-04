@@ -69,5 +69,12 @@ configuration:
     description: >-
       How often the background service checks whether a monitor is due. Only affects accuracy,
       not how often a check actually runs — that is set per monitor.
+  ha_sensors:
+    name: Monitors as Home Assistant entities
+    description: >-
+      Creates one sensor per monitor in Home Assistant (sensor.nettoolbox_<name>) plus
+      sensor.nettoolbox_probleme and binary_sensor.nettoolbox_problem, so the states can be
+      shown on dashboards and used in automations. Refreshed every minute, because such states
+      do not survive a Home Assistant restart. No effect outside the Supervisor.
 network:
   17798/tcp: NetToolbox web UI (direct, sign-in required)

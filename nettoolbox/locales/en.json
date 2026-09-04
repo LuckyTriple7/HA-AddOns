@@ -570,5 +570,6 @@
   "software_style": "{name} style (not proof)",
   "software_from_greeting": "Inferred from the wording of the EHLO greeting. Several mail servers copied sendmail's phrasing — this is a hint at style, not proof of a product.",
   "field_ehlo_greeting": "EHLO reply",
-  "ehlo_greeting_title": "First line of the EHLO reply. Often the only thing a server reveals about itself once the banner has been anonymised."
+  "ehlo_greeting_title": "First line of the EHLO reply. Often the only thing a server reveals about itself once the banner has been anonymised.",
+  "monitor_ha_hint": "Every monitor also appears as an entity in Home Assistant (sensor.nettoolbox_<name>), plus sensor.nettoolbox_probleme and binary_sensor.nettoolbox_problem — so states can be shown on dashboards and used in automations. Can be switched off with the add-on option “Monitors as Home Assistant entities”."
 }

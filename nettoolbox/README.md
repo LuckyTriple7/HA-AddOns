@@ -39,6 +39,8 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Instanz auf einem Root-Server durchreichen, wo Port 25 offen ist und Sperrlisten antworten.
   Wer NetToolbox ohnehin auf dem Root-Server betreibt, braucht das nicht — siehe
   [Brauche ich den Root-Server-Worker?](#brauche-ich-den-root-server-worker)
+- **Home-Assistant-Entitäten** — jeder Wächter als Sensor (`sensor.nettoolbox_<name>`) plus
+  Sammelsensoren, damit Zustände auf Dashboards und in Automationen nutzbar sind
 - Verlauf, Rate-Limit, Dark/Light · DE/EN · HA Ingress
 
 ## Schnellstart

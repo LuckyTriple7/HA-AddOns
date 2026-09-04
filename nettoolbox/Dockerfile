@@ -28,6 +28,7 @@ COPY seocheck.py .
 COPY netutils.py .
 COPY geoip.py .
 COPY monitor.py .
+COPY hasensors.py .
 COPY snapshots.py .
 COPY settings.py .
 COPY probes.py .
