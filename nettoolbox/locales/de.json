@@ -515,5 +515,15 @@
   "f_seo_slow": "Antwort dauerte {ms} ms.",
   "f_seo_favicon_missing": "Kein Favicon verlinkt.",
   "f_seo_html_truncated": "Nur die ersten {kb} KB der Seite wurden ausgewertet — alles darunter blieb ungesehen.",
-  "err_not_html": "Diese Adresse liefert kein HTML — der SEO-Check braucht eine Webseite."
+  "err_not_html": "Diese Adresse liefert kein HTML — der SEO-Check braucht eine Webseite.",
+  "ph_domain": "example.com",
+  "ph_ip": "203.0.113.10",
+  "ph_selectors": "default, google",
+  "ph_ip_or_host": "203.0.113.10 oder example.com",
+  "ph_host_or_ip": "example.com oder 203.0.113.10",
+  "ph_host_port": "example.com oder example.com:8443",
+  "ph_url": "example.com oder https://example.com/pfad",
+  "ph_monitor_name": "Mein Server",
+  "rbl_delist": "Austragen",
+  "rbl_delist_title": "Öffnet die Abfrage- bzw. Austragungsseite des Betreibers in einem neuen Tab."
 }

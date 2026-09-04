@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.24] - 2026-09-04
+
+### Added
+- **Austragungs-Links bei Sperrlisten-Treffern.** Jede Zone kennt jetzt die Abfrage- bzw.
+  Delisting-Seite ihres Betreibers; bei einem Treffer steht der Link direkt neben dem
+  Listennamen. Jede Adresse wurde vor der Aufnahme abgerufen — wo die Seite nicht bestätigt
+  werden konnte (GBUdb), steht bewusst kein Link statt eines geratenen.
+- **Testsuite** unter `tests/` (55 Tests, `python3 -m pytest tests -q`). Deckt die reinen
+  Funktionen ab: Eingabe-Validierung, Anbieter- und Software-Erkennung inklusive des Falls
+  `google.com.angreifer.net` (Suffix statt Teilstring), SMTP-Zielparsing, Ping-Ausgabe-Muster,
+  den SEO-HTML-Parser samt Punktestand und die Schlüsselgleichheit beider Sprachdateien. Kein
+  Test braucht Netz.
+
+### Changed
+- **Platzhalter aller Eingabefelder werden übersetzt** (17 Felder). Vorher stand in der
+  englischen Oberfläche deutscher Text („example.com **oder** 203.0.113.10").
+- **SORBS entfernt.** Der Dienst ist eingestellt, sorbs.net löst nicht mehr auf, und die Zone
+  beantwortet inzwischen jede Abfrage — auch die RFC-5782-Testadresse — mit derselben festen
+  Nicht-127er-Adresse. Sie konnte also gar kein echtes Ergebnis mehr liefern und kostete nur
+  eine Abfrage. Damit 14 statt 15 Zonen.
+
+### Fixed
+- **Monospace-Text bricht nicht mehr mitten im Wort** (`overflow-wrap: anywhere` statt
+  `word-break: break-all`). Betraf jede Tabelle und jede Ergebniskarte — sichtbar zuletzt in der
+  SMTP-Banner-Box als „hornetsecurit/y.com".
+
 ## [0.1.23] - 2026-09-04
 
 ### Added

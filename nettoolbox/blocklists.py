@@ -13,9 +13,10 @@ not "this address is spam". Reported separately instead of as a false
 listing. Live-tested against real zones (see PROBES.md-style comments below):
 some sub-zones (Spamhaus SBL/XBL/PBL standalone) return that code so often
 from ordinary public resolvers that they were dropped in favour of ZEN, which
-already combines all three and answers reliably; SORBS was found to return a
-fixed, non-127.x informational address regardless of the queried IP, which is
-filtered out rather than reported as a listing.
+already combines all three and answers reliably. SORBS was removed outright:
+the service shut down, sorbs.net no longer resolves, and its zone now answers
+every query -- including the RFC 5782 test address -- with the same fixed
+non-127.x address, so it can never produce a real result.
 """
 
 import concurrent.futures
@@ -26,22 +27,40 @@ from netcore import Context, ProbeError, clean_ip, query
 # reputation checks. Not the ~100 lists a commercial checker polls — every one
 # here was verified live against the RFC 5782 test address before being added.
 # Add more by appending a (label, zone) pair.
+# Third entry is the operator's own lookup/removal page, {ip} substituted --
+# a listing is only half the answer, getting off the list is the other half.
+# Every URL here was fetched before being added; the ones whose page could
+# not be confirmed are left empty rather than guessed at, and the interface
+# then simply shows no link.
 RBL_ZONES = (
-    ('Spamhaus ZEN', 'zen.spamhaus.org'),
-    ('SORBS', 'dnsbl.sorbs.org'),
-    ('Barracuda', 'b.barracudacentral.org'),
-    ('SpamCop', 'bl.spamcop.net'),
-    ('UCEPROTECT L1', 'dnsbl-1.uceprotect.net'),
-    ('UCEPROTECT L2', 'dnsbl-2.uceprotect.net'),
-    ('UCEPROTECT L3', 'dnsbl-3.uceprotect.net'),
-    ('PSBL', 'psbl.surriel.com'),
-    ('CBL', 'cbl.abuseat.org'),
-    ('Blocklist.de', 'bl.blocklist.de'),
-    ('Mailspike BL', 'bl.mailspike.net'),
-    ('Mailspike Z', 'z.mailspike.net'),
-    ('GBUdb', 'truncate.gbudb.net'),
-    ('JustSpam', 'dnsbl.justspam.org'),
-    ('SpamEatingMonkey', 'bl.spameatingmonkey.net'),
+    ('Spamhaus ZEN', 'zen.spamhaus.org',
+     'https://check.spamhaus.org/results/?query={ip}'),
+    ('Barracuda', 'b.barracudacentral.org',
+     'https://www.barracudacentral.org/rbl/removal-request'),
+    ('SpamCop', 'bl.spamcop.net',
+     'https://www.spamcop.net/w3m?action=checkblock&ip={ip}'),
+    ('UCEPROTECT L1', 'dnsbl-1.uceprotect.net',
+     'https://www.uceprotect.net/en/rblcheck.php?ipr={ip}'),
+    ('UCEPROTECT L2', 'dnsbl-2.uceprotect.net',
+     'https://www.uceprotect.net/en/rblcheck.php?ipr={ip}'),
+    ('UCEPROTECT L3', 'dnsbl-3.uceprotect.net',
+     'https://www.uceprotect.net/en/rblcheck.php?ipr={ip}'),
+    ('PSBL', 'psbl.surriel.com', 'https://psbl.org/listing?ip={ip}'),
+    ('CBL', 'cbl.abuseat.org',
+     'https://check.spamhaus.org/results/?query={ip}'),
+    ('Blocklist.de', 'bl.blocklist.de',
+     'https://www.blocklist.de/en/search.html?ip={ip}'),
+    ('Mailspike BL', 'bl.mailspike.net',
+     'https://mailspike.org/iprep.html?query={ip}'),
+    ('Mailspike Z', 'z.mailspike.net',
+     'https://mailspike.org/iprep.html?query={ip}'),
+    # gbudb.com was unreachable when this was checked; the DNS zone itself
+    # answers the RFC 5782 test address correctly, so the list stays and only
+    # the link is left out.
+    ('GBUdb', 'truncate.gbudb.net', ''),
+    ('JustSpam', 'dnsbl.justspam.org', 'http://www.justspam.org/'),
+    ('SpamEatingMonkey', 'bl.spameatingmonkey.net',
+     'https://spameatingmonkey.com/lookup?query={ip}'),
 )
 
 # Meta return codes seen across several providers (Spamhaus documents these
@@ -62,19 +81,23 @@ def _reverse_octets(ip: str) -> str:
     return '.'.join(reversed(ip.split('.')))
 
 
-def _check_one(ctx: Context, ip: str, label: str, zone: str) -> dict:
+def _check_one(ctx: Context, ip: str, label: str, zone: str,
+               lookup: str = '') -> dict:
     name = f'{_reverse_octets(ip)}.{zone}'
     row = {'label': label, 'zone': zone, 'listed': False, 'records': [],
-           'reason': '', 'error': '', 'provider_code': ''}
+           'reason': '', 'error': '', 'provider_code': '',
+           'lookup_url': lookup.replace('{ip}', ip) if lookup else ''}
     try:
         answer = query(ctx, name, 'A')
     except ProbeError as e:
         if e.code != 'nxdomain':
             row['error'] = e.code
         return row
-    # Only 127.0.0.0/8 is the documented "listed" convention. A handful of
-    # operators (SORBS, live-tested) answer with something else entirely —
-    # an informational address, not a per-IP result — and that is not a hit.
+    # Only 127.0.0.0/8 is the documented "listed" convention. An operator
+    # answering something else entirely -- an informational or parking
+    # address rather than a per-IP result -- is not a hit. SORBS did exactly
+    # that after it shut down, which is why it is no longer in the list
+    # above at all.
     listed_records = [r for r in answer.records if r.startswith('127.')]
     if not listed_records:
         if answer.records:
@@ -103,8 +126,8 @@ def check_blacklist(ctx: Context, ip: str) -> dict:
 
     rows = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = [pool.submit(_check_one, ctx, ip, label, zone)
-                   for label, zone in RBL_ZONES]
+        futures = [pool.submit(_check_one, ctx, ip, label, zone, lookup)
+                   for label, zone, lookup in RBL_ZONES]
         for fut in concurrent.futures.as_completed(futures):
             rows.append(fut.result())
     rows.sort(key=lambda r: r['label'])
