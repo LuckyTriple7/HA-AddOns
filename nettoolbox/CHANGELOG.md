@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0] - 2026-09-04
+
+### Added
+- **Module je Konto freischalten.** Für jedes Konto lässt sich einzeln festlegen, welche
+  Reiter es benutzen darf: Bericht, DNS, Mail, Netzwerk-Tools, SSL/TLS, Whois, Web. Was
+  gesperrt ist, erscheint in der Oberfläche gar nicht erst — und wird zusätzlich auf dem
+  Server abgewiesen (`module_disabled`), damit die Sperre nicht am Browser hängt. Die
+  Zuordnung Prüfung → Reiter steht in `PROBE_MODULE`; eine Prüfung ohne Zuordnung meldet
+  sich beim Start im Protokoll, statt still an der Freischaltung vorbeizulaufen.
+- **Tageskontingent je Konto.** Zahl der Abfragen pro Tag über alle freigeschalteten Module,
+  0 heißt unbegrenzt. **Ein Gesamtbericht zählt als eine Abfrage**, obwohl intern neun
+  Prüfungen laufen. Gebucht wird in einer einzigen SQL-Anweisung unter dem Schreibschloss —
+  zwei gleichzeitige Prüfungen können sich nicht beide die letzte freie Abfrage nehmen.
+  In der Kopfzeile steht, wie viele Abfragen der Tag noch hergibt; der Zähler springt um
+  Mitternacht zurück und lässt sich vom Betreiber vorzeitig zurücksetzen.
+- **Protokoll je Benutzer.** Der Betreiber sieht zu jedem Konto die letzten 200 Prüfungen
+  mit Zeitpunkt, Prüfung, Ziel und Ergebnis — und kann es löschen. Aufgehoben werden je
+  Konto 500 Zeilen; ein Protokoll, das unbegrenzt wächst, ist in einer Add-on-Datenbank nur
+  eine Zeitbombe.
+- Momentaufnahmen hängen am DNS-Modul und kosten ebenfalls eine Abfrage — sie sind DNS-
+  Abfragen, nur unter anderem Namen.
+
+### Changed
+- Die Beschriftung **Betreiber** beim Anlegen heißt jetzt *Verwalter — darf Einstellungen,
+  Wächter und Benutzer verwalten*. „Betreiber" allein sagte nicht, was der Haken bewirkt.
+- Ist der Bericht für ein Konto gesperrt, fehlt sein Reiter — dann übernimmt der erste
+  vorhandene Reiter als Startseite, statt dass die Oberfläche ohne aktiven Reiter aufgeht.
+
 ## [0.2.0] - 2026-09-04
 
 ### Added

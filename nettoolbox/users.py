@@ -58,7 +58,27 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_ts INTEGER NOT NULL DEFAULT 0,
     note          TEXT    NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS usage (
+    uid  INTEGER NOT NULL,
+    day  TEXT    NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (uid, day)
+);
+CREATE TABLE IF NOT EXISTS activity (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid    INTEGER NOT NULL,
+    ts     INTEGER NOT NULL,
+    probe  TEXT    NOT NULL,
+    target TEXT    NOT NULL DEFAULT '',
+    level  TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_activity_uid ON activity(uid, ts DESC);
 """
+
+# Wie viele Zeilen je Konto aufgehoben werden. Das Protokoll beantwortet die
+# Frage "was hat wer geprüft", nicht "was war 2024" -- unbegrenztes Wachstum
+# in einer Add-on-Datenbank wäre nur eine Zeitbombe.
+ACTIVITY_PER_USER = 500
 
 
 class UserError(Exception):
@@ -288,8 +308,94 @@ class UserStore:
         with self._write_lock:
             con = self._connect()
             con.execute('DELETE FROM users WHERE id = ?', (int(user_id),))
+            # Verbrauch und Protokoll gehen mit -- von einem gelöschten Konto
+            # bleibt sonst eine Spur zurück, die niemand mehr zuordnen kann.
+            con.execute('DELETE FROM usage WHERE uid = ?', (int(user_id),))
+            con.execute('DELETE FROM activity WHERE uid = ?', (int(user_id),))
             con.commit()
         return user
+
+    # ── Tageskontingent ──────────────────────────────────────────────────────
+
+    def usage_today(self, user_id: int, day: str) -> int:
+        try:
+            row = self._connect().execute(
+                'SELECT used FROM usage WHERE uid = ? AND day = ?',
+                (int(user_id), str(day))).fetchone()
+        except sqlite3.Error:
+            return 0
+        return int(row['used']) if row else 0
+
+    def spend(self, user_id: int, day: str, limit: int) -> bool:
+        """Eine Abfrage abbuchen. False = Kontingent aufgebraucht.
+
+        Zählen und Prüfen stecken bewusst in einer Anweisung unter dem
+        Schreibschloss: zwei gleichzeitige Prüfungen dürfen sich nicht beide
+        die letzte freie Abfrage nehmen.
+        """
+        if limit <= 0:
+            return True
+        with self._write_lock:
+            try:
+                con = self._connect()
+                cur = con.execute(
+                    'INSERT INTO usage (uid, day, used) VALUES (?, ?, 1)'
+                    ' ON CONFLICT(uid, day) DO UPDATE SET used = used + 1'
+                    ' WHERE used < ?', (int(user_id), str(day), int(limit)))
+                con.commit()
+            except sqlite3.Error:
+                # Lieber durchlassen als den Dienst verweigern: das Kontingent
+                # ist eine Bremse, keine Sicherheitsgrenze.
+                return True
+        return cur.rowcount > 0
+
+    def forget_day(self, user_id: int, day: str) -> None:
+        """Kontingent eines Kontos für heute zurücksetzen."""
+        with self._write_lock:
+            con = self._connect()
+            con.execute('DELETE FROM usage WHERE uid = ? AND day = ?',
+                        (int(user_id), str(day)))
+            con.commit()
+
+    # ── Protokoll ────────────────────────────────────────────────────────────
+
+    def log_activity(self, user_id: int, probe: str, target: str,
+                     level: str) -> None:
+        """Wer hat was geprüft. Fehlschläge sind kein Grund, die Prüfung
+        selbst scheitern zu lassen."""
+        try:
+            with self._write_lock:
+                con = self._connect()
+                con.execute(
+                    'INSERT INTO activity (uid, ts, probe, target, level)'
+                    ' VALUES (?, ?, ?, ?, ?)',
+                    (int(user_id), int(time.time()), str(probe)[:40],
+                     str(target or '')[:253], str(level or '')[:16]))
+                con.execute(
+                    'DELETE FROM activity WHERE uid = ? AND id NOT IN ('
+                    ' SELECT id FROM activity WHERE uid = ?'
+                    ' ORDER BY ts DESC, id DESC LIMIT ?)',
+                    (int(user_id), int(user_id), ACTIVITY_PER_USER))
+                con.commit()
+        except sqlite3.Error:
+            pass
+
+    def activity(self, user_id: int, limit: int = 200) -> list:
+        rows = self._connect().execute(
+            'SELECT ts, probe, target, level FROM activity WHERE uid = ?'
+            ' ORDER BY ts DESC, id DESC LIMIT ?',
+            (int(user_id), max(1, min(1000, int(limit))))).fetchall()
+        return [{'ts': r['ts'], 'probe': r['probe'], 'target': r['target'],
+                 'level': r['level']} for r in rows]
+
+    def forget_user(self, user_id: int) -> None:
+        """Verbrauch und Protokoll eines Kontos entfernen -- gehört zum
+        Löschen, sonst bliebe von einem gelöschten Konto eine Spur zurück."""
+        with self._write_lock:
+            con = self._connect()
+            con.execute('DELETE FROM usage WHERE uid = ?', (int(user_id),))
+            con.execute('DELETE FROM activity WHERE uid = ?', (int(user_id),))
+            con.commit()
 
     def touch_login(self, user_id: int) -> None:
         try:

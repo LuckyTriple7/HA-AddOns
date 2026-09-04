@@ -69,6 +69,11 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   muss bei der ersten Anmeldung gewechselt werden; sperren, löschen und zurücksetzen geht
   jederzeit. Einstellungen und Wächter bleiben dem Betreiber vorbehalten. Über Ingress ist
   immer der Betreiber angemeldet — Home Assistant hat dort schon angemeldet.
+  - **Module je Konto freischalten** — welche Reiter jemand benutzen darf, wird pro Konto
+    gesetzt; Gesperrtes erscheint nicht und wird auch serverseitig abgewiesen.
+  - **Tageskontingent je Konto** — z. B. 10 Abfragen am Tag über alle freigeschalteten
+    Module, ein Gesamtbericht zählt als eine. 0 heißt unbegrenzt.
+  - **Protokoll je Konto** — der Betreiber sieht, wer was geprüft hat, und kann es löschen.
 - **Anmeldeschutz außerhalb von Ingress** — nach 5 Fehlversuchen in 10 Minuten wird die IP
   für 15 Minuten gesperrt; die Sperre überlebt einen Neustart des Add-ons. Auf Wunsch meldet
   NetToolbox jede Sperre und/oder jede erfolgreiche Anmeldung, je Ereignis einzeln über Mail

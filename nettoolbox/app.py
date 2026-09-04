@@ -629,6 +629,103 @@ def _logged_in() -> bool:
     return bool(current_user())
 
 
+# ── Module und Tageskontingent ────────────────────────────────────────────────
+# Freischaltbar sind die Reiter, hinter denen Prüfungen stecken. "monitor"
+# fehlt absichtlich -- Wächter sind Betreibersache; "history" ebenfalls -- der
+# eigene Verlauf ist privat und immer sichtbar.
+
+MODULES = ('report', 'dns', 'mail', 'reverse', 'tls', 'whois', 'http')
+
+# Welche Prüfung zu welchem Reiter gehört. Aus der Oberfläche abgeleitet, nicht
+# geraten: eine fehlende Zuordnung fällt beim Start auf (siehe _startup_checks).
+PROBE_MODULE = {
+    'dns': 'dns', 'dns_all': 'dns', 'txt': 'dns', 'soa': 'dns',
+    'propagation': 'dns', 'dnssec': 'dns', 'aaaa_guard': 'dns',
+    'mx': 'mail', 'mail_health': 'mail', 'blacklist': 'mail', 'dane': 'mail',
+    'mailheader': 'mail', 'smtp': 'mail', 'spf': 'mail', 'dkim': 'mail',
+    'dmarc': 'mail', 'mta_sts': 'mail', 'tls_rpt': 'mail', 'bimi': 'mail',
+    'reverse': 'reverse', 'ipinfo': 'reverse', 'ping': 'reverse',
+    'traceroute': 'reverse', 'ports': 'reverse', 'dualstack': 'reverse',
+    'tls': 'tls',
+    'whois': 'whois',
+    'http': 'http', 'quic': 'http', 'seo': 'http', 'tech': 'http',
+}
+
+
+def clean_modules(raw) -> str:
+    """'*' heißt alle. Sonst die bekannten Namen, kommagetrennt und in fester
+    Reihenfolge -- was die Oberfläche schickt, wird nie übernommen wie es ist."""
+    if raw in (None, '', '*'):
+        return '*'
+    if isinstance(raw, (list, tuple)):
+        parts = [str(p).strip() for p in raw]
+    else:
+        parts = str(raw).replace(',', ' ').split()
+    keep = [m for m in MODULES if m in parts]
+    return ','.join(keep)
+
+
+def user_modules(user: dict) -> set:
+    raw = str(user.get('modules') or '*')
+    if raw == '*':
+        return set(MODULES)
+    return {m for m in raw.replace(',', ' ').split() if m in MODULES}
+
+
+def allowed_modules() -> list:
+    """Reihenfolge wie in MODULES, damit die Oberfläche stabil bleibt."""
+    user = current_user()
+    if user.get('is_admin'):
+        return list(MODULES)
+    allowed = user_modules(user)
+    return [m for m in MODULES if m in allowed]
+
+
+def require_module(module: str) -> None:
+    if not module:
+        return
+    user = current_user()
+    if user.get('is_admin'):
+        return
+    if module not in user_modules(user):
+        raise useraccounts.UserError('module_disabled')
+
+
+def _today() -> str:
+    return time.strftime('%Y-%m-%d')
+
+
+def quota_state() -> dict:
+    """Was die Oberfläche über das eigene Kontingent wissen darf."""
+    user = current_user()
+    limit = int(user.get('daily_quota') or 0)
+    if user.get('is_admin') or limit <= 0 or not _user_store.available():
+        return {'limit': 0, 'used': 0}
+    return {'limit': limit,
+            'used': _user_store.usage_today(user['id'], _today())}
+
+
+def spend_quota() -> None:
+    """Eine Abfrage abbuchen. Ein Gesamtbericht kostet ebenfalls genau eine --
+    er beantwortet eine Frage, auch wenn intern neun Prüfungen laufen."""
+    user = current_user()
+    limit = int(user.get('daily_quota') or 0)
+    if user.get('is_admin') or limit <= 0 or not _user_store.available():
+        return
+    if not _user_store.spend(user['id'], _today(), limit):
+        raise useraccounts.UserError('quota_exhausted')
+
+
+def log_activity(probe: str, target: str, level: str) -> None:
+    """Protokoll für den Betreiber. Nur für angelegte Konten: das Konto aus
+    den Optionen steht nicht in der Datenbank, seine Zeilen hätten dort kein
+    Gegenüber."""
+    uid = current_uid()
+    if uid == useraccounts.OPTIONS_ADMIN_ID or not _user_store.available():
+        return
+    _user_store.log_activity(uid, probe, target, level)
+
+
 def _is_admin() -> bool:
     return bool(current_user().get('is_admin'))
 
@@ -699,6 +796,7 @@ _ERROR_STATUS = {
     'user_exists': 409, 'user_not_found': 404, 'bad_username': 400,
     'bad_email': 400, 'weak_password': 400,
     'bad_quota': 400, 'self_target': 409, 'user_store_broken': 503,
+    'module_disabled': 403, 'quota_exhausted': 429,
 }
 
 
@@ -1044,6 +1142,7 @@ def index():
         'index.html', t=load_translations(lang), lang=lang, csrf=g.csrf,
         version=APP_VERSION, ingress=_is_ingress(),
         is_admin=bool(user.get('is_admin')),
+        modules=allowed_modules(),
         account=(user['username'] if user.get('via') == 'account' else ''),
         probe_names=sorted(probes.PROBES),
         target_kind=probes.TARGET_KIND,
@@ -1068,6 +1167,8 @@ def status():
         'allow_private': bool(load_config().get('allow_private_targets')),
         'ha_sensors': ha_sensors_enabled(),
         'resolvers': build_context().resolvers,
+        'quota': quota_state(),
+        'modules': allowed_modules(),
     })
 
 
@@ -1082,17 +1183,21 @@ def probe():
     params = body.get('params') or {}
     if not isinstance(params, dict):
         raise ProbeError('bad_params')
+    require_module(PROBE_MODULE.get(name))
+    spend_quota()
     answer = get_backend().run(name, params)
     result = answer.get('result') or {}
+    target = str(params.get('domain') or params.get('name')
+                 or params.get('ip') or params.get('target') or '')[:253]
     history_add({
         'ts': int(time.time()),
         'probe': name,
-        'target': str(params.get('domain') or params.get('name')
-                      or params.get('ip') or '')[:253],
+        'target': target,
         'level': result.get('level', ''),
         'backend': answer.get('backend', 'local'),
         'ms': answer.get('ms', 0),
     })
+    log_activity(name, target, result.get('level', ''))
     return jsonify({'probe': name, 'result': result,
                     'backend': answer.get('backend', 'local'),
                     'worker': answer.get('worker') or {},
@@ -1135,10 +1240,14 @@ def _report_step(name: str, params: dict) -> dict:
 def report():
     body = request.get_json(silent=True) or {}
     domain = probes.clean_domain(str(body.get('domain') or ''))
+    require_module('report')
     # Jede Teilprüfung zählt einzeln gegen das Rate-Limit, sonst wäre ein
-    # Bericht ein Weg, es zu umgehen.
+    # Bericht ein Weg, es zu umgehen. Gegen das Tageskontingent zählt er
+    # dagegen als eine Abfrage -- er beantwortet eine Frage.
     if not all(probe_budget_left() for _ in range(len(REPORT_STEPS) + 1)):
         return jsonify({'error': 'rate_limited'}), 429
+    spend_quota()
+    log_activity('report', domain, '')
 
     started = time.time()
     steps = []
@@ -1181,6 +1290,7 @@ def _snapshot_store_ready():
 @api('/api/snapshots', methods=('GET', 'POST'))
 def snapshots_route():
     store = _snapshot_store_ready()
+    require_module('dns')
     if request.method == 'GET':
         domain = str(request.args.get('domain') or '').strip().lower()[:253]
         return jsonify({'snapshots': store.list(domain)})
@@ -1189,6 +1299,8 @@ def snapshots_route():
     body = request.get_json(silent=True) or {}
     domain = probes.clean_domain(str(body.get('domain') or ''))
     label = str(body.get('label') or '')[:80]
+    spend_quota()
+    log_activity('snapshot', domain, '')
     records = dnssnapshots.capture(build_context(), domain)
     return jsonify({'snapshot': store.add(domain, records, label)})
 
@@ -1196,6 +1308,7 @@ def snapshots_route():
 @api('/api/snapshots/<int:snapshot_id>', methods=('GET', 'DELETE'))
 def snapshot_route(snapshot_id: int):
     store = _snapshot_store_ready()
+    require_module('dns')
     if request.method == 'DELETE':
         store.delete(snapshot_id)
         return jsonify({'ok': True})
@@ -1206,12 +1319,14 @@ def snapshot_route(snapshot_id: int):
 def snapshot_compare(snapshot_id: int):
     """Gegen den jetzigen Stand oder gegen eine zweite Aufnahme."""
     store = _snapshot_store_ready()
+    require_module('dns')
     snapshot = store.get(snapshot_id)
     body = request.get_json(silent=True) or {}
     against = str(body.get('against') or 'live')
     if against == 'live':
         if not probe_budget_left():
             return jsonify({'error': 'rate_limited'}), 429
+        spend_quota()
         other = {'id': 0, 'domain': snapshot['domain'], 'ts': int(time.time()),
                  'label': '', 'records': dnssnapshots.capture(build_context(),
                                                               snapshot['domain'])}
@@ -1400,7 +1515,10 @@ def users_list():
     return jsonify({'users': _user_store.list(),
                     'options_admin': _options_admin()['username'],
                     'self_id': current_user().get('id'),
-                    'password_min': useraccounts.PASSWORD_MIN})
+                    'password_min': useraccounts.PASSWORD_MIN,
+                    'modules': list(MODULES),
+                    'today': {u['id']: _user_store.usage_today(u['id'], _today())
+                              for u in _user_store.list()}})
 
 
 @api('/api/users', methods=('POST',), admin=True)
@@ -1436,6 +1554,8 @@ def users_update(user_id: int):
     fields = {k: body[k] for k in
               ('email', 'note', 'blocked', 'is_admin', 'modules', 'daily_quota')
               if k in body}
+    if 'modules' in fields:
+        fields['modules'] = clean_modules(fields['modules'])
     user = _user_store.update(user_id, fields)
     if user['blocked']:
         drop_user_sessions(user_id)
@@ -1455,6 +1575,30 @@ def users_delete(user_id: int):
         _history.extend(keep)
     log.info("account deleted")
     return jsonify({'ok': True, 'username': user['username']})
+
+
+@api('/api/users/<int:user_id>/log', admin=True)
+def users_log(user_id: int):
+    _need_user_store()
+    _user_store.get(user_id)  # wirft user_not_found, wenn es das Konto nicht gibt
+    return jsonify({'rows': _user_store.activity(user_id, 200),
+                    'today': _user_store.usage_today(user_id, _today())})
+
+
+@api('/api/users/<int:user_id>/log', methods=('DELETE',), admin=True)
+def users_log_clear(user_id: int):
+    _need_user_store()
+    _user_store.get(user_id)
+    _user_store.forget_user(user_id)
+    return jsonify({'ok': True})
+
+
+@api('/api/users/<int:user_id>/quota-reset', methods=('POST',), admin=True)
+def users_quota_reset(user_id: int):
+    _need_user_store()
+    _user_store.get(user_id)
+    _user_store.forget_day(user_id, _today())
+    return jsonify({'ok': True})
 
 
 @api('/api/users/<int:user_id>/reset', methods=('POST',), admin=True)
@@ -1673,6 +1817,12 @@ def _startup_checks() -> None:
             else:
                 log.warning("probe worker not usable yet: %s",
                             state.get('error'))
+
+    missing = sorted(set(probes.PROBES) - set(PROBE_MODULE))
+    if missing:
+        # Eine Prüfung ohne Reiter-Zuordnung liefe an der Freischaltung vorbei.
+        log.warning("probes without a module: %s — they stay available to "
+                    "everyone", ', '.join(missing))
 
     if _user_store.open():
         count = len(_user_store.list())

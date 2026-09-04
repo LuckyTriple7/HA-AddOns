@@ -71,6 +71,11 @@ about your domains leaves your own infrastructure.
   must be changed on first sign-in; blocking, deleting and resetting work at any time.
   Settings and monitors stay with the operator. Behind Ingress the operator is always signed
   in — Home Assistant has already authenticated there.
+  - **Per-account modules** — which tabs an account may use is set per account; what is off
+    does not show up and is rejected server-side as well.
+  - **Per-account daily quota** — e.g. 10 queries a day across all enabled modules, a full
+    report counting as one. 0 means unlimited.
+  - **Per-account log** — the operator sees who checked what, and can clear it.
 - **Login protection outside Ingress** — 5 failed attempts within 10 minutes block the IP
   for 15 minutes, and the block survives an add-on restart. On request NetToolbox reports
   every block and/or every successful login, each event choosing email and/or Telegram
