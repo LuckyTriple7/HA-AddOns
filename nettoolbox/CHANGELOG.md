@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.20] - 2026-09-04
+
+### Added
+- **SMTP-Prüfung nimmt jetzt einfach eine Domain.** Bisher musste der Hostname des Mailservers
+  von Hand herausgesucht und eingetippt werden — den kennt aber niemand auswendig. Wird eine
+  Domain eingegeben, folgt die Prüfung selbst dem MX-Eintrag und verbindet sich mit dem MX-Host
+  niedrigster Priorität, genau wie ein sendender Mailserver es täte. Ein Chip "MX-Host: …" und
+  ein Hinweis-Fund zeigen, welcher Server tatsächlich angesprochen wurde; bei mehreren MX werden
+  alle als Chips gelistet.
+- Ein ausdrücklicher Port (`host:587`) und eine IP-Adresse werden unverändert direkt angesteuert
+  — Submission-Ports liegen am Host selbst und nie am MX-Eintrag.
+
+### Fixed
+- **Domains ohne Mailserver liefern jetzt eine klare Auskunft statt einer fehlgeschlagenen
+  Prüfung.** Zwei Fälle, beide mit eigenem Text:
+  - Null-MX nach RFC 7505 (ein einzelner MX auf `.`, wie bei example.com) — die Domain erklärt
+    damit ausdrücklich, keine Mail anzunehmen. Vorher lief das in ein irreführendes
+    "Host lässt sich nicht auflösen", weil der leere MX-Name an den Resolver ging.
+  - Weder MX noch eigene A/AAAA-Adresse — hier ist schlicht kein Mailserver eingetragen.
+
 ## [0.1.19] - 2026-09-04
 
 ### Changed

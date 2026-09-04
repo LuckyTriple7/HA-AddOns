@@ -22,7 +22,8 @@ import socket
 import ssl
 
 import mailprovider
-from netcore import Context, ProbeError, clean_host_or_ip, guard_target, query, reverse_name
+from netcore import (Context, ProbeError, clean_host_or_ip, guard_target,
+                     mx_hosts, query, reverse_name)
 
 OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
 DEFAULT_PORT = 25
@@ -49,6 +50,7 @@ def _worst(findings: list) -> str:
 
 
 def _parse_target(raw: str) -> tuple:
+    """(host, port, port_was_explicit)."""
     raw = (raw or '').strip()
     if not raw:
         raise ProbeError('empty_target')
@@ -61,7 +63,59 @@ def _parse_target(raw: str) -> tuple:
             raise ProbeError('bad_port', port_part)
         if not (1 <= port <= 65535):
             raise ProbeError('bad_port', port_part)
-    return clean_host_or_ip(host or raw), port
+    return clean_host_or_ip(host or raw), port, bool(port_part)
+
+
+def _has_address(ctx: Context, host: str) -> bool:
+    for rrtype in ('A', 'AAAA'):
+        try:
+            if query(ctx, host, rrtype).records:
+                return True
+        except ProbeError:
+            pass
+    return False
+
+
+def _resolve_target(ctx: Context, host: str, explicit_port: bool) -> tuple:
+    """Which host to actually connect to: (host, mx_domain, mx_candidates).
+
+    Typing a bare domain is the normal case -- nobody knows their provider's
+    MX host names by heart, and looking them up by hand first just to paste
+    them back in was needless work. So a domain is followed to its MX record
+    here, exactly the way a sending mail server would.
+
+    An explicit port ("host:587") is left alone: submission ports live on the
+    host itself, never on the MX record, so following MX there would connect
+    somewhere the user did not ask for. An IP literal is left alone for the
+    same reason.
+    """
+    if explicit_port:
+        return host, '', []
+    try:
+        ipaddress.ip_address(host)
+        return host, '', []
+    except ValueError:
+        pass
+    try:
+        records = mx_hosts(ctx, host)
+    except ProbeError:
+        records = []
+    # RFC 7505: a single MX pointing at the root ("0 .") is a domain stating
+    # outright that it accepts no mail. mx_hosts() renders that as an empty
+    # host name, which would otherwise be handed to the resolver and come
+    # back as a confusing "host unresolvable".
+    usable = [(pref, h) for pref, h in records if h]
+    if records and not usable:
+        raise ProbeError('null_mx', host)
+    if usable:
+        return usable[0][1], host, [h for _pref, h in usable]
+    # No MX -- but "mail.example.com" typed directly is a perfectly normal
+    # input and has an address of its own.
+    if _has_address(ctx, host):
+        return host, '', []
+    # Neither: this domain runs no mail server. That is a clean answer, not a
+    # failed check, so it leaves as an error message instead of a red result.
+    raise ProbeError('no_mail_host', host)
 
 
 def _text(value) -> str:
@@ -69,12 +123,18 @@ def _text(value) -> str:
 
 
 def check_smtp(ctx: Context, target: str) -> dict:
-    host, port = _parse_target(target)
+    typed_host, port, explicit_port = _parse_target(target)
+    host, mx_domain, mx_candidates = _resolve_target(ctx, typed_host, explicit_port)
     guard_target(ctx, host)
 
     findings = []
+    if mx_domain:
+        findings.append(_finding(INFO, 'smtp_via_mx', domain=mx_domain,
+                                 host=host, count=len(mx_candidates)))
     result = {
-        'host': host, 'port': port, 'banner': '', 'banner_host': '',
+        'host': host, 'port': port, 'input': typed_host,
+        'mx_domain': mx_domain, 'mx_candidates': mx_candidates,
+        'banner': '', 'banner_host': '',
         'ehlo_ok': False, 'features': [], 'starttls_offered': False,
         'starttls_ok': False, 'tls_protocol': '', 'tls_cipher': '',
         'reverse_match': None, 'relay_open': None,

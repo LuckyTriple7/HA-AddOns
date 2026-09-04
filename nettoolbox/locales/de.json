@@ -46,7 +46,7 @@
   "http_title": "HTTP-Header, Weiterleitungen und HTTP/3",
   "http_hint": "Folgt der Weiterleitungskette (jeder Sprung einzeln über den SSRF-Schutz geprüft), listet Sicherheits-Header der Endadresse und zeigt, ob der Server HTTP/3 über den Alt-Svc-Header ankündigt.",
   "smtp_title": "SMTP-Server prüfen",
-  "smtp_hint": "Verbindet zum Mailserver (Vorgabe Port 25), liest Banner und EHLO-Fähigkeiten, prüft STARTTLS und ob der Server offen für unautorisiertes Relaying ist. Der Relay-Test bricht immer vor dem eigentlichen Senden ab (kein DATA-Befehl) — es wird nie tatsächlich eine Mail zugestellt, egal wie der Server antwortet.",
+  "smtp_hint": "Eine Domain genügt — der zuständige Mailserver wird selbst über den MX-Eintrag ermittelt. Ein Hostname oder Host:Port wird direkt angesteuert (Vorgabe Port 25). Liest Banner und EHLO-Fähigkeiten, prüft STARTTLS und ob der Server offen für unautorisiertes Relaying ist. Der Relay-Test bricht immer vor dem eigentlichen Senden ab (kein DATA-Befehl) — es wird nie tatsächlich eine Mail zugestellt, egal wie der Server antwortet.",
   "monitor_title": "Monitoring",
   "monitor_hint": "Prüft ein Ziel automatisch im gewählten Abstand und benachrichtigt bei Zustandswechsel (z. B. OK → Achtung) — nicht bei jedem Lauf, sonst würde jede Prüfung eine Nachricht schicken. Beim allerersten Lauf nur bei einem sofortigen Fehler, sonst wird die Basislinie still gesetzt. Mail und Telegram werden über das Zahnrad oben rechts eingerichtet.",
   "monitor_list_title": "Eingerichtete Monitore",
@@ -432,5 +432,13 @@
   "status_local_error_hint": "Das lokale Prüf-Backend antwortet nicht — siehe Add-on-Protokoll.",
   "status_worker_mode_hint": "Diese Instanz prüft selbst und beantwortet zusätzlich Anfragen einer zweiten NetToolbox-Instanz (worker_enabled ist an). Typisch für die Installation auf dem Root-Server.",
   "status_worker_connected_hint": "Prüfungen werden an den Root-Server-Worker geschickt und laufen dort.",
-  "status_worker_down_hint": "Ein Worker ist eingetragen, antwortet aber nicht — Prüfungen schlagen fehl, bis er wieder erreichbar ist."
+  "status_worker_down_hint": "Ein Worker ist eingetragen, antwortet aber nicht — Prüfungen schlagen fehl, bis er wieder erreichbar ist.",
+  "f_smtp_via_mx": "Ziel aus dem MX-Eintrag von {domain} ermittelt: {host}.",
+  "err_no_mail_host": "Für diese Domain gibt es weder MX-Einträge noch eine eigene Adresse — hier ist kein Mailserver eingetragen.",
+  "smtp_placeholder": "example.com, mail.example.com oder mail.example.com:587",
+  "field_domain_host_port": "Domain, Host oder Host:Port",
+  "err_null_mx": "Diese Domain erklärt per Null-MX (RFC 7505) ausdrücklich, dass sie keine Mail empfängt — es gibt hier bewusst keinen Mailserver.",
+  "smtp_via_mx_chip": "MX-Host: {host}",
+  "smtp_via_mx_title": "Aus dem MX-Eintrag von {domain} ermittelt. MX-Einträge insgesamt: {count}.",
+  "smtp_mx_tested": "Dieser MX-Host wurde geprüft (niedrigste Priorität)."
 }

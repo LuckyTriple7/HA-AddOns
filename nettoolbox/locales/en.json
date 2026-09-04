@@ -46,7 +46,7 @@
   "http_title": "HTTP headers, redirects and HTTP/3",
   "http_hint": "Follows the redirect chain (each hop re-validated by the SSRF guard), lists the final address's security headers and shows whether the server advertises HTTP/3 via the Alt-Svc header.",
   "smtp_title": "Check SMTP server",
-  "smtp_hint": "Connects to the mail server (default port 25), reads the banner and EHLO capabilities, checks STARTTLS and whether the server is open for unauthorised relaying. The relay test always stops before actually sending (no DATA command) — no mail is ever delivered, whatever the server answers.",
+  "smtp_hint": "A domain is enough — the responsible mail server is found through its MX record. A host name or host:port is used directly (default port 25). Reads the banner and EHLO capabilities, checks STARTTLS and whether the server is open for unauthorised relaying. The relay test always stops before actually sending (no DATA command) — no mail is ever delivered, whatever the server answers.",
   "monitor_title": "Monitoring",
   "monitor_hint": "Checks a target automatically at the chosen interval and notifies on a state change (e.g. OK → Warning) — not on every run, or every check would send a message. On the very first run only an immediate failure notifies; otherwise the baseline is set silently. Email and Telegram are configured via the gear icon top right.",
   "monitor_list_title": "Configured monitors",
@@ -432,5 +432,13 @@
   "status_local_error_hint": "The local probe backend is not answering — see the add-on log.",
   "status_worker_mode_hint": "This instance checks locally and additionally answers requests from a second NetToolbox instance (worker_enabled is on). Typical for the install on the root server.",
   "status_worker_connected_hint": "Checks are sent to the root-server worker and run there.",
-  "status_worker_down_hint": "A worker is configured but not answering — checks fail until it is reachable again."
+  "status_worker_down_hint": "A worker is configured but not answering — checks fail until it is reachable again.",
+  "f_smtp_via_mx": "Target taken from the MX record of {domain}: {host}.",
+  "err_no_mail_host": "This domain has neither MX records nor an address of its own — no mail server is published here.",
+  "smtp_placeholder": "example.com, mail.example.com or mail.example.com:587",
+  "field_domain_host_port": "Domain, host or host:port",
+  "err_null_mx": "This domain declares a null MX (RFC 7505), stating outright that it accepts no mail — there is deliberately no mail server here.",
+  "smtp_via_mx_chip": "MX host: {host}",
+  "smtp_via_mx_title": "Taken from the MX record of {domain}. MX records in total: {count}.",
+  "smtp_mx_tested": "This MX host was the one tested (lowest preference)."
 }

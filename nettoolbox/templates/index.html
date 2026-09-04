@@ -430,8 +430,8 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="9.5" width="18" height="5" rx="1"/><rect x="3" y="16" width="18" height="5" rx="1"/><circle cx="7" cy="5.5" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18.5" r="1"/></svg>{{ t.smtp_title }}</h2>
     <div class="row">
       <div class="grow">
-        <label class="field" for="smtpTarget">{{ t.field_host_port }}</label>
-        <input type="text" id="smtpTarget" placeholder="mail.example.com oder mail.example.com:587" autocomplete="off">
+        <label class="field" for="smtpTarget">{{ t.field_domain_host_port }}</label>
+        <input type="text" id="smtpTarget" placeholder="{{ t.smtp_placeholder }}" autocomplete="off">
       </div>
       <div style="align-self:flex-end">
         <button class="btn primary" id="smtpRun">{{ t.action_check }}</button>
@@ -1738,6 +1738,15 @@ async function smtpCheck(){
         r.relay_open ? T.smtp_relay_badge_open : T.smtp_relay_badge_closed));
     }
     if (r.tls_protocol) badges.appendChild(el('span', 'chip', r.tls_protocol));
+    if (r.mx_domain) {
+      // Zeigt, dass nicht die Eingabe selbst angesprochen wurde, sondern der
+      // daraus ermittelte MX-Host -- sonst wirkt ein fremder Hostname im
+      // Banner wie ein Fehler.
+      const chip = el('span', 'chip', fmtStr(T.smtp_via_mx_chip, { host: r.host }));
+      chip.title = fmtStr(T.smtp_via_mx_title,
+        { domain: r.mx_domain, count: (r.mx_candidates || []).length });
+      badges.appendChild(chip);
+    }
     if (r.provider && r.provider.known) {
       r.provider.names.forEach(n => badges.appendChild(el('span', 'chip', n)));
     }
@@ -1751,6 +1760,18 @@ async function smtpCheck(){
     const c1 = el('div', 'subcard');
     c1.appendChild(el('h4', '', T.field_banner));
     c1.appendChild(el('div', 'mono', r.banner || '—'));
+    if (r.mx_candidates && r.mx_candidates.length > 1) {
+      // Als Chips und nicht als eine lange Zeile: in der schmalen Unterkarte
+      // wuerde eine Komma-Liste sonst mitten in den Hostnamen umbrechen.
+      c1.appendChild(el('div', 'detect-label', T.field_mx));
+      const chips = el('div', 'chips');
+      r.mx_candidates.forEach(h => {
+        const chip = el('span', 'chip', h);
+        if (h === r.host) chip.title = T.smtp_mx_tested;
+        chips.appendChild(chip);
+      });
+      c1.appendChild(chips);
+    }
     const row = el('div', 'kv-tight');
     row.appendChild(el('span', '', T.software_label));
     row.appendChild(el('span', '', r.software && r.software.known
