@@ -8,6 +8,8 @@ about your domains leaves your own infrastructure.
 
 ## Features
 
+- **Full report** — enter one domain, nine checks on a single sheet, Markdown export
+
 - **DNS** — every common record type, all standard types in one pass, TXT, SOA with a
   name-server sync check
 - **Mail health** — SPF (including RFC 7208 lookup count and include-chain resolution), DKIM

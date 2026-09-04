@@ -530,5 +530,20 @@
   "monitor_probe_http": "Reachability",
   "monitor_probe_seo": "SEO score",
   "monitor_whois_hint": "Warns from 30 days of remaining registration. Not every TLD publishes an expiry date — .de (DENIC) and .eu (EURid) do not, so this watcher has nothing to report there. It works for .com/.net/.org and most new TLDs.",
-  "f_domain_no_expiry": "The registry publishes no expiry date for this TLD — the remaining registration period cannot be determined."
+  "f_domain_no_expiry": "The registry publishes no expiry date for this TLD — the remaining registration period cannot be determined.",
+  "nav_report": "Report",
+  "report_title": "Full report for one domain",
+  "report_hint": "Runs nine checks at once — DNS, DNSSEC, whois, mail health, MX, TLS, HTTP, SEO and blocklists for the first A address — and collects them on one sheet. Runs in parallel and takes 5 to 20 seconds depending on the domain. The result can be downloaded as Markdown and passed on.",
+  "action_report": "Create report",
+  "action_report_download": "Save as Markdown",
+  "report_score": "Score {score}/100",
+  "report_days_left": "{days} days left",
+  "report_listed": "on {listed} of {checked} blocklists",
+  "report_dnssec_signed": "signed",
+  "report_dnssec_unsigned": "not signed",
+  "report_md_title": "NetToolbox report: {domain}",
+  "report_md_generated": "_Generated on {when}_",
+  "report_md_overall": "**Overall verdict:** {level}",
+  "report_md_ip": "**IPv4:** {ip}",
+  "report_md_footer": "_Generated with NetToolbox._"
 }

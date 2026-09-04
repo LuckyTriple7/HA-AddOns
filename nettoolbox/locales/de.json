@@ -530,5 +530,20 @@
   "monitor_probe_http": "Erreichbarkeit",
   "monitor_probe_seo": "SEO-Punktestand",
   "monitor_whois_hint": "Warnt ab 30 Tagen Restlaufzeit. Nicht jede Endung veröffentlicht ein Ablaufdatum — .de (DENIC) und .eu (EURid) tun es nicht, dort kann dieser Wächter nichts melden. Bei .com/.net/.org und den meisten neuen Endungen funktioniert er.",
-  "f_domain_no_expiry": "Die Registry veröffentlicht kein Ablaufdatum für diese Endung — eine Restlaufzeit lässt sich damit nicht bestimmen."
+  "f_domain_no_expiry": "Die Registry veröffentlicht kein Ablaufdatum für diese Endung — eine Restlaufzeit lässt sich damit nicht bestimmen.",
+  "nav_report": "Bericht",
+  "report_title": "Gesamtbericht für eine Domain",
+  "report_hint": "Führt neun Prüfungen auf einmal aus — DNS, DNSSEC, Whois, Mail-Gesundheit, MX, TLS, HTTP, SEO und Sperrlisten für die erste A-Adresse — und fasst sie zu einem Blatt zusammen. Läuft parallel, dauert je nach Domain 5 bis 20 Sekunden. Das Ergebnis lässt sich als Markdown herunterladen und weiterreichen.",
+  "action_report": "Bericht erstellen",
+  "action_report_download": "Als Markdown speichern",
+  "report_score": "Punktestand {score}/100",
+  "report_days_left": "noch {days} Tage",
+  "report_listed": "auf {listed} von {checked} Sperrlisten",
+  "report_dnssec_signed": "signiert",
+  "report_dnssec_unsigned": "nicht signiert",
+  "report_md_title": "NetToolbox-Bericht: {domain}",
+  "report_md_generated": "_Erstellt am {when}_",
+  "report_md_overall": "**Gesamturteil:** {level}",
+  "report_md_ip": "**IPv4:** {ip}",
+  "report_md_footer": "_Erstellt mit NetToolbox._"
 }

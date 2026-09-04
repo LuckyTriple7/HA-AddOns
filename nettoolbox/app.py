@@ -7,6 +7,7 @@ authenticates on its own. The same image also serves as a worker: give it a
 token and it answers probe requests from another instance.
 """
 
+import concurrent.futures
 import functools
 import json
 import logging
@@ -723,6 +724,77 @@ def probe():
                     'backend': answer.get('backend', 'local'),
                     'worker': answer.get('worker') or {},
                     'ms': answer.get('ms', 0)})
+
+
+REPORT_STEPS = (
+    # (Prüfung, Parametername). Reihenfolge = Reihenfolge im Bericht; die
+    # Ausführung selbst läuft parallel, weil jede Prüfung für sich steht.
+    ('dns_all', 'name'),
+    ('dnssec', 'name'),
+    ('whois', 'domain'),
+    ('mail_health', 'domain'),
+    ('mx', 'domain'),
+    ('tls', 'target'),
+    ('http', 'target'),
+    ('seo', 'target'),
+)
+REPORT_WORKERS = 4
+
+
+def _report_step(name: str, params: dict) -> dict:
+    """Eine Prüfung für den Gesamtbericht. Ein Fehlschlag ist ein Ergebnis:
+    er wird als Zeile im Bericht vermerkt und reißt nie den ganzen Bericht
+    mit — genau wie beim Monitoring."""
+    try:
+        answer = get_backend().run(name, params)
+        return {'probe': name, 'result': answer.get('result') or {},
+                'ms': answer.get('ms', 0)}
+    except ProbeError as e:
+        return {'probe': name, 'error': e.code, 'detail': e.detail[:120]}
+    except Exception as e:  # noqa: BLE001 — ein Bericht bricht nie ganz ab
+        log.warning("report step %s failed: %s", name, type(e).__name__)
+        return {'probe': name, 'error': 'internal'}
+
+
+@api('/api/report', methods=('POST',))
+def report():
+    body = request.get_json(silent=True) or {}
+    domain = probes.clean_domain(str(body.get('domain') or ''))
+    # Jede Teilprüfung zählt einzeln gegen das Rate-Limit, sonst wäre ein
+    # Bericht ein Weg, es zu umgehen.
+    if not all(probe_budget_left() for _ in range(len(REPORT_STEPS) + 1)):
+        return jsonify({'error': 'rate_limited'}), 429
+
+    started = time.time()
+    steps = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=REPORT_WORKERS) as pool:
+        futures = {pool.submit(_report_step, name, {key: domain}): name
+                   for name, key in REPORT_STEPS}
+        done = {futures[f]: f.result() for f in
+                concurrent.futures.as_completed(futures)}
+    steps = [done[name] for name, _key in REPORT_STEPS if name in done]
+
+    # Die Sperrlisten-Prüfung braucht erst eine IP, kommt deshalb hinterher.
+    addresses = []
+    for step in steps:
+        if step['probe'] == 'dns_all':
+            for record_set in (step.get('result') or {}).get('sets', []):
+                if record_set['type'] == 'A':
+                    addresses = record_set['records']
+    if addresses:
+        steps.append(_report_step('blacklist', {'ip': addresses[0]}))
+
+    levels = [(s.get('result') or {}).get('level', '') for s in steps]
+    level = ('fail' if 'fail' in levels else
+             'warn' if 'warn' in levels else
+             'info' if 'info' in levels else 'ok')
+    history_add({'ts': int(started), 'probe': 'report', 'target': domain,
+                 'level': level, 'backend': 'local',
+                 'ms': int((time.time() - started) * 1000)})
+    return jsonify({'domain': domain, 'ip': addresses[0] if addresses else '',
+                    'steps': steps, 'level': level,
+                    'ms': int((time.time() - started) * 1000),
+                    'generated': int(started)})
 
 
 @api('/api/history')

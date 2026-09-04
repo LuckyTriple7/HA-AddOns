@@ -8,6 +8,8 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 
 ## Funktionen
 
+- **Gesamtbericht** — eine Domain eingeben, neun Prüfungen auf einem Blatt, Export als Markdown
+
 - **DNS** — alle gängigen Record-Typen, alle Standard-Typen in einem Rutsch, TXT, SOA mit
   Nameserver-Sync-Check
 - **Mail-Gesundheit** — SPF (inklusive Lookup-Zähler und Include-Kette), DKIM (Schlüsselstärke,

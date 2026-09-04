@@ -169,7 +169,8 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
 </header>
 
 <nav id="tabs">
-  <button data-tab="dns" class="active"><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.nav_dns }}</button>
+  <button data-tab="report" class="active"><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8,12H16V14H8V12M8,16H13V18H8V16Z"/></svg>{{ t.nav_report }}</button>
+  <button data-tab="dns"><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.nav_dns }}</button>
   <button data-tab="mail"><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.nav_mail_group }}</button>
   <button data-tab="propagation"><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.nav_propagation }}</button>
   <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
@@ -183,7 +184,25 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
 
 <main>
 
-<section id="tab-dns" class="active">
+<section id="tab-report" class="active">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8,12H16V14H8V12M8,16H13V18H8V16Z"/></svg>{{ t.report_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="reportDomain">{{ t.field_domain }}</label>
+        <input type="text" id="reportDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="reportRun">{{ t.action_report }}</button>
+        <button class="btn" id="reportDownload" style="display:none">{{ t.action_report_download }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.report_hint }}</p>
+    <div id="reportResult"></div>
+  </div>
+</section>
+
+<section id="tab-dns">
   <div class="card">
     <h2><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.dns_title }}</h2>
     <div class="row">
@@ -991,6 +1010,127 @@ $('dnsRunAll').addEventListener('click', dnsLookupAll);
 $('dnsRunTxt').addEventListener('click', dnsLookupTxt);
 $('dnsRunSoa').addEventListener('click', dnsLookupSoa);
 $('dnsName').addEventListener('keydown', e => { if (e.key === 'Enter') dnsLookup(); });
+
+// ── Gesamtbericht ───────────────────────────────────────────────────────────
+
+// Ueberschrift je Teilpruefung. Bewusst dieselben Begriffe wie in den
+// Reitern, damit klar ist, welche Karte im Bericht steckt.
+function reportStepLabel(probe){
+  return ({
+    dns_all: T.dns_title, dnssec: T.dnssec_title, whois: T.whois_title,
+    mail_health: T.mail_title, mx: T.mx_title, tls: T.tls_title,
+    http: T.http_title, seo: T.seo_title, blacklist: T.blacklist_title
+  })[probe] || probe;
+}
+
+// Eine Kennzahl pro Pruefung, sonst wird der Bericht eine Textwueste.
+function reportHeadline(step){
+  const r = step.result || {};
+  switch (step.probe) {
+    case 'mail_health': return fmtStr(T.report_score, { score: r.score });
+    case 'seo': return fmtStr(T.report_score, { score: r.score });
+    case 'tls': return r.days_left === undefined || r.days_left === null
+      ? '' : fmtStr(T.report_days_left, { days: r.days_left });
+    case 'whois': return r.days_until_expiry === null || r.days_until_expiry === undefined
+      ? (r.registrar || '') : fmtStr(T.report_days_left, { days: r.days_until_expiry });
+    case 'http': return String(r.final_status || '') + ' · ' + (r.final_url || '');
+    case 'blacklist': return fmtStr(T.report_listed,
+      { listed: r.listed_count, checked: r.checked });
+    case 'mx': return (r.mx || []).map(m => m.host).join(', ');
+    case 'dns_all': return (r.sets || []).map(x => x.type + ':' + x.records.length).join(' ');
+    case 'dnssec': return r.signed ? T.report_dnssec_signed : T.report_dnssec_unsigned;
+    default: return '';
+  }
+}
+
+let lastReport = null;
+
+function renderReport(data){
+  const box = $('reportResult');
+  box.innerHTML = '';
+  const head = el('div', 'row');
+  head.appendChild(levelBadge(data.level));
+  head.appendChild(el('span', 'chip', data.domain));
+  if (data.ip) head.appendChild(el('span', 'chip', data.ip));
+  head.appendChild(el('span', 'chip', Math.round(data.ms / 100) / 10 + ' s'));
+  box.appendChild(head);
+
+  data.steps.forEach(step => {
+    const card = el('div', 'subcard');
+    const h = el('h4');
+    h.appendChild(el('span', '', reportStepLabel(step.probe)));
+    // dns_all, mx und dnssec liefern kein Gesamturteil -- dann bleibt die
+    // Plakette weg statt als leerer grauer Fleck dazustehen.
+    const stepLevel = (step.result || {}).level;
+    if (step.error) h.appendChild(el('span', 'badge warn', errText(step.error)));
+    else if (stepLevel) h.appendChild(levelBadge(stepLevel));
+    card.appendChild(h);
+    if (step.error) { box.appendChild(card); return; }
+    const headline = reportHeadline(step);
+    if (headline) card.appendChild(el('div', 'mono', headline));
+    const findings = (step.result || {}).findings || [];
+    if (findings.length) card.appendChild(renderFindings(findings));
+    box.appendChild(card);
+  });
+}
+
+function reportMarkdown(data){
+  const when = new Date((data.generated || 0) * 1000).toLocaleString();
+  const lines = ['# ' + fmtStr(T.report_md_title, { domain: data.domain }), '',
+                 fmtStr(T.report_md_generated, { when: when }),
+                 fmtStr(T.report_md_overall, { level: T['level_' + data.level] || data.level })];
+  if (data.ip) lines.push(fmtStr(T.report_md_ip, { ip: data.ip }));
+  lines.push('');
+  data.steps.forEach(step => {
+    lines.push('## ' + reportStepLabel(step.probe));
+    if (step.error) { lines.push('- ' + errText(step.error), ''); return; }
+    const headline = reportHeadline(step);
+    if (headline) lines.push('**' + headline + '**', '');
+    ((step.result || {}).findings || []).forEach(f => {
+      lines.push('- [' + (T['level_' + f.level] || f.level) + '] ' + findingText(f));
+    });
+    lines.push('');
+  });
+  lines.push('---', T.report_md_footer);
+  return lines.join('\n');
+}
+
+function downloadReport(){
+  if (!lastReport) return;
+  const blob = new Blob([reportMarkdown(lastReport)], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = el('a');
+  a.href = url;
+  a.download = 'nettoolbox-' + lastReport.domain + '.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Erst nach dem Klick freigeben, sonst bricht der Download in Firefox ab.
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function runReport(){
+  const domain = $('reportDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('reportResult'); showLoading(box);
+  $('reportDownload').style.display = 'none';
+  $('reportRun').disabled = true;
+  try {
+    const data = await api('/api/report', { method: 'POST', body: { domain: domain } });
+    lastReport = data;
+    renderReport(data);
+    $('reportDownload').style.display = '';
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  } finally {
+    $('reportRun').disabled = false;
+  }
+}
+
+$('reportRun').addEventListener('click', runReport);
+$('reportDownload').addEventListener('click', downloadReport);
+$('reportDomain').addEventListener('keydown', e => { if (e.key === 'Enter') runReport(); });
 
 // ── Mail health tab ─────────────────────────────────────────────────────────
 

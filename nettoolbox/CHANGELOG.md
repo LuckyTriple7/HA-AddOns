@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.26] - 2026-09-04
+
+### Added
+- **Gesamtbericht für eine Domain.** Neuer erster Reiter „Bericht": eine Eingabe, neun Prüfungen
+  — DNS, DNSSEC, Whois, Mail-Gesundheit, MX, TLS, HTTP, SEO und Sperrlisten für die erste
+  A-Adresse — auf einem Blatt, mit Gesamturteil und je Prüfung einer Kennzahl (Punktestand,
+  Restlaufzeit, Status, gefundene Sperrlisten).
+- Ausführung läuft parallel über vier Arbeiter (`/api/report`); gegen echte Domains 1–2 Sekunden
+  statt der Summe aller Einzelläufe. Jede Teilprüfung zählt einzeln gegen das Rate-Limit, damit
+  der Bericht kein Weg daran vorbei ist.
+- Eine fehlgeschlagene Teilprüfung erscheint als Zeile im Bericht und reißt nie den ganzen
+  Bericht mit — dieselbe Regel wie beim Monitoring.
+- **Markdown-Export.** Knopf „Als Markdown speichern" erzeugt aus dem Ergebnis ein Dokument
+  (Überschrift je Prüfung, Kennzahl, alle Funde mit Stufe) und lädt es als
+  `nettoolbox-<domain>.md` herunter — zum Weiterreichen oder Archivieren.
+- Der Bericht ist jetzt die Startansicht; DNS und die übrigen Reiter bleiben unverändert einen
+  Klick entfernt.
+
 ## [0.1.25] - 2026-09-04
 
 ### Added
