@@ -2710,6 +2710,13 @@
       </div>
 
       <div class="panel" data-jump-panel>
+        <h3>🕒 {{ t.set_revisions_heading }}</h3>
+        <p class="hint">{{ t.set_revisions_hint }}</p>
+        <label>{{ t.set_revision_keep }}</label>
+        <input type="number" min="0" max="100" data-set="revision_keep" style="max-width:160px">
+      </div>
+
+      <div class="panel" data-jump-panel>
         <h3>🛡 {{ t.set_csp_heading }}</h3>
         <p class="hint">{{ t.set_csp_hint }}</p>
         <label>{{ t.set_csp_mode }}</label>

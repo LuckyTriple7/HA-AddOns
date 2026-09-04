@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.55
+
+- 🐛 **Die Einstellung für die früheren Stände gab es gar nicht.** Der Hinweis im Reiter *System* verwies auf eine Add-on-Option, die weder in `config.yaml` stand noch in den Einstellungen — gelesen wurde `revision_keep` zwar, gesetzt werden konnte es nirgends. Es blieb also immer beim eingebauten Standard von 20 Ständen, und die Meldung „Frühere Stände sind deaktiviert" konnte nie erscheinen. Die Einstellung steht jetzt im Zahnrad unter **Frühere Stände (Rückgängig)**, 0 bis 100, `0` schaltet die Sicherung ab.
+- 🎯 **Hinweistext richtiggestellt: ein zurückgeholter Stand betrifft mehr als Texte.** „Nur Seiteninhalte" klang nach Beiträgen; tatsächlich ist eine Revision eine vollständige Kopie von `site.json` und wird beim Zurückholen komplett darübergeschrieben — mitsamt Design und **Modulschaltern**. Wer einen Stand zurückholt, aus der Zeit als der Reiseblog noch an war, hat ihn danach wieder an. Was in eigenen Dateien liegt — Mitglieder, Nachrichten, Reiseblog-Inhalte, Statistik, Einstellungen — bleibt weiterhin unberührt.
+
 ## 0.11.54
 
 - 🐛 **Die Design-Vorschau überlebt jetzt auch „Durchsetzen".** Sie rendert die öffentliche Startseite im Admin und schiebt ein `<base>` auf die echte Adresse hinein, damit Bilder und Schriften von dort kommen. Ein `srcdoc`-Rahmen erbt aber die Regel des Elterndokuments — `base-uri 'none'` und `font-src 'self'` hätten dem Rahmen genau das genommen, was man in einer Design-Vorschau beurteilen will. Die Admin-Regel erlaubt für Schriften, Verbindungen, Manifest und `<base>` deshalb zusätzlich die Herkunft der öffentlichen Seite: die eingetragene öffentliche Adresse, sonst den Nachbarport. Hergeleitet wie in `api_preview`, damit beide nicht auseinanderlaufen.

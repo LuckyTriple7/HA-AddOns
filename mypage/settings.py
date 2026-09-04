@@ -76,6 +76,10 @@ FIELDS: dict = {
     # Mitgliederbereich und Backup
     'user_upload_max_mb': ('int',    200,   (1, 4096)),
     'auto_backup_keep':   ('int',    7,     (0, 60)),
+    # Frueherer Stand von site.json vor jeder Aenderung (Reiter System →
+    # Fruehere Staende). 0 = aus. Deckel bei 100: jede Revision ist eine
+    # vollstaendige Kopie von site.json.
+    'revision_keep':      ('int',    20,    (0, 100)),
     # SMB-Speicher für Mitglieder-Dateien
     'smb_server':         ('str',    '',    200),
     'smb_share':          ('str',    '',    200),

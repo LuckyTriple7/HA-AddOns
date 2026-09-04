@@ -49,6 +49,7 @@ Im Reiter **Einstellungen** ganz unten. Der Export verpackt `settings.key` mit e
 | `visit_bot_nets` | Optional: eigene IP-Netze in CIDR-Schreibweise (z. B. `194.180.48.0/24`), die zusätzlich zu den eingebauten Cloud-Netzen als Bot gelten |
 | `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
 | `geoip_offline` | Länder-Erkennung über eine lokale IP-Tabelle (Standard: an, keine Besucher-IP verlässt das Add-on) |
+| `revision_keep` | Wie viele frühere Stände der Seiteninhalte aufbewahrt werden (0–100, Standard 20; `0` = aus). Vor jeder Änderung legt MyPage eine vollständige Kopie von `site.json` unter `revisions/` ab — zurückholen im Reiter **System → Frühere Stände**. Eine Kopie enthält Beiträge, Seiten, Projekte, Bibliothek, Formulare, Abschnitte und Design **einschließlich der Modulschalter**; Mitglieder, Nachrichten, Reiseblog-Inhalte und Statistik liegen in eigenen Dateien und bleiben unberührt |
 | `csp_mode` | Sicherheits-Kopfzeilen für den Browser: `report` (Standard) schickt die Content-Security-Policy als `Content-Security-Policy-Report-Only` mit — der Browser blockiert nichts, meldet Verstöße nur in seiner Konsole (F12). `on` setzt sie durch, `off` schickt keine. Unabhängig davon gehen `Permissions-Policy`, `X-Content-Type-Options: nosniff` und `Referrer-Policy` immer mit |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
 | `telegram_chat_id` | Chat-ID für die Telegram-Benachrichtigungen |
