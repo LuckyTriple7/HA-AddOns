@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.22] - 2026-09-04
+
+### Changed
+- **Alles zum Thema Mail sitzt jetzt in einem Reiter.** Mail-Gesundheit, MX-Server, SMTP-Server
+  und Sperrlisten lagen quer über die Leiste verteilt, dazwischen DNS-, TLS- und HTTP-Reiter.
+  Sie stehen jetzt als vier Karten untereinander im Reiter **Mail**, in der Reihenfolge, in der
+  man sie beim Nachsehen braucht: Gesamtbild, MX, Server-Direkttest, Ruf der IP.
+- Die Navigationsleiste schrumpft dadurch von zwölf auf zehn Einträge; die Reiter "SMTP" und
+  "Sperrlisten" entfallen als eigene Punkte.
+- Die MX-Karte hat ein eigenes Symbol bekommen (Posteingang statt Briefumschlag), damit sie sich
+  in der neuen Nachbarschaft von der Mail-Gesundheit unterscheidet.
+
 ## [0.1.21] - 2026-09-04
 
 ### Added

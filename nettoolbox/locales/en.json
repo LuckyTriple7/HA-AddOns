@@ -445,5 +445,6 @@
   "f_smtp_relay_source_hint": "The test ran from a private address ({ip}), so the connection goes through NAT or out of a container. If this add-on runs on the same machine or in the same Docker network as the mail server, that source may well sit in its mynetworks — in which case this is not an open relay towards the internet. Check from a foreign network to settle it.",
   "smtp_relay_badge_local": "Relay open — from here",
   "smtp_source_label": "Tested from",
-  "smtp_source_title": "Source address of this check and the target address it reached. It matters for the relay test: mail servers trust their own network."
+  "smtp_source_title": "Source address of this check and the target address it reached. It matters for the relay test: mail servers trust their own network.",
+  "nav_mail_group": "Mail"
 }
