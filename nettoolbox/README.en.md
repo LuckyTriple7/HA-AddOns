@@ -17,6 +17,8 @@ about your domains leaves your own infrastructure.
   authorisation), MTA-STS (policy file checked against the real MX records), TLS-RPT, BIMI — with
   its own 0-100 score
 - **Propagation** — the same query against eight public resolvers at once
+- **DNS snapshot** — record the zone and later compare it against now or a second
+  snapshot; shows what changed since a migration
 - **Reverse DNS / MX** — PTR with forward confirmation, MX servers with addresses and reverse
   names
 - **Blocklists** — an IP checked against 15 public DNSBL/RBL lists in parallel, with reason text

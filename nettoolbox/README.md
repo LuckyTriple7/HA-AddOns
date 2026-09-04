@@ -16,6 +16,8 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Selektoren werden geraten), DMARC (Richtlinie, Berichtsadressen, Fremd-Domain-Autorisierung),
   MTA-STS (Policy gegen echte MX-Einträge geprüft), TLS-RPT, BIMI — mit eigenem 0–100-Punktestand
 - **Propagation** — dieselbe Abfrage gegen acht öffentliche Resolver gleichzeitig
+- **DNS-Momentaufnahme** — Zonenstand festhalten und später gegen jetzt oder eine zweite
+  Aufnahme vergleichen; zeigt, was sich seit einem Umzug geändert hat
 - **Reverse-DNS / MX** — PTR mit Vorwärts-Abgleich, MX-Server mit Adressen und Reverse-Namen
 - **Sperrlisten** — eine IP gegen 15 öffentliche DNSBL/RBL parallel geprüft, mit Begründungstext
 - **SSL/TLS** — Zertifikatskette, Ablaufdatum, Hostname-Abdeckung, ausgehandelte TLS-Version

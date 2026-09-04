@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.27] - 2026-09-04
+
+### Added
+- **DNS-Momentaufnahme & Vergleich** (neue Karte im DNS-Reiter, `snapshots.py`). Hält den
+  Zonenstand fest — A, AAAA, MX, NS, TXT, SOA, CAA, DS am Apex plus `www` und `_dmarc`, den
+  beiden Namen, an denen sich in der Praxis am häufigsten unbemerkt etwas ändert — und zeigt
+  später, was anders ist.
+- Verglichen wird wahlweise **gegen den jetzigen Stand** oder **gegen eine zweite Aufnahme**;
+  das Ergebnis steht als Zeilendiff da (`−` alt, `+` neu), immer von der älteren zur neueren
+  Aufnahme, egal in welcher Reihenfolge man sie auswählt.
+- TTL-Änderungen zählen bewusst nicht als Änderung — eine von 3600 auf 3599 heruntergelaufene
+  TTL ist kein Ereignis.
+- Eigene SQLite-Datei `snapshots.db` nach dem Muster des Monitor-Speichers (eine Verbindung je
+  Thread, WAL, Schreibsperre). Bis zu 30 Aufnahmen je Domain und 500 insgesamt, ältere fallen
+  beim Speichern heraus. Der Speicher hängt nicht am Monitoring und steht auch dann bereit,
+  wenn kein Wächter eingerichtet ist.
+- Eine einzelne fehlgeschlagene Abfrage wird als Zeile mit Fehlercode aufgenommen, statt die
+  ganze Momentaufnahme scheitern zu lassen.
+
 ## [0.1.26] - 2026-09-04
 
 ### Added

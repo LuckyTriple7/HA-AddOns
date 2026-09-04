@@ -27,6 +27,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import monitor
 import settings as usersettings
+import snapshots as dnssnapshots
 import probes
 from netcore import Context, ProbeError
 from remote import TOKEN_HEADER, LocalBackend, RemoteBackend
@@ -47,6 +48,7 @@ SESSIONS_PATH = _DATA + '/sessions.json'
 SECRET_PATH = _DATA + '/secret.key'
 HISTORY_PATH = _DATA + '/history.json'
 MONITOR_DB_PATH = _DATA + '/monitors.db'
+SNAPSHOT_DB_PATH = _DATA + '/snapshots.db'
 LOCALES_PATH = _BASE + '/locales'
 
 PORT = int(os.environ.get('NETTOOLBOX_PORT', '17798'))
@@ -195,6 +197,7 @@ def notify_config() -> dict:
 
 
 _monitor_store = monitor.MonitorStore(MONITOR_DB_PATH)
+_snapshot_store = dnssnapshots.SnapshotStore(SNAPSHOT_DB_PATH)
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
@@ -410,6 +413,8 @@ _ERROR_STATUS = {
     'worker_auth': 502, 'worker_unreachable': 502, 'worker_tls': 502,
     'worker_bad_response': 502, 'worker_error': 502,
     'monitor_not_found': 404, 'bad_probe': 400,
+    'snapshot_not_found': 404, 'snapshot_store_broken': 503,
+    'snapshot_domain_mismatch': 400,
 }
 
 
@@ -430,6 +435,8 @@ def api(rule: str, methods=('GET',)):
                 return (jsonify({'error': e.code, 'detail': e.detail}),
                         _ERROR_STATUS.get(e.code, 502))
             except monitor.MonitorError as e:
+                return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
+            except dnssnapshots.SnapshotError as e:
                 return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
             except Exception:
                 log.exception("unhandled error in %s", rule)
@@ -797,6 +804,67 @@ def report():
                     'generated': int(started)})
 
 
+def _snapshot_store_ready():
+    if _snapshot_store.broken:
+        raise dnssnapshots.SnapshotError('snapshot_store_broken')
+    return _snapshot_store
+
+
+@api('/api/snapshots', methods=('GET', 'POST'))
+def snapshots_route():
+    store = _snapshot_store_ready()
+    if request.method == 'GET':
+        domain = str(request.args.get('domain') or '').strip().lower()[:253]
+        return jsonify({'snapshots': store.list(domain)})
+    if not probe_budget_left():
+        return jsonify({'error': 'rate_limited'}), 429
+    body = request.get_json(silent=True) or {}
+    domain = probes.clean_domain(str(body.get('domain') or ''))
+    label = str(body.get('label') or '')[:80]
+    records = dnssnapshots.capture(build_context(), domain)
+    return jsonify({'snapshot': store.add(domain, records, label)})
+
+
+@api('/api/snapshots/<int:snapshot_id>', methods=('GET', 'DELETE'))
+def snapshot_route(snapshot_id: int):
+    store = _snapshot_store_ready()
+    if request.method == 'DELETE':
+        store.delete(snapshot_id)
+        return jsonify({'ok': True})
+    return jsonify({'snapshot': store.get(snapshot_id)})
+
+
+@api('/api/snapshots/<int:snapshot_id>/compare', methods=('POST',))
+def snapshot_compare(snapshot_id: int):
+    """Gegen den jetzigen Stand oder gegen eine zweite Aufnahme."""
+    store = _snapshot_store_ready()
+    snapshot = store.get(snapshot_id)
+    body = request.get_json(silent=True) or {}
+    against = str(body.get('against') or 'live')
+    if against == 'live':
+        if not probe_budget_left():
+            return jsonify({'error': 'rate_limited'}), 429
+        other = {'id': 0, 'domain': snapshot['domain'], 'ts': int(time.time()),
+                 'label': '', 'records': dnssnapshots.capture(build_context(),
+                                                              snapshot['domain'])}
+    else:
+        try:
+            other = store.get(int(against))
+        except (TypeError, ValueError):
+            raise dnssnapshots.SnapshotError('snapshot_not_found')
+        if other['domain'] != snapshot['domain']:
+            raise dnssnapshots.SnapshotError('snapshot_domain_mismatch')
+    # Immer aelter -> neuer, egal in welcher Reihenfolge die beiden kamen:
+    # "hinzugefuegt" soll heissen, dass es jetzt da ist und vorher nicht.
+    older, newer = ((snapshot, other) if snapshot['ts'] <= other['ts']
+                    else (other, snapshot))
+    return jsonify({'domain': snapshot['domain'],
+                    'before': {'id': older['id'], 'ts': older['ts']},
+                    'after': {'id': newer['id'], 'ts': newer['ts']},
+                    'diff': dnssnapshots.compare(older['records'],
+                                                 newer['records'])})
+
+
 @api('/api/history')
 def history():
     with _history_lock:
@@ -955,6 +1023,12 @@ def _startup_checks() -> None:
             else:
                 log.warning("probe worker not usable yet: %s",
                             state.get('error'))
+
+    # Der Snapshot-Speicher haengt nicht am Monitoring: er wird auch dann
+    # gebraucht, wenn niemand einen Waechter eingerichtet hat.
+    if not _snapshot_store.open():
+        log.warning("snapshot store could not be opened (%s) — DNS snapshots "
+                    "unavailable", _snapshot_store.broken)
 
     if bool(cfg.get('monitoring_enabled', True)):
         if _monitor_store.open():

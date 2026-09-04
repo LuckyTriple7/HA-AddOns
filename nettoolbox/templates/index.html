@@ -90,6 +90,16 @@ tr:last-child td { border-bottom: none; }
 .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.82rem;
         word-break: normal; overflow-wrap: anywhere; }
 .delist-link { margin-left: 8px; font-size: 0.74rem; }
+.snap-row { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            padding: 7px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.snap-row:first-child { border-top: 0; }
+.snap-info { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.snap-actions { display: flex; gap: 6px; align-items: center; }
+.snap-actions select { width: auto; max-width: 230px; }
+.diff-block { padding: 6px 0; }
+.diff-block .diff-name { font-size: 0.78rem; color: var(--muted); }
+.diff-removed { color: var(--red); }
+.diff-added { color: var(--green-h); }
 .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600; }
 .badge.ok { background: rgba(35,134,54,.15); color: var(--green-h); }
 .badge.info { background: rgba(88,166,255,.15); color: var(--blue); }
@@ -226,6 +236,25 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <button class="btn" id="dnsRunSoa">SOA / {{ t.field_nameservers }}</button>
     </div>
     <div id="dnsResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.snapshot_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="snapDomain">{{ t.field_domain }}</label>
+        <input type="text" id="snapDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div class="grow">
+        <label class="field" for="snapLabel">{{ t.field_snapshot_label }}</label>
+        <input type="text" id="snapLabel" placeholder="{{ t.ph_snapshot_label }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="snapAdd">{{ t.action_snapshot_add }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.snapshot_hint }}</p>
+    <div id="snapList"><p class="result-empty">{{ t.loading }}</p></div>
+    <div id="snapDiff"></div>
   </div>
 </section>
 
@@ -1131,6 +1160,127 @@ async function runReport(){
 $('reportRun').addEventListener('click', runReport);
 $('reportDownload').addEventListener('click', downloadReport);
 $('reportDomain').addEventListener('keydown', e => { if (e.key === 'Enter') runReport(); });
+
+// ── DNS-Momentaufnahmen ─────────────────────────────────────────────────────
+
+let snapshotList = [];
+
+function snapWhen(ts){
+  return new Date(ts * 1000).toLocaleString();
+}
+
+async function loadSnapshots(){
+  const box = $('snapList');
+  try {
+    const data = await api('/api/snapshots');
+    snapshotList = data.snapshots || [];
+    box.innerHTML = '';
+    if (!snapshotList.length) {
+      box.appendChild(el('p', 'result-empty', T.snapshot_empty));
+      return;
+    }
+    snapshotList.forEach(snap => {
+      const row = el('div', 'snap-row');
+      const left = el('span', 'snap-info');
+      left.appendChild(el('span', 'mono', snap.domain));
+      left.appendChild(el('span', 'chip', snapWhen(snap.ts)));
+      left.appendChild(el('span', 'chip',
+        fmtStr(T.snapshot_records, { total: snap.records_total })));
+      if (snap.label) left.appendChild(el('span', 'chip', snap.label));
+      row.appendChild(left);
+
+      const actions = el('span', 'snap-actions');
+      const live = el('button', 'btn', T.action_snapshot_compare_live);
+      live.addEventListener('click', () => compareSnapshot(snap.id, 'live'));
+      actions.appendChild(live);
+
+      // Zweite Aufnahme derselben Domain? Dann auch untereinander vergleichbar.
+      const others = snapshotList.filter(o => o.domain === snap.domain && o.id !== snap.id);
+      if (others.length) {
+        const select = el('select');
+        select.appendChild(el('option', '', T.action_snapshot_compare_with));
+        others.forEach(o => {
+          const opt = el('option', '', snapWhen(o.ts) + (o.label ? ' · ' + o.label : ''));
+          opt.value = String(o.id);
+          select.appendChild(opt);
+        });
+        select.addEventListener('change', () => {
+          if (select.value) compareSnapshot(snap.id, select.value);
+          select.selectedIndex = 0;
+        });
+        actions.appendChild(select);
+      }
+
+      const del = el('button', 'btn danger', T.action_delete);
+      del.addEventListener('click', () => deleteSnapshot(snap.id));
+      actions.appendChild(del);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  }
+}
+
+async function addSnapshot(){
+  const domain = $('snapDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  $('snapAdd').disabled = true;
+  try {
+    await api('/api/snapshots', { method: 'POST',
+      body: { domain: domain, label: $('snapLabel').value.trim() } });
+    $('snapLabel').value = '';
+    toast(T.snapshot_saved);
+    await loadSnapshots();
+  } catch (e) { toast(errText(e.code), true); }
+  finally { $('snapAdd').disabled = false; }
+}
+
+async function deleteSnapshot(id){
+  if (!confirm(T.snapshot_delete_confirm)) return;
+  try {
+    await api('/api/snapshots/' + id, { method: 'DELETE' });
+    await loadSnapshots();
+  } catch (e) { toast(errText(e.code), true); }
+}
+
+async function compareSnapshot(id, against){
+  const box = $('snapDiff'); showLoading(box);
+  try {
+    const data = await api('/api/snapshots/' + id + '/compare',
+      { method: 'POST', body: { against: against } });
+    box.innerHTML = '';
+    const card = el('div', 'subcard');
+    const head = el('h4');
+    head.appendChild(el('span', '', fmtStr(T.snapshot_diff_title,
+      { domain: data.domain })));
+    head.appendChild(el('span', 'badge ' + (data.diff.identical ? 'ok' : 'warn'),
+      data.diff.identical ? T.snapshot_no_changes
+        : fmtStr(T.snapshot_change_count, { count: data.diff.changed.length })));
+    card.appendChild(head);
+    const when = el('div', 'hint');
+    when.textContent = snapWhen(data.before.ts) + '  →  ' +
+      (data.after.id ? snapWhen(data.after.ts) : T.snapshot_now);
+    card.appendChild(when);
+
+    data.diff.changed.forEach(change => {
+      const block = el('div', 'diff-block');
+      block.appendChild(el('div', 'diff-name', change.name + '  ' + change.type));
+      change.removed.forEach(r => block.appendChild(el('div', 'mono diff-removed', '− ' + r)));
+      change.added.forEach(r => block.appendChild(el('div', 'mono diff-added', '+ ' + r)));
+      card.appendChild(block);
+    });
+    box.appendChild(card);
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  }
+}
+
+$('snapAdd').addEventListener('click', addSnapshot);
+$('snapDomain').addEventListener('keydown', e => { if (e.key === 'Enter') addSnapshot(); });
+loadSnapshots();
 
 // ── Mail health tab ─────────────────────────────────────────────────────────
 
