@@ -24,6 +24,7 @@ about your domains leaves your own infrastructure.
 - **SMTP** — banner, EHLO capabilities, STARTTLS, open-relay test (never actually delivers mail)
 - **HTTP/3 (QUIC)** — a real handshake over UDP/443, not just the Alt-Svc advertisement
 - **Ping / Traceroute** — via the container's own system tools
+- **IP lookup** — location, provider and AS number of an IP (ip-api.com), including your own public IP
 - **DNSSEC** — DS/DNSKEY status, whether the resolver validated the answer (AD flag)
 - **Monitoring** — check domains/IPs automatically at a chosen interval (TLS expiry, blocklists,
   mail health), notification by email or Telegram on a state change; SMTP/Telegram set up via

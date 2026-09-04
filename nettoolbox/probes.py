@@ -8,6 +8,7 @@ root server.
 
 import blocklists
 import domaininfo
+import geoip
 import httpcheck
 import mailauth
 import netutils
@@ -309,6 +310,13 @@ def p_ping(ctx: Context, params: dict) -> dict:
                                 family=_str(params, 'family'))
 
 
+def p_ipinfo(ctx: Context, params: dict) -> dict:
+    """An empty target is not an error here -- it means "which address does
+    this instance itself come from", which is exactly what the button next to
+    the field asks."""
+    return geoip.check_ip(ctx, _str(params, 'ip'), lang=_str(params, 'lang', 'en'))
+
+
 def p_traceroute(ctx: Context, params: dict) -> dict:
     return netutils.check_traceroute(ctx, _str(params, 'target'),
                                      family=_str(params, 'family'),
@@ -335,6 +343,7 @@ PROBES = {
     'quic': p_quic,
     'ping': p_ping,
     'traceroute': p_traceroute,
+    'ipinfo': p_ipinfo,
     'spf': p_spf,
     'dkim': p_dkim,
     'dmarc': p_dmarc,
@@ -350,7 +359,7 @@ TARGET_KIND = {
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
-    'ping': 'ip', 'traceroute': 'ip',
+    'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',
     'mail_health': 'domain',

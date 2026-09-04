@@ -24,6 +24,7 @@ COPY httpcheck.py .
 COPY smtpcheck.py .
 COPY quiccheck.py .
 COPY netutils.py .
+COPY geoip.py .
 COPY monitor.py .
 COPY settings.py .
 COPY probes.py .

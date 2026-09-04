@@ -250,6 +250,21 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     <div id="revResult"></div>
   </div>
   <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C8.13,2 5,5.13 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9C19,5.13 15.87,2 12,2M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5Z"/></svg>{{ t.ipinfo_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="ipinfoTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="ipinfoTarget" placeholder="203.0.113.10 oder example.com" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="ipinfoRun">{{ t.action_lookup }}</button>
+        <button class="btn" id="ipinfoOwn">{{ t.action_ipinfo_own }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.ipinfo_hint }}</p>
+    <div id="ipinfoResult"></div>
+  </div>
+  <div class="card">
     <h2><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.mx_title }}</h2>
     <div class="row">
       <div class="grow">
@@ -1098,6 +1113,109 @@ $('revRun').addEventListener('click', revCheck);
 $('revIp').addEventListener('keydown', e => { if (e.key === 'Enter') revCheck(); });
 $('mxRun').addEventListener('click', mxCheck);
 $('mxDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mxCheck(); });
+
+// ── IP-Lookup (Geolocation / ISP / ASN via ip-api.com) ──────────────────────
+
+function ipinfoRow(card, label, value){
+  if (value === undefined || value === null || value === '') return;
+  const row = el('div', 'kv');
+  row.appendChild(el('span', '', label));
+  row.appendChild(el('span', 'mono', String(value)));
+  card.appendChild(row);
+}
+
+function ipinfoOffset(seconds){
+  // ip-api reports the offset in seconds; half-hour zones (India, Nepal)
+  // are real, so the minutes are not thrown away.
+  if (seconds === null || seconds === undefined) return '';
+  const sign = seconds < 0 ? '-' : '+';
+  const total = Math.abs(Math.round(seconds / 60));
+  const hh = Math.floor(total / 60);
+  const mm = total % 60;
+  return ' (UTC' + sign + hh + (mm ? ':' + String(mm).padStart(2, '0') : '') + ')';
+}
+
+function ipinfoFlag(code){
+  // Regional-indicator pair -- no image, no font file, works in every
+  // browser that has an emoji font (and degrades to two letters if not).
+  if (!code || code.length !== 2) return '';
+  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+async function ipinfoCheck(own){
+  const target = own ? '' : $('ipinfoTarget').value.trim();
+  if (!own && !target) { toast(T.err_empty_target, true); return; }
+  const box = $('ipinfoResult'); showLoading(box);
+  const button = own ? $('ipinfoOwn') : $('ipinfoRun');
+  try {
+    const data = await runProbe('ipinfo', { ip: target, lang: G.lang }, target || '-', button);
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.query));
+    if (r.country_code) {
+      const flag = ipinfoFlag(r.country_code);
+      badges.appendChild(el('span', 'chip', (flag ? flag + ' ' : '') + r.country_code));
+    }
+    if (r.resolved_from) badges.appendChild(el('span', 'chip', r.resolved_from));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.public) {
+      const grid = el('div', 'subgrid');
+
+      const place = el('div', 'subcard');
+      place.appendChild(el('h4', '', T.ipinfo_location));
+      ipinfoRow(place, T.ipinfo_country, [r.country, r.country_code].filter(Boolean).join(' · '));
+      ipinfoRow(place, T.ipinfo_region, [r.region, r.region_code].filter(Boolean).join(' · '));
+      ipinfoRow(place, T.ipinfo_city, [r.zip, r.city, r.district].filter(Boolean).join(' '));
+      ipinfoRow(place, T.ipinfo_continent, r.continent);
+      ipinfoRow(place, T.ipinfo_timezone, r.timezone + ipinfoOffset(r.utc_offset));
+      if (r.lat !== null && r.lat !== undefined && r.lon !== null && r.lon !== undefined) {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', '', T.ipinfo_coords));
+        const link = el('a', 'mono', r.lat + ', ' + r.lon);
+        link.href = 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(r.lat) +
+          '&mlon=' + encodeURIComponent(r.lon) + '#map=9/' +
+          encodeURIComponent(r.lat) + '/' + encodeURIComponent(r.lon);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.title = T.ipinfo_map_hint;
+        row.appendChild(link);
+        place.appendChild(row);
+      }
+      grid.appendChild(place);
+
+      const net = el('div', 'subcard');
+      net.appendChild(el('h4', '', T.ipinfo_network));
+      ipinfoRow(net, T.ipinfo_isp, r.isp);
+      ipinfoRow(net, T.ipinfo_org, r.org);
+      ipinfoRow(net, 'AS', [r.asn, r.as_name].filter(Boolean).join(' · '));
+      ipinfoRow(net, 'PTR', (r.ptr || []).join(', ') || T.no_records);
+      const flags = [];
+      if (r.hosting) flags.push(T.ipinfo_flag_hosting);
+      if (r.mobile) flags.push(T.ipinfo_flag_mobile);
+      if (r.proxy) flags.push(T.ipinfo_flag_proxy);
+      ipinfoRow(net, T.ipinfo_flags, flags.join(', ') || T.ipinfo_flag_none);
+      grid.appendChild(net);
+
+      wrap.appendChild(grid);
+    } else if ((r.ptr || []).length) {
+      const net = el('div', 'subcard');
+      net.appendChild(el('h4', '', T.ipinfo_network));
+      ipinfoRow(net, 'PTR', r.ptr.join(', '));
+      wrap.appendChild(net);
+    }
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('ipinfoRun').addEventListener('click', () => ipinfoCheck(false));
+$('ipinfoOwn').addEventListener('click', () => ipinfoCheck(true));
+$('ipinfoTarget').addEventListener('keydown', e => { if (e.key === 'Enter') ipinfoCheck(false); });
 
 async function pingCheck(){
   const target = $('pingTarget').value.trim();

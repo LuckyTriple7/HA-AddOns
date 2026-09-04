@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.14] - 2026-09-04
+
+### Added
+- **IP-Lookup (Standort & Betreiber).** Neue Karte in der Sektion "Reverse/IP": IP-Adresse oder
+  Domainname eingeben und Geolocation (Land, Region, Ort, PLZ, Zeitzone, Koordinaten), Anbieter,
+  Organisation und AS-Nummer direkt im Add-on anzeigen. Datenquelle ist ip-api.com (kostenlos,
+  ohne Schlüssel, rund 45 Abfragen pro Minute) — deshalb eine Abfrage pro Klick, kein Polling.
+  Ein Domainname wird vorher per DNS aufgelöst (A vor AAAA), der PTR-Name kommt aus den eigenen
+  konfigurierten Resolvern statt aus ip-apis `reverse`-Feld (das dort eine zusätzliche
+  rDNS-Abfrage auslöst und die Antwort merklich verlangsamt).
+- **Button "Eigene IP".** Leere Abfrage an ip-api.com zeigt die öffentliche Adresse, mit der die
+  laufende Instanz nach außen geht — zu Hause die des Anschlusses, im Worker-Modus die des
+  Root-Servers.
+- Einstufung als Rechenzentrum/Hosting, Mobilfunknetz oder Proxy/VPN/Tor wird mit ausgegeben;
+  Proxy/VPN ist eine Warnung, Hosting und Mobilfunk bleiben reine Hinweise und färben die Ampel
+  nicht.
+- Private und reservierte Adressen werden gar nicht erst an ip-api.com geschickt, sondern als
+  Warnung mit PTR-Ergebnis beantwortet.
+
 ## [0.1.13] - 2026-09-03
 
 ### Added
