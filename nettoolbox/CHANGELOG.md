@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.3] - 2026-09-04
+
+### Fixed
+- **Aus dem Webmailer kopierte Mail-Köpfe werden endlich gelesen.** GMX (und andere) zeigen
+  den Quelltext als Tabelle; wer die markiert und einfügt, bekommt Name, Doppelpunkt und Wert
+  auf **drei** Zeilen. Für den Parser war das kein Kopf mehr, sondern Fließtext — die Analyse
+  meldete stumpf „SPF taucht im Kopf nicht auf", „keine Received-Zeilen", „keine Message-ID",
+  obwohl alles davon dastand. Solche Dreiergruppen (und die Zweiervariante `Name` / `: Wert`)
+  werden jetzt vor der Auswertung wieder zusammengesetzt, und ein Hinweis sagt, dass das
+  passiert ist. Eingerückte Fortsetzungszeilen bleiben unangetastet — sonst zerlegte die
+  Reparatur gefaltete Received-Zeilen.
+- **Die eigenen Benachrichtigungsmails haben jetzt `Date` und `Message-ID`.** Beides gehört
+  nach RFC 5322 in jede Mail, und `smtplib` setzt von sich aus keines von beiden. Aufgefallen
+  ist es, weil die Kopfanalyse an einer Willkommensmail des Add-ons selbst „keine
+  Message-ID" meldete — zu Recht. Manche Empfänger werten das als Spam-Merkmal.
+
 ## [0.3.2] - 2026-09-04
 
 ### Changed

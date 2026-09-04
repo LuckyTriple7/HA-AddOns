@@ -22,6 +22,7 @@ import blocklists  # noqa: E402
 import geoip  # noqa: E402
 import hasensors  # noqa: E402
 import mailheader  # noqa: E402
+import monitor  # noqa: E402
 import mailprovider  # noqa: E402
 import netcore  # noqa: E402
 import nettech  # noqa: E402
@@ -408,6 +409,99 @@ def test_header_rejects_empty_and_oversized():
         mailheader.analyse('   ')
     with pytest.raises(ValueError):
         mailheader.analyse('X: ' + 'a' * (mailheader.MAX_HEADER_BYTES + 10))
+
+
+# Aus einem Webmailer kopierte Koepfe stehen als Tabelle da: Name,
+# Doppelpunkt und Wert auf drei Zeilen. Vor 0.3.3 war das fuer den Parser
+# Fliesstext -- die Analyse meldete lauter Fehlanzeigen.
+WEBMAIL_HEADER = """Return-Path
+:
+<noreply@example.com>
+Authentication-Results
+:
+gmx.net; dkim=pass header.i=@example.com; spf=pass smtp.mailfrom=noreply@example.com
+Received
+:
+from mail.example.com ([203.0.113.7]) by mx-ha.gmx.net; Fri, 04 Sep 2026 21:46:37 +0200
+DKIM-Signature
+:
+v=1; a=rsa-sha256; d=example.com; s=dkim
+Subject
+:
+Ein Betreff
+From
+:
+noreply@example.com
+"""
+
+
+def test_header_reads_a_webmail_table():
+    result = mailheader.analyse(WEBMAIL_HEADER)
+    assert len(result['hops']) == 1
+    assert result['hops'][0]['by'] == 'mx-ha.gmx.net'
+    assert result['auth']['spf'] == 'pass'
+    assert result['auth']['dkim'] == 'pass'
+    assert result['subject'] == 'Ein Betreff'
+    assert result['dkim_signatures'][0]['domain'] == 'example.com'
+    assert any(f['code'] == 'hdr_repaired' for f in result['findings'])
+
+
+def test_header_repair_leaves_a_normal_header_alone():
+    normal = ('Return-Path: <a@b.de>\n'
+              'Received: from x.de ([1.2.3.4]) by y.de;'
+              ' Fri, 04 Sep 2026 21:46:37 +0200\n'
+              'Message-ID: <abc@b.de>\n')
+    fixed, repaired = mailheader.repair_split_headers(normal)
+    assert fixed == normal
+    assert repaired == 0
+    assert not any(f['code'] == 'hdr_repaired'
+                   for f in mailheader.analyse(normal)['findings'])
+
+
+def test_header_repair_keeps_folded_lines():
+    # Eingerueckte Zeilen sind Fortsetzungen, nie ein Kopfzeilenname -- sonst
+    # zerlegte die Reparatur gefaltete Received-Zeilen.
+    folded = ('Received: from x.de ([1.2.3.4])\n'
+              '\tby y.de with ESMTPS;\n'
+              ' Fri, 04 Sep 2026 21:46:37 +0200\n')
+    fixed, repaired = mailheader.repair_split_headers(folded)
+    assert fixed == folded
+    assert repaired == 0
+
+
+def test_notification_mail_carries_date_and_message_id():
+    # Ohne beides zeigt jede Kopfanalyse eine Fehlanzeige, und mancher
+    # Empfaenger wertet es als Spam-Merkmal.
+    captured = {}
+
+    class _FakeSMTP:
+        def __init__(self, host, port, timeout=15):
+            pass
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def sendmail(self, sender, to, text):
+            captured['text'] = text
+
+        def quit(self):
+            pass
+
+    original = monitor.smtplib.SMTP
+    monitor.smtplib.SMTP = _FakeSMTP
+    try:
+        ok, error = monitor.send_email(
+            {'smtp_host': 'mail.example.com', 'smtp_to': 'x@example.com',
+             'smtp_from': 'noreply@example.com'}, 'Test', 'Inhalt')
+    finally:
+        monitor.smtplib.SMTP = original
+    assert ok and not error
+    parsed = mailheader.analyse(captured['text'])
+    assert parsed['message_id'].endswith('@example.com>')
+    assert parsed['date']
 
 
 def test_header_survives_a_fragment():

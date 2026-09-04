@@ -668,6 +668,7 @@
   "f_hdr_auth_missing": "{method} taucht im Kopf nicht auf — der empfangende Server hat es nicht geprüft oder das Ergebnis nicht vermerkt.",
   "f_hdr_return_path_mismatch": "Absenderdomain ({sender}) und Rückweg ({envelope}) stimmen nicht überein — für DMARC ist das eine fehlende Ausrichtung, bei Newslettern aber normal.",
   "f_hdr_reply_to_differs": "Antworten gehen an eine andere Domain ({reply}) als die Absenderadresse — bei Phishing das übliche Muster, bei Support-Systemen normal.",
+  "f_hdr_repaired": "Der eingefügte Text war eine Tabelle aus dem Webmailer — {lines} Kopfzeilen wurden vor der Auswertung wieder zusammengesetzt.",
   "f_hdr_no_message_id": "Keine Message-ID — jede ordentlich erzeugte Mail hat eine.",
   "f_hdr_no_received": "Keine Received-Zeilen gefunden — wurde nur ein Ausschnitt eingefügt?",
   "f_hdr_transit_ok": "{hops} Sprünge, insgesamt {seconds} Sekunden unterwegs, kein auffälliger Halt.",

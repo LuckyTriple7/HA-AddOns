@@ -14,6 +14,7 @@ import sqlite3
 import threading
 import time
 from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid, parseaddr
 
 import requests
 
@@ -301,8 +302,15 @@ def send_email(cfg: dict, subject: str, body: str) -> tuple:
         return False, 'not_configured'
     msg = MIMEText(body, 'plain', 'utf-8')
     msg['Subject'] = subject
-    msg['From'] = str(cfg.get('smtp_from') or cfg.get('smtp_user') or 'nettoolbox@localhost')
+    sender = str(cfg.get('smtp_from') or cfg.get('smtp_user') or 'nettoolbox@localhost')
+    msg['From'] = sender
     msg['To'] = to
+    # Date und Message-ID gehoeren nach RFC 5322 in jede Mail. Ohne sie zeigt
+    # jede Kopfzeilen-Analyse eine Fehlanzeige, und mancher Empfaenger wertet
+    # das als Spam-Merkmal -- smtplib setzt von sich aus keines von beiden.
+    msg['Date'] = formatdate(localtime=True)
+    domain = parseaddr(sender)[1].rsplit('@', 1)[-1] or 'nettoolbox.local'
+    msg['Message-ID'] = make_msgid(domain=domain)
     port = int(cfg.get('smtp_port') or 587)
     try:
         server = smtplib.SMTP(host, port, timeout=15)

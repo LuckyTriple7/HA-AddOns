@@ -77,6 +77,51 @@ RECEIVED_PRODUCTS = (
 )
 _DKIM_TAG = re.compile(r'\b([a-z]+)\s*=\s*([^;]+)')
 
+# Ein Kopfzeilenname, wie ihn RFC 5322 zulaesst -- ohne Doppelpunkt, weil
+# genau der in der kaputten Fassung auf einer eigenen Zeile steht.
+_HEADER_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9-]{0,60}$')
+
+
+def repair_split_headers(text: str) -> tuple:
+    """Aus Webmail kopierte Koepfe wieder zu Kopfzeilen machen.
+
+    GMX (und andere) zeigen den Quelltext als Tabelle an. Wer das markiert und
+    einfuegt, bekommt Name, Doppelpunkt und Wert auf *drei* Zeilen:
+
+        Return-Path
+        :
+        <noreply@example.com>
+
+    Fuer jeden Parser ist das kein Kopf mehr, sondern Fliesstext -- die Analyse
+    fand deshalb weder Received-Zeilen noch Message-ID und meldete lauter
+    Fehlanzeigen. Hier werden solche Dreiergruppen (und die Zweiervariante
+    "Name" / ": Wert") wieder zusammengezogen, bevor der eigentliche Parser
+    laeuft. Gibt (Text, Anzahl reparierter Zeilen) zurueck.
+    """
+    lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    out, repaired, i, count = [], 0, 0, len(lines)
+    while i < count:
+        line = lines[i]
+        # Nur Zeilen ohne Einrueckung: eingerueckte Zeilen sind Fortsetzungen
+        # einer Kopfzeile und duerfen nie als Name gelten.
+        if line == line.lstrip() and _HEADER_NAME.match(line.strip()):
+            name = line.strip()
+            following = lines[i + 1].strip() if i + 1 < count else ''
+            if following == ':':
+                value = lines[i + 2].strip() if i + 2 < count else ''
+                out.append(name + ': ' + value)
+                i += 3
+                repaired += 1
+                continue
+            if following.startswith(':'):
+                out.append(name + ': ' + following[1:].strip())
+                i += 2
+                repaired += 1
+                continue
+        out.append(line)
+        i += 1
+    return '\n'.join(out), repaired
+
 
 def _finding(level: str, code: str, **args) -> dict:
     return {'level': level, 'code': code, 'args': args}
@@ -181,6 +226,7 @@ def analyse(raw: str) -> dict:
     if len(text.encode('utf-8', 'ignore')) > MAX_HEADER_BYTES:
         raise ValueError('header_too_large')
 
+    text, repaired = repair_split_headers(text)
     message = message_from_string(text, policy=default_policy)
 
     def header(name: str) -> str:
@@ -262,6 +308,10 @@ def analyse(raw: str) -> dict:
     if reply_to and _domain_of(utils.parseaddr(reply_to)[1]) not in ('', from_domain):
         findings.append(_finding(WARN, 'hdr_reply_to_differs',
                                  reply=_domain_of(utils.parseaddr(reply_to)[1])))
+    if repaired:
+        # Sagen statt verschweigen: der eingefuegte Text war kein Kopf mehr,
+        # sondern eine Tabelle aus dem Webmailer.
+        findings.append(_finding(INFO, 'hdr_repaired', lines=repaired))
     if not result['message_id']:
         findings.append(_finding(WARN, 'hdr_no_message_id'))
     if not hops:

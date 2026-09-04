@@ -668,6 +668,7 @@
   "f_hdr_auth_missing": "{method} does not appear in the header — the receiving server did not check it or did not record the result.",
   "f_hdr_return_path_mismatch": "Sender domain ({sender}) and return path ({envelope}) differ — DMARC counts that as missing alignment, though it is normal for newsletters.",
   "f_hdr_reply_to_differs": "Replies go to a different domain ({reply}) than the sender address — the usual phishing pattern, but normal for ticket systems.",
+  "f_hdr_repaired": "The pasted text was a webmail table — {lines} header lines were reassembled before the analysis.",
   "f_hdr_no_message_id": "No Message-ID — every properly generated mail has one.",
   "f_hdr_no_received": "No Received lines found — was only an excerpt pasted?",
   "f_hdr_transit_ok": "{hops} hops, {seconds} seconds in transit overall, no conspicuous stop.",
