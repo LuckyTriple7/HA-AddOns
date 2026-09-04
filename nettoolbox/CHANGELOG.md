@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.43] - 2026-09-04
+
+### Added
+- **Kanal je Ereignis wählbar.** Statt eines Schalters je Ereignis hat jetzt jedes Ereignis
+  seine eigenen Haken für Mail und Telegram — genau wie ein Wächter seine Kanäle selbst
+  wählt. Zum Beispiel Sperren nur nach Telegram, erfolgreiche Anmeldungen gar nicht.
+  Bestehende Einstellungen aus 0.1.42 werden beim ersten Start übernommen: ein gesetzter
+  alter Schalter gilt für beide Kanäle, so wie er es vorher auch tat.
+
+### Changed
+- **Die Meldung nennt jetzt die Adresse, die im Browser stand**, statt pauschal
+  „Direktport 17798“. Steht ein Reverse-Proxy davor, ist das die Domain — die Angabe war
+  vorher schlicht falsch, wenn niemand den Port je zu Gesicht bekommt. Der Host-Header
+  kommt vom Aufrufer und ist damit fälschbar; er wird nur übernommen, wenn er wie ein
+  Hostname aussieht, sonst steht wieder der Port in der Meldung.
+
 ## [0.1.42] - 2026-09-04
 
 ### Added

@@ -47,12 +47,19 @@ FIELDS = {
     'smtp_tls': ('bool', True, None, 'mail', 'smtp_tls', ''),
     'telegram_bot_token': ('str', '', 200, 'telegram', 'telegram_bot_token', ''),
     'telegram_chat_id': ('str', '', 64, 'telegram', 'telegram_chat_id', ''),
-    # Anmelde-Meldungen gehen über dieselben beiden Kanäle wie die Wächter.
-    # Fehlversuche sind voreingestellt an (eine Meldung je Sperre, nicht je
-    # Versuch), erfolgreiche Anmeldungen aus -- wer den Direktport täglich
-    # benutzt, will dafür keine Mail.
-    'notify_login_fail': ('bool', True, None, 'security', 'notify_login_fail', ''),
-    'notify_login_ok': ('bool', False, None, 'security', 'notify_login_ok', ''),
+    # Anmelde-Meldungen, je Ereignis und Kanal einzeln schaltbar -- wie bei
+    # den Wächtern, wo jeder Wächter seine Kanäle selbst wählt. Fehlversuche
+    # sind voreingestellt an (eine Meldung je Sperre, nicht je Versuch),
+    # erfolgreiche Anmeldungen aus: wer den Direktport täglich benutzt, will
+    # dafür keine Mail.
+    'notify_login_fail_email': ('bool', True, None, 'security',
+                                'notify_login_fail_email', ''),
+    'notify_login_fail_telegram': ('bool', True, None, 'security',
+                                   'notify_login_fail_telegram', ''),
+    'notify_login_ok_email': ('bool', False, None, 'security',
+                              'notify_login_ok_email', ''),
+    'notify_login_ok_telegram': ('bool', False, None, 'security',
+                                 'notify_login_ok_telegram', ''),
     # Zusatz-Datensatz fuer die Technik-Erkennung: nicht mitgeliefert, sondern
     # auf Wunsch zur Laufzeit geladen -- er steht unter der GPL-3.0 und darf
     # deshalb nicht im Abbild stecken (wapimport.py erklaert das ausfuehrlich).
@@ -245,6 +252,34 @@ def _write(raw: dict) -> None:
         _cache_mtime = os.path.getmtime(_path)
     except OSError:
         _cache_mtime = -1.0
+
+
+# 0.1.42 hatte einen Schalter je Ereignis, 0.1.43 einen je Ereignis und Kanal.
+_LEGACY_CHANNELS = {
+    'notify_login_fail': ('notify_login_fail_email', 'notify_login_fail_telegram'),
+    'notify_login_ok': ('notify_login_ok_email', 'notify_login_ok_telegram'),
+}
+
+
+def migrate() -> None:
+    """Alte Ein-Schalter-Felder auf die Kanalfelder umschreiben. Ein gesetzter
+    alter Schalter gilt für beide Kanäle -- genau das tat er vorher auch.
+    Läuft einmal, danach ist der alte Schlüssel weg."""
+    if not _path:
+        return
+    with _lock:
+        raw = dict(_read_raw())
+        changed = False
+        for old, keys in _LEGACY_CHANNELS.items():
+            if old not in raw:
+                continue
+            value = bool(raw.pop(old))
+            changed = True
+            for key in keys:
+                raw.setdefault(key, value)
+        if changed:
+            _write(raw)
+            log.info("login notification settings migrated to per-channel switches")
 
 
 def effective(options_cfg: dict) -> dict:

@@ -64,11 +64,12 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   [Brauche ich den Root-Server-Worker?](#brauche-ich-den-root-server-worker)
 - **Home-Assistant-Entitäten** — jeder Wächter als Sensor (`sensor.nettoolbox_<name>`) plus
   Sammelsensoren, damit Zustände auf Dashboards und in Automationen nutzbar sind
-- **Anmeldeschutz am Direktport** — nach 5 Fehlversuchen in 10 Minuten wird die IP für
-  15 Minuten gesperrt; die Sperre überlebt einen Neustart des Add-ons. Auf Wunsch meldet
-  NetToolbox jede Sperre und/oder jede erfolgreiche Anmeldung per Mail und Telegram
-  (Einstellungen → *Anmeldung*). Über Ingress greift nichts davon — dort meldet
-  Home Assistant selbst an.
+- **Anmeldeschutz außerhalb von Ingress** — nach 5 Fehlversuchen in 10 Minuten wird die IP
+  für 15 Minuten gesperrt; die Sperre überlebt einen Neustart des Add-ons. Auf Wunsch meldet
+  NetToolbox jede Sperre und/oder jede erfolgreiche Anmeldung, je Ereignis einzeln über Mail
+  und/oder Telegram (Einstellungen → *Anmeldung*). Die Meldung nennt die aufgerufene Adresse
+  und die IP des Aufrufers. Über Ingress greift nichts davon — dort meldet Home Assistant
+  selbst an.
 - Verlauf, Rate-Limit, Dark/Light · DE/EN · HA Ingress
 
 ## Schnellstart

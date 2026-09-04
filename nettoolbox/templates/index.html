@@ -51,6 +51,8 @@ header { background: var(--surf); border-bottom: 1px solid var(--border);
 .set-row { margin-bottom: 12px; }
 .set-lbl { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; }
 .set-check { display: flex; align-items: center; gap: 6px; font-size: 0.83rem; }
+.set-row > .field { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+.set-channels { display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .icon-moon { display: block; } .icon-sun { display: none; }
 [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
 nav { display: flex; gap: 2px; padding: 0 16px; background: var(--surf); border-bottom: 1px solid var(--border);
@@ -715,14 +717,26 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <h3>{{ t.settings_group_security }}</h3>
       <p class="hint" style="margin-top:0">{{ t.settings_security_hint }}</p>
       <div class="set-row">
-        <label class="set-check">
-          <input type="checkbox" id="setNotifyLoginFail" checked> {{ t.field_notify_login_fail }}
-        </label>
+        <div class="field">{{ t.field_notify_login_fail }}</div>
+        <div class="set-channels">
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginFailMail" checked> {{ t.notify_channel_email }}
+          </label>
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginFailTg" checked> {{ t.notify_channel_telegram }}
+          </label>
+        </div>
       </div>
       <div class="set-row">
-        <label class="set-check">
-          <input type="checkbox" id="setNotifyLoginOk"> {{ t.field_notify_login_ok }}
-        </label>
+        <div class="field">{{ t.field_notify_login_ok }}</div>
+        <div class="set-channels">
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginOkMail"> {{ t.notify_channel_email }}
+          </label>
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginOkTg"> {{ t.notify_channel_telegram }}
+          </label>
+        </div>
       </div>
     </div>
 
@@ -884,8 +898,10 @@ async function loadSettings(){
     $('setTelegramToken').value = '';
     $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
     $('setTelegramChatId').value = v.telegram_chat_id || '';
-    $('setNotifyLoginFail').checked = v.notify_login_fail !== false;
-    $('setNotifyLoginOk').checked = !!v.notify_login_ok;
+    $('setNotifyLoginFailMail').checked = v.notify_login_fail_email !== false;
+    $('setNotifyLoginFailTg').checked = v.notify_login_fail_telegram !== false;
+    $('setNotifyLoginOkMail').checked = !!v.notify_login_ok_email;
+    $('setNotifyLoginOkTg').checked = !!v.notify_login_ok_telegram;
   } catch (e) { toast(errText(e.code), true); }
   loadTechRules(true);
 }
@@ -970,8 +986,10 @@ function settingsFormValues(){
     smtp_tls: $('setSmtpTls').checked,
     telegram_bot_token: $('setTelegramToken').value.trim(),
     telegram_chat_id: $('setTelegramChatId').value.trim(),
-    notify_login_fail: $('setNotifyLoginFail').checked,
-    notify_login_ok: $('setNotifyLoginOk').checked,
+    notify_login_fail_email: $('setNotifyLoginFailMail').checked,
+    notify_login_fail_telegram: $('setNotifyLoginFailTg').checked,
+    notify_login_ok_email: $('setNotifyLoginOkMail').checked,
+    notify_login_ok_telegram: $('setNotifyLoginOkTg').checked,
     tech_extra_rules: $('setTechExtra').checked,
     tech_rules_auto_update: $('setTechAuto').checked,
   };

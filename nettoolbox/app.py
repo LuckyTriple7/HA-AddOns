@@ -12,6 +12,7 @@ import functools
 import json
 import logging
 import os
+import re
 import secrets
 import signal
 import threading
@@ -369,18 +370,40 @@ def clear_failed_attempts(ip: str) -> None:
 # Benachrichtigung muss ohne die Übersetzungsschicht der Oberfläche auskommen.
 
 
-def _notify_async(subject: str, body: str) -> None:
+def _notify_async(subject: str, body: str, email: bool, telegram: bool) -> None:
     """Im Hintergrund zustellen: ein SMTP-Server, der nicht antwortet, darf die
     Antwort auf den Anmeldeversuch nicht seine ganze Zeitgrenze lang aufhalten."""
     def run():
         cfg = notify_config()
-        ok, err = monitor.send_email(cfg, subject, body)
-        if not ok and err != 'not_configured':
-            log.warning("login notification: email failed: %s", err)
-        ok, err = monitor.send_telegram(cfg, subject + "\n" + body)
-        if not ok and err != 'not_configured':
-            log.warning("login notification: telegram failed: %s", err)
+        if email:
+            ok, err = monitor.send_email(cfg, subject, body)
+            if not ok and err != 'not_configured':
+                log.warning("login notification: email failed: %s", err)
+        if telegram:
+            ok, err = monitor.send_telegram(cfg, subject + "\n" + body)
+            if not ok and err != 'not_configured':
+                log.warning("login notification: telegram failed: %s", err)
     threading.Thread(target=run, daemon=True).start()
+
+
+# Host-Namen, IPv4 und IPv6 in Klammern, jeweils mit optionalem Port -- alles
+# andere kommt nicht in die Nachricht.
+_HOST_SHAPE = re.compile(r'^[A-Za-z0-9._:\[\]-]{1,100}$')
+
+
+def _login_origin() -> str:
+    """Die Adresse, die im Browser stand. Steht ein Reverse-Proxy davor, ist
+    das die Domain und nicht Port 17798 -- "Anmeldung am Direktport 17798" ist
+    dann schlicht falsch. Der Host-Header kommt vom Aufrufer und ist damit
+    fälschbar; er wird deshalb nur übernommen, wenn er wie ein Hostname
+    aussieht, und nie als anklickbarer Link ausgegeben."""
+    try:
+        host = request.host or ''
+    except RuntimeError:  # außerhalb eines Requests aufgerufen
+        host = ''
+    if host and _HOST_SHAPE.match(host):
+        return host
+    return 'Port %d' % PORT
 
 
 def notify_login_event(kind: str, ip: str, attempts: int = 0) -> None:
@@ -389,26 +412,30 @@ def notify_login_event(kind: str, ip: str, attempts: int = 0) -> None:
     bereits angemeldet, es gibt kein Anmeldeformular."""
     cfg = notify_config()
     when = time.strftime('%Y-%m-%d %H:%M:%S')
+    origin = _login_origin()
     if kind == 'blocked':
-        if not cfg.get('notify_login_fail', True):
-            return
+        email = bool(cfg.get('notify_login_fail_email', True))
+        telegram = bool(cfg.get('notify_login_fail_telegram', True))
         subject = '🔴 [NetToolbox] Anmeldung gesperrt'
-        body = ("Zu viele fehlgeschlagene Anmeldeversuche am Direktport "
-                f"{PORT}.\n\n"
+        body = ("Zu viele fehlgeschlagene Anmeldeversuche.\n\n"
+                f"Aufgerufen über: {origin}\n"
                 f"IP-Adresse: {ip}\n"
                 f"Versuche: {attempts} in {RATE_LIMIT_WINDOW // 60} Minuten\n"
                 f"Gesperrt für: {RATE_LIMIT_BLOCK // 60} Minuten\n"
                 f"Zeitpunkt: {when}\n\n"
                 "-- NetToolbox")
     else:
-        if not cfg.get('notify_login_ok', False):
-            return
+        email = bool(cfg.get('notify_login_ok_email', False))
+        telegram = bool(cfg.get('notify_login_ok_telegram', False))
         subject = '🔵 [NetToolbox] Anmeldung erfolgreich'
-        body = (f"Erfolgreiche Anmeldung am Direktport {PORT}.\n\n"
+        body = ("Erfolgreiche Anmeldung.\n\n"
+                f"Aufgerufen über: {origin}\n"
                 f"IP-Adresse: {ip}\n"
                 f"Zeitpunkt: {when}\n\n"
                 "-- NetToolbox")
-    _notify_async(subject, body)
+    if not email and not telegram:
+        return
+    _notify_async(subject, body, email, telegram)
 
 
 # Probes cost other people's DNS servers, so the number per minute is capped
@@ -1271,6 +1298,7 @@ def _ha_push_loop() -> None:
 
 def _startup_checks() -> None:
     usersettings.init(_DATA)
+    usersettings.migrate()
     wapimport.init(_DATA)
     threading.Thread(target=_tech_rules_loop, daemon=True).start()
     if not usersettings.crypto_available():
