@@ -161,13 +161,16 @@ tr:last-child td { border-bottom: none; }
 .ipinfo-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 .ipinfo-kv { display: grid; grid-template-columns: 106px 1fr; gap: 10px;
              align-items: baseline; padding: 3px 0; font-size: 0.8rem; }
-.ipinfo-kv > span:first-child { color: var(--muted); }
+.ipinfo-kv > span:first-child { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .ipinfo-kv > :last-child { text-align: left; word-break: normal; overflow-wrap: anywhere; }
 .detect-label { font-size: 0.78rem; color: var(--muted); align-self: center; }
+.dkim-sig { padding: 5px 0; }
+.dkim-sig + .dkim-sig { border-top: 1px solid var(--border); }
+.dkim-sig > .hint { margin-top: 2px; }
 /* Schmalere Beschriftungsspalte fuer Zeilen in den engen Unterkarten. */
 .kv-tight { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline;
             margin-top: 6px; font-size: 0.8rem; }
-.kv-tight > span:first-child { color: var(--muted); }
+.kv-tight > span:first-child { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .kv-tight > :last-child { word-break: normal; overflow-wrap: anywhere; }
 .toast-wrap { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
 .toast { background: var(--surf); border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px;
@@ -2670,10 +2673,10 @@ async function headerAnalyse(){
       const dkim = el('div', 'subcard');
       dkim.appendChild(el('h4', '', 'DKIM-Signaturen'));
       r.dkim_signatures.forEach(sig => {
-        const row = el('div', 'ipinfo-kv');
-        row.appendChild(el('span', '', sig.selector || '—'));
-        row.appendChild(el('span', 'mono',
-          [sig.domain, sig.algorithm].filter(Boolean).join(' · ')));
+        const row = el('div', 'dkim-sig');
+        row.appendChild(el('div', 'mono', sig.selector || '—'));
+        row.appendChild(el('div', 'hint',
+          [sig.domain, sig.algorithm, sig.canonicalisation].filter(Boolean).join(' · ')));
         dkim.appendChild(row);
       });
       grid.appendChild(dkim);

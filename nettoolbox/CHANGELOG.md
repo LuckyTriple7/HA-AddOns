@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.4] - 2026-09-04
+
+### Fixed
+- **DKIM-Signaturen überlagerten sich.** Der Selektor stand in einer 106 Pixel breiten
+  Beschriftungsspalte — Amazon SES vergibt 32 Zeichen lange Selektoren, die liefen in die
+  Nachbarspalte hinein. Selektor und Angaben stehen jetzt untereinander statt nebeneinander,
+  und die Canonicalisation wird gleich mit angezeigt. Rasterzellen im IP-Lookup und in den
+  engen Unterkarten schrumpfen jetzt ebenfalls unter ihren Inhalt, statt überzulaufen.
+
 ## [0.3.3] - 2026-09-04
 
 ### Fixed
