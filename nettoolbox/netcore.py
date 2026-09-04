@@ -42,6 +42,9 @@ class Context:
     http_timeout: float = 10.0
     allow_private: bool = False
     allow_port_check: bool = True
+    # Der GPL-lizenzierte Zusatz-Datensatz wird nur benutzt, wenn der
+    # Betreiber ihn in den Einstellungen angefordert hat (wapimport.py).
+    tech_extra_rules: bool = False
     user_agent: str = 'NetToolbox'
 
 

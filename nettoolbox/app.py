@@ -29,6 +29,8 @@ import hasensors
 import monitor
 import settings as usersettings
 import snapshots as dnssnapshots
+import techrules
+import wapimport
 import probes
 from netcore import Context, ProbeError
 from remote import TOKEN_HEADER, LocalBackend, RemoteBackend
@@ -188,6 +190,7 @@ def build_context() -> Context:
         http_timeout=float(_cfg_int('http_timeout', 10, 1, 120)),
         allow_private=bool(cfg.get('allow_private_targets')),
         allow_port_check=bool(cfg.get('port_check_enabled', True)),
+        tech_extra_rules=bool(usersettings.effective(cfg).get('tech_extra_rules')),
         user_agent='NetToolbox/' + (APP_VERSION or '0'))
 
 
@@ -753,6 +756,7 @@ REPORT_STEPS = (
     ('tech', 'target'),
 )
 REPORT_WORKERS = 4
+TECH_RULES_CHECK_SECONDS = 6 * 3600
 
 
 def _report_step(name: str, params: dict) -> dict:
@@ -967,7 +971,101 @@ def settings_save():
     if not isinstance(body, dict):
         raise ProbeError('bad_params')
     changed = usersettings.save(body)
+    if 'tech_extra_rules' in changed and body.get('tech_extra_rules'):
+        # Wer den Schalter umlegt, will den Datensatz jetzt und nicht beim
+        # naechsten Rundgang in sechs Stunden.
+        if not wapimport.status()['available']:
+            _start_tech_rules_fetch()
     return jsonify({'ok': True, 'changed': changed})
+
+
+# ── Zusatz-Datensatz fuer die Technik-Erkennung ───────────────────────────────
+
+# Der Datensatz steht unter der GPL-3.0 und wird deshalb nicht mitgeliefert,
+# sondern auf Wunsch in den Datenordner dieser Instanz geladen. Von hier aus
+# wird er angestossen, beobachtet und wieder entfernt.
+
+_tech_rules_lock = threading.Lock()
+_tech_rules_last_error = ''
+
+
+def _tech_rules_fetch() -> None:
+    """Laeuft im Hintergrund; ein Fehlschlag bleibt fuer die Oberflaeche
+    sichtbar, statt nur im Protokoll zu landen."""
+    global _tech_rules_last_error
+    try:
+        info = wapimport.update(build_context())
+        _tech_rules_last_error = ''
+        log.info("Zusatz-Datensatz geladen: %d Techniken, %d Muster",
+                 info['technologies'], info['patterns'])
+    except ProbeError as e:
+        _tech_rules_last_error = e.code
+        log.warning("Zusatz-Datensatz nicht geladen: %s", e.code)
+    except Exception as e:  # noqa: BLE001 — der Rest des Add-ons laeuft weiter
+        _tech_rules_last_error = 'internal'
+        log.warning("Zusatz-Datensatz nicht geladen: %s", type(e).__name__,
+                    exc_info=_verbose())
+
+
+def _start_tech_rules_fetch() -> bool:
+    """Startet den Abruf, wenn nicht ohnehin schon einer laeuft."""
+    if not _tech_rules_lock.acquire(blocking=False):
+        return False
+    try:
+        if wapimport.status()['updating']:
+            return False
+        threading.Thread(target=_tech_rules_fetch, daemon=True).start()
+        return True
+    finally:
+        _tech_rules_lock.release()
+
+
+def _tech_rules_loop() -> None:
+    """Haelt den Datensatz aktuell, solange er gewuenscht ist.
+
+    Nachgesehen wird alle sechs Stunden, geholt wird nur, wenn der eigene
+    Stand aelter als eine Woche ist -- der Datensatz aendert sich in Tagen,
+    nicht in Minuten, und der Abruf sind gut drei Megabyte.
+    """
+    while True:
+        try:
+            cfg = usersettings.effective(load_config())
+            if (cfg.get('tech_extra_rules')
+                    and cfg.get('tech_rules_auto_update', True)
+                    and wapimport.needs_update()):
+                _tech_rules_fetch()
+        except Exception:  # noqa: BLE001
+            log.warning("Pflege des Zusatz-Datensatzes fehlgeschlagen",
+                        exc_info=_verbose())
+        time.sleep(TECH_RULES_CHECK_SECONDS)
+
+
+def _tech_rules_view() -> dict:
+    cfg = usersettings.effective(load_config())
+    info = wapimport.status()
+    info['enabled'] = bool(cfg.get('tech_extra_rules'))
+    info['auto_update'] = bool(cfg.get('tech_rules_auto_update', True))
+    info['builtin_rules'] = len(techrules.RULES)
+    info['last_error'] = _tech_rules_last_error
+    return info
+
+
+@api('/api/tech-rules')
+def tech_rules_get():
+    return jsonify(_tech_rules_view())
+
+
+@api('/api/tech-rules/update', methods=('POST',))
+def tech_rules_update():
+    if not _start_tech_rules_fetch():
+        return jsonify({'ok': False, 'error': 'update_running'}), 409
+    return jsonify({'ok': True, 'started': True})
+
+
+@api('/api/tech-rules/remove', methods=('POST',))
+def tech_rules_remove():
+    removed = wapimport.remove()
+    return jsonify({'ok': True, 'removed': removed})
 
 
 def _test_cfg(body: dict) -> dict:
@@ -1055,6 +1153,8 @@ def _ha_push_loop() -> None:
 
 def _startup_checks() -> None:
     usersettings.init(_DATA)
+    wapimport.init(_DATA)
+    threading.Thread(target=_tech_rules_loop, daemon=True).start()
     if not usersettings.crypto_available():
         log.warning("cryptography package unavailable — SMTP/Telegram secrets "
                     "entered in the UI cannot be saved")

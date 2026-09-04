@@ -33,6 +33,7 @@ ENC_PREFIX = 'enc:'
 GROUPS = (
     ('mail', 'mail'),
     ('telegram', 'telegram'),
+    ('tech', 'tech'),
 )
 
 FIELDS = {
@@ -45,6 +46,12 @@ FIELDS = {
     'smtp_tls': ('bool', True, None, 'mail', 'smtp_tls', ''),
     'telegram_bot_token': ('str', '', 200, 'telegram', 'telegram_bot_token', ''),
     'telegram_chat_id': ('str', '', 64, 'telegram', 'telegram_chat_id', ''),
+    # Zusatz-Datensatz fuer die Technik-Erkennung: nicht mitgeliefert, sondern
+    # auf Wunsch zur Laufzeit geladen -- er steht unter der GPL-3.0 und darf
+    # deshalb nicht im Abbild stecken (wapimport.py erklaert das ausfuehrlich).
+    'tech_extra_rules': ('bool', False, None, 'tech', 'tech_extra_rules', ''),
+    'tech_rules_auto_update': ('bool', True, None, 'tech',
+                               'tech_rules_auto_update', ''),
 }
 
 SECRET_KEYS = frozenset({'smtp_password', 'telegram_bot_token'})

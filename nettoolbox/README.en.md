@@ -36,6 +36,12 @@ about your domains leaves your own infrastructure.
   and how certain it is. Only the delivered response is judged — technology that JavaScript
   loads in the browser stays invisible, and history or market share as offered by paid
   services is not available here.
+  - 169 built-in fingerprints ship with the add-on (MIT, like the add-on itself). In the
+    **settings** the community-maintained dataset (formerly Wappalyzer, **GPL-3.0**) can be
+    requested on top: around 5000 technologies, about 3 MB fetched, roughly 1 MB in the data
+    folder. It is deliberately **not shipped** but downloaded by your own instance — the
+    licence is stated next to the switch, the weekly refresh can be turned off, and one click
+    removes the data again.
 - **Mail header analysis** — paste a received mail's header: Received chain with per-hop
   delay, the receiving side's SPF/DKIM/DMARC verdict, alignment check
 - **SMTP** — a domain is enough, the mail server is found through its MX record; banner, EHLO

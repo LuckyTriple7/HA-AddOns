@@ -719,6 +719,26 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       </div>
     </div>
 
+    <div class="set-group">
+      <h3>{{ t.settings_group_tech }}</h3>
+      <p class="hint" style="margin-top:0">{{ t.tech_rules_hint }}</p>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="setTechExtra"> {{ t.field_tech_extra_rules }}
+        </label>
+      </div>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="setTechAuto" checked> {{ t.field_tech_rules_auto_update }}
+        </label>
+      </div>
+      <div class="set-row">
+        <button class="btn" id="setTechFetch" type="button">{{ t.action_tech_rules_fetch }}</button>
+        <button class="btn danger" id="setTechRemove" type="button">{{ t.action_tech_rules_remove }}</button>
+      </div>
+      <div class="hint" id="setTechState"></div>
+    </div>
+
     <div class="row" style="margin-top:18px; justify-content:flex-end">
       <button class="btn" onclick="loadSettings()" type="button">{{ t.action_reload }}</button>
       <button class="btn primary" id="setSave" onclick="saveSettings()" type="button">{{ t.action_save }}</button>
@@ -858,7 +878,60 @@ async function loadSettings(){
     $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
     $('setTelegramChatId').value = v.telegram_chat_id || '';
   } catch (e) { toast(errText(e.code), true); }
+  loadTechRules();
 }
+
+function techRulesState(info){
+  const box = $('setTechState');
+  box.innerHTML = '';
+  if (info.updating) { box.textContent = T.tech_rules_updating; return; }
+  if (info.last_error) {
+    box.textContent = fmtStr(T.tech_rules_error, { reason: errText(info.last_error) });
+    return;
+  }
+  if (!info.available) { box.textContent = T.tech_rules_absent; return; }
+  const age = info.age_days === null || info.age_days === undefined
+    ? '?' : info.age_days;
+  box.textContent = fmtStr(T.tech_rules_present, {
+    techs: info.technologies, patterns: info.patterns,
+    kb: Math.round((info.stored_bytes || 0) / 1024), days: age,
+    license: info.license
+  }) + (info.stale ? ' · ' + T.tech_rules_stale : '');
+}
+
+async function loadTechRules(){
+  try {
+    const info = await api('/api/tech-rules');
+    $('setTechExtra').checked = !!info.enabled;
+    $('setTechAuto').checked = info.auto_update !== false;
+    techRulesState(info);
+    // Waehrend ein Abruf laeuft, alle drei Sekunden nachsehen -- er dauert
+    // je nach Leitung eine halbe bis mehrere Minuten.
+    if (info.updating) setTimeout(loadTechRules, 3000);
+  } catch (e) { /* Einstellungen bleiben nutzbar, auch wenn das fehlschlaegt */ }
+}
+
+async function fetchTechRules(){
+  const btn = $('setTechFetch');
+  btn.disabled = true;
+  try {
+    await api('/api/tech-rules/update', { method: 'POST', body: {} });
+    $('setTechState').textContent = T.tech_rules_updating;
+    setTimeout(loadTechRules, 2000);
+  } catch (e) { toast(errText(e.code), true); }
+  finally { btn.disabled = false; }
+}
+
+async function removeTechRules(){
+  if (!confirm(T.tech_rules_remove_confirm)) return;
+  try {
+    await api('/api/tech-rules/remove', { method: 'POST', body: {} });
+    await loadTechRules();
+  } catch (e) { toast(errText(e.code), true); }
+}
+
+$('setTechFetch').addEventListener('click', fetchTechRules);
+$('setTechRemove').addEventListener('click', removeTechRules);
 
 function settingsFormValues(){
   return {
@@ -871,6 +944,8 @@ function settingsFormValues(){
     smtp_tls: $('setSmtpTls').checked,
     telegram_bot_token: $('setTelegramToken').value.trim(),
     telegram_chat_id: $('setTelegramChatId').value.trim(),
+    tech_extra_rules: $('setTechExtra').checked,
+    tech_rules_auto_update: $('setTechAuto').checked,
   };
 }
 
@@ -881,6 +956,7 @@ async function saveSettings(){
     await api('/api/settings', { method: 'POST', body: settingsFormValues() });
     toast(T.settings_saved);
     await loadSettings();
+    await loadTechRules();
   } catch (e) { toast(errText(e.code), true); }
   finally { btn.disabled = false; }
 }
@@ -2611,7 +2687,9 @@ function techItem(t){
   // man sehen will, wenn man einem Treffer nicht glaubt -- aber nicht das,
   // was die Liste lesbar haelt.
   const evidence = (t.evidence || []).map(techEvidenceLine).join('\n');
-  if (evidence) row.title = T.tech_evidence_title + ':\n' + evidence;
+  const origin = t.source === 'extra' ? T.tech_source_extra : T.tech_source_builtin;
+  row.title = (evidence ? T.tech_evidence_title + ':\n' + evidence + '\n\n' : '')
+    + origin;
   return row;
 }
 
@@ -2630,6 +2708,10 @@ async function techCheck(){
     badges.appendChild(el('span', 'chip', Math.round(r.bytes / 1024) + ' KB'));
     if (r.redirects) badges.appendChild(el('span', 'chip',
       fmtStr(T.seo_redirects, { count: r.redirects })));
+    const used = r.rules_used || {};
+    badges.appendChild(el('span', 'chip', used.extra
+      ? fmtStr(T.tech_rules_chip_both, { builtin: used.builtin, extra: used.extra })
+      : fmtStr(T.tech_rules_chip_builtin, { builtin: used.builtin || 0 })));
     box.appendChild(badges);
 
     box.appendChild(renderFindings(r.findings));

@@ -34,6 +34,12 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   eingebundene Datei) und wie sicher er ist. Beurteilt wird nur die ausgelieferte Antwort —
   Technik, die erst JavaScript im Browser nachlädt, bleibt unsichtbar, und Historie oder
   Marktanteile wie bei kostenpflichtigen Diensten gibt es hier nicht.
+  - Mitgeliefert sind 169 eigene Fingerabdrücke (MIT, wie das Add-on). In den **Einstellungen**
+    lässt sich zusätzlich der weitergepflegte Gemeinschafts-Datensatz (ehemals Wappalyzer,
+    **GPL-3.0**) anfordern: rund 5000 Techniken, etwa 3 MB Abruf, rund 1 MB im Datenordner.
+    Er wird bewusst **nicht mitgeliefert**, sondern von der eigenen Instanz geladen — die
+    Lizenz steht neben dem Schalter, wöchentliche Aktualisierung ist abschaltbar, und ein
+    Klick löscht die Daten wieder.
 - **Mail-Kopf-Analyse** — Kopf einer empfangenen Mail einfügen: Received-Kette mit
   Verzögerung je Sprung, SPF/DKIM/DMARC-Urteil der Gegenseite, Ausrichtungsprüfung
 - **SMTP** — Domain genügt, der Mailserver wird über den MX-Eintrag selbst ermittelt; Banner,

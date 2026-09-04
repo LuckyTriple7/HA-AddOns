@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.1.38] - 2026-09-04
+
+### Added
+- **Zusatz-Datensatz für die Technik-Erkennung, auf Wunsch nachladbar.** Neben den 169 eigenen
+  Fingerabdrücken lässt sich in den **Einstellungen** der weitergepflegte Gemeinschafts-Datensatz
+  (ehemals Wappalyzer) anfordern — rund **5000 Techniken** und 6000 Muster zusätzlich.
+  - Er steht unter der **GPL-3.0** und wird deshalb **nicht ins Abbild kopiert**: das Add-on
+    bliebe sonst kein MIT-Werk mehr. Stattdessen lädt ihn die eigene Instanz auf Knopfdruck in
+    ihren Datenordner — dieselbe Trennung wie bei Virensignaturen oder Filterlisten. Die Lizenz
+    steht neben dem Schalter, ein Klick löscht die Daten wieder.
+  - **Abruf rund 3 MB**, gespeichert werden davon rund **1 MB**: übernommen wird nur, was sich
+    ohne Browser prüfen lässt (Header, Cookies, Meta-Angaben, eingebundene Dateien, Quelltext,
+    Adresse). Die `js`- und `dom`-Muster des Datensatzes brauchen eine echte Seitenausführung
+    und werden verworfen.
+  - **Aktualisierung**: einmal pro Woche, geprüft alle sechs Stunden, abschaltbar — plus
+    „Jetzt herunterladen" für sofort. Der Stand (Alter, Anzahl, Größe, Lizenz) steht in den
+    Einstellungen.
+  - Woher ein Treffer stammt, steht an ihm dran: eigener Regelsatz oder Zusatz-Datensatz.
+    Derselbe Fund aus beiden Sätzen fällt zu einer Zeile zusammen („Nginx"/„nginx",
+    „Nuxt.js"/„Nuxt"), wobei der eigene Satz Name und Kategorie bestimmt.
+
+### Changed
+- **Musterdurchlauf mit Vorfilter.** Zu jedem Muster wird sein längstes wörtliches Teilstück
+  abgelegt; gesucht wird erst danach (ein Textvergleich), und nur bei einem Treffer läuft das
+  Muster wirklich. Auf einer typischen Seite bleiben von mehreren tausend Mustern ein paar
+  Dutzend übrig — gemessen 0,17 s statt eines Durchlaufs, der nicht in zwei Minuten fertig war.
+  Das ist zugleich die Absicherung gegen fremde Muster: sie kommen mit fremden Eingaben kaum
+  in Berührung, und darüber wacht zusätzlich ein Zeitbudget von 6 Sekunden. Muster mit
+  verschachtelten Quantifizierern (das klassische `(a+)+`) werden beim Import gar nicht erst
+  übernommen.
+- Eigene und geladene Regeln laufen durch **dieselbe** Auswertung; `techrules.py` wird dafür
+  beim Start in dieselbe Form gebracht wie der Zusatz-Datensatz.
+
 ## [0.1.37] - 2026-09-04
 
 ### Added

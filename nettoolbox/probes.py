@@ -323,7 +323,8 @@ def p_seo(ctx: Context, params: dict) -> dict:
 
 
 def p_tech(ctx: Context, params: dict) -> dict:
-    return nettech.check_tech(ctx, _str(params, 'target'))
+    return nettech.check_tech(ctx, _str(params, 'target'),
+                              extra_rules=bool(ctx.tech_extra_rules))
 
 
 def _port_check_allowed(ctx: Context) -> None:

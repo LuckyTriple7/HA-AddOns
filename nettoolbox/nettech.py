@@ -17,9 +17,20 @@ Zwei Grenzen, die im Ergebnis auch so benannt werden:
   setzen, Pfade umschreiben. Jeder Treffer traegt deshalb seine Fundstelle
   und eine Sicherheitsangabe mit sich und faerbt nie eine Ampel.
 
-Gefunden wird ueber die Tabelle in techrules.py; die Auswertung hier kennt
-keine einzige Technik beim Namen. Das HTML wird mit dem Parser aus seocheck
-gelesen, damit es nur einen gibt, der Tag-Suppe verdauen muss.
+Gesucht wird mit zwei Saetzen von Fingerabdruecken: den eigenen aus
+techrules.py (immer da, MIT wie das Add-on) und -- wenn der Betreiber ihn in
+den Einstellungen angefordert hat -- dem weit groesseren Gemeinschafts-
+Datensatz aus wapimport.py. Beide werden in dieselbe Form gebracht und in
+einem Durchlauf geprueft; woher ein Treffer stammt, steht an ihm dran.
+
+Vor jedem Muster steht sein laengstes woertliches Teilstueck. Kommt das im
+Text nicht vor, laeuft das Muster gar nicht erst -- ein Textvergleich statt
+mehrerer tausend Regex-Laeufe. Das ist zugleich die Absicherung gegen fremde
+Muster, die auf praeparierten Seiten entgleisen koennten; darueber wacht
+zusaetzlich ein Zeitbudget.
+
+Das HTML wird mit dem Parser aus seocheck gelesen, damit es nur einen gibt,
+der Tag-Suppe verdauen muss.
 """
 
 import re
@@ -30,6 +41,7 @@ import httpcheck
 import mailprovider
 import seocheck
 import techrules
+import wapimport
 from netcore import Context, ProbeError, http_get, mx_hosts, query, txt_strings
 
 OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
@@ -37,6 +49,12 @@ OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
 MAX_HTML_BYTES = 384 * 1024
 MAX_RESOURCES = 400
 HIGH, MEDIUM, LOW = 'high', 'medium', 'low'
+BUILTIN, EXTRA = 'builtin', 'extra'
+
+# Obergrenze fuer den Musterdurchlauf. Erreicht wird sie im Normalfall nie
+# (der Vorfilter laesst nur eine Handvoll Muster ueberhaupt laufen); sie
+# greift, wenn eine Seite ein fremdes Muster in die Irre fuehrt.
+SCAN_BUDGET_SECONDS = 6.0
 
 # Wie sicher ein Treffer ist, haengt an der Fundstelle: ein eigener Header oder
 # ein Cookie-Name kommt vom Server selbst, ein Pfad zu einer mitgelieferten
@@ -73,28 +91,121 @@ _CACHE = {}
 
 
 def _compiled(pattern: str):
-    """Die Muster stehen fest in techrules.py -- kompiliert wird jedes genau
-    einmal, egal wie oft geprueft wird."""
+    """Jedes Muster wird genau einmal uebersetzt, egal wie oft geprueft wird."""
     hit = _CACHE.get(pattern)
     if hit is None:
-        hit = _CACHE[pattern] = re.compile(pattern, re.I)
+        try:
+            hit = re.compile(pattern, re.I)
+        except (re.error, RecursionError):
+            hit = False          # merken, dass es nicht geht, nicht neu probieren
+        _CACHE[pattern] = hit
     return hit
 
 
-def _match(pattern: str, text: str) -> dict:
-    """{'text': <Fundstelle>, 'version': <falls die Gruppe v traf>} oder {}."""
+def _match(test: dict, text: str) -> dict:
+    """{'text': Fundstelle, 'version': ...} oder {}.
+
+    Der Vorfilter zuerst: kommt das woertliche Teilstueck des Musters im Text
+    nicht vor, kann das Muster nicht passen.
+    """
     if not text:
         return {}
-    found = _compiled(pattern).search(text)
+    literal = test.get('l')
+    if literal and literal not in text.lower():
+        return {}
+    regex = _compiled(test['p'])
+    if not regex:
+        return {}
+    found = regex.search(text)
     if not found:
         return {}
+    spec = test.get('v') or ''
     version = ''
-    try:
-        version = (found.groupdict().get('v') or '').strip()
-    except IndexError:
-        version = ''
+    if spec:
+        try:
+            version = (found.group(int(spec) if spec.isdigit() else spec)
+                       or '').strip()
+        except (IndexError, KeyError):
+            version = ''
     return {'text': found.group(0)[:120], 'version': version}
 
+
+_SLUG_RE = re.compile(r'[^a-z0-9]')
+
+
+def _key(name: str) -> str:
+    """Ein Name, unter dem derselbe Fund aus beiden Regelsaetzen zusammenfaellt.
+
+    Der Zusatz-Datensatz schreibt "Nginx" und "Nuxt.js", wo wir "nginx" und
+    "Nuxt" sagen -- ohne diesen Schluessel stuende beides nebeneinander in der
+    Liste und saehe aus wie zwei Techniken.
+    """
+    slug = _SLUG_RE.sub('', (name or '').lower())
+    if slug.endswith('js') and len(slug) > 3:
+        slug = slug[:-2]
+    return slug
+
+
+def _confidence(kind: str, weight: int) -> str:
+    """Die Fundstelle gibt die Obergrenze vor, die Angabe im Datensatz kann
+    sie nur senken -- ein 'confidence: 50' im fremden Satz heisst dort
+    ausdruecklich 'koennte auch etwas anderes sein'."""
+    level = CONFIDENCE.get(kind, LOW)
+    if weight < 50:
+        return LOW
+    if weight < 100 and level == HIGH:
+        return MEDIUM
+    return level
+
+
+# ── Regeln in eine gemeinsame Form bringen ───────────────────────────────────
+
+def _tests_from_builtin(rule: dict) -> list:
+    """techrules.py -> dieselbe Testform, die auch der Zusatz-Datensatz hat.
+
+    Die eigenen Muster holen ihre Version aus einer Gruppe namens `v`; der
+    Vorfilter wird hier genauso gebaut, die eigenen Regeln profitieren also
+    davon ebenso.
+    """
+    tests = []
+    for field, pattern in rule.get('headers', ()):
+        tests.append({'k': 'header', 'f': field, 'p': pattern, 'v': 'v'})
+    for field, pattern in rule.get('meta', ()):
+        tests.append({'k': 'meta', 'f': field, 'p': pattern, 'v': 'v'})
+    for pattern in rule.get('cookie', ()):
+        tests.append({'k': 'cookie', 'p': pattern, 'v': 'v'})
+    for pattern in rule.get('script', ()):
+        tests.append({'k': 'script', 'p': pattern, 'v': 'v'})
+    for pattern in rule.get('url', ()):
+        tests.append({'k': 'url', 'p': pattern, 'v': 'v'})
+    for pattern in rule.get('html', ()):
+        tests.append({'k': 'html', 'p': pattern, 'v': 'v'})
+    for test in tests:
+        test['l'] = wapimport._literal_of(test['p'])
+        test['c'] = 100
+    return tests
+
+
+def _builtin_rules() -> list:
+    global _BUILTIN
+    if _BUILTIN is None:
+        _BUILTIN = [{
+            'name': rule['name'], 'cat': rule.get('cat', 'misc'),
+            'site': rule.get('site', ''), 'source': BUILTIN,
+            'implies': list(rule.get('implies', ())), 'requires': [],
+            'tests': _tests_from_builtin(rule),
+        } for rule in techrules.RULES]
+    return _BUILTIN
+
+
+_BUILTIN = None
+
+
+def _extra_rules() -> list:
+    return [dict(rule, source=EXTRA) for rule in wapimport.rules()]
+
+
+# ── Treffer sammeln ──────────────────────────────────────────────────────────
 
 class _Hits:
     """Sammelt Treffer je Technik, ohne dieselbe Fundstelle doppelt zu zaehlen."""
@@ -102,13 +213,21 @@ class _Hits:
     def __init__(self):
         self.by_name = {}
 
-    def add(self, rule: dict, kind: str, detail: str, version: str = '') -> None:
-        entry = self.by_name.setdefault(rule['name'], {
+    def add(self, rule: dict, kind: str, detail: str, version: str = '',
+            confidence: str = '') -> None:
+        entry = self.by_name.setdefault(_key(rule['name']), {
             'name': rule['name'], 'cat': rule.get('cat', 'misc'),
-            'site': rule.get('site', ''), 'version': '',
-            'confidence': LOW, 'evidence': [],
+            'site': rule.get('site', ''), 'source': rule.get('source', BUILTIN),
+            'version': '', 'confidence': LOW, 'evidence': [],
         })
-        confidence = CONFIDENCE.get(kind, LOW)
+        if rule.get('source', BUILTIN) == BUILTIN:
+            # Eine eigene Regel gewinnt die Beschreibung: Name, Kategorie und
+            # Verweis sind auf diese Oberflaeche abgestimmt.
+            entry['name'] = rule['name']
+            entry['cat'] = rule.get('cat', entry['cat'])
+            entry['site'] = rule.get('site') or entry['site']
+            entry['source'] = BUILTIN
+        confidence = confidence or CONFIDENCE.get(kind, LOW)
         if CONFIDENCE_ORDER[confidence] > CONFIDENCE_ORDER[entry['confidence']]:
             entry['confidence'] = confidence
         if version and not entry['version']:
@@ -118,67 +237,117 @@ class _Hits:
             entry['evidence'].append(row)
 
 
-def _scan_rule(rule: dict, hits: _Hits, headers: dict, metas: dict,
-               cookies: list, resources: list, body: str, url: str) -> bool:
-    """Alle Fundstellen einer Regel. True, sobald irgendetwas passte."""
-    found = False
-    for name, pattern in rule.get('headers', ()):
-        value = headers.get(name, '')
-        m = _match(pattern, value)
-        if m:
-            hits.add(rule, 'header', f'{name}: {value[:80]}', m['version'])
-            found = True
-    for name, pattern in rule.get('meta', ()):
-        m = _match(pattern, metas.get(name, ''))
-        if m:
-            hits.add(rule, 'meta', f'{name}: {m["text"]}', m['version'])
-            found = True
-    for pattern in rule.get('cookie', ()):
-        for cookie in cookies:
-            m = _match(pattern, cookie)
-            if m:
-                hits.add(rule, 'cookie', cookie, m['version'])
-                found = True
-                break
-    for pattern in rule.get('script', ()):
-        for ref in resources:
-            m = _match(pattern, ref)
-            if m:
-                hits.add(rule, 'script', ref, m['version'])
-                found = True
-                break
-    for pattern in rule.get('url', ()):
-        m = _match(pattern, url)
-        if m:
-            hits.add(rule, 'url', m['text'], m['version'])
-            found = True
-    for pattern in rule.get('html', ()):
-        m = _match(pattern, body)
-        if m:
-            hits.add(rule, 'html', m['text'], m['version'])
-            found = True
-    return found
+class _Subject:
+    """Alles, wogegen geprueft wird -- einmal aufbereitet, nicht je Regel."""
+
+    def __init__(self, headers: dict, metas: dict, cookies: list,
+                 resources: list, body: str, url: str):
+        self.headers = headers
+        self.metas = metas
+        self.cookies = cookies            # [(Name, Wert)]
+        self.resources = resources
+        self.body = body
+        self.url = url
+        self.resource_blob = '\n'.join(resources)
+        self.resource_blob_low = self.resource_blob.lower()
 
 
-def _apply_implies(hits: _Hits) -> None:
+def _run_test(test: dict, subject: _Subject) -> dict:
+    """Ein Test gegen die passende Stelle. {} = kein Treffer."""
+    kind = test.get('k')
+    field = test.get('f')
+    if kind == 'header':
+        return _match(test, subject.headers.get(field, '')) if field else {}
+    if kind == 'meta':
+        return _match(test, subject.metas.get(field, '')) if field else {}
+    if kind == 'cookie':
+        for name, value in subject.cookies:
+            if field:
+                # Fremdes Schema: der Schluessel ist der Cookie-Name, das
+                # Muster prueft den Wert (leeres Muster = blosses Vorhandensein).
+                if name.lower() != field.lower():
+                    continue
+                if not test['p'] or _match(test, value):
+                    return {'text': name, 'version': ''}
+            else:
+                hit = _match(test, name)
+                if hit:
+                    return hit
+        return {}
+    if kind == 'script':
+        # Erst gegen alle Pfade am Stueck -- ein Textvergleich statt vieler
+        # Einzellaeufe; nur bei einem Treffer wird die Fundstelle gesucht.
+        literal = test.get('l')
+        if literal and literal not in subject.resource_blob_low:
+            return {}
+        for ref in subject.resources:
+            hit = _match(test, ref)
+            if hit:
+                hit['text'] = ref[:160]
+                return hit
+        return {}
+    if kind == 'url':
+        return _match(test, subject.url)
+    if kind == 'html':
+        return _match(test, subject.body)
+    return {}
+
+
+def _scan(rules: list, subject: _Subject, hits: _Hits, deadline: float) -> bool:
+    """Alle Regeln durchgehen. False, wenn das Zeitbudget abgelaufen ist."""
+    for index, rule in enumerate(rules):
+        if not index % 50 and time.monotonic() > deadline:
+            return False
+        for test in rule['tests']:
+            found = _run_test(test, subject)
+            if not found:
+                continue
+            detail = found['text']
+            if test.get('f') and test.get('k') in ('header', 'meta'):
+                detail = '%s: %s' % (test['f'], detail)
+            hits.add(rule, test['k'], detail, found.get('version', ''),
+                     _confidence(test['k'], test.get('c', 100)))
+    return True
+
+
+def _drop_unmet_requirements(rules: list, hits: _Hits) -> None:
+    """Der Zusatz-Datensatz kennt Regeln, die nur zaehlen, wenn eine andere
+    Technik bereits erkannt wurde (ein Plugin ohne sein CMS ist keins)."""
+    for rule in rules:
+        requires = rule.get('requires') or []
+        key = _key(rule['name'])
+        if not requires or key not in hits.by_name:
+            continue
+        if not any(_key(other) in hits.by_name for other in requires):
+            hits.by_name.pop(key, None)
+
+
+def _apply_implies(rules: list, hits: _Hits) -> None:
     """Was eine erkannte Technik zwingend voraussetzt, wird mit aufgenommen --
     aber als abgeleitet und mit niedriger Sicherheit, nie als eigener Fund."""
-    by_rule = {r['name']: r for r in techrules.RULES}
+    # Eigene Regeln zuerst eintragen, damit ein abgeleiteter Fund unter
+    # unserem Namen und in unserer Kategorie landet, wenn es ihn bei uns gibt.
+    by_key = {}
+    for rule in rules:
+        key = _key(rule['name'])
+        if key not in by_key or rule.get('source', BUILTIN) == BUILTIN:
+            by_key[key] = rule
     queue = list(hits.by_name)
     seen = set(queue)
     while queue:
-        name = queue.pop()
-        rule = by_rule.get(name)
+        key = queue.pop()
+        rule = by_key.get(key)
         if not rule:
             continue
-        for implied in rule.get('implies', ()):
-            target = by_rule.get(implied)
-            if target is None or implied in hits.by_name:
+        for implied in rule.get('implies') or ():
+            target_key = _key(implied)
+            target = by_key.get(target_key)
+            if target is None or target_key in hits.by_name:
                 continue
-            hits.add(target, 'implied', name)
-            if implied not in seen:
-                seen.add(implied)
-                queue.append(implied)
+            hits.add(target, 'implied', rule['name'], confidence=LOW)
+            if target_key not in seen:
+                seen.add(target_key)
+                queue.append(target_key)
 
 
 # ── DNS-Seite ────────────────────────────────────────────────────────────────
@@ -225,11 +394,12 @@ def _dns_side(ctx: Context, host: str, hits: _Hits) -> dict:
     domain, nameservers = _zone_of(ctx, host)
     info = {'ns': nameservers, 'ns_provider': '', 'mail_provider': [],
             'spf_services': [], 'domain': domain}
-    for host in info['ns']:
-        name = _suffix_match(host, techrules.NS_SUFFIXES)
+    for ns_host in nameservers:
+        name = _suffix_match(ns_host, techrules.NS_SUFFIXES)
         if name:
             info['ns_provider'] = name
-            hits.add({'name': name, 'cat': 'dns', 'site': ''}, 'dns', host)
+            hits.add({'name': name, 'cat': 'dns', 'site': '',
+                      'source': BUILTIN}, 'dns', ns_host)
             break
     try:
         provider = mailprovider.detect_provider([h for _p, h in mx_hosts(ctx, domain)])
@@ -239,8 +409,8 @@ def _dns_side(ctx: Context, host: str, hits: _Hits) -> dict:
         info['mail_provider'].append(name)
         hosts = [row['host'] for row in provider.get('hosts', [])
                  if row['name'] == name]
-        hits.add({'name': name, 'cat': 'mail', 'site': ''}, 'dns',
-                 'MX ' + (hosts[0] if hosts else domain))
+        hits.add({'name': name, 'cat': 'mail', 'site': '', 'source': BUILTIN},
+                 'dns', 'MX ' + (hosts[0] if hosts else domain))
     try:
         spf = [t for t in txt_strings(ctx, domain) if t.lower().startswith('v=spf1')]
     except ProbeError:
@@ -250,14 +420,14 @@ def _dns_side(ctx: Context, host: str, hits: _Hits) -> dict:
             name = _suffix_match(target, techrules.SPF_INCLUDES)
             if name and name not in info['spf_services']:
                 info['spf_services'].append(name)
-                hits.add({'name': name, 'cat': 'mail', 'site': ''}, 'dns',
-                         'SPF include:' + target)
+                hits.add({'name': name, 'cat': 'mail', 'site': '',
+                          'source': BUILTIN}, 'dns', 'SPF include:' + target)
     return info
 
 
 # ── Hauptpruefung ────────────────────────────────────────────────────────────
 
-def check_tech(ctx: Context, target: str) -> dict:
+def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
     start_url = httpcheck.normalise_url(target)
     chain = httpcheck.follow_redirects(ctx, start_url)
     final_url = chain[-1]['url']
@@ -291,13 +461,24 @@ def check_tech(ctx: Context, target: str) -> dict:
 
     # Set-Cookie kommt als Liste, nicht als ein zusammengeklebter Header --
     # sonst waere bei mehreren Cookies nur der erste Name auswertbar.
-    cookies = [c.split('=', 1)[0].strip() for c in resp.get('cookies', []) if c]
+    cookies = []
+    for raw in resp.get('cookies', []):
+        name, _sep, rest = str(raw).partition('=')
+        name = name.strip()
+        if name:
+            cookies.append((name, rest.split(';', 1)[0].strip()))
+
+    subject = _Subject(headers, page.metas, cookies, resources, body, final_url)
+
+    rules = list(_builtin_rules())
+    extra = _extra_rules() if extra_rules else []
+    rules.extend(extra)
 
     hits = _Hits()
-    for rule in techrules.RULES:
-        _scan_rule(rule, hits, headers, page.metas, cookies, resources,
-                   body, final_url)
-    _apply_implies(hits)
+    deadline = time.monotonic() + SCAN_BUDGET_SECONDS
+    complete = _scan(rules, subject, hits, deadline)
+    _drop_unmet_requirements(rules, hits)
+    _apply_implies(rules, hits)
 
     parsed = urlparse(final_url)
     dns_info = {}
@@ -349,6 +530,9 @@ def check_tech(ctx: Context, target: str) -> dict:
         findings.append(_finding(INFO, 'tech_nothing'))
     else:
         findings.append(_finding(OK, 'tech_found', count=len(technologies)))
+    if not complete:
+        findings.append(_finding(INFO, 'tech_budget',
+                                 seconds=int(SCAN_BUDGET_SECONDS)))
     if truncated:
         findings.append(_finding(INFO, 'tech_truncated',
                                  kb=MAX_HTML_BYTES // 1024))
@@ -363,8 +547,10 @@ def check_tech(ctx: Context, target: str) -> dict:
         'technologies': technologies,
         'groups': groups,
         'counts': counts,
-        'cookies': cookies[:20],
+        'cookies': [name for name, _value in cookies][:20],
         'headers': {k: v[:200] for k, v in headers.items()},
         'dns': dns_info,
+        'rules_used': {'builtin': len(_builtin_rules()), 'extra': len(extra)},
+        'scan_complete': complete,
         'findings': findings, 'level': _worst(findings),
     }

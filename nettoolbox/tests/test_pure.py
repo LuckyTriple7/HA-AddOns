@@ -11,6 +11,7 @@ Run with:  python3 -m pytest tests -q     (from the add-on directory)
 import os
 import socket
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -27,6 +28,7 @@ import netutils  # noqa: E402
 import portcheck  # noqa: E402
 import seocheck  # noqa: E402
 import techrules  # noqa: E402
+import wapimport  # noqa: E402
 import smtpcheck  # noqa: E402
 import tlscheck  # noqa: E402
 import tlsextra  # noqa: E402
@@ -694,26 +696,110 @@ def test_suffix_match_takes_the_longest():
     assert nettech._suffix_match('mx.mail.protection.outlook.com', table) == 'lang'
 
 
-def test_scan_finds_wordpress_and_implies_php():
+def _subject(headers=None, metas=None, cookies=None, resources=None,
+             body='', url='https://example.com/'):
+    return nettech._Subject(headers or {}, metas or {}, cookies or [],
+                            resources or [], body, url)
+
+
+def _scan_one(name, subject):
+    rule = next(r for r in nettech._builtin_rules() if r['name'] == name)
     hits = nettech._Hits()
-    rule = next(r for r in techrules.RULES if r['name'] == 'WordPress')
-    assert nettech._scan_rule(rule, hits, {}, {'generator': 'WordPress 6.5.2'},
-                              [], [], '', 'https://example.com/')
-    nettech._apply_implies(hits)
-    wp = hits.by_name['WordPress']
+    nettech._scan([rule], subject, hits, time.monotonic() + 5)
+    return hits
+
+
+def test_scan_finds_wordpress_and_implies_php():
+    hits = _scan_one('WordPress', _subject(metas={'generator': 'WordPress 6.5.2'}))
+    nettech._apply_implies(nettech._builtin_rules(), hits)
+    wp = hits.by_name[nettech._key('WordPress')]
     assert wp['version'] == '6.5.2'
     assert wp['confidence'] == nettech.HIGH
     # Abgeleitetes bleibt abgeleitet: PHP wurde nicht gemessen, nur gefolgert.
-    assert hits.by_name['PHP']['confidence'] == nettech.LOW
+    assert hits.by_name[nettech._key('PHP')]['confidence'] == nettech.LOW
 
 
 def test_scan_reads_cookie_names_not_values():
-    hits = nettech._Hits()
-    rule = next(r for r in techrules.RULES if r['name'] == 'PHP')
-    assert nettech._scan_rule(rule, hits, {}, {}, ['PHPSESSID'], [], '', '')
-    hits2 = nettech._Hits()
+    assert nettech._key('PHP') in _scan_one(
+        'PHP', _subject(cookies=[('PHPSESSID', 'abc')])).by_name
     # Derselbe Text als Cookie-*Wert* darf nichts ausloesen.
-    assert not nettech._scan_rule(rule, hits2, {}, {}, ['sid'], [], '', '')
+    assert not _scan_one('PHP', _subject(cookies=[('sid', 'PHPSESSID')])).by_name
+
+
+def test_literal_prefilter_never_hides_a_real_hit():
+    """Der Vorfilter darf nur ausschliessen, was das Muster ohnehin nicht
+    findet -- sonst waere er kein Beschleuniger, sondern ein Fehler."""
+    for rule in nettech._builtin_rules():
+        for test in rule['tests']:
+            if not test['l']:
+                continue
+            assert test['l'] in test['p'].lower(), (rule['name'], test['p'])
+
+
+def test_imported_pattern_conversion():
+    parsed = wapimport._parse_pattern(r'Joomla!\;version:\1\;confidence:50')
+    assert parsed['p'] == 'Joomla!'
+    assert parsed['v'] == '1'
+    assert parsed['c'] == 50
+    # Verschachtelte Quantifizierer werden gar nicht erst uebernommen.
+    assert wapimport._parse_pattern(r'(a+)+b') == {}
+    # Ungueltige Muster ebenso wenig.
+    assert wapimport._parse_pattern('(unbalanced') == {}
+
+
+def test_imported_confidence_can_only_lower_the_level():
+    assert nettech._confidence('header', 100) == nettech.HIGH
+    assert nettech._confidence('header', 50) == nettech.MEDIUM
+    assert nettech._confidence('header', 10) == nettech.LOW
+    # Eine schwache Fundstelle wird durch hohe Angabe nicht besser.
+    assert nettech._confidence('html', 100) == nettech.MEDIUM
+
+
+def test_imported_cookie_rule_matches_name_and_value():
+    rule = {'name': 'Fremd', 'cat': 'misc', 'source': nettech.EXTRA,
+            'tests': [{'k': 'cookie', 'f': 'sessid', 'p': '^abc', 'l': '', 'c': 100}]}
+    hits = nettech._Hits()
+    nettech._scan([rule], _subject(cookies=[('sessid', 'abcdef')]), hits,
+                  time.monotonic() + 5)
+    assert nettech._key('Fremd') in hits.by_name
+    hits2 = nettech._Hits()
+    nettech._scan([rule], _subject(cookies=[('sessid', 'xyz')]), hits2,
+                  time.monotonic() + 5)
+    assert not hits2.by_name
+
+
+def test_requires_drops_a_hit_without_its_base():
+    rules = [{'name': 'Plugin', 'cat': 'misc', 'requires': ['Basis'],
+              'tests': [], 'source': nettech.EXTRA}]
+    hits = nettech._Hits()
+    hits.add(rules[0], 'html', 'irgendwas')
+    nettech._drop_unmet_requirements(rules, hits)
+    assert nettech._key('Plugin') not in hits.by_name
+
+
+def test_same_technology_from_both_sets_lands_in_one_row():
+    """Der Zusatz-Datensatz schreibt "Nginx" und "Nuxt.js" -- ohne gemeinsamen
+    Schluessel stuende das doppelt in der Liste."""
+    assert nettech._key('Nginx') == nettech._key('nginx')
+    assert nettech._key('Nuxt.js') == nettech._key('Nuxt')
+    assert nettech._key('Vue.js') == nettech._key('Vue')
+    hits = nettech._Hits()
+    extra = {'name': 'Nginx', 'cat': 'misc', 'source': nettech.EXTRA, 'tests': []}
+    builtin = {'name': 'nginx', 'cat': 'server', 'source': nettech.BUILTIN,
+               'site': 'nginx.org', 'tests': []}
+    hits.add(extra, 'header', 'server: nginx')
+    hits.add(builtin, 'header', 'server: nginx')
+    assert len(hits.by_name) == 1
+    row = hits.by_name[nettech._key('nginx')]
+    # Der eigene Satz bestimmt Name und Kategorie, weil die Oberflaeche daran haengt.
+    assert (row['name'], row['cat'], row['source']) == ('nginx', 'server', nettech.BUILTIN)
+
+
+def test_category_mapping_falls_back_to_misc():
+    catalogue = {'1': 'CMS', '99': 'Etwas Neues'}
+    assert wapimport._category([1], catalogue) == 'cms'
+    assert wapimport._category([99], catalogue) == 'misc'
+    assert wapimport._category([], catalogue) == 'misc'
 
 
 def test_tech_findings_and_categories_are_translated():

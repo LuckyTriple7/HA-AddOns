@@ -29,6 +29,7 @@ COPY quiccheck.py .
 COPY seocheck.py .
 COPY nettech.py .
 COPY techrules.py .
+COPY wapimport.py .
 COPY netutils.py .
 COPY portcheck.py .
 COPY geoip.py .
