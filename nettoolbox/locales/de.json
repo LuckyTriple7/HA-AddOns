@@ -425,5 +425,12 @@
   "software_label": "Software",
   "software_unknown": "nicht erkannt (Banner nennt kein Produkt)",
   "software_from_banner": "Aus dem SMTP-Banner gelesen — der Betreiber kann den Text frei setzen.",
-  "software_from_ehlo": "Aus herstellerspezifischen EHLO-Erweiterungen geschlossen, da das Banner nichts verriet."
+  "software_from_ehlo": "Aus herstellerspezifischen EHLO-Erweiterungen geschlossen, da das Banner nichts verriet.",
+  "status_worker_mode": "Worker-Modus",
+  "status_local_error": "Lokal — Fehler",
+  "status_local_hint": "Alle Prüfungen laufen in diesem Add-on. Kein Root-Server-Worker eingetragen.",
+  "status_local_error_hint": "Das lokale Prüf-Backend antwortet nicht — siehe Add-on-Protokoll.",
+  "status_worker_mode_hint": "Diese Instanz prüft selbst und beantwortet zusätzlich Anfragen einer zweiten NetToolbox-Instanz (worker_enabled ist an). Typisch für die Installation auf dem Root-Server.",
+  "status_worker_connected_hint": "Prüfungen werden an den Root-Server-Worker geschickt und laufen dort.",
+  "status_worker_down_hint": "Ein Worker ist eingetragen, antwortet aber nicht — Prüfungen schlagen fehl, bis er wieder erreichbar ist."
 }

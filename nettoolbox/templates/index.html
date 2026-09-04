@@ -783,12 +783,27 @@ async function loadStatus(){
     const pill = $('backendPill');
     const ok = data.backend && data.backend.ok;
     pill.className = 'pill ' + (ok ? 'ok' : 'bad');
-    const label = data.backend && data.backend.kind === 'remote'
-      ? (ok ? T.status_worker_connected : T.status_worker_down)
-      : (ok ? T.status_local : T.status_local);
+    // Drei Zustaende, nicht zwei: eine Instanz, die selbst als Worker fuer
+    // eine andere laeuft, hat ebenfalls ein lokales Backend -- sie stand
+    // deshalb frueher genauso auf "Lokal" wie eine Instanz ohne jede
+    // Worker-Beteiligung, was auf dem Root-Server verwirrend war.
+    let label, hint;
+    if (data.backend && data.backend.kind === 'remote') {
+      label = ok ? T.status_worker_connected : T.status_worker_down;
+      hint = (ok ? T.status_worker_connected_hint : T.status_worker_down_hint) +
+        (data.backend.url ? ' (' + data.backend.url + ')' : '');
+    } else if (data.worker_enabled) {
+      label = T.status_worker_mode;
+      hint = T.status_worker_mode_hint;
+    } else {
+      label = ok ? T.status_local : T.status_local_error;
+      hint = ok ? T.status_local_hint : T.status_local_error_hint;
+    }
     $('backendLabel').textContent = label;
+    pill.title = hint;
   } catch (e) {
     $('backendLabel').textContent = T.status_unknown || '?';
+    $('backendPill').title = '';
   }
 }
 

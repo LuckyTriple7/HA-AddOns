@@ -425,5 +425,12 @@
   "software_label": "Software",
   "software_unknown": "not identified (banner names no product)",
   "software_from_banner": "Read from the SMTP banner — the operator is free to set that text.",
-  "software_from_ehlo": "Inferred from vendor-specific EHLO extensions, because the banner gave nothing away."
+  "software_from_ehlo": "Inferred from vendor-specific EHLO extensions, because the banner gave nothing away.",
+  "status_worker_mode": "Worker mode",
+  "status_local_error": "Local — error",
+  "status_local_hint": "All checks run inside this add-on. No root-server worker configured.",
+  "status_local_error_hint": "The local probe backend is not answering — see the add-on log.",
+  "status_worker_mode_hint": "This instance checks locally and additionally answers requests from a second NetToolbox instance (worker_enabled is on). Typical for the install on the root server.",
+  "status_worker_connected_hint": "Checks are sent to the root-server worker and run there.",
+  "status_worker_down_hint": "A worker is configured but not answering — checks fail until it is reachable again."
 }

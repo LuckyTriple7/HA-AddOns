@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.17] - 2026-09-04
+
+### Fixed
+- **Statusanzeige unterscheidet jetzt drei Zustände statt zwei.** Auf dem Root-Server stand in
+  der Kopfzeile ebenfalls "Lokal", obwohl diese Instanz gerade die Worker-Rolle ausfüllt — sie
+  führt ihre eigenen Prüfungen ja tatsächlich lokal aus, und nur das war bisher abgefragt. Ist
+  `worker_enabled` an, zeigt die Anzeige jetzt **"Worker-Modus"**. "Worker verbunden" bleibt der
+  Zustand der Heim-Instanz, die ihre Prüfungen dorthin auslagert.
+- Die Anzeige hat einen Tooltip bekommen, der den jeweiligen Zustand in einem Satz erklärt (bei
+  "Worker verbunden" samt Worker-Adresse).
+- Ein fehlerhaftes lokales Backend zeigte trotz roter Anzeige weiter "Lokal" (die Textauswahl
+  hatte in beiden Zweigen denselben Wert stehen); jetzt "Lokal — Fehler".
+
 ## [0.1.16] - 2026-09-04
 
 ### Added
