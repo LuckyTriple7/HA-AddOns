@@ -12805,20 +12805,73 @@ _CSP_COMMON = (
     # laeuft — ein Bild vom NAS soll nicht am Kopfzeilen-Schutz scheitern.
     "img-src 'self' data: http: https:; "
     "media-src 'self' https:; "
-    "font-src 'self'; connect-src 'self'; "
-    "object-src 'none'; base-uri 'none'; form-action 'self'"
+    "object-src 'none'; form-action 'self'"
 )
 
 # Oeffentlich: die beiden Video-Hosts aus `parse_video` duerfen eingebettet
 # werden, umgekehrt darf die Seite nirgends eingebettet werden (Klickjacking).
-CSP_PUBLIC = (_CSP_COMMON + "; frame-src https://www.youtube-nocookie.com "
-              "https://player.vimeo.com; frame-ancestors 'none'")
+CSP_PUBLIC = (_CSP_COMMON + "; font-src 'self'; connect-src 'self'; "
+              "manifest-src 'self'; base-uri 'none'; "
+              "frame-src https://www.youtube-nocookie.com https://player.vimeo.com; "
+              "frame-ancestors 'none'")
 
-# Admin: bewusst OHNE `frame-ancestors` und ohne `X-Frame-Options`. Ueber den
-# HA-Ingress laeuft das Panel in einem iframe von Home Assistant — eine Sperre
-# hier liesse das Panel weiss. `frame-src 'self'` deckt den Vorschaurahmen ab,
-# der die Seite per `srcdoc` zeigt.
-CSP_ADMIN = _CSP_COMMON + "; frame-src 'self'"
+# Nur Schema, Name und Port — alles andere kaeme aus einem Eingabefeld direkt in
+# eine Kopfzeile. Ein Zeilenumbruch darin waere eine zweite, frei erfundene
+# Kopfzeile.
+_ORIGIN_RE = re.compile(r'^https?://[A-Za-z0-9.\-]{1,253}(:\d{1,5})?$')
+_preview_origin_cache: tuple = (None, ())
+
+
+def _preview_origins() -> tuple:
+    """Herkunft der oeffentlichen Seite, wie sie die Design-Vorschau einsetzt.
+
+    Die Vorschau rendert die oeffentliche Startseite im Admin und reicht sie als
+    `srcdoc` weiter (siehe `api_preview`). Ein `srcdoc`-Rahmen erbt die Regel des
+    Elterndokuments — also diese hier. Weil in das HTML ein `<base>` auf die
+    echte Adresse eingefuegt wird, kommen Schriften und Bilder darin vom
+    Nachbarport und nicht von der Admin-Adresse: ohne diese Ausnahme zeigte die
+    Vorschau ab „Durchsetzen" eine Seite ohne Schrift und ohne Bilder, und das
+    ist genau das, was man dort beurteilen will.
+
+    Gleiche Herleitung wie in `api_preview`, damit beide nicht auseinanderlaufen.
+    Zwischengespeichert ueber die Aenderungszeit von site.json — sonst laege bei
+    jeder Antwort ein vollstaendiges Lesen der Datei davor.
+    """
+    global _preview_origin_cache
+    try:
+        mtime = os.path.getmtime(SITE_PATH)
+    except OSError:
+        mtime = -1.0
+    host = (request.host or '').split(':')[0]
+    key = (mtime, host, request.scheme)
+    if _preview_origin_cache[0] == key:
+        return _preview_origin_cache[1]
+    pub = (load_site()['design'].get('public_url') or '').rstrip('/')
+    if not _ORIGIN_RE.match(pub):
+        pub = ''
+    if request.scheme == 'https':
+        # Bei HTTPS taugt nur die eingetragene HTTPS-Adresse: eine http-Quelle
+        # blockt der Browser ohnehin als gemischten Inhalt.
+        out = [pub] if pub.startswith('https://') else []
+    else:
+        out = [pub or f'http://{host}:{PUBLIC_PORT}']
+    origins = tuple(o for o in out if o)
+    _preview_origin_cache = (key, origins)
+    return origins
+
+
+def _csp_admin() -> str:
+    """Regel fuer das Admin-Panel — bewusst OHNE `frame-ancestors` und ohne
+    `X-Frame-Options`: Ueber den HA-Ingress laeuft das Panel in einem iframe von
+    Home Assistant, eine Sperre hier liesse das Panel weiss.
+
+    `frame-src 'self'` deckt den Vorschaurahmen ab, die Herkunft der
+    oeffentlichen Seite kommt aus `_preview_origins()`.
+    """
+    extra = ' '.join(_preview_origins())
+    src = ("'self' " + extra) if extra else "'self'"
+    return (_CSP_COMMON + f"; font-src {src}; connect-src {src}; "
+            f"manifest-src {src}; base-uri {src}; frame-src 'self'")
 
 # Faehigkeiten, die MyPage nicht braucht, gar nicht erst zulassen. Die vier
 # Video-Eintraege nennen die Embed-Hosts, sonst fehlt im eingebetteten Video der
@@ -12864,7 +12917,7 @@ def _security_headers(resp, csp: str):
 
 
 public_app.after_request(lambda r: _security_headers(r, CSP_PUBLIC))
-admin_app.after_request(lambda r: _security_headers(r, CSP_ADMIN))
+admin_app.after_request(lambda r: _security_headers(r, _csp_admin()))
 
 
 # Einstieg in die Vorschau: ?vorschau=<token> an einer beliebigen oeffentlichen

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.54
+
+- 🐛 **Die Design-Vorschau überlebt jetzt auch „Durchsetzen".** Sie rendert die öffentliche Startseite im Admin und schiebt ein `<base>` auf die echte Adresse hinein, damit Bilder und Schriften von dort kommen. Ein `srcdoc`-Rahmen erbt aber die Regel des Elterndokuments — `base-uri 'none'` und `font-src 'self'` hätten dem Rahmen genau das genommen, was man in einer Design-Vorschau beurteilen will. Die Admin-Regel erlaubt für Schriften, Verbindungen, Manifest und `<base>` deshalb zusätzlich die Herkunft der öffentlichen Seite: die eingetragene öffentliche Adresse, sonst den Nachbarport. Hergeleitet wie in `api_preview`, damit beide nicht auseinanderlaufen.
+- 🔒 Die eingetragene öffentliche Adresse wird dabei gegen ein Muster aus Schema, Name und Port geprüft, bevor sie in die Kopfzeile geht — ein Zeilenumbruch aus einem Eingabefeld wäre sonst eine zweite, frei erfundene Kopfzeile.
+- 🧹 Die öffentliche Regel nennt jetzt `manifest-src` ausdrücklich, statt es über `default-src` laufen zu lassen.
+
 ## 0.11.53
 
 - 🐛 **Konsolen-Warnung der Permissions-Policy behoben.** Die Kopfzeile nannte `ambient-light-sensor`; Chrome kennt den Namen nicht (er steckt dort hinter einem Flag) und meldete bei jedem Seitenaufruf `Unrecognized feature`. Wirksam war die Kopfzeile trotzdem — unbekannte Einträge werden übersprungen, nicht die ganze Regel —, aber in einer Konsole voller Warnungen geht der echte Treffer unter. Der Eintrag ist raus, der Sensor bleibt über `accelerometer`/`gyroscope`/`magnetometer` ohnehin ohne Zugriff.
