@@ -432,6 +432,20 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <div id="quicResult"></div>
   </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>{{ t.seo_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="seoTarget">{{ t.field_url }}</label>
+        <input type="text" id="seoTarget" placeholder="example.com oder https://example.com/pfad" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="seoRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.seo_hint }}</p>
+    <div id="seoResult"></div>
+  </div>
 </section>
 
 <section id="tab-dnssec">
@@ -1709,6 +1723,111 @@ async function quicCheck(){
 }
 
 $('quicRun').addEventListener('click', quicCheck);
+
+// ── SEO-Check ───────────────────────────────────────────────────────────────
+
+function seoCard(title, rows){
+  const card = el('div', 'subcard');
+  card.appendChild(el('h4', '', title));
+  rows.forEach(([label, value, mono]) => {
+    if (value === undefined || value === null || value === '') return;
+    const row = el('div', 'ipinfo-kv');
+    row.appendChild(el('span', '', label));
+    row.appendChild(el('span', mono ? 'mono' : '', String(value)));
+    card.appendChild(row);
+  });
+  return card;
+}
+
+function seoLen(value, length, min, max){
+  if (!value) return T.seo_value_missing;
+  const mark = (length < min || length > max) ? ' ⚠' : '';
+  return value + ' (' + length + mark + ')';
+}
+
+async function seoCheck(){
+  const target = $('seoTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('seoResult'); showLoading(box);
+  try {
+    const data = await runProbe('seo', { target: target }, target, $('seoRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.seo_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    box.appendChild(score);
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'chip', r.final_url));
+    badges.appendChild(el('span', 'chip', r.ms + ' ms'));
+    badges.appendChild(el('span', 'chip', Math.round(r.bytes / 1024) + ' KB'));
+    if (r.redirects) badges.appendChild(el('span', 'chip',
+      fmtStr(T.seo_redirects, { count: r.redirects })));
+    box.appendChild(badges);
+
+    box.appendChild(renderFindings(r.findings));
+
+    const grid = el('div', 'subgrid ipinfo-grid');
+    grid.appendChild(seoCard(T.seo_group_basics, [
+      [T.seo_field_title, seoLen(r.title, r.title_length, 30, 60)],
+      [T.seo_field_description, seoLen(r.description, r.description_length, 70, 160)],
+      [T.seo_field_canonical, r.canonical, true],
+      [T.seo_field_lang, r.lang || T.seo_value_missing, true],
+      [T.seo_field_charset, r.charset || T.seo_value_missing, true],
+      [T.seo_field_viewport, r.viewport || T.seo_value_missing, true],
+      [T.seo_field_robots_meta, r.robots_meta || '—', true],
+    ]));
+    grid.appendChild(seoCard(T.seo_group_structure, [
+      ['H1', r.h1.length ? r.h1.join(' · ') : T.seo_value_missing],
+      [T.seo_field_headings, r.headings.map(h => 'H' + h.level).join(' ') || '—', true],
+      [T.seo_field_words, r.words],
+      [T.seo_field_images, fmtStr(T.seo_images_value,
+        { total: r.images_total, missing: r.images_no_alt })],
+    ]));
+    grid.appendChild(seoCard(T.seo_group_crawling, [
+      ['robots.txt', r.robots_txt.found
+        ? (r.robots_txt.disallow_all ? T.seo_robots_blocks_all : T.seo_value_present)
+        : T.seo_value_missing],
+      ['Sitemap', r.sitemap.found
+        ? fmtStr(T.seo_sitemap_value, { urls: r.sitemap.urls })
+        : T.seo_value_missing],
+      [T.seo_field_sitemap_url, r.sitemap.url, true],
+      ['hreflang', r.hreflang.map(h => h.lang).join(', ') || '—', true],
+    ]));
+    grid.appendChild(seoCard(T.seo_group_tech, [
+      ['Status', r.status],
+      [T.seo_field_compression, r.compression || T.seo_value_missing, true],
+      ['Cache-Control', r.cache_control || '—', true],
+      ['JSON-LD', r.jsonld_types.join(', ') || T.seo_value_missing, true],
+      ['Open Graph', Object.keys(r.og).length || T.seo_value_missing],
+      ['Twitter Cards', Object.keys(r.twitter).length || T.seo_value_missing],
+      [T.seo_field_mixed, r.mixed_content.length || '0'],
+    ]));
+    box.appendChild(grid);
+
+    if (r.mixed_content.length) {
+      const c = el('div', 'subcard');
+      c.appendChild(el('h4', '', T.seo_field_mixed));
+      const chips = el('div', 'chips');
+      r.mixed_content.forEach(u => chips.appendChild(el('span', 'chip', u)));
+      c.appendChild(chips);
+      box.appendChild(c);
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('seoRun').addEventListener('click', seoCheck);
+$('seoTarget').addEventListener('keydown', e => { if (e.key === 'Enter') seoCheck(); });
 
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import mailauth
 import mailprovider
 import netutils
 import quiccheck
+import seocheck
 import smtpcheck
 import tlscheck
 from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
@@ -301,6 +302,10 @@ def p_quic(ctx: Context, params: dict) -> dict:
     return quiccheck.check_quic(ctx, _str(params, 'target'))
 
 
+def p_seo(ctx: Context, params: dict) -> dict:
+    return seocheck.check_seo(ctx, _str(params, 'target'))
+
+
 def p_ping(ctx: Context, params: dict) -> dict:
     count = params.get('count')
     if count is None:
@@ -344,6 +349,7 @@ PROBES = {
     'http': p_http,
     'smtp': p_smtp,
     'quic': p_quic,
+    'seo': p_seo,
     'ping': p_ping,
     'traceroute': p_traceroute,
     'ipinfo': p_ipinfo,
@@ -362,6 +368,7 @@ TARGET_KIND = {
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
+    'seo': 'target',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',

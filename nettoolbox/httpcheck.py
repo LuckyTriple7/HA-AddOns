@@ -51,7 +51,7 @@ def _worst(findings: list) -> str:
     return OK
 
 
-def _normalise_url(raw: str) -> str:
+def normalise_url(raw: str) -> str:
     raw = (raw or '').strip()
     if not raw:
         raise ProbeError('empty_target')
@@ -60,7 +60,7 @@ def _normalise_url(raw: str) -> str:
     return raw
 
 
-def _follow(ctx: Context, url: str) -> list:
+def follow_redirects(ctx: Context, url: str) -> list:
     chain = []
     seen = set()
     current = url
@@ -88,8 +88,8 @@ def _follow(ctx: Context, url: str) -> list:
 
 
 def check_http(ctx: Context, target: str) -> dict:
-    start_url = _normalise_url(target)
-    chain = _follow(ctx, start_url)
+    start_url = normalise_url(target)
+    chain = follow_redirects(ctx, start_url)
     final = chain[-1]
     headers = final['headers']
     findings = []

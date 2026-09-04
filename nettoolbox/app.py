@@ -400,7 +400,7 @@ _ERROR_STATUS = {
     'too_many_values': 400, 'private_target': 403,
     'redirect_loop': 400, 'too_many_redirects': 400,
     'nxdomain': 404, 'no_records': 404, 'whois_no_referral': 404,
-    'no_mail_host': 404, 'null_mx': 404,
+    'no_mail_host': 404, 'null_mx': 404, 'not_html': 415,
     'dns_timeout': 504, 'http_timeout': 504, 'worker_timeout': 504,
     'tls_timeout': 504, 'whois_timeout': 504, 'smtp_timeout': 504,
     'quic_response_timeout': 504, 'ping_timeout': 504, 'traceroute_timeout': 504,

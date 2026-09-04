@@ -24,6 +24,7 @@ COPY domaininfo.py .
 COPY httpcheck.py .
 COPY smtpcheck.py .
 COPY quiccheck.py .
+COPY seocheck.py .
 COPY netutils.py .
 COPY geoip.py .
 COPY monitor.py .

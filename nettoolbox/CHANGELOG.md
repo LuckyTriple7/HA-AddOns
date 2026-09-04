@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.23] - 2026-09-04
+
+### Added
+- **SEO-Check.** Neues Modul `seocheck.py`, Probe `seo`, eigene Karte im Reiter HTTP-Header —
+  dieselbe Adresse, dieselbe geschützte HTTP-Schicht (SSRF-Guard, Weiterleitungskette,
+  Größenlimit) wie die HTTP-Prüfung darüber. Gelesen wird mit `html.parser` aus der
+  Standardbibliothek; keine neue Abhängigkeit im Image.
+  - **Grundlagen:** Titel (30–60 Zeichen), Meta-Description (70–160), Canonical, `lang`,
+    Zeichensatz, Viewport, `robots`-Meta (noindex/nofollow).
+  - **Struktur:** genau eine H1, übersprungene Überschriften-Ebenen, Wortzahl, Bilder ohne
+    Alternativtext (ein leeres `alt=""` gilt korrekt als gewollt dekorativ).
+  - **Crawling:** robots.txt inklusive „sperrt alle Crawler", Sitemap aus robots.txt oder
+    `/sitemap.xml` mit Anzahl der Adressen, hreflang-Verweise.
+  - **Technik:** Status, Antwortzeit, Seitengröße, Weiterleitungen, Kompression, Cache-Control,
+    Open Graph, Twitter Cards, JSON-LD-Typen, Mixed Content (http-Ressourcen auf https-Seiten).
+  - Eigener 0–100-Punktestand nach dem Muster der Mail-Gesundheit, Hinweis-Funde kosten nichts.
+- Ehrlich benannte Grenzen: Core Web Vitals, Rankings und Backlinks sind nicht dabei (echter
+  Browser bzw. kostenpflichtige Dienste nötig), und beurteilt wird das ausgelieferte HTML — was
+  erst JavaScript aufbaut, erscheint als „wenig Text", genau wie bei einem Crawler ohne
+  JavaScript. Wird die Seite größer als 512 KB, sagt ein eigener Hinweis, dass nur der obere
+  Teil ausgewertet wurde.
+- Gzip-komprimierte Sitemaps (`.gz`) werden übersprungen und `/sitemap.xml` immer zusätzlich
+  probiert — heise.de nennt sieben Sitemaps in der robots.txt, sechs davon `.gz`, und die erste
+  davon antwortet mit 404.
+
+### Changed
+- `httpcheck._normalise_url` / `_follow` heißen jetzt `normalise_url` / `follow_redirects`, da
+  sie von `seocheck.py` mitbenutzt werden.
+
 ## [0.1.22] - 2026-09-04
 
 ### Changed

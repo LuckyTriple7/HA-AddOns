@@ -19,6 +19,8 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **SSL/TLS** — Zertifikatskette, Ablaufdatum, Hostname-Abdeckung, ausgehandelte TLS-Version
 - **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
+- **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
+  ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand
 - **SMTP** — Domain genügt, der Mailserver wird über den MX-Eintrag selbst ermittelt; Banner,
   EHLO-Fähigkeiten, STARTTLS, Offene-Relais-Test (liefert nie tatsächlich Mail aus)
 - **Anbieter-/Software-Erkennung** — Betreiber aus den MX-Namen (Microsoft 365, Google, IONOS, STRATO …), MTA-Software aus dem SMTP-Banner (Postfix, Exim, Exchange …)

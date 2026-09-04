@@ -21,6 +21,8 @@ about your domains leaves your own infrastructure.
 - **SSL/TLS** — certificate chain, expiry, hostname coverage, negotiated TLS version
 - **Whois/RDAP** — registrar, registration/expiry dates, name servers; RDAP first, WHOIS fallback for TLDs without RDAP (e.g. .de)
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
+- **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
+  without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score
 - **SMTP** — a domain is enough, the mail server is found through its MX record; banner, EHLO
   capabilities, STARTTLS, open-relay test (never actually delivers mail)
 - **Operator / software detection** — operator from the MX names (Microsoft 365, Google, IONOS, STRATO …), MTA software from the SMTP banner (Postfix, Exim, Exchange …)
