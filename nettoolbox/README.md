@@ -74,6 +74,9 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   - **Tageskontingent je Konto** — z. B. 10 Abfragen am Tag über alle freigeschalteten
     Module, ein Gesamtbericht zählt als eine. 0 heißt unbegrenzt.
   - **Protokoll je Konto** — der Betreiber sieht, wer was geprüft hat, und kann es löschen.
+  - Die Willkommensmail enthält einen **Anmeldelink**. Wer Konten über Home Assistant
+    anlegt, trägt die öffentliche Adresse einmal in den Einstellungen ein — die
+    Ingress-Adresse führt zu keiner Anmeldeseite.
 - **Anmeldeschutz außerhalb von Ingress** — nach 5 Fehlversuchen in 10 Minuten wird die IP
   für 15 Minuten gesperrt; die Sperre überlebt einen Neustart des Add-ons. Auf Wunsch meldet
   NetToolbox jede Sperre und/oder jede erfolgreiche Anmeldung, je Ereignis einzeln über Mail

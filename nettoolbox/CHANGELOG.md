@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.1] - 2026-09-04
+
+### Added
+- **Anmeldelink in der Willkommens- und der Kennwortmail.** Bisher stand dort nur der
+  Hostname. Ohne weiteres Zutun nimmt NetToolbox die Adresse, unter der es gerade aufgerufen
+  wurde — steht ein Reverse-Proxy davor, ist das die Domain samt https.
+- **Neue Einstellung „Öffentliche Adresse"** (Einstellungen → *Anmeldung*). Nötig, wenn
+  Konten über Home Assistant angelegt werden: die Ingress-Adresse führt zu keiner
+  Anmeldeseite, ein Link darauf wäre falsch. Eingetragenes sticht Ermitteltes. Ohne
+  brauchbare Adresse steht in der Mail bewusst **kein** Link, sondern der Hinweis, dass der
+  Betreiber sie nennt — und die Oberfläche sagt dem Betreiber, dass er sie eintragen sollte.
+  Übernommen wird nur, was wie eine Adresse aussieht (http/https, plausibler Host);
+  `javascript:` und Ähnliches fallen durch.
+
+### Changed
+- **Die Benutzertabelle passt jetzt in den Dialog.** Fünf Knöpfe je Zeile haben die Tabelle
+  breiter gemacht als das Fenster, sodass alles ineinanderlief. Jede Zeile hat nur noch
+  **Verwalten**; Module, Tageskontingent, Sperren, Kennwort zurücksetzen, Protokoll und
+  Löschen stehen darunter in der aufklappbaren Zeile, wo die volle Breite da ist. Der
+  Einstellungsdialog ist dafür breiter (920 statt 560 px), die Formularfelder bleiben aber
+  auf lesbarer Breite.
+- Das Protokoll hat Spaltenüberschriften und scrollt in einem eigenen Rahmen, statt die
+  Seite zu verlängern.
+
 ## [0.3.0] - 2026-09-04
 
 ### Added

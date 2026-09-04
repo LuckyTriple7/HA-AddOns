@@ -42,7 +42,10 @@ header { background: var(--surf); border-bottom: 1px solid var(--border);
             align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; }
 .modal-bg.open { display: flex; }
 .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 24px;
-         width: 100%; max-width: 560px; position: relative; }
+         width: 100%; max-width: 920px; position: relative; }
+/* Der Dialog ist wegen der Benutzertabelle breit; ein SMTP-Server-Feld ueber
+   die volle Breite waere deshalb albern. */
+.set-row > input[type="text"], .set-row > input[type="password"] { max-width: 420px; }
 .modal-close { position: absolute; top: 12px; right: 12px; background: none; border: 1px solid var(--border);
                color: var(--muted); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
 .modal-close:hover { border-color: var(--accent); }
@@ -52,7 +55,20 @@ header { background: var(--surf); border-bottom: 1px solid var(--border);
 .set-lbl { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; }
 .set-check { display: flex; align-items: center; gap: 6px; font-size: 0.83rem; }
 .set-row > .field { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
-.set-channels { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.set-channels { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+/* Benutzertabelle: Knoepfe nebeneinander statt untereinander, und nur das
+   Ziel im Protokoll darf umbrechen -- der Rest sind kurze Felder. */
+#userTableBox th, #userTableBox td { white-space: nowrap; }
+#userTableBox td.user-actions { text-align: right; }
+#userTableBox td.user-mail { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+#userTableBox td.user-detail { white-space: normal; background: var(--bg); }
+.user-detail-row { margin-top: 10px; }
+.quota-input { width: 70px; }
+.user-detail-row > .set-check { white-space: nowrap; }
+.user-log-box { max-height: 260px; overflow: auto; border: 1px solid var(--border);
+                border-radius: 6px; margin-bottom: 8px; }
+.user-log td, .user-log th { padding: 4px 8px; font-size: 0.78rem; }
+.user-log td:nth-child(3) { white-space: normal; word-break: break-all; }
 .icon-moon { display: block; } .icon-sun { display: none; }
 [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
 nav { display: flex; gap: 2px; padding: 0 16px; background: var(--surf); border-bottom: 1px solid var(--border);
@@ -742,6 +758,11 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <h3>{{ t.settings_group_security }}</h3>
       <p class="hint" style="margin-top:0">{{ t.settings_security_hint }}</p>
       <div class="set-row">
+        <label class="field" for="setPublicUrl">{{ t.field_public_url }}</label>
+        <input type="text" id="setPublicUrl" autocomplete="off" placeholder="https://netz.example.com">
+        <div class="hint">{{ t.public_url_hint }}</div>
+      </div>
+      <div class="set-row">
         <div class="field">{{ t.field_notify_login_fail }}</div>
         <div class="set-channels">
           <label class="set-check">
@@ -925,6 +946,7 @@ async function loadSettings(){
     $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
     $('setTelegramChatId').value = v.telegram_chat_id || '';
     loadUsers();
+    $('setPublicUrl').value = v.public_url || '';
     $('setNotifyLoginFailMail').checked = v.notify_login_fail_email !== false;
     $('setNotifyLoginFailTg').checked = v.notify_login_fail_telegram !== false;
     $('setNotifyLoginOkMail').checked = !!v.notify_login_ok_email;
@@ -1014,27 +1036,23 @@ function userRow(u, selfId){
   const tr = el('tr');
   const name = el('td');
   name.appendChild(el('span', '', u.username));
-  if (u.is_admin) name.appendChild(el('span', 'badge', ' ' + T.users_is_admin));
+  if (u.is_admin) name.appendChild(el('span', 'badge info', ' ' + T.users_admin_badge));
   tr.appendChild(name);
-  tr.appendChild(el('td', '', u.email || '—'));
+  tr.appendChild(el('td', 'user-mail', u.email || '—'));
   const state = u.blocked ? T.users_state_blocked
     : (u.must_change ? T.users_state_pending : T.users_state_active);
   tr.appendChild(el('td', '', state));
   tr.appendChild(el('td', '', userDate(u.last_login_ts)));
-  const actions = el('td');
+  // Eine Zeile, ein Knopf. Fuenf Knoepfe je Zeile haben die Tabelle breiter
+  // gemacht als den Dialog -- alles Weitere steht in der aufklappbaren Zeile
+  // darunter, wo die volle Breite zur Verfuegung steht.
+  const actions = el('td', 'user-actions');
   if (u.id !== selfId) {
-    [['block', u.blocked ? T.users_unblock : T.users_block],
-     ['edit', T.users_edit],
-     ['log', T.users_log],
-     ['reset', T.users_reset],
-     ['delete', T.users_delete]].forEach(([action, label]) => {
-      const b = el('button', 'btn' + (action === 'delete' ? ' danger' : ''), label);
-      b.type = 'button';
-      b.dataset.userAction = action;
-      b.dataset.userId = String(u.id);
-      b.dataset.blocked = u.blocked ? '1' : '';
-      actions.appendChild(b);
-    });
+    const b = el('button', 'btn', T.users_manage);
+    b.type = 'button';
+    b.dataset.userAction = 'edit';
+    b.dataset.userId = String(u.id);
+    actions.appendChild(b);
   } else {
     actions.appendChild(el('span', 'hint', T.users_self));
   }
@@ -1042,18 +1060,30 @@ function userRow(u, selfId){
   return tr;
 }
 
+// Reiter heissen in den Uebersetzungen nicht alle nav_<modul> -- "mail" liegt
+// unter nav_mail_group. Eine Zuordnung statt einer Namensregel.
 const MODULE_LABEL = {
   report: 'nav_report', dns: 'nav_dns', mail: 'nav_mail_group',
   reverse: 'nav_reverse', tls: 'nav_tls', whois: 'nav_whois', http: 'nav_http'
 };
 
+function actionButton(action, label, id, cls){
+  const b = el('button', 'btn' + (cls ? ' ' + cls : ''), label);
+  b.type = 'button';
+  b.dataset.userAction = action;
+  b.dataset.userId = String(id);
+  return b;
+}
+
 function userDetailRow(u, modules){
   const tr = el('tr');
   tr.dataset.detailFor = String(u.id);
   tr.style.display = 'none';
-  const td = el('td');
+  const td = el('td', 'user-detail');
   td.colSpan = 5;
-  const box = el('div', 'set-channels');
+
+  const mods = el('div', 'set-channels');
+  mods.appendChild(el('span', 'field', T.users_modules_label));
   modules.forEach(m => {
     const label = el('label', 'set-check');
     const cb = document.createElement('input');
@@ -1063,32 +1093,33 @@ function userDetailRow(u, modules){
     cb.checked = u.modules === '*' || u.modules.split(',').indexOf(m) >= 0;
     label.appendChild(cb);
     label.appendChild(document.createTextNode(' ' + (T[MODULE_LABEL[m]] || m)));
-    box.appendChild(label);
+    mods.appendChild(label);
   });
-  td.appendChild(box);
-  const row = el('div', 'set-channels');
-  row.style.marginTop = '10px';
+  td.appendChild(mods);
+
+  const quotaRow = el('div', 'set-channels user-detail-row');
   const quotaLabel = el('label', 'set-check', T.users_quota + ' ');
   const quota = document.createElement('input');
   quota.type = 'text';
   quota.inputMode = 'numeric';
-  quota.style.width = '80px';
+  quota.className = 'quota-input';
   quota.dataset.quotaFor = String(u.id);
   quota.value = String(u.daily_quota || 0);
   quotaLabel.appendChild(quota);
-  row.appendChild(quotaLabel);
-  const save = el('button', 'btn primary', T.action_save);
-  save.type = 'button';
-  save.dataset.userAction = 'save';
-  save.dataset.userId = String(u.id);
-  row.appendChild(save);
-  const reset = el('button', 'btn', T.users_quota_reset);
-  reset.type = 'button';
-  reset.dataset.userAction = 'quota';
-  reset.dataset.userId = String(u.id);
-  row.appendChild(reset);
-  td.appendChild(row);
+  quotaRow.appendChild(quotaLabel);
+  quotaRow.appendChild(actionButton('save', T.action_save, u.id, 'primary'));
+  quotaRow.appendChild(actionButton('quota', T.users_quota_reset, u.id));
+  td.appendChild(quotaRow);
   td.appendChild(el('div', 'hint', T.users_quota_hint));
+
+  const bar = el('div', 'set-channels user-detail-row');
+  bar.appendChild(actionButton('block', u.blocked ? T.users_unblock : T.users_block, u.id));
+  bar.querySelector('button').dataset.blocked = u.blocked ? '1' : '';
+  bar.appendChild(actionButton('reset', T.users_reset, u.id));
+  bar.appendChild(actionButton('log', T.users_log, u.id));
+  bar.appendChild(actionButton('delete', T.users_delete, u.id, 'danger'));
+  td.appendChild(bar);
+
   const logBox = el('div');
   logBox.dataset.logFor = String(u.id);
   logBox.style.marginTop = '10px';
@@ -1100,7 +1131,17 @@ function userDetailRow(u, modules){
 function renderUserLog(box, data){
   box.innerHTML = '';
   if (!data.rows.length) { box.appendChild(el('div', 'hint', T.users_log_empty)); return; }
-  const table = el('table');
+  const table = el('table', 'user-log');
+  const head = document.createElement('thead');
+  const hr = el('tr');
+  [T.users_col_when, T.users_col_probe, T.users_col_target, T.users_col_result]
+    .forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      hr.appendChild(th);
+    });
+  head.appendChild(hr);
+  table.appendChild(head);
   const body = document.createElement('tbody');
   data.rows.forEach(r => {
     const tr = el('tr');
@@ -1111,16 +1152,10 @@ function renderUserLog(box, data){
     body.appendChild(tr);
   });
   table.appendChild(body);
-  const wrap = el('div');
-  wrap.style.maxHeight = '260px';
-  wrap.style.overflow = 'auto';
+  const wrap = el('div', 'user-log-box');
   wrap.appendChild(table);
   box.appendChild(wrap);
-  const clear = el('button', 'btn danger', T.users_log_clear);
-  clear.type = 'button';
-  clear.dataset.userAction = 'logclear';
-  clear.dataset.userId = box.dataset.logFor;
-  box.appendChild(clear);
+  box.appendChild(actionButton('logclear', T.users_log_clear, box.dataset.logFor, 'danger'));
 }
 
 async function loadUsers(){
@@ -1151,7 +1186,9 @@ async function loadUsers(){
     } else {
       data.users.forEach(u => {
         body.appendChild(userRow(u, data.self_id));
-        body.appendChild(userDetailRow(u, data.modules || []));
+        if (u.id !== data.self_id) {
+          body.appendChild(userDetailRow(u, data.modules || []));
+        }
       });
     }
     table.appendChild(body);
@@ -1165,11 +1202,12 @@ async function loadUsers(){
 function showAccountSecret(target, data){
   // Ohne Mailweg ist die Anzeige der einzige Ort, an dem das Startkennwort je
   // steht -- danach ist es nur noch als Hash vorhanden.
-  if (data.mail_sent) { target.textContent = T.users_mail_sent; return; }
+  const nolink = data.link_missing ? ' ' + T.users_mail_no_link : '';
+  if (data.mail_sent) { target.textContent = T.users_mail_sent + nolink; return; }
   target.textContent = fmtStr(T.users_mail_failed, {
     reason: testFailReason(data.mail_error || 'not_configured'),
     password: data.password || '—'
-  });
+  }) + nolink;
 }
 
 async function onUserAction(ev){
@@ -1180,13 +1218,13 @@ async function onUserAction(ev){
   btn.disabled = true;
   try {
     const detail = document.querySelector('tr[data-detail-for="' + id + '"]');
+    if (!detail) { btn.disabled = false; return; }
     if (action === 'edit') {
       detail.style.display = detail.style.display === 'none' ? '' : 'none';
       btn.disabled = false;
       return;
     }
     if (action === 'log') {
-      detail.style.display = '';
       const box = detail.querySelector('div[data-log-for]');
       box.textContent = T.loading;
       renderUserLog(box, await api('/api/users/' + id + '/log'));
@@ -1269,6 +1307,7 @@ function settingsFormValues(){
     smtp_tls: $('setSmtpTls').checked,
     telegram_bot_token: $('setTelegramToken').value.trim(),
     telegram_chat_id: $('setTelegramChatId').value.trim(),
+    public_url: $('setPublicUrl').value.trim(),
     notify_login_fail_email: $('setNotifyLoginFailMail').checked,
     notify_login_fail_telegram: $('setNotifyLoginFailTg').checked,
     notify_login_ok_email: $('setNotifyLoginOkMail').checked,

@@ -463,6 +463,31 @@ def _safe_name(raw: str) -> str:
     return name[:32]
 
 
+def public_base_url() -> str:
+    """Adresse, unter der NetToolbox von außen erreichbar ist -- für Links in
+    Mails. Eingetragenes sticht Ermitteltes: wer ein Konto über Ingress
+    anlegt, ruft gerade Home Assistant auf, und dessen Adresse führt niemanden
+    zur Anmeldung. Ohne Eintrag und über Ingress gibt es lieber keinen Link
+    als einen falschen."""
+    raw = str(notify_config().get('public_url') or '').strip()
+    if raw:
+        parts = urlsplit(raw)
+        if (parts.scheme in ('http', 'https') and parts.netloc
+                and _HOST_SHAPE.match(parts.netloc)):
+            return urlunsplit((parts.scheme, parts.netloc,
+                               parts.path.rstrip('/'), '', ''))
+        return ''
+    try:
+        if _is_ingress():
+            return ''
+        host = request.host or ''
+    except RuntimeError:
+        return ''
+    if host and _HOST_SHAPE.match(host):
+        return request.scheme + '://' + host
+    return ''
+
+
 def notify_login_event(kind: str, ip: str, attempts: int = 0,
                        who: str = '') -> None:
     """kind 'blocked' -> zu viele Fehlversuche, 'ok' -> geglückte Anmeldung am
@@ -1483,8 +1508,14 @@ def send_account_mail(user: dict, password: str, reset: bool) -> tuple:
     else:
         subject = '[NetToolbox] Zugang eingerichtet'
         intro = 'Für dich wurde ein Zugang zu NetToolbox angelegt.'
+    base = public_base_url()
+    # Lieber gar keine Adresse als eine falsche: über Ingress ist die
+    # aufgerufene Adresse die von Home Assistant, dort gibt es keine
+    # Anmeldeseite. Dann steht in der Mail, dass der Betreiber sie nennt.
+    where = ('Anmelden: ' + base + '/login' if base
+             else 'Die Adresse zum Anmelden nennt dir der Betreiber.')
     body = (f"{intro}\n\n"
-            f"Adresse: {_login_origin()}\n"
+            f"{where}\n"
             f"Benutzername: {user['username']}\n"
             f"Startkennwort: {password}\n\n"
             "Das Kennwort gilt nur für die erste Anmeldung — danach fragt "
@@ -1495,6 +1526,12 @@ def send_account_mail(user: dict, password: str, reset: bool) -> tuple:
     cfg = dict(notify_config(), smtp_to=user['email'])
     ok, error = monitor.send_email(cfg, subject, body)
     return ok, ('' if ok else (error or 'not_configured'))
+
+
+def _link_missing() -> bool:
+    """Die Mail konnte keinen Anmeldelink tragen -- der Betreiber soll das
+    erfahren und die öffentliche Adresse eintragen."""
+    return not public_base_url()
 
 
 def _need_user_store() -> None:
@@ -1537,7 +1574,7 @@ def users_create():
     # Das Kennwort nur zeigen, wenn es nicht schon per Mail unterwegs ist --
     # zwei Kopien desselben Geheimnisses sind eine zu viel.
     return jsonify({'ok': True, 'user': user, 'mail_sent': sent,
-                    'mail_error': error,
+                    'mail_error': error, 'link_missing': _link_missing(),
                     'password': '' if sent else password})
 
 
@@ -1611,7 +1648,7 @@ def users_reset(user_id: int):
     sent, error = send_account_mail(user, password, reset=True)
     log.info("account password reset (mail=%s)", sent)
     return jsonify({'ok': True, 'user': user, 'mail_sent': sent,
-                    'mail_error': error,
+                    'mail_error': error, 'link_missing': _link_missing(),
                     'password': '' if sent else password})
 
 

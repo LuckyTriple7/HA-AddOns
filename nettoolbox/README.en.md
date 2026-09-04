@@ -76,6 +76,9 @@ about your domains leaves your own infrastructure.
   - **Per-account daily quota** — e.g. 10 queries a day across all enabled modules, a full
     report counting as one. 0 means unlimited.
   - **Per-account log** — the operator sees who checked what, and can clear it.
+  - The welcome email carries a **sign-in link**. If accounts are created through Home
+    Assistant, set the public address once in the settings — the Ingress address leads
+    to no sign-in page.
 - **Login protection outside Ingress** — 5 failed attempts within 10 minutes block the IP
   for 15 minutes, and the block survives an add-on restart. On request NetToolbox reports
   every block and/or every successful login, each event choosing email and/or Telegram

@@ -52,6 +52,10 @@ FIELDS = {
     # sind voreingestellt an (eine Meldung je Sperre, nicht je Versuch),
     # erfolgreiche Anmeldungen aus: wer den Direktport täglich benutzt, will
     # dafür keine Mail.
+    # Adresse für Links in Mails. Ermitteln lässt sie sich nur aus der gerade
+    # aufgerufenen Anfrage -- und wer ein Konto über Ingress anlegt, ruft
+    # gerade Home Assistant auf, nicht NetToolbox. Deshalb eintragbar.
+    'public_url': ('str', '', 253, 'security', 'public_url', ''),
     'notify_login_fail_email': ('bool', True, None, 'security',
                                 'notify_login_fail_email', ''),
     'notify_login_fail_telegram': ('bool', True, None, 'security',
