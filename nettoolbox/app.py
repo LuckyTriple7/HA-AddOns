@@ -409,7 +409,7 @@ _ERROR_STATUS = {
     'no_mail_host': 404, 'null_mx': 404, 'not_html': 415,
     'empty_header': 400, 'header_too_large': 413,
     'dane_unreachable': 502, 'dane_no_starttls': 502, 'dane_no_certificate': 502,
-    'port_check_disabled': 403,
+    'port_check_disabled': 403, 'too_many_ports': 400,
     'dns_timeout': 504, 'http_timeout': 504, 'worker_timeout': 504,
     'tls_timeout': 504, 'whois_timeout': 504, 'smtp_timeout': 504,
     'quic_response_timeout': 504, 'ping_timeout': 504, 'traceroute_timeout': 504,

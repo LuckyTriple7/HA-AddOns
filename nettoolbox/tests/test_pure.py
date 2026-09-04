@@ -566,6 +566,32 @@ def test_port_list_is_sane():
     assert {3306, 5432, 6379, 3389, 27017} <= riskant
 
 
+@pytest.mark.parametrize('spec, expected', [
+    ('', []),
+    ('80', [80]),
+    ('80,443', [80, 443]),
+    ('8000-8003', [8000, 8001, 8002, 8003]),
+    ('443, 80 , 443', [80, 443]),
+    ('8000-7998', [7998, 7999, 8000]),
+])
+def test_parse_ports(spec, expected):
+    assert portcheck.parse_ports(spec) == expected
+
+
+@pytest.mark.parametrize('spec', ['abc', '0', '70000', '1-70000', '5-'])
+def test_parse_ports_rejects_nonsense(spec):
+    with pytest.raises(netcore.ProbeError):
+        portcheck.parse_ports(spec)
+
+
+def test_parse_ports_caps_the_range():
+    """Eine Reihe von tausenden Ports waere ein Vollscanner und dauerte
+    ewig -- die Grenze ist Absicht."""
+    with pytest.raises(netcore.ProbeError) as excinfo:
+        portcheck.parse_ports('1-5000')
+    assert excinfo.value.code == 'too_many_ports'
+
+
 def test_family_constants():
     assert portcheck._family_const('4') == socket.AF_INET
     assert portcheck._family_const('6') == socket.AF_INET6

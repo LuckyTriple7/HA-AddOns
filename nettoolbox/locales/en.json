@@ -635,7 +635,7 @@
   "err_dane_no_starttls": "Mail server offers no STARTTLS — without it there is no certificate to compare.",
   "err_dane_no_certificate": "Mail server delivered no certificate.",
   "ports_title": "Port check & IPv4/IPv6 comparison",
-  "ports_hint": "Probes a fixed list of 20 well-known services on exactly this host — no network ranges, no port ranges. Distinguishes open, closed (something answers with a refusal) and filtered (no answer at all — a firewall sits in between). “IPv4/IPv6 comparison” probes the same services over both address families side by side. Can be switched off in the add-on options.",
+  "ports_hint": "Without your own list, a fixed set of 20 well-known services is probed. The “Ports” field takes your own ports and ranges (80,443,8000-8010), 256 per run at most. Distinguishes open, closed (something answers with a refusal) and filtered (no answer at all — a firewall sits in between). “IPv4/IPv6 comparison” probes the same services over both address families side by side. Can be switched off in the add-on options.",
   "action_dualstack": "IPv4/IPv6 comparison",
   "field_service": "Service",
   "port_state_open": "open",
@@ -656,5 +656,11 @@
   "err_port_check_disabled": "The port check is switched off in the add-on options.",
   "header_stations": "Detected stations:",
   "header_station_evidence": "Evidence in the header: {evidence}",
-  "f_hdr_stations": "Involved along the way: {list}"
+  "f_hdr_stations": "Involved along the way: {list}",
+  "ping_axis_ms": "ms",
+  "ping_axis_now": "now",
+  "field_ports": "Ports (optional)",
+  "ph_ports": "e.g. 80,443,8000-8010",
+  "ports_manual": "custom selection",
+  "err_too_many_ports": "Too many ports at once — 256 per run at most."
 }

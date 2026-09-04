@@ -464,6 +464,10 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         <label class="field" for="portsTarget">{{ t.field_host_or_ip }}</label>
         <input type="text" id="portsTarget" placeholder="{{ t.ph_host_or_ip }}" autocomplete="off">
       </div>
+      <div style="width:200px">
+        <label class="field" for="portsList">{{ t.field_ports }}</label>
+        <input type="text" id="portsList" placeholder="{{ t.ph_ports }}" autocomplete="off">
+      </div>
       <div style="width:100px">
         <label class="field" for="portsFamily">{{ t.field_ip_family }}</label>
         <select id="portsFamily">
@@ -1729,7 +1733,8 @@ async function portsCheck(){
   const box = $('portsResult'); showLoading(box);
   try {
     const data = await runProbe('ports',
-      { target: target, family: $('portsFamily').value }, target, $('portsRun'));
+      { target: target, family: $('portsFamily').value,
+        ports: $('portsList').value.trim() }, target, $('portsRun'));
     box.innerHTML = '';
     const r = data.result;
     const badges = el('div', 'row');
@@ -1738,6 +1743,7 @@ async function portsCheck(){
     badges.appendChild(el('span', 'chip', 'IPv' + r.family));
     badges.appendChild(el('span', 'chip',
       fmtStr(T.ports_open_count, { open: r.open_count, checked: r.checked })));
+    if (r.manual) badges.appendChild(el('span', 'chip', T.ports_manual));
     box.appendChild(badges);
     box.appendChild(renderFindings(r.findings));
 
@@ -1806,6 +1812,7 @@ async function dualstackCheck(){
 $('portsRun').addEventListener('click', portsCheck);
 $('dualRun').addEventListener('click', dualstackCheck);
 $('portsTarget').addEventListener('keydown', e => { if (e.key === 'Enter') portsCheck(); });
+$('portsList').addEventListener('keydown', e => { if (e.key === 'Enter') portsCheck(); });
 
 // ── Dauerping (continuous ping, own loop -- deliberately not runProbe()'s
 // shared abort controller, so a click elsewhere in the app can't kill a
@@ -1822,39 +1829,97 @@ function pingLiveStop(){
   $('pingLiveRun').classList.remove('danger');
 }
 
+// Ein "runder" Achsenendwert -- 137 ms ergibt eine Achse bis 150, nicht bis
+// 157,55. Sonst stehen an der Achse Zahlen, die niemand lesen will.
+function niceCeil(value){
+  if (!(value > 0)) return 100;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+  const step = [1, 2, 2.5, 5, 10].find(f => value <= f * magnitude) || 10;
+  return step * magnitude;
+}
+
 function pingLiveDraw(){
   const canvas = $('pingLiveChart');
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
+  const h = 160;
   canvas.width = Math.max(1, Math.round(rect.width * dpr));
-  canvas.height = Math.round(160 * dpr);
+  canvas.height = Math.round(h * dpr);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const w = rect.width, h = 160;
+  const w = rect.width;
   ctx.clearRect(0, 0, w, h);
   const style = getComputedStyle(document.documentElement);
   const border = style.getPropertyValue('--border').trim();
+  const muted = style.getPropertyValue('--muted').trim();
   const blue = style.getPropertyValue('--blue').trim();
   const red = style.getPropertyValue('--red').trim();
 
+  // Platz fuer die Beschriftung: links die Millisekunden, unten die Zeit.
+  const padLeft = 44, padBottom = 18, padTop = 8, padRight = 6;
+  const plotW = Math.max(10, w - padLeft - padRight);
+  const plotH = Math.max(10, h - padTop - padBottom);
   const values = pingLiveSamples.map(s => s.ms).filter(v => v !== null);
-  const maxMs = values.length ? Math.max(...values) * 1.15 : 100;
+  const maxMs = niceCeil(values.length ? Math.max(...values) * 1.15 : 100);
+  const yFor = ms => padTop + plotH - (ms / maxMs) * plotH;
 
-  ctx.strokeStyle = border; ctx.lineWidth = 1;
-  for (let i = 1; i <= 3; i++) {
-    const y = h - (h * i / 4);
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  ctx.font = '10px ui-monospace, SFMono-Regular, Consolas, monospace';
+  ctx.fillStyle = muted;
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 1;
+
+  // Waagerechte Linien mit ihrem Millisekundenwert.
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const ms = maxMs * i / 4;
+    const y = Math.round(yFor(ms)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(w - padRight, y); ctx.stroke();
+    ctx.fillText(String(Math.round(ms)), padLeft - 6, y);
   }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(T.ping_axis_ms, 2, padTop - 6);
+
+  // Senkrechte Achse.
+  ctx.beginPath();
+  ctx.moveTo(padLeft + 0.5, padTop);
+  ctx.lineTo(padLeft + 0.5, padTop + plotH);
+  ctx.stroke();
 
   if (pingLiveSamples.length < 2) return;
-  const stepX = w / (PING_LIVE_MAX_POINTS - 1);
-  const xFor = i => w - (pingLiveSamples.length - 1 - i) * stepX;
+  const stepX = plotW / (PING_LIVE_MAX_POINTS - 1);
+  const xFor = i => padLeft + plotW - (pingLiveSamples.length - 1 - i) * stepX;
+
+  // Zeitachse: beschriftet wird, wie lange der Messwert her ist -- dafuer
+  // traegt jede Probe ihren eigenen Zeitstempel, statt einen festen Abstand
+  // anzunehmen (eine Antwort kann laenger dauern als der Takt).
+  const newest = pingLiveSamples[pingLiveSamples.length - 1].t || Date.now();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const labelEvery = Math.max(1, Math.round(pingLiveSamples.length / 5));
+  pingLiveSamples.forEach((s, i) => {
+    const fromRight = pingLiveSamples.length - 1 - i;
+    if (fromRight % labelEvery !== 0) return;
+    const x = xFor(i);
+    if (x < padLeft + 12) return;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(x) + 0.5, padTop + plotH);
+    ctx.lineTo(Math.round(x) + 0.5, padTop + plotH + 3);
+    ctx.stroke();
+    const seconds = Math.round(((newest - (s.t || newest)) / 1000));
+    const label = fromRight === 0 ? T.ping_axis_now : '-' + seconds + ' s';
+    // Die aeusserste Beschriftung wuerde sonst am rechten Rand abgeschnitten.
+    const nearEdge = x > w - padRight - 14;
+    ctx.textAlign = nearEdge ? 'right' : 'center';
+    ctx.fillText(label, nearEdge ? w - padRight : x, padTop + plotH + 5);
+  });
 
   ctx.beginPath();
   let started = false;
   pingLiveSamples.forEach((s, i) => {
     if (s.ms === null) { started = false; return; }
-    const x = xFor(i), y = h - (s.ms / maxMs) * h;
+    const x = xFor(i), y = yFor(s.ms);
     if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
   });
   ctx.strokeStyle = blue; ctx.lineWidth = 1.5; ctx.stroke();
@@ -1862,7 +1927,8 @@ function pingLiveDraw(){
   pingLiveSamples.forEach((s, i) => {
     if (s.ms !== null) return;
     const x = xFor(i);
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h);
+    ctx.beginPath();
+    ctx.moveTo(x, padTop); ctx.lineTo(x, padTop + plotH);
     ctx.strokeStyle = red; ctx.lineWidth = 1; ctx.stroke();
   });
 }
@@ -1893,7 +1959,7 @@ async function pingLiveTick(target, family){
     ms = null;
   }
   if (!pingLiveActive) return;  // Stop clicked while the request was in flight
-  pingLiveSamples.push({ ms });
+  pingLiveSamples.push({ ms: ms, t: Date.now() });
   if (pingLiveSamples.length > PING_LIVE_MAX_POINTS) pingLiveSamples.shift();
   $('pingLiveCur').textContent = ms !== null ? (ms + ' ms') : T.ping_live_timeout;
   pingLiveUpdateStats();

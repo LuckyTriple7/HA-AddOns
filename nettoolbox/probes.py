@@ -336,7 +336,8 @@ def _port_check_allowed(ctx: Context) -> None:
 def p_ports(ctx: Context, params: dict) -> dict:
     _port_check_allowed(ctx)
     return portcheck.check_ports(ctx, _str(params, 'target'),
-                                 family=_str(params, 'family'))
+                                 family=_str(params, 'family'),
+                                 ports=_str(params, 'ports'))
 
 
 def p_dualstack(ctx: Context, params: dict) -> dict:

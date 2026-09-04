@@ -28,6 +28,14 @@ OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
 CONNECT_TIMEOUT = 3.0
 MAX_WORKERS = 10
 
+# Eigene Portangabe: mehr Verbindungen gleichzeitig und ein knapperes
+# Zeitlimit, sonst dauert eine Reihe von 200 Ports quälend lange. Die Grenze
+# hält das Ganze bei einer überschaubaren Wartezeit -- und verhindert, dass
+# aus dem Werkzeug ein Vollscanner wird.
+MANUAL_MAX_PORTS = 256
+MANUAL_WORKERS = 40
+MANUAL_TIMEOUT = 2.0
+
 OPEN, CLOSED, FILTERED = 'open', 'closed', 'filtered'
 
 # (Port, Dienst, gehört-hier-hin). Das dritte Feld sagt, ob ein offener Port
@@ -59,6 +67,67 @@ PORTS = (
 # Dienste, die in der IPv4/IPv6-Gegenüberstellung zählen: was ein Client
 # tatsächlich anspricht, wenn er sich für eine Familie entscheidet.
 DUALSTACK_PORTS = ((80, 'HTTP'), (443, 'HTTPS'), (25, 'SMTP'), (587, 'Submission'))
+
+
+# Namen für eigene Portangaben, damit in der Tabelle nicht nur Zahlen stehen.
+WELL_KNOWN = {
+    20: 'FTP-Daten', 21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP',
+    53: 'DNS', 67: 'DHCP', 69: 'TFTP', 80: 'HTTP', 88: 'Kerberos',
+    110: 'POP3', 111: 'RPC', 119: 'NNTP', 123: 'NTP', 135: 'RPC/DCOM',
+    139: 'NetBIOS', 143: 'IMAP', 161: 'SNMP', 389: 'LDAP', 443: 'HTTPS',
+    445: 'SMB', 465: 'SMTPS', 514: 'Syslog', 587: 'Submission', 636: 'LDAPS',
+    873: 'rsync', 989: 'FTPS-Daten', 990: 'FTPS', 993: 'IMAPS', 995: 'POP3S',
+    1194: 'OpenVPN', 1352: 'Notes NRPC', 1433: 'MSSQL', 1521: 'Oracle',
+    1723: 'PPTP', 1883: 'MQTT', 2049: 'NFS', 2375: 'Docker', 2376: 'Docker TLS',
+    3000: 'HTTP alternativ', 3128: 'Proxy', 3306: 'MySQL', 3389: 'RDP',
+    4444: 'Metasploit', 5000: 'HTTP alternativ', 5060: 'SIP', 5222: 'XMPP',
+    5432: 'PostgreSQL', 5601: 'Kibana', 5900: 'VNC', 6379: 'Redis',
+    8000: 'HTTP alternativ', 8006: 'Proxmox', 8080: 'HTTP alternativ',
+    8083: 'HTTP alternativ', 8086: 'InfluxDB', 8123: 'Home Assistant',
+    8443: 'HTTPS alternativ', 8883: 'MQTT TLS', 9000: 'HTTP alternativ',
+    9090: 'HTTP alternativ', 9200: 'Elasticsearch', 11211: 'Memcached',
+    27017: 'MongoDB', 51820: 'WireGuard',
+}
+
+
+def parse_ports(spec: str) -> list:
+    """"80, 443, 8000-8010" -> [80, 443, 8000 ... 8010].
+
+    Leere Eingabe bedeutet: die Standardliste. Eine unsinnige Eingabe wird
+    abgelehnt statt stillschweigend zu etwas anderem zu werden.
+    """
+    text = (spec or '').replace(';', ',').replace(' ', ',')
+    if not text.strip(','):
+        return []
+    ports = set()
+    for part in text.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        if '-' in part:
+            first, _, last = part.partition('-')
+            try:
+                start, end = int(first), int(last)
+            except ValueError:
+                raise ProbeError('bad_port', part[:20])
+            if start > end:
+                start, end = end, start
+            if not (1 <= start <= 65535 and 1 <= end <= 65535):
+                raise ProbeError('bad_port', part[:20])
+            if end - start + 1 > MANUAL_MAX_PORTS:
+                raise ProbeError('too_many_ports', str(MANUAL_MAX_PORTS))
+            ports.update(range(start, end + 1))
+        else:
+            try:
+                port = int(part)
+            except ValueError:
+                raise ProbeError('bad_port', part[:20])
+            if not 1 <= port <= 65535:
+                raise ProbeError('bad_port', part[:20])
+            ports.add(port)
+        if len(ports) > MANUAL_MAX_PORTS:
+            raise ProbeError('too_many_ports', str(MANUAL_MAX_PORTS))
+    return sorted(ports)
 
 
 def _finding(level: str, code: str, **args) -> dict:
@@ -95,9 +164,10 @@ def _addresses(host: str, family: str) -> list:
     return out
 
 
-def _probe_port(family_const, address: str, port: int) -> str:
+def _probe_port(family_const, address: str, port: int,
+                timeout: float = CONNECT_TIMEOUT) -> str:
     sock = socket.socket(family_const, socket.SOCK_STREAM)
-    sock.settimeout(CONNECT_TIMEOUT)
+    sock.settimeout(timeout)
     try:
         sock.connect((address, port))
         return OPEN
@@ -113,7 +183,8 @@ def _probe_port(family_const, address: str, port: int) -> str:
         sock.close()
 
 
-def check_ports(ctx: Context, target: str, family: str = '') -> dict:
+def check_ports(ctx: Context, target: str, family: str = '',
+                ports: str = '') -> dict:
     host = clean_host_or_ip((target or '').strip())
     guard_target(ctx, host)
     addresses = _addresses(host, family)
@@ -121,11 +192,21 @@ def check_ports(ctx: Context, target: str, family: str = '') -> dict:
         raise ProbeError('host_unresolvable', host)
     family_const, address = addresses[0]
 
+    manual = parse_ports(ports)
+    if manual:
+        # Bei eigener Angabe sagt "erwartet" nichts mehr aus -- wer 8006
+        # eintippt, weiß selbst, was dort laufen soll.
+        wanted = [(p, WELL_KNOWN.get(p, ''), True) for p in manual]
+        workers, timeout = MANUAL_WORKERS, MANUAL_TIMEOUT
+    else:
+        wanted = list(PORTS)
+        workers, timeout = MAX_WORKERS, CONNECT_TIMEOUT
+
     rows = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = {pool.submit(_probe_port, family_const, address, port):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_probe_port, family_const, address, port, timeout):
                    (port, service, expected)
-                   for port, service, expected in PORTS}
+                   for port, service, expected in wanted}
         for future in concurrent.futures.as_completed(futures):
             port, service, expected = futures[future]
             rows.append({'port': port, 'service': service,
@@ -154,6 +235,7 @@ def check_ports(ctx: Context, target: str, family: str = '') -> dict:
 
     return {'host': host, 'address': address,
             'family': '6' if ':' in address else '4',
+            'manual': bool(manual),
             'checked': len(rows), 'rows': rows,
             'open_count': len(open_ports),
             'findings': findings, 'level': _worst(findings)}

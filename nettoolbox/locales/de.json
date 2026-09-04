@@ -635,7 +635,7 @@
   "err_dane_no_starttls": "Mailserver bietet kein STARTTLS — ohne das gibt es kein Zertifikat zu vergleichen.",
   "err_dane_no_certificate": "Mailserver hat kein Zertifikat ausgeliefert.",
   "ports_title": "Portcheck & IPv4/IPv6-Vergleich",
-  "ports_hint": "Prüft eine feste Liste von 20 bekannten Diensten auf genau diesem Host — keine Netzbereiche, keine Portbereiche. Unterschieden wird zwischen offen, geschlossen (es antwortet jemand mit Ablehnung) und gefiltert (gar keine Antwort — dazwischen steht eine Firewall). „IPv4/IPv6-Vergleich“ prüft dieselben Dienste über beide Adressfamilien nebeneinander. In den Add-on-Optionen abschaltbar.",
+  "ports_hint": "Ohne eigene Angabe wird eine feste Liste von 20 bekannten Diensten geprüft. Im Feld „Ports“ lassen sich eigene Ports und Bereiche eintragen (80,443,8000-8010), höchstens 256 pro Durchlauf. Unterschieden wird zwischen offen, geschlossen (es antwortet jemand mit Ablehnung) und gefiltert (gar keine Antwort — dazwischen steht eine Firewall). „IPv4/IPv6-Vergleich“ prüft dieselben Dienste über beide Adressfamilien nebeneinander. In den Add-on-Optionen abschaltbar.",
   "action_dualstack": "IPv4/IPv6-Vergleich",
   "field_service": "Dienst",
   "port_state_open": "offen",
@@ -656,5 +656,11 @@
   "err_port_check_disabled": "Der Portcheck ist in den Add-on-Optionen abgeschaltet.",
   "header_stations": "Erkannte Stationen:",
   "header_station_evidence": "Beleg im Kopf: {evidence}",
-  "f_hdr_stations": "Auf dem Weg beteiligt: {list}"
+  "f_hdr_stations": "Auf dem Weg beteiligt: {list}",
+  "ping_axis_ms": "ms",
+  "ping_axis_now": "jetzt",
+  "field_ports": "Ports (freiwillig)",
+  "ph_ports": "z. B. 80,443,8000-8010",
+  "ports_manual": "eigene Auswahl",
+  "err_too_many_ports": "Zu viele Ports auf einmal — höchstens 256 pro Durchlauf."
 }

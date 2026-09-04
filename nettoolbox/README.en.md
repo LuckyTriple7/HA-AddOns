@@ -36,7 +36,7 @@ about your domains leaves your own infrastructure.
 - **Operator / software detection** — operator from the MX names (Microsoft 365, Google, IONOS, STRATO …), MTA software from the SMTP banner (Postfix, Exim, Exchange …)
 - **HTTP/3 (QUIC)** — a real handshake over UDP/443, not just the Alt-Svc advertisement
 - **Ping / Traceroute** — via the container's own system tools
-- **Port check** — 20 well-known services, telling open / closed / filtered apart;
+- **Port check** — 20 well-known services or your own ports and ranges, telling open / closed / filtered apart;
   plus an IPv4/IPv6 comparison that exposes one-sided outages (can be switched off)
 - **IP lookup** — location, provider and AS number of an IP (ip-api.com), including your own public IP
 - **DNSSEC** — DS/DNSKEY status, whether the resolver validated the answer (AD flag)

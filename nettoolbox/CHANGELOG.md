@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.35] - 2026-09-04
+
+### Added
+- **Eigene Ports und Bereiche im Portcheck.** Neues Feld „Ports": `80,443,8000-8010` — einzelne
+  Ports, Bereiche und beides gemischt. Leer bleibt es bei der festen Liste der 20 bekannten
+  Dienste. Für rund 60 gängige Ports steht der Dienstname mit dabei (Proxmox 8006, Home
+  Assistant 8123, WireGuard 51820, Elasticsearch 9200 …).
+  - Grenze: **256 Ports pro Durchlauf**, mit knapperem Zeitlimit (2 s) und 40 gleichzeitigen
+    Verbindungen, damit eine Reihe nicht minutenlang dauert. Unsinnige Eingaben werden abgelehnt
+    statt stillschweigend zu etwas anderem zu werden.
+
+### Fixed
+- **Das Dauerping-Diagramm hat jetzt beschriftete Achsen.** Vorher standen dort nur Linien ohne
+  jede Zahl. Links die Millisekunden an gerundeten Werten (137 ms ergibt eine Achse bis 150,
+  nicht bis 157,55), unten die Zeit als „-17 s … jetzt". Für die Zeitachse trägt jede Messung
+  ihren eigenen Zeitstempel, statt einen festen Takt anzunehmen — eine Antwort kann länger
+  dauern als das Abfrageintervall. Die äußerste Beschriftung wird am Rand ausgerichtet, damit
+  sie nicht abgeschnitten wird.
+
 ## [0.1.34] - 2026-09-04
 
 ### Added
