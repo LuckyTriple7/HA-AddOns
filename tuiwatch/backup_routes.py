@@ -17,6 +17,8 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, make_response, request
 
+import atomic_io
+
 import app as A
 
 bp = Blueprint('backup', __name__)
@@ -35,10 +37,15 @@ _BACKUP_META_KEYS = (
 )
 
 
-def _build_backup_zip() -> bytes:
+def _build_backup_zip(key_passphrase: str = '') -> bytes:
     """Baut das vollständige Backup-ZIP: data.json (Angebote inkl. Preisverlauf & Marker,
     gebuchte Reisen, gespeicherte Suchen, KI-Verlauf & KI-Einstellungen) + die Reise-PDFs
-    unter trips/. Genutzt vom Download-Endpoint und vom automatischen Backup."""
+    unter trips/. Genutzt vom Download-Endpoint und vom automatischen Backup.
+
+    Mit `key_passphrase` wandert zusätzlich der Schlüssel für die geheimen Felder
+    mit ins Archiv — mit genau dieser Passphrase verpackt (scrypt + Fernet, siehe
+    settings.export_key). Ohne ihn sind Tokens und Passwörter aus settings.json auf
+    einem anderen System nicht lesbar."""
     with A.db() as con:
         ocols = [c for c in A._table_columns(con, 'offers') if c != 'id']
         offers = []
@@ -129,10 +136,12 @@ def _build_backup_zip() -> bytes:
         # bares Geld beim KI-Anbieter. Sie gehören damit zu den Nutzdaten, nicht zum
         # Cache (anders als calendar_cache/compare_cache/nights_cache, die sich beim
         # nächsten Abruf von selbst wieder füllen).
+        # `usage` mit sichern: sonst waere nach einer Wiederherstellung nicht mehr
+        # feststellbar, was die einmal erzeugte Tabelle gekostet hat.
         climate = [dict(r) for r in con.execute(
-            'SELECT giata, label, ts, model, data FROM climate ORDER BY giata').fetchall()]
+            'SELECT giata, label, ts, model, data, usage FROM climate ORDER BY giata').fetchall()]
         guide = [dict(r) for r in con.execute(
-            'SELECT giata, label, ts, model, data FROM guide ORDER BY giata').fetchall()]
+            'SELECT giata, label, ts, model, data, usage FROM guide ORDER BY giata').fetchall()]
         # Öffentliche Angebots-Links samt Besucherkommentaren: nicht rekonstruierbar
         # (der Token steckt in bereits verschickten Links) und fremde Beiträge.
         shares = [dict(r) for r in con.execute(
@@ -151,13 +160,18 @@ def _build_backup_zip() -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         z.writestr('data.json', json.dumps(data, ensure_ascii=False, indent=2))
-        # Einstellungen mitnehmen, den Schlüssel dazu bewusst NICHT: Tokens und
-        # Passwörter stehen im Backup dadurch nur verschlüsselt. Preis: nach
-        # einem Restore auf einer frischen Installation müssen sie einmal neu
-        # eingetragen werden.
+        # Einstellungen mitnehmen; der Schlüssel dazu nur, wenn oben eine
+        # Passphrase übergeben wurde. Ohne ihn stehen Tokens und Passwörter im
+        # Backup zwar verschlüsselt, sind auf einer frischen Installation aber
+        # auch nicht mehr zu entschlüsseln und müssen neu eingetragen werden.
         sp = Path(A.SETTINGS_PATH)
         if sp.is_file():
             z.write(str(sp), 'settings.json')
+        # Der Schlüssel geht nur auf ausdrücklichen Wunsch mit und nie im Klartext:
+        # ohne die Passphrase ist die Datei wertlos. Das automatische Backup ruft
+        # ohne Passphrase auf und bleibt damit wie bisher schlüsselfrei.
+        if key_passphrase:
+            z.writestr('settings.key.json', A.settings_store.export_key(key_passphrase))
         seen = set()
         for t in trips:
             name = (t.get('pdf_name') or '').strip()
@@ -179,16 +193,42 @@ def _build_backup_zip() -> bytes:
     return buf.getvalue()
 
 
-@bp.route('/api/backup', methods=['GET'])
-def api_backup():
-    """Vollständiges Backup als ZIP herunterladen."""
-    if (err := A._require_api()):
-        return err
-    resp = make_response(_build_backup_zip())
+def _backup_response(data: bytes):
+    resp = make_response(data)
     resp.headers['Content-Type'] = 'application/zip'
     resp.headers['Content-Disposition'] = (
         f'attachment; filename="tuiwatch-backup-{datetime.now().strftime("%Y%m%d")}.zip"')
     return resp
+
+
+@bp.route('/api/backup', methods=['GET'])
+def api_backup():
+    """Vollständiges Backup als ZIP herunterladen (ohne Schlüssel)."""
+    if (err := A._require_api()):
+        return err
+    return _backup_response(_build_backup_zip())
+
+
+@bp.route('/api/backup', methods=['POST'])
+def api_backup_with_key():
+    """Backup inklusive verpacktem Schlüssel.
+
+    Bewusst ein eigener POST-Endpunkt statt eines Parameters am GET: eine
+    Passphrase hat in einer URL nichts verloren (Proxy-Logs, Browser-Verlauf).
+    Und weil der Schlüssel das Add-on verlässt, gilt dieselbe Passwort-Bestätigung
+    wie bei /api/settings/key/export.
+    """
+    if (err := A._require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    if (gate := A._key_gate_check(body.get('password'))):
+        return gate
+    try:
+        data = _build_backup_zip(str(body.get('passphrase') or ''))
+    except ValueError as e:
+        return A._key_error(e)
+    A.log.info("Backup mit verpacktem Schlüssel erzeugt")
+    return _backup_response(data)
 
 
 # Obergrenzen für ein hochgeladenes Restore-Archiv. `MAX_CONTENT_LENGTH` begrenzt
@@ -200,6 +240,7 @@ def api_backup():
 _RESTORE_MAX_MEMBERS = 2000                     # Dateien im Archiv
 _RESTORE_MAX_TOTAL_BYTES = 256 * 1024 * 1024    # entpackt, über alle Mitglieder
 _RESTORE_MAX_JSON_BYTES = 32 * 1024 * 1024      # data.json bzw. settings.json einzeln
+_RESTORE_MAX_KEY_BYTES = 64 * 1024              # settings.key.json (real: wenige hundert Byte)
 
 
 def _zip_member_bytes(zf: zipfile.ZipFile, info: zipfile.ZipInfo, limit: int,
@@ -307,6 +348,23 @@ def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:
         row['image_url'] = img if A._valid_img_url(img) else ''
     row['paused'] = 1 if it.get('paused') else 0
     row['archived'] = 1 if it.get('archived') else 0
+    for flag in ('history_only', 'notify_muted', 'notify_calendar_muted'):
+        if flag in row:
+            row[flag] = 1 if it.get(flag) else 0
+    # Zuordnung zu einer „Fuer andere“-Liste. Schema-Invariante:
+    # is_foreign=1 <=> foreign_list<>'' (siehe app.py). Laengen wie beim Anlegen
+    # ueber die Oberflaeche kappen, damit ein manipuliertes Backup keine
+    # ellenlangen Listennamen in die Datenbank schreibt.
+    if 'foreign_list' in row:
+        flist = str(it.get('foreign_list') or '').strip()[:A.FOREIGN_LIST_MAXLEN]
+        row['foreign_list'] = flist
+        if 'foreign_icon' in row:
+            row['foreign_icon'] = (str(it.get('foreign_icon') or '').strip()
+                                   [:A.FOREIGN_ICON_MAXLEN] if flist else '')
+        if 'is_foreign' in row:
+            row['is_foreign'] = 1 if flist else 0
+    elif 'is_foreign' in row:
+        row['is_foreign'] = 1 if it.get('is_foreign') else 0
     row['created'] = int(it.get('created') or time.time())
     # Spaltenliste ausschließlich aus der Konstante (feste Reihenfolge, keine Nutzerdaten)
     cols = [c for c in A._OFFER_RESTORE_COLS if c in row]
@@ -359,6 +417,7 @@ def api_restore():
     pdfs: dict[str, bytes] = {}
     att_pdfs: dict[str, bytes] = {}
     settings_raw: bytes | None = None
+    key_raw: bytes | None = None
     data = None
     if raw:
         if raw[:2] == b'PK':                       # ZIP-Archiv
@@ -387,6 +446,10 @@ def api_restore():
                     blob, why = _zip_member_bytes(zf, info, A.MAX_PDF_BYTES, budget)
                 elif name == 'settings.json':
                     blob, why = _zip_member_bytes(zf, info, _RESTORE_MAX_JSON_BYTES, budget)
+                elif name == 'settings.key.json':
+                    # Die Exportdatei ist wenige hundert Byte gross; alles darueber
+                    # ist keine Schluesseldatei und wird gar nicht erst gelesen.
+                    blob, why = _zip_member_bytes(zf, info, _RESTORE_MAX_KEY_BYTES, budget)
                 else:
                     continue
                 if why == 'total':
@@ -403,10 +466,17 @@ def api_restore():
                     continue
                 if name == 'settings.json':
                     settings_raw = blob
+                elif name == 'settings.key.json':
+                    key_raw = blob
                 elif name.startswith('trips/'):
                     pdfs[Path(name).name] = blob
                 else:
                     att_pdfs[Path(name).name] = blob
+            # Ein Schluessel im Archiv ueberschreibt gleich den lokalen: dafuer gilt
+            # dieselbe Passwort-Bestaetigung wie bei /api/settings/key/import, und
+            # zwar hier — bevor irgendetwas in die Datenbank geschrieben wurde.
+            if key_raw and (gate := A._key_gate_check(request.form.get('password'))):
+                return gate
         else:                                       # hochgeladene JSON-Datei
             try:
                 data = json.loads(raw.decode('utf-8'))
@@ -682,9 +752,12 @@ def api_restore():
                 if con.execute(f'SELECT 1 FROM {table} WHERE giata=?', (giata,)).fetchone():
                     continue
                 con.execute(
-                    f'INSERT INTO {table} (giata, label, ts, model, data) VALUES (?,?,?,?,?)',
+                    f'INSERT INTO {table} (giata, label, ts, model, data, usage) '
+                    'VALUES (?,?,?,?,?,?)',
                     (giata, row.get('label') or '', int(row.get('ts') or 0),
-                     row.get('model') or '', str(row['data'])))
+                     row.get('model') or '', str(row['data']),
+                     # aeltere Backups kennen die Spalte nicht -- dann bleibt sie leer
+                     str(row.get('usage') or '')))
                 climate_n[table] += 1
         # Share-Links: der Token steckt in bereits verschickten Links und lässt sich
         # nicht neu erzeugen — ein vorhandener Token bleibt deshalb unangetastet.
@@ -741,23 +814,58 @@ def api_restore():
                     continue
                 con.execute('INSERT INTO meta (key, value) VALUES (?,?)', (k, str(meta[k])))
                 settings_n += 1
-    # Einstellungen: wie der übrige Restore nicht-destruktiv — eine vorhandene
-    # settings.json bleibt unangetastet. Die geheimen Felder aus dem Backup sind
-    # nur lesbar, wenn settings.key noch derselbe ist (er liegt bewusst nicht im
-    # Backup); andernfalls stehen sie danach leer da und müssen neu eingetragen
-    # werden. Das meldet settings.py beim Entschlüsseln im Log.
-    settings_restored = False
-    if settings_raw and not A.settings_store.exists():
-        try:
-            json.loads(settings_raw.decode('utf-8'))   # muss valides JSON sein
-            with open(A.SETTINGS_PATH, 'wb') as f:
-                f.write(settings_raw)
-            A.settings_store.reset_cache()
-            A._settings_changed()
-            settings_restored = True
-            A.log.info("Wiederherstellung: Einstellungen aus dem Backup übernommen")
-        except (ValueError, UnicodeDecodeError, OSError) as e:
-            A.log.warning("Einstellungen aus dem Backup nicht übernommen: %s", e)
+    # Schlüssel zuerst: erst mit ihm sind die geheimen Felder aus settings.json
+    # überhaupt lesbar. Ohne Passphrase bleibt er im Archiv liegen — ohne sie ist
+    # er ohnehin nicht zu öffnen.
+    key_restored, key_error = False, ''
+    if key_raw:
+        passphrase = request.form.get('passphrase') or ''
+        if not passphrase:
+            key_error = 'passphrase_missing'
+            A.log.warning("Wiederherstellung: Schlüssel im Archiv, aber keine Passphrase angegeben")
+        else:
+            try:
+                readable = A.settings_store.import_key(
+                    key_raw, passphrase, overwrite=request.form.get('replace_key') == '1')
+                key_restored = True
+                A.log.info("Wiederherstellung: Schlüssel übernommen — %d Zugangsdaten lesbar",
+                           readable)
+            except ValueError as e:
+                # Feste Literale statt str(e): aus einer Ausnahme darf kein Text
+                # nach außen gehen (wie in app._key_error).
+                code = e.args[0] if e.args else ''
+                key_error = (code if code in ('wrong_passphrase', 'invalid_file', 'exists',
+                                              'crypto_unavailable') else 'invalid')
+                A.log.warning("Wiederherstellung: Schlüssel nicht übernommen (%s)", key_error)
+            except OSError as e:
+                key_error = 'write_failed'
+                A.log.warning("Wiederherstellung: Schlüssel nicht schreibbar: %s", e)
+
+    # Einstellungen: standardmäßig nicht-destruktiv, eine vorhandene settings.json
+    # bleibt stehen. Bis 0.113.6 war das eine Sackgasse — `migrate()` legt die Datei
+    # beim allerersten Start an, also existierte sie auf einer frischen Installation
+    # immer und der Restore sprang still darüber hinweg. Deshalb jetzt: der
+    # Übersprung wird gemeldet (Log + `options_skipped`), und mit
+    # `replace_settings=1` lässt er sich gezielt überstimmen.
+    settings_restored, settings_skipped = False, False
+    if settings_raw:
+        replace = request.form.get('replace_settings') == '1'
+        if A.settings_store.exists() and not replace:
+            settings_skipped = True
+            A.log.warning("Wiederherstellung: Einstellungen NICHT übernommen — es liegt bereits "
+                          "eine settings.json (Wiederholung mit „Einstellungen ersetzen“)")
+        else:
+            try:
+                json.loads(settings_raw.decode('utf-8'))   # muss valides JSON sein
+                # atomar wie settings._write(); ein Abbruch hier darf keine halbe
+                # settings.json hinterlassen
+                atomic_io.write_bytes(A.SETTINGS_PATH, settings_raw, mode=0o600)
+                A.settings_store.reset_cache()
+                A._settings_changed()
+                settings_restored = True
+                A.log.info("Wiederherstellung: Einstellungen aus dem Backup übernommen")
+            except (ValueError, UnicodeDecodeError, OSError) as e:
+                A.log.warning("Einstellungen aus dem Backup nicht übernommen: %s", e)
 
     for oid in new_ids:
         A._spawn(A.check_offer, oid)
@@ -772,5 +880,9 @@ def api_restore():
                     'ai_history': ai_n, 'settings': settings_n, 'market_trend': moves_n,
                     'market_basket': basket_n, 'climate': climate_n['climate'],
                     'guide': climate_n['guide'], 'shares': shares_n, 'share_comments': comments_n,
-                    'options_restored': settings_restored})
+                    'options_restored': settings_restored,
+                    'options_skipped': settings_skipped,
+                    'key_in_archive': bool(key_raw),
+                    'key_restored': key_restored,
+                    'key_error': key_error})
 

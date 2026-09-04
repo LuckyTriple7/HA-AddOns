@@ -389,6 +389,28 @@ def _calendar_moves(con, offer_id: int) -> dict[str, dict]:
     return moves
 
 
+def _calendar_last_move_ts(con) -> dict[int, int]:
+    """Zeitpunkt der letzten ECHTEN Kalender-Preisbewegung je Angebot — ein
+    einziger Query fuer die ganze Angebotsliste.
+
+    `_collect_offers` braucht von `_calendar_moves` nur `max(ts)`, holt dafuer
+    aber alle `calendar_history`-Zeilen jedes Angebots nach Python. Das ist der
+    mit Abstand teuerste Teil von `/api/offers` — und die Liste wird alle 5 s
+    von jedem offenen Browser gepollt, waehrend `calendar_history` als einzige
+    Tabelle wirklich schnell waechst.
+
+    "Echt" heisst wie in `_calendar_moves`: mindestens zwei bekannte Preise fuer
+    dasselbe Reisedatum (ein Datum mit nur einem Snapshot ist die Baseline aus
+    dem Erstabruf, keine Bewegung). Angebote ohne Bewegung fehlen im Ergebnis.
+    """
+    rows = con.execute(
+        'SELECT offer_id, MAX(mx) mt FROM ('
+        ' SELECT offer_id, travel_date, MAX(ts) mx, COUNT(*) c'
+        ' FROM calendar_history GROUP BY offer_id, travel_date'
+        ') WHERE c >= 2 GROUP BY offer_id').fetchall()
+    return {r['offer_id']: r['mt'] for r in rows}
+
+
 def _calendar_top_moves(moves: dict, limit: int = 12) -> list[dict]:
     """Größte Bewegungen (nach Betrag) aus _calendar_moves(), für die 'Größte
     Bewegungen seit letztem Abruf'-Liste."""

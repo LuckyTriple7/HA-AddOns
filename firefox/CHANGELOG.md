@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.9] - 2026-09-02
+
+### Hinzugefügt
+- Eigenes Favicon: Browser-Tab und Web-App-Icons werden jetzt aus dem Add-on-Icon erzeugt statt das generische Symbol des Basis-Images zu zeigen
+
+### Entfernt
+- Ungenutzte `rootfs/opt/novnc/index.html`. nginx liefert aus `/opt/noVNC` aus, die Datei lag unter `/opt/novnc` und wurde nie ausgeliefert
+
+## [1.0.8] - 2026-09-02
+
+### Behoben
+- "Sync with Host Clipboard" bleibt jetzt eingeschaltet. Die Web-Oberfläche speicherte ein dauerhaftes "aus", sobald der Browser den Zwischenablage-Zugriff einmal ablehnte (etwa wenn der Tab beim Sperren des Rechners den Fokus verliert). Beim Laden der Oberfläche wird der gespeicherte Wert nun wieder auf den Standard "an" gesetzt
+
+## [1.0.7] - 2026-09-01
+
+### Geändert
+- Rebuild für Firefox ESR 140.15.0esr
+
+
 ## [1.0.6] - 2026-08-18
 
 ### Geändert

@@ -457,6 +457,25 @@
     .set-warn { color:var(--bad, #ef4444); }
     .modal h2 { font-size:var(--fs-lg); margin-bottom:4px; }
     .modal .sub { font-size:var(--fs-sm); color:var(--muted); margin-bottom:14px; }
+    /* Nextcloud-Kontakte im E-Mail-Dialog: Name und Adresse in je einer Zeile,
+       tippen im Feld filtert, Pfeiltasten waehlen. */
+    .nc-box { margin-top:8px; }
+    .nc-head { display:flex; gap:6px; align-items:center; }
+    .nc-toggle { flex:1; text-align:left; background:none; border:none; padding:4px 2px;
+                 color:var(--muted); font-size:var(--fs-sm); cursor:pointer; }
+    .nc-toggle:hover { color:var(--text); }
+    .nc-reload { background:none; border:none; color:var(--muted); font-size:var(--fs-md);
+                 cursor:pointer; padding:2px 6px; line-height:1; }
+    .nc-reload:hover { color:var(--text); }
+    .nc-list { max-height:210px; overflow-y:auto; margin-top:4px; border:1px solid var(--border);
+               border-radius:var(--r-ui); background:var(--surf2); }
+    .nc-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline;
+              padding:6px 10px; cursor:pointer; border-bottom:1px solid var(--border); }
+    .nc-row:last-child { border-bottom:none; }
+    .nc-row:hover, .nc-row.sel { background:var(--surf); }
+    .nc-name { font-size:var(--fs-sm); font-weight:600; }
+    .nc-mail { font-size:var(--fs-xs); color:var(--muted); overflow-wrap:anywhere; }
+    .nc-none { padding:8px 10px; font-size:var(--fs-sm); color:var(--muted); }
     #hist-canvas { width:100%; height:300px; display:block; }
     .chart-tip { position:absolute; transform:translateX(-50%); top:6px; pointer-events:none; z-index:5; background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); padding:5px 8px; font-size:var(--fs-xs); max-width:240px; box-shadow:0 4px 12px rgba(0,0,0,.3); }
     .chart-tip .tt-date { color:var(--muted); font-size:var(--fs-2xs); }
@@ -717,7 +736,7 @@
     .clim tr.clim-sel td { font-weight:600; }
     .clim .clim-note { color:var(--muted); font-size:var(--fs-sm); }
     .clim-best { color:var(--green); font-weight:600; }
-    /* Reiseführer: dreizehn Abschnitte mit Label/Wert-Paaren. Sprungmarken oben,
+    /* Reiseführer: Abschnitte mit Label/Wert-Paaren. Sprungmarken oben,
        weil die Liste sonst nur noch gescrollt werden kann. */
     /* Grün umrandet = zu diesem Ziel liegt schon ein Reiseführer bzw. eine
        Klimatabelle bereit, das Öffnen kostet keinen KI-Aufruf. */
@@ -779,6 +798,7 @@
     .foot-status, .foot-tools { display:flex; flex-wrap:wrap; justify-content:center;
                                 gap:4px 20px; min-width:0; }
     .foot-status span span { color:var(--text); }
+    body.ai-disabled .foot-ai { display:none; }
     .hc-foot { cursor:pointer; }
     .foot-tools .hc-foot:hover { color:var(--accent); }
     /* Als <a> (Download-Links, z. B. „Als Kalender (.ics)") sonst im Browser-Blau
@@ -812,6 +832,16 @@
     #tw-console-title{ color:#8b949e; font-size:11px; font-weight:600; letter-spacing:.05em; }
     #tw-console-close{ background:none; border:none; color:#8b949e; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1; }
     #tw-console-close:hover{ color:#f85149; }
+    #tw-console-filter{ display:flex; align-items:center; gap:4px; padding:4px 8px; background:#0f1319; border-bottom:1px solid #30363d; flex-shrink:0; flex-wrap:wrap; }
+    #tw-console-filter button{ background:none; border:1px solid #30363d; color:#6e7681; font:inherit; font-size:10px; padding:1px 6px; border-radius:4px; cursor:pointer; letter-spacing:.04em; }
+    #tw-console-filter button:hover{ border-color:#6e7681; }
+    #tw-console-filter button.on[data-lvl=ERROR]{ color:#f85149; border-color:#f85149; }
+    #tw-console-filter button.on[data-lvl=WARNING]{ color:#d29922; border-color:#d29922; }
+    #tw-console-filter button.on[data-lvl=INFO]{ color:#3fb950; border-color:#3fb950; }
+    #tw-console-filter button.on[data-lvl=DEBUG]{ color:#8b949e; border-color:#8b949e; }
+    #tw-console-search{ flex:1; min-width:70px; background:#161b22; border:1px solid #30363d; color:#c9d1d9; font:inherit; font-size:10px; padding:2px 6px; border-radius:4px; }
+    #tw-console-search:focus{ outline:none; border-color:#6e7681; }
+    #tw-console-count{ color:#6e7681; font-size:10px; white-space:nowrap; }
     #tw-console-body{ flex:1; overflow-y:auto; padding:6px 10px; line-height:1.6; color:#c9d1d9; }
     #tw-console-body::-webkit-scrollbar{ width:5px; } #tw-console-body::-webkit-scrollbar-thumb{ background:#30363d; border-radius:3px; }
     .twc-info{color:#8b949e;} .twc-warn{color:#d29922;} .twc-error{color:#f85149;} .twc-debug{color:#6e7681;}
@@ -1201,6 +1231,11 @@
         <span>DB <span id="db-size">…</span></span>
         <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">TUI-Aufrufe heute <span id="tui-calls">…</span></span>
         <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API <span id="hc-dot">…</span></span>
+      </div>
+      <!-- KI-Kosten und aktiver Anbieter in eigener Zeile: zusammen mit Version,
+           Intervall, DB und API-Status in einer Reihe brach die Zeile mitten in den
+           KI-Angaben um, und das "· <Anbieter> aktiv" stand allein am Zeilenanfang. -->
+      <div class="foot-status foot-ai">
         <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span>
         <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
       </div>
@@ -1505,7 +1540,8 @@
         <span class="hint" style="flex:1;min-width:180px">Öffnet die Druckansicht — dort „Als PDF speichern" wählen.</span>
         <button class="btn sec" onclick="openAiEmailModal()"><svg class="i"><use href="#i-mail"/></svg> E-Mail senden</button>
         <button class="btn sec" onclick="exportAiPdf()"><svg class="i"><use href="#i-doc"/></svg> PDF exportieren</button>
-        <button class="btn sec" onclick="exportAiMarkdown()"><svg class="i"><use href="#i-download"/></svg> Markdown</button>
+        <button class="btn sec" onclick="copyAiMd()"
+                title="Antwort als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung oder auf einer Webseite"><svg class="i"><use href="#i-clipboard"/></svg> Markdown</button>
       </div>
     </div>
   </div>
@@ -1521,6 +1557,7 @@
         <button class="btn sec" id="syslog-tab-notify" onclick="openSyslog('notify')"><svg class="i"><use href="#i-bell"/></svg> Benachrichtigungen</button>
         <button class="btn sec" id="syslog-tab-errors" onclick="openSyslog('errors')"><svg class="i"><use href="#i-warn"/></svg> Warnungen/Fehler</button>
         <button class="btn sec" id="syslog-tab-console" onclick="openSyslog('console')"><svg class="i"><use href="#i-terminal"/></svg> Konsole</button>
+        <button class="btn sec" id="syslog-tab-memory" onclick="openSyslog('memory')"><svg class="i"><use href="#i-chart"/></svg> Speicher</button>
       </div>
       <div class="sub" id="syslog-sub"></div>
       <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
@@ -1653,9 +1690,23 @@
       </button>
       <h2>Als E-Mail senden</h2>
       <div class="sub">Adresse eingeben oder aus dem Nextcloud-Adressbuch wählen.</div>
-      <input type="email" id="email-to" list="nc-contacts" placeholder="E-Mail-Adresse"
-             style="width:100%;margin-top:10px" onkeydown="if(event.key==='Enter')submitEmail()">
-      <datalist id="nc-contacts"></datalist>
+      <!-- data-*-ignore: Bitwarden/1Password/LastPass legen sonst ihr Ausfuell-Overlay
+           ueber das Feld und verdecken jede Vorschlagsliste. -->
+      <input type="email" id="email-to" placeholder="E-Mail-Adresse" autocomplete="off"
+             data-bwignore="true" data-lpignore="true" data-1p-ignore
+             style="width:100%;margin-top:10px" oninput="ncFilter()" onkeydown="ncKey(event)">
+      <!-- Eigene Kontaktliste statt <datalist>: Firefox zeigt in einem datalist nur
+           den `value` (die Adresse), nie den Namen aus dem Option-Text — und blendet
+           die Vorschlaege ganz aus, sobald das Feld schon gefuellt ist (Standard-
+           Empfaenger). Das Adressbuch war dort praktisch unsichtbar. -->
+      <div id="nc-box" class="nc-box" hidden>
+        <div class="nc-head">
+          <button type="button" class="nc-toggle" id="nc-toggle" onclick="ncToggle()"></button>
+          <button type="button" class="nc-reload" title="Kontakte neu laden"
+                  onclick="ncReload()">↻</button>
+        </div>
+        <div id="nc-list" class="nc-list" hidden></div>
+      </div>
       <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
         <button class="btn sec" onclick="closeEmailModal()">Abbrechen</button>
         <button class="btn" onclick="submitEmail()">Senden</button>
@@ -1735,8 +1786,21 @@
         Verschlüsselung nicht verfügbar — geheime Felder können nicht gespeichert werden.</div>
       <div id="settings-body"><div class="cmp-load">lädt…</div></div>
 
+      <div class="set-group" id="set-aiusage-group">
+        <h3>💶 KI-Kosten</h3>
+        <div class="set-row">
+          <div class="hint">Setzt die Zähler für heute, diesen Monat und gesamt auf null — die Anzeige
+            in der Fußzeile beginnt dann wieder bei 0,00 $. Der KI-Verlauf und die bei jedem Ergebnis
+            gespeicherten Einzelkosten bleiben erhalten; die Summen selbst sind danach weg und lassen
+            sich nicht zurückholen.</div>
+          <div class="hint" id="set-aiusage-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row">
+          <button class="btn sec" type="button" onclick="resetAiUsage(this)">KI-Kosten zurücksetzen</button>
+        </div>
+      </div>
       <div class="set-group" id="set-key-group">
-        <h3>🔑 Schlüssel sichern</h3>
+        <h3>🔑 Schlüssel &amp; Komplettsicherung</h3>
         <div class="set-row">
           <div class="hint">Der Schlüssel entschlüsselt alle gespeicherten Zugangsdaten und liegt bewusst
             <b>nicht</b> im Backup. Damit ein Restore auf einer frischen Installation trotzdem gelingt,
@@ -1761,6 +1825,17 @@
           <button class="btn sec" type="button" id="set-key-export" onclick="exportKey(this)">Schlüssel herunterladen</button>
           <button class="btn sec" type="button" onclick="$('#set-key-file').click()">Schlüssel einspielen</button>
           <input type="file" id="set-key-file" accept=".json,application/json" style="display:none">
+        </div>
+        <div class="set-row">
+          <div class="hint">Bequemer als beides einzeln: ein Backup, in dem der Schlüssel schon steckt —
+            mit derselben Passphrase verpackt. Damit lässt sich eine Installation an einem Stück
+            wiederherstellen, Einstellungen und Zugangsdaten eingeschlossen. Beim Einspielen fragt
+            TUIWatch nach, bevor es vorhandene Einstellungen oder einen vorhandenen Schlüssel ersetzt.</div>
+        </div>
+        <div class="set-row" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sec" type="button" onclick="backupWithKey(this)">Backup mit Schlüssel herunterladen</button>
+          <button class="btn sec" type="button" onclick="$('#set-backup-key-file').click()">Backup mit Schlüssel einspielen</button>
+          <input type="file" id="set-backup-key-file" accept=".zip,application/zip" style="display:none">
         </div>
       </div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
@@ -2156,6 +2231,14 @@
     <div id="tw-console-header">
       <span id="tw-console-title"><svg class="i"><use href="#i-terminal"/></svg> KONSOLE — TUIWatch · Hintergrund</span>
       <button id="tw-console-close" onclick="consoleToggle()">✕</button>
+    </div>
+    <div id="tw-console-filter">
+      <button data-lvl="ERROR" class="on" title="Fehler und Abstürze">ERROR</button>
+      <button data-lvl="WARNING" class="on" title="Warnungen">WARN</button>
+      <button data-lvl="INFO" class="on" title="Normale Meldungen">INFO</button>
+      <button data-lvl="DEBUG" class="on" title="Details für die Fehlersuche">DEBUG</button>
+      <input id="tw-console-search" type="text" placeholder="Text filtern…">
+      <span id="tw-console-count"></span>
     </div>
     <div id="tw-console-body"></div>
   </div>

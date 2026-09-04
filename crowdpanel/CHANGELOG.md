@@ -1,5 +1,82 @@
 # Changelog
 
+## [0.7.0] - 2026-09-03
+
+### Changed
+- **Bouncer und Maschinen tragen eine Ampel.** Bisher war ein Eintrag entweder
+  unauffällig oder rot, und rot wurde er erst nach zehn Minuten. Jetzt steht ein
+  Punkt vor dem Namen und die Zeitangabe rechts ist mitgefärbt: grün bis zwei
+  Minuten, gelb bis zehn, danach rot — dieselbe Grenze, nach der auch die
+  Home-Assistant-Sensoren einen Bouncer als abgehängt melden. Gelb heißt nicht
+  kaputt, sondern „länger her als üblich"; ein Bouncer holt sonst alle paar
+  Sekunden ab. Gesperrte Bouncer sind rot, abgeleitete Kindeinträge bleiben
+  grau, denn bei ihnen ist ein alter Zeitstempel der Normalfall.
+- Bei den Maschinen gilt dieselbe Ampel für das Lebenszeichen, mit weiteren
+  Grenzen (fünf und dreißig Minuten). Ein Zugang ohne Agent bleibt grau statt
+  rot — er schickt grundsätzlich keine Lebenszeichen.
+- Die genaue Zeit steht jetzt im Tooltip. „28 d" beantwortet nicht, seit wann.
+
+## [0.6.3] - 2026-09-03
+
+### Changed
+- **Die Metrikenseite zeigt Verhältnisse statt nur Zahlenkolonnen.** Bisher
+  standen dreizehn gleich aussehende Tabellen untereinander. Wo eine Reihe von
+  Zahlen für sich nichts sagt, zeichnet die Seite jetzt Blöcke mit Balken:
+  - *Datenquellen* je Quelle mit dem Anteil erkannter Zeilen,
+  - *LAPI je Bouncer* mit dem Verhältnis von Antworten mit und ohne Sperren —
+    ein Bouncer, der nur leere bekommt, setzt nichts durch,
+  - *LAPI je Maschine* als eine Karte je Maschine mit ihren Pfaden, statt
+    denselben Maschinennamen zwanzig Zeilen lang zu wiederholen,
+  - *AppSec* mit zugelassen gegen blockiert,
+  - *Laufzeiten* als Kacheln, weil dort die Zahl die Aussage ist.
+- *Parser* und *Whitelists* bekommen eine Anteilsspalte mit kleinem Balken:
+  ein Parser mit 18.000 Treffern und 0 % Erfolg fiel vorher nicht auf.
+- Die Kennzahlen oben tragen Symbole und, wo es eine gibt, eine Einordnung —
+  „31 % nicht erkannt“ unter den gelesenen Zeilen, „über 8 Pfade“ unter den
+  LAPI-Anfragen.
+- Endpunkt, Version, Anzahl und Abrufzeit stehen als kompakte Marken in der
+  Kopfzeile statt als vier Zeilen einer Liste.
+- In allen Tabellen sind nur noch Zahlenspalten rechtsbündig, Nullen gedämpft.
+
+Neue Tabellen einer künftigen CrowdSec-Version zeigt die Seite weiterhin
+an — kennt sie eine Kennung nicht, fällt sie auf die schmucklose Tabelle
+zurück.
+
+## [0.6.2] - 2026-09-03
+
+### Changed
+- **Die Übersicht ist neu aufgebaut.** Bisher standen in einer Reihe drei Zahlen
+  und zwei Balkenlisten nebeneinander — zwei Informationsdichten, zwischen denen
+  das Auge keinen Anker fand. Oben stehen jetzt vier Kennzahlen mit Symbol:
+  Alarme, aktive Sperren, Blocklisten-Updates und der Zustand der LAPI. Der
+  Zustand stand vorher nur in der kleinen Pille oben rechts, und ohne LAPI sind
+  alle Zahlen daneben von gestern.
+- **Der Verlauf ist ein richtiges Diagramm.** Statt gestapelter Streifen ohne
+  Achse: Y-Achse, Gitter, Legende und zwei Balken nebeneinander. Gestapelt
+  drückte ein Blocklisten-Abgleich mit zehntausend Einträgen jeden echten Alarm
+  auf zwei Bildpunkte. Dagegen hilft zusätzlich der Umschalter Linear/Symlog.
+  Der zweite Umschalter wechselt zwischen Tagen und den letzten 48 Stunden —
+  ein Tagesbalken verwischt, ob zweihundert Erkennungen über den Tag verteilt
+  kamen oder in zehn Minuten. Gezeichnet wird von Hand als SVG, ohne fremde
+  Bibliothek, die über Ingress nachgeladen werden müsste.
+- **Die Weltkarte färbt die Länder ein**, in fünf logarithmischen Stufen nach
+  Zahl der Erkennungen. Liegen dreihundert Punkte übereinander, sagte die Karte
+  bisher nichts mehr. Die Angriffsmarkierungen lassen sich abschalten, die Wahl
+  bleibt im Browser gespeichert.
+- **Balkenlisten zeigen einen eigenen Balken** statt eines Farbverlaufs hinter
+  dem Text — der war ab etwa zehn Prozent nicht mehr von Null zu unterscheiden.
+  Ein Umschalter stellt alle Listen zugleich von Anzahl auf Anteil. Länder
+  stehen mit Namen da, nicht mehr nur als zwei Buchstaben.
+- Ruhigere Kacheln: mehr Innenabstand, größerer Radius, weicher Schatten, und
+  Überschriften in Normalschrift statt in Großbuchstaben.
+
+### Added
+- **Häufigste Netze (AS)** als vierte Liste der Übersicht. Der Name des Netzes
+  steht in jedem angereicherten Alarm und sagt mehr als das Land: ein
+  Rechenzentrum ist keine Wohngegend.
+- `GET /api/history?bucket=hour` liefert den Verlauf in Stundenschritten;
+  das Archiv beantwortet ihn aus `created_ts`, ohne Archiv die LAPI.
+
 ## [0.6.1] - 2026-08-22
 
 ### Fixed

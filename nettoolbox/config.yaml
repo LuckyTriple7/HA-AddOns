@@ -1,0 +1,73 @@
+name: NetToolbox
+description: Netzwerk- und Mail-Diagnose — DNS-Abfragen, SPF, DKIM, DMARC, MTA-STS
+version: "0.1.41"
+slug: nettoolbox
+url: https://github.com/LuckyTriple7/HA-AddOns
+
+image: "ghcr.io/luckytriple7/nettoolbox"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: true
+
+panel_icon: mdi:lan-connect
+panel_title: NetToolbox
+
+homeassistant_api: true
+ingress: true
+ingress_port: 17798
+ingress_stream: true
+
+ports:
+  17798/tcp: 17798
+
+ports_description:
+  17798/tcp: NetToolbox Web-UI (direkt, Anmeldung erforderlich)
+
+options:
+  username: "admin"
+  password: "changeme123"
+  session_hours: 24
+  worker_url: ""
+  worker_token: ""
+  worker_tls_verify: true
+  worker_enabled: false
+  resolvers:
+    - "9.9.9.9"
+    - "1.1.1.1"
+    - "8.8.8.8"
+  dns_timeout: 5
+  http_timeout: 10
+  allow_private_targets: false
+  rate_limit_per_min: 60
+  history_size: 200
+  verbose_log: false
+  monitoring_enabled: true
+  monitoring_poll_seconds: 60
+  ha_sensors: true
+  port_check_enabled: true
+
+schema:
+  username: str
+  password: password
+  session_hours: int(1,720)
+  worker_url: str?
+  worker_token: password?
+  worker_tls_verify: bool?
+  worker_enabled: bool?
+  resolvers:
+    - str
+  dns_timeout: int(1,60)?
+  http_timeout: int(1,120)?
+  allow_private_targets: bool?
+  rate_limit_per_min: int(0,6000)?
+  history_size: int(0,5000)?
+  verbose_log: bool?
+  monitoring_enabled: bool?
+  monitoring_poll_seconds: int(10,3600)?
+  ha_sensors: bool?
+  port_check_enabled: bool?

@@ -1,0 +1,3143 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ t.app_title }}</title>
+<meta name="theme-color" content="#0d1117">
+<link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
+<link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+<style>
+:root { --bg:#0d1117; --surf:#161b22; --surf2:#1c2128; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --green:#238636; --green-h:#2ea043; --red:#f85149; --amber:#d29922; --blue:#58a6ff; }
+[data-theme="light"] { --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e; --amber:#9a6700; --blue:#0969da; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: var(--bg); color: var(--text); font-size: 0.9rem; min-height: 100vh; }
+a { color: var(--accent); }
+header { background: var(--surf); border-bottom: 1px solid var(--border);
+         padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 20; }
+.logo-row { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+.logo { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+.version { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border);
+        border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.ok .dot { background: var(--green-h); } .pill.ok { color: var(--green-h); border-color: var(--green-h); }
+.pill.bad .dot { background: var(--red); } .pill.bad { color: var(--red); border-color: var(--red); }
+.btn { background: var(--surf2); border: 1px solid var(--border); color: var(--text);
+       padding: 5px 10px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--green); border-color: var(--green-h); color: #fff; font-weight: 600; }
+.btn.primary:hover { background: var(--green-h); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.danger { color: var(--red); border-color: var(--border); }
+.btn.danger:hover { border-color: var(--red); }
+.lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 8px;
+            border-radius: 4px; font-size: 0.75rem; text-decoration: none; }
+.lang-btn.active { border-color: var(--accent); color: var(--accent); }
+.theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px;
+             border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; }
+.theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100;
+            align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; }
+.modal-bg.open { display: flex; }
+.modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 24px;
+         width: 100%; max-width: 560px; position: relative; }
+.modal-close { position: absolute; top: 12px; right: 12px; background: none; border: 1px solid var(--border);
+               color: var(--muted); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
+.modal-close:hover { border-color: var(--accent); }
+.set-group { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.set-group h3 { font-size: 0.85rem; margin-bottom: 10px; }
+.set-row { margin-bottom: 12px; }
+.set-lbl { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; }
+.set-check { display: flex; align-items: center; gap: 6px; font-size: 0.83rem; }
+.icon-moon { display: block; } .icon-sun { display: none; }
+[data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+nav { display: flex; gap: 2px; padding: 0 16px; background: var(--surf); border-bottom: 1px solid var(--border);
+      overflow-x: auto; position: sticky; top: 49px; z-index: 19; }
+nav button { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted);
+             padding: 10px 12px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s; }
+nav button svg { width: 15px; height: 15px; fill: currentColor; opacity: .85; flex: none; }
+nav button:hover { color: var(--text); }
+nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+section { display: none; }
+section.active { display: block; animation: fadein .18s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+h2 { font-size: 1rem; margin-bottom: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+h2 svg { width: 17px; height: 17px; fill: var(--accent); flex: none; }
+h3 { font-size: 0.87rem; color: var(--text); margin-bottom: 8px; font-weight: 600; }
+.card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 14px;
+        transition: border-color .15s, box-shadow .15s; }
+.card:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--accent)); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grow { flex: 1 1 220px; }
+label.field { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
+input[type="text"], input[type="password"], select {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 10px; border-radius: 6px; font-size: 0.87rem;
+}
+textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 10px; border-radius: 6px; font-size: 0.8rem; font-family: ui-monospace, monospace;
+  resize: vertical; min-height: 130px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+.hint { font-size: 0.76rem; color: var(--muted); margin-top: 6px; }
+#pingLiveChart { display: block; width: 100%; height: 160px; margin-top: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .03em; }
+tr:last-child td { border-bottom: none; }
+/* overflow-wrap statt word-break: bricht lange Hostnamen und Records nur
+   dann auf, wenn sie sonst ueberlaufen wuerden -- break-all zerlegte auch
+   kurze Woerter mitten drin ("hornetsecurit/y.com"). */
+.mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.82rem;
+        word-break: normal; overflow-wrap: anywhere; }
+.delist-link { margin-left: 8px; font-size: 0.74rem; }
+.snap-row { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            padding: 7px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.snap-row:first-child { border-top: 0; }
+.snap-info { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.snap-actions { display: flex; gap: 6px; align-items: center; }
+.snap-actions select { width: auto; max-width: 230px; }
+.diff-block { padding: 6px 0; }
+.diff-block .diff-name { font-size: 0.78rem; color: var(--muted); }
+.diff-removed { color: var(--red); }
+.diff-added { color: var(--green-h); }
+.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600; }
+.badge.ok { background: rgba(35,134,54,.15); color: var(--green-h); }
+.badge.info { background: rgba(88,166,255,.15); color: var(--blue); }
+.badge.warn { background: rgba(210,153,34,.15); color: var(--amber); }
+.badge.fail { background: rgba(248,81,73,.15); color: var(--red); }
+.finding-list { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+.finding-list li { display: flex; gap: 8px; align-items: baseline; font-size: 0.83rem;
+                    border-left: 2px solid var(--border); padding: 2px 0 2px 9px; }
+.finding-list li:has(.badge.ok) { border-left-color: var(--green-h); }
+.finding-list li:has(.badge.warn) { border-left-color: var(--amber); }
+.finding-list li:has(.badge.fail) { border-left-color: var(--red); }
+.finding-list li:has(.badge.info) { border-left-color: var(--blue); }
+.score-ring { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+.score-donut { position: relative; width: 84px; height: 84px; border-radius: 50%; flex: none;
+               background: conic-gradient(var(--ring, var(--accent)) calc(var(--pct, 0) * 3.6deg), var(--border) 0); }
+.score-donut::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: var(--surf); }
+.score-donut .score-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                           font-size: 1.5rem; font-weight: 700; z-index: 1; }
+.score-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+.result-empty { color: var(--muted); font-size: 0.85rem; padding: 8px 0; }
+.cancel-link { color: var(--accent); text-decoration: none; }
+.cancel-link:hover { text-decoration: underline; }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent);
+           border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.subgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 10px; margin-top: 10px; }
+.subcard { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surf2);
+           transition: border-color .15s; }
+.subcard:hover { border-color: color-mix(in srgb, var(--border) 30%, var(--accent)); }
+.subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 0.8rem; }
+.kv span:first-child { color: var(--muted); }
+/* Eigene Zeilen für den IP-Lookup: feste Beschriftungsspalte statt
+   space-between, und Werte brechen an Wortgrenzen -- .mono bricht sonst
+   mitten in "Baden-Wuerttemberg" um, was bei IPs richtig ist und bei
+   Ortsnamen nicht. */
+.ipinfo-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.ipinfo-kv { display: grid; grid-template-columns: 106px 1fr; gap: 10px;
+             align-items: baseline; padding: 3px 0; font-size: 0.8rem; }
+.ipinfo-kv > span:first-child { color: var(--muted); }
+.ipinfo-kv > :last-child { text-align: left; word-break: normal; overflow-wrap: anywhere; }
+.detect-label { font-size: 0.78rem; color: var(--muted); align-self: center; }
+/* Schmalere Beschriftungsspalte fuer Zeilen in den engen Unterkarten. */
+.kv-tight { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline;
+            margin-top: 6px; font-size: 0.8rem; }
+.kv-tight > span:first-child { color: var(--muted); }
+.kv-tight > :last-child { word-break: normal; overflow-wrap: anywhere; }
+.toast-wrap { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+.toast { background: var(--surf); border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px;
+         font-size: 0.82rem; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.toast.bad { border-color: var(--red); color: var(--red); }
+.record-code { background: var(--surf2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+               font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted); }
+.tech-list { display: flex; flex-direction: column; gap: 4px; }
+.tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; }
+.tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
+.tech-ver { font-size: 0.72rem; color: var(--muted); }
+.tech-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+.tech-dot.high { background: var(--green-h); }
+.tech-dot.medium { background: var(--amber); }
+.tech-dot.low { background: var(--border); }
+footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size: 0.75rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo-row">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm-4 7a4 4 0 1 1 8 0 4 4 0 0 1-8 0z"/></svg>
+    <div class="logo">{{ t.app_title }}</div>
+    <span class="version">{{ version }}</span>
+  </div>
+  <span class="pill" id="backendPill"><span class="dot"></span><span id="backendLabel">…</span></span>
+  <a href="{{ url_for('set_lang', lang='de', next=request.path) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+  <a href="{{ url_for('set_lang', lang='en', next=request.path) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+  <button class="theme-btn" onclick="openSettings()" type="button" aria-label="settings" title="{{ t.settings_title }}">
+    <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+  </button>
+  <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="theme">
+    <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+    <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+  </button>
+  {% if not ingress %}<a class="btn" href="{{ url_for('logout') }}">{{ t.logout }}</a>{% endif %}
+</header>
+
+<nav id="tabs">
+  <button data-tab="report" class="active"><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8,12H16V14H8V12M8,16H13V18H8V16Z"/></svg>{{ t.nav_report }}</button>
+  <button data-tab="dns"><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.nav_dns }}</button>
+  <button data-tab="mail"><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.nav_mail_group }}</button>
+  <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
+  <button data-tab="tls"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.nav_tls }}</button>
+  <button data-tab="whois"><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.nav_whois }}</button>
+  <button data-tab="http"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.nav_http }}</button>
+  <button data-tab="monitor"><svg viewBox="0 0 24 24"><path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/></svg>{{ t.nav_monitor }}</button>
+  <button data-tab="history"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.nav_history }}</button>
+</nav>
+
+<main>
+
+<section id="tab-report" class="active">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8,12H16V14H8V12M8,16H13V18H8V16Z"/></svg>{{ t.report_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="reportDomain">{{ t.field_domain }}</label>
+        <input type="text" id="reportDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="reportRun">{{ t.action_report }}</button>
+        <button class="btn" id="reportDownload" style="display:none">{{ t.action_report_download }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.report_hint }}</p>
+    <div id="reportResult"></div>
+  </div>
+</section>
+
+<section id="tab-dns">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.dns_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="dnsName">{{ t.field_name }}</label>
+        <input type="text" id="dnsName" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="width:120px">
+        <label class="field" for="dnsType">{{ t.field_type }}</label>
+        <select id="dnsType">
+          {% for rr in rr_types %}<option value="{{ rr }}">{{ rr }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="dnsRun">{{ t.action_lookup }}</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="dnsRunAll">{{ t.action_lookup_all }}</button>
+      <button class="btn" id="dnsRunTxt">TXT</button>
+      <button class="btn" id="dnsRunSoa">SOA / {{ t.field_nameservers }}</button>
+    </div>
+    <div id="dnsResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/></svg>{{ t.dnssec_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="secName">{{ t.field_name }}</label>
+        <input type="text" id="secName" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="secRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div id="secResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z"/></svg>{{ t.propagation_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="propName">{{ t.field_name }}</label>
+        <input type="text" id="propName" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="width:120px">
+        <label class="field" for="propType">{{ t.field_type }}</label>
+        <select id="propType">
+          {% for rr in ['A','AAAA','MX','NS','TXT','CAA'] %}<option value="{{ rr }}">{{ rr }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="propRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div id="propResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.snapshot_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="snapDomain">{{ t.field_domain }}</label>
+        <input type="text" id="snapDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div class="grow">
+        <label class="field" for="snapLabel">{{ t.field_snapshot_label }}</label>
+        <input type="text" id="snapLabel" placeholder="{{ t.ph_snapshot_label }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="snapAdd">{{ t.action_snapshot_add }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.snapshot_hint }}</p>
+    <div id="snapList"><p class="result-empty">{{ t.loading }}</p></div>
+    <div id="snapDiff"></div>
+  </div>
+</section>
+
+<section id="tab-mail">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.mail_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="mailDomain">{{ t.field_domain }}</label>
+        <input type="text" id="mailDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div class="grow">
+        <label class="field" for="mailSelectors">{{ t.field_dkim_selectors }}</label>
+        <input type="text" id="mailSelectors" placeholder="{{ t.ph_selectors }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="mailRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.mail_hint }}</p>
+    <div id="mailResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M3 13h5l2 3h4l2-3h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 13 7 5h10l2 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t.mx_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="mxDomain">{{ t.field_domain }}</label>
+        <input type="text" id="mxDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="mxRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div id="mxResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="9.5" width="18" height="5" rx="1"/><rect x="3" y="16" width="18" height="5" rx="1"/><circle cx="7" cy="5.5" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18.5" r="1"/></svg>{{ t.smtp_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="smtpTarget">{{ t.field_domain_host_port }}</label>
+        <input type="text" id="smtpTarget" placeholder="{{ t.smtp_placeholder }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="smtpRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.smtp_hint }}</p>
+    <div id="smtpResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M4,12C4,7.58 7.58,4 12,4C13.85,4 15.55,4.63 16.9,5.69L5.69,16.9C4.63,15.55 4,13.85 4,12M12,20C10.15,20 8.45,19.37 7.1,18.31L18.31,7.1C19.37,8.45 20,10.15 20,12C20,16.42 16.42,20 12,20Z"/></svg>{{ t.blacklist_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="rblIp">{{ t.field_ip }}</label>
+        <input type="text" id="rblIp" placeholder="{{ t.ph_ip }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="rblRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.blacklist_hint }}</p>
+    <div id="rblResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7A2,2 0 0,1 14,9A2,2 0 0,1 12,11A2,2 0 0,1 10,9A2,2 0 0,1 12,7M12,12C13.5,12 16,12.75 16,14.25V16H8V14.25C8,12.75 10.5,12 12,12Z"/></svg>{{ t.dane_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="daneDomain">{{ t.field_domain }}</label>
+        <input type="text" id="daneDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="daneRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.dane_hint }}</p>
+    <div id="daneResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M20,8L12,13L4,8V6L12,11L20,6M20,4H4C2.9,4 2,4.9 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.9 21.1,4 20,4Z"/></svg>{{ t.header_title }}</h2>
+    <label class="field" for="hdrText">{{ t.field_mail_header }}</label>
+    <textarea id="hdrText" spellcheck="false" placeholder="Return-Path: ...&#10;Received: from ...&#10;Authentication-Results: ...&#10;From: ...&#10;Subject: ..."></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" id="hdrRun">{{ t.action_analyse }}</button>
+      <button class="btn" id="hdrClear">{{ t.action_reset_field }}</button>
+      <span class="hint" style="margin:0">{{ t.header_hint }}</span>
+    </div>
+    <div id="hdrResult"></div>
+  </div>
+</section>
+
+<section id="tab-reverse">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.reverse_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="revIp">{{ t.field_ip }}</label>
+        <input type="text" id="revIp" placeholder="{{ t.ph_ip }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="revRun">{{ t.action_lookup }}</button>
+      </div>
+    </div>
+    <div id="revResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C8.13,2 5,5.13 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9C19,5.13 15.87,2 12,2M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5Z"/></svg>{{ t.ipinfo_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="ipinfoTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="ipinfoTarget" placeholder="{{ t.ph_ip_or_host }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="ipinfoRun">{{ t.action_lookup }}</button>
+        <button class="btn" id="ipinfoOwn">{{ t.action_ipinfo_own }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.ipinfo_hint }}</p>
+    <div id="ipinfoResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M3,12H7L9,6L13,18L15,12H21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t.ping_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="pingTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="pingTarget" placeholder="{{ t.ph_host_or_ip }}" autocomplete="off">
+      </div>
+      <div style="width:100px">
+        <label class="field" for="pingFamily">{{ t.field_ip_family }}</label>
+        <select id="pingFamily">
+          <option value="">{{ t.ip_family_auto }}</option>
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="pingRun">{{ t.action_ping }}</button>
+        <button class="btn" id="pingLiveRun">{{ t.action_ping_live_start }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.ping_hint }}</p>
+    <div id="pingLiveBox" hidden>
+      <div class="row" style="align-items:center; margin-top:4px">
+        <span class="chip" id="pingLiveCur">--</span>
+        <span class="chip" id="pingLiveStats">min -- / avg -- / max -- ms</span>
+        <span class="chip" id="pingLiveLoss">0 {{ t.ping_loss_label }}</span>
+      </div>
+      <canvas id="pingLiveChart" height="160"></canvas>
+    </div>
+    <div id="pingResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M13,7V13L17.25,15.15L16.5,16.5L11,13.5V7H13Z"/></svg>{{ t.traceroute_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="traceTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="traceTarget" placeholder="{{ t.ph_host_or_ip }}" autocomplete="off">
+      </div>
+      <div style="width:100px">
+        <label class="field" for="traceFamily">{{ t.field_ip_family }}</label>
+        <select id="traceFamily">
+          <option value="">{{ t.ip_family_auto }}</option>
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <label style="display:flex; align-items:center; gap:5px; font-size:0.82rem; height:36px">
+          <input type="checkbox" id="traceIcmp"> {{ t.field_traceroute_icmp }}
+        </label>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="tracerouteRun">{{ t.action_traceroute }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.traceroute_hint }} {{ t.traceroute_icmp_hint }}</p>
+    <div id="tracerouteResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M4,1H20A1,1 0 0,1 21,2V6A1,1 0 0,1 20,7H4A1,1 0 0,1 3,6V2A1,1 0 0,1 4,1M4,9H20A1,1 0 0,1 21,10V14A1,1 0 0,1 20,15H4A1,1 0 0,1 3,14V10A1,1 0 0,1 4,9M4,17H20A1,1 0 0,1 21,18V22A1,1 0 0,1 20,23H4A1,1 0 0,1 3,22V18A1,1 0 0,1 4,17M9,5H10V3H9V5M9,13H10V11H9V13M9,21H10V19H9V21M5,3V5H7V3H5M5,11V13H7V11H5M5,19V21H7V19H5Z"/></svg>{{ t.ports_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="portsTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="portsTarget" placeholder="{{ t.ph_host_or_ip }}" autocomplete="off">
+      </div>
+      <div style="width:200px">
+        <label class="field" for="portsList">{{ t.field_ports }}</label>
+        <input type="text" id="portsList" placeholder="{{ t.ph_ports }}" autocomplete="off">
+      </div>
+      <div style="width:100px">
+        <label class="field" for="portsFamily">{{ t.field_ip_family }}</label>
+        <select id="portsFamily">
+          <option value="">{{ t.ip_family_auto }}</option>
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="portsRun">{{ t.action_check }}</button>
+        <button class="btn" id="dualRun">{{ t.action_dualstack }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.ports_hint }}</p>
+    <div id="portsResult"></div>
+  </div>
+</section>
+
+<section id="tab-tls">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.tls_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="tlsTarget">{{ t.field_host_port }}</label>
+        <input type="text" id="tlsTarget" placeholder="{{ t.ph_host_port }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="tlsRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.tls_hint }}</p>
+    <div id="tlsResult"></div>
+  </div>
+</section>
+
+<section id="tab-whois">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.whois_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="whoisDomain">{{ t.field_domain }}</label>
+        <input type="text" id="whoisDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="whoisRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.whois_hint }}</p>
+    <div id="whoisResult"></div>
+  </div>
+</section>
+
+<section id="tab-http">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.http_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="httpTarget">{{ t.field_url }}</label>
+        <input type="text" id="httpTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="httpRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.http_hint }}</p>
+    <div id="httpResult"></div>
+    <div class="row" style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px">
+      <button class="btn" id="quicRun">{{ t.action_quic_test }}</button>
+      <span class="hint" style="margin:0">{{ t.quic_hint }}</span>
+    </div>
+    <div id="quicResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>{{ t.seo_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="seoTarget">{{ t.field_url }}</label>
+        <input type="text" id="seoTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="seoRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.seo_hint }}</p>
+    <div id="seoResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M20,18H4V8H20M20,6H12L10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6M9,10V12H11V17H13V12H15V10H9Z"/></svg>{{ t.tech_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="techTarget">{{ t.field_url }}</label>
+        <input type="text" id="techTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="techRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.tech_hint }}</p>
+    <div id="techResult"></div>
+  </div>
+</section>
+
+<section id="tab-monitor">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/></svg>{{ t.monitor_title }}</h2>
+    <p class="hint">{{ t.monitor_hint }}</p>
+    <p class="hint" id="monHaHint" hidden>{{ t.monitor_ha_hint }}</p>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="monName">{{ t.field_name }}</label>
+        <input type="text" id="monName" placeholder="{{ t.ph_monitor_name }}" autocomplete="off">
+      </div>
+      <div style="width:150px">
+        <label class="field" for="monProbe">{{ t.field_probe }}</label>
+        <select id="monProbe">
+          <option value="tls">SSL/TLS</option>
+          <option value="blacklist">{{ t.nav_blacklist }}</option>
+          <option value="mail_health">{{ t.nav_mail }}</option>
+          <option value="aaaa_guard">{{ t.monitor_probe_aaaa }}</option>
+          <option value="whois">{{ t.monitor_probe_whois }}</option>
+          <option value="http">{{ t.monitor_probe_http }}</option>
+          <option value="seo">{{ t.monitor_probe_seo }}</option>
+        </select>
+      </div>
+      <div class="grow">
+        <label class="field" for="monTarget">{{ t.field_target }}</label>
+        <input type="text" id="monTarget" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="width:110px">
+        <label class="field" for="monInterval">{{ t.field_interval_hours }}</label>
+        <input type="text" id="monInterval" value="6" inputmode="numeric">
+      </div>
+    </div>
+    <div class="hint" id="monTargetHint" hidden></div>
+    <div class="row" style="margin-top:8px; align-items:center">
+      <label style="display:flex; align-items:center; gap:5px; font-size:0.82rem">
+        <input type="checkbox" id="monEmail" checked> {{ t.field_notify_email }}
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; font-size:0.82rem">
+        <input type="checkbox" id="monTelegram" checked> {{ t.field_notify_telegram }}
+      </label>
+      <button class="btn primary" id="monAdd">{{ t.action_add_monitor }}</button>
+      <button class="btn" id="monCancelEdit" style="display:none">{{ t.action_cancel }}</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2 style="margin-bottom:8px">{{ t.monitor_list_title }}</h2>
+    <div id="monitorList"><p class="result-empty">{{ t.loading }}</p></div>
+  </div>
+</section>
+
+<section id="tab-history">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin-bottom:0"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.history_title }}</h2>
+      <button class="btn" id="historyClear">{{ t.action_clear }}</button>
+    </div>
+    <div id="historyResult"><p class="result-empty">{{ t.loading }}</p></div>
+  </div>
+</section>
+
+</main>
+
+<div class="modal-bg" id="settingsBg">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSettings()" type="button" aria-label="close">✕</button>
+    <h2 style="margin-bottom:4px">{{ t.settings_title }}</h2>
+    <p class="hint" style="margin-bottom:0">{{ t.settings_hint }}</p>
+    <div class="hint" id="setCryptoWarn" style="display:none; color:var(--red); margin-top:8px">
+      {{ t.settings_crypto_warn }}
+    </div>
+
+    <div class="set-group">
+      <h3>{{ t.settings_group_mail }}</h3>
+      <div class="set-row">
+        <label class="field" for="setSmtpHost">{{ t.field_smtp_host }}</label>
+        <input type="text" id="setSmtpHost" autocomplete="off" placeholder="mail.example.com">
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpPort">{{ t.field_smtp_port }}</label>
+        <input type="text" id="setSmtpPort" inputmode="numeric" placeholder="587">
+      </div>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="setSmtpTls" checked> {{ t.field_smtp_tls }}
+        </label>
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpUser">{{ t.field_smtp_user }}</label>
+        <input type="text" id="setSmtpUser" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpPassword">{{ t.field_smtp_password }}</label>
+        <input type="password" id="setSmtpPassword" autocomplete="new-password">
+        <div class="hint" id="setSmtpPasswordState"></div>
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpFrom">{{ t.field_smtp_from }}</label>
+        <input type="text" id="setSmtpFrom" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <label class="field" for="setSmtpTo">{{ t.field_smtp_to }}</label>
+        <input type="text" id="setSmtpTo" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <button class="btn" id="setTestEmail" type="button">{{ t.action_test_email }}</button>
+        <span class="hint" id="setTestEmailResult"></span>
+      </div>
+    </div>
+
+    <div class="set-group">
+      <h3>{{ t.settings_group_telegram }}</h3>
+      <div class="set-row">
+        <label class="field" for="setTelegramToken">{{ t.field_telegram_token }}</label>
+        <input type="password" id="setTelegramToken" autocomplete="new-password" placeholder="123456:AAExample">
+        <div class="hint" id="setTelegramTokenState"></div>
+      </div>
+      <div class="set-row">
+        <label class="field" for="setTelegramChatId">{{ t.field_telegram_chat_id }}</label>
+        <input type="text" id="setTelegramChatId" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <button class="btn" id="setTestTelegram" type="button">{{ t.action_test_telegram }}</button>
+        <span class="hint" id="setTestTelegramResult"></span>
+      </div>
+    </div>
+
+    <div class="set-group">
+      <h3>{{ t.settings_group_tech }}</h3>
+      <p class="hint" style="margin-top:0">{{ t.tech_rules_hint }}</p>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="setTechExtra"> {{ t.field_tech_extra_rules }}
+        </label>
+      </div>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="setTechAuto" checked> {{ t.field_tech_rules_auto_update }}
+        </label>
+      </div>
+      <div class="set-row">
+        <button class="btn" id="setTechFetch" type="button">{{ t.action_tech_rules_fetch }}</button>
+        <button class="btn danger" id="setTechRemove" type="button">{{ t.action_tech_rules_remove }}</button>
+      </div>
+      <div class="hint" id="setTechState"></div>
+    </div>
+
+    <div class="row" style="margin-top:18px; justify-content:flex-end">
+      <button class="btn" onclick="loadSettings()" type="button">{{ t.action_reload }}</button>
+      <button class="btn primary" id="setSave" onclick="saveSettings()" type="button">{{ t.action_save }}</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const T = {{ t|tojson }};
+const G = {
+  base: {{ request.script_root|tojson }},
+  csrf: {{ csrf|tojson }},
+  lang: {{ lang|tojson }}
+};
+
+(function () {
+  let theme = localStorage.getItem('nt-theme');
+  if (!theme) {
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+function toggleTheme(){
+  const n = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', n);
+  localStorage.setItem('nt-theme', n);
+}
+
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;
+  return n;
+}
+
+let currentAbort = null;
+
+function cancelActiveProbe(){
+  if (currentAbort) { currentAbort.abort(); }
+}
+
+function showLoading(box){
+  box.innerHTML = '';
+  const p = el('p', 'result-empty');
+  p.innerHTML = '<span class="spinner"></span> ' + T.loading + ' · ';
+  const cancel = el('a', 'cancel-link', T.action_cancel);
+  cancel.href = '#';
+  cancel.addEventListener('click', ev => { ev.preventDefault(); cancelActiveProbe(); });
+  p.appendChild(cancel);
+  box.appendChild(p);
+}
+
+function toast(msg, bad){
+  const n = el('div', 'toast' + (bad ? ' bad' : ''), msg);
+  $('toasts').appendChild(n);
+  setTimeout(() => n.remove(), 6000);
+}
+
+function errText(code){
+  const key = 'err_' + String(code || '').replace(/[^a-z_]/gi, '_');
+  return T[key] || T.err_generic || code;
+}
+
+async function api(path, opts){
+  opts = opts || {};
+  let res;
+  try {
+    res = await fetch(G.base + path, {
+      method: opts.method || 'GET',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': G.csrf },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal
+    });
+  } catch (err) {
+    const e = new Error('api');
+    e.code = err.name === 'AbortError' ? 'aborted' : 'network';
+    throw e;
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) {
+    const e = new Error('api');
+    e.code = (data && data.error) || 'internal';
+    throw e;
+  }
+  return data || {};
+}
+
+async function runProbe(name, params, target, button){
+  if (currentAbort) { currentAbort.abort(); }
+  const controller = new AbortController();
+  currentAbort = controller;
+  if (button) { button.disabled = true; }
+  try {
+    const data = await api('/api/probe', {
+      method: 'POST', body: { probe: name, params: params }, signal: controller.signal
+    });
+    return data;
+  } catch (e) {
+    if (e.code !== 'aborted') toast(errText(e.code), true);
+    throw e;
+  } finally {
+    if (button) { button.disabled = false; }
+    if (currentAbort === controller) { currentAbort = null; }
+  }
+}
+
+// ── Settings (SMTP / Telegram) ──────────────────────────────────────────────
+
+function openSettings(){
+  $('settingsBg').classList.add('open');
+  loadSettings();
+}
+
+function closeSettings(){
+  $('settingsBg').classList.remove('open');
+}
+
+async function loadSettings(){
+  try {
+    const data = await api('/api/settings');
+    const v = data.values;
+    $('setCryptoWarn').style.display = data.crypto_available ? 'none' : 'block';
+    $('setSmtpHost').value = v.smtp_host || '';
+    $('setSmtpPort').value = v.smtp_port || 587;
+    $('setSmtpUser').value = v.smtp_user || '';
+    $('setSmtpPassword').value = '';
+    $('setSmtpPasswordState').textContent = v.smtp_password_set ? T.settings_secret_set : T.settings_secret_unset;
+    $('setSmtpFrom').value = v.smtp_from || '';
+    $('setSmtpTo').value = v.smtp_to || '';
+    $('setSmtpTls').checked = v.smtp_tls !== false;
+    $('setTelegramToken').value = '';
+    $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
+    $('setTelegramChatId').value = v.telegram_chat_id || '';
+  } catch (e) { toast(errText(e.code), true); }
+  loadTechRules(true);
+}
+
+function techRulesState(info){
+  const box = $('setTechState');
+  box.innerHTML = '';
+  if (info.updating) { box.textContent = T.tech_rules_updating; return; }
+  if (info.last_error) {
+    box.textContent = fmtStr(T.tech_rules_error, { reason: errText(info.last_error) });
+    return;
+  }
+  if (!info.available) { box.textContent = T.tech_rules_absent; return; }
+  const age = info.age_days === null || info.age_days === undefined
+    ? '?' : info.age_days;
+  box.textContent = fmtStr(T.tech_rules_present, {
+    techs: info.technologies, patterns: info.patterns,
+    kb: Math.round((info.stored_bytes || 0) / 1024), days: age,
+    license: info.license
+  }) + (info.stale ? ' · ' + T.tech_rules_stale : '');
+}
+
+// applyToggles nur, wenn der Server gerade die Wahrheit ist (nach dem Oeffnen
+// und nach dem Speichern). Beim Nachsehen waehrend eines Abrufs bleibt die
+// Form unangetastet -- sonst wuerde ein gesetzter, aber noch nicht
+// gespeicherter Haken zwei Sekunden spaeter von selbst wieder verschwinden.
+async function loadTechRules(applyToggles){
+  try {
+    const info = await api('/api/tech-rules');
+    if (applyToggles) {
+      $('setTechExtra').checked = !!info.enabled;
+      $('setTechAuto').checked = info.auto_update !== false;
+    }
+    techRulesState(info);
+    // Waehrend ein Abruf laeuft, alle drei Sekunden nachsehen -- er dauert
+    // je nach Leitung ein paar Sekunden bis einige Minuten.
+    if (info.updating) setTimeout(() => loadTechRules(false), 3000);
+  } catch (e) { /* Einstellungen bleiben nutzbar, auch wenn das fehlschlaegt */ }
+}
+
+async function fetchTechRules(){
+  const btn = $('setTechFetch');
+  btn.disabled = true;
+  try {
+    // Erst sichern, was in der Form steht: wer den Haken setzt und dann
+    // herunterlaedt, will den Datensatz auch benutzen -- sonst laege er
+    // ungenutzt im Datenordner.
+    await api('/api/settings', { method: 'POST', body: settingsFormValues() });
+    try {
+      await api('/api/tech-rules/update', { method: 'POST', body: {} });
+    } catch (e) {
+      // Das Speichern stoesst den Abruf selbst schon an, wenn noch nichts da
+      // ist -- dass hier "laeuft bereits" zurueckkommt, ist der Normalfall und
+      // kein Fehler.
+      if (e.code !== 'update_running') throw e;
+    }
+    $('setTechState').textContent = T.tech_rules_updating;
+    setTimeout(() => loadTechRules(false), 2000);
+  } catch (e) { toast(errText(e.code), true); }
+  finally { btn.disabled = false; }
+}
+
+async function removeTechRules(){
+  if (!confirm(T.tech_rules_remove_confirm)) return;
+  try {
+    await api('/api/tech-rules/remove', { method: 'POST', body: {} });
+    await loadTechRules(false);
+  } catch (e) { toast(errText(e.code), true); }
+}
+
+$('setTechFetch').addEventListener('click', fetchTechRules);
+$('setTechRemove').addEventListener('click', removeTechRules);
+
+function settingsFormValues(){
+  return {
+    smtp_host: $('setSmtpHost').value.trim(),
+    smtp_port: $('setSmtpPort').value.trim(),
+    smtp_user: $('setSmtpUser').value.trim(),
+    smtp_password: $('setSmtpPassword').value,
+    smtp_from: $('setSmtpFrom').value.trim(),
+    smtp_to: $('setSmtpTo').value.trim(),
+    smtp_tls: $('setSmtpTls').checked,
+    telegram_bot_token: $('setTelegramToken').value.trim(),
+    telegram_chat_id: $('setTelegramChatId').value.trim(),
+    tech_extra_rules: $('setTechExtra').checked,
+    tech_rules_auto_update: $('setTechAuto').checked,
+  };
+}
+
+async function saveSettings(){
+  const btn = $('setSave');
+  btn.disabled = true;
+  try {
+    await api('/api/settings', { method: 'POST', body: settingsFormValues() });
+    toast(T.settings_saved);
+    await loadSettings();
+  } catch (e) { toast(errText(e.code), true); }
+  finally { btn.disabled = false; }
+}
+
+function testFailReason(code){
+  // monitor.py only ever returns one of these short category codes (or
+  // 'http_NNN' for a Telegram status code) -- never the raw exception text,
+  // so nothing here can leak an internal hostname or server response.
+  const known = {
+    not_configured: T.settings_test_not_configured,
+    auth_failed: T.settings_test_auth_failed,
+    recipient_refused: T.settings_test_recipient_refused,
+    timeout: T.settings_test_timeout,
+    connection_failed: T.settings_test_connection_failed,
+  };
+  return known[code] || code;
+}
+
+async function sendSettingsTest(path, btnId, resultId){
+  const btn = $(btnId); const out = $(resultId);
+  btn.disabled = true; out.textContent = T.loading;
+  try {
+    const data = await api(path, { method: 'POST', body: settingsFormValues() });
+    out.textContent = data.ok ? T.settings_test_ok
+      : (T.settings_test_failed + ' ' + testFailReason(data.error));
+  } catch (e) { out.textContent = T.settings_test_failed + ' ' + errText(e.code); }
+  finally { btn.disabled = false; }
+}
+
+$('setTestEmail').addEventListener('click', () =>
+  sendSettingsTest('/api/settings/test-email', 'setTestEmail', 'setTestEmailResult'));
+$('setTestTelegram').addEventListener('click', () =>
+  sendSettingsTest('/api/settings/test-telegram', 'setTestTelegram', 'setTestTelegramResult'));
+
+// ── Status pill ─────────────────────────────────────────────────────────────
+
+async function loadStatus(){
+  try {
+    const data = await api('/api/status');
+    const pill = $('backendPill');
+    const ok = data.backend && data.backend.ok;
+    pill.className = 'pill ' + (ok ? 'ok' : 'bad');
+    // Drei Zustaende, nicht zwei: eine Instanz, die selbst als Worker fuer
+    // eine andere laeuft, hat ebenfalls ein lokales Backend -- sie stand
+    // deshalb frueher genauso auf "Lokal" wie eine Instanz ohne jede
+    // Worker-Beteiligung, was auf dem Root-Server verwirrend war.
+    let label, hint;
+    if (data.backend && data.backend.kind === 'remote') {
+      label = ok ? T.status_worker_connected : T.status_worker_down;
+      hint = (ok ? T.status_worker_connected_hint : T.status_worker_down_hint) +
+        (data.backend.url ? ' (' + data.backend.url + ')' : '');
+    } else if (data.worker_enabled) {
+      label = T.status_worker_mode;
+      hint = T.status_worker_mode_hint;
+    } else {
+      label = ok ? T.status_local : T.status_local_error;
+      hint = ok ? T.status_local_hint : T.status_local_error_hint;
+    }
+    $('backendLabel').textContent = label;
+    pill.title = hint;
+    // Der Hinweis steht nur dann da, wenn wirklich Entitäten geschrieben
+    // werden -- außerhalb des Supervisors wäre er eine leere Versprechung.
+    $('monHaHint').hidden = !data.ha_sensors;
+  } catch (e) {
+    $('backendLabel').textContent = T.status_unknown || '?';
+    $('backendPill').title = '';
+  }
+}
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('#tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('main section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'history') loadHistory();
+    if (btn.dataset.tab === 'monitor') loadMonitors();
+  });
+});
+
+// ── Findings / badges ─────────────────────────────────────────────────────
+
+function levelBadge(level){
+  const b = el('span', 'badge ' + (level || 'info'), (T['level_' + level] || level || ''));
+  return b;
+}
+
+function findingText(f){
+  const key = 'f_' + f.code;
+  let text = T[key] || f.code;
+  if (f.args) {
+    Object.keys(f.args).forEach(k => {
+      let v = f.args[k];
+      if (Array.isArray(v)) v = v.join(', ');
+      text = text.split('{' + k + '}').join(v);
+    });
+  }
+  return text;
+}
+
+function fmtStr(template, args){
+  let text = template;
+  Object.keys(args).forEach(k => { text = text.split('{' + k + '}').join(args[k]); });
+  return text;
+}
+
+function renderFindings(findings){
+  const ul = el('ul', 'finding-list');
+  (findings || []).forEach(f => {
+    const li = el('li');
+    li.appendChild(levelBadge(f.level));
+    li.appendChild(el('span', '', findingText(f)));
+    ul.appendChild(li);
+  });
+  return ul;
+}
+
+function recordsTable(records, ttl){
+  if (!records || !records.length) return el('p', 'result-empty', T.no_records);
+  const table = el('table');
+  const thead = el('thead');
+  const trh = el('tr');
+  trh.appendChild(el('th', '', T.field_value));
+  if (ttl !== undefined) trh.appendChild(el('th', '', 'TTL'));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  records.forEach(r => {
+    const tr = el('tr');
+    tr.appendChild(el('td', 'mono', r));
+    if (ttl !== undefined) tr.appendChild(el('td', '', String(ttl)));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+// ── DNS tab ───────────────────────────────────────────────────────────────
+
+async function dnsLookup(){
+  const name = $('dnsName').value.trim();
+  const type = $('dnsType').value;
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('dns', { name: name, type: type }, name, $('dnsRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const meta = el('div', 'row', '');
+    meta.appendChild(el('span', 'chip', r.nameserver || ''));
+    meta.appendChild(el('span', 'chip', r.dnssec ? T.dnssec_ad : T.dnssec_no_ad));
+    meta.appendChild(el('span', 'chip', r.ms + ' ms'));
+    wrap.appendChild(meta);
+    wrap.appendChild(recordsTable(r.records, r.ttl));
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dnsLookupAll(){
+  const name = $('dnsName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('dns_all', { name: name }, name, $('dnsRunAll'));
+    box.innerHTML = '';
+    const r = data.result;
+    const grid = el('div', 'subgrid');
+    r.sets.forEach(s => {
+      const c = el('div', 'subcard');
+      const h = el('h4');
+      h.appendChild(el('span', '', s.type));
+      h.appendChild(el('span', 'chip', s.records.length + ''));
+      c.appendChild(h);
+      if (!s.records.length) { c.appendChild(el('p', 'result-empty', T.no_records)); }
+      else { s.records.forEach(rec => c.appendChild(el('div', 'mono', rec))); }
+      grid.appendChild(c);
+    });
+    box.appendChild(grid);
+    if (r.errors && r.errors.length) {
+      const p = el('p', 'hint');
+      p.textContent = r.errors.map(e => e.type + ': ' + errText(e.code)).join(' · ');
+      box.appendChild(p);
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dnsLookupTxt(){
+  const name = $('dnsName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('txt', { name: name }, name, $('dnsRunTxt'));
+    box.innerHTML = '';
+    box.appendChild(recordsTable(data.result.records));
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dnsLookupSoa(){
+  const name = $('dnsName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('dnsResult'); showLoading(box);
+  try {
+    const data = await runProbe('soa', { name: name }, name, $('dnsRunSoa'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    if (r.soa && r.soa.length) {
+      const pre = el('div', 'record-code', r.soa[0]);
+      wrap.appendChild(pre);
+    }
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_nameservers, T.field_serial, ''].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    (r.nameservers || []).forEach(ns => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', ns.host));
+      tr.appendChild(el('td', '', ns.error ? errText(ns.error) : String(ns.serial)));
+      tr.appendChild(el('td', '', ns.error ? '' : (ns.serial ? '' : '')));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    const status = el('p', 'hint', r.in_sync ? T.soa_in_sync : T.soa_out_of_sync);
+    wrap.appendChild(status);
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('dnsRun').addEventListener('click', dnsLookup);
+$('dnsRunAll').addEventListener('click', dnsLookupAll);
+$('dnsRunTxt').addEventListener('click', dnsLookupTxt);
+$('dnsRunSoa').addEventListener('click', dnsLookupSoa);
+$('dnsName').addEventListener('keydown', e => { if (e.key === 'Enter') dnsLookup(); });
+
+// ── Gesamtbericht ───────────────────────────────────────────────────────────
+
+// Ueberschrift je Teilpruefung. Bewusst dieselben Begriffe wie in den
+// Reitern, damit klar ist, welche Karte im Bericht steckt.
+function reportStepLabel(probe){
+  return ({
+    dns_all: T.dns_title, dnssec: T.dnssec_title, whois: T.whois_title,
+    mail_health: T.mail_title, mx: T.mx_title, tls: T.tls_title,
+    http: T.http_title, seo: T.seo_title, tech: T.tech_title,
+    blacklist: T.blacklist_title
+  })[probe] || probe;
+}
+
+// Eine Kennzahl pro Pruefung, sonst wird der Bericht eine Textwueste.
+function reportHeadline(step){
+  const r = step.result || {};
+  switch (step.probe) {
+    case 'mail_health': return fmtStr(T.report_score, { score: r.score });
+    case 'seo': return fmtStr(T.report_score, { score: r.score });
+    case 'tech': return (r.technologies || []).slice(0, 8).map(t => t.name).join(', ');
+    case 'tls': return r.days_left === undefined || r.days_left === null
+      ? '' : fmtStr(T.report_days_left, { days: r.days_left });
+    case 'whois': return r.days_until_expiry === null || r.days_until_expiry === undefined
+      ? (r.registrar || '') : fmtStr(T.report_days_left, { days: r.days_until_expiry });
+    case 'http': return String(r.final_status || '') + ' · ' + (r.final_url || '');
+    case 'blacklist': return fmtStr(T.report_listed,
+      { listed: r.listed_count, checked: r.checked });
+    case 'mx': return (r.mx || []).map(m => m.host).join(', ');
+    case 'dns_all': return (r.sets || []).map(x => x.type + ':' + x.records.length).join(' ');
+    case 'dnssec': return r.signed ? T.report_dnssec_signed : T.report_dnssec_unsigned;
+    default: return '';
+  }
+}
+
+let lastReport = null;
+
+function renderReport(data){
+  const box = $('reportResult');
+  box.innerHTML = '';
+  const head = el('div', 'row');
+  head.appendChild(levelBadge(data.level));
+  head.appendChild(el('span', 'chip', data.domain));
+  if (data.ip) head.appendChild(el('span', 'chip', data.ip));
+  head.appendChild(el('span', 'chip', Math.round(data.ms / 100) / 10 + ' s'));
+  box.appendChild(head);
+
+  data.steps.forEach(step => {
+    const card = el('div', 'subcard');
+    const h = el('h4');
+    h.appendChild(el('span', '', reportStepLabel(step.probe)));
+    // dns_all, mx und dnssec liefern kein Gesamturteil -- dann bleibt die
+    // Plakette weg statt als leerer grauer Fleck dazustehen.
+    const stepLevel = (step.result || {}).level;
+    if (step.error) h.appendChild(el('span', 'badge warn', errText(step.error)));
+    else if (stepLevel) h.appendChild(levelBadge(stepLevel));
+    card.appendChild(h);
+    if (step.error) { box.appendChild(card); return; }
+    const headline = reportHeadline(step);
+    if (headline) card.appendChild(el('div', 'mono', headline));
+    const findings = (step.result || {}).findings || [];
+    if (findings.length) card.appendChild(renderFindings(findings));
+    box.appendChild(card);
+  });
+}
+
+function reportMarkdown(data){
+  const when = new Date((data.generated || 0) * 1000).toLocaleString();
+  const lines = ['# ' + fmtStr(T.report_md_title, { domain: data.domain }), '',
+                 fmtStr(T.report_md_generated, { when: when }),
+                 fmtStr(T.report_md_overall, { level: T['level_' + data.level] || data.level })];
+  if (data.ip) lines.push(fmtStr(T.report_md_ip, { ip: data.ip }));
+  lines.push('');
+  data.steps.forEach(step => {
+    lines.push('## ' + reportStepLabel(step.probe));
+    if (step.error) { lines.push('- ' + errText(step.error), ''); return; }
+    const headline = reportHeadline(step);
+    if (headline) lines.push('**' + headline + '**', '');
+    ((step.result || {}).findings || []).forEach(f => {
+      lines.push('- [' + (T['level_' + f.level] || f.level) + '] ' + findingText(f));
+    });
+    lines.push('');
+  });
+  lines.push('---', T.report_md_footer);
+  return lines.join('\n');
+}
+
+function downloadReport(){
+  if (!lastReport) return;
+  const blob = new Blob([reportMarkdown(lastReport)], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = el('a');
+  a.href = url;
+  a.download = 'nettoolbox-' + lastReport.domain + '.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Erst nach dem Klick freigeben, sonst bricht der Download in Firefox ab.
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function runReport(){
+  const domain = $('reportDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('reportResult'); showLoading(box);
+  $('reportDownload').style.display = 'none';
+  $('reportRun').disabled = true;
+  try {
+    const data = await api('/api/report', { method: 'POST', body: { domain: domain } });
+    lastReport = data;
+    renderReport(data);
+    $('reportDownload').style.display = '';
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  } finally {
+    $('reportRun').disabled = false;
+  }
+}
+
+$('reportRun').addEventListener('click', runReport);
+$('reportDownload').addEventListener('click', downloadReport);
+$('reportDomain').addEventListener('keydown', e => { if (e.key === 'Enter') runReport(); });
+
+// ── DNS-Momentaufnahmen ─────────────────────────────────────────────────────
+
+let snapshotList = [];
+
+function snapWhen(ts){
+  return new Date(ts * 1000).toLocaleString();
+}
+
+async function loadSnapshots(){
+  const box = $('snapList');
+  try {
+    const data = await api('/api/snapshots');
+    snapshotList = data.snapshots || [];
+    box.innerHTML = '';
+    if (!snapshotList.length) {
+      box.appendChild(el('p', 'result-empty', T.snapshot_empty));
+      return;
+    }
+    snapshotList.forEach(snap => {
+      const row = el('div', 'snap-row');
+      const left = el('span', 'snap-info');
+      left.appendChild(el('span', 'mono', snap.domain));
+      left.appendChild(el('span', 'chip', snapWhen(snap.ts)));
+      left.appendChild(el('span', 'chip',
+        fmtStr(T.snapshot_records, { total: snap.records_total })));
+      if (snap.label) left.appendChild(el('span', 'chip', snap.label));
+      row.appendChild(left);
+
+      const actions = el('span', 'snap-actions');
+      const live = el('button', 'btn', T.action_snapshot_compare_live);
+      live.addEventListener('click', () => compareSnapshot(snap.id, 'live'));
+      actions.appendChild(live);
+
+      // Zweite Aufnahme derselben Domain? Dann auch untereinander vergleichbar.
+      const others = snapshotList.filter(o => o.domain === snap.domain && o.id !== snap.id);
+      if (others.length) {
+        const select = el('select');
+        select.appendChild(el('option', '', T.action_snapshot_compare_with));
+        others.forEach(o => {
+          const opt = el('option', '', snapWhen(o.ts) + (o.label ? ' · ' + o.label : ''));
+          opt.value = String(o.id);
+          select.appendChild(opt);
+        });
+        select.addEventListener('change', () => {
+          if (select.value) compareSnapshot(snap.id, select.value);
+          select.selectedIndex = 0;
+        });
+        actions.appendChild(select);
+      }
+
+      const del = el('button', 'btn danger', T.action_delete);
+      del.addEventListener('click', () => deleteSnapshot(snap.id));
+      actions.appendChild(del);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  }
+}
+
+async function addSnapshot(){
+  const domain = $('snapDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  $('snapAdd').disabled = true;
+  try {
+    await api('/api/snapshots', { method: 'POST',
+      body: { domain: domain, label: $('snapLabel').value.trim() } });
+    $('snapLabel').value = '';
+    toast(T.snapshot_saved);
+    await loadSnapshots();
+  } catch (e) { toast(errText(e.code), true); }
+  finally { $('snapAdd').disabled = false; }
+}
+
+async function deleteSnapshot(id){
+  if (!confirm(T.snapshot_delete_confirm)) return;
+  try {
+    await api('/api/snapshots/' + id, { method: 'DELETE' });
+    await loadSnapshots();
+  } catch (e) { toast(errText(e.code), true); }
+}
+
+async function compareSnapshot(id, against){
+  const box = $('snapDiff'); showLoading(box);
+  try {
+    const data = await api('/api/snapshots/' + id + '/compare',
+      { method: 'POST', body: { against: against } });
+    box.innerHTML = '';
+    const card = el('div', 'subcard');
+    const head = el('h4');
+    head.appendChild(el('span', '', fmtStr(T.snapshot_diff_title,
+      { domain: data.domain })));
+    head.appendChild(el('span', 'badge ' + (data.diff.identical ? 'ok' : 'warn'),
+      data.diff.identical ? T.snapshot_no_changes
+        : fmtStr(T.snapshot_change_count, { count: data.diff.changed.length })));
+    card.appendChild(head);
+    const when = el('div', 'hint');
+    when.textContent = snapWhen(data.before.ts) + '  →  ' +
+      (data.after.id ? snapWhen(data.after.ts) : T.snapshot_now);
+    card.appendChild(when);
+
+    data.diff.changed.forEach(change => {
+      const block = el('div', 'diff-block');
+      block.appendChild(el('div', 'diff-name', change.name + '  ' + change.type));
+      change.removed.forEach(r => block.appendChild(el('div', 'mono diff-removed', '− ' + r)));
+      change.added.forEach(r => block.appendChild(el('div', 'mono diff-added', '+ ' + r)));
+      card.appendChild(block);
+    });
+    box.appendChild(card);
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  }
+}
+
+$('snapAdd').addEventListener('click', addSnapshot);
+$('snapDomain').addEventListener('keydown', e => { if (e.key === 'Enter') addSnapshot(); });
+loadSnapshots();
+
+// ── Mail health tab ─────────────────────────────────────────────────────────
+
+function mailSubcard(title, part){
+  const c = el('div', 'subcard');
+  const h = el('h4');
+  h.appendChild(el('span', '', title));
+  h.appendChild(levelBadge(part.level));
+  c.appendChild(h);
+  if (part.record) c.appendChild(el('div', 'record-code', part.record));
+  c.appendChild(renderFindings(part.findings));
+  return c;
+}
+
+async function mailCheck(){
+  const domain = $('mailDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const selectors = $('mailSelectors').value.split(',').map(s => s.trim()).filter(Boolean);
+  const box = $('mailResult'); showLoading(box);
+  try {
+    const data = await runProbe('mail_health', { domain: domain, selectors: selectors }, domain, $('mailRun'));
+    const r = data.result;
+    box.innerHTML = '';
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.mail_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    box.appendChild(score);
+
+    if (r.mx && r.mx.length) {
+      const h = el('h3', '', T.field_mx);
+      box.appendChild(h);
+      const line = providerLine(r.provider);
+      if (line) box.appendChild(line);
+      const table = el('table');
+      const thead = el('thead');
+      const trh = el('tr');
+      [T.field_priority, T.field_host, T.field_ip].forEach(x => trh.appendChild(el('th', '', x)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody');
+      r.mx.forEach(m => {
+        const tr = el('tr');
+        tr.appendChild(el('td', '', String(m.preference)));
+        tr.appendChild(el('td', 'mono', m.host));
+        tr.appendChild(el('td', 'mono', (m.addresses || []).join(', ')));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      box.appendChild(table);
+    }
+
+    const grid = el('div', 'subgrid');
+    grid.appendChild(mailSubcard('SPF', r.parts.spf));
+    grid.appendChild(mailSubcard('DKIM', r.parts.dkim));
+    grid.appendChild(mailSubcard('DMARC', r.parts.dmarc));
+    grid.appendChild(mailSubcard('MTA-STS', r.parts.mta_sts));
+    grid.appendChild(mailSubcard('TLS-RPT', r.parts.tls_rpt));
+    grid.appendChild(mailSubcard('BIMI', r.parts.bimi));
+    box.appendChild(grid);
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  }
+}
+
+$('mailRun').addEventListener('click', mailCheck);
+$('mailDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mailCheck(); });
+
+// ── Propagation tab ─────────────────────────────────────────────────────────
+
+async function propCheck(){
+  const name = $('propName').value.trim();
+  const type = $('propType').value;
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('propResult'); showLoading(box);
+  try {
+    const data = await runProbe('propagation', { name: name, type: type }, name, $('propRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const banner = el('p', 'hint', r.consistent ? T.prop_consistent : T.prop_inconsistent);
+    box.appendChild(banner);
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_resolver, T.field_value, 'ms'].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', row.label + ' (' + row.server + ')'));
+      const td = el('td', 'mono', row.error ? errText(row.error) : (row.records.join(', ') || T.no_records));
+      tr.appendChild(td);
+      tr.appendChild(el('td', '', row.error ? '' : String(row.ms)));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('propRun').addEventListener('click', propCheck);
+$('propName').addEventListener('keydown', e => { if (e.key === 'Enter') propCheck(); });
+
+// ── Reverse DNS tab ───────────────────────────────────────────────────────
+
+async function revCheck(){
+  const ip = $('revIp').value.trim();
+  if (!ip) { toast(T.err_empty_target, true); return; }
+  const box = $('revResult'); showLoading(box);
+  try {
+    const data = await runProbe('reverse', { ip: ip }, ip, $('revRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    wrap.appendChild(el('p', 'hint', (r.confirmed ? T.rev_confirmed : T.rev_unconfirmed) +
+      (r.public ? '' : (' · ' + T.rev_private))));
+    if (!r.hosts.length) { wrap.appendChild(el('p', 'result-empty', T.no_records)); }
+    r.hosts.forEach(h => {
+      const c = el('div', 'subcard');
+      const hd = el('h4');
+      hd.appendChild(el('span', 'mono', h.host));
+      hd.appendChild(el('span', 'badge ' + (h.confirmed ? 'ok' : 'warn'), h.confirmed ? T.rev_match : T.rev_mismatch));
+      c.appendChild(hd);
+      c.appendChild(el('div', 'mono', (h.addresses || []).join(', ') || T.no_records));
+      wrap.appendChild(c);
+    });
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+// ── Erkennung: Betreiber (aus MX-Namen) und Software (aus Banner) ───────────
+
+function providerLine(provider){
+  // Zeile "Erkannt: ..." -- bewusst als Hinweis und nicht als Fund, weil eine
+  // Namensliste nichts ueber die Gesundheit der Domain aussagt.
+  if (!provider) return null;
+  const row = el('div', 'row');
+  row.appendChild(el('span', 'detect-label', T.provider_label));
+  if (provider.known) {
+    provider.names.forEach(n => row.appendChild(el('span', 'chip', n)));
+    if (provider.unknown && provider.unknown.length) {
+      row.appendChild(el('span', 'chip', T.provider_partly_unknown));
+    }
+  } else {
+    row.appendChild(el('span', 'chip', T.provider_unknown));
+  }
+  return row;
+}
+
+function softwareLabel(software){
+  if (!software || !software.known) return '';
+  // Ein aus der Begruessung geratener Stil ist kein Produktnachweis und wird
+  // auch nicht so beschriftet.
+  if (software.style_only) return fmtStr(T.software_style, { name: software.name });
+  return software.name + (software.version ? ' ' + software.version : '');
+}
+
+function softwareChip(software){
+  if (!software || !software.known) return null;
+  const label = softwareLabel(software);
+  const chip = el('span', 'chip', label);
+  chip.title = software.source === 'greeting' ? T.software_from_greeting
+    : (software.source === 'ehlo' ? T.software_from_ehlo : T.software_from_banner);
+  return chip;
+}
+
+async function mxCheck(){
+  const domain = $('mxDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('mxResult'); showLoading(box);
+  try {
+    const data = await runProbe('mx', { domain: domain }, domain, $('mxRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    if (!r.mx.length) { box.appendChild(el('p', 'result-empty', T.no_records)); return; }
+    const line = providerLine(r.provider);
+    if (line) box.appendChild(line);
+    r.mx.forEach(m => {
+      const c = el('div', 'subcard');
+      const hd = el('h4');
+      hd.appendChild(el('span', 'mono', m.host));
+      hd.appendChild(el('span', 'chip', String(m.preference)));
+      c.appendChild(hd);
+      m.reverse.forEach(rv => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', '', rv.ip));
+        row.appendChild(el('span', 'mono', (rv.names || []).join(', ') || T.no_records));
+        c.appendChild(row);
+      });
+      box.appendChild(c);
+    });
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('revRun').addEventListener('click', revCheck);
+$('revIp').addEventListener('keydown', e => { if (e.key === 'Enter') revCheck(); });
+$('mxRun').addEventListener('click', mxCheck);
+$('mxDomain').addEventListener('keydown', e => { if (e.key === 'Enter') mxCheck(); });
+
+// ── IP-Lookup (Geolocation / ISP / ASN via ip-api.com) ──────────────────────
+
+function ipinfoRow(card, label, value, mono){
+  if (value === undefined || value === null || value === '') return;
+  const row = el('div', 'ipinfo-kv');
+  row.appendChild(el('span', '', label));
+  row.appendChild(el('span', mono ? 'mono' : '', String(value)));
+  card.appendChild(row);
+}
+
+function ipinfoOffset(seconds){
+  // ip-api reports the offset in seconds; half-hour zones (India, Nepal)
+  // are real, so the minutes are not thrown away.
+  if (seconds === null || seconds === undefined) return '';
+  const sign = seconds < 0 ? '-' : '+';
+  const total = Math.abs(Math.round(seconds / 60));
+  const hh = Math.floor(total / 60);
+  const mm = total % 60;
+  return ' (UTC' + sign + hh + (mm ? ':' + String(mm).padStart(2, '0') : '') + ')';
+}
+
+function ipinfoFlag(code){
+  // Regional-indicator pair -- no image, no font file, works in every
+  // browser that has an emoji font (and degrades to two letters if not).
+  if (!code || code.length !== 2) return '';
+  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+async function ipinfoCheck(own){
+  const target = own ? '' : $('ipinfoTarget').value.trim();
+  if (!own && !target) { toast(T.err_empty_target, true); return; }
+  const box = $('ipinfoResult'); showLoading(box);
+  const button = own ? $('ipinfoOwn') : $('ipinfoRun');
+  try {
+    const data = await runProbe('ipinfo', { ip: target, lang: G.lang }, target || '-', button);
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.query));
+    if (r.country_code) {
+      const flag = ipinfoFlag(r.country_code);
+      badges.appendChild(el('span', 'chip', (flag ? flag + ' ' : '') + r.country_code));
+    }
+    if (r.resolved_from) badges.appendChild(el('span', 'chip', r.resolved_from));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.public) {
+      const grid = el('div', 'subgrid ipinfo-grid');
+
+      const place = el('div', 'subcard');
+      place.appendChild(el('h4', '', T.ipinfo_location));
+      ipinfoRow(place, T.ipinfo_country, [r.country, r.country_code].filter(Boolean).join(' · '));
+      ipinfoRow(place, T.ipinfo_region, [r.region, r.region_code].filter(Boolean).join(' · '));
+      ipinfoRow(place, T.ipinfo_city, [r.zip, r.city, r.district].filter(Boolean).join(' '));
+      ipinfoRow(place, T.ipinfo_continent, r.continent);
+      ipinfoRow(place, T.ipinfo_timezone, r.timezone + ipinfoOffset(r.utc_offset), true);
+      if (r.lat !== null && r.lat !== undefined && r.lon !== null && r.lon !== undefined) {
+        const row = el('div', 'ipinfo-kv');
+        row.appendChild(el('span', '', T.ipinfo_coords));
+        const link = el('a', 'mono', r.lat + ', ' + r.lon);
+        link.href = 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(r.lat) +
+          '&mlon=' + encodeURIComponent(r.lon) + '#map=9/' +
+          encodeURIComponent(r.lat) + '/' + encodeURIComponent(r.lon);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.title = T.ipinfo_map_hint;
+        row.appendChild(link);
+        place.appendChild(row);
+      }
+      grid.appendChild(place);
+
+      const net = el('div', 'subcard');
+      net.appendChild(el('h4', '', T.ipinfo_network));
+      ipinfoRow(net, T.ipinfo_isp, r.isp);
+      ipinfoRow(net, T.ipinfo_org, r.org);
+      ipinfoRow(net, 'AS', [r.asn, r.as_name].filter(Boolean).join(' · '), true);
+      ipinfoRow(net, 'PTR', (r.ptr || []).join(', ') || T.no_records, true);
+      const flags = [];
+      if (r.hosting) flags.push(T.ipinfo_flag_hosting);
+      if (r.mobile) flags.push(T.ipinfo_flag_mobile);
+      if (r.proxy) flags.push(T.ipinfo_flag_proxy);
+      ipinfoRow(net, T.ipinfo_flags, flags.join(', ') || T.ipinfo_flag_none);
+      grid.appendChild(net);
+
+      wrap.appendChild(grid);
+    } else if ((r.ptr || []).length) {
+      const net = el('div', 'subcard');
+      net.appendChild(el('h4', '', T.ipinfo_network));
+      ipinfoRow(net, 'PTR', r.ptr.join(', '), true);
+      wrap.appendChild(net);
+    }
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('ipinfoRun').addEventListener('click', () => ipinfoCheck(false));
+$('ipinfoOwn').addEventListener('click', () => ipinfoCheck(true));
+$('ipinfoTarget').addEventListener('keydown', e => { if (e.key === 'Enter') ipinfoCheck(false); });
+
+async function pingCheck(){
+  const target = $('pingTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('pingResult'); showLoading(box);
+  try {
+    const data = await runProbe('ping', { target: target, family: $('pingFamily').value }, target, $('pingRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.received + '/' + r.sent + ' · ' + r.loss_pct + '% ' + T.ping_loss_label));
+    if (r.rtt) badges.appendChild(el('span', 'chip', 'avg ' + r.rtt.avg + ' ms'));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+    if (r.rtt) {
+      const table = el('table');
+      const thead = el('thead'); const trh = el('tr');
+      ['min','avg','max','mdev'].forEach(k => trh.appendChild(el('th', '', k)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody'); const tr = el('tr');
+      ['min','avg','max','mdev'].forEach(k => tr.appendChild(el('td', '', r.rtt[k] + ' ms')));
+      tbody.appendChild(tr); table.appendChild(tbody);
+      wrap.appendChild(table);
+    }
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function tracerouteCheck(){
+  const target = $('traceTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('tracerouteResult'); showLoading(box);
+  try {
+    const data = await runProbe('traceroute',
+      { target: target, family: $('traceFamily').value, icmp: $('traceIcmp').checked },
+      target, $('tracerouteRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.reached ? T.traceroute_reached_label : T.traceroute_not_reached_label));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    ['#', T.field_ip, 'ms'].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.hops.forEach(hop => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', String(hop.hop)));
+      tr.appendChild(el('td', 'mono', hop.address || '*'));
+      tr.appendChild(el('td', '', hop.ms !== null ? hop.ms + ' ms' : '—'));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('pingRun').addEventListener('click', pingCheck);
+$('tracerouteRun').addEventListener('click', tracerouteCheck);
+$('pingTarget').addEventListener('keydown', e => { if (e.key === 'Enter') pingCheck(); });
+$('traceTarget').addEventListener('keydown', e => { if (e.key === 'Enter') tracerouteCheck(); });
+
+// ── Portcheck und IPv4/IPv6-Vergleich ───────────────────────────────────────
+
+function portStateCell(state){
+  // Drei Zustände, drei Farben: geschlossen ist eine Antwort, gefiltert ist
+  // Schweigen -- das darf nicht gleich aussehen.
+  const cls = { open: 'ok', closed: 'info', filtered: 'warn' }[state] || 'info';
+  return el('span', 'badge ' + cls, T['port_state_' + state] || state);
+}
+
+async function portsCheck(){
+  const target = $('portsTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('portsResult'); showLoading(box);
+  try {
+    const data = await runProbe('ports',
+      { target: target, family: $('portsFamily').value,
+        ports: $('portsList').value.trim() }, target, $('portsRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.address));
+    badges.appendChild(el('span', 'chip', 'IPv' + r.family));
+    badges.appendChild(el('span', 'chip',
+      fmtStr(T.ports_open_count, { open: r.open_count, checked: r.checked })));
+    if (r.manual) badges.appendChild(el('span', 'chip', T.ports_manual));
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    ['Port', T.field_service, T.field_status].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', String(row.port)));
+      const service = el('td');
+      service.appendChild(el('span', '', row.service));
+      if (row.state === 'open' && !row.expected) {
+        const mark = el('span', 'chip', T.ports_unexpected_mark);
+        mark.title = T.ports_unexpected_title;
+        service.appendChild(mark);
+      }
+      tr.appendChild(service);
+      const state = el('td'); state.appendChild(portStateCell(row.state));
+      tr.appendChild(state);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dualstackCheck(){
+  const target = $('portsTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('portsResult'); showLoading(box);
+  try {
+    const data = await runProbe('dualstack', { target: target }, target, $('dualRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', 'IPv4: ' + (r.v4_address || '—')));
+    badges.appendChild(el('span', 'chip', 'IPv6: ' + (r.v6_address || '—')));
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    ['Port', T.field_service, 'IPv4', 'IPv6'].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', String(row.port)));
+      tr.appendChild(el('td', '', row.service));
+      ['v4', 'v6'].forEach(key => {
+        const td = el('td');
+        if (row[key]) td.appendChild(portStateCell(row[key]));
+        else td.appendChild(el('span', '', '—'));
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('portsRun').addEventListener('click', portsCheck);
+$('dualRun').addEventListener('click', dualstackCheck);
+$('portsTarget').addEventListener('keydown', e => { if (e.key === 'Enter') portsCheck(); });
+$('portsList').addEventListener('keydown', e => { if (e.key === 'Enter') portsCheck(); });
+
+// ── Dauerping (continuous ping, own loop -- deliberately not runProbe()'s
+// shared abort controller, so a click elsewhere in the app can't kill a
+// running live session and starting one doesn't kill some other tab's
+// request either) ───────────────────────────────────────────────────────
+
+let pingLiveActive = false;
+let pingLiveSamples = [];  // {ms: number|null} in arrival order, newest last
+const PING_LIVE_MAX_POINTS = 120;
+
+function pingLiveStop(){
+  pingLiveActive = false;
+  $('pingLiveRun').textContent = T.action_ping_live_start;
+  $('pingLiveRun').classList.remove('danger');
+}
+
+// Ein "runder" Achsenendwert -- 137 ms ergibt eine Achse bis 150, nicht bis
+// 157,55. Sonst stehen an der Achse Zahlen, die niemand lesen will.
+function niceCeil(value){
+  if (!(value > 0)) return 100;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+  const step = [1, 2, 2.5, 5, 10].find(f => value <= f * magnitude) || 10;
+  return step * magnitude;
+}
+
+function pingLiveDraw(){
+  const canvas = $('pingLiveChart');
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const h = 160;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = rect.width;
+  ctx.clearRect(0, 0, w, h);
+  const style = getComputedStyle(document.documentElement);
+  const border = style.getPropertyValue('--border').trim();
+  const muted = style.getPropertyValue('--muted').trim();
+  const blue = style.getPropertyValue('--blue').trim();
+  const red = style.getPropertyValue('--red').trim();
+
+  // Platz fuer die Beschriftung: links die Millisekunden, unten die Zeit.
+  const padLeft = 44, padBottom = 18, padTop = 8, padRight = 6;
+  const plotW = Math.max(10, w - padLeft - padRight);
+  const plotH = Math.max(10, h - padTop - padBottom);
+  const values = pingLiveSamples.map(s => s.ms).filter(v => v !== null);
+  const maxMs = niceCeil(values.length ? Math.max(...values) * 1.15 : 100);
+  const yFor = ms => padTop + plotH - (ms / maxMs) * plotH;
+
+  ctx.font = '10px ui-monospace, SFMono-Regular, Consolas, monospace';
+  ctx.fillStyle = muted;
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 1;
+
+  // Waagerechte Linien mit ihrem Millisekundenwert.
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const ms = maxMs * i / 4;
+    const y = Math.round(yFor(ms)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(w - padRight, y); ctx.stroke();
+    ctx.fillText(String(Math.round(ms)), padLeft - 6, y);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(T.ping_axis_ms, 2, padTop - 6);
+
+  // Senkrechte Achse.
+  ctx.beginPath();
+  ctx.moveTo(padLeft + 0.5, padTop);
+  ctx.lineTo(padLeft + 0.5, padTop + plotH);
+  ctx.stroke();
+
+  if (pingLiveSamples.length < 2) return;
+  const stepX = plotW / (PING_LIVE_MAX_POINTS - 1);
+  const xFor = i => padLeft + plotW - (pingLiveSamples.length - 1 - i) * stepX;
+
+  // Zeitachse: beschriftet wird, wie lange der Messwert her ist -- dafuer
+  // traegt jede Probe ihren eigenen Zeitstempel, statt einen festen Abstand
+  // anzunehmen (eine Antwort kann laenger dauern als der Takt).
+  const newest = pingLiveSamples[pingLiveSamples.length - 1].t || Date.now();
+  ctx.textBaseline = 'top';
+  // Beschriftet wird nach Abstand in Pixeln, nicht nach Anzahl der Messungen:
+  // solange erst wenige Punkte da sind, draengen sie sich am rechten Rand,
+  // und jede feste "jede n-te"-Regel schreibt die Beschriftungen uebereinander.
+  const minGap = 56;
+  let lastLabelX = Infinity;
+  for (let i = pingLiveSamples.length - 1; i >= 0; i--) {
+    const x = xFor(i);
+    if (x < padLeft + 18) break;
+    if (lastLabelX - x < minGap) continue;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(x) + 0.5, padTop + plotH);
+    ctx.lineTo(Math.round(x) + 0.5, padTop + plotH + 3);
+    ctx.stroke();
+    const sample = pingLiveSamples[i];
+    const seconds = Math.round((newest - (sample.t || newest)) / 1000);
+    const newestOne = i === pingLiveSamples.length - 1;
+    ctx.textAlign = newestOne ? 'right' : 'center';
+    ctx.fillText(newestOne ? T.ping_axis_now : '-' + seconds + ' s',
+                 newestOne ? w - padRight : x, padTop + plotH + 5);
+    lastLabelX = x;
+  }
+
+  ctx.beginPath();
+  let started = false;
+  pingLiveSamples.forEach((s, i) => {
+    if (s.ms === null) { started = false; return; }
+    const x = xFor(i), y = yFor(s.ms);
+    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+  });
+  ctx.strokeStyle = blue; ctx.lineWidth = 1.5; ctx.stroke();
+
+  pingLiveSamples.forEach((s, i) => {
+    if (s.ms !== null) return;
+    const x = xFor(i);
+    ctx.beginPath();
+    ctx.moveTo(x, padTop); ctx.lineTo(x, padTop + plotH);
+    ctx.strokeStyle = red; ctx.lineWidth = 1; ctx.stroke();
+  });
+}
+
+function pingLiveUpdateStats(){
+  const values = pingLiveSamples.map(s => s.ms).filter(v => v !== null);
+  const lost = pingLiveSamples.filter(s => s.ms === null).length;
+  if (values.length) {
+    const min = Math.min(...values).toFixed(1);
+    const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+    const max = Math.max(...values).toFixed(1);
+    $('pingLiveStats').textContent = fmtStr(T.ping_live_stats, { min, avg, max });
+  }
+  $('pingLiveLoss').textContent = lost + ' ' + T.ping_loss_label;
+}
+
+async function pingLiveTick(target, family){
+  if (!pingLiveActive) return;
+  let ms = null;
+  try {
+    const data = await api('/api/probe', { method: 'POST',
+      body: { probe: 'ping', params: { target: target, count: 1, family: family } } });
+    const r = data.result;
+    ms = (r.replies && r.replies[0]) ? r.replies[0].ms : null;
+  } catch (e) {
+    // A dropped/rate-limited tick is a gap in the chart, not a reason to
+    // stop a session meant to run "until Stop is pressed".
+    ms = null;
+  }
+  if (!pingLiveActive) return;  // Stop clicked while the request was in flight
+  pingLiveSamples.push({ ms: ms, t: Date.now() });
+  if (pingLiveSamples.length > PING_LIVE_MAX_POINTS) pingLiveSamples.shift();
+  $('pingLiveCur').textContent = ms !== null ? (ms + ' ms') : T.ping_live_timeout;
+  pingLiveUpdateStats();
+  pingLiveDraw();
+  setTimeout(() => pingLiveTick(target, family), 700);
+}
+
+function pingLiveStart(){
+  const target = $('pingTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const family = $('pingFamily').value;  // locked in for the whole session
+  pingLiveSamples = [];
+  pingLiveActive = true;
+  $('pingLiveBox').hidden = false;
+  $('pingLiveRun').textContent = T.action_ping_live_stop;
+  $('pingLiveRun').classList.add('danger');
+  pingLiveTick(target, family);
+}
+
+$('pingLiveRun').addEventListener('click', () => {
+  if (pingLiveActive) { pingLiveStop(); } else { pingLiveStart(); }
+});
+
+// ── Blacklist tab ─────────────────────────────────────────────────────────
+
+function rblRowBadge(row){
+  if (row.listed) return el('span', 'badge fail', T.rbl_status_listed);
+  if (row.provider_code) return el('span', 'badge info', T['rbl_code_' + row.provider_code] || row.provider_code);
+  if (row.error) return el('span', 'badge info', errText(row.error));
+  return el('span', 'badge ok', T.rbl_status_clean);
+}
+
+async function rblCheck(){
+  const ip = $('rblIp').value.trim();
+  if (!ip) { toast(T.err_empty_target, true); return; }
+  const box = $('rblResult'); showLoading(box);
+  try {
+    const data = await runProbe('blacklist', { ip: ip }, ip, $('rblRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    box.appendChild(renderFindings(r.findings));
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_list, T.field_status, T.field_reason].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      const nameCell = el('td');
+      nameCell.appendChild(el('span', '', row.label));
+      if (row.listed && row.lookup_url) {
+        // Nur bei einem Treffer -- bei sauberen Listen waere der Link Ballast.
+        const link = el('a', 'delist-link', T.rbl_delist);
+        link.href = row.lookup_url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.title = T.rbl_delist_title;
+        nameCell.appendChild(link);
+      }
+      tr.appendChild(nameCell);
+      const td = el('td'); td.appendChild(rblRowBadge(row)); tr.appendChild(td);
+      tr.appendChild(el('td', 'mono', row.listed ? (row.reason || row.records.join(', ')) : ''));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('rblRun').addEventListener('click', rblCheck);
+$('rblIp').addEventListener('keydown', e => { if (e.key === 'Enter') rblCheck(); });
+
+// ── DANE / TLSA ─────────────────────────────────────────────────────────────
+
+async function daneCheck(){
+  const domain = $('daneDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('daneResult'); showLoading(box);
+  try {
+    const data = await runProbe('dane', { domain: domain }, domain, $('daneRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'badge ' + (r.dnssec ? 'ok' : 'warn'),
+      r.dnssec ? T.dane_dnssec_yes : T.dane_dnssec_no));
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    [T.field_host, 'TLSA', T.dane_col_match, T.field_status].forEach(
+      h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', row.host));
+      tr.appendChild(el('td', '', String(row.records.length)));
+      // null heisst "nicht geprueft", nicht "passt nicht" -- die drei Faelle
+      // duerfen nicht zu zweien verschmelzen.
+      const state = row.matched === null ? '—' : (row.matched ? '✓' : '✗');
+      tr.appendChild(el('td', row.matched === false ? 'diff-removed' : '', state));
+      tr.appendChild(el('td', '', row.error ? errText(row.error)
+        : (row.records.length ? '' : T.dane_no_record)));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('daneRun').addEventListener('click', daneCheck);
+$('daneDomain').addEventListener('keydown', e => { if (e.key === 'Enter') daneCheck(); });
+
+// ── Mail-Kopf-Analyse ───────────────────────────────────────────────────────
+
+function hdrAuthChip(method, verdict){
+  const good = verdict === 'pass';
+  const bad = ['fail', 'permerror', 'hardfail'].includes(verdict);
+  const chip = el('span', 'badge ' + (good ? 'ok' : (bad ? 'fail' : 'info')),
+    method + ': ' + verdict);
+  return chip;
+}
+
+async function headerAnalyse(){
+  const text = $('hdrText').value.trim();
+  if (!text) { toast(T.err_empty_target, true); return; }
+  const box = $('hdrResult'); showLoading(box);
+  try {
+    const data = await runProbe('mailheader', { text: text }, '', $('hdrRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    ['spf', 'dkim', 'dmarc'].forEach(m => {
+      if (r.auth[m]) badges.appendChild(hdrAuthChip(m.toUpperCase(), r.auth[m]));
+    });
+    badges.appendChild(el('span', 'chip', fmtStr(T.header_hops, { count: r.hop_count })));
+    if (r.total_seconds !== null) {
+      badges.appendChild(el('span', 'chip',
+        fmtStr(T.header_transit, { seconds: r.total_seconds })));
+    }
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    if (r.stations && r.stations.length) {
+      // Was die Mail angefasst hat -- oft die einzige belastbare Auskunft
+      // ueber Anlagen, die von aussen nichts ueber sich verraten.
+      const line = el('div', 'row');
+      line.appendChild(el('span', 'detect-label', T.header_stations));
+      r.stations.forEach(st => {
+        const chip = el('span', 'chip', st.name);
+        chip.title = fmtStr(T.header_station_evidence, { evidence: st.evidence });
+        line.appendChild(chip);
+      });
+      box.appendChild(line);
+    }
+
+    const grid = el('div', 'subgrid ipinfo-grid');
+    const meta = el('div', 'subcard');
+    meta.appendChild(el('h4', '', T.header_group_message));
+    [[T.header_field_from, r.from], [T.header_field_to, r.to],
+     [T.header_field_subject, r.subject], [T.header_field_date, r.date],
+     ['Return-Path', r.return_path], ['Reply-To', r.reply_to],
+     ['Message-ID', r.message_id], [T.header_field_mailer, r.mailer],
+     ['X-Spam', r.spam_status]].forEach(([label, value]) => {
+      if (!value) return;
+      const row = el('div', 'ipinfo-kv');
+      row.appendChild(el('span', '', label));
+      row.appendChild(el('span', 'mono', value));
+      meta.appendChild(row);
+    });
+    grid.appendChild(meta);
+
+    if (r.dkim_signatures.length) {
+      const dkim = el('div', 'subcard');
+      dkim.appendChild(el('h4', '', 'DKIM-Signaturen'));
+      r.dkim_signatures.forEach(sig => {
+        const row = el('div', 'ipinfo-kv');
+        row.appendChild(el('span', '', sig.selector || '—'));
+        row.appendChild(el('span', 'mono',
+          [sig.domain, sig.algorithm].filter(Boolean).join(' · ')));
+        dkim.appendChild(row);
+      });
+      grid.appendChild(dkim);
+    }
+    box.appendChild(grid);
+
+    if (r.hops.length) {
+      box.appendChild(el('h3', '', T.header_group_path));
+      const table = el('table');
+      const thead = el('thead'); const trh = el('tr');
+      ['#', T.header_col_from, T.header_col_by, T.header_col_with,
+       T.header_col_delay, T.header_field_date].forEach(h => trh.appendChild(el('th', '', h)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody');
+      r.hops.forEach((hop, index) => {
+        const tr = el('tr');
+        tr.appendChild(el('td', '', String(index + 1)));
+        tr.appendChild(el('td', 'mono', hop.from + (hop.ip ? ' [' + hop.ip + ']' : '')));
+        tr.appendChild(el('td', 'mono', hop.by || '—'));
+        tr.appendChild(el('td', '', hop.with || '—'));
+        // Der auffaellige Sprung soll ins Auge springen, nicht gesucht werden.
+        const delay = el('td', hop.delay !== null && hop.delay >= 60 ? 'diff-removed' : '',
+          hop.delay === null ? '—' : hop.delay + ' s');
+        tr.appendChild(delay);
+        tr.appendChild(el('td', '', (hop.date || '').replace('T', ' ').slice(0, 19)));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      box.appendChild(table);
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('hdrRun').addEventListener('click', headerAnalyse);
+$('hdrClear').addEventListener('click', () => {
+  $('hdrText').value = '';
+  $('hdrResult').innerHTML = '';
+});
+
+// ── TLS tab ───────────────────────────────────────────────────────────────
+
+async function tlsCheck(){
+  const target = $('tlsTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('tlsResult'); showLoading(box);
+  try {
+    const data = await runProbe('tls', { target: target }, target, $('tlsRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.trusted ? 'ok' : 'fail'),
+      r.trusted ? T.tls_trusted_badge : T.tls_untrusted_badge));
+    if (r.protocol) badges.appendChild(el('span', 'chip', r.protocol));
+    if (r.cipher) badges.appendChild(el('span', 'chip', r.cipher + (r.cipher_bits ? ' · ' + r.cipher_bits + ' bit' : '')));
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.details_available) {
+      const grid = el('div', 'subgrid');
+      const c1 = el('div', 'subcard');
+      const certHead = el('h4');
+      certHead.appendChild(el('span', '', T.field_certificate));
+      if (r.details_verified === false) {
+        // Die Felder stammen dann aus dem rohen Zertifikat, nicht aus einer
+        // bestandenen Pruefung -- das gehoert dazugesagt.
+        const mark = el('span', 'badge warn', '?');
+        mark.title = T.tls_details_unverified;
+        certHead.appendChild(mark);
+      }
+      c1.appendChild(certHead);
+      [[T.field_subject, r.subject], [T.field_issuer, r.issuer],
+       [T.field_serial, r.serial]].forEach(([label, value]) => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', '', label));
+        row.appendChild(el('span', 'mono', value || '—'));
+        c1.appendChild(row);
+      });
+      grid.appendChild(c1);
+
+      const c2 = el('div', 'subcard');
+      c2.appendChild(el('h4', '', T.field_validity));
+      [[T.field_not_before, r.not_before], [T.field_not_after, r.not_after],
+       [T.field_days_left, r.days_left === null ? '—' : String(r.days_left)]]
+        .forEach(([label, value]) => {
+          const row = el('div', 'kv');
+          row.appendChild(el('span', '', label));
+          row.appendChild(el('span', 'mono', value || '—'));
+          c2.appendChild(row);
+        });
+      grid.appendChild(c2);
+
+      if (r.san && r.san.length) {
+        const c3 = el('div', 'subcard');
+        c3.appendChild(el('h4', '', 'SAN'));
+        const chips = el('div', 'chips');
+        r.san.forEach(name => chips.appendChild(el('span', 'chip', name)));
+        c3.appendChild(chips);
+        grid.appendChild(c3);
+      }
+      if (r.caa && (r.caa.records || []).length) {
+        const c4 = el('div', 'subcard');
+        c4.appendChild(el('h4', '', 'CAA'));
+        [[T.caa_field_source, r.caa.source],
+         [T.caa_field_allowed, (r.caa.allowed || []).join(', ')],
+         [T.caa_field_issuer, r.caa.issuer_identifier || r.caa.issuer]
+        ].forEach(([label, value]) => {
+          if (!value) return;
+          const row = el('div', 'kv-tight');
+          row.appendChild(el('span', '', label));
+          row.appendChild(el('span', 'mono', value));
+          c4.appendChild(row);
+        });
+        grid.appendChild(c4);
+      }
+      wrap.appendChild(grid);
+
+      if (r.chain_available && r.chain.length) {
+        wrap.appendChild(el('h3', '', T.tls_chain_title));
+        const table = el('table');
+        const thead = el('thead'); const trh = el('tr');
+        ['#', T.field_subject, T.field_issuer, T.field_not_after].forEach(
+          h => trh.appendChild(el('th', '', h)));
+        thead.appendChild(trh); table.appendChild(thead);
+        const tbody = el('tbody');
+        r.chain.forEach((cert, index) => {
+          const tr = el('tr');
+          tr.appendChild(el('td', '', String(index + 1)));
+          tr.appendChild(el('td', 'mono', cert.subject || '—'));
+          tr.appendChild(el('td', 'mono', cert.issuer || '—'));
+          tr.appendChild(el('td', '', cert.not_after || '—'));
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+      } else if (!r.chain_available) {
+        // Nur ein Hinweis, kein Fund: die Kette selbst kann in Ordnung sein,
+        // diese Python-Fassung gibt sie nur nicht heraus.
+        wrap.appendChild(el('p', 'hint', T.tls_chain_unavailable));
+      }
+    } else if (r.verify_error) {
+      wrap.appendChild(el('p', 'hint', T.tls_no_details + ' ' + r.verify_error));
+    }
+
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('tlsRun').addEventListener('click', tlsCheck);
+$('tlsTarget').addEventListener('keydown', e => { if (e.key === 'Enter') tlsCheck(); });
+
+// ── Whois tab ─────────────────────────────────────────────────────────────
+
+async function whoisCheck(){
+  const domain = $('whoisDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('whoisResult'); showLoading(box);
+  try {
+    const data = await runProbe('whois', { domain: domain }, domain, $('whoisRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'chip', r.source === 'rdap' ? 'RDAP' : 'WHOIS'));
+    if (r.source === 'whois' && r.whois_server) badges.appendChild(el('span', 'chip', r.whois_server));
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.found) {
+      const grid = el('div', 'subgrid');
+      const c1 = el('div', 'subcard');
+      c1.appendChild(el('h4', '', T.field_registrar));
+      [[T.field_registrar, r.registrar], [T.field_registered, r.registered],
+       [T.field_expires, r.expires], [T.field_last_changed, r.last_changed]]
+        .forEach(([label, value]) => {
+          const row = el('div', 'kv');
+          row.appendChild(el('span', '', label));
+          row.appendChild(el('span', 'mono', value || '—'));
+          c1.appendChild(row);
+        });
+      grid.appendChild(c1);
+
+      const c2 = el('div', 'subcard');
+      c2.appendChild(el('h4', '', T.field_nameservers));
+      if (r.nameservers.length) {
+        r.nameservers.forEach(ns => c2.appendChild(el('div', 'mono', ns)));
+      } else {
+        c2.appendChild(el('p', 'result-empty', T.no_records));
+      }
+      grid.appendChild(c2);
+
+      if (r.status && r.status.length) {
+        const c3 = el('div', 'subcard');
+        c3.appendChild(el('h4', '', T.field_status));
+        const chips = el('div', 'chips');
+        r.status.forEach(s => chips.appendChild(el('span', 'chip', s)));
+        c3.appendChild(chips);
+        grid.appendChild(c3);
+      }
+      wrap.appendChild(grid);
+
+      if (r.raw) wrap.appendChild(el('div', 'record-code', r.raw));
+    }
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('whoisRun').addEventListener('click', whoisCheck);
+$('whoisDomain').addEventListener('keydown', e => { if (e.key === 'Enter') whoisCheck(); });
+
+// ── HTTP header tab ───────────────────────────────────────────────────────
+
+async function httpCheck(){
+  const target = $('httpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('httpResult'); showLoading(box);
+  try {
+    const data = await runProbe('http', { target: target }, target, $('httpRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.mail_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    wrap.appendChild(score);
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.https ? 'ok' : 'warn'), r.https ? 'HTTPS' : 'HTTP'));
+    badges.appendChild(el('span', 'badge ' + (r.http3_advertised ? 'ok' : 'info'),
+      'HTTP/3: ' + (r.http3_advertised ? T.http3_yes : T.http3_no)));
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    if (r.chain.length > 1) {
+      const h = el('h3', '', T.field_redirect_chain);
+      wrap.appendChild(h);
+      const table = el('table');
+      const thead = el('thead');
+      const trh = el('tr');
+      [T.field_url, T.field_status_code].forEach(x => trh.appendChild(el('th', '', x)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody');
+      r.chain.forEach(hop => {
+        const tr = el('tr');
+        tr.appendChild(el('td', 'mono', hop.url));
+        tr.appendChild(el('td', '', String(hop.status)));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+    }
+
+    const h2 = el('h3', '', T.field_security_headers);
+    wrap.appendChild(h2);
+    const grid = el('div', 'subgrid');
+    Object.keys(r.security_headers).forEach(name => {
+      const value = r.security_headers[name];
+      const c = el('div', 'subcard');
+      const hd = el('h4');
+      hd.appendChild(el('span', '', name));
+      hd.appendChild(el('span', 'badge ' + (value ? 'ok' : 'warn'), value ? T.level_ok : T.level_warn));
+      c.appendChild(hd);
+      if (value) c.appendChild(el('div', 'mono', value));
+      grid.appendChild(c);
+    });
+    wrap.appendChild(grid);
+
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('httpRun').addEventListener('click', httpCheck);
+$('httpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') httpCheck(); });
+
+async function quicCheck(){
+  const target = $('httpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('quicResult'); showLoading(box);
+  try {
+    const data = await runProbe('quic', { target: target }, target, $('quicRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.connected ? 'ok' : 'warn'),
+      r.connected ? T.quic_connected_badge : T.quic_failed_badge));
+    if (r.handshake_ms !== null) badges.appendChild(el('span', 'chip', r.handshake_ms + ' ms'));
+    if (r.status) badges.appendChild(el('span', 'chip', 'HTTP ' + r.status));
+    wrap.appendChild(badges);
+    wrap.appendChild(renderFindings(r.findings));
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('quicRun').addEventListener('click', quicCheck);
+
+// ── SEO-Check ───────────────────────────────────────────────────────────────
+
+function seoCard(title, rows){
+  const card = el('div', 'subcard');
+  card.appendChild(el('h4', '', title));
+  rows.forEach(([label, value, mono]) => {
+    if (value === undefined || value === null || value === '') return;
+    const row = el('div', 'ipinfo-kv');
+    row.appendChild(el('span', '', label));
+    row.appendChild(el('span', mono ? 'mono' : '', String(value)));
+    card.appendChild(row);
+  });
+  return card;
+}
+
+function seoLen(value, length, min, max){
+  if (!value) return T.seo_value_missing;
+  const mark = (length < min || length > max) ? ' ⚠' : '';
+  return value + ' (' + length + mark + ')';
+}
+
+async function seoCheck(){
+  const target = $('seoTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('seoResult'); showLoading(box);
+  try {
+    const data = await runProbe('seo', { target: target }, target, $('seoRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.seo_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    box.appendChild(score);
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'chip', r.final_url));
+    badges.appendChild(el('span', 'chip', r.ms + ' ms'));
+    badges.appendChild(el('span', 'chip', Math.round(r.bytes / 1024) + ' KB'));
+    if (r.redirects) badges.appendChild(el('span', 'chip',
+      fmtStr(T.seo_redirects, { count: r.redirects })));
+    box.appendChild(badges);
+
+    box.appendChild(renderFindings(r.findings));
+
+    const grid = el('div', 'subgrid ipinfo-grid');
+    grid.appendChild(seoCard(T.seo_group_basics, [
+      [T.seo_field_title, seoLen(r.title, r.title_length, 30, 60)],
+      [T.seo_field_description, seoLen(r.description, r.description_length, 70, 160)],
+      [T.seo_field_canonical, r.canonical, true],
+      [T.seo_field_lang, r.lang || T.seo_value_missing, true],
+      [T.seo_field_charset, r.charset || T.seo_value_missing, true],
+      [T.seo_field_viewport, r.viewport || T.seo_value_missing, true],
+      [T.seo_field_robots_meta, r.robots_meta || '—', true],
+    ]));
+    grid.appendChild(seoCard(T.seo_group_structure, [
+      ['H1', r.h1.length ? r.h1.join(' · ') : T.seo_value_missing],
+      [T.seo_field_headings, r.headings.map(h => 'H' + h.level).join(' ') || '—', true],
+      [T.seo_field_words, r.words],
+      [T.seo_field_images, fmtStr(T.seo_images_value,
+        { total: r.images_total, missing: r.images_no_alt })],
+    ]));
+    grid.appendChild(seoCard(T.seo_group_crawling, [
+      ['robots.txt', r.robots_txt.found
+        ? (r.robots_txt.disallow_all ? T.seo_robots_blocks_all : T.seo_value_present)
+        : T.seo_value_missing],
+      ['Sitemap', r.sitemap.found
+        ? fmtStr(T.seo_sitemap_value, { urls: r.sitemap.urls })
+        : T.seo_value_missing],
+      [T.seo_field_sitemap_url, r.sitemap.url, true],
+      ['hreflang', r.hreflang.map(h => h.lang).join(', ') || '—', true],
+    ]));
+    grid.appendChild(seoCard(T.seo_group_tech, [
+      ['Status', r.status],
+      [T.seo_field_compression, r.compression || T.seo_value_missing, true],
+      ['Cache-Control', r.cache_control || '—', true],
+      ['JSON-LD', r.jsonld_types.join(', ') || T.seo_value_missing, true],
+      ['Open Graph', Object.keys(r.og).length || T.seo_value_missing],
+      ['Twitter Cards', Object.keys(r.twitter).length || T.seo_value_missing],
+      [T.seo_field_mixed, r.mixed_content.length || '0'],
+    ]));
+    box.appendChild(grid);
+
+    if (r.mixed_content.length) {
+      const c = el('div', 'subcard');
+      c.appendChild(el('h4', '', T.seo_field_mixed));
+      const chips = el('div', 'chips');
+      r.mixed_content.forEach(u => chips.appendChild(el('span', 'chip', u)));
+      c.appendChild(chips);
+      box.appendChild(c);
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('seoRun').addEventListener('click', seoCheck);
+$('seoTarget').addEventListener('keydown', e => { if (e.key === 'Enter') seoCheck(); });
+
+// ── Technik-Erkennung ───────────────────────────────────────────────────────
+
+// Reihenfolge der Gruppen: erst was die Seite ausmacht (CMS, Shop, Framework),
+// dann Unterbau, dann alles Eingebundene. Kategorien ohne Treffer fallen weg.
+const TECH_CATS = ['cms', 'shop', 'framework', 'js', 'css', 'font', 'server',
+  'language', 'cdn', 'waf', 'hosting', 'captcha', 'analytics', 'tagmanager',
+  'marketing', 'consent', 'payment', 'support', 'media', 'search',
+  'dns', 'mail', 'misc'];
+
+function techEvidenceLine(ev){
+  if (ev.kind === 'implied') return fmtStr(T.tech_ev_implied, { detail: ev.detail });
+  return (T['tech_ev_' + ev.kind] || ev.kind) + ': ' + ev.detail;
+}
+
+function techItem(t){
+  const row = el('div', 'tech-item');
+  row.appendChild(el('span', 'tech-dot ' + t.confidence));
+  row.appendChild(el('span', '', t.name));
+  if (t.version) row.appendChild(el('span', 'tech-ver', t.version));
+  row.appendChild(el('span', 'tech-conf', T['tech_conf_' + t.confidence] || t.confidence));
+  // Die Fundstelle steht im Titel statt in der Zeile: sie ist der Beleg, den
+  // man sehen will, wenn man einem Treffer nicht glaubt -- aber nicht das,
+  // was die Liste lesbar haelt.
+  const evidence = (t.evidence || []).map(techEvidenceLine).join('\n');
+  const origin = t.source === 'extra' ? T.tech_source_extra : T.tech_source_builtin;
+  row.title = (evidence ? T.tech_evidence_title + ':\n' + evidence + '\n\n' : '')
+    + origin;
+  return row;
+}
+
+async function techCheck(){
+  const target = $('techTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('techResult'); showLoading(box);
+  try {
+    const data = await runProbe('tech', { target: target }, target, $('techRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'chip', r.final_url));
+    badges.appendChild(el('span', 'chip', r.ms + ' ms'));
+    badges.appendChild(el('span', 'chip', Math.round(r.bytes / 1024) + ' KB'));
+    if (r.redirects) badges.appendChild(el('span', 'chip',
+      fmtStr(T.seo_redirects, { count: r.redirects })));
+    const used = r.rules_used || {};
+    badges.appendChild(el('span', 'chip', used.extra
+      ? fmtStr(T.tech_rules_chip_both, { builtin: used.builtin, extra: used.extra })
+      : fmtStr(T.tech_rules_chip_builtin, { builtin: used.builtin || 0 })));
+    box.appendChild(badges);
+
+    box.appendChild(renderFindings(r.findings));
+
+    const techs = r.technologies || [];
+    if (!techs.length) {
+      box.appendChild(el('p', 'result-empty', T.tech_none));
+    } else {
+      const grid = el('div', 'subgrid');
+      TECH_CATS.forEach(cat => {
+        const rows = techs.filter(t => t.cat === cat);
+        if (!rows.length) return;
+        const card = el('div', 'subcard');
+        const head = el('h4', '', T['tech_cat_' + cat] || cat);
+        head.appendChild(el('span', 'chip', String(rows.length)));
+        card.appendChild(head);
+        const list = el('div', 'tech-list');
+        rows.forEach(t => list.appendChild(techItem(t)));
+        card.appendChild(list);
+        grid.appendChild(card);
+      });
+      box.appendChild(grid);
+    }
+
+    const dns = r.dns || {};
+    const extra = el('div', 'subgrid ipinfo-grid');
+    extra.appendChild(seoCard(T.tech_group_response, [
+      [T.tech_field_server, r.server || '—', true],
+      [T.tech_field_powered, r.powered_by || '—', true],
+      [T.tech_field_generator, r.generator || '—', true],
+      [T.tech_field_cookies, (r.cookie_details || []).length || '0'],
+      [T.tech_field_third_party, (r.third_party || []).length || '0'],
+    ]));
+    if (dns.domain) {
+      extra.appendChild(seoCard(T.tech_group_dns, [
+        [T.tech_field_ns_provider, dns.ns_provider || '—'],
+        [T.tech_field_ns, (dns.ns || []).join(', ') || '—', true],
+        [T.tech_field_mail, (dns.mail_provider || []).join(', ') || '—'],
+        [T.tech_field_spf, (dns.spf_services || []).join(', ') || '—'],
+      ]));
+    }
+    box.appendChild(extra);
+
+    const cookies = r.cookie_details || [];
+    if (cookies.length) {
+      const card = el('div', 'subcard');
+      card.appendChild(el('h4', '', T.tech_cookies_title));
+      const table = el('table');
+      const head = el('tr');
+      [T.tech_cookie_name, T.tech_cookie_life, 'Secure', 'HttpOnly', 'SameSite',
+       T.tech_cookie_scope].forEach(h => head.appendChild(el('th', '', h)));
+      const thead = el('thead'); thead.appendChild(head); table.appendChild(thead);
+      const tbody = el('tbody');
+      cookies.forEach(c => {
+        const tr = el('tr');
+        tr.appendChild(el('td', 'mono', c.name));
+        tr.appendChild(el('td', '', c.session ? T.tech_cookie_session
+          : (c.days >= 1 ? fmtStr(T.tech_cookie_days, { days: c.days })
+                         : T.tech_cookie_short)));
+        // Fehlendes Secure ist auf einer HTTPS-Seite ein echter Mangel, die
+        // anderen beiden sind Haertung -- deshalb nur das erste rot.
+        tr.appendChild(el('td', c.secure ? '' : 'diff-removed', c.secure ? '✓' : '—'));
+        tr.appendChild(el('td', '', c.http_only ? '✓' : '—'));
+        tr.appendChild(el('td', '', c.same_site || '—'));
+        tr.appendChild(el('td', 'mono', (c.domain || T.tech_cookie_host)
+          + (c.path && c.path !== '/' ? ' ' + c.path : '')));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      const wrap = el('div'); wrap.style.overflowX = 'auto';
+      wrap.appendChild(table);
+      card.appendChild(wrap);
+      card.appendChild(el('p', 'hint', T.tech_cookies_hint));
+      box.appendChild(card);
+    }
+
+    const third = r.third_party || [];
+    if (third.length) {
+      const card = el('div', 'subcard');
+      card.appendChild(el('h4', '', fmtStr(T.tech_third_party_title, { count: third.length })));
+      const chips = el('div', 'chips');
+      third.forEach(t => {
+        const chip = el('span', 'chip', t.host);
+        chip.title = fmtStr(T.tech_third_party_count, { count: t.count });
+        chips.appendChild(chip);
+      });
+      card.appendChild(chips);
+      card.appendChild(el('p', 'hint', T.tech_third_party_hint));
+      box.appendChild(card);
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('techRun').addEventListener('click', techCheck);
+$('techTarget').addEventListener('keydown', e => { if (e.key === 'Enter') techCheck(); });
+
+// ── SMTP tab ──────────────────────────────────────────────────────────────
+
+async function smtpCheck(){
+  const target = $('smtpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('smtpResult'); showLoading(box);
+  try {
+    const data = await runProbe('smtp', { target: target }, target, $('smtpRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.starttls_ok ? 'ok' : (r.starttls_offered ? 'warn' : 'fail')),
+      r.starttls_ok ? T.smtp_starttls_badge_ok : (r.starttls_offered ? T.smtp_starttls_badge_failed : T.smtp_starttls_badge_none)));
+    if (r.relay_open !== null) {
+      // Ein "offen" aus derselben Maschine heraus ist kein Alarm, sondern ein
+      // Messproblem -- die Plakette sagt das auch, statt rot zu schreien.
+      const relayLocal = r.relay_open && r.same_host;
+      badges.appendChild(el('span',
+        'badge ' + (relayLocal ? 'warn' : (r.relay_open ? 'fail' : 'ok')),
+        relayLocal ? T.smtp_relay_badge_local
+          : (r.relay_open ? T.smtp_relay_badge_open : T.smtp_relay_badge_closed)));
+    }
+    if (r.tls_protocol) badges.appendChild(el('span', 'chip', r.tls_protocol));
+    if (r.mx_domain) {
+      // Zeigt, dass nicht die Eingabe selbst angesprochen wurde, sondern der
+      // daraus ermittelte MX-Host -- sonst wirkt ein fremder Hostname im
+      // Banner wie ein Fehler.
+      const chip = el('span', 'chip', fmtStr(T.smtp_via_mx_chip, { host: r.host }));
+      chip.title = fmtStr(T.smtp_via_mx_title,
+        { domain: r.mx_domain, count: (r.mx_candidates || []).length });
+      badges.appendChild(chip);
+    }
+    if (r.provider && r.provider.known) {
+      r.provider.names.forEach(n => badges.appendChild(el('span', 'chip', n)));
+    }
+    const soft = softwareChip(r.software);
+    if (soft) badges.appendChild(soft);
+    wrap.appendChild(badges);
+
+    wrap.appendChild(renderFindings(r.findings));
+
+    const grid = el('div', 'subgrid');
+    const c1 = el('div', 'subcard');
+    c1.appendChild(el('h4', '', T.field_banner));
+    c1.appendChild(el('div', 'mono', r.banner || '—'));
+    if (r.source_ip) {
+      const row = el('div', 'kv-tight');
+      row.appendChild(el('span', '', T.smtp_source_label));
+      row.appendChild(el('span', 'mono', r.source_ip + ' → ' + r.peer_ip));
+      row.title = T.smtp_source_title;
+      c1.appendChild(row);
+    }
+    if (r.mx_candidates && r.mx_candidates.length > 1) {
+      // Als Chips und nicht als eine lange Zeile: in der schmalen Unterkarte
+      // wuerde eine Komma-Liste sonst mitten in den Hostnamen umbrechen.
+      c1.appendChild(el('div', 'detect-label', T.field_mx));
+      const chips = el('div', 'chips');
+      r.mx_candidates.forEach(h => {
+        const chip = el('span', 'chip', h);
+        if (h === r.host) chip.title = T.smtp_mx_tested;
+        chips.appendChild(chip);
+      });
+      c1.appendChild(chips);
+    }
+    if (r.ehlo_greeting) {
+      const greet = el('div', 'kv-tight');
+      greet.appendChild(el('span', '', T.field_ehlo_greeting));
+      greet.appendChild(el('span', 'mono', r.ehlo_greeting));
+      greet.title = T.ehlo_greeting_title;
+      c1.appendChild(greet);
+    }
+    const row = el('div', 'kv-tight');
+    row.appendChild(el('span', '', T.software_label));
+    row.appendChild(el('span', '', softwareLabel(r.software) || T.software_unknown));
+    c1.appendChild(row);
+    grid.appendChild(c1);
+
+    if (r.features.length) {
+      const c2 = el('div', 'subcard');
+      c2.appendChild(el('h4', '', T.field_features));
+      const chips = el('div', 'chips');
+      r.features.forEach(f => chips.appendChild(el('span', 'chip', f)));
+      c2.appendChild(chips);
+      grid.appendChild(c2);
+    }
+    wrap.appendChild(grid);
+
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('smtpRun').addEventListener('click', smtpCheck);
+$('smtpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') smtpCheck(); });
+
+// ── Monitoring tab ────────────────────────────────────────────────────────
+
+const monitorHistoryOpen = {};
+let editingMonitorId = null;
+
+function updateMonTargetHint(){
+  // Zwei Sonderfaelle brauchen einen Satz Erklaerung an genau dieser Stelle:
+  // die Domainliste beim AAAA-Waechter und die Endungen, die gar kein
+  // Ablaufdatum veroeffentlichen.
+  const probe = $('monProbe').value;
+  const hints = { aaaa_guard: T.monitor_aaaa_hint, whois: T.monitor_whois_hint };
+  const hint = hints[probe] || '';
+  $('monTargetHint').textContent = hint;
+  $('monTargetHint').hidden = !hint;
+  $('monTarget').placeholder = probe === 'aaaa_guard'
+    ? 'example.com, example.org, ...' : T.ph_domain;
+}
+$('monProbe').addEventListener('change', updateMonTargetHint);
+updateMonTargetHint();
+
+function startEditMonitor(m){
+  editingMonitorId = m.id;
+  $('monName').value = m.name;
+  $('monProbe').value = m.probe;
+  $('monTarget').value = m.target;
+  $('monInterval').value = m.interval_hours;
+  $('monEmail').checked = !!m.notify_email;
+  $('monTelegram').checked = !!m.notify_telegram;
+  $('monAdd').textContent = T.action_save_monitor;
+  $('monCancelEdit').style.display = '';
+  updateMonTargetHint();
+  $('monName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelEditMonitor(){
+  editingMonitorId = null;
+  $('monName').value = ''; $('monTarget').value = ''; $('monInterval').value = '6';
+  $('monEmail').checked = true; $('monTelegram').checked = true;
+  $('monProbe').value = 'tls';
+  $('monAdd').textContent = T.action_add_monitor;
+  $('monCancelEdit').style.display = 'none';
+  updateMonTargetHint();
+}
+const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist,
+  mail_health: T.nav_mail, aaaa_guard: T.monitor_probe_aaaa,
+  whois: T.monitor_probe_whois, http: T.monitor_probe_http, seo: T.monitor_probe_seo });
+
+async function loadMonitors(){
+  const box = $('monitorList');
+  try {
+    const data = await api('/api/monitors');
+    box.innerHTML = '';
+    if (!data.rows.length) { box.appendChild(el('p', 'result-empty', T.monitor_empty)); return; }
+    for (const m of data.rows) { box.appendChild(await renderMonitorCard(m)); }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function renderMonitorCard(m){
+  const c = el('div', 'subcard');
+  c.style.marginBottom = '10px';
+  const hd = el('h4');
+  hd.appendChild(el('span', '', m.name));
+  hd.appendChild(levelBadge(m.last_level || 'info'));
+  c.appendChild(hd);
+
+  const probeLabel = _monProbeLabel()[m.probe] || m.probe;
+  [[T.field_probe, probeLabel], [T.field_target, m.target],
+   [T.field_interval_hours, m.interval_hours],
+   [T.field_last_checked, m.last_run_ts ? new Date(m.last_run_ts * 1000).toLocaleString() : T.monitor_never_run]]
+    .forEach(([label, value]) => {
+      const row = el('div', 'kv');
+      row.appendChild(el('span', '', label));
+      row.appendChild(el('span', 'mono', String(value)));
+      c.appendChild(row);
+    });
+  if (m.last_summary) c.appendChild(el('div', 'hint', m.last_summary));
+  if (m.last_error) c.appendChild(el('div', 'hint', errText(m.last_error)));
+
+  const btns = el('div', 'row');
+  btns.style.marginTop = '8px';
+  const runBtn = el('button', 'btn', T.action_run_now);
+  runBtn.addEventListener('click', async () => {
+    runBtn.disabled = true;
+    try { await api('/api/monitors/' + m.id + '/run', { method: 'POST' }); await loadMonitors(); }
+    catch (e) { toast(errText(e.code), true); runBtn.disabled = false; }
+  });
+  btns.appendChild(runBtn);
+
+  const histBtn = el('button', 'btn', T.action_toggle_history);
+  histBtn.addEventListener('click', () => {
+    monitorHistoryOpen[m.id] = !monitorHistoryOpen[m.id];
+    loadMonitors();
+  });
+  btns.appendChild(histBtn);
+
+  const editBtn = el('button', 'btn', T.action_edit);
+  editBtn.addEventListener('click', () => startEditMonitor(m));
+  btns.appendChild(editBtn);
+
+  const delBtn = el('button', 'btn danger', T.action_delete);
+  delBtn.addEventListener('click', async () => {
+    if (!confirm(T.monitor_delete_confirm)) return;
+    try { await api('/api/monitors/' + m.id, { method: 'DELETE' }); await loadMonitors(); }
+    catch (e) { toast(errText(e.code), true); }
+  });
+  btns.appendChild(delBtn);
+  c.appendChild(btns);
+
+  if (monitorHistoryOpen[m.id]) {
+    const histBox = el('div');
+    histBox.appendChild(el('p', 'result-empty', T.loading));
+    c.appendChild(histBox);
+    try {
+      const data = await api('/api/monitors/' + m.id + '/history');
+      histBox.innerHTML = '';
+      if (!data.rows.length) {
+        histBox.appendChild(el('p', 'result-empty', T.no_records));
+      } else {
+        const table = el('table');
+        const thead = el('thead'); const trh = el('tr');
+        [T.field_time, T.field_result, T.field_reason].forEach(h => trh.appendChild(el('th', '', h)));
+        thead.appendChild(trh); table.appendChild(thead);
+        const tbody = el('tbody');
+        data.rows.forEach(row => {
+          const tr = el('tr');
+          tr.appendChild(el('td', '', new Date(row.ts * 1000).toLocaleString()));
+          const td = el('td'); td.appendChild(levelBadge(row.level)); tr.appendChild(td);
+          tr.appendChild(el('td', '', row.summary));
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        histBox.appendChild(table);
+      }
+    } catch (e) { histBox.innerHTML = ''; histBox.appendChild(el('p', 'result-empty', errText(e.code))); }
+  }
+
+  return c;
+}
+
+$('monAdd').addEventListener('click', async () => {
+  const name = $('monName').value.trim();
+  const target = $('monTarget').value.trim();
+  if (!name || !target) { toast(T.err_empty_target, true); return; }
+  const interval = parseInt($('monInterval').value, 10) || 6;
+  const body = {
+    name: name, probe: $('monProbe').value, target: target,
+    interval_hours: interval, notify_email: $('monEmail').checked,
+    notify_telegram: $('monTelegram').checked,
+  };
+  try {
+    if (editingMonitorId !== null) {
+      await api('/api/monitors/' + editingMonitorId, { method: 'PUT', body: body });
+      cancelEditMonitor();
+    } else {
+      await api('/api/monitors', { method: 'POST', body: body });
+      $('monName').value = ''; $('monTarget').value = '';
+    }
+    await loadMonitors();
+  } catch (e) { toast(errText(e.code), true); }
+});
+
+$('monCancelEdit').addEventListener('click', cancelEditMonitor);
+
+// ── DNSSEC tab ────────────────────────────────────────────────────────────
+
+async function secCheck(){
+  const name = $('secName').value.trim();
+  if (!name) { toast(T.err_empty_target, true); return; }
+  const box = $('secResult'); showLoading(box);
+  try {
+    const data = await runProbe('dnssec', { name: name }, name, $('secRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const wrap = el('div');
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge ' + (r.signed ? 'ok' : 'warn'), r.signed ? T.dnssec_signed : T.dnssec_unsigned));
+    badges.appendChild(el('span', 'badge ' + (r.validated ? 'ok' : 'info'), r.validated ? T.dnssec_validated : T.dnssec_not_validated));
+    wrap.appendChild(badges);
+    if (r.ds && r.ds.length) {
+      wrap.appendChild(el('h3', '', 'DS'));
+      wrap.appendChild(recordsTable(r.ds));
+    }
+    wrap.appendChild(el('p', 'hint', T.field_dnskey_count + ': ' + r.dnskey_count));
+    box.appendChild(wrap);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('secRun').addEventListener('click', secCheck);
+$('secName').addEventListener('keydown', e => { if (e.key === 'Enter') secCheck(); });
+
+// ── History tab ───────────────────────────────────────────────────────────
+
+async function loadHistory(){
+  const box = $('historyResult');
+  box.innerHTML = '<p class="result-empty">' + T.loading + '</p>';
+  try {
+    const data = await api('/api/history');
+    box.innerHTML = '';
+    if (!data.rows.length) { box.appendChild(el('p', 'result-empty', T.history_empty)); return; }
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_time, T.field_probe, T.field_target, T.field_result, T.field_backend].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    data.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', new Date(row.ts * 1000).toLocaleString()));
+      tr.appendChild(el('td', '', row.probe));
+      tr.appendChild(el('td', 'mono', row.target));
+      const td = el('td'); td.appendChild(levelBadge(row.level)); tr.appendChild(td);
+      tr.appendChild(el('td', '', row.backend));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('historyClear').addEventListener('click', async () => {
+  try { await api('/api/history/clear', { method: 'POST' }); loadHistory(); }
+  catch (e) { toast(errText(e.code), true); }
+});
+
+loadStatus();
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

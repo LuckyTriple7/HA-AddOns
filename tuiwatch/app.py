@@ -9,6 +9,7 @@ import csv
 import hashlib
 import html as htmllib
 import io
+import gc
 import ipaddress
 import json
 import logging
@@ -31,7 +32,9 @@ from urllib.parse import parse_qs, quote, urlparse
 
 import anthropic
 import requests as http
+import urllib3.util.connection
 
+import atomic_io
 import settings as settings_store
 from google import genai
 from google.genai import errors as genai_errors
@@ -52,9 +55,11 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      room_code_from_url, transfer_included_from_url, travellers_from_url,
                      with_duration, with_room_code, with_transfer_included, with_travellers,
                      without_room_code)
+import scraper
 import check24_client
 import trippilot_questions
 from aktionscodes import fetch_aktionscodes
+import nextcloud
 from nextcloud import fetch_contacts
 from packliste import PACKING_TEMPLATE, default_packing_rows
 from tripparser import (_clean_text, _fmt_eur, _parse_eur, apply_derived_fields,
@@ -95,7 +100,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.17"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -133,6 +138,32 @@ app = Flask(__name__, template_folder=_BASE + '/templates',
 app.config['MAX_CONTENT_LENGTH'] = MAX_PDF_BYTES
 
 
+def _trust_ingress_header() -> bool:
+    """Darf `X-Ingress-Path` geglaubt werden?
+
+    Der Header kommt vom Client und ist damit fälschbar; `_auth_ok` behandelt
+    einen daraus gesetzten SCRIPT_NAME als "vom Ingress bereits
+    authentifiziert". Im Add-on ist das richtig — dort setzt ihn ausschließlich
+    der HA-Supervisor, und Port 17794 liegt hinter ihm. Läuft TUIWatch dagegen
+    ohne Supervisor (eigener Docker-Host, Server im Netz), wäre derselbe Header
+    eine Login-Umgehung: ein einziges `curl -H "X-Ingress-Path: /x"` genügte.
+
+    Deshalb gilt er nur mit SUPERVISOR_TOKEN in der Umgebung. Erzwingen oder
+    abschalten lässt sich das über TUIWATCH_TRUST_INGRESS (1/0) — etwa für einen
+    eigenen Reverse-Proxy, der den Header selbst setzt und den Zugang davor
+    absichert.
+    """
+    override = os.environ.get('TUIWATCH_TRUST_INGRESS', '').strip().lower()
+    if override in ('1', 'true', 'yes', 'on'):
+        return True
+    if override in ('0', 'false', 'no', 'off'):
+        return False
+    return bool(os.environ.get('SUPERVISOR_TOKEN', ''))
+
+
+TRUST_INGRESS = _trust_ingress_header()
+
+
 class _IngressMiddleware:
     """Setzt SCRIPT_NAME aus dem HA-Supervisor-Header, damit url_for() hinter
     dem Ingress-Proxy korrekte URLs erzeugt."""
@@ -141,7 +172,8 @@ class _IngressMiddleware:
         self._app = wsgi_app
 
     def __call__(self, environ, start_response):
-        prefix = environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
+        prefix = (environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
+                  if TRUST_INGRESS else '')
         if prefix:
             environ['SCRIPT_NAME'] = prefix
             path = environ.get('PATH_INFO', '')
@@ -345,17 +377,49 @@ def _settings_changed() -> None:
     """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
     global _merged_cache, _merged_stamp
     _merged_cache, _merged_stamp = None, None
+    _apply_ipv4_pref()
+
+
+# Ausgangslage merken: `force_ipv4` aus soll den vom System erkannten Wert
+# wiederherstellen, nicht blind True setzen (in einem Container ohne IPv6-Stack
+# steht hier bereits False).
+_HAS_IPV6_DEFAULT = urllib3.util.connection.HAS_IPV6
+
+
+def _apply_ipv4_pref() -> None:
+    """Einstellung `force_ipv4` auf die HTTP-Schicht anwenden.
+
+    Hat ein Server einen AAAA-Eintrag, der ins Leere zeigt (falsch gepflegter DNS
+    oder kein IPv6-Routing), probiert requests zuerst IPv6 und läuft in den vollen
+    Zeitüberschreitungs-Fehler, obwohl IPv4 sofort antworten würde — im Log sichtbar
+    als `ConnectTimeout ... (connect timeout=20)` bei einem Server, der im Browser
+    normal erreichbar ist. urllib3 wählt die Adressfamilie über `HAS_IPV6`; steht das
+    auf False, fragt getaddrinfo nur noch A-Einträge ab. Gilt prozessweit für alle
+    ausgehenden Aufrufe (TUI-API, Nextcloud, KI, Telegram) und wirkt ohne Neustart,
+    da diese Funktion nach jedem Speichern läuft.
+    """
+    want_v4_only = bool(load_config().get('force_ipv4', False))
+    urllib3.util.connection.HAS_IPV6 = False if want_v4_only else _HAS_IPV6_DEFAULT
 
 
 def _verbose() -> bool:
     return bool(load_config().get('verbose_log', False))
 
 
+# scraper.py kennt die Einstellungen nicht (es laeuft auch als eigenes Skript und in
+# den Parsing-Tests). Statt den Wert einmal hineinzureichen, haengt hier eine
+# Funktion — so wirkt ein Umschalten in der Oberflaeche sofort, ohne Neustart.
+scraper.browser_fallback_enabled = lambda: bool(
+    load_config().get('browser_fallback', True))
+
+
 def save_sessions() -> None:
     try:
         now = time.time()
-        with open(SESSIONS_PATH, 'w') as f:
-            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+        # atomar: ein harter Stop (SIGTERM -> os._exit) mitten im Schreiben
+        # liesse sonst eine abgeschnittene Datei zurueck -> alle Logins weg
+        atomic_io.write_json(SESSIONS_PATH,
+                             {k: v for k, v in sessions.items() if v > now})
     except Exception as e:
         log.warning("Sessions konnten nicht gespeichert werden: %s", e)
 
@@ -898,6 +962,14 @@ def init_db() -> None:
             model   TEXT DEFAULT '',
             data    TEXT NOT NULL
         )''')
+        # `usage`: Tokenzahlen und tatsaechliche Kosten des EINEN Aufrufs, der diese
+        # Tabelle bzw. diesen Reisefuehrer erzeugt hat. Beide werden nur einmal
+        # erstellt und danach jahrelang aus der Datenbank gelesen — ohne diese Spalte
+        # waere hinterher nicht mehr feststellbar, was das Ergebnis gekostet hat.
+        for _t in ('climate', 'guide'):
+            if 'usage' not in {r['name'] for r in
+                               con.execute(f'PRAGMA table_info({_t})').fetchall()}:
+                con.execute(f"ALTER TABLE {_t} ADD COLUMN usage TEXT NOT NULL DEFAULT ''")
         # Öffentliche Angebots-Seiten (Share-Links, siehe share_routes.py). `payload`
         # ist ein beim Anlegen eingefrorener JSON-Snapshot — die öffentliche Seite
         # liest ausschließlich diese Spalte und nie die Live-Tabellen, damit kein
@@ -1365,6 +1437,40 @@ def nc_configured() -> bool:
     cfg = load_config()
     return bool((cfg.get('nc_addressbook_url') or '').strip()
                 and (cfg.get('nc_user') or '').strip())
+
+
+def smtp_probe() -> tuple[bool, str]:
+    """Verbindet sich einmal mit dem Mailserver, ohne eine Mail zu schicken — für den
+    Selbsttest. Geprüft wird genau das, woran der Versand sonst scheitert: Erreichbar-
+    keit des Hosts, STARTTLS/SSL und, falls hinterlegt, die Anmeldung.
+
+    Rückgabe (ok, Detailtext) — wirft nie."""
+    cfg = load_config()
+    host = (cfg.get('smtp_host') or '').strip()
+    if not host:
+        return False, 'nicht konfiguriert'
+    port = int(cfg.get('smtp_port') or 587)
+    user = (cfg.get('smtp_user') or '').strip()
+    password = (cfg.get('smtp_password') or '').strip()
+    use_tls = bool(cfg.get('smtp_tls', True))
+    mode = 'STARTTLS' if use_tls else 'SSL'
+    try:
+        if use_tls:
+            with smtplib.SMTP(host, port, timeout=20) as s:
+                s.ehlo(); s.starttls(); s.ehlo()
+                if user and password:
+                    s.login(user, password)
+                s.noop()
+        else:
+            with smtplib.SMTP_SSL(host, port, timeout=20) as s:
+                if user and password:
+                    s.login(user, password)
+                s.noop()
+    except smtplib.SMTPAuthenticationError:
+        return False, f'{host}:{port} — Anmeldung abgelehnt'
+    except Exception as e:
+        return False, f'{host}:{port} — {type(e).__name__}'
+    return True, f'{host}:{port} ({mode}{", angemeldet" if user and password else ""})'
 
 
 def send_email(subject: str, html_body: str, to: str) -> None:
@@ -2634,6 +2740,104 @@ def _poll_gap() -> int:
         return POLL_GAP_DEFAULT
 
 
+def _chromium_leftovers() -> list[tuple[int, float]]:
+    """Chromium-Prozesse, die zu einem beendeten Fallback-Abruf gehoeren.
+
+    Erkannt werden ausschliesslich Prozesse mit unserem Marker in der Kommandozeile
+    (`scraper.BROWSER_MARKER`) — fremde Browser im selben Namensraum bleiben
+    unangetastet. Der Marker steht nur an dem Chromium, das `_fetch_price_browser`
+    selbst startet; seine Kindprozesse (Renderer, GPU) erben die Kommandozeile
+    nicht, sie sterben aber mit dem Elternprozess.
+    """
+    out = []
+    for pid in os.listdir('/proc'):
+        if not pid.isdigit() or int(pid) == os.getpid():
+            continue
+        try:
+            with open(f'/proc/{pid}/cmdline', 'rb') as f:
+                cmd = f.read().decode('utf-8', 'replace')
+            if scraper.BROWSER_MARKER not in cmd:
+                continue
+            rss = 0
+            with open(f'/proc/{pid}/status', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('VmRSS:'):
+                        rss = int(line.split()[1])
+                        break
+        except (OSError, ValueError, IndexError):
+            continue
+        out.append((int(pid), round(rss / 1024, 1)))
+    return out
+
+
+def _reap_orphan_chromium() -> int:
+    """Haengengebliebene Fallback-Browser beenden; gibt die Anzahl zurueck.
+
+    `_fetch_price_browser` schliesst den Browser im `finally`. Bleibt der Aufruf
+    aber im Netz haengen oder stirbt der Thread darunter weg, ueberlebt Chromium
+    bis zum Neustart des Add-ons — mit mehreren hundert MB, die niemand mehr
+    benutzt. Genau das sieht man dann als "das Add-on braucht 800 MB", auch wenn
+    der Fallback laengst abgeschaltet ist.
+
+    Laeuft gerade ein Abruf, wird nichts angefasst.
+    """
+    if scraper.browser_busy():
+        return 0
+    leftovers = _chromium_leftovers()
+    if not leftovers:
+        return 0
+    freed = round(sum(mb for _, mb in leftovers), 1)
+    log.warning("Aufraeumen: %d haengengebliebene(r) Fallback-Browser (%.1f MB) werden beendet",
+                len(leftovers), freed)
+    for pid, _mb in leftovers:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    time.sleep(3)
+    for pid, _mb in leftovers:
+        try:
+            os.kill(pid, 0)          # noch da? dann hart beenden
+            os.kill(pid, signal.SIGKILL)
+            log.warning("Fallback-Browser %d reagierte nicht auf SIGTERM — SIGKILL", pid)
+        except OSError:
+            pass
+    return len(leftovers)
+
+
+# Kein Netz: so lange warten, bevor die Runde neu bewertet wird. Kurz genug, dass
+# der Betrieb nach einer Stoerung von selbst wieder anlaeuft, lang genug, dass die
+# Pruefung nicht selbst zur Last wird.
+NET_RETRY_INTERVAL = 300
+
+_net_state = {'online': True, 'since': 0.0, 'logged': 0.0}
+
+
+def _net_ok() -> bool:
+    """Liegt eine Internetverbindung an? Ergebnis wird protokolliert, aber nicht
+    bei jeder Runde neu: der Ausfall steht einmal im Log und danach hoechstens
+    stuendlich, die Rueckkehr wieder einmal. Sonst waere das Log nach einer Nacht
+    ohne Leitung nur noch dieselbe Zeile."""
+    now = time.time()
+    ok = scraper.internet_reachable()
+    if ok:
+        if not _net_state['online']:
+            mins = max(1, int((now - _net_state['since']) / 60))
+            log.info("Internetverbindung wieder da (nach %d min) — Pruefungen laufen weiter",
+                     mins)
+        _net_state.update(online=True, since=0.0, logged=0.0)
+        return True
+    if _net_state['online']:
+        log.warning("Keine Internetverbindung — Preisprüfungen, Suchabos und Kalender "
+                    "pausieren, naechster Versuch in %d min", NET_RETRY_INTERVAL // 60)
+        _net_state.update(online=False, since=now, logged=now)
+    elif now - _net_state['logged'] >= 3600:
+        mins = max(1, int((now - _net_state['since']) / 60))
+        log.warning("Immer noch keine Internetverbindung (seit %d min)", mins)
+        _net_state['logged'] = now
+    return False
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -2652,16 +2856,38 @@ def _poll_worker() -> None:
             # Labels landen über busy_labels()/api_offers im Logo-Tooltip. Die Funktionen
             # werden hier bei jedem Durchlauf frisch aus den Globals geholt, damit
             # spätere Neubindungen (watch/backup/digest) und Test-Patches greifen.
-            for _label, _step in (
-                    ('Selbsttest', _maybe_periodic_health),
-                    ('Zusammenfassung', _maybe_send_digest),
-                    ('Aktionscodes', _maybe_check_aktionscodes),
-                    ('Backup', _maybe_auto_backup),
-                    ('Suchabos', _maybe_check_watches),
-                    ('Preiskalender', _maybe_refresh_calendars),
-                    ('Preisbarometer', market_basket.maybe_run_baskets)):
+            # Einmal je Runde nachsehen, ob ueberhaupt eine Leitung anliegt. Ohne
+            # Netz lief bisher jeder Schritt in seine eigenen Timeouts, jedes
+            # faellige Angebot zweimal, und am Ende stand ein Fehlversuch im
+            # Verlauf, der nichts ueber den Preis aussagt. Rein oertliche Schritte
+            # (Backup, Preisbarometer) laufen weiter — die brauchen kein Netz.
+            online = _net_ok()
+            for _label, _step, _needs_net in (
+                    ('Selbsttest', _maybe_periodic_health, True),
+                    ('Zusammenfassung', _maybe_send_digest, True),
+                    ('Aktionscodes', _maybe_check_aktionscodes, True),
+                    ('Backup', _maybe_auto_backup, False),
+                    ('Aufraeumen', _reap_orphan_chromium, False),
+                    ('Suchabos', _maybe_check_watches, True),
+                    ('Preiskalender', _maybe_refresh_calendars, True),
+                    ('Preisbarometer', market_basket.maybe_run_baskets, False)):
+                if _needs_net and not online:
+                    continue
+                # Wieviel Speicher kostet welcher Schritt? Der Hoechststand des
+                # Prozesses (VmHWM) sagt nur, DASS es eine Spitze gab. Waechst ein
+                # Schritt spuerbar, steht er hier mit Namen im Log — sonst muesste
+                # man beim naechsten Mal wieder raten.
+                _rss_before = _rss_mb()
                 with busy(_label):
                     _step()
+                _grew = _rss_mb() - _rss_before
+                if _grew >= 50:
+                    log.info("Schritt %s: +%.0f MB (Speicher %.0f → %.0f MB)",
+                             _label, _grew, _rss_before, _rss_before + _grew)
+            # Nach den Abrufen einer Runde: eingesammelten Muell zurueckgeben. Ohne
+            # das behaelt glibc die Arenen, und die Speicheranzeige des Add-ons
+            # bleibt auf dem Stand der groessten Runde stehen.
+            _trim_once()
             _auto_archive_expired()
             share_routes.cleanup_expired()  # abgelaufene öffentliche Links entsorgen
             with db() as con:
@@ -2685,6 +2911,11 @@ def _poll_worker() -> None:
                     due.append(oid)
                 else:
                     next_in = min(next_in, interval - age)
+            if due and not online:
+                log.info("%d faellige(s) Angebot(e) warten auf die Internetverbindung",
+                         len(due))
+                time.sleep(NET_RETRY_INTERVAL)
+                continue
             if due:
                 gap = _poll_gap()
                 log.info("Prüfe %d fällige(s) Angebot(e), %d s Abstand", len(due), gap)
@@ -3007,6 +3238,41 @@ def _flight_healthchecks() -> list[dict]:
     return checks
 
 
+def _integration_healthchecks() -> list[dict]:
+    """Selbsttest für die angebundenen Fremddienste: Mailserver und Nextcloud-
+    Adressbuch. Nur wenn konfiguriert — wer keine Mail verschickt, soll dafür keine
+    Zeile im API-Status sehen.
+
+    Wie die Flugplan-Checks bewusst nicht `critical`: fällt der Mailserver aus, ist
+    die Preisverfolgung selbst nicht kaputt, und der HA-Sensor
+    `binary_sensor.tuiwatch_api_available` (der nur auf kritische Checks schaut)
+    darf davon nicht auf 'off' gehen. Sichtbar wird der Ausfall trotzdem: die Ampel
+    im Fuß der Seite zeigt ihn als Hinweis.
+
+    Es wird nichts verschickt und nichts geschrieben — nur verbunden und gelesen."""
+    checks: list[dict] = []
+    if smtp_configured():
+        try:
+            ok, detail = smtp_probe()
+        except Exception as e:                      # noqa: BLE001 — Diagnose-Beiwerk
+            ok, detail = False, type(e).__name__
+        checks.append({'name': 'Mailserver (SMTP)', 'ok': ok, 'detail': detail,
+                       'critical': False})
+    if nc_configured():
+        cfg = load_config()
+        try:
+            ok, detail = nextcloud.check_addressbook(
+                (cfg.get('nc_addressbook_url') or '').strip(),
+                (cfg.get('nc_user') or '').strip(),
+                (cfg.get('nc_app_password') or '').strip(),
+                verbose=_verbose())
+        except Exception as e:                      # noqa: BLE001
+            ok, detail = False, type(e).__name__
+        checks.append({'name': 'Nextcloud-Adressbuch', 'ok': ok, 'detail': detail,
+                       'critical': False})
+    return checks
+
+
 def _run_healthcheck(wait: bool = False) -> dict:
     """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab.
     Läuft bereits einer, liefert `wait=False` sofort den alten Stand; `wait=True`
@@ -3033,6 +3299,12 @@ def _run_healthcheck(wait: bool = False) -> dict:
             res['checks'] = list(res.get('checks') or []) + _flight_healthchecks()
         except Exception as e:
             log.error("Flugplan-Selbsttest fehlgeschlagen: %s", e)
+        # eigener try: ein Fehler in den Flugplan-Checks darf die Mail-/Adressbuch-
+        # Checks nicht mit verschlucken (und umgekehrt)
+        try:
+            res['checks'] = list(res.get('checks') or []) + _integration_healthchecks()
+        except Exception as e:
+            log.error("Dienste-Selbsttest fehlgeschlagen: %s", e)
         with _health_lock:
             _health_state.clear()
             _health_state.update(res)
@@ -3187,7 +3459,9 @@ def api_settings_get():
     """
     if (err := _require_api()):
         return err
-    return jsonify(settings_store.public_view(load_config()))
+    # Ohne Supervisor sind die drei HA-Felder wirkungslos (kein Token, keine
+    # Sensoren, keine persistenten Benachrichtigungen) — dann gar nicht erst zeigen.
+    return jsonify(settings_store.public_view(load_config(), ha=bool(SUPERVISOR_TOKEN)))
 
 
 @app.route('/api/settings', methods=['POST'])
@@ -3346,6 +3620,27 @@ def api_ai_usage():
     return jsonify(_ai_usage_totals())
 
 
+@app.route('/api/ai/usage', methods=['DELETE'])
+def api_ai_usage_reset():
+    """KI-Kostenzähler auf null setzen (heute, Monat und gesamt).
+
+    Betrifft ausschließlich die drei Zähler-Buckets in `meta`. Der KI-Verlauf und
+    die je Ergebnis gespeicherten Einzelkosten bleiben unangetastet — die Zähler
+    sind eine reine Aufsummierung und lassen sich daraus nicht rekonstruieren,
+    das Zurücksetzen ist also endgültig.
+
+    Geschrieben wird '{}' statt die Zeile zu löschen: `_ai_usage_calc` liest
+    daraus sauber Nullen, und ein fehlender Schlüssel verhält sich damit genauso
+    wie ein geleerter.
+    """
+    if (err := _require_api()):
+        return err
+    for key in ('ai_usage_totals', 'ai_usage_today', 'ai_usage_month'):
+        _meta_set(key, '{}')
+    log.info("KI-Kostenzähler zurückgesetzt (heute, Monat, gesamt)")
+    return jsonify(_ai_usage_totals())
+
+
 # ── PWA (installierbar) ──────────────────────────────────────────────────────────
 
 @app.route('/manifest.json')
@@ -3501,6 +3796,10 @@ def _collect_offers() -> list[dict]:
     out = []
     with db() as con:
         offers = con.execute('SELECT * FROM offers ORDER BY id').fetchall()
+        # Kalender-Bewegungen fuer ALLE Angebote in einem Query — frueher lief hier
+        # je Angebot ein _calendar_moves(), das saemtliche calendar_history-Zeilen
+        # nach Python holte, obwohl davon nur max(ts) gebraucht wird.
+        cal_last_moves = _calendar_last_move_ts(con)
         for o in offers:
             last = con.execute(
                 'SELECT * FROM price_history WHERE offer_id=? ORDER BY ts DESC LIMIT 1',
@@ -3528,8 +3827,7 @@ def _collect_offers() -> list[dict]:
             checking = o['id'] in _checking
             # Nur echte Bewegungen (>=2 bekannte Preise je Reisedatum) zaehlen als
             # Aenderung, nicht der allererste Kalender-Abruf (reine Baseline).
-            cal_moves = _calendar_moves(con, o['id'])
-            last_move_ts = max((v['ts'] for v in cal_moves.values()), default=0)
+            last_move_ts = cal_last_moves.get(o['id'], 0)
             calendar_alert = bool(last_move_ts and last_move_ts > (o['calendar_seen_ts'] or 0))
             avail = None
             if last and last['available'] is not None:
@@ -3933,6 +4231,186 @@ def api_errors():
     return jsonify({'items': list(reversed(_warn_buffer))})
 
 
+def _read_kv(path: str) -> dict:
+    """Zeilen der Form "schluessel wert" (cgroup memory.stat, /proc/meminfo) lesen.
+    Fehlt die Datei — anderer Kernel, cgroup v1, kein Container —, kommt ein leeres
+    Ergebnis zurueck; die Anzeige laesst die Zeile dann einfach weg."""
+    out: dict = {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1].isdigit():
+                    out[parts[0].rstrip(':')] = int(parts[1])
+    except OSError:
+        pass
+    return out
+
+
+def _process_table() -> list[dict]:
+    """Alle Prozesse dieses Containers mit ihrem RSS, groesster zuerst.
+
+    Der Add-on-Container hat einen eigenen PID-Namensraum: hier steht genau das,
+    was Home Assistant als Speicher des Add-ons ausweist — TUIWatch selbst und
+    jedes Chromium, das der Browser-Fallback gestartet hat."""
+    rows = []
+    for pid in os.listdir('/proc'):
+        if not pid.isdigit():
+            continue
+        name, rss, threads = '', 0, 0
+        try:
+            with open(f'/proc/{pid}/status', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('Name:'):
+                        name = line.split(None, 1)[1].strip()
+                    elif line.startswith('VmRSS:'):
+                        rss = int(line.split()[1])
+                    elif line.startswith('Threads:'):
+                        threads = int(line.split()[1])
+                        break          # steht in /proc/<pid>/status nach VmRSS
+        except (OSError, ValueError, IndexError):
+            continue                   # Prozess ist zwischendurch beendet worden
+        if not name:
+            continue
+        rows.append({'pid': int(pid), 'name': name,
+                     'rss_mb': round(rss / 1024, 1), 'threads': threads})
+    rows.sort(key=lambda r: r['rss_mb'], reverse=True)
+    return rows
+
+
+def _cgroup_view(cg: dict, current: int | None) -> dict:
+    """Die Posten hinter dem Wert, den Home Assistant anzeigt — vollstaendig.
+
+    `memory.current` ist die Summe. Zeigt man nur `anon`, `file` und `slab`, bleibt
+    ein Rest ohne Erklaerung stehen; genau der laesst dann an ein Leck denken. Der
+    Rest sind Kernel-Strukturen des Containers: Seitentabellen (bei vielen Threads
+    und vielen Speicher-Arenen nicht wenig), Thread-Stacks im Kernel, Sockets — und
+    `shmem`, also alles, was im Container in eine tmpfs geschrieben wurde
+    (/dev/shm, /tmp), denn das liegt im Speicher, nicht auf der Platte.
+    """
+    mb = lambda v: round(v / 1048576, 1) if v else (0.0 if v == 0 else None)  # noqa: E731
+    known = sum(cg.get(k, 0) for k in ('anon', 'file', 'kernel'))
+    # `kernel` fehlt auf aelteren Kerneln; dann bleibt slab der beste Ersatz.
+    if 'kernel' not in cg:
+        known = sum(cg.get(k, 0) for k in ('anon', 'file', 'slab'))
+    return {
+        'current_mb': mb(current),
+        'anon_mb': mb(cg.get('anon')),
+        'file_mb': mb(cg.get('file')),
+        'slab_mb': mb(cg.get('slab')),
+        'kernel_mb': mb(cg.get('kernel')),
+        'pagetables_mb': mb(cg.get('pagetables')),
+        'kernel_stack_mb': mb(cg.get('kernel_stack')),
+        'shmem_mb': mb(cg.get('shmem')),
+        'other_mb': (round(max(0, current - known) / 1048576, 1)
+                     if current and known else None),
+    }
+
+
+def _rss_mb() -> float:
+    """Eigener Speicher in MB (VmRSS aus /proc/self/status)."""
+    return round(_read_kv('/proc/self/status').get('VmRSS', 0) / 1024, 1)
+
+
+def _malloc_trim() -> bool:
+    """Freigegebenen Speicher aus den glibc-Arenen ans Betriebssystem zurueckgeben.
+
+    Python gibt freigewordene Bloecke an seinen Allocator zurueck, der sie in den
+    Arenen der C-Bibliothek behaelt — fuer das Betriebssystem bleibt der Speicher
+    damit belegt. Bei vielen Threads (waitress 32 + Share-Server 8 + Hintergrund)
+    legt glibc viele solcher Arenen an; nach einer Runde grosser JSON-Antworten
+    steht die Anzeige dauerhaft hoch, obwohl Python die Daten laengst losgelassen
+    hat. `malloc_trim(0)` gibt die zusammenhaengenden freien Teile zurueck.
+
+    Gibt es nur mit glibc (Debian-Basis des Add-ons); auf musl fehlt die Funktion,
+    dann passiert schlicht nichts."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL('libc.so.6')
+        libc.malloc_trim(0)
+        return True
+    except Exception:
+        return False
+
+
+@app.route('/api/memory/trim', methods=['POST'])
+def api_memory_trim():
+    """Aufraeumen von Hand: Python-Muell einsammeln, dann die Arenen zurueckgeben.
+    Antwortet mit dem Vorher/Nachher, damit sichtbar wird, ob es etwas gebracht hat."""
+    if (err := _require_api()):
+        return err
+    before = _rss_mb()
+    freed = _trim_once(auto=False)
+    after = round(before - freed, 1)
+    log.info("Speicher freigegeben: %.1f MB → %.1f MB (%.1f MB zurueckgegeben)",
+             before, after, freed)
+    return jsonify({'ok': True, 'before_mb': before, 'after_mb': after,
+                    'freed_mb': freed})
+
+
+@app.route('/api/memory', methods=['GET'])
+def api_memory():
+    """Woher der Speicherverbrauch kommt, den Home Assistant beim Add-on anzeigt.
+
+    Home Assistant liest den Wert aus der cgroup des Containers. Darin steckt
+    dreierlei, das sich sehr unterschiedlich anfuehlt:
+      * `anon` — echter Heap: Python selbst, geladene Bibliotheken, ein laufendes
+        Chromium. Nur das ist wirklich belegt.
+      * `file` — Dateicache (SQLite-Datenbank, Logs). Zaehlt mit, ist aber jederzeit
+        rueckholbar; der Kernel gibt ihn unter Druck von selbst wieder her.
+      * Rest — Kernel-Strukturen, Sockets, Stacks.
+    Ohne diese Aufteilung sieht ein grosser Dateicache aus wie ein Speicherleck."""
+    if (err := _require_api()):
+        return err
+    st = _read_kv('/proc/self/status')
+    cg = _read_kv('/sys/fs/cgroup/memory.stat')
+    def _num(path: str):
+        try:
+            with open(path, encoding='utf-8') as f:
+                v = f.read().strip()
+            return int(v) if v.isdigit() else None
+        except OSError:
+            return None
+    procs = _process_table()
+    # Chromium ueber ALLE Prozesse zaehlen, nicht nur ueber die angezeigten:
+    # die Renderer-Kinder liegen einzeln oft weit unter den groessten Prozessen.
+    chromium = [p for p in procs if 'chrom' in p['name'].lower()]
+    procs = procs[:15]
+    leftovers = [] if scraper.browser_busy() else _chromium_leftovers()
+    return jsonify({
+        'self': {'rss_mb': round(st.get('VmRSS', 0) / 1024, 1),
+                 # VmHWM: hoechster Stand seit dem Start. Liegt er weit ueber dem
+                 # aktuellen Wert, gab es eine einmalige Spitze (PDF-Import,
+                 # Kalender-Runde); liegt er gleichauf, waechst der Bedarf stetig.
+                 'peak_mb': round(st.get('VmHWM', 0) / 1024, 1),
+                 'threads': st.get('Threads', 0)},
+        'cgroup': _cgroup_view(cg, _num('/sys/fs/cgroup/memory.current')),
+        'processes': procs,
+        'chromium': {'count': len(chromium),
+                     'rss_mb': round(sum(p['rss_mb'] for p in chromium), 1),
+                     'busy': scraper.browser_busy(),
+                     'leftover_count': len(leftovers),
+                     'leftover_mb': round(sum(mb for _, mb in leftovers), 1)},
+        'browser_fallback': bool(load_config().get('browser_fallback', True)),
+        'malloc_arena_max': os.environ.get('MALLOC_ARENA_MAX') or '',
+        'trim': {'ts': _trim_state['ts'], 'freed_mb': _trim_state['freed_mb'],
+                 'auto': _trim_state['auto'], 'every_s': MEMORY_TRIM_INTERVAL},
+        'log_buffer': len(_log_buffer),
+    })
+
+
+@app.route('/api/memory/reap', methods=['POST'])
+def api_memory_reap():
+    """Haengengebliebene Fallback-Browser von Hand beenden (Knopf im Speicher-Tab).
+    Derselbe Aufraeumer laeuft ohnehin bei jeder Poll-Runde mit."""
+    if (err := _require_api()):
+        return err
+    if scraper.browser_busy():
+        return jsonify({'ok': False, 'killed': 0,
+                        'error': 'Gerade laeuft ein Abruf ueber den Browser'}), 409
+    return jsonify({'ok': True, 'killed': _reap_orphan_chromium()})
+
+
 @app.route('/api/logs', methods=['GET'])
 def api_logs():
     """Komplettes Add-on-Log seit Start (alle Stufen) aus `_log_buffer`, neueste
@@ -3986,6 +4464,7 @@ _format_month_list_de = price_calendar._format_month_list_de
 _check_calendar_trend_alert = price_calendar._check_calendar_trend_alert
 _run_calendar = price_calendar._run_calendar
 _calendar_moves = price_calendar._calendar_moves
+_calendar_last_move_ts = price_calendar._calendar_last_move_ts
 _calendar_top_moves = price_calendar._calendar_top_moves
 _calendar_date_history = price_calendar._calendar_date_history
 _calendar_moves_since = price_calendar._calendar_moves_since
@@ -4309,6 +4788,50 @@ def _health_sensor_worker() -> None:
         time.sleep(120)
 
 
+# Wie oft freigewordener Speicher ans Betriebssystem zurueckgegeben wird.
+# Bewusst NICHT an die Pruefrunde gehaengt: die laeuft je nach Einstellung nur alle
+# paar Stunden (Standard 6, oft 12), und der Speicher waechst nicht nur dort — jede
+# Seite der Oberflaeche, jede KI-Antwort und jeder Kalenderabruf laeuft in einem
+# waitress-Thread mit eigener Arena. Bis zur naechsten Runde stand die Anzeige
+# deshalb hoch, obwohl Python die Daten laengst losgelassen hatte.
+MEMORY_TRIM_INTERVAL = 300
+
+# Letztes Aufraeumen, fuer die Anzeige im Speicher-Tab: ohne das laesst sich von
+# aussen nicht unterscheiden, ob der Aufraeumer laeuft und nichts findet oder ob
+# er gar nicht laeuft.
+_trim_state: dict = {'ts': 0.0, 'freed_mb': 0.0, 'auto': False}
+
+
+def _trim_once(auto: bool = True) -> float:
+    """Einmal aufraeumen: Python-Muell einsammeln, freie Arenen zurueckgeben.
+    Belegte Daten bleiben liegen — `malloc_trim` fasst nur an, was der Allocator
+    ohnehin nicht mehr benutzt. Gibt die zurueckgegebenen MB an."""
+    before = _rss_mb()
+    gc.collect()
+    _malloc_trim()
+    freed = round(before - _rss_mb(), 1)
+    _trim_state.update(ts=time.time(), freed_mb=freed, auto=auto)
+    return freed
+
+
+def _memory_janitor() -> None:
+    """Raeumt alle `MEMORY_TRIM_INTERVAL` Sekunden auf.
+
+    Geloggt wird nur, wenn es sich lohnt (ab 50 MB): sonst stuende alle fuenf
+    Minuten dieselbe Zeile im Log."""
+    time.sleep(60)          # erst hochlaufen lassen
+    while True:
+        try:
+            before = _rss_mb()
+            freed = _trim_once(auto=True)
+            if freed >= 50:
+                log.info("Speicher zurueckgegeben: %.0f MB (%.0f → %.0f MB)",
+                         freed, before, before - freed)
+        except Exception as e:
+            log.warning("Speicher-Aufraeumer: %s", e)
+        time.sleep(MEMORY_TRIM_INTERVAL)
+
+
 def _cooldown_sensor_worker() -> None:
     """Meldet den Cooldown-Sensor alle 5 Sekunden an HA — kurzes Intervall, weil der
     Cooldown selbst nur 60s dauert und sowohl den HA-Neustart überstehen als auch
@@ -4405,8 +4928,11 @@ def _handle_sigterm(signum, frame) -> None:
     würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
     Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
     Hintergrund-Threads sind daemon=True (siehe main()), ein harter os._exit(0)
-    ist daher sicher — kein offener State, der noch geflusht werden müsste
-    (DB-Schreibzugriffe committen bereits pro `with db() as con:`-Block)."""
+    ist daher sicher: DB-Schreibzugriffe committen bereits pro `with db() as con:`-Block
+    (SQLite ist ueber sein Journal abbruchsicher), und alle Dateischreibzugriffe
+    laufen ueber `atomic_io` — sie landen per `os.replace` im Ziel oder gar nicht,
+    nie halb. Ein Kill mitten im Schreiben kostet hoechstens eine verwaiste
+    `.tmp-*.new`-Datei, nie die Zieldatei."""
     log.info("SIGTERM empfangen, beende sauber…")
     os._exit(0)
 
@@ -4455,6 +4981,7 @@ def main() -> None:
     threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
+    threading.Thread(target=_memory_janitor, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     threading.Thread(target=_muc_flights_worker, daemon=True).start()
     threading.Thread(target=_str_flights_worker, daemon=True).start()

@@ -69,9 +69,17 @@ FIELDS: dict = {
     'visit_bot_nets':     ('list',   [],    (100, r'^[0-9a-fA-F:.]{2,45}(/\d{1,3})?$')),
     'user_journal_max':   ('int',    100,   (20, 1000)),
     'geoip_offline':      ('bool',   True,  None),
+    # Sicherheits-Kopfzeilen fuer den Browser (CSP & Co.)
+    #   report = mitschicken, aber nichts blockieren (Konsole meldet Treffer)
+    #   on     = durchsetzen   off = gar nicht senden
+    'csp_mode':           ('choice', 'report', ('report', 'on', 'off')),
     # Mitgliederbereich und Backup
     'user_upload_max_mb': ('int',    200,   (1, 4096)),
     'auto_backup_keep':   ('int',    7,     (0, 60)),
+    # Frueherer Stand von site.json vor jeder Aenderung (Reiter System →
+    # Fruehere Staende). 0 = aus. Deckel bei 100: jede Revision ist eine
+    # vollstaendige Kopie von site.json.
+    'revision_keep':      ('int',    20,    (0, 100)),
     # SMB-Speicher für Mitglieder-Dateien
     'smb_server':         ('str',    '',    200),
     'smb_share':          ('str',    '',    200),

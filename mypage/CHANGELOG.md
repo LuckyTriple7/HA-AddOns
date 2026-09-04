@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.11.55
+
+- 🐛 **Die Einstellung für die früheren Stände gab es gar nicht.** Der Hinweis im Reiter *System* verwies auf eine Add-on-Option, die weder in `config.yaml` stand noch in den Einstellungen — gelesen wurde `revision_keep` zwar, gesetzt werden konnte es nirgends. Es blieb also immer beim eingebauten Standard von 20 Ständen, und die Meldung „Frühere Stände sind deaktiviert" konnte nie erscheinen. Die Einstellung steht jetzt im Zahnrad unter **Frühere Stände (Rückgängig)**, 0 bis 100, `0` schaltet die Sicherung ab.
+- 🎯 **Hinweistext richtiggestellt: ein zurückgeholter Stand betrifft mehr als Texte.** „Nur Seiteninhalte" klang nach Beiträgen; tatsächlich ist eine Revision eine vollständige Kopie von `site.json` und wird beim Zurückholen komplett darübergeschrieben — mitsamt Design und **Modulschaltern**. Wer einen Stand zurückholt, aus der Zeit als der Reiseblog noch an war, hat ihn danach wieder an. Was in eigenen Dateien liegt — Mitglieder, Nachrichten, Reiseblog-Inhalte, Statistik, Einstellungen — bleibt weiterhin unberührt.
+
+## 0.11.54
+
+- 🐛 **Die Design-Vorschau überlebt jetzt auch „Durchsetzen".** Sie rendert die öffentliche Startseite im Admin und schiebt ein `<base>` auf die echte Adresse hinein, damit Bilder und Schriften von dort kommen. Ein `srcdoc`-Rahmen erbt aber die Regel des Elterndokuments — `base-uri 'none'` und `font-src 'self'` hätten dem Rahmen genau das genommen, was man in einer Design-Vorschau beurteilen will. Die Admin-Regel erlaubt für Schriften, Verbindungen, Manifest und `<base>` deshalb zusätzlich die Herkunft der öffentlichen Seite: die eingetragene öffentliche Adresse, sonst den Nachbarport. Hergeleitet wie in `api_preview`, damit beide nicht auseinanderlaufen.
+- 🔒 Die eingetragene öffentliche Adresse wird dabei gegen ein Muster aus Schema, Name und Port geprüft, bevor sie in die Kopfzeile geht — ein Zeilenumbruch aus einem Eingabefeld wäre sonst eine zweite, frei erfundene Kopfzeile.
+- 🧹 Die öffentliche Regel nennt jetzt `manifest-src` ausdrücklich, statt es über `default-src` laufen zu lassen.
+
+## 0.11.53
+
+- 🐛 **Konsolen-Warnung der Permissions-Policy behoben.** Die Kopfzeile nannte `ambient-light-sensor`; Chrome kennt den Namen nicht (er steckt dort hinter einem Flag) und meldete bei jedem Seitenaufruf `Unrecognized feature`. Wirksam war die Kopfzeile trotzdem — unbekannte Einträge werden übersprungen, nicht die ganze Regel —, aber in einer Konsole voller Warnungen geht der echte Treffer unter. Der Eintrag ist raus, der Sensor bleibt über `accelerometer`/`gyroscope`/`magnetometer` ohnehin ohne Zugriff.
+
+## 0.11.52
+
+- 🔒 **Sicherheits-Kopfzeilen für den Browser.** Jede Antwort trägt jetzt eine Content-Security-Policy, eine Permissions-Policy sowie `X-Content-Type-Options: nosniff` und `Referrer-Policy: strict-origin-when-cross-origin`. Die Policy sagt dem Browser vorweg, was eine Seite darf: Skripte, Stile, Schriften und Verbindungen nur vom eigenen Server, eingebettete Videos nur von `youtube-nocookie.com` und `player.vimeo.com`, keine `<object>`, kein umgebogenes `<base>`, Formulare nur an die eigene App. Die öffentliche Seite darf zusätzlich nirgends eingebettet werden (`frame-ancestors 'none'`).
+- 🔒 Die Permissions-Policy schaltet ab, was MyPage nicht braucht — Kamera, Mikrofon, Standort, Bezahl-API, USB und ein Dutzend Sensoren. Erlaubt bleiben nur Zwischenablage (Kopier-Knöpfe) sowie Vollbild und Autoplay für die beiden Video-Hosts.
+- ⚙️ **Neue Einstellung `csp_mode`** (Einstellungen → Sicherheits-Kopfzeilen). Ab Werk steht sie auf **Nur melden**: Die Regel geht mit, blockiert aber nichts, sondern der Browser schreibt in seine Konsole (F12), was er blockiert hätte. Wer eine Weile ohne Meldung durchkommt, stellt auf **Durchsetzen**; **Aus** schickt gar keine Regel. Bewusst umschaltbar statt fest verdrahtet — eine Policy, die eine eigene Anpassung erschlägt, muss abschaltbar sein.
+- 🎯 Der Admin bekommt bewusst **kein** `frame-ancestors` und kein `X-Frame-Options`: Über den Home-Assistant-Ingress läuft das Panel in einem iframe von Home Assistant, eine Sperre hätte das Panel weiß gelassen.
+- 🧹 `'unsafe-inline'` steht vorerst in der Regel, weil Vorlagen und Spiele mit rund 660 `onclick`-Attributen arbeiten, die ein Nonce nicht abdeckt. Der Umbau auf Event-Delegation und eine Policy ohne `unsafe-inline` steht im Backlog; was jetzt schon greift, sind fremde Skript-Quellen und die übrigen Punkte oben.
+
+## 0.11.51
+
+- 🔒 **Offene Weiterleitung im Einstieg der Vorschau geschlossen** (CodeQL `py/url-redirection`). Nach dem Setzen des Cookies leitet MyPage auf dieselbe Adresse ohne den Token weiter — dafür wurde der angefragte Pfad unverändert übernommen. Ein Aufruf von `//fremde-seite.de/?vorschau=…` hätte darin eine protokollrelative Adresse ergeben und damit nach draußen geführt. Das Ziel läuft jetzt über `_safe_next()`, wie alle anderen Weiterleitungen im Add-on.
+
+## 0.11.50
+
+- ✨ **Vorschau-Link: die Seite im Aufbau ansehen, ohne den Wartungsmodus abzuschalten.** Unter System → Betrieb erzeugt ein Knopf eine signierte Adresse; beim ersten Aufruf wandert der Token in einen Cookie und aus der Adresse heraus. Ab da liefert MyPage die echte Seite aus — mit Navigation, Unterseiten und allem, was der Vorschaurahmen im Design-Reiter nicht kann. Alle anderen sehen weiterhin die Wartungsseite.
+- 🎯 **Abgeschaltete Bereiche sind in der Vorschau sichtbar.** Blog, Bibliothek, Projekte, Reiseblog und Formulare lassen sich damit aufbauen und ansehen, während sie für Besucher aus sind — das Vorbereiten braucht kein kurzzeitiges Einschalten für alle mehr.
+- 🔒 Gültigkeit wählbar (1 Stunde, 8 Stunden, 7 Tage), signiert mit dem vorhandenen `secret.key`. Antworten tragen `noindex, nofollow` und `private, no-store`, damit weder ein Suchindex noch ein vorgeschalteter Zwischenspeicher etwas davon behält. Eigene Aufrufe zählt der Besucherzähler nicht mit. *Alle Links zurückziehen* macht jede ausgegebene Adresse sofort ungültig, auch die eigene.
+- 🎯 Ein Balken am unteren Rand erinnert an die laufende Vorschau und beendet sie auf Klick — ohne ihn vergisst man den Modus und wundert sich, warum Besucher etwas anderes berichten.
+- 🧹 Die 33 verstreuten Wartungsmodus-Abfragen laufen jetzt über einen gemeinsamen Helfer. Bisher stand die Bedingung an jeder Route einzeln; eine vergessene wäre in der Vorschau ein 503 mitten im Rundgang gewesen.
+
+## 0.11.49
+
+- 🎯 **Ein abgeschalteter Bereich verschwindet jetzt auch aus dem Admin.** Steht Blog, Bibliothek oder Projekte unter Design → Module auf NEIN, ist der zugehörige Reiter weg — wie beim Reiseblog und den Formularen. Bisher blieb er stehen, damit sich Inhalte vorbereiten lassen; wer den Bereich gar nicht nutzt, hatte den Reiter aber dauerhaft im Weg. Zum Vorbereiten kurz auf JA stellen, füllen, wieder auf NEIN — die Inhalte bleiben dabei unangetastet.
+- 🎯 Mit dem Reiter geht auch die Karte im Reiter *Inhalte*: Sie besteht nur aus einem Knopf zum Reiter und hätte ins Leere geführt.
+- 🐛 **Der Newsletter hängt nicht mehr am Blog.** Seine Verwaltung sitzt im Blog-Reiter, hat aber einen eigenen Schalter — ein abgeschalteter Blog hätte die Abonnentenliste mitgenommen. Steht der Newsletter auf JA, bleibt der Reiter stehen und zeigt dann nur noch dessen Panel.
+- 🧹 Zwei Folgeanzeigen aufgeräumt: Die SEO-Übersicht listet keine Beiträge und Bibliothek-Einträge mehr, deren Adressen ohnehin mit 404 antworten, und das KI-Textstudio bietet die Sorten *Blog*, *Projekt* und *Bibliothek* nur noch an, solange der jeweilige Bereich eingeschaltet ist.
+
+## 0.11.48
+
+- 🧹 **Ohne Home Assistant verschwindet alles Übrige, was HA betrifft.** Der Bereich *Home-Assistant-Sensoren* unter System und die Auswahl *HA-Benachrichtigung bei neuer Nachricht* unter Design werden gar nicht erst ausgeliefert, wenn kein Supervisor da ist. Bisher standen sie auch im reinen Docker-Betrieb da und versprachen etwas, das dort nicht passieren kann.
+- 🧹 Vier Hinweistexte gab es nur in der HA-Fassung und zeigten unter Docker ins Leere: das Protokoll verwies auf „Einstellungen → Add-ons → MyPage → Protokoll", die Wochenzusammenfassung auf eine HA-Benachrichtigung, und der 2FA-Hinweis erklärte den Ingress-Weg, den es dort nicht gibt. Jede dieser Stellen hat jetzt eine eigene Docker-Fassung (Protokoll per `docker compose logs`, Zusammenfassung per E-Mail, 2FA als einziger Zugang).
+
+## 0.11.47
+
+- ✨ **Speicherlimit für den gesamten Datenordner.** Neu als Add-on-Option *Speicherlimit (MB)* bzw. als `MYPAGE_STORAGE_MAX_MB` in der compose.yaml — bewusst **nicht** im Admin-Panel: Ein Limit, das der Inhalts-Admin selbst hochdrehen kann, ist keins. 0 heißt unbegrenzt, bestehende Installationen ändern ihr Verhalten also nicht. Gezählt wird alles im Datenordner: Bilder, Bibliothek-PDFs, Logos, Mitglieder-Dateien, Anhänge, Spielstände und Sicherungen. Liegen die Mitglieder-Dateien auf einer SMB-Freigabe, zählen sie nicht mit.
+- 🎯 **Geprüft wird an einer einzigen Stelle**, bevor Flask den Rumpf einliest — das trifft jeden Weg, auf dem Dateien hereinkommen, auch künftige. Abgewiesen werden nur Uploads; Bedienen, Löschen und Aufräumen laufen weiter, damit man sich wieder Luft verschaffen kann. Wird abgewiesen, zählt MyPage vorher noch einmal frisch nach, damit gerade Gelöschtes sofort zählt.
+- ✨ **Neue Anzeige System → Speicherbelegung**: Balken, Gesamtwert und eine Aufschlüsselung nach Bereichen (Bilder, PDFs, Logos, Mitglieder-Dateien, Profilbilder, Anhänge, Sicherungen, Spielstände, Besucher-Archiv …) mit Anteil in Prozent. Ohne gesetztes Limit steht dort der freie Platz der Platte. Dazu eine Zeile im Systemzustand, die ab 80 % warnt.
+- 🎯 Ist das Limit erreicht, legt MyPage **kein neues automatisches Backup** mehr an, sondern dünnt die vorhandenen aus — sie geben Platz frei, ohne dass Inhalte verloren gehen. Mitglieder sehen im Dateibereich das kleinere von persönlicher Quote und verbleibendem Gesamtplatz.
+
+## 0.11.46
+
+- ✨ **Blog, Bibliothek und Projekte lassen sich abschalten** (Design → Module), wie bisher schon Reiseblog und Formulare. Das Auge am Abschnitt nahm sie nur von der Startseite und aus der Navigation — `/blog`, `/bibliothek` und `/p/…` antworteten weiter, und die Einträge standen in Sitemap, RSS, Suche und statischem Export. Ein NEIN schließt jetzt alles davon; die Adressen antworten mit 404. Standard ist AN, bestehende Seiten ändern sich also nicht.
+- 🎯 Die Admin-Reiter bleiben in allen drei Fällen stehen. Anders als beim Reiseblog will man Beiträge und Einträge vorbereiten, bevor der Bereich online geht — und der GitHub-Import der Projekte läuft weiter.
+
+## 0.11.45
+
+- 📚 **Standalone-Anleitung: mehrere Instanzen auf einem Server.** Neuer Abschnitt in `STANDALONE.md` / `STANDALONE.en.md` mit fertigen Dockge-Stacks (ein Stack je Instanz, eigener Ordner, eigene Host-Ports) und den Punkten, an denen es sonst hakt: getrennte Datenordner, öffentliche URL je Instanz, SMB-Unterverzeichnisse, Brute-Force-Zählung je Container. Der Abschnitt „Passwort vergessen" nennt jetzt den Stack-Ordner und den Log-Tab.
+
+## 0.11.44
+
+- ✨ **Admin-Zugang ohne Home Assistant: eigenes Passwort statt options.json.** Läuft MyPage als Docker-Container (ohne Supervisor), erzeugt es beim ersten Start ein zufälliges Admin-Passwort — 16 Zeichen mit Groß-, Kleinbuchstaben und Ziffern — und schreibt es ins Protokoll. Auf der Platte landet nur ein Hash in `admin_login.json` im Datenordner. Bisher stand das Passwort im Klartext in einer von Hand angelegten `options.json`; die wird für den Login nicht mehr gebraucht.
+- ✨ **Passwort ändern im Admin-Panel** (System → Zugang): Benutzername und Passwort umstellen, mindestens 12 Zeichen mit Groß-, Kleinbuchstaben und Ziffer. Abgefragt wird das aktuelle Passwort und — bei aktiver 2FA — zusätzlich ein Code; fünf Fehlversuche sperren die Stelle für fünf Minuten. Nach dem Wechsel werden alle übrigen Admin-Sitzungen beendet, damit eine geklaute Sitzung ihn nicht überlebt. Unter Home Assistant bleibt der Reiter ein Hinweis auf die Add-on-Optionen — dort ändert sich nichts.
+- ✨ **Weg für vergessene Passwörter.** `admin_login.json` löschen, Container neu starten: MyPage erzeugt ein neues Passwort und protokolliert es. Inhalte, Mitglieder und Einstellungen bleiben unberührt, und 2FA bleibt aktiv — Dateizugriff allein ist damit kein voller Zugang. Solange noch das erzeugte Startpasswort gilt, erinnert jeder Start daran.
+- 🔒 Die Datei bleibt aus dem Backup-ZIP heraus: Ein Restore von letzter Woche hätte sonst still das alte Passwort zurückgeholt. Bestehende Standalone-Installationen werden beim ersten Start übernommen — das Passwort aus `options.json` wandert gehasht in die neue Datei, die Anmeldung bleibt unverändert.
+
 ## 0.11.43
 
 - 🐛 **Warnung beim PDF-Bau.** `word-break: break-word` stand im Stylesheet der Bibliothek-PDFs, existiert aber nicht — gültige Werte sind nur `normal`, `break-all` und `keep-all`. WeasyPrint verwarf die Regel und schrieb "Ignored word-break: break-word at 30:57, invalid value." ins Log. Da `overflow-wrap: anywhere` daneben steht und die Arbeit ohnehin allein macht, ist die Zeile ersatzlos raus — am Ergebnis ändert sich nichts, das Log ist wieder sauber.

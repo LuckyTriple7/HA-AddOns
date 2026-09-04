@@ -96,6 +96,30 @@ Browser nötig war:
 - Fallback-Lösung: Seite mit **Headless-Chromium (Playwright)** rendern und das DOM
   auslesen. Code: `_fetch_price_browser()` in [scraper.py](scraper.py).
 
+**Zwei Bremsen davor** (seit 0.113.11), weil der Browser teuer ist — gemessen rund
+400 MB leer und bis 740 MB mit geladener TUI-Seite, verteilt auf sechs bis sieben
+Prozesse, die im Add-on alle zum Speicher des Containers zählen:
+- `browser_fallback_enabled()` — Einstellung *Browser-Fallback (Chromium)*, Standard an.
+  `scraper.py` kennt die Einstellungen nicht (es läuft auch als eigenes Skript und in den
+  Parsing-Tests); `app.py` hängt beim Start eine Funktion ein, die den Wert bei jedem
+  Aufruf frisch liest — Umschalten wirkt also ohne Neustart.
+- `internet_reachable()` — TCP auf `www.tui.com:443` und `1.1.1.1:443`, 4 s. Zwei feste
+  Ziele, absichtlich nicht aus der Angebots-URL abgeleitet: geprüft wird die Leitung,
+  nicht ein vom Benutzer benannter Host. Ohne Netz ist auch die gerenderte Seite nicht
+  zu holen — der Browser bliebe 740 MB für nichts, und das bei jedem fälligen Angebot
+  nacheinander.
+
+Jedes gestartete Chromium bekommt zusätzlich `--tuiwatch-fallback` in die Kommandozeile
+(`BROWSER_MARKER`). Chromium ignoriert das Flag; für uns ist es das Erkennungszeichen,
+an dem `_reap_orphan_chromium()` in [app.py](app.py) einen hängengebliebenen Browser
+zweifelsfrei von einem fremden im selben Namensraum unterscheidet. Aufgeräumt wird bei
+jeder Poll-Runde und nie, solange `scraper.browser_busy()` einen laufenden Abruf meldet.
+
+Denselben Test nutzt der Poller einmal je Runde (`_net_ok()` in [app.py](app.py)): ohne
+Netz pausieren Preisprüfungen, Suchabos, Kalender, Selbsttest, Aktionscodes und
+Wochenbericht, während örtliche Schritte (Backup, Preisbarometer) weiterlaufen. Der
+Ausfall steht einmal im Log, danach höchstens stündlich, die Rückkehr wieder einmal.
+
 ## Was wird ausgelesen (Stand: 2026-06, funktioniert)
 
 Wichtig: Es gibt **zwei** Preise auf der Seite.

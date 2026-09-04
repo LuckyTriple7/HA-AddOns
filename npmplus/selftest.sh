@@ -125,6 +125,7 @@ else
         CS_APPSEC=$(conf APPSEC_URL || echo "")
         CS_FALLBACK=$(conf FALLBACK_REMEDIATION || echo "")
         CS_CAPTCHA=$(conf CAPTCHA_PROVIDER || echo "")
+        CS_APPSEC_FAIL=$(conf APPSEC_FAILURE_ACTION || echo "")
 
         if [ "$CS_ON" = "true" ]; then
             ok "bouncer active according to ${CS_CONF}"
@@ -180,6 +181,11 @@ else
 
         ok "CAPTCHA_PROVIDER: ${CS_CAPTCHA:-<empty, captcha off>}"
         ok "FALLBACK_REMEDIATION: ${CS_FALLBACK:-<image default>} (what the bouncer does if the LAPI fails)"
+        case "${CS_APPSEC_FAIL:-}" in
+            passthrough) ok "APPSEC_FAILURE_ACTION: passthrough (AppSec down = request goes through unchecked)" ;;
+            deny)        warn "APPSEC_FAILURE_ACTION: deny — while AppSec is unreachable EVERY request is blocked. A restart of the CrowdSec add-on takes all services behind the proxy down with it" ;;
+            *)           warn "APPSEC_FAILURE_ACTION: ${CS_APPSEC_FAIL:-<image default, deny>} — restart the add-on so it writes the value" ;;
+        esac
     fi
 fi
 

@@ -1,5 +1,52 @@
 # Changelog — HA SysWatch
 
+## [1.5.0] - 2026-08-30
+
+### Added
+- **Button „Build-Cache freigeben“** im Speicher-Dialog (neue Route `POST /api/build/prune`, ruft `POST /build/prune` am Docker-Socket — dasselbe wie `docker builder prune -a`). Gelöscht werden nur Build-Zwischenergebnisse, Images/Container/Volumes bleiben unberührt. Das Feld „GB behalten“ entspricht `--keep-storage`. Die Aktion verlangt wie Neustart und Kill das Add-on-Passwort, läuft in einem Hintergrund-Thread und meldet danach die freigegebene Menge samt Anzahl der Einträge; die Größen werden automatisch neu berechnet.
+- Neue Option `allow_build_prune` (Standard `true`) blendet den Button aus, wenn niemand über die Oberfläche aufräumen können soll.
+- DOCS erklärt, warum der Build-Cache wächst: ein sich änderndes `ARG` weit oben im Dockerfile (etwa `BUILD_VERSION`) invalidiert bei jeder Versionserhöhung alle nachfolgenden Layer, und der eingebaute Docker-Builder räumt die Einträge nie von selbst auf.
+
+## [1.4.3] - 2026-08-30
+
+### Fixed
+- Build-Cache-Größe stimmte nicht mit `docker system df` überein. 1.4.2 hatte Einträge mit `Shared`-Flag übersprungen — dadurch zeigte die Spalte Docker's *Reclaimable* statt der Gesamtgröße (165.1 GiB statt 182.1 GB). Die Gesamtgröße kommt jetzt aus dem API-Feld `BuilderSize` (Fallback: Summe aller Einträge), freigebbar ist die Gesamtgröße minus alle Einträge mit `InUse` — genau die Rechnung der CLI.
+- „Freigebbar“ bei Images und Volumes folgte einer eigenen Formel (Summe der exklusiven Layer aller Images ohne Container). Jetzt ebenfalls wie `docker system df`: Gesamtgröße minus das, was benutzt wird. Gegen eine echte Host-Ausgabe geprüft, alle vier Zeilen stimmen überein.
+
+### Added
+- Jede Zeile der Docker-Aufteilung nennt Anzahl und freigebbaren Anteil; die Überschrift zeigt zusätzlich die Gesamtsumme des freigebbaren Platzes.
+- Der Telegram-Speicher-Alarm listet den Build-Cache mit auf und nennt den gesamten freigebbaren Anteil.
+
+## [1.4.2] - 2026-08-30
+
+### Fixed
+- Build-Cache im Speicher-Dialog zeigte absurde Werte (gemeldet: 169.6 GiB auf einer deutlich kleineren Platte). `GET /system/df` liefert im `BuildCache`-Array Einträge mit gesetztem `Shared`-Flag — deren Bytes gehören bereits zu einem Image- oder Container-Layer und werden dort schon gezählt. Die Summe lief über alle Einträge und hat dieselben Layer dadurch vielfach addiert. `Shared`-Einträge werden jetzt übersprungen (`docker/cli` macht in `system df` dieselbe Ausnahme). Die Docker-Gesamtsumme fällt entsprechend auf einen plausiblen Wert.
+
+### Added
+- Build-Cache-Zeile nennt jetzt zusätzlich die Anzahl der Einträge und den freigebbaren Anteil (Einträge ohne `InUse`).
+
+## [1.4.1] - 2026-08-30
+
+### Added
+- **Dialog „Speicherplatz“** per Linksklick auf die Kachel „Speicher frei“: Datenpartition mit Balken und Quelle, Docker-Aufteilung inklusive **freigebbar** (exklusive Layer aller Images ohne Container), die **25 größten Images** mit Größe / geteiltem Anteil / Anzahl nutzender Container, die 10 größten Container und die 15 größten Volumes. Ungenutzte Images und Volumes sind gelb markiert. Neue Route `GET /api/sizes` — die Detaillisten hängen bewusst nicht am Stats-Poll.
+- **Rechtsklick auf die Kachel** startet die Größenabfrage (vorher lag das auf dem Linksklick). Im Dialog erledigt das der Button „Neu berechnen“; danach pollt die Oberfläche alle 3 s bis ein neuer Zeitstempel vorliegt, der Scan darf also Minuten dauern.
+
+### Fixed
+- Kachel-Inhalte klebten oben, weil Kacheln mit Balken höher sind als die ohne. `.card` ist jetzt ein Flex-Container mit `justify-content: center` — „CPU GESAMT“ und „RAM GENUTZT“ sitzen wieder mittig.
+
+## [1.4.0] - 2026-08-30
+
+### Added
+- **Kachel „Speicher frei“**: freier Platz der HA-Datenpartition, Balken zeigt die Belegung (gleiche Farbskala wie SYS CPU/RAM). Werte kommen von der Supervisor-API (`/host/info`), Fallback `statvfs` auf `/config`, `/data`, `/`. Der Tooltip listet die Docker-Aufteilung (Images / Container / Volumes / Build-Cache) samt Zeitstempel; ein Klick startet die Größenabfrage sofort neu (`POST /api/sizes/refresh`).
+- **Spalte „Größe“** in der Container-Tabelle (sortierbar): `SizeRw`, also die beschreibbare Schicht des Containers. Tooltip nennt zusätzlich `SizeRootFs` inkl. Image-Layer. Datenquelle ist `docker system df` — die Abfrage scannt das Dateisystem und läuft deshalb in einem eigenen Hintergrund-Thread, Intervall über die neue Option `size_interval` (Standard 15 Minuten, 0 = aus).
+- **Speicher-Alarm** über die neue Option `notify_disk_threshold` (% belegt, 0 = aus). Die Telegram-Nachricht nennt Belegung, freien Platz, die Docker-Aufteilung und die fünf größten Container-Schichten — also direkt die Kandidaten, die die Platte volllaufen lassen. Auslöse- und Entwarnungsverzögerung teilen sich die bestehenden Optionen `notify_over_duration` / `notify_clear_duration`.
+
+### Changed
+- Übersichts-Kacheln kompakter (Raster ab 94 px statt 110 px, kleinere Schrift und Balken), damit die siebte Kachel in dieselbe Reihe passt. Tabellen-Padding von 10 px auf 8 px reduziert, `name-cell` von 180 px auf 170 px — die neue Spalte passt ohne zusätzliches Horizontal-Scrolling.
+
+### Note
+- Docker-**Logfiles** zählen nicht zu `SizeRw`. Ein Container kann die Platte also über sein Log füllen, ohne in der Größen-Spalte aufzufallen. Dagegen hilft nur ein Log-Limit im Docker-Daemon des Hosts (`max-size` / `max-file`) — das kann ein Add-on nicht setzen. Der Speicher-Alarm schlägt aber unabhängig von der Ursache an.
+
 ## [1.3.1] - 2026-08-22
 
 ### Fixed

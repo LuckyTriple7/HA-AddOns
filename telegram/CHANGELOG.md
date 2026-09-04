@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.8] - 2026-09-03
+- **Sicherheitsupdate: qs auf 6.16.0.** Schliesst CVE-2026-82562 (GHSA-x5fp-wj9c-mxmx, mittel) — beim Parsen von Bracket-Keys mit Kommagruppen liess sich das `arrayLimit` umgehen
+- qs kommt nicht direkt aus der `package.json`, sondern ueber `express` und `body-parser`. Beide pinnen `~6.15.1`, lassen 6.16.0 also nicht zu. Der Dependabot-Vorschlag haette deshalb `express` von 4.22.2 auf 5.2.1 gehoben — ein Major-Wechsel, der das Add-on beim Start zerlegt haette: Express 5 nutzt path-to-regexp v8, und die Catch-all-Route `app.get('*')` wirft dort schon beim Registrieren
+- Stattdessen erzwingt jetzt ein `overrides`-Eintrag in der `package.json` qs `^6.16.0`. Express bleibt auf 4.22.2, die Route bleibt wie sie ist
+
 ## [1.7.7] - 2026-08-29
 - **REST-API auf eigenem Port mit Token-Pflicht.** Neue Optionen `api_enabled` (Standard: aus) und `api_token` starten einen zweiten Listener auf **17788**, der ausschliesslich `/api/*` bedient und jeden Aufruf ohne `Authorization: Bearer <Token>` mit `401` abweist
 - **Breaking Change: Port 17778 wird nicht mehr veroeffentlicht.** Er gab Weboberflaeche und REST-API ohne jede Anmeldung an das ganze LAN heraus — wer die Adresse kannte, konnte mitlesen und senden. Beides liegt auf demselben Express-Server, und der UI-Port kann keinen Token verlangen: die Oberflaeche ruft ihre eigenen `/api/`-Routen aus dem Browser auf. Sein Schutz kann deshalb nur sein, ihn nicht freizugeben

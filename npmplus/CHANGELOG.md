@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.1.38] - 2026-08-30
+
+### Behoben
+- **Die Wartelogik auf CrowdSec meldete Erfolg, ohne den Bouncer scharfzuschalten.** Seit
+  0.1.33 fragt das Add-on im Hintergrund alle 30 s nach der LAPI und schrieb dann
+  `ENABLED=true` in `crowdsec.conf`, gefolgt von `nginx -s reload`. Im Protokoll stand
+  „CrowdSec is up now — bouncer enabled, nginx reloaded".
+
+  Der Reload aktiviert den Bouncer nicht. Am laufenden System nachgemessen: nach dem Reload
+  holte NPMplus keine einzige Entscheidung von CrowdSec ab, in CrowdSec blieb der Bouncer
+  ohne Abruf. Erst ein Neustart des Add-ons von Hand brachte ihn zum Leben. Der Bouncer war
+  damit nach jedem Neustart von Home Assistant OS tot — und das Protokoll behauptete das
+  Gegenteil, was die Fehlersuche zusätzlich in die Irre führte.
+
+  Das Add-on startet sich jetzt über die Supervisor-API selbst neu, sobald CrowdSec
+  antwortet. Eine Schleifenbremse verhindert mehr als einen Selbst-Neustart alle 10 Minuten,
+  falls CrowdSec flackert.
+
+  Woran der Reload scheitert, ist nicht ermittelt — die Lua-Einbindung (`conf.d/crowdsec.conf`
+  mit `cs.init()`) steckt unabhängig von `ENABLED` in der nginx-Konfiguration. Für die
+  Behebung ohne Belang: nur der Neustart ist nachweislich wirksam.
+
+### Neu
+- Option `crowdsec_retry_restart` (Vorgabe an): schaltet den Selbst-Neustart ab. Der Bouncer
+  bleibt dann aus, bis jemand von Hand neu startet — das Add-on sagt das im Protokoll auch so.
+
+## [0.1.37] - 2026-08-30
+
+### Behoben
+- **Neustart des CrowdSec-Add-ons sperrte jeden Dienst hinter dem Proxy.** Im Log stand
+  minutenlang `AppSecCheck(): Fallback because of err: timeout` gefolgt von
+  `denied '<IP>' with 'ban' (by appsec)` — für jede Anfrage, auch für die eigene
+  Healthcheck-Abfrage auf `127.0.0.1`.
+
+  Ursache ist `APPSEC_FAILURE_ACTION` in `crowdsec.conf`. Der Schlüssel bestimmt, was der
+  Bouncer tut, wenn die **AppSec-Anfrage selbst** scheitert, und die Vorgabe des Images ist
+  `deny` — also sperren. Das Add-on hat den Wert bisher nie geschrieben. Stoppt CrowdSec
+  (Neustart, Update, Herunterfahren von Home Assistant), ist AppSec ein bis zwei Minuten weg
+  und NPMplus sperrt in dieser Zeit alles.
+
+  Der Kommentar in `run.sh` und die Beschreibung von `crowdsec_fallback_remediation` haben
+  hier zusätzlich `passthrough` als Vorgabe des Images behauptet. Das war falsch.
+
+  Mit der Wartelogik aus 0.1.33 hat das nichts zu tun: die betrifft nur den *Start* von
+  NPMplus, und sie funktioniert — im Log ist zu sehen, wie sie den Bouncer nach knapp zwei
+  Minuten nachträglich scharfschaltet. Der Ausfall trat auf, während NPMplus schon lief.
+
+### Neu
+- Option `crowdsec_appsec_failure_action` (Vorgabe `passthrough`): AppSec nicht erreichbar
+  heißt jetzt „keine WAF-Prüfung", nicht mehr „alles sperren". Wer das alte Verhalten will,
+  stellt `deny` ein; das Add-on warnt dann beim Start.
+- `selftest.sh` zeigt den Wert an und warnt bei `deny`.
+
 ## [0.1.36] - 2026-08-22
 
 ### Geändert

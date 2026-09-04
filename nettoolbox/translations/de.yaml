@@ -1,0 +1,90 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Benutzername für die Anmeldung über den direkten Port. Über die Home-Assistant-Seitenleiste wird nicht nach einer Anmeldung gefragt.
+  password:
+    name: Passwort
+    description: Passwort für die Anmeldung über den direkten Port. Unbedingt ändern — die Vorgabe changeme123 ist öffentlich bekannt.
+  session_hours:
+    name: Sitzungsdauer (Stunden)
+    description: Wie lange eine Anmeldung gültig bleibt, bevor erneut angemeldet werden muss.
+  worker_url:
+    name: Root-Server-Worker — Adresse
+    description: >-
+      Optional, im Normalfall leer lassen. Nur ausfüllen, wenn eine zweite NetToolbox-Instanz auf
+      einem Root-Server läuft, die die Prüfungen übernehmen soll — Basisadresse ohne Pfad, etwa
+      https://tools.example.com. Leer bedeutet: diese Instanz prüft selbst, mit den
+      Einschränkungen der eigenen Internetleitung (Port 25 meist gesperrt, manche Sperrlisten
+      antworten öffentlichen Resolvern nicht). Wer NetToolbox ohnehin nur auf einem Root-Server
+      betreibt, braucht hier nichts einzutragen.
+  worker_token:
+    name: Root-Server-Worker — Zugriffsschlüssel
+    description: >-
+      Muss mit dem worker_token der Ziel-Instanz übereinstimmen. Dort zusätzlich worker_enabled
+      einschalten, sonst antwortet sie mit worker_disabled. Der Schlüssel geht bei jeder Anfrage
+      mit, über http also im Klartext — den Worker deshalb hinter einen Reverse-Proxy mit TLS
+      stellen.
+  worker_tls_verify:
+    name: Root-Server-Worker — TLS-Zertifikat prüfen
+    description: Nur bei einer https-Adresse mit selbstsigniertem Zertifikat abschalten.
+  worker_enabled:
+    name: Als Worker für andere Instanzen bereitstehen
+    description: >-
+      Gehört auf die Gegenseite: einzuschalten auf der Instanz, die die Prüfungen ausführen soll,
+      nicht auf der, die sie abschickt. Schaltet die Endpunkte /worker/info und /worker/probe
+      frei. Nur mit einem starken, zufälligen worker_token einschalten — jeder mit gültigem
+      Schlüssel kann diese Instanz für DNS- und HTTP-Abfragen benutzen.
+  resolvers:
+    name: DNS-Resolver
+    description: >-
+      Bis zu acht Resolver-Adressen, die für gewöhnliche Abfragen benutzt werden. Vorgabe sind
+      Quad9 und Cloudflare. Für Sperrlisten- und DNSSEC-Abfragen lohnt sich ein eigener
+      rekursiver Resolver (z. B. unbound) auf demselben Rechner wie diese Instanz.
+  dns_timeout:
+    name: DNS-Zeitlimit (Sekunden)
+    description: Wie lange auf die Antwort eines Nameservers gewartet wird.
+  http_timeout:
+    name: HTTP-Zeitlimit (Sekunden)
+    description: Wie lange auf die Antwort eines Webservers gewartet wird (MTA-STS-Policy, BIMI-Logo).
+  allow_private_targets:
+    name: Private Adressen erlauben
+    description: >-
+      Erlaubt Abfragen gegen Adressen im eigenen Netz (10.x, 192.168.x, 172.16–31.x, localhost).
+      Ausgeschaltet verhindert das, dass NetToolbox als offener Scan-Proxy in das eigene LAN
+      missbraucht werden kann. Nur einschalten, wenn gezielt das eigene Netz geprüft werden soll.
+  rate_limit_per_min:
+    name: Prüfungen je Minute
+    description: Obergrenze für Prüfungen pro Minute, egal ob über die Oberfläche oder als Worker angefragt. 0 schaltet die Grenze ab.
+  history_size:
+    name: Verlauf — Anzahl Einträge
+    description: Wie viele zurückliegende Prüfungen im Verlauf aufgehoben werden. 0 schaltet den Verlauf ab.
+  verbose_log:
+    name: Ausführliches Protokoll
+    description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.
+  monitoring_enabled:
+    name: Monitoring aktiv
+    description: >-
+      Schaltet den Hintergrund-Dienst ein, der eingerichtete Monitore (Reiter „Monitoring")
+      automatisch im gewählten Abstand prüft. Ohne eingerichtete Monitore hat das keine Wirkung.
+  monitoring_poll_seconds:
+    name: Monitoring — Prüfabstand des Hintergrunddienstes (Sekunden)
+    description: >-
+      Wie oft der Hintergrunddienst nachsieht, ob ein Monitor fällig ist. Bestimmt nur die
+      Genauigkeit, nicht wie oft tatsächlich geprüft wird — das steht je Monitor einzeln.
+  ha_sensors:
+    name: Wächter als Home-Assistant-Entitäten
+    description: >-
+      Legt je Wächter einen Sensor in Home Assistant an (sensor.nettoolbox_<name>) sowie
+      sensor.nettoolbox_probleme und binary_sensor.nettoolbox_problem. Damit lassen sich die
+      Zustände auf Dashboards zeigen und in Automationen verwenden. Wird jede Minute
+      aktualisiert, weil solche Zustände einen Neustart von Home Assistant nicht überleben.
+      Ohne Wirkung außerhalb des Supervisors.
+  port_check_enabled:
+    name: Portcheck erlauben
+    description: >-
+      Erlaubt die Karten „Portcheck" und „IPv4/IPv6-Vergleich". Geprüft wird eine feste, kurze
+      Liste bekannter Dienste auf genau dem eingegebenen Host — keine Netzbereiche, keine
+      Portbereiche. Abschalten, wenn von dieser Instanz aus grundsätzlich keine Verbindungen zu
+      fremden Diensten aufgebaut werden sollen.
+network:
+  17798/tcp: NetToolbox Web-UI (direkt, Anmeldung erforderlich)

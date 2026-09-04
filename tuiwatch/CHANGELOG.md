@@ -1,5 +1,109 @@
 # Changelog
 
+## 0.113.17
+
+- 📇 **Das Nextcloud-Adressbuch ist wieder sichtbar — und benutzbar.** Die Empfängerauswahl hing an einem `<datalist>`, und das ist in Firefox praktisch unbrauchbar: Dort erscheint nur die **Adresse**, nie der Name, und sobald im Feld schon ein Standard-Empfänger steht, zeigt Firefox gar keine Vorschläge mehr. Dazu legen Passwortmanager wie Bitwarden ihr Ausfüll-Overlay über genau dieses Feld. Neu steht die Kontaktliste als eigener, aufklappbarer Block **unter** dem Eingabefeld — unabhängig von Browser-Eigenheiten und Overlays.
+- 🔎 **Übersichtlich statt Rateliste:** je Zeile **Name** und **Adresse**, Tippen filtert nach beidem („peter" findet Peter Beispiel ebenso wie peter@…), die Kopfzeile zeigt „3 Kontakte" bzw. „1 von 3 passen". Pfeiltasten wählen aus, Enter übernimmt den markierten Kontakt (ohne Auswahl sendet Enter wie bisher), Esc klappt zu, `↻` lädt das Adressbuch neu.
+- 🙈 Der Block erscheint nur, wenn ein Adressbuch hinterlegt ist. Ist es hinterlegt, kam aber nichts an, bleibt er sichtbar und sagt das — vorher war ein fehlgeschlagener Abruf nicht von „kein Adressbuch eingerichtet" zu unterscheiden.
+- ✅ 8 Tests plus ein Durchlauf im echten Browser (Aufklappen, Filtern, Klick-Auswahl, Pfeiltasten + Enter).
+
+## 0.113.16
+
+- 📧📇 **Der API-Status prüft jetzt auch Mailserver und Nextcloud-Adressbuch.** Bisher testete der Selbsttest nur die TUI-Endpunkte — dass der Mailversand oder das Adressbuch klemmt, fiel erst auf, wenn eine Mail ausblieb oder die Empfängerliste leer war. Neu stehen im Dialog „API-Status" zwei weitere Zeilen, sobald die Dienste eingerichtet sind: **Mailserver (SMTP)** (verbindet sich, verhandelt STARTTLS/SSL und meldet sich an — ohne eine Mail zu verschicken) und **Nextcloud-Adressbuch** (fragt nur die Eigenschaften des Adressbuchs ab, lädt also nicht alle Kontakte). Beide sind bewusst **nicht kritisch**: ein toter Mailserver zieht weder den Sensor `binary_sensor.tuiwatch_api_available` auf „off" noch löst er den API-Alarm aus, die Ampel im Fuß zeigt ihn aber als Hinweis.
+- 🌐 **Neue Einstellung „Nur IPv4 verwenden"** (Sonstiges, Standard aus). Hintergrund ist ein echter Fall aus dem Log: Der Nextcloud-Server hatte einen AAAA-Eintrag, der ins Leere zeigte — TUIWatch probierte zuerst IPv6, lief in die volle Zeitüberschreitung (`ConnectTimeout … connect timeout=20`) und kam nie bei der funktionierenden IPv4-Adresse an. Die Einstellung schaltet IPv6 für alle ausgehenden Verbindungen ab und wirkt sofort nach dem Speichern, ohne Neustart.
+- ✅ 14 Tests: Mailserver-Prüfung (erfolgreich, Verbindungsfehler, abgelehnte Anmeldung, SSL-Betriebsart und dass nie eine Mail rausgeht), Adressbuch-Prüfung (PROPFIND statt Voll-Abzug, HTTP-Fehler, Zeitüberschreitung), keine Zeilen bei nicht eingerichteten Diensten, HA-Sensor bleibt bei totem Mailserver „on", Flugplan-Fehler verschluckt die Dienste-Prüfung nicht, IPv4-Umschaltung.
+
+## 0.113.15
+
+- 🔁 **Aufgeräumt wird jetzt alle 5 Minuten von selbst — nicht mehr nur bei der Prüfrunde.** Das war der Grund, warum der Knopf „Speicher freigeben" gedrückt werden musste: der Trim hing an der Prüfrunde, und die läuft je nach Einstellung nur alle sechs oder zwölf Stunden. Bis dahin blieb die Anzeige oben stehen. Dazu kommt, dass der Speicher gar nicht nur dort wächst — jede Seite der Oberfläche, jede KI-Antwort und jeder Kalenderabruf läuft in einem eigenen waitress-Thread mit eigener Speicher-Arena.
+- 👀 **Neue Zeile „Zuletzt aufgeräumt"** im Speicher-Tab: wann, wieviel, und ob automatisch oder von Hand. Ohne die Zeile ließ sich von außen nicht unterscheiden, ob der Aufräumer läuft und nichts findet oder ob er gar nicht läuft.
+- 📋 Ins Log kommt eine Zeile nur, wenn wirklich etwas zurückging (ab 50 MB) — sonst stünde dort alle fünf Minuten dasselbe.
+- ✅ Vier Tests: gemerkter Zeitpunkt und Betrag, Intervall kurz genug, eigener Thread beim Start, Endpunkt liefert Vorher/Nachher.
+
+## 0.113.14
+
+- 🧾 **Der Speicher-Tab lässt keinen Rest mehr offen.** Bisher standen dort `anon`, `file` und `slab` — zusammen deutlich weniger als der Gesamtwert, und der unerklärte Rest sah aus wie ein Leck. Jetzt kommen die fehlenden Posten dazu: **Kernel** (mit Seitentabellen und Thread-Stacks im Detail), **tmpfs/shmem** als ausgewiesener Teil des Dateicaches und eine Zeile **„nicht zugeordnet"** für den Rest zwischen Summe und Gesamtwert. Die Zeilen ergeben zusammen den Wert, den Home Assistant anzeigt.
+- 📈 **Welcher Schritt wieviel Speicher zieht, steht jetzt im Log.** Der Höchststand (VmHWM) sagt nur, *dass* es eine Spitze gab. Wächst ein Schritt der Prüfrunde um mehr als 50 MB, schreibt TUIWatch ihn mit Namen ins Log: `Schritt Preiskalender: +120 MB (Speicher 300 → 420 MB)`. Damit ist beim nächsten Mal ohne Raten klar, wer die Spitze verursacht.
+
+## 0.113.13
+
+- 🧠 **Speicherbedarf halbiert sich erwartbar: `MALLOC_ARENA_MAX=2`.** Die Messung im neuen Speicher-Tab war eindeutig — 722 MB im Container, davon 711 MB echter Heap, 3 MB Dateicache, kein einziger Chromium-Prozess, Datenbank 10,7 MB. Das war weder der Browser-Fallback noch Cache, sondern die C-Bibliothek: TUIWatch läuft mit über 50 Threads (waitress 32, Share-Server 8, Hintergrund-Aufgaben), und glibc legt pro Thread eigene Speicher-Arenen an, die sie nach großen JSON-Antworten nicht wieder hergibt. Die Anzeige blieb dadurch dauerhaft auf dem Stand der größten Prüfrunde stehen.
+- ♻️ **Nach jeder Prüfrunde wird aufgeräumt:** `gc.collect()` und `malloc_trim(0)` geben freien Speicher ans Betriebssystem zurück, statt ihn in den Arenen liegen zu lassen. Belegte Daten bleiben unangetastet — zurückgegeben wird nur, was ohnehin frei ist.
+- 🔘 Im Speicher-Tab dazu der Knopf **„Speicher freigeben"** (zeigt Vorher/Nachher) sowie zwei neue Zeilen: **Höchststand seit Start** — liegt er weit über dem aktuellen Wert, gab es eine einmalige Spitze; liegt er gleichauf, wächst der Bedarf stetig — und der Stand von `MALLOC_ARENA_MAX`.
+- 🧹 Die Kopfzeile „Was Home Assistant beim Add-on als Speicher anzeigt…" ist raus; die Zeilen erklären sich selbst.
+- 📐 **Fußzeile: KI-Kosten und aktiver Anbieter stehen jetzt in einer eigenen Zeile.** Zusammen mit Version, Prüfintervall, Datenbankgröße und API-Status in einer Reihe brach die Zeile mitten in den KI-Angaben um, und „· Perplexity aktiv" landete allein am Zeilenanfang. Das führende „·" ist damit auch weg — getrennt wird über den Abstand.
+
+## 0.113.12
+
+- 🧮 **Neuer Tab „Speicher"** unter *Meldungen & Fehler*. Er beantwortet die Frage, warum Home Assistant beim Add-on so viel RAM anzeigt: Home Assistant liest den Wert aus der cgroup des Containers, und darin steckt neben dem echten Heap (`anon`) auch der **Dateicache** (`file`, Datenbank und Logs) — der zählt mit, ist aber jederzeit rückholbar. Ohne diese Aufteilung sieht ein großer Dateicache aus wie ein Speicherleck. Dazu: RSS und Threads von TUIWatch selbst, Anzahl und Speicher laufender Chromium-Prozesse, Stand des Fallback-Schalters und die größten Prozesse im Container.
+- 🧹 **Hängengebliebene Fallback-Browser werden erkannt und beendet.** `_fetch_price_browser()` schließt den Browser im `finally` — bleibt der Abruf aber im Netz hängen oder stirbt der Thread darunter weg, überlebt Chromium bis zum Neustart des Add-ons und hält mehrere hundert MB, die niemand mehr benutzt. Genau das sieht aus wie „das Add-on braucht dauerhaft 800 MB", auch wenn der Fallback längst abgeschaltet ist: **ein abgeschalteter Schalter beendet keinen Browser, der schon läuft.**
+- 🔖 Jedes vom Add-on gestartete Chromium trägt dafür ein eigenes Erkennungszeichen in der Kommandozeile (`--tuiwatch-fallback`). Aufgeräumt wird ausschließlich, was dieses Zeichen trägt — fremde Browser im selben Namensraum bleiben unangetastet — und nie, während gerade ein Abruf über den Browser läuft.
+- ⏱️ Der Aufräumer läuft bei jeder Poll-Runde mit (Schritt „Aufraeumen") und schreibt, was er beendet hat, als Warnung ins Log. Im Speicher-Tab steht zusätzlich ein Knopf **„Jetzt beenden"**, wenn etwas gefunden wurde.
+- ✅ Vier weitere Tests: Marker sitzt am Browser-Aufruf, `browser_busy()` meldet den laufenden Abruf, der Aufräumer fasst währenddessen nichts an, und ohne Marker findet er nichts.
+
+## 0.113.11
+
+- 🖥️ **Neue Einstellung „Browser-Fallback (Chromium)"** unter *Prüfen & Zeitplan*, Standard an. Antwortet die JSON-API von TUI technisch nicht, rendert TUIWatch die Angebotsseite ersatzweise in einem Headless-Chromium. Das kostet gemessen rund 400 MB leer und bis 740 MB mit geladener Seite, verteilt auf sechs bis sieben Prozesse — im Add-on zählt das alles zum Speicher des Containers, zusätzlich zu den etwa 150 MB von TUIWatch selbst. Wer das nicht will, schaltet den Fallback ab: bei API-Fehlern wird der Abruf dann als fehlgeschlagen vermerkt, statt den Browser zu starten.
+- 🌐 **Ohne Internetverbindung wird der Browser gar nicht erst gestartet.** Ist die Leitung weg, ist auch die gerenderte Seite nicht zu holen — bisher liefen bis zu 740 MB ins Leere, und zwar bei jedem fälligen Angebot nacheinander. Geprüft wird per TCP gegen zwei feste Ziele (`www.tui.com:443` und `1.1.1.1:443`, 4 s); zwei davon, damit eine einzelne Störung bei TUI nicht als „kein Internet" durchgeht.
+- ⏸️ **Der Poller pausiert bei Netzausfall, statt in Timeouts zu laufen.** Einmal je Runde wird nachgesehen; ist nichts da, werden Preisprüfungen, Suchabos, Preiskalender, Selbsttest, Aktionscodes und Wochenbericht übersprungen und in 5 Minuten neu bewertet. Rein örtliche Schritte (Backup, Preisbarometer) laufen weiter. Vorher schrieb jede Runde Fehlversuche in den Preisverlauf, die nichts über den Preis aussagen.
+- 📋 Der Ausfall steht **einmal** im Log, danach höchstens stündlich („Immer noch keine Internetverbindung (seit … min)"), die Rückkehr wieder einmal — statt derselben Zeile in Endlosschleife.
+- ✅ Sieben Tests: Fallback an/aus, ohne Netz kein Browser, Netzprüfung ohne erreichbares Ziel, Option in den Einstellungen, Log-Zeilen bei Ausfall und Rückkehr, gemerkter Zustand.
+
+## 0.113.10
+
+- 🔎 **Filterzeile in der Hintergrund-Konsole** (Doppelklick aufs Logo): vier Knöpfe für ERROR, WARN, INFO und DEBUG sowie ein Textfeld, das die angezeigten Zeilen auf einen Ausschnitt einschränkt. Rechts steht, wie viele der geholten Zeilen gerade sichtbar sind (z. B. `12/500`). Dieselbe Bedienung wie im WhatsApp-Add-on.
+- ⚙️ Gefiltert wird im Browser über die bereits geholten Zeilen, ein Wechsel wirkt deshalb sofort auch auf ältere Meldungen und nicht erst auf die nächsten. `CRITICAL` läuft unter ERROR mit, unbekannte Stufen unter INFO — so verschwindet keine Zeile nur deshalb, weil ihre Stufe keinen eigenen Knopf hat.
+- 💾 Die Auswahl der Stufen bleibt im Browser gespeichert (`tw-console-levels`), der Suchtext bewusst nicht — er gilt nur für die laufende Sitzung.
+
+## 0.113.9
+
+- 💶 **KI-Kosten lassen sich zurücksetzen.** Neuer Abschnitt „💶 KI-Kosten" im Einstellungen-Dialog: zeigt den aktuellen Stand (heute, Monat, gesamt) und setzt ihn auf Wunsch auf null. Praktisch nach einem Umzug oder wenn die Summe aus einer Testphase stammt und die Fußzeile sonst dauerhaft einen Betrag zeigt, der nichts mehr aussagt.
+- ℹ️ Betroffen sind nur die drei Zähler. Der KI-Verlauf und die bei jedem Ergebnis gespeicherten Einzelkosten bleiben stehen. Die Summen selbst sind danach weg — sie sind eine reine Aufsummierung und lassen sich nicht zurückrechnen, deshalb fragt TUIWatch vorher nach.
+- ✅ Drei Tests: alle drei Zähler auf null, danach zählt es wieder ab 1, und ohne Anmeldung geht es nicht.
+
+## 0.113.8
+
+- 🙈 **Ohne Home Assistant verschwinden die HA-Optionen aus den Einstellungen.** „Home-Assistant-Sensoren", „HA-Benachrichtigungen" und „Zusätzlicher HA-Notify-Dienst" laufen ausschließlich über die Supervisor-API. Läuft TUIWatch als eigener Container — Docker-Host, Server im Netz —, fehlt das `SUPERVISOR_TOKEN` und die drei Schalter bewirken nichts. Ein wirkungsloser Schalter ist schlimmer als gar keiner, deshalb werden sie dort nicht mehr angezeigt. Im Add-on bleibt alles wie gehabt.
+- ✅ Zwei Tests halten beides fest: ausgeblendet ohne Token, sichtbar mit Token.
+
+## 0.113.7
+
+- 🗂️ **Die Einsortierung in „Für andere"-Listen überlebt jetzt eine Wiederherstellung.** `is_foreign`, der Listenname und das Listen-Symbol standen zwar im Backup, fehlten aber in der Spalten-Whitelist des Restores und wurden deshalb kommentarlos verworfen — die Angebote kamen zurück, ihre Zuordnung nicht. Ebenso betroffen: die Markierung „nur Preisverlauf" (`history_only`) und die beiden Stummschalter für Benachrichtigungen. Alle sechs Felder kommen jetzt mit.
+- ⚙️ **Einstellungen lassen sich endlich wirklich zurückspielen.** Bisher übernahm der Restore sie nur, wenn noch **keine** `settings.json` vorhanden war. Da beim allerersten Start immer eine angelegt wird, war das auf einer frischen Installation nie der Fall: die Wiederherstellung meldete Erfolg und ließ die Einstellungen liegen. Jetzt fragt TUIWatch nach und ersetzt sie auf Wunsch — und wenn es sie überspringt, steht das in der Meldung **und** im Log.
+- 🔑 **Backup mit Schlüssel in einer Datei.** Im Einstellungen-Dialog unter „Schlüssel & Komplettsicherung": ein Backup, in dem der Schlüssel bereits steckt, mit derselben Passphrase verpackt wie beim Einzel-Export. Damit ist eine Installation an einem Stück wiederherstellbar, Zugangsdaten eingeschlossen. Das normale Backup und die automatische Sicherung bleiben schlüsselfrei.
+- 🛡️ **`X-Ingress-Path` gilt nur noch mit Home-Assistant-Supervisor als Anmeldung.** Der Header kommt vom Browser und ist damit fälschbar; im Add-on setzt ihn ausschließlich der Supervisor. Lief TUIWatch dagegen ohne Supervisor — eigener Docker-Host, Server im Netz — genügte ein einziger Aufruf mit diesem Header, um den Login zu umgehen. Ohne `SUPERVISOR_TOKEN` wird er jetzt ignoriert. Für einen eigenen Reverse-Proxy, der ihn selbst setzt, lässt sich das über `TUIWATCH_TRUST_INGRESS=1` bewusst wieder einschalten. **Im Add-on ändert sich nichts.**
+- 🧹 **„Verschlüsselung nicht verfügbar" verschwindet auf frischen Installationen.** Die Meldung erschien, solange noch kein Schlüssel angelegt war — der entsteht aber erst beim ersten gespeicherten Passwort oder Token. Gefragt wird jetzt, ob sich einer anlegen lässt, nicht ob schon einer da ist. Gespeichert wurde auch vorher korrekt, die Warnung war schlicht falsch.
+- ✅ Zwölf neue Tests halten das fest: die sechs Angebots-Felder, der gemeldete und der erzwungene Einstellungs-Restore, der Schlüssel im Backup samt falscher Passphrase, und dass der Ingress-Header ohne Supervisor nicht mehr zieht.
+
+## 0.113.6
+
+- 🧹 **Reiseführer und Klimatabelle blenden die Knöpfe aus, solange die KI arbeitet.** Drucken, Markdown, Als E-Mail und Neu abrufen sind während des Abrufs wirkungslos — und „Erstellt am …“ zeigte daneben noch den alten Stand, was bei „Neu abrufen“ besonders verwirrend war. Die Fußzeile erscheint erst wieder, wenn das Ergebnis dasteht.
+- ℹ️ Auch nach einem Fehler kommt sie zurück, damit der Knopf für den nächsten Versuch erreichbar bleibt.
+
+## 0.113.5
+
+- 💶 **Reiseführer und Klimatabelle zeigen jetzt, was dieser eine Abruf gekostet hat.** Also Tokenzahl und Preis des KI-Aufrufs, der genau diese Tabelle bzw. diesen Reiseführer erzeugt hat — wie beim Regionen-Vergleich. Die Zahlen werden dazu beim Erstellen mitgespeichert und stehen auch beim späteren Öffnen noch da, mit dem Zusatz „einmalig beim Erstellen“. Das Wiedersehen selbst kostet weiterhin nichts.
+- 🧹 Die Gesamtsumme aus 0.113.4 ist an dieser Stelle wieder verschwunden. Sie steht in der Fußzeile der Seite und half im Fenster nicht weiter.
+- ℹ️ Reiseführer und Klimatabellen, die vor dieser Version entstanden sind, haben die Zahlen nicht gespeichert — dort steht weiterhin nichts. Eine erfundene Schätzung wäre schlechter als gar keine Angabe. Ab dem nächsten „Neu abrufen“ ist sie da.
+- 💾 Die Kosten wandern mit ins Backup und kommen bei einer Wiederherstellung wieder mit.
+
+## 0.113.4
+
+- 💶 **Reiseführer und Klimatabelle zeigen die Kostenanzeige jetzt auch dann, wenn sie aus der Datenbank kommen.** Bisher stand die Summenzeile (Aufrufe gesamt, geschätzte Kosten, davon heute und diesen Monat) nur unter einem frisch erzeugten Ergebnis — beim erneuten Öffnen war sie weg. Sie steht jetzt unter jedem KI-Ergebnis, wie in allen anderen KI-Fenstern auch.
+- ℹ️ Eine Zeile mit Tokenzahl und Kosten des einzelnen Aufrufs erscheint weiterhin nur beim frischen Abruf. Das Wiedersehen kostet nichts, also steht dort auch nichts.
+- 📋 Der Markdown-Knopf bleibt davon unberührt: kopiert wird weiterhin nur der Inhalt, ohne Tokenzahlen und Kosten. Ein Test hält das fest.
+
+## 0.113.3
+
+- 📋 **Der Markdown-Knopf bei KI-Antworten kopiert jetzt, statt eine Datei herunterzuladen.** Genau wie bei Klimatabelle und Reiseführer landet der Text direkt in der Zwischenablage und lässt sich sofort einfügen — auf einer eigenen Seite, in einer Notiz oder im Wiki. Der Umweg über eine `.md`-Datei im Download-Ordner ist damit weg; auf dem Handy war er ohnehin kaum zu gebrauchen. Betrifft alle KI-Fenster, also auch den Regionen-Vergleich.
+- 🧹 Im Ladehinweis des Reiseführers stand „dreizehn Abschnitte“ — die Zahl war fest eingetragen und längst überholt. Sie ist jetzt raus.
+- ✅ Ein neuer Test prüft, dass jeder Knopf in der Oberfläche auch eine Funktion hat, die es wirklich gibt. Ein umbenannter Handler fällt sonst erst beim Klick auf — und dann passiert einfach nichts.
+
+## 0.113.2
+
+- ⚡ **Die Angebotsliste lädt rund doppelt so schnell.** Für die „Kalender hat sich geändert"-Markierung wurde bisher je Angebot der komplette Kalender-Verlauf aus der Datenbank geholt und im Speicher durchgerechnet — gebraucht wurde davon nur ein einziger Zeitstempel. Das erledigt jetzt eine Abfrage für alle Angebote zusammen. Gemessen an einer Testdatenbank: 17,7 ms → 8,4 ms pro Abruf, und die Liste holt sich jeder offene Browser alle 5 Sekunden. Je länger ein Angebot beobachtet wird, desto größer der Unterschied.
+- 🛡️ **Dateien werden nur noch atomar geschrieben.** Beim Stoppen oder Aktualisieren des Add-ons beendet Home Assistant den Prozess hart. Traf das den Moment eines Schreibvorgangs, konnte eine halb geschriebene Datei zurückbleiben — im schlimmsten Fall der Schlüssel `settings.key`, womit **alle gespeicherten Zugangsdaten unlesbar** geworden wären. Betroffen waren außerdem die Sitzungen (alle Logins weg), der Flugplan-Zustand und das Zurückspielen der Einstellungen aus einem Backup. Alle vier schreiben jetzt erst daneben und hängen die fertige Datei in einem Zug ein: entweder der alte oder der neue Stand, nie ein halber. Das schützt gleichermaßen gegen Stromausfall und Neustart des Hosts.
+
 ## 0.113.1
 
 - 🧹 **„cite[16][19]" im Reiseführer und in der Klimatabelle ist weg.** Die Bereinigung hängte an der Quellenliste: lieferte eine Antwort keine Quellen mit, blieben die Marker unangetastet im Text stehen. Sie werden jetzt **immer** entfernt, unabhängig davon, ob Quellen dabei sind — und bei strukturierten Antworten (Reiseführer, Klimatabelle) schon im Rohtext, bevor irgendeine Anzeige sie zu sehen bekommt.

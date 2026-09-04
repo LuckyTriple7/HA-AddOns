@@ -16,6 +16,8 @@ Details zur Wartung bei TUI-Layout-Änderungen: siehe SCRAPING.md.
 import logging
 import os
 import re
+import socket
+import threading
 import time
 from datetime import date, datetime, timedelta
 from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
@@ -314,6 +316,59 @@ def _empty_result() -> dict:
             "flight_options": None, "flight_pin_missed": False,
             "luggage": None, "deposit_pct": None, "final_payment_date": "",
             "source": "", "note": "", "detail": ""}
+
+
+# ── Netz und Browser-Fallback ──────────────────────────────────────────────────
+# Der Browser-Fallback startet ein Headless-Chromium: gemessen rund 400 MB leer und
+# 740 MB mit geladener TUI-Seite, verteilt auf sechs bis sieben Prozesse. Im Add-on
+# zaehlt das alles zum Speicher des Containers.
+#
+# Zwei Bremsen dagegen:
+#   1. `browser_fallback_enabled()` — Schalter aus den Einstellungen. app.py haengt
+#      hier beim Start eine Funktion ein, die den aktuellen Wert liest; ohne app.py
+#      (Parsing-Tests, scraper.py als Skript) bleibt es beim Standard "an".
+#   2. `internet_reachable()` — faellt die Leitung ganz aus, ist auch die gerenderte
+#      Seite nicht zu holen. Dann waeren es 740 MB fuer nichts, und zwar bei jedem
+#      faelligen Angebot nacheinander.
+def browser_fallback_enabled() -> bool:
+    return True
+
+
+# Eindeutiges Erkennungszeichen an jedem Chromium, das dieser Scraper startet.
+# Chromium nimmt unbekannte --flags kommentarlos hin; dafuer laesst sich ein
+# haengengebliebener Prozess spaeter zweifelsfrei als unserer erkennen, ohne
+# fremde Browser im selben Namensraum anzufassen (_reap_orphan_chromium in app.py).
+BROWSER_MARKER = "--tuiwatch-fallback"
+
+_browser_lock = threading.Lock()
+_browser_running = 0
+
+
+def browser_busy() -> bool:
+    """Laeuft gerade ein Fallback-Browser? Solange das True ist, darf niemand
+    Chromium-Prozesse aufraeumen — sie gehoeren zu einem laufenden Abruf."""
+    with _browser_lock:
+        return _browser_running > 0
+
+
+# Feste Ziele, absichtlich nicht aus der Angebots-URL abgeleitet: geprueft wird die
+# Leitung, nicht ein vom Benutzer benannter Host. Zwei Ziele, damit eine einzelne
+# Stoerung bei TUI nicht als "kein Internet" durchgeht.
+_PROBE_TARGETS = (("www.tui.com", 443), ("1.1.1.1", 443))
+
+
+def internet_reachable(timeout: float = 4.0) -> bool:
+    """True, sobald eines der festen Ziele eine TCP-Verbindung annimmt.
+
+    Bewusst ohne HTTP: die Frage ist, ob ueberhaupt etwas hinauskommt. Ein
+    Portal-Redirect oder eine 503 von TUI ist kein Netzausfall."""
+    for host, port in _PROBE_TARGETS:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 # ── JSON-API (bevorzugt) ────────────────────────────────────────────────────────
@@ -2028,6 +2083,23 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
     if api is not None:
         return api  # API hat gültig geantwortet (Treffer oder echte Leermenge)
     # API technisch fehlgeschlagen → Browser-Fallback (immer sichtbar, gelb)
+    if not browser_fallback_enabled():
+        log.warning("JSON-API nicht erreichbar → Browser-Fallback ist abgeschaltet, "
+                    "kein zweiter Versuch")
+        r = _empty_result()
+        r["source"] = "api"
+        r["note"] = "Abruf fehlgeschlagen"
+        r["detail"] = "JSON-API nicht erreichbar, Browser-Fallback abgeschaltet"
+        return r
+    if not internet_reachable():
+        log.warning("JSON-API nicht erreichbar und keine Internetverbindung → "
+                    "Browser-Fallback uebersprungen")
+        r = _empty_result()
+        r["source"] = "api"
+        r["note"] = "Keine Internetverbindung"
+        r["detail"] = "Kein Netz — Browser-Fallback uebersprungen"
+        r["offline"] = True
+        return r
     log.warning("JSON-API nicht erreichbar → Browser-Fallback (langsamer)")
     rb = _fetch_price_browser(url, timeout_ms=timeout_ms,
                               check_availability=check_availability, verbose=verbose)
@@ -2045,10 +2117,14 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
     r = _empty_result()
     r["source"] = "browser"
     chromium_path = os.environ.get("CHROMIUM_PATH") or None
+    global _browser_running
+    with _browser_lock:
+        _browser_running += 1
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, executable_path=chromium_path,
-                                        args=["--no-sandbox", "--disable-dev-shm-usage"])
+                                        args=["--no-sandbox", "--disable-dev-shm-usage",
+                                              BROWSER_MARKER])
             ctx = browser.new_context(locale="de-DE", user_agent=USER_AGENT,
                                       viewport={"width": 1366, "height": 2200})
             page = ctx.new_page()
@@ -2167,6 +2243,9 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
         r["note"] = "Abruf fehlgeschlagen"
         r["detail"] = f"{type(e).__name__}: {e}"[:300]
         return r
+    finally:
+        with _browser_lock:
+            _browser_running = max(0, _browser_running - 1)
 
 
 if __name__ == "__main__":

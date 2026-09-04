@@ -22,6 +22,7 @@ zusätzlich die **Supervisor API** genutzt (`hassio_api: true`, `hassio_role: ma
 | `password` | string | `secret` | Login-Passwort (auch für Start/Stop/Neustart/Kill benötigt) |
 | `session_hours` | int | `24` | Session-Dauer in Stunden |
 | `show_stopped` | bool | `true` | Gestoppte Container standardmäßig anzeigen |
+| `allow_build_prune` | bool | `true` | Button „Build-Cache freigeben“ im Speicher-Dialog anzeigen |
 | `verbose_log` | bool | `false` | Pro Zyklus Anzahl Container, Worker und Dauer loggen |
 
 ### Performance
@@ -31,6 +32,7 @@ zusätzlich die **Supervisor API** genutzt (`hassio_api: true`, `hassio_role: ma
 | `collect_interval` | int | `3` | Pause zwischen Docker-Abfragen in Sekunden (min. 2) |
 | `collect_workers` | int | `16` | Parallele Docker-Stats-Abfragen (4–64) |
 | `viewer_timeout` | int | `180` | Idle-Timeout in Sekunden (30–1800) |
+| `size_interval` | int | `15` | Abstand der Größenabfrage (`docker system df`) in Minuten (0 = aus, 1–1440) |
 
 ### Telegram-Benachrichtigungen
 
@@ -40,6 +42,7 @@ zusätzlich die **Supervisor API** genutzt (`hassio_api: true`, `hassio_role: ma
 | `telegram_chat_id` | string | `""` | Empfänger-Chat-ID (**optional** — wird automatisch erkannt) |
 | `notify_cpu_threshold` | int | `0` | CPU-Schwellenwert in % (0 = aus) |
 | `notify_ram_threshold` | int | `0` | RAM-Schwellenwert in % (0 = aus) |
+| `notify_disk_threshold` | int | `0` | Speicher-Schwellenwert in % belegt (0 = aus) |
 | `notify_over_duration` | int | `0` | Sekunden über Schwellenwert vor Alarm-Auslösung |
 | `notify_clear_duration` | int | `120` | Sekunden unter Schwellenwert vor Entwarnung |
 
@@ -77,8 +80,9 @@ Der **Pause-Button** (⚡) pausiert die Datenerfassung manuell.
 | RAM Genutzt | Summe RAM aller laufenden Container | — |
 | SYS CPU | Host-CPU-Auslastung als Balken + % | ✅ → 24h-Chart |
 | SYS RAM | Host-RAM-Auslastung als Balken + % | ✅ → 24h-Chart |
+| Speicher frei | Freier Platz der Datenpartition, Balken = Belegung | ✅ Links → Detail-Dialog, Rechts → Größenabfrage |
 
-**Balken-Farbskala (SYS CPU / SYS RAM):** grün ≤70 % · gelb ≤80 % · orange ≤90 % · rot >90 %
+**Balken-Farbskala (SYS CPU / SYS RAM / Speicher):** grün ≤70 % · gelb ≤80 % · orange ≤90 % · rot >90 %
 
 Der **Footer** zeigt HA Core-, Supervisor- und OS-Version (60 s Cache).
 
@@ -110,11 +114,71 @@ Lüfterdrehzahlen werden angezeigt wenn `fan*_input`-Einträge in `hwmon` vorhan
 
 ### Container-Tabelle
 
-- **Sortierbare Spalten**: Name, CPU %, RAM %, RAM-Nutzung, NET I/O, DISK I/O, PIDs
+- **Sortierbare Spalten**: Name, CPU %, RAM %, RAM-Nutzung, NET I/O, DISK I/O, PIDs, Größe
 - Sortierung wird in `localStorage` gespeichert
 - **CPU-Sparkline**: Verlauf der letzten 30 Messungen pro Container
 - **Status-Badge**: running, exited, paused, stopped
 - **Suchfeld**: filtert nach Name oder Image
+
+### Speicherplatz und Container-Größen
+
+**Kachel „Speicher frei“** zeigt den freien Platz der HA-Datenpartition. Die Werte kommen
+primär von der Supervisor-API (`/host/info`), Fallback ist `statvfs` auf `/config`, `/data`
+oder `/`. Der Tooltip listet die Docker-Aufteilung (Images / Container / Volumes) samt
+Zeitstempel der letzten Größenabfrage. Ein Klick startet die Abfrage sofort neu.
+
+**Linksklick auf die Kachel** öffnet den Dialog **Speicherplatz** mit:
+
+- Datenpartition: Balken, freier/belegter Platz, Quelle der Werte
+- Docker-Aufteilung: Images, Container, Volumes, Build-Cache mit Gesamtsumme und
+  **freigebbar** je Zeile. Die Rechnung entspricht den Spalten `SIZE` / `RECLAIMABLE`
+  von `docker system df`: Gesamtgröße minus das, was tatsächlich benutzt wird.
+  Der Build-Cache ist auf HA-Systemen der häufigste Ausreißer — er wächst durch lokale
+  Docker-Builds und wird nie automatisch aufgeräumt. Freigeben auf dem Host mit
+  `docker builder prune -a` (löscht nur Build-Zwischenergebnisse, keine Images,
+  Container oder Volumes). `ha supervisor repair` fasst diesen Cache **nicht** an.
+- **Größte Images** (Top 25) mit Größe, geteiltem Anteil und Anzahl nutzender Container —
+  ungenutzte Images sind gelb markiert
+- **Größte Container** (Top 10) mit `SizeRw` und `SizeRootFs`
+- **Größte Volumes** (Top 15), unbenutzte gelb markiert
+
+**Button „Build-Cache freigeben“** im Dialog führt `POST /build/prune` gegen den Docker-Socket
+aus — dasselbe wie `docker builder prune -a` auf dem Host. Gelöscht werden ausschließlich
+Build-Zwischenergebnisse; Images, Container und Volumes bleiben unberührt. Das Feld
+„GB behalten“ entspricht `--keep-storage` (0 = alles freigeben). Die Aktion verlangt wie
+Neustart und Kill das Add-on-Passwort und läuft in einem Hintergrund-Thread, weil sie bei
+großen Caches Minuten dauert; die Oberfläche pollt und zeigt danach die freigegebene Menge.
+Über `allow_build_prune: false` lässt sich der Button ganz ausblenden.
+
+> **Warum der Build-Cache überhaupt wächst:** Jedes lokal gebaute Add-on legt pro Build einen
+> vollständigen Satz Cache-Einträge an. Steht ein sich ändernder `ARG` (z. B. `BUILD_VERSION`)
+> weit oben im Dockerfile, invalidiert jede Versionserhöhung alle nachfolgenden Layer — dann
+> entsteht bei jedem Update ein kompletter neuer Satz. Der eingebaute Docker-Builder räumt
+> diese Einträge nicht von selbst auf. `ha supervisor repair` fasst sie ebenfalls nicht an.
+
+**Rechtsklick auf die Kachel** startet die Größenabfrage sofort; im Dialog macht das der
+Button „Neu berechnen“. Die Oberfläche pollt danach alle 3 s, bis ein neuer Zeitstempel
+vorliegt — der Scan darf also ruhig Minuten dauern.
+
+**Hinweis zu Image-Größen:** `Size` einer Image-Zeile enthält gemeinsam genutzte Layer mit,
+`davon geteilt` beziffert diesen Anteil. Beim Löschen wird nur die Differenz frei. Die
+Zeile „Images“ in der Docker-Aufteilung nutzt deshalb `LayersSize` (entdoppelt) und ist
+kleiner als die Summe der Einzelzeilen.
+
+**Spalte „Größe“** zeigt pro Container `SizeRw` — die beschreibbare Schicht, also alles was
+seit dem Image dazugekommen ist. Der Tooltip nennt zusätzlich `SizeRootFs` (inkl. aller
+Image-Layer). Solange noch keine Abfrage gelaufen ist, steht dort `…`.
+
+Die Daten stammen aus `docker system df`. Diese Abfrage scannt das Dateisystem und dauert je
+nach System Sekunden bis Minuten — sie läuft deshalb in einem **eigenen Hintergrund-Thread**
+und standardmäßig nur alle 15 Minuten (`size_interval`), unabhängig vom Stats-Zyklus.
+
+> **Wichtig:** Docker-Logfiles (`/var/lib/docker/containers/<id>/<id>-json.log`) zählen
+> **nicht** zu `SizeRw`. Ein Container mit kleiner Größe kann die Platte trotzdem über sein
+> Log füllen. Dagegen hilft ein Log-Limit in `/etc/docker/daemon.json`
+> (`"log-opts": {"max-size": "10m", "max-file": "3"}`) — das ist eine Host-Einstellung, die
+> SysWatch nicht setzen kann. Der Speicher-Alarm (`notify_disk_threshold`) schlägt aber
+> unabhängig von der Ursache an, bevor die Platte voll läuft.
 
 ### Aktionen
 

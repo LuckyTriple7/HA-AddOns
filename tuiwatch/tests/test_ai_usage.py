@@ -86,3 +86,41 @@ def test_ai_usage_endpoint(app_mod):
     data = r.get_json()
     assert data["calls"] == 1
     assert "today" in data and "month" in data
+
+
+ING = {"X-Ingress-Path": "/test"}
+
+
+def test_reset_clears_all_three_buckets(app_mod):
+    """DELETE /api/ai/usage nullt heute, Monat und gesamt in einem Zug."""
+    m = app_mod
+    m._record_ai_usage("claude-haiku-4-5", _usage())
+    assert m._ai_usage_totals()["calls"] == 1
+
+    r = m.app.test_client().delete("/api/ai/usage", headers=ING)
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["calls"] == 0 and d["today"]["calls"] == 0 and d["month"]["calls"] == 0
+    assert d["estimated_usd"] == 0
+
+    totals = m._ai_usage_totals()          # auch nach erneutem Lesen aus meta
+    assert totals["calls"] == 0
+    assert totals["today"]["calls"] == 0
+    assert totals["month"]["calls"] == 0
+
+
+def test_reset_keeps_counting_afterwards(app_mod):
+    """Nach dem Nullen zaehlt der naechste Aufruf wieder ab 1, nicht ab dem alten Stand."""
+    m = app_mod
+    m._record_ai_usage("claude-haiku-4-5", _usage())
+    m.app.test_client().delete("/api/ai/usage", headers=ING)
+    totals = m._record_ai_usage("claude-haiku-4-5", _usage())
+    assert totals["calls"] == 1
+    assert totals["today"]["calls"] == 1
+
+
+def test_reset_needs_login(app_mod, monkeypatch):
+    """Ohne Anmeldung kein Zuruecksetzen — der Zaehler ist nicht wiederherstellbar."""
+    monkeypatch.setattr(app_mod, "TRUST_INGRESS", False)
+    r = app_mod.app.test_client().delete("/api/ai/usage", headers=ING)
+    assert r.status_code == 401

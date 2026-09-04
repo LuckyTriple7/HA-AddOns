@@ -1808,9 +1808,24 @@ def _linkify_citations_in_place(result: dict, urls: list | None) -> None:
             m['hinweis'] = _perplexity_linkify_citations(m['hinweis'], urls)
 
 
+def _stored_usage(raw):
+    """Gespeicherte `usage` eines Klimatabellen-/Reisefuehrer-Aufrufs zurueckgeben.
+
+    Leer bei allem, was vor der `usage`-Spalte entstanden ist -- dort ist schlicht
+    nicht mehr feststellbar, was der Aufruf gekostet hat, und dann steht im Fenster
+    bewusst nichts statt einer erfundenen Zahl."""
+    if not raw:
+        return None
+    try:
+        u = json.loads(raw)
+    except ValueError:
+        return None
+    return u if isinstance(u, dict) and u else None
+
+
 def _climate_load(giata: int):
     with A.db() as con:
-        row = con.execute('SELECT label, ts, model, data FROM climate WHERE giata=?',
+        row = con.execute('SELECT label, ts, model, data, usage FROM climate WHERE giata=?',
                           (giata,)).fetchone()
     if not row:
         return None
@@ -1818,8 +1833,11 @@ def _climate_load(giata: int):
         data = json.loads(row['data'])
     except ValueError:
         return None
-    return {'giata': giata, 'label': row['label'], 'ts': row['ts'],
-            'model': row['model'], 'data': data}
+    out = {'giata': giata, 'label': row['label'], 'ts': row['ts'],
+           'model': row['model'], 'data': data}
+    if (u := _stored_usage(row['usage'])):
+        out['usage'] = u
+    return out
 
 
 @bp.route('/api/climate', methods=['GET'])
@@ -1844,6 +1862,9 @@ def api_climate_get(giata: int):
     got = _climate_load(giata)
     if not got:
         return jsonify({'found': False, 'giata': giata})
+    # `got` bringt die `usage` des Aufrufs mit, der die Tabelle erzeugt hat -- das
+    # ist die Zahl, die hier interessiert. Die Gesamtsumme steht in der Fusszeile
+    # der Oberflaeche und hat in diesem Fenster nichts zu suchen.
     return jsonify(dict(got, found=True))
 
 
@@ -1900,9 +1921,10 @@ def api_ai_climate():
     totals = _record_ai_usage(model, usage)
     ts = int(time.time())
     with A.db() as con:
-        con.execute('INSERT OR REPLACE INTO climate (giata, label, ts, model, data) '
-                    'VALUES (?,?,?,?,?)',
-                    (giata, label, ts, model, json.dumps(result, ensure_ascii=False)))
+        con.execute('INSERT OR REPLACE INTO climate (giata, label, ts, model, data, usage) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (giata, label, ts, model, json.dumps(result, ensure_ascii=False),
+                     json.dumps(usage, ensure_ascii=False)))
     A.log.info("Klimatabelle für %s (%s) gespeichert", label, giata)
     return jsonify({'found': True, 'cached': False, 'giata': giata, 'label': label,
                     'ts': ts, 'model': model, 'data': result,
@@ -1949,7 +1971,7 @@ def api_climate_delete(giata: int):
 # ── Reiseführer je Reiseziel ──────────────────────────────────────────────────
 # Dieselbe Bauart wie die Klimatabelle: einmal je Ziel von der KI erzeugt, dauerhaft
 # gespeichert, Auffrischen nur auf Knopfdruck. Ein Reiseführer ist der teuerste
-# Einzelaufruf im Add-on (dreizehn Abschnitte, zwanzig Vokabeln) — ihn bei jedem
+# Einzelaufruf im Add-on (siehe _GUIDE_SECTIONS, dazu zwanzig Vokabeln) — ihn bei jedem
 # Öffnen neu zu erzeugen wäre nicht vertretbar.
 #
 # Bewusst eine generische Abschnittsstruktur statt vierzehn benannter Felder: die
@@ -2110,7 +2132,7 @@ def _guide_linkify_in_place(result: dict, urls: list | None) -> None:
 
 def _guide_load(giata: int):
     with A.db() as con:
-        row = con.execute('SELECT label, ts, model, data FROM guide WHERE giata=?',
+        row = con.execute('SELECT label, ts, model, data, usage FROM guide WHERE giata=?',
                           (giata,)).fetchone()
     if not row:
         return None
@@ -2118,8 +2140,11 @@ def _guide_load(giata: int):
         data = json.loads(row['data'])
     except ValueError:
         return None
-    return {'giata': giata, 'label': row['label'], 'ts': row['ts'],
-            'model': row['model'], 'data': data}
+    out = {'giata': giata, 'label': row['label'], 'ts': row['ts'],
+           'model': row['model'], 'data': data}
+    if (u := _stored_usage(row['usage'])):
+        out['usage'] = u
+    return out
 
 
 @bp.route('/api/guide', methods=['GET'])
@@ -2142,7 +2167,9 @@ def api_guide_get(giata: int):
     got = _guide_load(giata)
     if not got:
         return jsonify({'found': False, 'giata': giata})
-    return jsonify(dict(got, found=True, climate=(_climate_load(giata) or {}).get('data')))
+    # `usage` des erzeugenden Aufrufs kommt aus `got` -- siehe api_climate_get.
+    return jsonify(dict(got, found=True,
+                        climate=(_climate_load(giata) or {}).get('data')))
 
 
 @bp.route('/api/ai/guide', methods=['POST'])
@@ -2172,7 +2199,7 @@ def api_ai_guide():
     if (preview := _prompt_preview_response(data, prompt)):
         return preview
     prompt = _resolve_prompt(data, prompt)
-    # 12000 statt der 3000 der Klimatabelle: dreizehn Abschnitte plus zwanzig Vokabeln
+    # 12000 statt der 3000 der Klimatabelle: alle _GUIDE_SECTIONS plus zwanzig Vokabeln
     # sprengen jedes kleinere Budget, und eine abgeschnittene Antwort ist kein
     # gültiges JSON — der Aufruf wäre komplett verloren.
     text, usage, code = A._ai_request(api_key, model, prompt, max_tokens=12000,
@@ -2199,9 +2226,10 @@ def api_ai_guide():
     totals = _record_ai_usage(model, usage)
     ts = int(time.time())
     with A.db() as con:
-        con.execute('INSERT OR REPLACE INTO guide (giata, label, ts, model, data) '
-                    'VALUES (?,?,?,?,?)',
-                    (giata, label, ts, model, json.dumps(result, ensure_ascii=False)))
+        con.execute('INSERT OR REPLACE INTO guide (giata, label, ts, model, data, usage) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (giata, label, ts, model, json.dumps(result, ensure_ascii=False),
+                     json.dumps(usage, ensure_ascii=False)))
     A.log.info("Reiseführer für %s (%s) gespeichert — %d Abschnitte", label, giata,
                len(sections))
     return jsonify({'found': True, 'cached': False, 'giata': giata, 'label': label,

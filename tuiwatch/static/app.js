@@ -77,10 +77,58 @@
     window.consoleToggle=consoleToggle;
     try{ if(localStorage.getItem('tw-console-open')==='1') setTimeout(function(){_setOpen(true);},100); }catch(e){}
     function _cls(l){ return (l==='WARNING'||l==='WARN')?'twc-warn':(l==='ERROR'||l==='CRITICAL')?'twc-error':(l==='DEBUG')?'twc-debug':'twc-info'; }
+    // Stufen des Python-Loggings auf die vier Filterknöpfe abbilden: CRITICAL läuft
+    // unter ERROR mit, alles Unbekannte unter INFO — sonst verschwände eine Zeile
+    // still, nur weil ihre Stufe keinen eigenen Knopf hat.
+    function _grp(l){ return (l==='CRITICAL')?'ERROR':(l==='WARN')?'WARNING':((l==='ERROR'||l==='WARNING'||l==='DEBUG')?l:'INFO'); }
     // Live-Ticker: nur die letzten 500 Zeilen. Der Puffer fasst 2000, die hier alle
     // zwei Sekunden komplett neu zu rendern wäre Verschwendung — wer im ganzen Log
     // suchen will, nimmt den Konsolen-Tab unter „Meldungen & Fehler" (mit Filter).
     var _CONSOLE_TAIL=500;
+    // Zeilen aufheben, damit ein Filterwechsel auch auf die bereits geholten
+    // Meldungen wirkt und nicht erst auf die nächsten.
+    var _lines=[],_older=0;
+    var _levels={ERROR:true,WARNING:true,INFO:true,DEBUG:true};
+    try{
+      var _saved=JSON.parse(localStorage.getItem('tw-console-levels')||'null');
+      if(_saved)['ERROR','WARNING','INFO','DEBUG'].forEach(function(l){ if(l in _saved) _levels[l]=!!_saved[l]; });
+    }catch(e){}
+    var _search='';
+    var searchEl=document.getElementById('tw-console-search');
+    var countEl=document.getElementById('tw-console-count');
+    function _matches(e){
+      if(!_levels[_grp(e.level)])return false;
+      if(_search&&(e.msg||'').toLowerCase().indexOf(_search)<0)return false;
+      return true;
+    }
+    function _render(){
+      var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+      body.innerHTML='';
+      if(_older>0){
+        var h=document.createElement('div'); h.className='twc-debug';
+        h.textContent='… ältere '+_older+' Zeilen: Konsolen-Tab unter „Meldungen & Fehler"';
+        body.appendChild(h);
+      }
+      var shown=0;
+      _lines.forEach(function(e){
+        if(!_matches(e))return;
+        shown++;
+        var d2=document.createElement('div'); d2.className=_cls(e.level); d2.textContent=e.msg; body.appendChild(d2);
+      });
+      if(countEl)countEl.textContent=shown+'/'+_lines.length;
+      if(atBottom)body.scrollTop=body.scrollHeight;
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#tw-console-filter button'),function(btn){
+      var lvl=btn.dataset.lvl;
+      btn.classList.toggle('on',!!_levels[lvl]);
+      btn.addEventListener('click',function(){
+        _levels[lvl]=!_levels[lvl];
+        btn.classList.toggle('on',_levels[lvl]);
+        try{localStorage.setItem('tw-console-levels',JSON.stringify(_levels));}catch(e){}
+        _render();
+      });
+    });
+    if(searchEl)searchEl.addEventListener('input',function(){ _search=searchEl.value.trim().toLowerCase(); _render(); });
     async function _poll(){
       try{
         var base=(window.G&&G.base)||'';
@@ -89,15 +137,9 @@
         var sig=lines.length+':'+(lines.length?lines[lines.length-1].ts:0);
         if(sig===_seen)return;            // nichts Neues
         _seen=sig;
-        var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
-        body.innerHTML='';
-        if((d.total||0)>lines.length){
-          var h=document.createElement('div'); h.className='twc-debug';
-          h.textContent='… ältere '+((d.total||0)-lines.length)+' Zeilen: Konsolen-Tab unter „Meldungen & Fehler"';
-          body.appendChild(h);
-        }
-        lines.forEach(function(e){ var d2=document.createElement('div'); d2.className=_cls(e.level); d2.textContent=e.msg; body.appendChild(d2); });
-        if(atBottom)body.scrollTop=body.scrollHeight;
+        _lines=lines;
+        _older=Math.max(0,(d.total||0)-lines.length);
+        _render();
       }catch(e){}
     }
   })();
@@ -3799,6 +3841,10 @@
     async function fetchClimate(giata, label, {refresh=false, silent=false}={}){
       if(climateBusy) return null;
       climateBusy = true;
+      // Waehrend des Abrufs sind Drucken/Markdown/E-Mail wirkungslos und „Erstellt am
+      // …" zeigt noch den alten Stand. Die Fusszeile kommt in `finally` zurueck, also
+      // auch nach einem Fehler — sonst fehlte der Knopf zum erneuten Versuch.
+      if(!silent) $('#climate-foot').style.display = 'none';
       try {
         // Ohne refresh zuerst der billige Weg: gespeicherte Tabelle, kein KI-Aufruf.
         if(!refresh){
@@ -3863,7 +3909,10 @@
       } catch(e){
         if(!silent) $('#climate-body').innerHTML = aiErrorBlock('Klimadaten konnten nicht geladen werden.', false);
         return null;
-      } finally { climateBusy = false; }
+      } finally {
+        climateBusy = false;
+        if(!silent) $('#climate-foot').style.display = '';
+      }
     }
     // Zwei Panels übereinander mit gemeinsamer Monatsachse: Temperaturen (°C) als
     // Linien, Regentage als Säulen. Bewusst NICHT zwei y-Achsen in einem Bild —
@@ -4162,15 +4211,17 @@
         + `<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th>`
         + `<th title="Sonnenstunden pro Tag">Sonne</th><th title="Regentage im Monat">Regen</th></tr>${rows}</table>`
         + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '')
-        // Tokens und Kosten wie bei jedem anderen KI-Ergebnis. Nur beim frisch
-        // erzeugten Aufruf vorhanden — kommt die Tabelle aus der Datenbank, hat sie
-        // nichts gekostet und es steht bewusst nichts da.
-        + aiUsageLine(d && d.usage, false, d && d.totals);
+        // Tokens und Kosten des Aufrufs, der DIESE Tabelle erzeugt hat — auch dann,
+        // wenn sie aus der Datenbank kommt. Bewusst ohne Gesamtsumme: die steht in
+        // der Fußzeile der Seite und interessiert an dieser Stelle nicht.
+        + aiUsageLine(d && d.usage, false, null,
+                      (d && d.cached === false) ? '' : 'einmalig beim Erstellen');
       climateChartHover(box, c.months || []);
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#climate-stand').textContent = when
         ? `Langjährige Mittelwerte · erstellt am ${when}${d.model ? ' mit '+d.model : ''}`
         : '';
+      $('#climate-foot').style.display = '';
     }
     // Das Ziel, dessen Tabelle gerade angezeigt wird — nicht zwingend das der
     // Suchmaske: von der Hauptseite aus wird eines aus der gespeicherten Liste
@@ -4289,7 +4340,8 @@
       if(giata == null){ climateTarget = null; climateFromSearch = false; renderClimateList(); return; }
       climateTarget = {giata, label};
       climateFromSearch = fromSearch;
-      $('#climate-foot').style.display = '';
+      // Erst beim Anzeigen einblenden (renderClimate bzw. fetchClimate-`finally`).
+      $('#climate-foot').style.display = 'none';
       $('#climate-sub').textContent = label;
       // Schon geladen (z. B. vom Auto-Abruf nach der Suche) → sofort anzeigen.
       if(climateData && climateData.giata === giata){ renderClimate(climateData); return; }
@@ -4340,7 +4392,7 @@
     // ── Reiseführer (KI) ──────────────────────────────────────────────────────
     // Genau wie die Klimatabelle: einmal je Ziel erzeugt, dauerhaft gespeichert,
     // Neuerstellung nur auf Knopfdruck. Der Reiseführer ist der teuerste Einzelaufruf
-    // im Add-on — dreizehn Abschnitte plus zwanzig Vokabeln. Anders als beim Klima
+    // im Add-on — viele Abschnitte plus zwanzig Vokabeln. Anders als beim Klima
     // wird hier NICHT im Hintergrund vorgeladen: die Tabelle entsteht nebenbei nach
     // jeder Suche, ein Reiseführer je gesuchtem Ziel wäre Geldverbrennung.
     let guideData = null;        // {giata,label,ts,model,data,climate}
@@ -4381,6 +4433,7 @@
     async function fetchGuide(giata, label, {refresh=false}={}){
       if(guideBusy) return null;
       guideBusy = true;
+      $('#guide-foot').style.display = 'none';   // siehe fetchClimate
       try {
         if(!refresh){
           try {
@@ -4390,7 +4443,7 @@
           if(!aiEnabled()) return null;
         }
         const busy = aiProviderName()+' stellt den Reiseführer zusammen — das dauert '
-          + 'eine Weile (dreizehn Abschnitte)…';
+          + 'eine Weile…';
         $('#guide-body').innerHTML = progBar(busy);
         const body = {giata, label, refresh};
         // Wie beim Klima-Fenster: bei aktiver Prompt-Vorschau muss die Vorschau HIER
@@ -4425,7 +4478,10 @@
       } catch(e){
         $('#guide-body').innerHTML = aiErrorBlock('Reiseführer konnte nicht geladen werden.', false);
         return null;
-      } finally { guideBusy = false; }
+      } finally {
+        guideBusy = false;
+        $('#guide-foot').style.display = '';
+      }
     }
 
     // Baut die Abschnitte als HTML. `plain` = Druckfassung: ohne Sprungmarken und
@@ -4498,13 +4554,15 @@
         + '<div class="hint" style="margin-top:14px">⏱ = kann sich kurzfristig ändern '
         + '(Einreise, Wechselkurs, Preise) · KI-generiert, ohne Gewähr — verbindliche '
         + 'Auskünfte nur beim Auswärtigen Amt und beim Veranstalter.</div>'
-        // Nur beim frisch erzeugten Reiseführer vorhanden; aus der Datenbank
-        // gelesen hat er nichts gekostet.
-        + aiUsageLine(d && d.usage, false, d && d.totals);
+        // Kosten des einen Aufrufs, der diesen Reiseführer erzeugt hat — siehe
+        // renderClimate. Gesamtsumme bewusst nicht, die steht in der Fußzeile.
+        + aiUsageLine(d && d.usage, false, null,
+                      (d && d.cached === false) ? '' : 'einmalig beim Erstellen');
       if(d.climate && (d.climate.months||[]).length) climateChartHover(box, d.climate.months);
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#guide-stand').textContent = when
         ? `Erstellt am ${when}${d.model ? ' mit '+d.model : ''}` : '';
+      $('#guide-foot').style.display = '';
     }
 
     async function renderGuideList(){
@@ -4557,7 +4615,7 @@
       $('#guide-bg').classList.add('show');
       if(giata == null){ guideTarget = null; renderGuideList(); return; }
       guideTarget = {giata, label};
-      $('#guide-foot').style.display = '';
+      $('#guide-foot').style.display = 'none';   // siehe openClimate
       $('#guide-sub').textContent = label;
       if(guideData && guideData.giata === giata){ renderGuide(guideData); return; }
       $('#guide-body').innerHTML = progBar('Lade…');
@@ -5237,13 +5295,17 @@
         stars:r.stars, recommendation:r.recommendation, reviews:r.reviews, board:r.board,
         price:r.price, nights:r.nights, date:r.date};
     }
-    function aiUsageLine(usage, cached, totals){
+    // `note`: Zusatz hinter den Zahlen, z.B. „einmalig beim Erstellen“ bei einer
+    // gespeicherten Klimatabelle — die Zahlen stammen dort vom Aufruf von damals,
+    // das Wiedersehen kostet nichts.
+    function aiUsageLine(usage, cached, totals, note){
       let html = '';
       if(usage){
         const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
         if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
         if(usage.web_search_requests) parts.push('<svg class="i"><use href="#i-search"/></svg> '+usage.web_search_requests+' Websuchen');
         if(usage.estimated_usd != null) parts.push('≈ '+fmtUsd(usage.estimated_usd));
+        if(note) parts.push(note);
         html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)"><svg class="i"><use href="#i-hash"/></svg> '
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
         // Eine abgeschnittene Antwort hoert einfach mittendrin auf — ohne Hinweis
@@ -5256,7 +5318,12 @@
         }
       }
       if(totals && totals.calls){
-        html += '<div class="hint" style="margin-top:4px">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
+        // Steht die Summenzeile allein da (gespeicherte Klimatabelle/Reiseführer:
+        // der Abruf selbst hat nichts gekostet, also gibt es kein `usage`), muss sie
+        // die Trennlinie selbst mitbringen — sonst klebt sie am Inhalt darüber.
+        const sep = html ? 'margin-top:4px'
+          : 'margin-top:14px;padding-top:10px;border-top:1px solid var(--border)';
+        html += '<div class="hint" style="'+sep+'">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
           + (totals.input_tokens+totals.output_tokens).toLocaleString('de-DE')+' Tokens · geschätzt '
           + fmtUsd(totals.estimated_usd)+'</div>';
         if(totals.today || totals.month){
@@ -5491,42 +5558,27 @@
     // bei jeder Folgefrage erweitert.
     let _aiMdParts = [];
 
-    // Dateiname aus Titel und Untertitel: „Regionen-Vergleich · Malediven · …"
-    // -> „regionen-vergleich-malediven-….md". Umlaute werden ersetzt statt
-    // entfernt, sonst wird aus „Ägypten" ein „gypten".
-    function aiExportFilename(title, sub){
-      const map = {'ä':'ae','ö':'oe','ü':'ue','Ä':'ae','Ö':'oe','Ü':'ue','ß':'ss'};
-      const slug = (title + ' ' + sub)
-        .replace(/[äöüÄÖÜß]/g, c => map[c])
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 80);
-      const d = new Date();
-      const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0')
-                  + String(d.getDate()).padStart(2,'0');
-      return (slug || 'ki-antwort') + '-' + stamp + '.md';
+    // Markdown der aktuell gezeigten Antwort (Regionen-Vergleich, KI-Fazit,
+    // Kalender-Analyse ...) zusammensetzen: Titel und Untertitel als Kopf, darunter
+    // der bereits als Markdown vorliegende Antworttext samt Folgefragen.
+    function aiMarkdown(){
+      const md = (_aiMdParts || []).filter(Boolean).join('\n\n').trim();
+      if(!md) return '';
+      const title = ($('#ai-title').textContent || '').trim();
+      const sub = ($('#ai-sub').textContent || '').trim();
+      const head = (title ? '# ' + title + '\n\n' : '')
+                 + (sub ? '_' + sub + '_\n\n' : '');
+      return head + md + '\n';
     }
 
-    function exportAiMarkdown(){
-      const md = (_aiMdParts || []).filter(Boolean).join('\n\n');
-      if(!md){ toast('Nichts zum Exportieren'); return; }
-      const title = $('#ai-title').textContent, sub = $('#ai-sub').textContent;
-      const head = '# ' + title + (sub ? '\n\n*' + sub + '*' : '')
-                 + '\n\n<!-- TUIWatch, ' + new Date().toLocaleString('de-DE') + ' -->\n\n';
-      // Ueber ein Blob statt eines data:-Links: der Text enthaelt Umlaute und kann
-      // mehrere hundert KB gross werden, beides vertraegt eine URL schlecht.
-      const blob = new Blob([head + md + '\n'], {type: 'text/markdown;charset=utf-8'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = aiExportFilename(title, sub);
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Erst nach dem Klick freigeben, sonst bricht der Download in manchen
-      // Browsern ab, bevor er begonnen hat.
-      setTimeout(()=>URL.revokeObjectURL(url), 10000);
+    // Bewusst Zwischenablage statt Datei-Download, genau wie copyClimateMd und
+    // copyGuideMd: der Text soll direkt irgendwo eingefuegt werden, meist auf einer
+    // Webseite. Der Umweg ueber eine .md-Datei im Download-Ordner bringt dafuer
+    // nichts -- und unter iOS/Android ist so ein Download kaum weiterzuverwenden.
+    function copyAiMd(){
+      const md = aiMarkdown();
+      if(!md){ toast('Nichts zum Kopieren'); return; }
+      copyText(md, 'Als Markdown kopiert');
     }
 
     function exportAiPdf(){
@@ -5811,6 +5863,7 @@
       $('#syslog-tab-notify').classList.toggle('sec', tab!=='notify');
       $('#syslog-tab-errors').classList.toggle('sec', tab!=='errors');
       $('#syslog-tab-console').classList.toggle('sec', tab!=='console');
+      $('#syslog-tab-memory').classList.toggle('sec', tab!=='memory');
       // Filterzeile gehört nur zur Konsole — die anderen Tabs liefern zu wenig Zeilen,
       // als dass Filtern lohnte.
       $('#syslog-filter').style.display = tab==='console' ? 'flex' : 'none';
@@ -5822,12 +5875,14 @@
         const q = ($('#syslog-q').value||'').trim(), lv = $('#syslog-level').value||'';
         url = '/api/logs?q=' + encodeURIComponent(q) + '&level=' + encodeURIComponent(lv);
       }
+      if(tab==='memory') url = '/api/memory';
       let d;
       try {
         const r = await fetch(api(url));
         if(!r.ok) throw 0; d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Konnte nicht geladen werden.</div>'; return; }
       const items = d.items||[];
+      if(tab==='memory'){ renderMemory(d); return; }
       if(tab==='console'){
         $('#syslog-sub').textContent =
           `Add-on-Log seit dem Start, neueste zuerst — ${items.length} von ${d.total||0} Zeilen `
@@ -5862,6 +5917,95 @@
     }
     function closeSyslog(){ $('#syslog-bg').classList.remove('show'); }
 
+    // Speicher-Tab: beantwortet die Frage „warum zeigt Home Assistant so viel RAM?"
+    // Home Assistant liest den Wert aus der cgroup des Containers. Darin steckt neben
+    // dem echten Heap auch der Dateicache — der zählt mit, ist aber jederzeit
+    // rückholbar. Ohne diese Aufteilung sieht Dateicache aus wie ein Leck.
+    function _mb(v){ return v==null ? '–' : (v>=1024 ? (v/1024).toFixed(2)+' GB' : v.toFixed(1)+' MB'); }
+    function renderMemory(d){
+      const cg = d.cgroup||{}, me = d.self||{}, cr = d.chromium||{};
+      $('#syslog-sub').textContent = '';
+      const row = (label, value, hint) =>
+        `<div style="display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border)">
+           <span style="flex:1;min-width:150px">${esc(label)}</span>
+           <b style="white-space:nowrap">${esc(value)}</b>
+         </div>` + (hint ? `<div class="hint" style="margin:-2px 0 6px">${esc(hint)}</div>` : '');
+      let html = row('Container gesamt', _mb(cg.current_mb),
+                     'Dieser Wert steht in Home Assistant. Die Zeilen darunter ergeben ihn.')
+        + row('davon echter Speicher (anon)', _mb(cg.anon_mb),
+              'Python, Bibliotheken, ein laufendes Chromium — das ist wirklich belegt.')
+        + row('davon Dateicache (file)', _mb(cg.file_mb),
+              'Datenbank und Logdateien im Cache. Zählt mit, gibt der Kernel bei Bedarf sofort her.')
+        + row('davon Kernel', _mb(cg.kernel_mb),
+              'Verwaltung für diesen Container: Seitentabellen ' + _mb(cg.pagetables_mb)
+              + ', Thread-Stacks ' + _mb(cg.kernel_stack_mb)
+              + ' (davon slab ' + _mb(cg.slab_mb) + ').')
+        + row('darin tmpfs (shmem)', _mb(cg.shmem_mb),
+              'Teil des Dateicaches, kein eigener Posten: was im Container nach /dev/shm oder /tmp '
+              + 'geschrieben wurde. Das liegt im Speicher, nicht auf der Platte.')
+        + row('nicht zugeordnet', _mb(cg.other_mb),
+              'Rest zwischen der Summe und dem Gesamtwert.')
+        + row('TUIWatch selbst', _mb(me.rss_mb) + ' · ' + (me.threads||0) + ' Threads', '')
+        + row('Höchststand seit Start', _mb(me.peak_mb),
+              'Liegt er weit über dem aktuellen Wert, gab es eine einmalige Spitze. '
+              + 'Liegt er gleichauf, wächst der Bedarf stetig.')
+        + row('Speicher-Arenen (MALLOC_ARENA_MAX)', d.malloc_arena_max || 'unbegrenzt',
+              'Ohne Begrenzung legt die C-Bibliothek pro Thread eigene Arenen an und '
+              + 'gibt sie nicht wieder her.')
+        + row('Zuletzt aufgeräumt', (function(){
+              const t = d.trim||{};
+              if(!t.ts) return 'noch nicht';
+              const min = Math.max(0, Math.round((Date.now()/1000 - t.ts)/60));
+              return (min ? 'vor ' + min + ' min' : 'gerade eben')
+                     + ' · ' + _mb(t.freed_mb) + (t.auto ? ' (automatisch)' : ' (von Hand)');
+            })(), 'Läuft von selbst alle '
+              + Math.round(((d.trim&&d.trim.every_s)||300)/60) + ' Minuten.')
+        + row('Browser-Fallback', d.browser_fallback ? 'an' : 'aus', '')
+        + row('Chromium-Prozesse', cr.count ? (cr.count + ' · ' + _mb(cr.rss_mb)) : 'keine',
+              cr.busy ? 'Gerade läuft ein Abruf über den Browser.' : '');
+      if(cr.leftover_count){
+        html += `<div class="hc-row bad" style="margin:10px 0;padding:8px;border:1px solid var(--red);border-radius:8px">
+          <b>${cr.leftover_count} hängengebliebene(r) Fallback-Browser · ${esc(_mb(cr.leftover_mb))}</b>
+          <div class="hint">Gehören zu einem beendeten Abruf und geben den Speicher nicht mehr her.
+            Der Poller räumt sie bei der nächsten Runde selbst weg — oder jetzt:</div>
+          <button class="btn sec" style="margin-top:6px" onclick="reapChromium()">Jetzt beenden</button>
+        </div>`;
+      }
+      html += `<div style="margin:12px 0">
+          <button class="btn sec" onclick="trimMemory()"
+            title="Python-Müll einsammeln und freie Speicher-Arenen ans Betriebssystem zurückgeben">Speicher freigeben</button>
+          <div class="hint">Läuft ohnehin nach jeder Prüfrunde mit. Gibt nur zurück, was
+            wirklich frei ist — belegte Daten bleiben unangetastet.</div>
+        </div>`;
+      html += '<div style="margin-top:12px;font-weight:600">Größte Prozesse im Container</div>'
+        + (d.processes||[]).map(p =>
+            `<div style="display:flex;gap:8px;padding:3px 0;font-size:.8rem;font-family:ui-monospace,monospace">
+               <span class="hint" style="width:60px">${p.pid}</span>
+               <span style="flex:1;word-break:break-all">${esc(p.name)}</span>
+               <span>${esc(_mb(p.rss_mb))}</span>
+             </div>`).join('');
+      $('#syslog-body').innerHTML = html;
+    }
+    async function trimMemory(){
+      try {
+        const r = await fetch(api('/api/memory/trim'), {method:'POST'});
+        const d = await r.json();
+        toast(d.freed_mb > 0 ? _mb(d.freed_mb) + ' zurückgegeben (' + _mb(d.before_mb)
+                               + ' → ' + _mb(d.after_mb) + ')'
+                             : 'Nichts zurückzugeben — der Speicher ist wirklich belegt');
+      } catch(e){ toast('Fehlgeschlagen'); }
+      openSyslog('memory');
+    }
+    async function reapChromium(){
+      try {
+        const r = await fetch(api('/api/memory/reap'), {method:'POST'});
+        const d = await r.json();
+        toast(d.ok ? (d.killed ? d.killed + ' Browser beendet' : 'Nichts zu beenden')
+                   : (d.error || 'Fehlgeschlagen'));
+      } catch(e){ toast('Fehlgeschlagen'); }
+      openSyslog('memory');
+    }
+
     // ── Störungen (Ausrufezeichen neben dem Logo) ─────────────────────────
     // Die Zahl kommt bei jedem /api/offers mit (alle 5 s) — kein eigener Timer. Die
     // Liste selbst wird erst beim Öffnen geholt; sie ändert sich nur im Stundentakt.
@@ -5890,6 +6034,7 @@
       $('#settings-bg').classList.add('show');
       loadSettings();
       loadKeyState();
+      loadAiUsageState();
       return false;
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
@@ -5988,6 +6133,31 @@
       no_key: 'Es gibt noch keinen Schlüssel zum Sichern',
       crypto_unavailable: 'Verschlüsselung nicht verfügbar',
     };
+    // KI-Kosten: Stand im Dialog zeigen und auf Wunsch nullen. Die Zaehler sind
+    // reine Summen in `meta`, aus dem KI-Verlauf nicht rekonstruierbar — deshalb
+    // die Rueckfrage vor dem Zuruecksetzen.
+    async function loadAiUsageState(){
+      const el = $('#set-aiusage-state'); if(!el) return;
+      try {
+        const d = await fetch(api('/api/ai/usage')).then(r=>r.json());
+        el.textContent = 'Aktuell: heute ' + fmtUsd(d.today && d.today.estimated_usd)
+          + ' · Monat ' + fmtUsd(d.month && d.month.estimated_usd)
+          + ' · gesamt ' + fmtUsd(d.estimated_usd);
+      } catch(e){ el.textContent = ''; }
+    }
+    async function resetAiUsage(btn){
+      if(!confirm('Die KI-Kosten für heute, diesen Monat und gesamt auf null setzen? '
+                + 'Der KI-Verlauf bleibt erhalten, die Summen sind danach weg.')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/ai/usage'), {method:'DELETE'});
+        if(!r.ok){ toast('Zurücksetzen fehlgeschlagen'); return; }
+        toast('KI-Kosten zurückgesetzt');
+        loadAiUsageState();
+        loadAiUsageFooter();
+      } catch(e){ toast('Zurücksetzen fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
     async function loadKeyState(){
       try {
         const r = await fetch(api('/api/settings/key'));
@@ -6016,6 +6186,30 @@
         keyClearInputs();
         toast('Schlüssel heruntergeladen — sicher aufbewahren');
       } catch(e){ toast('Export fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    // Komplettsicherung: Backup + verpackter Schluessel in einer Datei. Nutzt
+    // dieselben zwei Felder wie der Einzel-Export (Passphrase + Login-Passwort),
+    // damit es nur einen Ort gibt, an dem eine Passphrase eingegeben wird.
+    async function backupWithKey(btn){
+      const pass = $('#set-key-pass').value, pw = $('#set-key-admin').value;
+      if(!pass || !pw){ toast('Passphrase und Passwort eingeben'); return; }
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/backup'), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ passphrase: pass, password: pw }),
+        });
+        if(!r.ok){ const d = await r.json().catch(()=>({})); toast(KEY_ERR[d.error] || 'Backup fehlgeschlagen'); return; }
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'tuiwatch-backup-mit-schluessel.zip';
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+        keyClearInputs();
+        toast('Backup mit Schlüssel heruntergeladen — sicher aufbewahren');
+      } catch(e){ toast('Backup fehlgeschlagen'); }
       finally { btn.disabled = false; }
     }
     async function importKey(file, overwrite){
@@ -6047,6 +6241,15 @@
         const f = e.target.files[0];
         e.target.value = '';
         if(f) importKey(f, false);
+      }
+      if(e.target && e.target.id === 'set-backup-key-file'){
+        const f = e.target.files[0];
+        e.target.value = '';
+        if(!f) return;
+        const pass = $('#set-key-pass').value, pw = $('#set-key-admin').value;
+        if(!pass || !pw){ toast('Passphrase und Passwort eingeben'); return; }
+        keyClearInputs();
+        postRestore(f, {passphrase: pass, password: pw});
       }
     });
 
@@ -7523,11 +7726,7 @@
       let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
       if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return false; }
       $('#email-to').value = localStorage.getItem('tw-mailto') || cfg.default_to || '';
-      try {
-        const c = await fetch(api('/api/contacts')).then(r=>r.json());
-        $('#nc-contacts').innerHTML = (c.contacts||[])
-          .map(k=>`<option value="${esc(k.email)}">${esc(k.name)}</option>`).join('');
-      } catch(e){ $('#nc-contacts').innerHTML = ''; }
+      await ncLoad(false);
       // über anderen Modals (z.B. Reisen-Zusammenfassung) geöffnet -> gleicher
       // z-index wie alle .modal-bg, DOM-Reihenfolge würde sonst dahinter landen
       $('#email-bg').style.zIndex = 60;
@@ -7555,6 +7754,114 @@
       await _openEmailModalCommon();
     }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); $('#email-bg').style.zIndex = ''; }
+
+    // ── Nextcloud-Kontakte im E-Mail-Dialog ─────────────────────────────────
+    // Bewusst eine eigene Liste statt <datalist>: Firefox zeigt dort nur den
+    // `value` (die Adresse), nie den Namen, und unterdrueckt die Vorschlaege
+    // ganz, wenn im Feld schon ein Standard-Empfaenger steht. Dazu legen sich
+    // Passwortmanager (Bitwarden) mit ihrem Overlay ueber das Feld. Eine sicht-
+    // bare Liste unter dem Feld ist von all dem unabhaengig.
+    let ncContacts = [];      // [{name, email}] aus /api/contacts
+    let ncConfigured = false; // Adressbuch in den Einstellungen hinterlegt?
+    let ncShown = [];         // aktuell angezeigte (gefilterte) Teilmenge
+    let ncSel = -1;           // Tastatur-Auswahl innerhalb von ncShown
+    let ncOpen = false;       // Liste aufgeklappt?
+
+    async function ncLoad(force){
+      const box = $('#nc-box');
+      try {
+        const c = await fetch(api('/api/contacts' + (force ? '?refresh=1' : ''))).then(r=>r.json());
+        ncConfigured = !!c.configured;
+        ncContacts = (ncConfigured && Array.isArray(c.contacts)) ? c.contacts : [];
+      } catch(e){ ncConfigured = false; ncContacts = []; }
+      // Kein Adressbuch hinterlegt: gar keinen Block zeigen, der Dialog bleibt fuer
+      // Freitext-Empfaenger so schlicht wie bisher. Hinterlegt, aber leer: Block
+      // bleibt sichtbar und sagt, dass nichts ankam — sonst sieht es aus wie "kein
+      // Adressbuch eingerichtet", obwohl nur der Abruf scheiterte.
+      box.hidden = !ncConfigured;
+      ncOpen = false;
+      ncFilter();
+    }
+
+    async function ncReload(){
+      $('#nc-toggle').textContent = 'Adressbuch wird geladen…';
+      await ncLoad(true);
+      if(!ncContacts.length) toast('Adressbuch nicht erreichbar — siehe API-Status');
+    }
+
+    function ncToggle(){
+      ncOpen = !ncOpen;
+      ncRender();
+    }
+
+    function ncFilter(){
+      const q = ($('#email-to').value || '').trim().toLowerCase();
+      ncShown = q ? ncContacts.filter(k =>
+        (k.name || '').toLowerCase().includes(q) || (k.email || '').toLowerCase().includes(q)) : ncContacts;
+      // Beim Tippen automatisch aufklappen, solange etwas passt — aber nicht,
+      // wenn die Eingabe bereits genau eine Adresse aus der Liste ist (dann ist
+      // die Auswahl erledigt und die Liste nur noch im Weg).
+      if(q && ncShown.length && !ncContacts.some(k => (k.email||'').toLowerCase() === q)) ncOpen = true;
+      ncSel = -1;
+      ncRender();
+    }
+
+    function ncRender(){
+      const list = $('#nc-list'), tog = $('#nc-toggle');
+      if(!list || !tog) return;
+      const total = ncContacts.length, shown = ncShown.length;
+      tog.textContent = !total
+        ? '📇 Adressbuch — keine Kontakte geladen (↻ erneut versuchen)'
+        : (ncOpen ? '▾ ' : '▸ ') + '📇 Adressbuch — '
+          + (shown === total ? total + ' Kontakte' : shown + ' von ' + total + ' passen');
+      if(!total){ list.hidden = true; return; }
+      list.hidden = !ncOpen;
+      if(!ncOpen) return;
+      list.innerHTML = shown
+        ? ncShown.map((k, i) => `<div class="nc-row${i===ncSel?' sel':''}" data-nc="${i}">`
+            + `<span class="nc-name">${esc(k.name || '(ohne Namen)')}</span>`
+            + `<span class="nc-mail">${esc(k.email)}</span></div>`).join('')
+        : '<div class="nc-none">Kein Kontakt passt zur Eingabe.</div>';
+    }
+
+    function ncPick(i){
+      const k = ncShown[i];
+      if(!k) return;
+      $('#email-to').value = k.email;
+      ncOpen = false;
+      ncSel = -1;
+      ncRender();
+      $('#email-to').focus();
+    }
+
+    function ncKey(e){
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        if(!ncShown.length) return;
+        e.preventDefault();
+        if(!ncOpen){ ncOpen = true; }
+        ncSel += (e.key === 'ArrowDown' ? 1 : -1);
+        if(ncSel < 0) ncSel = ncShown.length - 1;
+        if(ncSel >= ncShown.length) ncSel = 0;
+        ncRender();
+        const row = $('#nc-list').querySelector('.nc-row.sel');
+        if(row) row.scrollIntoView({block:'nearest'});
+        return;
+      }
+      if(e.key === 'Escape' && ncOpen){ e.preventDefault(); ncOpen = false; ncRender(); return; }
+      if(e.key === 'Enter'){
+        // Enter waehlt den markierten Kontakt, sonst sendet es wie bisher
+        if(ncOpen && ncSel >= 0){ e.preventDefault(); ncPick(ncSel); return; }
+        submitEmail();
+      }
+    }
+
+    // Delegation: die Zeilen entstehen bei jedem Filtern neu, einzeln gebundene
+    // Zuhoerer waeren danach verwaist. Adresse steht in data-nc als Index, nie
+    // als Text im onclick.
+    document.addEventListener('click', e => {
+      const row = e.target.closest && e.target.closest('#nc-list .nc-row');
+      if(row) ncPick(parseInt(row.dataset.nc, 10));
+    });
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
     async function submitEmail(){
       const to = $('#email-to').value;
@@ -7638,21 +7945,49 @@
     }
     async function restoreOffers(input){
       const f = input.files && input.files[0]; input.value=''; if(!f) return;
+      return postRestore(f, {});
+    }
+    // Ein Restore kann zwei Rueckfragen ausloesen: vorhandene Einstellungen ersetzen
+    // und einen vorhandenen Schluessel ersetzen. Beantwortet der Benutzer eine davon,
+    // laeuft derselbe Upload noch einmal mit dem Zusatzfeld. Das ist unbedenklich:
+    // der Restore ist ein Upsert per URL/Buchungsnummer, ein zweiter Lauf legt
+    // nichts doppelt an (er meldet die Angebote dann als „übersprungen“).
+    async function postRestore(f, extra){
+      extra = extra || {};
       const fd = new FormData(); fd.append('file', f);
+      Object.keys(extra).forEach(k => fd.append(k, extra[k]));
       let r; try { r = await fetch(api('/api/restore'), {method:'POST', body:fd}); }
       catch(e){ toast('Wiederherstellung fehlgeschlagen'); return; }
-      if(r.ok){
-        const d=await r.json();
-        const parts = [d.added+' Angebote'];
-        if(d.trips) parts.push(d.trips+' Reisen');
-        if(d.searches) parts.push(d.searches+' Suchen');
-        if(d.ai_history) parts.push(d.ai_history+' KI-Verlauf');
-        if(d.settings) parts.push(d.settings+' KI-Einstellungen');
-        toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
-        loadOffers();
-      } else if(r.status===413){
-        toast('Backup-Datei zu groß bzw. verdächtig stark komprimiert');
-      } else toast('Wiederherstellung fehlgeschlagen');
+      if(r.status===413){ toast('Backup-Datei zu groß bzw. verdächtig stark komprimiert'); return; }
+      if(r.status===403){
+        const d = await r.json().catch(()=>({}));
+        toast(KEY_ERR[d.error] || 'Passwort falsch'); return;
+      }
+      if(!r.ok){ toast('Wiederherstellung fehlgeschlagen'); return; }
+      const d = await r.json();
+      const parts = [d.added+' Angebote'];
+      if(d.trips) parts.push(d.trips+' Reisen');
+      if(d.searches) parts.push(d.searches+' Suchen');
+      if(d.ai_history) parts.push(d.ai_history+' KI-Verlauf');
+      if(d.settings) parts.push(d.settings+' KI-Einstellungen');
+      if(d.options_restored) parts.push('Einstellungen');
+      if(d.key_restored) parts.push('Schlüssel');
+      toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
+      loadOffers();
+      if(d.key_error === 'exists' && extra.replace_key !== '1'){
+        if(confirm('Im Backup steckt ein anderer Schlüssel als der hier hinterlegte. Wird er ersetzt, '
+                 + 'sind die bisher gespeicherten Zugangsdaten unwiderruflich unlesbar. Ersetzen?'))
+          return postRestore(f, Object.assign({}, extra, {replace_key:'1'}));
+      } else if(d.key_error === 'passphrase_missing'){
+        toast('Im Backup steckt ein Schlüssel — zum Einspielen „Backup mit Schlüssel einspielen“ im Einstellungen-Dialog nutzen');
+      } else if(d.key_error){
+        toast(KEY_ERR[d.key_error] || 'Schlüssel aus dem Backup nicht übernommen');
+      }
+      if(d.options_skipped && extra.replace_settings !== '1'){
+        if(confirm('Das Backup enthält Einstellungen, auf diesem System liegen aber schon welche. '
+                 + 'Sollen die gespeicherten Einstellungen durch die aus dem Backup ersetzt werden?'))
+          return postRestore(f, Object.assign({}, extra, {replace_settings:'1'}));
+      }
     }
 
     function renderOverview(offers){
@@ -7899,7 +8234,10 @@
         const el = $('#ai-provider-foot');
         if(!d.both_configured){ el.style.display = 'none'; return; }
         el.style.display = '';
-        el.textContent = '· ' + (AI_PROVIDER_LABEL[d.active] || d.active) + ' aktiv';
+        // Ohne führendes „·": die KI-Angaben stehen in einer eigenen Fußzeile, der
+        // Abstand trennt sie. Als Trennzeichen wäre es beim Umbruch allein am
+        // Zeilenanfang gelandet.
+        el.textContent = (AI_PROVIDER_LABEL[d.active] || d.active) + ' aktiv';
       } catch(e){}
     }
     async function toggleAiProvider(){

@@ -1,3 +1,33 @@
+## [1.8.64] - 2026-09-04
+
+### Aktualisiert
+
+- VS Code: 1.136.0 → 1.136.1
+- GitHub CLI: 2.99.0 → 2.100.0
+
+## [1.8.63] - 2026-09-03
+
+### Aktualisiert
+
+- VS Code: 1.135.0 → 1.136.0
+- Claude Desktop: 3.2.2+claude1.32885.1 → 3.2.3+claude1.40609.1
+- OpenCode: 1.18.26 → 1.18.27
+
+## [1.8.62] - 2026-09-02
+
+### Aktualisiert
+
+- GitHub CLI: 2.98.0 → 2.99.0
+- Firefox: 154.0.1 → 155.0
+- Thunderbird: 154.0 → 155.0
+- OpenCode: 1.18.25 → 1.18.26
+
+## [1.8.61] - 2026-09-01
+
+### Aktualisiert
+
+- Angry IP Scanner: 3.9.3 → 3.10.0
+
 ## [1.8.60] - 2026-08-28
 
 ### Aktualisiert

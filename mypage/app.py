@@ -117,7 +117,11 @@ CONFIG_PATH   = _OPTS + '/options.json'   # Home Assistant: Login-Notzugang
 # dort der über den Samba-Share einsehbare Add-on-Konfigurationsordner, und Schloss
 # und Schlüssel nebeneinander wären keine Verschlüsselung. Standalone bleibt er bei
 # den Daten — dort ist /data nur containerintern und wäre nach einem Neuaufbau weg.
-_KEY_DIR = _OPTS if os.environ.get('SUPERVISOR_TOKEN') else _DATA
+# Läuft MyPage als Home-Assistant-Add-on? Entscheidet an mehreren Stellen, woher
+# der Admin-Login kommt: unter HA aus den Add-on-Optionen, sonst aus
+# admin_login.json im Datenordner (gehasht, beim ersten Start erzeugt).
+ON_SUPERVISOR = bool(os.environ.get('SUPERVISOR_TOKEN'))
+_KEY_DIR = _OPTS if ON_SUPERVISOR else _DATA
 settings_store.init(_DATA, _KEY_DIR)
 SETTINGS_PATH = settings_store.path()
 SETTINGS_KEY_PATH = settings_store.key_path()
@@ -230,6 +234,14 @@ USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
 TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
+# Admin-Login ohne Home Assistant: Benutzername + Passwort-Hash. Liegt bewusst
+# im gemounteten Datenordner, damit man die Datei bei vergessenem Passwort per
+# SSH löschen kann — beim nächsten Start erzeugt MyPage ein neues Passwort und
+# schreibt es ins Protokoll. Kommt aus demselben Grund NICHT ins Backup.
+ADMIN_LOGIN_PATH = _DATA + '/admin_login.json'
+# Grundlage der Vorschau-Links. Wird der Wert erneuert, sind alle bisher
+# ausgegebenen Links sofort ungueltig — das ist der Widerruf.
+PREVIEW_PATH = _DATA + '/preview.json'
 SECRETKEY_PATH = _DATA + '/secret.key'      # Flask SECRET_KEY (signiert das trust2fa-Cookie)
 POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
 # Reiseblog getrennt von site.json: eine Zwei-Wochen-Reise mit Erlebnissen,
@@ -462,6 +474,7 @@ _comments_lock = threading.Lock()
 _audit_lock = threading.Lock()
 _dm_lock    = threading.Lock()
 _2fa_lock   = threading.Lock()
+_admin_login_lock = threading.Lock()
 _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
@@ -611,6 +624,14 @@ DEFAULT_SITE = {
         # sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
         'travel_enabled': False,
         'forms_enabled': True,
+        # Blog, Bibliothek und Projekte waren immer da — deshalb hier AN als
+        # Standard. Aus heisst: keine Startseite, keine Navigation, eigene
+        # Adressen antworten mit 404, nichts in Sitemap, Feed und Suche. Die
+        # Admin-Reiter bleiben stehen, damit man den Bereich vorbereiten kann,
+        # bevor er online geht.
+        'blog_enabled': True,
+        'library_enabled': True,
+        'projects_enabled': True,
         # RSS-Feed: Sprache fest wählen statt am Browser des Abrufers hängen zu
         # lassen (siehe _feed_lang). Blog und Reiseblog stehen immer drin,
         # Projekte und Bibliothek nur auf Wunsch — sie ändern sich selten und
@@ -1282,6 +1303,126 @@ def _settings_changed() -> None:
     """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
     global _merged_cache, _merged_stamp
     _merged_cache, _merged_stamp = None, None
+
+
+# ── Admin-Login ohne Home Assistant ───────────────────────────────────────────
+# Unter Home Assistant stehen Benutzername und Passwort in den Add-on-Optionen —
+# daran ändert sich nichts. Ohne Supervisor (Docker, Dockge) gäbe es dafür keine
+# Oberfläche, deshalb erzeugt MyPage beim ersten Start selbst ein Passwort,
+# schreibt es ins Protokoll und legt nur den Hash ab. Ändern geht danach im
+# Admin-Panel; wer es vergisst, löscht admin_login.json und startet neu.
+
+ADMIN_PW_MIN_LEN = 12
+# Ohne 0/O und 1/l/I: das Passwort wird aus dem Protokoll abgetippt, und
+# verwechselte Zeichen kosten dort mehr als die zwei Bit Entropie.
+_PW_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+_PW_LOWER = 'abcdefghijkmnopqrstuvwxyz'
+_PW_DIGIT = '23456789'
+_PW_ALPHABET = _PW_UPPER + _PW_LOWER + _PW_DIGIT
+_GEN_PW_LEN = 16
+
+
+def _gen_admin_password() -> str:
+    """Zufälliges Passwort mit garantiert Groß-, Kleinbuchstaben und Ziffern."""
+    while True:
+        pw = ''.join(secrets.choice(_PW_ALPHABET) for _ in range(_GEN_PW_LEN))
+        if (any(c in _PW_UPPER for c in pw) and any(c in _PW_LOWER for c in pw)
+                and any(c in _PW_DIGIT for c in pw)):
+            return pw
+
+
+def password_policy_error(pw: str) -> str | None:
+    """None = in Ordnung, sonst der Übersetzungsschlüssel des Problems."""
+    pw = pw or ''
+    if len(pw) < ADMIN_PW_MIN_LEN:
+        return 'pw_too_short'
+    if not any(c.isupper() for c in pw):
+        return 'pw_no_upper'
+    if not any(c.islower() for c in pw):
+        return 'pw_no_lower'
+    if not any(c.isdigit() for c in pw):
+        return 'pw_no_digit'
+    return None
+
+
+def load_admin_login() -> dict:
+    with _admin_login_lock:
+        try:
+            with open(ADMIN_LOGIN_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            # Kaputte Datei beiseitelegen: der nächste Start erzeugt ein neues
+            # Passwort, statt dass die Anmeldung dauerhaft klemmt.
+            _quarantine_corrupt(ADMIN_LOGIN_PATH, e)
+            return {}
+
+
+def save_admin_login(data: dict) -> None:
+    with _admin_login_lock:
+        _atomic_write_json(ADMIN_LOGIN_PATH, data, indent=2, mode=0o600)
+
+
+def ensure_admin_login() -> str | None:
+    """Beim Start aufrufen. Liefert das Klartext-Passwort, wenn es neu erzeugt wurde.
+
+    Unter Home Assistant passiert nichts — dort gilt weiterhin options.json.
+    """
+    if ON_SUPERVISOR:
+        return None
+    d = load_admin_login()
+    if d.get('pw_hash'):
+        return None
+    # Bestandsinstallationen: wer bisher options.json gemountet hat, soll sich
+    # nach dem Update mit demselben Passwort anmelden können. Übernommen wird es
+    # gehasht, danach ist die Datei überflüssig.
+    opts = load_options()
+    old_pw = str(opts.get('password') or '')
+    if old_pw and old_pw != 'changeme123':
+        save_admin_login({'username': str(opts.get('username') or 'admin'),
+                          'pw_hash': generate_password_hash(old_pw),
+                          'initial': False, 'created': int(time.time()),
+                          'from_options': True})
+        log.info("Admin-Zugang aus options.json übernommen und in %s gehasht "
+                 "abgelegt — die Datei wird nicht mehr gebraucht", ADMIN_LOGIN_PATH)
+        return None
+    pw = _gen_admin_password()
+    save_admin_login({'username': 'admin', 'pw_hash': generate_password_hash(pw),
+                      'initial': True, 'created': int(time.time())})
+    return pw
+
+
+def admin_username() -> str:
+    if ON_SUPERVISOR:
+        return str(load_config().get('username', 'admin'))
+    return str(load_admin_login().get('username') or 'admin')
+
+
+def admin_password_ok(pwd: str) -> bool:
+    """Passwortprüfung für Anmeldung und alle Stellen, die es erneut abfragen."""
+    if ON_SUPERVISOR:
+        return secrets.compare_digest(str(pwd or ''),
+                                      str(load_config().get('password', '')))
+    h = str(load_admin_login().get('pw_hash') or '')
+    if not h:
+        return False
+    return check_password_hash(h, str(pwd or ''))
+
+
+def admin_login_is_initial() -> bool:
+    """True, solange noch das erzeugte Startpasswort gilt."""
+    return not ON_SUPERVISOR and bool(load_admin_login().get('initial'))
+
+
+def set_admin_credentials(username: str, password: str) -> None:
+    d = load_admin_login()
+    d['username'] = username or 'admin'
+    d['pw_hash'] = generate_password_hash(password)
+    d['initial'] = False
+    d['changed'] = int(time.time())
+    save_admin_login(d)
 
 
 def load_site() -> dict:
@@ -2195,6 +2336,20 @@ def _cookie_secure() -> bool:
         return False
 
 
+def invalidate_admin_sessions(keep: str | None = None) -> int:
+    """Alle Admin-Sitzungen bis auf `keep` beenden. Liefert die Anzahl.
+
+    Nach einem Passwortwechsel: eine mitgelesene oder geklaute Sitzung soll den
+    Wechsel nicht überleben. Die eigene bleibt, sonst fliegt man selbst raus.
+    """
+    tokens = [t for t in sessions if t != keep]
+    for t in tokens:
+        del sessions[t]
+    if tokens:
+        save_sessions()
+    return len(tokens)
+
+
 def save_sessions() -> None:
     try:
         now = time.time()
@@ -2519,6 +2674,88 @@ def _pending_2fa_valid(token: str | None) -> bool:
 def _trusted_prune(entries: dict) -> dict:
     now = time.time()
     return {k: v for k, v in (entries or {}).items() if v > now}
+
+
+# ── Vorschau-Sitzung ──────────────────────────────────────────────────────────
+# Der Wartungsmodus liefert jede oeffentliche Seite als 503 aus, und ein
+# abgeschaltetes Modul antwortet mit 404. Zum Aufbauen einer Seite braucht man
+# aber genau den echten Blick darauf — mit Navigation und Unterseiten, nicht nur
+# den Vorschaurahmen der Startseite. Ein signierter Link setzt dafuer einen
+# Cookie: Wer ihn hat, sieht die Seite, alle anderen weiterhin die Wartungsseite.
+#
+# Der Link ist absichtlich teilbar (Vorstand, Kunde, Partner) — deshalb laeuft er
+# ab, traegt noindex und laesst sich mit einem Knopf vollstaendig zurueckziehen.
+
+PREVIEW_COOKIE = 'mypage_preview'
+PREVIEW_PARAM = 'vorschau'
+PREVIEW_HOURS = (1, 8, 168)      # 1 Stunde, 8 Stunden, 7 Tage
+_preview_lock = threading.Lock()
+
+
+def _preview_nonce() -> str:
+    """Zufallswert, der in den Signatur-Salt eingeht. Erneuern = alles widerrufen."""
+    with _preview_lock:
+        try:
+            with open(PREVIEW_PATH, encoding='utf-8') as f:
+                n = (json.load(f) or {}).get('nonce')
+            if isinstance(n, str) and n:
+                return n
+        except (OSError, ValueError):
+            pass
+        n = secrets.token_hex(8)
+        try:
+            _atomic_write_json(PREVIEW_PATH, {'nonce': n}, mode=0o600)
+        except Exception as e:      # noqa: BLE001 — ohne Datei gilt der Wert nur bis zum Neustart
+            log.warning("Vorschau-Grundlage konnte nicht gespeichert werden: %s", e)
+        return n
+
+
+def preview_revoke() -> None:
+    with _preview_lock:
+        _atomic_write_json(PREVIEW_PATH, {'nonce': secrets.token_hex(8)}, mode=0o600)
+
+
+def _preview_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(str(admin_app.config.get('SECRET_KEY', '')),
+                                  salt='preview:' + _preview_nonce())
+
+
+def preview_token(hours: int) -> str:
+    """Signierter Token. Die Laufzeit steht mit drin, damit sie beim Lesen gilt."""
+    return _preview_serializer().dumps({'h': int(hours)})
+
+
+def preview_token_hours(token: str) -> int | None:
+    """Restlaufzeit-Grundlage in Stunden, wenn der Token gueltig ist — sonst None."""
+    if not token:
+        return None
+    try:
+        data = _preview_serializer().loads(token, max_age=168 * 3600)
+    except (BadSignature, SignatureExpired, ValueError):
+        return None
+    hours = int((data or {}).get('h') or 0)
+    if hours not in PREVIEW_HOURS:
+        return None
+    # Zweiter Durchlauf mit der eigenen Laufzeit: `max_age` oben ist nur die
+    # Obergrenze, gelten soll die im Token vermerkte Dauer.
+    try:
+        _preview_serializer().loads(token, max_age=hours * 3600)
+    except (BadSignature, SignatureExpired):
+        return None
+    return hours
+
+
+def preview_active() -> bool:
+    """Laeuft die aktuelle Anfrage in einer Vorschau-Sitzung?"""
+    try:
+        return preview_token_hours(request.cookies.get(PREVIEW_COOKIE, '')) is not None
+    except Exception:      # noqa: BLE001 — ausserhalb eines Anfragekontexts
+        return False
+
+
+def maintenance_active(site: dict) -> bool:
+    """Wartungsmodus fuer diese Anfrage — in der Vorschau ist er aufgehoben."""
+    return bool(site['design'].get('maintenance')) and not preview_active()
 
 
 def _trusted_cookie_serializer() -> URLSafeTimedSerializer:
@@ -3278,6 +3515,8 @@ def count_visit(req) -> None:
     global _seen_today, _seen_day
     if req.headers.get('X-MyPage-Export'):
         return  # interner Abruf für den statischen Export
+    if preview_active():
+        return  # eigener Blick beim Aufbauen der Seite
     ua = req.headers.get('User-Agent') or ''
     ip = get_client_ip(req)
     # Rechenzentrums-Adressen zählen unabhängig von der Browserkennung als Bot:
@@ -3817,6 +4056,144 @@ def store_user_file(d: Path, f) -> Path | None:
         n += 1
     f.save(target)
     return target
+
+
+# ── Gesamt-Speicherlimit ──────────────────────────────────────────────────────
+# Bewusst NICHT im Admin-Panel einstellbar: Ein Limit, das der Inhalts-Admin
+# selbst hochdrehen kann, ist keins. Es kommt vom Betreiber — per Umgebungs-
+# variable in der compose.yaml oder als Add-on-Option unter Home Assistant.
+# 0 (oder nicht gesetzt) heisst unbegrenzt, damit bestehende Installationen ihr
+# Verhalten nicht aendern.
+#
+# Gezaehlt wird alles unter dem Datenordner: Bilder, Bibliothek-PDFs, Logos,
+# Mitglieder-Dateien, Anhaenge, Spielstaende, Sicherungen. Liegen die Mitglieder-
+# Dateien auf einer SMB-Freigabe, stehen sie ausserhalb dieses Ordners und
+# zaehlen damit von selbst nicht mit.
+
+STORAGE_RESCAN_S = 300          # Drift ausgleichen, ohne bei jedem Upload zu zaehlen
+_storage_lock = threading.Lock()
+_storage_bytes = 0
+_storage_stamp = 0.0
+
+
+def storage_limit_bytes() -> int:
+    """Gesamtlimit in Bytes, 0 = unbegrenzt."""
+    raw = os.environ.get('MYPAGE_STORAGE_MAX_MB')
+    if raw is None or str(raw).strip() == '':
+        # load_options() statt load_config(): Was in settings.json steht, pflegt
+        # der Admin selbst — genau das soll hier nicht greifen.
+        raw = load_options().get('storage_max_mb')
+    try:
+        mb = int(raw or 0)
+    except (TypeError, ValueError):
+        mb = 0
+    return max(0, mb) * 1048576
+
+
+def _scan_storage_bytes() -> int:
+    total = 0
+    for root, _dirs, files in os.walk(_DATA):
+        for name in files:
+            try:
+                total += os.stat(os.path.join(root, name)).st_size
+            except OSError:      # waehrend des Zaehlens geloescht — nicht schlimm
+                pass
+    return total
+
+
+def storage_used_bytes(refresh: bool = False) -> int:
+    """Belegter Platz im Datenordner, gepuffert.
+
+    Der Wert wird nach jedem Schreiben fortgeschrieben (`storage_note_delta`)
+    und alle `STORAGE_RESCAN_S` neu gezaehlt. Ohne Puffer laege bei jedem Upload
+    ein vollstaendiger Durchlauf ueber alle Dateien im Anfragepfad.
+    """
+    global _storage_bytes, _storage_stamp
+    with _storage_lock:
+        if refresh or not _storage_stamp or time.time() - _storage_stamp > STORAGE_RESCAN_S:
+            _storage_bytes = _scan_storage_bytes()
+            _storage_stamp = time.time()
+        return _storage_bytes
+
+
+def storage_note_delta(n: int) -> None:
+    """Bekannte Aenderung einrechnen (positiv beim Schreiben, negativ beim Loeschen)."""
+    global _storage_bytes
+    with _storage_lock:
+        _storage_bytes = max(0, _storage_bytes + int(n))
+
+
+def storage_room_bytes() -> int | None:
+    """Verbleibender Platz bis zum Limit. None = kein Limit gesetzt."""
+    limit = storage_limit_bytes()
+    if not limit:
+        return None
+    return max(0, limit - storage_used_bytes())
+
+
+def storage_would_exceed(extra: int) -> bool:
+    room = storage_room_bytes()
+    return room is not None and int(extra or 0) > room
+
+
+# Woraus sich der belegte Platz zusammensetzt. Die Reihenfolge ist die der
+# Anzeige; Beschriftungen holt die Oberflaeche ueber `storage_grp_<key>` aus den
+# Uebersetzungen, damit hier kein deutscher Text im Code steht.
+STORAGE_GROUPS = ('uploads', 'docs', 'logos', 'users', 'member_avatars', 'dm_files',
+                  'autobackup', 'revisions', 'games', 'visits', 'wm_cache', 'ai_tmp',
+                  'geoip')
+
+
+def _dir_bytes(path: Path) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.stat(os.path.join(root, name)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def storage_breakdown() -> dict:
+    """Belegter Platz je Ordner plus Gesamtwerte — Grundlage der Anzeige im Admin.
+
+    `rest` faengt alles ab, was direkt im Datenordner liegt (site.json, stats,
+    Schluessel …). So ergibt die Summe der Zeilen immer den Gesamtwert, statt
+    dass ein Teil unerklaert fehlt.
+    """
+    groups = []
+    counted = 0
+    for key in STORAGE_GROUPS:
+        d = Path(_DATA) / key
+        if key == 'users' and SMB_MOUNTED:
+            continue          # liegt auf der Freigabe, zaehlt nicht mit
+        if not d.is_dir():
+            continue
+        size = _dir_bytes(d)
+        counted += size
+        if size:
+            groups.append({'key': key, 'bytes': size})
+    total = storage_used_bytes(refresh=True)
+    rest = max(0, total - counted)
+    if rest:
+        groups.append({'key': 'rest', 'bytes': rest})
+    groups.sort(key=lambda g: g['bytes'], reverse=True)
+    limit = storage_limit_bytes()
+    return {'groups': groups, 'total': total, 'limit': limit,
+            'pct': (total * 100 // limit) if limit else 0,
+            'disk_free': int((_health_dir_free_mb(_DATA) or 0) * 1048576),
+            'smb': SMB_MOUNTED}
+
+
+def _storage_worker() -> None:
+    """Zaehlt im Hintergrund nach, damit der gepufferte Wert nicht wegdriftet."""
+    while True:
+        time.sleep(STORAGE_RESCAN_S)
+        try:
+            storage_used_bytes(refresh=True)
+        except Exception as e:
+            log.warning("Speicherstand konnte nicht ermittelt werden: %s", e)
 
 
 def user_usage_bytes(user: dict) -> int:
@@ -4636,9 +5013,7 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool,
         body = ' '.join([loc(p, 'text'), ' '.join(p.get('tags', []))])
         consider('blog', loc(p, 'title'), '/blog/' + p['id'], body, p.get('members_only'))
 
-    for p in site.get('projects', []):
-        if not project_visible(p):
-            continue
+    for p in projects_public(site):
         body = ' '.join([loc(p, 'desc'), loc(p, 'long'), ' '.join(p.get('tags', []))])
         url = '/p/' + p['id'] if _has_detail(p) else (p.get('url') or '/#projects')
         consider('project', p.get('title', ''), url, body, False)
@@ -4695,9 +5070,31 @@ def project_visible(p: dict) -> bool:
     return bool(p.get('published', True))
 
 
+def blog_public(site: dict) -> bool:
+    """Ist der Blog fuer die Website freigegeben? (Admin-Reiter bleibt davon unberuehrt.)
+
+    In einer Vorschau-Sitzung gilt er als freigegeben — sonst liesse sich ein
+    Bereich nicht aufbauen, ohne ihn zwischendurch fuer alle einzuschalten.
+    """
+    return site['design'].get('blog_enabled', True) is not False or preview_active()
+
+
+def library_public(site: dict) -> bool:
+    return site['design'].get('library_enabled', True) is not False or preview_active()
+
+
+def projects_public(site: dict) -> list:
+    """Sichtbare Projekte — leer, solange der Bereich nicht freigegeben ist."""
+    if site['design'].get('projects_enabled', True) is False and not preview_active():
+        return []
+    return [p for p in site.get('projects', []) if project_visible(p)]
+
+
 def sorted_posts(site: dict, public_only: bool = False) -> list:
     posts = sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
-    return [p for p in posts if post_visible(p)] if public_only else posts
+    if not public_only:
+        return posts
+    return [p for p in posts if post_visible(p)] if blog_public(site) else []
 
 
 def _albums_for_public(site: dict, viewer_member: bool = False) -> list:
@@ -5100,11 +5497,19 @@ def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> tuple[str, bool]:
 
 
 def _find_lib_entry(site: dict, slug: str) -> dict | None:
+    if not library_public(site):
+        return None
     return next((e for e in _library(site).get('entries', []) if e.get('slug') == slug), None)
 
 
 def _lib_public_entries(site: dict) -> list:
-    """Veröffentlichte Einträge (Mitglieder-only bleibt gelistet, nur der Text ist gesperrt)."""
+    """Veröffentlichte Einträge (Mitglieder-only bleibt gelistet, nur der Text ist gesperrt).
+
+    Leer, solange die Bibliothek in den Einstellungen nicht für die Website
+    freigegeben ist — der Admin-Reiter bleibt davon unberührt.
+    """
+    if not library_public(site):
+        return []
     return [e for e in _library(site).get('entries', []) if e.get('visible')]
 
 
@@ -5352,7 +5757,7 @@ def _public_forms(site: dict) -> list:
     Der Schalter unter Design → Module steuert die Website als Ganzes, der
     Schalter am Formular das einzelne Formular. Beides muss zusammenkommen.
     """
-    if not site['design'].get('forms_enabled', True):
+    if not site['design'].get('forms_enabled', True) and not preview_active():
         return []
     return [f for f in site.get('forms', []) if f.get('enabled') and f.get('slug')]
 
@@ -5533,8 +5938,8 @@ def login():
             # Schritt 1: Benutzername + Passwort
             uname = request.form.get('username', '')
             pwd   = request.form.get('password', '')
-            if (secrets.compare_digest(uname, str(cfg.get('username', 'admin'))) and
-                    secrets.compare_digest(pwd, str(cfg.get('password', '')))):
+            if (secrets.compare_digest(uname, admin_username())
+                    and admin_password_ok(pwd)):
                 if twofa_enabled() and not is_trusted_session_valid(request.cookies.get('trust2fa')):
                     pre = _pending_2fa_new()
                     resp = make_response(render_template('login.html', t=t, lang=lang,
@@ -5580,7 +5985,7 @@ def api_2fa_setup():
     d = load_2fa()
     d['pending'] = secret           # erst nach Code-Bestätigung aktiv
     save_2fa(d)
-    account = str(load_config().get('username', 'admin'))
+    account = admin_username()
     uri = _otpauth_uri(secret, account)
     return jsonify({'secret': secret, 'uri': uri, 'qr': _qr_svg(uri), 'account': account})
 
@@ -5619,6 +6024,99 @@ def api_2fa_disable():
     log_audit('admin_2fa_disabled')
     log.info("Admin-2FA deaktiviert")
     return jsonify({'ok': True})
+
+
+# Regeln wie bei den Mitgliedern: sichtbare Zeichen, keine Leerzeichen.
+_ADMIN_USER_RE = re.compile(r'^[A-Za-z0-9._@-]{3,64}$')
+
+
+@admin_app.route('/api/preview-link', methods=['POST'])
+def api_preview_link():
+    """Vorschau-Link erzeugen. Zeigt die echte Seite trotz Wartungsmodus."""
+    err = _api_auth()
+    if err:
+        return err
+    hours = int((request.get_json(silent=True) or {}).get('hours') or 0)
+    if hours not in PREVIEW_HOURS:
+        return jsonify({'error': 'bad_hours'}), 400
+    site = load_site()
+    # Die eingetragene oeffentliche Adresse zuerst: Der Link soll auf die Seite
+    # zeigen, wie Besucher sie erreichen — nicht auf den Admin-Host.
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        host = (request.host or '').split(':')[0]
+        base = f'{request.scheme}://{host}:{PUBLIC_PORT}'
+    token = preview_token(hours)
+    log_audit('preview_link', f'{hours} h')
+    return jsonify({'url': f'{base}/?{PREVIEW_PARAM}={token}',
+                    'hours': hours,
+                    'expires': int(time.time()) + hours * 3600,
+                    'public_url_set': bool(site['design'].get('public_url'))})
+
+
+@admin_app.route('/api/preview-link/revoke', methods=['POST'])
+def api_preview_revoke():
+    """Alle ausgegebenen Vorschau-Links auf einen Schlag ungültig machen."""
+    err = _api_auth()
+    if err:
+        return err
+    preview_revoke()
+    log_audit('preview_revoke')
+    log.info("Vorschau-Links zurückgezogen")
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/diskuse')
+def api_diskuse():
+    """Belegter Platz je Ordner. Reine Anzeige — das Limit selbst ist hier nicht
+    zu ändern, es kommt aus der Add-on-Konfiguration bzw. der compose.yaml."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify(storage_breakdown())
+
+
+@admin_app.route('/api/admin-login')
+def api_admin_login_state():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'on_ha': ON_SUPERVISOR,
+                    'username': admin_username(),
+                    'initial': admin_login_is_initial(),
+                    'twofa': twofa_enabled(),
+                    'min_len': ADMIN_PW_MIN_LEN})
+
+
+@admin_app.route('/api/admin-login', methods=['POST'])
+def api_admin_login_change():
+    """Benutzername und Passwort des Admins ändern (nur ohne Home Assistant).
+
+    Verlangt das aktuelle Passwort — und bei aktiver 2FA zusätzlich einen Code.
+    Sonst könnte eine offene Sitzung an einem unbeaufsichtigten Rechner den
+    Zugang übernehmen. Danach fliegen alle übrigen Sitzungen raus.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if ON_SUPERVISOR:
+        return jsonify({'error': 'on_ha'}), 400
+    body = request.get_json(silent=True) or {}
+    if (gate := _key_gate_check(body.get('current'), body.get('code'),
+                                'admin_password_denied')):
+        return gate
+    new = str(body.get('new') or '')
+    if (perr := password_policy_error(new)):
+        return jsonify({'error': perr}), 400
+    uname = _clean_str(body.get('username'), 64) or admin_username()
+    if not _ADMIN_USER_RE.match(uname):
+        return jsonify({'error': 'bad_username'}), 400
+    set_admin_credentials(uname, new)
+    ended = invalidate_admin_sessions(request.cookies.get('session'))
+    log_audit('admin_password_changed', uname)
+    log.info("Admin-Zugang geändert (Benutzer '%s') — %d weitere Sitzung(en) beendet",
+             uname, ended)
+    return jsonify({'ok': True, 'username': uname, 'sessions_ended': ended})
 
 
 @admin_app.route('/api/2fa/backup', methods=['POST'])
@@ -5662,7 +6160,8 @@ def admin_index():
         return redir
     lang = detect_language(request)
     t = load_translations(lang)
-    return render_template('admin.html', t=t, lang=lang, ingress=_is_ingress())
+    return render_template('admin.html', t=t, lang=lang, ingress=_is_ingress(),
+                           on_ha=ON_SUPERVISOR)
 
 
 @admin_app.route('/api/site')
@@ -5844,6 +6343,7 @@ def api_design():
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
                  'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review',
                  'travel_enabled', 'forms_enabled', 'feed_projects', 'feed_library',
+                 'blog_enabled', 'library_enabled', 'projects_enabled',
                  'visit_archive'):
         if flag in raw:
             d[flag] = bool(raw[flag])
@@ -6428,7 +6928,15 @@ def auto_backup_loop() -> None:
     while True:
         try:
             keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
-            if keep > 0:
+            room = storage_room_bytes()
+            if keep > 0 and room is not None and room <= 0:
+                # Voll: die vorhandenen Sicherungen ausduennen statt eine weitere
+                # anzulegen. Sie sind das Erste, was Platz freigibt, ohne dass
+                # Inhalte verloren gehen.
+                _rotate_auto_backups(max(1, keep - 1))
+                log.warning("Speicherlimit erreicht — kein neues automatisches Backup, "
+                            "Aufbewahrung vorübergehend auf %d Datei(en) verkürzt", max(1, keep - 1))
+            elif keep > 0:
                 if not (BACKUPS_DIR / f'mypage-auto-{date.today().isoformat()}.zip').exists():
                     create_auto_backup(keep)
                 else:
@@ -8456,9 +8964,13 @@ def _seo_objects(site: dict) -> list[tuple[str, str, dict]]:
     """(Art, Id, Objekt) für alles mit eigenem SEO-Feld — eine Quelle für
     Übersicht, Speichern und KI-Knopf."""
     out: list[tuple[str, str, dict]] = [('home', '', site['design'])]
-    out += [('post', p.get('id', ''), p) for p in site.get('posts', [])]
+    # Abgeschaltete Bereiche bleiben draussen: Ihre Adressen antworten mit 404,
+    # eine SEO-Zeile dafuer waere Arbeit an einer Seite, die es nicht gibt.
+    if blog_public(site):
+        out += [('post', p.get('id', ''), p) for p in site.get('posts', [])]
     out += [('page', p.get('id', ''), p) for p in site.get('pages', [])]
-    out += [('library', e.get('id', ''), e) for e in _library(site).get('entries', [])]
+    if library_public(site):
+        out += [('library', e.get('id', ''), e) for e in _library(site).get('entries', [])]
     return out
 
 
@@ -10352,14 +10864,19 @@ _KEY_GATE_MAX = 5
 _KEY_GATE_LOCK_S = 300
 
 
-def _key_gate_check(password: str, code: str) -> tuple | None:
-    """None = freigegeben, sonst die fertige Fehlerantwort."""
+def _key_gate_check(password: str, code: str,
+                    audit: str = 'settings_key_denied') -> tuple | None:
+    """None = freigegeben, sonst die fertige Fehlerantwort.
+
+    Gemeinsame Sperre für alle Stellen, die das Admin-Passwort erneut abfragen
+    (Schlüssel-Export/-Import, Passwortwechsel): fünf Fehlversuche, dann fünf
+    Minuten zu. `audit` benennt den Vorgang im Protokoll.
+    """
     now = time.time()
     if _key_gate['until'] > now:
         return jsonify({'error': 'locked',
                         'retry_after': int(_key_gate['until'] - now)}), 429
-    cfg = load_config()
-    ok = secrets.compare_digest(str(password or ''), str(cfg.get('password', '')))
+    ok = admin_password_ok(password)
     if ok and twofa_enabled():
         ok = totp_verify(load_2fa().get('secret', ''), code or '') or backup_code_consume(code or '')
     if not ok:
@@ -10367,7 +10884,7 @@ def _key_gate_check(password: str, code: str) -> tuple | None:
         if _key_gate['fails'] >= _KEY_GATE_MAX:
             _key_gate['until'] = now + _KEY_GATE_LOCK_S
             _key_gate['fails'] = 0
-        log_audit('settings_key_denied')
+        log_audit(audit)
         return jsonify({'error': 'auth'}), 403
     _key_gate['fails'] = 0
     return None
@@ -10829,8 +11346,8 @@ def api_export():
     for p in site.get('pages', []):
         if p.get('visible'):
             pages[f"seite/{p['slug']}/index.html"] = f"/seite/{p['slug']}"
-    for p in site['projects']:
-        if _has_detail(p) and project_visible(p):
+    for p in projects_public(site):
+        if _has_detail(p):
             pages[f"p/{p['id']}/index.html"] = f"/p/{p['id']}"
     posts = sorted_posts(site, public_only=True)
     if posts:
@@ -11375,7 +11892,7 @@ def _public_urls(site: dict) -> list:
             out.append({'url': f"/reiseblog/{tr['slug']}/{d['slug']}", 'kind': 'travel',
                         'label': art.get('title') or d.get('slug', '')})
     out += [{'url': '/p/' + p['id'], 'kind': 'project', 'label': p.get('title') or p['id']}
-            for p in site.get('projects', []) if _has_detail(p) and project_visible(p)]
+            for p in projects_public(site) if _has_detail(p)]
     out += [{'url': '/formular/' + f['slug'], 'kind': 'form', 'label': loc(f, 'title')}
             for f in _public_forms(site) if f.get('slug')]
     return out
@@ -11458,6 +11975,16 @@ def health_checks() -> list:
     else:
         add('disk', 'err' if free < 200 else 'warn' if free < 1000 else 'ok',
             f'{free / 1024:.1f} GB')
+
+    # Gesamt-Speicherlimit des Betreibers (0 = keins gesetzt)
+    limit = storage_limit_bytes()
+    if not limit:
+        add('storage', 'off')
+    else:
+        used = storage_used_bytes()
+        pct = used * 100 // limit
+        add('storage', 'err' if pct >= 100 else 'warn' if pct >= 80 else 'ok',
+            f'{used / 1048576:.0f} / {limit // 1048576} MB ({pct} %)')
 
     # Mailversand
     if not (cfg.get('smtp_host') or '').strip():
@@ -12206,6 +12733,264 @@ def _seo_urls(lang: str) -> dict:
     return {'canonical_url': canonical, 'hreflang_urls': alts + [('x-default', base)]}
 
 
+# Eine Stelle fuer alle Uploads: geprueft wird die angekuendigte Laenge, bevor
+# Flask den Rumpf ueberhaupt einliest. Das trifft jeden Weg, auf dem Dateien
+# hereinkommen (Bilder, PDFs, Logos, Avatare, Anhaenge, Mitglieder-Dateien,
+# Restore) — auch kuenftige, ohne dass man daran denken muss. Anfragen ohne
+# Datei laufen woanders und bleiben unberuehrt, damit sich bei vollem Speicher
+# weiterhin aufraeumen, loeschen und bedienen laesst.
+def _storage_guard():
+    if request.method not in ('POST', 'PUT', 'PATCH'):
+        return None
+    if not (request.content_type or '').startswith('multipart/form-data'):
+        return None
+    if not storage_would_exceed(request.content_length or 0):
+        return None
+    # Zweite Meinung mit frisch gezaehltem Stand: Geloeschtes wird im Puffer
+    # nicht mitgefuehrt, sonst wuerde nach dem Aufraeumen bis zu fuenf Minuten
+    # lang weiter abgewiesen.
+    storage_used_bytes(refresh=True)
+    if not storage_would_exceed(request.content_length or 0):
+        return None
+    limit_mb = storage_limit_bytes() // 1048576
+    log.warning("Upload abgewiesen: Speicherlimit von %d MB erreicht (%s)",
+                limit_mb, request.path)
+    # Der Mitgliederbereich arbeitet mit Formularen und Weiterleitungen, der
+    # Admin mit JSON — eine JSON-Antwort im Browser waere dort eine leere Seite.
+    if request.path.startswith('/bereich'):
+        return redirect('/bereich?msg=storage')
+    return jsonify({'error': 'storage_full', 'limit_mb': limit_mb,
+                    'used_mb': storage_used_bytes() // 1048576}), 413
+
+
+def _storage_after(resp):
+    """Angenommene Uploads gleich einrechnen, statt auf den naechsten Durchlauf
+    zu warten. Gezaehlt wird die angekuendigte Laenge — etwas mehr als die Datei
+    am Ende belegt, und in dieser Richtung ist die Schaetzung die richtige."""
+    try:
+        if (request.method in ('POST', 'PUT', 'PATCH')
+                and (request.content_type or '').startswith('multipart/form-data')
+                and resp.status_code < 400):
+            storage_note_delta(request.content_length or 0)
+    except Exception:      # noqa: BLE001 — Buchhaltung darf keine Antwort kippen
+        pass
+    return resp
+
+
+public_app.before_request(_storage_guard)
+admin_app.before_request(_storage_guard)
+public_app.after_request(_storage_after)
+admin_app.after_request(_storage_after)
+
+
+# ------------------------------------------------------------------ Sicherheits-Kopfzeilen
+#
+# Der Browser folgt allem, was im ausgelieferten HTML steht: ein eingeschleustes
+# `<script src="https://fremd/…">` ladet er ohne Rueckfrage. Die Kopfzeilen hier
+# sagen ihm vorher, was ueberhaupt erlaubt ist — zweite Verteidigungslinie hinter
+# sauberem Inhalt. Die erste bleibt noetig: `render_md` reicht rohes HTML durch,
+# und `fetch_github_readme` holt fremdes Markdown auf die Projektseite.
+#
+# `'unsafe-inline'` steht bewusst drin. Die Vorlagen arbeiten mit rund 660
+# `onclick`-Attributen und mehreren hundert `style="…"`; ein Nonce deckt nur
+# <script>-Bloecke ab, keine Attribute. Ohne Umbau waere eine strengere Regel
+# einfach eine kaputte Oberflaeche. Was trotzdem greift: fremde Skript-Quellen,
+# <object>, ein umgebogenes <base>, Formulare nach draussen, fremdes Einbetten.
+_CSP_COMMON = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    # Bilder und Medien duerfen von aussen kommen: Beitraege binden fremde
+    # Adressen ein, und `http:` steht dabei, weil MyPage im LAN selbst ohne TLS
+    # laeuft — ein Bild vom NAS soll nicht am Kopfzeilen-Schutz scheitern.
+    "img-src 'self' data: http: https:; "
+    "media-src 'self' https:; "
+    "object-src 'none'; form-action 'self'"
+)
+
+# Oeffentlich: die beiden Video-Hosts aus `parse_video` duerfen eingebettet
+# werden, umgekehrt darf die Seite nirgends eingebettet werden (Klickjacking).
+CSP_PUBLIC = (_CSP_COMMON + "; font-src 'self'; connect-src 'self'; "
+              "manifest-src 'self'; base-uri 'none'; "
+              "frame-src https://www.youtube-nocookie.com https://player.vimeo.com; "
+              "frame-ancestors 'none'")
+
+# Nur Schema, Name und Port — alles andere kaeme aus einem Eingabefeld direkt in
+# eine Kopfzeile. Ein Zeilenumbruch darin waere eine zweite, frei erfundene
+# Kopfzeile.
+_ORIGIN_RE = re.compile(r'^https?://[A-Za-z0-9.\-]{1,253}(:\d{1,5})?$')
+_preview_origin_cache: tuple = (None, ())
+
+
+def _preview_origins() -> tuple:
+    """Herkunft der oeffentlichen Seite, wie sie die Design-Vorschau einsetzt.
+
+    Die Vorschau rendert die oeffentliche Startseite im Admin und reicht sie als
+    `srcdoc` weiter (siehe `api_preview`). Ein `srcdoc`-Rahmen erbt die Regel des
+    Elterndokuments — also diese hier. Weil in das HTML ein `<base>` auf die
+    echte Adresse eingefuegt wird, kommen Schriften und Bilder darin vom
+    Nachbarport und nicht von der Admin-Adresse: ohne diese Ausnahme zeigte die
+    Vorschau ab „Durchsetzen" eine Seite ohne Schrift und ohne Bilder, und das
+    ist genau das, was man dort beurteilen will.
+
+    Gleiche Herleitung wie in `api_preview`, damit beide nicht auseinanderlaufen.
+    Zwischengespeichert ueber die Aenderungszeit von site.json — sonst laege bei
+    jeder Antwort ein vollstaendiges Lesen der Datei davor.
+    """
+    global _preview_origin_cache
+    try:
+        mtime = os.path.getmtime(SITE_PATH)
+    except OSError:
+        mtime = -1.0
+    host = (request.host or '').split(':')[0]
+    key = (mtime, host, request.scheme)
+    if _preview_origin_cache[0] == key:
+        return _preview_origin_cache[1]
+    pub = (load_site()['design'].get('public_url') or '').rstrip('/')
+    if not _ORIGIN_RE.match(pub):
+        pub = ''
+    if request.scheme == 'https':
+        # Bei HTTPS taugt nur die eingetragene HTTPS-Adresse: eine http-Quelle
+        # blockt der Browser ohnehin als gemischten Inhalt.
+        out = [pub] if pub.startswith('https://') else []
+    else:
+        out = [pub or f'http://{host}:{PUBLIC_PORT}']
+    origins = tuple(o for o in out if o)
+    _preview_origin_cache = (key, origins)
+    return origins
+
+
+def _csp_admin() -> str:
+    """Regel fuer das Admin-Panel — bewusst OHNE `frame-ancestors` und ohne
+    `X-Frame-Options`: Ueber den HA-Ingress laeuft das Panel in einem iframe von
+    Home Assistant, eine Sperre hier liesse das Panel weiss.
+
+    `frame-src 'self'` deckt den Vorschaurahmen ab, die Herkunft der
+    oeffentlichen Seite kommt aus `_preview_origins()`.
+    """
+    extra = ' '.join(_preview_origins())
+    src = ("'self' " + extra) if extra else "'self'"
+    return (_CSP_COMMON + f"; font-src {src}; connect-src {src}; "
+            f"manifest-src {src}; base-uri {src}; frame-src 'self'")
+
+# Faehigkeiten, die MyPage nicht braucht, gar nicht erst zulassen. Die vier
+# Video-Eintraege nennen die Embed-Hosts, sonst fehlt im eingebetteten Video der
+# Vollbild-Knopf. `clipboard-write` bleibt fuer die Kopier-Knoepfe.
+PERMISSIONS_POLICY = (
+    # Nur Namen, die Browser auch kennen — ein unbekannter (etwa
+    # `ambient-light-sensor`, in Chrome hinter einem Flag) wird zwar nur
+    # uebersprungen, schreibt aber bei jedem Seitenaufruf eine Fehlermeldung
+    # in die Konsole, in der spaeter die echten Treffer untergehen.
+    "accelerometer=(), camera=(), display-capture=(), "
+    "geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), "
+    "payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), "
+    "usb=(), xr-spatial-tracking=(), clipboard-write=(self), "
+    'autoplay=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com"), '
+    'encrypted-media=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com"), '
+    'fullscreen=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com"), '
+    'picture-in-picture=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com")'
+)
+
+
+def _security_headers(resp, csp: str):
+    """CSP, Permissions-Policy und die zwei kleinen Kopfzeilen an jede Antwort.
+
+    `setdefault` statt Zuweisung: Routen, die es besser wissen, behalten ihre
+    eigene Angabe — die PDF-Auslieferung setzt `Content-Security-Policy: sandbox`,
+    und das ist strenger als alles hier.
+
+    Der Modus kommt aus den Einstellungen und steht ab Werk auf `report`: Die
+    Regel wird mitgeschickt, blockiert aber nichts, sondern meldet in der Konsole,
+    was sie blockiert *haette*. So faellt ein Fehlalarm auf, bevor er als weisse
+    Seite auffaellt.
+    """
+    mode = str(load_config().get('csp_mode') or 'report')
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    resp.headers.setdefault('Permissions-Policy', PERMISSIONS_POLICY)
+    if mode == 'off':
+        return resp
+    name = ('Content-Security-Policy' if mode == 'on'
+            else 'Content-Security-Policy-Report-Only')
+    resp.headers.setdefault(name, csp)
+    return resp
+
+
+public_app.after_request(lambda r: _security_headers(r, CSP_PUBLIC))
+admin_app.after_request(lambda r: _security_headers(r, _csp_admin()))
+
+
+# Einstieg in die Vorschau: ?vorschau=<token> an einer beliebigen oeffentlichen
+# Adresse. Der Token wandert in einen Cookie und aus der Adresse heraus — sonst
+# steht er im Verlauf, im Referrer und in jedem geteilten Screenshot.
+def _preview_entry():
+    token = request.args.get(PREVIEW_PARAM)
+    if not token:
+        return None
+    hours = preview_token_hours(token)
+    args = {k: v for k, v in request.args.items(multi=True) if k != PREVIEW_PARAM}
+    # Ueber _safe_next, obwohl der Pfad vom Server geparst kommt: Ein Aufruf von
+    # `//fremde-seite.de/?vorschau=…` ergibt einen Pfad, der mit zwei Schraegstrichen
+    # beginnt — als `Location` waere das eine protokollrelative Adresse und damit
+    # eine Weiterleitung nach draussen.
+    target = _safe_next(request.path + ('?' + urlencode(args, doseq=True) if args else ''))
+    resp = redirect(target)
+    if hours is None:
+        # Abgelaufen oder zurueckgezogen: Cookie weg, Seite verhaelt sich wieder
+        # wie fuer jeden anderen Besucher.
+        resp.delete_cookie(PREVIEW_COOKIE)
+        log.info("Vorschau-Link abgelehnt (abgelaufen oder zurückgezogen)")
+        return resp
+    resp.set_cookie(PREVIEW_COOKIE, token, httponly=True, samesite='Lax',
+                    secure=_cookie_secure(), max_age=hours * 3600)
+    log.info("Vorschau-Sitzung begonnen (%d h)", hours)
+    return resp
+
+
+public_app.before_request(_preview_entry)
+
+
+@public_app.route('/vorschau-ende')
+def preview_end():
+    resp = redirect('/')
+    resp.delete_cookie(PREVIEW_COOKIE)
+    return resp
+
+
+@public_app.after_request
+def _preview_marks(resp):
+    """Balken und noindex, solange die Vorschau laeuft.
+
+    Der Balken kommt hier statt in die Vorlagen: Es sind zwanzig oeffentliche
+    Seiten, und vergessen wuerde man genau die, auf der man sich dann wundert.
+    """
+    if not preview_active():
+        return resp
+    # Auch wenn der Link irgendwo aufgeschnappt wird: nichts davon gehoert in
+    # einen Suchindex.
+    resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    if resp.mimetype != 'text/html' or resp.direct_passthrough:
+        return resp
+    try:
+        html = resp.get_data(as_text=True)
+    except (RuntimeError, UnicodeDecodeError):
+        return resp
+    if '</body>' not in html:
+        return resp
+    t = load_translations(detect_language(request))
+    bar = (
+        '<div style="position:fixed;left:0;right:0;bottom:0;z-index:99999;'
+        'background:#d29922;color:#1c1c1c;font:600 13px/1.4 system-ui,sans-serif;'
+        'padding:8px 14px;display:flex;gap:12px;align-items:center;'
+        'justify-content:center;flex-wrap:wrap">'
+        f'<span>{html_mod.escape(t.get("preview_bar", ""))}</span>'
+        '<a href="/vorschau-ende" style="color:#1c1c1c;text-decoration:underline">'
+        f'{html_mod.escape(t.get("preview_bar_end", ""))}</a></div>'
+    )
+    resp.set_data(html.replace('</body>', bar + '</body>', 1))
+    return resp
+
+
 @public_app.context_processor
 def _inject_seo():
     return _seo_urls(detect_language(request))
@@ -12264,7 +13049,10 @@ def _cache_headers(resp):
     # den Auslieferrouten fuer Dateien).
     if resp.direct_passthrough or resp.headers.get('Cache-Control'):
         return resp
-    if request.cookies.get('usession'):
+    # Vorschau wie eine Mitglieder-Sitzung behandeln: Die Seite zeigt dort Dinge,
+    # die fuer alle anderen gesperrt sind. Landete sie in einem gemeinsamen
+    # Zwischenspeicher, bekaeme sie der naechste Besucher zu sehen.
+    if request.cookies.get('usession') or request.cookies.get(PREVIEW_COOKIE):
         resp.headers['Cache-Control'] = 'private, no-store'
         return resp
     resp.headers['Cache-Control'] = 'public, max-age=0, must-revalidate'
@@ -12485,7 +13273,7 @@ def _public_url_list(site: dict, base: str) -> list:
     """
     urls = [base + '/']
     urls += [f"{base}/seite/{p['slug']}" for p in site.get('pages', []) if p.get('visible')]
-    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
+    urls += [f"{base}/p/{p['id']}" for p in projects_public(site) if _has_detail(p)]
     posts = sorted_posts(site, public_only=True)
     if posts:
         urls.append(base + '/blog')
@@ -12557,13 +13345,14 @@ def indexnow_submit(urls: list) -> None:
 
 def _indexnow_ping_post(site: dict, post: dict) -> None:
     base = (site['design'].get('public_url') or '').rstrip('/')
-    if base.startswith(('http://', 'https://')) and post_visible(post):
+    if base.startswith(('http://', 'https://')) and post_visible(post) and blog_public(site):
         indexnow_submit([base + '/', base + '/blog', f"{base}/blog/{post['id']}"])
 
 
 def _indexnow_ping_project(site: dict, proj: dict) -> None:
     base = (site['design'].get('public_url') or '').rstrip('/')
-    if base.startswith(('http://', 'https://')) and _has_detail(proj) and project_visible(proj):
+    if (base.startswith(('http://', 'https://')) and _has_detail(proj)
+            and proj in projects_public(site)):
         indexnow_submit([base + '/', f"{base}/p/{proj['id']}"])
 
 
@@ -12894,7 +13683,7 @@ def _gsess_sweep(uid: str) -> list:
 def game66_page():
     """Vollfenster-Spielseite (wird vom Mitgliederbereich als Iframe geöffnet)."""
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13171,7 +13960,7 @@ def _leaderboard(users: list) -> dict:
 @public_app.route('/bereich/bestenliste')
 def leaderboard_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13263,7 +14052,7 @@ def _record_20ab_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/20ab')
 def game20ab_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13421,7 +14210,7 @@ def api_20ab_session():
 @public_app.route('/bereich/kniffel')
 def gamekniffel_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13580,7 +14369,7 @@ def api_kniffel_session():
 @public_app.route('/bereich/chicago')
 def gamechicago_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -13803,7 +14592,7 @@ def _record_schwimmen_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/schwimmen')
 def schwimmen_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14028,7 +14817,7 @@ def _record_maumau_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/maumau')
 def maumau_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14215,7 +15004,7 @@ def _record_praesident_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/praesident')
 def praesident_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14447,7 +15236,7 @@ def _record_jeopardy_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/jeopardy')
 def jeopardy_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14585,7 +15374,7 @@ def _record_gluecksrad_if_over(uid: str, st: dict) -> None:
 @public_app.route('/bereich/gluecksrad')
 def gluecksrad_page():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     member = _require_member()
     lang = detect_language(request)
@@ -14704,8 +15493,8 @@ def sitemap():
             entries += [(f"{base}/reiseblog/{tr['slug']}/{d['slug']}",
                          d['date'] if _valid_date(d.get('date')) else '')
                         for d in _trav_public_days(tr)]
-    entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
-                if _has_detail(p) and project_visible(p)]
+    entries += [(f"{base}/p/{p['id']}", '') for p in projects_public(site)
+                if _has_detail(p)]
     if posts:
         entries.append((base + '/blog', newest))
         entries += [(f"{base}/blog/{p['id']}", p['date'] if _valid_date(p.get('date')) else '')
@@ -14947,9 +15736,7 @@ def _feed_items(site: dict, lang: str, t: dict, loc, base: str) -> list:
                     image=photo, locked=locked)
 
     if d.get('feed_projects'):
-        for p in site.get('projects', []):
-            if not project_visible(p):
-                continue
+        for p in projects_public(site):
             # Ohne Detailseite gäbe es keine Adresse, auf die der Eintrag zeigen
             # könnte — ein Feed-Eintrag ohne Ziel ist wertlos
             if not _has_detail(p):
@@ -15167,7 +15954,7 @@ def public_index():
     count_visit(request)
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     t = load_translations(lang)
     stats = load_stats()
@@ -15175,7 +15962,7 @@ def public_index():
     loc = _loc_factory(lang)
     email = site['profile'].get('email', '')
     email_parts = email.split('@', 1) if '@' in email else None
-    projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
+    projects = [dict(p, has_detail=_has_detail(p)) for p in projects_public(site)]
     static_export = bool(request.args.get('static'))
     viewer_member = is_member(request) and not static_export
     font_family, font_faces = font_css(site['design'])
@@ -15382,7 +16169,7 @@ def public_index():
 def blog_index():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     all_posts = sorted_posts(site, public_only=True)
     if not all_posts:
@@ -15412,7 +16199,7 @@ def blog_index():
 def site_search_page():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     if not site['design'].get('search_enabled'):
         abort(404)
@@ -15506,10 +16293,10 @@ def newsletter_unsubscribe(sid: str, token: str):
 def blog_post(pid: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
-    post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
-    if post is None or not post_visible(post):
+    post = _visible_post(site, pid)
+    if post is None:
         abort(404)
     count_visit(request)
     views = bump_post_view(pid, request)
@@ -15558,6 +16345,8 @@ def _thread_comments(clist: list) -> list:
 
 
 def _visible_post(site: dict, pid: str) -> dict | None:
+    if not blog_public(site):
+        return None
     post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
     return post if post is not None and post_visible(post) else None
 
@@ -15567,7 +16356,7 @@ def api_poll_vote():
     """Stimme zur Startseiten-Umfrage abgeben (Mitglied per Konto, Gast per Cookie).
     Erneutes Abstimmen ändert die eigene Stimme."""
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return jsonify({'error': 'disabled'}), 403
     poll = _active_poll(site)
     if poll is None or 'poll' in (site.get('hidden_sections') or []):
@@ -15609,7 +16398,7 @@ def api_poll_vote():
 @public_app.route('/blog/<pid>/comment', methods=['POST'])
 def blog_comment(pid: str):
     site = load_site()
-    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+    if maintenance_active(site) or not site['design'].get('comments_enabled'):
         abort(403)
     member = current_member(request)
     if member is None:
@@ -15656,7 +16445,7 @@ def blog_comment(pid: str):
 @public_app.route('/blog/<pid>/react', methods=['POST'])
 def blog_react(pid: str):
     site = load_site()
-    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+    if maintenance_active(site) or not site['design'].get('comments_enabled'):
         return jsonify({'error': 'disabled'}), 403
     member = current_member(request)
     if member is None:
@@ -15742,10 +16531,10 @@ def admin_form_preview(fid: str):
 def project_detail(pid: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
-    proj = next((p for p in site['projects'] if p.get('id') == pid), None)
-    if proj is None or not _has_detail(proj) or not project_visible(proj):
+    proj = next((p for p in projects_public(site) if p.get('id') == pid), None)
+    if proj is None or not _has_detail(proj):
         abort(404)
     count_visit(request)
     t = load_translations(lang)
@@ -15781,6 +16570,13 @@ def _member_page(member: dict | None, msg: str = ''):
             log.warning("Dateiliste für '%s' fehlgeschlagen: %s", member['email'], e)
             storage_down = True
             files = []
+        # Liegen die Mitglieder-Dateien auf dem Server selbst, gilt zusaetzlich
+        # das Gesamtlimit des Betreibers. Angezeigt wird das kleinere von beidem
+        # — sonst versprechen wir Platz, den es gar nicht gibt.
+        if not SMB_MOUNTED:
+            room = storage_room_bytes()
+            if room is not None:
+                quota = min(quota, used + room)
     login_msg_html = render_md(member.get('login_message', '')) if member else ''
     achievements = _member_achievements(member, len(files)) if member else []
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
@@ -15817,7 +16613,7 @@ def _member_auth_page(view: str, **extra):
 @public_app.route('/bereich')
 def member_area():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     return _member_page(current_member(request), request.args.get('msg', ''))
 
@@ -15856,7 +16652,7 @@ def member_login():
 @public_app.route('/bereich/forgot', methods=['GET', 'POST'])
 def member_forgot():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     if not reset_enabled():
         return redirect('/bereich')
@@ -15883,7 +16679,7 @@ def member_forgot():
 @public_app.route('/bereich/reset/<uid>/<token>', methods=['GET', 'POST'])
 def member_reset(uid: str, token: str):
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     users = load_users()
     user = _find_reset_user(users, uid, token)
@@ -15909,7 +16705,7 @@ def member_reset(uid: str, token: str):
 @public_app.route('/bereich/register', methods=['GET', 'POST'])
 def member_register():
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     if not registration_open():
         return redirect('/bereich')
@@ -15971,7 +16767,7 @@ def member_register():
 @public_app.route('/bereich/verify/<uid>/<token>')
 def member_verify(uid: str, token: str):
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, detect_language(request))
     users = load_users()
     user = _find_verify_user(users, uid, token)
@@ -16394,7 +17190,7 @@ def contact_captcha():
 @public_app.route('/contact', methods=['POST'])
 def contact():
     site = load_site()
-    if site['design'].get('maintenance') or not site['design'].get('contact_enabled'):
+    if maintenance_active(site) or not site['design'].get('contact_enabled'):
         return jsonify({'error': 'disabled'}), 403
     # Honeypot: Bots füllen das versteckte Feld aus → still verwerfen
     if (request.form.get('website') or '').strip():
@@ -16469,7 +17265,7 @@ def _render_form(form: dict, site: dict, lang: str, *, error: str = '', ok: bool
 def custom_form(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
     if form is None:
@@ -16482,7 +17278,7 @@ def custom_form(slug: str):
 def custom_form_submit(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
     if form is None:
@@ -16543,7 +17339,7 @@ def custom_form_submit(slug: str):
 def _legal_page(kind: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     t = load_translations(lang)
     text = _loc_factory(lang)(site.get('legal', {}), kind)
@@ -16580,7 +17376,7 @@ def datenschutz():
 def custom_page(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     page = _find_page(site, slug)
     if page is None or not page.get('visible'):
@@ -16676,7 +17472,7 @@ def _lib_filter_url(cat: str = '', tag: str = '', query: str = '') -> str:
 def library_index():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     if not _lib_public_entries(site):
         abort(404)
@@ -16742,7 +17538,7 @@ def _render_library_entry(site: dict, entry: dict, lang: str, preview: bool = Fa
 def library_entry(slug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     entry = _find_lib_entry(site, slug)
     if entry is None or not entry.get('visible'):
@@ -16759,7 +17555,7 @@ def library_entry_pdf(slug: str):
     Adresse im statischen Export eine ganz normale Datei, der Link bleibt gleich.
     """
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         abort(404)
     entry = _find_lib_entry(site, slug)
     if entry is None or not entry.get('visible'):
@@ -16790,7 +17586,7 @@ def public_download(name: str):
     gesperrter Bibliothek-Einträge liegen.
     """
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         abort(404)
     if not _DOC_FILE_RE.match(name or ''):
         abort(404)
@@ -16879,7 +17675,7 @@ def _trav_public_trips(site: dict, data: dict | None = None) -> list:
     Leer, solange der Reiseblog in den Einstellungen nicht für die Website
     freigegeben ist — der Admin-Reiter bleibt davon unberührt.
     """
-    if not site['design'].get('travel_enabled'):
+    if not site['design'].get('travel_enabled') and not preview_active():
         return []
     data = load_travel() if data is None else data
     return [t for t in (data.get('trips') or [])
@@ -17051,7 +17847,7 @@ def _trav_head(site: dict, lang: str):
 def travel_index():
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     trips = _trav_public_trips(site)
     if not trips:
@@ -17073,7 +17869,7 @@ def travel_index():
 def travel_trip_page(tslug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
     if trip is None:
@@ -17145,7 +17941,7 @@ def _render_travel_day(site: dict, trip: dict, day: dict, lang: str, preview: bo
 def travel_day_page(tslug: str, dslug: str):
     lang = detect_language(request)
     site = load_site()
-    if site['design'].get('maintenance'):
+    if maintenance_active(site):
         return _maintenance_page(site, lang)
     trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
     day = next((d for d in _trav_public_days(trip) if d.get('slug') == dslug),
@@ -17225,6 +18021,32 @@ def _handle_sigterm(signum, frame) -> None:
     os._exit(0)
 
 
+def _log_admin_login_banner(generated: str | None) -> None:
+    """Zugangsdaten beim Start ins Protokoll schreiben (nur ohne Home Assistant).
+
+    Das Startpasswort steht bei JEDEM Start im Protokoll, solange es nicht
+    geändert wurde — Docker-Protokolle rotieren, und wer den allerersten Start
+    verpasst, müsste sonst gleich wieder die Datei löschen. Nach dem Wechsel im
+    Admin-Panel ist hier Ruhe.
+    """
+    if generated:
+        log.warning("=" * 68)
+        log.warning("Neue Installation — Admin-Zugang angelegt in %s", ADMIN_LOGIN_PATH)
+        log.warning("  Benutzer:  admin")
+        log.warning("  Passwort:  %s", generated)
+        log.warning("Bitte notieren und im Admin-Panel unter Einstellungen ändern.")
+        log.warning("Erscheint das unerwartet, zeigt der Datenordner ins Leere —")
+        log.warning("dann Volume prüfen, BEVOR neue Inhalte angelegt werden.")
+        log.warning("=" * 68)
+        return
+    d = load_admin_login()
+    if d.get('initial'):
+        log.warning("Admin-Zugang steht noch auf dem erzeugten Startpasswort. "
+                    "Es steht im Protokoll des ersten Starts; ändern im Admin-Panel "
+                    "unter Einstellungen → Zugang. Vergessen? %s löschen und neu starten.",
+                    ADMIN_LOGIN_PATH)
+
+
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, _handle_sigterm)
     load_sessions()
@@ -17233,8 +18055,11 @@ if __name__ == '__main__':
     settings_store.migrate(load_options())
     _settings_changed()
     cfg = load_config()
-    if cfg.get('password') in ('', 'changeme123'):
-        log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")
+    if ON_SUPERVISOR:
+        if cfg.get('password') in ('', 'changeme123'):
+            log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")
+    else:
+        _log_admin_login_banner(ensure_admin_login())
     upload_max = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
     public_app.config['MAX_CONTENT_LENGTH'] = upload_max * 1024 * 1024
     extra_nets = cfg.get('visit_bot_nets') or []
@@ -17252,6 +18077,10 @@ if __name__ == '__main__':
                         "Watchdog versucht es jede Minute erneut")
     log.info("Mitglieder-Bereich: Speicher unter %s, Upload-Limit %d MB",
              userfiles_root(), upload_max)
+    _limit = storage_limit_bytes()
+    if _limit:
+        log.info("Speicherlimit: %d MB, belegt %d MB",
+                 _limit // 1048576, storage_used_bytes(refresh=True) // 1048576)
 
     # Aufbewahrung des Besucher-Archivs auch beim Start durchsetzen, nicht erst
     # beim nächsten Monatswechsel. Wer die Frist herunterdreht, will die alten
@@ -17274,6 +18103,7 @@ if __name__ == '__main__':
     threading.Thread(target=_dm_reminder_worker, daemon=True).start()
     threading.Thread(target=_weekly_review_worker, daemon=True).start()
     threading.Thread(target=auto_backup_loop, daemon=True).start()
+    threading.Thread(target=_storage_worker, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     # Acht Threads wie oeffentlich: Der Admin laedt beim Oeffnen eines Reiters

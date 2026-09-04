@@ -290,6 +290,52 @@ schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
 
 ---
 
+## robots.txt: KI-Crawler einzeln steuern
+
+**Stand:** Idee, notiert am 2026-08-30. Nichts angefangen. Nur umsetzen, wenn
+sich jemand daran stört — der heutige Zustand ist nicht kaputt.
+
+**Heute:** `design.allow_indexing` (Design-Tab, Standard an) ist ein
+Alles-oder-nichts-Schalter. `robots()` in `app.py` liefert entweder
+`User-agent: *` + `Allow: /` samt Sitemap-Verweis oder `User-agent: *` +
+`Disallow: /`; dazu setzen die öffentlichen Vorlagen `noindex, nofollow` und
+IndexNow pausiert. Einzelne Bots lassen sich nicht ansprechen.
+
+**Warum überhaupt:** KI-Crawler sind nicht eine Gruppe, sondern zwei mit
+gegensätzlichem Nutzen.
+
+- **Antwort-Bots** zitieren und verlinken die Seite, bringen also Besucher:
+  `OAI-SearchBot` (ChatGPT-Suche), `PerplexityBot`, `Google-Extended`
+  (AI Overviews), `Claude-SearchBot`. Bingbot deckt Copilot mit ab.
+- **Training-Crawler** nehmen den Inhalt ohne Gegenleistung: `GPTBot`,
+  `ClaudeBot`, `CCBot` (Common Crawl), `Bytespider`, `Meta-ExternalAgent`.
+- **Last** ist nur bei den aggressiven ein Thema (`Bytespider` ist bekannt
+  dafür). Bei einer kleinen persönlichen Seite auf der HA-Kiste kaum spürbar.
+
+Die übliche Aufteilung ist deshalb: Antwort-Bots erlauben, Training-Bots
+aussperren — genau das kann der jetzige Schalter nicht.
+
+**Vorschlag:** ein zweites Feld `design.ai_crawlers` mit drei Werten
+(`all` = Standard und heutiges Verhalten, `answers_only`, `none`). Nur `robots()`
+muss die passenden `User-agent`-Blöcke vor den `*`-Block schreiben; `noindex` und
+IndexNow bleiben unverändert an `allow_indexing` hängen. Aufwand ~1–2 h,
+inklusive Admin-Feld und `locales/de.json` + `en.json`.
+
+**Haken, die dabei zu beachten sind:**
+
+- `allow_indexing = aus` muss weiterhin gewinnen: dann `Disallow: /` für alle,
+  egal was `ai_crawlers` sagt. Sonst widersprechen sich die zwei Schalter.
+- Die Bot-Namen ändern sich. Die Liste gehört als Konstante an **eine** Stelle in
+  `app.py`, nicht verteilt in die Vorlage, damit ein Nachtrag eine Zeile bleibt.
+- robots.txt ist eine **Bitte**, kein Zugriffsschutz. Wer sie ignoriert, liest
+  weiter mit. Als Schutz taugt nur eine Sperre im Reverse-Proxy (NPMplus) oder
+  CrowdSec — das gehört nicht in dieses Add-on. In der Beschriftung des Feldes
+  ehrlich benennen, sonst verspricht die Oberfläche etwas, das sie nicht hält.
+- Mitglieder- und interne Seiten (`dm`, `leaderboard`, `directory`, `legal`,
+  `404`) haben `noindex` fest verdrahtet und bleiben davon unberührt.
+
+---
+
 ## Rauchtest über alle Routen — steht, aber nur die halbe Miete
 
 **Stand:** `test_routes.py` seit 2026-08-27, läuft in der CI
@@ -646,3 +692,89 @@ dazu, gehört der Dialog zu den globalen Funktionen, nicht in die Modulliste.
 1 (freie Überschriften, erledigt) und 4 (vier neue Module, erledigt) sind durch. Offen:
 2 (Umbenennungen) → 3 (Inhaltsverzeichnis) → Hero-Erweiterung → CTA/Teaser als
 Freitext-Vorlagen.
+
+---
+
+## Daten auf dem Server: Verschlüsselung und Personenbezug
+
+**Stand (Analyse vom 02.09.2026, v0.11.51).** Verschlüsselt sind nur die geheimen
+Einstellungsfelder (`settings.json` + `settings.key`, Fernet) und die Direktnachrichten
+(`dm.json` + `dm.key`). Gehasht sind das Admin-Passwort (`admin_login.json`) und die
+Mitglieder-Passwörter (`users.json`), beides scrypt. Alles andere liegt im Klartext:
+Inhalte, Uploads, Mitglieder-Dateien — und vor allem die drei Ablagen mit Personenbezug:
+
+- `messages.json` — Kontaktformular: Name, E-Mail, Nachrichtentext
+- `subscribers.json` und `users.json` — E-Mail-Adressen der Abonnenten und Mitglieder
+- `visits/*.csv`, das Besucher-Log, `audit.json` und das Benutzer-Journal — jeweils mit
+  **ungekürzten IP-Adressen**
+
+**Einordnung, damit sie später nicht neu erarbeitet werden muss:** Verschlüsselung auf der
+Platte hilft nur gegen kalte Kopien (gestohlener Datenträger, verschlampte Sicherung,
+Snapshot beim Hoster). Gegen einen Angreifer, der die laufende Anwendung übernimmt, hilft
+sie nicht — der Schlüssel muss auf derselben Maschine liegen. Der grösste Hebel liegt
+deshalb ausserhalb des Add-ons (verschlüsseltes Dateisystem, verschlüsselte Backups,
+Dateirechte 700 auf den Datenordner, kurze Aufbewahrung des Besucher-Archivs). Standalone
+liegt `settings.key` zwangsläufig neben `settings.json`, siehe die Begründung in
+`settings.py` — wer den Datenordner hat, hat auch die Tokens.
+
+**Zwei Vorhaben, die das Add-on selbst verbessern würden:**
+
+1. **Automatische Backups mit Passphrase verschlüsseln.** In `autobackup/` liegen heute
+   Mitglieder-Adressen und Kontaktnachrichten lesbar. Das Backup-ZIP lässt `settings.key`
+   bewusst weg, Tokens sind darin also unlesbar — der Rest nicht. Zu klären: Wo die
+   Passphrase herkommt (Betreiber-Seite wie beim Speicherlimit, nicht im Admin-Panel?),
+   und wie das Einspielen mit einem vergessenen Kennwort umgeht.
+2. **IP-Kürzung als Option** (letztes Oktett bei IPv4, untere 80 Bit bei IPv6) für
+   Besucher-Log, Besucher-Archiv, Audit und Benutzer-Journal. Datenschutzrechtlich der
+   grössere Hebel als jede Verschlüsselung. Zu klären: Was das für die Bot-Erkennung über
+   Rechenzentrums-Netze und für die Länderzuordnung bedeutet — beide arbeiten heute auf der
+   vollen Adresse. Der Brute-Force-Schutz muss unangetastet bleiben, dort ist die genaue
+   Adresse der Zweck.
+
+**Guardrail-Regel beachten:** Beides als abschaltbare Option bauen, Standard sicher.
+
+## Sicherheits-Kopfzeilen: Stufe 2 (offen seit 0.11.52)
+
+Stand nach 0.11.54: Die Content-Security-Policy liegt an, die Einstellung `csp_mode`
+schaltet zwischen *Nur melden*, *Durchsetzen* und *Aus*. Auf gizmonet.de läuft sie
+durchgesetzt; ein Playwright-Durchlauf über 81 Seitenaufrufe (alle 32 sitemap-Adressen,
+beide Sprachen, dazu Suche, Blog-Blätterung, `/bereich`, 404) fand null Verstöße —
+abgesichert über eine Positivkontrolle, die absichtlich `connect-src` verletzt. Vom
+vorgeschalteten Proxy kommen HSTS, `X-Frame-Options`, `Origin-Agent-Cluster`,
+`X-DNS-Prefetch-Control` und `X-Permitted-Cross-Domain-Policies`.
+
+Offen, nach Gewicht:
+
+1. **Markdown sanitisieren — die eigentliche Lücke.** `render_md()` reicht rohes HTML
+   unverändert durch; `markdown.markdown('<script>alert(1)</script>')` liefert genau das
+   zurück. Solange nur der Admin schreibt, ist das gewollt (eigene `<div>`-Blöcke in
+   Beiträgen). Über `fetch_github_readme()` landet aber **fremdes** Markdown in `long_de`
+   eines Projekts und damit auf einer öffentlichen Seite. Naheliegend: `nh3` mit einer
+   Erlaubnisliste, entweder generell oder nur auf dem Import-Pfad. Die CSP fängt davon
+   heute den Skript-Aufruf ab, aber weder ein `<img onerror=…>` noch eingeschleustes
+   Layout — sie ist die zweite Verteidigungslinie, nicht der Ersatz.
+2. **`'unsafe-inline'` loswerden.** Solange es in `script-src` steht, greift die Regel nur
+   gegen fremde Quellen, nicht gegen eingeschleusten Code im eigenen HTML. Dafür müssen die
+   Inline-Handler weg: rund 376 in `admin.html`, 237 in den Spiele-Vorlagen, 50 in den
+   öffentlichen — umzubauen auf `data-*`-Attribute plus Event-Delegation. Erst danach trägt
+   `script-src 'self' 'nonce-…'`. Für die Stile geht ein Zwischenschritt schon vorher:
+   `style-src 'self' 'nonce-…'; style-src-attr 'unsafe-inline'` blockiert eingeschleuste
+   `<style>`-Blöcke und lässt die rund 600 `style="…"`-Attribute in Ruhe.
+3. **Meldeweg für Verstöße.** Heute sieht man einen Treffer nur, wenn man selbst die
+   Konsole offen hat — bricht etwas bei einem Besucher, bleibt es unbemerkt. Mit `report-to`
+   plus einer Sammelroute (gedrosselt, Höchstzahl je Stunde, nur eigene Direktiven, sonst
+   füllen fremde Erweiterungen die Datei) landen sie im Admin. Der Punkt, der beim Umstellen
+   auf *Durchsetzen* am meisten Arbeit abnimmt — auch für alle, die MyPage sonst noch
+   einsetzen.
+
+Kleinkram, mitzunehmen wenn ohnehin am Kopfzeilen-Block gearbeitet wird:
+
+- `Cross-Origin-Opener-Policy` und `Cross-Origin-Resource-Policy` fehlen. Billig, aber von
+  geringem Nutzen bei einer Seite ohne Popups und ohne fremde Einbindung.
+- `img-src http:` könnte für die öffentliche Seite auf `https:` eingedampft werden — der
+  `http:`-Eintrag ist für den LAN-Betrieb drin, öffentlich läuft ohnehin nur TLS. Dann aber
+  als Fallunterscheidung wie bei `_cookie_secure()`, nicht hart.
+- Das `pollvid`-Cookie geht ohne `Secure` raus (`app.py`, Abstimmungs-Kennung, kein Token).
+  Einzeiler, gleiche Herleitung wie `_cookie_secure()`.
+- `frame-src` mit YouTube und Vimeo ist bisher **ungeprüft**: Auf der Seite steckt kein
+  einziges `<iframe>`. Beim ersten eingebetteten Video dort zuerst nachsehen.

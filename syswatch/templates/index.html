@@ -84,14 +84,14 @@
 
     /* ── SYS-Balken in Kacheln ── */
     .sys-bar-bg {
-      width: 100%; height: 12px; background: var(--surf2);
+      width: 100%; height: 10px; background: var(--surf2);
       border-radius: 6px; overflow: hidden; margin-bottom: 4px;
     }
     .sys-bar-fill {
       height: 100%; border-radius: 6px; width: 0%;
       transition: width .5s ease, background-color .5s ease;
     }
-    .sys-bar-pct { font-size: 0.8rem; font-weight: 600; }
+    .sys-bar-pct { font-size: 0.78rem; font-weight: 600; }
     .card.clickable { cursor: pointer; }
     .card.clickable:hover { border-color: var(--accent); }
 
@@ -211,32 +211,35 @@
     /* ── Summary cards ── */
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-      gap: 8px;
-      padding: 12px 14px 8px;
+      grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+      gap: 7px;
+      padding: 10px 14px 8px;
     }
     .card {
       background: var(--surf);
       border: 1px solid var(--border);
       border-radius: var(--r);
-      padding: 10px 12px;
+      padding: 8px 9px;
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
     .card-value {
-      font-size: 1.5rem;
+      font-size: 1.3rem;
       font-weight: 700;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
     }
     .card-label {
-      font-size: 0.65rem;
+      font-size: 0.62rem;
       color: var(--muted);
       margin-top: 3px;
       text-transform: uppercase;
       letter-spacing: .04em;
     }
     .card-sub {
-      font-size: 0.7rem;
+      font-size: 0.66rem;
       color: var(--muted);
       margin-top: 2px;
     }
@@ -294,7 +297,7 @@
       background: var(--surf);
       color: var(--muted);
       font-weight: 500;
-      padding: 7px 10px;
+      padding: 7px 8px;
       text-align: left;
       white-space: nowrap;
       border-bottom: 2px solid var(--border);
@@ -309,7 +312,7 @@
     th.sorted.asc::after  { content: ' \2191'; }
     th.sorted.desc::after { content: ' \2193'; }
     td {
-      padding: 6px 10px;
+      padding: 6px 8px;
       border-bottom: 1px solid var(--border);
       vertical-align: middle;
       white-space: nowrap;
@@ -317,7 +320,7 @@
     tr:hover td { background: rgba(88,166,255,0.04); }
 
     /* Name cell */
-    .name-cell { max-width: 180px; }
+    .name-cell { max-width: 170px; }
     .name-cell strong {
       display: block;
       overflow: hidden;
@@ -473,7 +476,7 @@
     @media (max-width: 620px) {
       .col-hide { display: none; }
       .cards { grid-template-columns: repeat(2, 1fr); }
-      .card-value { font-size: 1.2rem; }
+      .card-value { font-size: 1.15rem; }
     }
 
     /* ── Offline Banner ── */
@@ -561,6 +564,13 @@
     <div class="card-label">{{ t.card_sys_mem }}</div>
     <div class="card-sub" id="s-mem-detail"></div>
   </div>
+  <div class="card clickable" id="s-disk-card" onclick="showStorage()"
+       oncontextmenu="return storageCtx(event)" title="{{ t.disk_refresh_hint }}">
+    <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-disk-bar"></div></div>
+    <span class="sys-bar-pct" id="s-disk">-</span>
+    <div class="card-label">{{ t.card_disk_free }}</div>
+    <div class="card-sub" id="s-disk-detail"></div>
+  </div>
 </div>
 
 <!-- Controls -->
@@ -595,6 +605,8 @@
         <th data-col="net_rx" class="col-hide">{{ t.col_net }}</th>
         <th data-col="blk_r" class="col-hide">{{ t.col_disk }}</th>
         <th data-col="pids" class="col-hide">{{ t.col_pids }}</th>
+        <th data-col="size_rw" class="col-hide" id="th-size"
+            title="{{ t.col_size_hint }}">{{ t.col_size }}</th>
         <th class="col-hide">{{ t.col_history }}</th>
         <th>{{ t.col_actions }}</th>
       </tr>
@@ -686,6 +698,45 @@
           <tbody id="ports-tbody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Storage modal -->
+<div class="modal-overlay" id="storage-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">{{ t.storage_title }}</span>
+      <span id="storage-stamp" style="font-size:0.68rem;color:var(--muted);white-space:nowrap"></span>
+      <button class="btn sm danger" id="storage-prune" onclick="askPrune()"
+              style="display:none">{{ t.prune_btn }}</button>
+      <button class="btn sm" id="storage-refresh" onclick="refreshSizes(true)">{{ t.storage_refresh }}</button>
+      <button class="btn sm" onclick="closeStorage()">&#10005; {{ t.btn_close }}</button>
+    </div>
+    <div class="modal-body" id="storage-body"></div>
+  </div>
+</div>
+
+<!-- Build-Cache-Prune bestaetigen -->
+<div class="modal-overlay restart-modal" id="prune-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">{{ t.prune_title }}</span>
+      <button class="btn sm" onclick="closePruneModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="prune-desc"></p>
+      <p style="font-size:0.76rem;color:var(--muted)">{{ t.prune_safe }}</p>
+      <label style="font-size:0.78rem;color:var(--muted);display:block;margin-bottom:4px">{{ t.prune_keep }}</label>
+      <input type="number" class="pw-input" id="prune-keep" value="0" min="0" max="500" step="1">
+      <label style="font-size:0.78rem;color:var(--muted);display:block;margin:8px 0 4px">{{ t.password }}</label>
+      <input type="password" class="pw-input" id="prune-pw"
+             placeholder="{{ t.password }}" autocomplete="current-password">
+      <div class="modal-footer">
+        <button class="btn" onclick="closePruneModal()">{{ t.btn_cancel }}</button>
+        <button class="btn danger" onclick="confirmPrune()">{{ t.prune_confirm }}</button>
+      </div>
+      <div class="pw-error" id="prune-error"></div>
     </div>
   </div>
 </div>
@@ -912,7 +963,7 @@ async function fetchAndUpdate() {
       const lbl = document.getElementById('cycle-label');
       if (lbl) lbl.textContent = '~' + data.cycle_s.toFixed(1) + 's';
     }
-    updateCards(data.sysinfo || {}, data.ha_status || null);
+    updateCards(data.sysinfo || {}, data.ha_status || null, data.docker_df || null);
     updatePerfBtn(data.collector_mode);
     if (data.ha_status && data.ha_status.host_ip) _hostIp = data.ha_status.host_ip;
     if (data.cpu_temp   !== undefined) _lastCpuTemp   = data.cpu_temp;
@@ -943,7 +994,7 @@ async function doRefresh() {
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
-function updateCards(sys, haStatus) {
+function updateCards(sys, haStatus, dockerDf) {
   const running  = allData.filter(c => c.status === 'running');
   const totalCpu = running.reduce((s, c) => s + (c.cpu_pct || 0), 0);
   const totalMem = running.reduce((s, c) => s + (c.mem_usage || 0), 0);
@@ -988,6 +1039,334 @@ function updateCards(sys, haStatus) {
     const cores = sys.cpu_count ? sys.cpu_count + ' × ' : '';
     sFreqEl.textContent = cores + sys.freq_ghz_avg.toFixed(2) + ' GHz';
   }
+
+  updateDiskCard(sys, dockerDf);
+}
+
+// Speicher-Kachel: Balken zeigt Belegung, grosse Zahl den freien Platz
+function updateDiskCard(sys, dockerDf) {
+  const valEl = document.getElementById('s-disk');
+  if (!valEl) return;
+  if (!sys.disk_total) {
+    valEl.textContent = '-';
+    return;
+  }
+  const pct   = sys.disk_pct || 0;
+  const color = sysPctColor(pct);
+  const bar   = document.getElementById('s-disk-bar');
+  if (bar) { bar.style.width = Math.min(100, pct).toFixed(1) + '%'; bar.style.background = color; }
+  valEl.textContent = fmtBytes(sys.disk_free || 0);
+  valEl.style.color = color;
+  const sub = document.getElementById('s-disk-detail');
+  if (sub) sub.textContent = fmtBytes(sys.disk_used || 0) + ' / ' + fmtBytes(sys.disk_total);
+
+  if (dockerDf) _lastDf = dockerDf;
+  const card = document.getElementById('s-disk-card');
+  if (card) {
+    const NL   = String.fromCharCode(10);   // Zeilenumbruch im title-Attribut
+    const hint = T.disk_refresh_hint || '';
+    if (_lastDf && _lastDf.total) {
+      card.title = (T.disk_docker_total || 'Docker') + ': ' + fmtBytes(_lastDf.total) +
+        ' (Images ' + fmtBytes(_lastDf.images || 0) +
+        ' · Container ' + fmtBytes(_lastDf.containers || 0) +
+        ' · Volumes ' + fmtBytes(_lastDf.volumes || 0) + ')' +
+        (_lastDf.ts ? NL + (T.updated_at || 'Stand') + ': ' +
+          new Date(_lastDf.ts * 1000).toLocaleTimeString() : '') +
+        NL + hint;
+    } else {
+      card.title = hint;
+    }
+  }
+}
+
+// ── Speicher-Dialog ───────────────────────────────────────────────────────────
+// Linksklick auf die Kachel oeffnet die Details, Rechtsklick startet die Abfrage.
+let _storageData = null;
+let _storagePoll = null;
+
+function storageCtx(ev) {
+  ev.preventDefault();
+  refreshSizes(false);
+  return false;
+}
+
+async function showStorage() {
+  document.getElementById('storage-modal').classList.add('open');
+  renderStorage();          // zeigt sofort den letzten Stand
+  await loadStorage();
+}
+
+function closeStorage() {
+  document.getElementById('storage-modal').classList.remove('open');
+  if (_storagePoll) { clearInterval(_storagePoll); _storagePoll = null; }
+}
+
+async function loadStorage() {
+  try {
+    const res = await fetch('/api/sizes');
+    if (res.status === 401) { location.href = '/login'; return; }
+    _storageData = await res.json();
+  } catch (e) {
+    console.error('Storage load failed:', e);
+  }
+  renderStorage();
+}
+
+// Groessenabfrage (docker system df) manuell anstossen. Sie laeuft in einem
+// Backend-Thread, deshalb danach pollen bis ein neuer Zeitstempel da ist.
+async function refreshSizes(fromModal) {
+  const card = document.getElementById('s-disk-card');
+  const btn  = document.getElementById('storage-refresh');
+  if (card) card.style.opacity = '0.55';
+  if (btn)  { btn.disabled = true; btn.textContent = T.storage_scanning || '...'; }
+  const started = Date.now();
+  try {
+    await fetch('/api/sizes/refresh', { method: 'POST' });
+  } catch (e) {
+    console.error('Size refresh failed:', e);
+  }
+  const stop = () => {
+    if (_storagePoll) { clearInterval(_storagePoll); _storagePoll = null; }
+    if (card) card.style.opacity = '';
+    if (btn)  { btn.disabled = false; btn.textContent = T.storage_refresh || 'Neu berechnen'; }
+  };
+  if (_storagePoll) clearInterval(_storagePoll);
+  _storagePoll = setInterval(async () => {
+    await loadStorage();
+    const fresh = _storageData && !_storageData.busy &&
+                  _storageData.ts * 1000 > started - 2000;
+    if (fresh || Date.now() - started > 900000) stop();
+  }, 3000);
+}
+
+// ── Build-Cache freigeben ─────────────────────────────────────────────────────
+// Passwortbestaetigt wie Neustart/Kill. Der Prune laeuft im Backend-Thread und
+// kann bei grossen Caches Minuten dauern, deshalb danach pollen.
+function askPrune() {
+  const el = document.getElementById('prune-modal');
+  if (!el) return;
+  document.getElementById('prune-pw').value = '';
+  document.getElementById('prune-error').textContent = '';
+  const t = (_storageData && _storageData.totals) || {};
+  const desc = document.getElementById('prune-desc');
+  if (desc) {
+    desc.textContent = (T.prune_desc || '').replace('{size}', fmtBytes(t.build_cache || 0));
+  }
+  el.classList.add('open');
+  setTimeout(() => document.getElementById('prune-pw').focus(), 50);
+}
+
+function closePruneModal() {
+  document.getElementById('prune-modal').classList.remove('open');
+}
+
+async function confirmPrune() {
+  const pw    = document.getElementById('prune-pw').value;
+  const errEl = document.getElementById('prune-error');
+  const keep  = parseInt(document.getElementById('prune-keep').value, 10);
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/api/build/prune', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw, keep_gb: isNaN(keep) ? 0 : keep }),
+    });
+    const data = await res.json();
+    if (res.status === 403 && data.error === 'disabled') {
+      errEl.textContent = T.prune_disabled || 'Disabled';
+      return;
+    }
+    if (res.status === 403 || data.error === 'wrong_password') {
+      errEl.textContent = T.error_credentials || 'Falsches Passwort.';
+      document.getElementById('prune-pw').select();
+      return;
+    }
+    if (!data.ok) {
+      errEl.textContent = (T.error_unknown || 'Error') + ': ' + (data.error || '?');
+      return;
+    }
+    closePruneModal();
+    pollPrune();
+  } catch (e) {
+    errEl.textContent = (T.error_network || 'Network error') + ': ' + e;
+  }
+}
+
+// Waehrend des Prune alle 3s nachladen; das Backend rechnet danach die Groessen neu
+function pollPrune() {
+  const btn = document.getElementById('storage-prune');
+  if (btn) { btn.disabled = true; btn.textContent = T.prune_running || '...'; }
+  if (_storagePoll) clearInterval(_storagePoll);
+  const started = Date.now();
+  _storagePoll = setInterval(async () => {
+    await loadStorage();
+    const done = _storageData && !_storageData.prune_running && !_storageData.busy;
+    if (done || Date.now() - started > 1800000) {
+      clearInterval(_storagePoll); _storagePoll = null;
+      if (btn) { btn.disabled = false; btn.textContent = T.prune_btn || 'Build-Cache freigeben'; }
+    }
+  }, 3000);
+}
+
+function storageRow(label, value, note) {
+  return `<tr>
+    <td style="padding:4px 8px;color:var(--muted)">${esc(label)}</td>
+    <td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums">${esc(value)}</td>
+    <td style="padding:4px 8px;color:var(--muted);font-size:0.72rem">${esc(note || '')}</td>
+  </tr>`;
+}
+
+function renderStorage() {
+  const el = document.getElementById('storage-body');
+  if (!el) return;
+  const d = _storageData;
+  const stamp = document.getElementById('storage-stamp');
+  if (stamp) {
+    stamp.textContent = (d && d.ts)
+      ? (T.updated_at || 'Stand') + ': ' + new Date(d.ts * 1000).toLocaleTimeString()
+      : (T.storage_never || '');
+  }
+  const pruneBtn = document.getElementById('storage-prune');
+  if (pruneBtn) {
+    pruneBtn.style.display = (d && d.prune_allowed) ? '' : 'none';
+    if (d && d.prune_running) {
+      pruneBtn.disabled = true;
+      pruneBtn.textContent = T.prune_running || '...';
+    } else if (!_storagePoll) {
+      pruneBtn.disabled = false;
+      pruneBtn.textContent = T.prune_btn || 'Build-Cache freigeben';
+    }
+  }
+  if (!d) {
+    el.innerHTML = `<div style="color:var(--muted);padding:16px">${esc(T.loading || '')}</div>`;
+    return;
+  }
+
+  const t   = d.totals || {};
+  const th  = 'padding:6px 8px;text-align:left;border-bottom:2px solid var(--border);' +
+              'position:sticky;top:0;background:var(--surf);font-weight:500;color:var(--muted)';
+  const td  = 'padding:4px 8px;border-bottom:1px solid var(--border);white-space:nowrap';
+  const num = td + ';text-align:right;font-variant-numeric:tabular-nums';
+  const parts = [];
+
+  // ── Datenpartition ──
+  if (d.disk_total) {
+    const pct = d.disk_pct || 0;
+    parts.push(`
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:6px">${esc(T.storage_partition || '')}</div>
+        <div class="sys-bar-bg" style="height:14px">
+          <div class="sys-bar-fill" style="width:${Math.min(100, pct).toFixed(1)}%;background:${sysPctColor(pct)}"></div>
+        </div>
+        <div style="font-size:0.78rem;margin-top:5px">
+          <b style="color:${sysPctColor(pct)}">${fmtBytes(d.disk_free)}</b> ${esc(T.storage_free || 'frei')}
+          &nbsp;·&nbsp; ${fmtBytes(d.disk_used)} / ${fmtBytes(d.disk_total)} (${pct.toFixed(1)}%)
+          ${d.disk_src ? `<span style="color:var(--muted)">&nbsp;·&nbsp;${esc(T.storage_source || '')}: ${esc(d.disk_src)}</span>` : ''}
+        </div>
+      </div>`);
+  }
+
+  // ── Docker-Aufteilung ──
+  const recl = (n, bytes) => n + ' · ' + (T.storage_reclaimable || '') + ' ' + fmtBytes(bytes || 0);
+  const rows = [
+    storageRow(T.storage_images || 'Images', fmtBytes(t.images || 0),
+      recl(t.image_count || 0, t.images_reclaimable)),
+    storageRow(T.storage_containers || 'Container', fmtBytes(t.containers || 0),
+      T.storage_containers_note || ''),
+    storageRow(T.storage_volumes || 'Volumes', fmtBytes(t.volumes || 0),
+      recl(t.volume_count || 0, t.volumes_reclaimable)),
+    storageRow(T.storage_build_cache || 'Build-Cache', fmtBytes(t.build_cache || 0),
+      recl(t.build_cache_count || 0, t.build_cache_reclaimable)),
+  ].join('');
+  parts.push(`
+    <div style="margin-bottom:16px">
+      <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">
+        ${esc(T.storage_docker || 'Docker')}: ${fmtBytes(t.total || 0)}
+        ${t.total_reclaimable ? `<span style="font-weight:400;color:var(--yellow)">&nbsp;·&nbsp;${esc(T.storage_reclaimable || '')} ${fmtBytes(t.total_reclaimable)}</span>` : ''}
+      </div>
+      <table style="width:100%;font-size:0.78rem;border-collapse:collapse">${rows}</table>
+    </div>`);
+
+  // ── Groesste Images ──
+  const imgs = (d.images || []).slice(0, 25);
+  if (imgs.length) {
+    const body = imgs.map(i => {
+      const unused = i.containers === 0;
+      return `<tr${unused ? ' style="color:var(--yellow)"' : ''}>
+        <td style="${td};max-width:340px;overflow:hidden;text-overflow:ellipsis" title="${esc(i.tag)}">${esc(i.tag)}</td>
+        <td style="${num}">${fmtBytes(i.size)}</td>
+        <td style="${num};color:var(--muted)">${i.shared ? fmtBytes(i.shared) : '-'}</td>
+        <td style="${num}">${i.containers < 0 ? '?' : i.containers}${unused ? ' · ' + esc(T.storage_unused || '') : ''}</td>
+      </tr>`;
+    }).join('');
+    const more = (d.images.length > imgs.length)
+      ? `<div style="color:var(--muted);font-size:0.72rem;padding:4px 8px">${esc(T.storage_more || '')} ${d.images.length - imgs.length}</div>`
+      : '';
+    parts.push(`
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">${esc(T.storage_top_images || '')}</div>
+        <div class="table-scroll">
+          <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+            <thead><tr>
+              <th style="${th}">${esc(T.storage_col_image || '')}</th>
+              <th style="${th};text-align:right">${esc(T.storage_col_size || '')}</th>
+              <th style="${th};text-align:right">${esc(T.storage_col_shared || '')}</th>
+              <th style="${th};text-align:right">${esc(T.storage_col_used || '')}</th>
+            </tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>${more}
+      </div>`);
+  }
+
+  // ── Groesste Container (beschreibbare Schicht, kommt aus der Haupttabelle) ──
+  const ctrs = allData.filter(c => c.size_rw).sort((a, b) => b.size_rw - a.size_rw).slice(0, 10);
+  if (ctrs.length) {
+    parts.push(`
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">${esc(T.storage_top_containers || '')}</div>
+        <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+          ${ctrs.map(c => `<tr>
+            <td style="${td};max-width:340px;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</td>
+            <td style="${num}">${fmtBytes(c.size_rw)}</td>
+            <td style="${num};color:var(--muted)" title="${esc(T.size_total || '')}">${c.size_root ? fmtBytes(c.size_root) : '-'}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`);
+  }
+
+  // ── Groesste Volumes ──
+  const vols = (d.volumes || []).filter(v => v.size > 0).slice(0, 15);
+  if (vols.length) {
+    parts.push(`
+      <div>
+        <div style="font-weight:600;font-size:0.82rem;margin-bottom:4px">${esc(T.storage_top_volumes || '')}</div>
+        <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+          ${vols.map(v => `<tr${v.refs === 0 ? ' style="color:var(--yellow)"' : ''}>
+            <td style="${td};max-width:420px;overflow:hidden;text-overflow:ellipsis" title="${esc(v.name)}">${esc(v.name)}</td>
+            <td style="${num}">${fmtBytes(v.size)}</td>
+            <td style="${num};color:var(--muted)">${v.refs === 0 ? esc(T.storage_unused || '') : (v.refs < 0 ? '?' : v.refs)}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`);
+  }
+
+  const pr = d.prune_result || {};
+  if (d.prune_running) {
+    parts.push(`<div style="color:var(--yellow);font-size:0.78rem;padding:10px 0">${esc(T.prune_running_note || '')}</div>`);
+  } else if (pr.ts) {
+    const txt = pr.error
+      ? (T.prune_failed || 'Fehler')
+      : (T.prune_done || '').replace('{size}', fmtBytes(pr.reclaimed || 0))
+                            .replace('{count}', pr.deleted || 0);
+    parts.push(`<div style="color:${pr.error ? 'var(--red)' : 'var(--green)'};font-size:0.78rem;padding:10px 0">
+      ${esc(txt)} <span style="color:var(--muted)">(${new Date(pr.ts * 1000).toLocaleTimeString()})</span>
+    </div>`);
+  }
+  if (!d.ts) {
+    parts.push(`<div style="color:var(--muted);font-size:0.78rem;padding:10px 0">${esc(T.storage_no_data || '')}</div>`);
+  }
+  el.innerHTML = parts.join('');
 }
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
@@ -1051,6 +1430,7 @@ function rowHtml(c) {
     <td class="col-hide">${fmtNet(c, run)}</td>
     <td class="col-hide">${run ? fmtBytes(c.blk_r) + ' / ' + fmtBytes(c.blk_w) : '-'}</td>
     <td class="col-hide">${run ? (c.pids || 0) : '-'}</td>
+    <td class="col-hide">${fmtSize(c)}</td>
     <td class="col-hide">${run
       ? `<span class="spark-click" onclick="openContainerHist(${safeJsArg(c.name)})" title="${esc(T.hist_open_container||'')}">${sparkline(c.history || [])}</span>`
       : ''}</td>
@@ -1095,6 +1475,16 @@ function fmtNet(c, run) {
     return `<span style="color:var(--muted)" title="${esc(hint)}">-</span>`;
   }
   return fmtBytes(c.net_rx) + ' / ' + fmtBytes(c.net_tx);
+}
+
+// Groesse: beschreibbare Schicht (SizeRw), Tooltip zeigt inkl. Image-Layer
+function fmtSize(c) {
+  if (c.size_rw === null || c.size_rw === undefined) {
+    return `<span style="color:var(--muted)" title="${esc(T.size_pending || '')}">…</span>`;
+  }
+  const tip = (T.col_size_hint || '') +
+    (c.size_root ? ' — ' + (T.size_total || 'inkl. Image') + ': ' + fmtBytes(c.size_root) : '');
+  return `<span title="${esc(tip)}">${fmtBytes(c.size_rw)}</span>`;
 }
 
 function fmtBytes(n) {
@@ -1269,6 +1659,7 @@ function closeModal() {
 }
 
 let _portsAll = [];
+let _lastDf = null;
 let _hostIp   = '';
 
 function showPorts() {
@@ -1370,7 +1761,7 @@ document.getElementById('log-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('log-modal')) closeModal();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeRestartModal(); closePortsModal(); }
+  if (e.key === 'Escape') { closeModal(); closeRestartModal(); closePortsModal(); closeStorage(); closePruneModal(); }
 });
 document.getElementById('restart-pw').addEventListener('keydown', e => {
   if (e.key === 'Enter') confirmRestart();
@@ -1380,6 +1771,9 @@ document.getElementById('restart-modal').addEventListener('click', e => {
 });
 document.getElementById('ports-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('ports-modal')) closePortsModal();
+});
+document.getElementById('storage-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('storage-modal')) closeStorage();
 });
 
 // ── System-Verlauf (24h-Chart) ─────────────────────────────────────────────

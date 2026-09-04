@@ -20,6 +20,12 @@ configuration:
   show_stopped:
     name: Show Stopped Containers
     description: Show stopped/exited containers in the table by default. Can also be toggled in the UI. Default true.
+  size_interval:
+    name: Size Scan Interval (minutes)
+    description: "Delay between two size scans (docker system df) feeding the \"Size\" column and the Docker breakdown. The scan walks the filesystem and can take seconds to minutes, so it runs in its own background thread. 0 = off, range 1-1440, default 15."
+  allow_build_prune:
+    name: Allow Build Cache Prune
+    description: "Shows the \"Free build cache\" button in the storage dialog (equivalent to `docker builder prune`). The action only deletes build intermediates — images, containers and volumes are untouched — and requires the password just like restart/kill. Set to false if nobody should clean up from the UI. Default true."
   verbose_log:
     name: Verbose Logging
     description: Logs container count, worker count and query duration on every collection cycle. Default false — only mode changes, errors and actions are logged.
@@ -35,6 +41,9 @@ configuration:
   notify_ram_threshold:
     name: RAM Alert Threshold (%)
     description: "Send a Telegram alert when system RAM exceeds this value. 0 = disabled. Example: 85 (alert above 85% RAM)."
+  notify_disk_threshold:
+    name: Disk Alert Threshold (%)
+    description: "Send a Telegram alert when the data partition is filled to this percentage. The message includes the Docker breakdown (images/containers/volumes) and the five largest container layers. 0 = disabled. Example: 85 (alert above 85% used)."
   notify_over_duration:
     name: Alert Trigger Delay (seconds)
     description: "How many seconds CPU/RAM must continuously exceed the threshold before the alert fires. 0 = alert immediately on first breach. Example: 60 = alert only after 60s of sustained overload."

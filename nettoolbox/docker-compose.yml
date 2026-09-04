@@ -1,0 +1,30 @@
+# NetToolbox ohne Home Assistant betreiben (Standalone / Dockge).
+#
+# Schnellstart:
+#   1. docker compose up -d
+#   2. cat ./data/options.json          → erzeugtes Passwort für "admin"
+#   3. http://<server>:17798 öffnen und mit admin + diesem Passwort anmelden
+#
+# Eine data/options.json wird beim ersten Start automatisch angelegt (mit
+# zufälligem Passwort). Das Passwort steht ausschließlich in dieser Datei und
+# bewusst nie im Container-Log. Danach lässt sich dort alles einstellen.
+#
+# Die worker_*-Optionen sind optional und nur für den Fall gedacht, dass eine
+# zweite Instanz zuhause ihre Prüfungen hierher durchreichen soll (dann hier
+# worker_enabled + worker_token setzen). Wer NetToolbox ohnehin nur auf einem
+# Root-Server betreibt, lässt sie leer — siehe README.
+
+services:
+  nettoolbox:
+    image: ghcr.io/luckytriple7/nettoolbox:latest
+    container_name: nettoolbox
+    ports:
+      - "17798:17798"
+    volumes:
+      - ./data:/data              # options.json, Sitzungen, Verlauf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:17798/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

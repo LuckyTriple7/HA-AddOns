@@ -25,6 +25,8 @@ import logging
 import os
 import threading
 
+import atomic_io
+
 log = logging.getLogger('tuiwatch')
 
 try:
@@ -71,6 +73,9 @@ FIELDS: dict = {
     "calendar_archived_refresh": ("bool", True, None, "poll",
         "Kalender bei archivierten Angeboten weiterführen",
         "Ruft den Preiskalender auch für archivierte (abgelaufene) Angebote weiter ab — alle 3 Tage statt täglich, und immer erst nachdem die aktiven Angebote dran waren. Der Preis des abgelaufenen Angebots wird weiterhin NICHT geprüft; der Kalender beschreibt aber Hotel, Zimmer, Verpflegung und Dauer und schaut immer ab heute nach vorn. So wächst über Jahre ein Preisverlauf für dasselbe Hotel weiter. Fällt ein Hotel aus dem TUI-Inventar, pausiert der Kalender nach 5 Fehlschlägen in Folge von selbst. Standard an."),
+    "browser_fallback": ("bool", True, None, "poll",
+        "Browser-Fallback (Chromium)",
+        "Antwortet die JSON-API von TUI technisch nicht, liest TUIWatch den Preis ersatzweise aus der gerenderten Seite — dafür startet ein Headless-Chromium. Das kostet Zeit und viel Arbeitsspeicher: gemessen rund 400 MB leer und bis 740 MB mit geladener Seite, im Add-on-Container zusätzlich zu den etwa 150 MB von TUIWatch selbst. Aus heißt: bei API-Fehlern wird der Abruf als fehlgeschlagen vermerkt statt den Browser zu starten — die API ist der normale Weg, der Fallback greift selten. Standard an. Fällt die Internetverbindung ganz aus, wird der Browser ohnehin nicht gestartet."),
     # ── market ──
     "market_trend_threshold": ("float", 1.0, (0.0, 100.0), "market",
         "Schwelle für Markttrend (%)",
@@ -263,6 +268,9 @@ FIELDS: dict = {
     "verbose_log": ("bool", False, None, "misc",
         "Ausführliches Logging",
         "Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt."),
+    "force_ipv4": ("bool", False, None, "misc",
+        "Nur IPv4 verwenden",
+        "Schaltet IPv6 für alle ausgehenden Verbindungen ab. Hilft, wenn ein Server einen AAAA-Eintrag hat, der ins Leere zeigt (falscher DNS-Eintrag, kein IPv6-Routing): der Aufruf läuft dann zuerst in den vollen Zeitüberschreitungs-Fehler, obwohl er über IPv4 sofort ginge. Typisches Anzeichen im Log: „ConnectTimeout … connect timeout=20\" bei einem Server, der im Browser normal erreichbar ist. Standard aus."),
 }
 
 # Verschlüsselt gespeichert und nie an den Browser zurückgegeben.
@@ -270,6 +278,14 @@ SECRET_KEYS = frozenset({
     'telegram_bot_token', 'smtp_password', 'nc_app_password',
     'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key',
 })
+
+# Felder, die ohne Home Assistant nichts bewirken: die Sensoren und die
+# persistenten Benachrichtigungen laufen ausschliesslich ueber die Supervisor-API.
+# Laeuft TUIWatch als eigener Container (Docker-Host, Server im Netz), fehlt das
+# SUPERVISOR_TOKEN, die drei Schalter waeren wirkungslos — und ein wirkungsloser
+# Schalter in den Einstellungen ist schlimmer als gar keiner. Sie werden dort
+# deshalb ausgeblendet (siehe public_view).
+HA_ONLY_KEYS = frozenset({'ha_sensors', 'notify_ha', 'ha_notify_service'})
 
 # Diese Werte liest TUIWatch nur beim Start: der zweite Webserver für die
 # öffentlichen Angebots-Seiten wird einmalig gebunden (_start_public_server).
@@ -284,10 +300,16 @@ _cache_mtime = -1.0
 
 
 def init(data_dir: str) -> None:
-    """Pfade festlegen. Muss einmal beim Start aufgerufen werden."""
+    """Pfade festlegen. Muss einmal beim Start aufgerufen werden.
+
+    Cache und Schlüssel werden dabei verworfen: sie gehören zum alten Datenordner
+    und wären nach einem Wechsel schlicht falsch (im Betrieb läuft `init` genau
+    einmal, in den Tests dagegen je Fixture mit einem frischen tmp-Verzeichnis).
+    """
     global _path, _key_path
     _path = os.path.join(data_dir, 'settings.json')
     _key_path = os.path.join(data_dir, 'settings.key')
+    reset_cache()
 
 
 def path() -> str:
@@ -326,12 +348,9 @@ def _get_fernet(create: bool = False):
             return None
         else:
             key = Fernet.generate_key()
-            with open(_key_path, 'wb') as f:
-                f.write(key)
-            try:
-                os.chmod(_key_path, 0o600)
-            except OSError:
-                pass
+            # atomar: ein halb geschriebener Schlüssel macht ALLE verschlüsselten
+            # Felder unlesbar (siehe atomic_io)
+            atomic_io.write_bytes(_key_path, key, mode=0o600)
             log.info("Schlüssel für die Einstellungen neu erzeugt")
         _fernet = Fernet(key)
         return _fernet
@@ -464,14 +483,7 @@ def save(values: dict, clear=()) -> list:
 
 def _write(raw: dict) -> None:
     global _cache, _cache_mtime
-    tmp = _path + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
-        json.dump(raw, f, indent=2, ensure_ascii=False)
-    try:
-        os.chmod(tmp, 0o600)
-    except OSError:
-        pass
-    os.replace(tmp, _path)
+    atomic_io.write_json(_path, raw, mode=0o600, indent=2, ensure_ascii=False)
     _cache = raw
     try:
         _cache_mtime = os.path.getmtime(_path)
@@ -561,18 +573,32 @@ def import_key(data: bytes, passphrase: str, overwrite: bool = False) -> int:
         if current != raw and any(load().get(k) for k in SECRET_KEYS):
             raise ValueError('exists')
     with _lock:
-        with open(_key_path, 'wb') as f:
-            f.write(raw)
-        try:
-            os.chmod(_key_path, 0o600)
-        except OSError:
-            pass
+        atomic_io.write_bytes(_key_path, raw, mode=0o600)
     reset_cache()
     return sum(1 for k in SECRET_KEYS if load().get(k))
 
 
 def key_exists() -> bool:
     return bool(_key_path) and os.path.exists(_key_path)
+
+
+def crypto_ready() -> bool:
+    """Lassen sich geheime Felder speichern?
+
+    Nicht dasselbe wie „es gibt bereits einen Schlüssel“: auf einer frischen
+    Installation entsteht der erst beim ersten Speichern eines Geheimfeldes
+    (`_get_fernet(create=True)`). Bis 0.113.6 fragte die Oberfläche stattdessen
+    `_get_fernet()` — das legt bewusst keinen an — und meldete deshalb
+    „Verschlüsselung nicht verfügbar“, obwohl gar nichts fehlte.
+
+    Gefragt ist also: Bibliothek vorhanden, und der Schlüssel entweder da und
+    brauchbar oder im Datenordner anlegbar.
+    """
+    if not _HAS_CRYPTO or not _key_path:
+        return False
+    if os.path.exists(_key_path):
+        return _get_fernet() is not None
+    return os.access(os.path.dirname(_key_path) or '.', os.W_OK)
 
 def migrate(options: dict) -> bool:
     """Beim ersten Start die bisherigen Add-on-Optionen übernehmen.
@@ -606,7 +632,7 @@ def migrate(options: dict) -> bool:
     return True
 
 
-def public_view(effective: dict) -> dict:
+def public_view(effective: dict, ha: bool = True) -> dict:
     """Ansicht für die Oberfläche: Feldbeschreibung + Werte.
 
     Geheime Felder kommen nie im Klartext zurück, sondern nur als „gesetzt".
@@ -616,6 +642,8 @@ def public_view(effective: dict) -> dict:
         items = []
         for key, spec in FIELDS.items():
             if spec[3] != group:
+                continue
+            if key in HA_ONLY_KEYS and not ha:
                 continue
             kind, default, extra = spec[0], spec[1], spec[2]
             item = {'key': key, 'kind': kind, 'label': spec[4], 'hint': spec[5],
@@ -634,4 +662,5 @@ def public_view(effective: dict) -> dict:
         if items:
             fields.append({'group': group, 'title': title, 'items': items})
     return {'groups': fields,
-            'crypto': _HAS_CRYPTO and _get_fernet() is not None}
+            'crypto': crypto_ready(),
+            'key': key_exists()}

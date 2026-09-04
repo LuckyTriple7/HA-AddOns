@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ t.app_title }} – {{ t.login_title }}</title>
+  <meta name="theme-color" content="#0d1117">
+  {% include '_auth_style.html' %}
+</head>
+<body>
+  <div class="card">
+    {% include '_auth_head.html' %}
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" autocomplete="on">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <label for="username">{{ t.login_user }}</label>
+      <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+      <label for="password">{{ t.login_pass }}</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+      <button type="submit">{{ t.login_submit }}</button>
+    </form>
+    <footer>{{ t.app_title }} &mdash; {{ t.app_subtitle }}</footer>
+  </div>
+  {% include '_auth_script.html' %}
+</body>
+</html>

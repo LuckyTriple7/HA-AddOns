@@ -1,6 +1,5 @@
 {
-  "_hinweis": "Seit 0.11.0 stehen hier nur noch die Login-Daten. Alles Weitere (Mail, Telegram, GitHub, KI, SMB, Besucherzaehler, Backup) stellst du im Admin-Panel im Reiter 'Einstellungen' ein; gespeichert wird verschluesselt in data/settings.json.",
-  "username": "admin",
-  "password": "BITTE-AENDERN",
-  "session_hours": 24
+  "_hinweis": "Ab 0.11.44 wird diese Datei fuer den Login nicht mehr gebraucht: Ohne Home Assistant erzeugt MyPage beim ersten Start ein Admin-Passwort und schreibt es ins Protokoll; geaendert wird es danach im Admin-Panel unter System -> Zugang. Optional bleiben nur die beiden Werte unten. Alles Weitere (Mail, Telegram, GitHub, KI, SMB, Besucherzaehler, Backup) stellst du im Admin-Panel im Reiter 'Einstellungen' ein; gespeichert wird verschluesselt in data/settings.json.",
+  "session_hours": 24,
+  "trusted_proxies": ""
 }

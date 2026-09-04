@@ -25,14 +25,14 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
 # Layer (inkl. LibreOffice, XFCE, etc.) beim nächsten "Neu Aufbauen" rebuilt.
 # BUILD_VERSION kommt aus config.yaml und wird von HA bei jedem Update übergeben.
 ARG BUILD_VERSION
-ARG IPSCAN_VERSION=3.9.3
+ARG IPSCAN_VERSION=3.10.0
 ARG BITWARDEN_VERSION=2026.8.0
-ARG VSCODE_VERSION=1.135.0
-ARG GH_CLI_VERSION=2.98.0
-ARG FIREFOX_VERSION=154.0.1
-ARG THUNDERBIRD_VERSION=154.0
+ARG VSCODE_VERSION=1.136.1
+ARG GH_CLI_VERSION=2.100.0
+ARG FIREFOX_VERSION=155.0
+ARG THUNDERBIRD_VERSION=155.0
 ARG RCLONE_VERSION=1.75.0
-ARG OPENCODE_VERSION=1.18.25
+ARG OPENCODE_VERSION=1.18.27
 
 # XFCE Desktop-Umgebung + Anwendungen installieren
 RUN apt-get update \

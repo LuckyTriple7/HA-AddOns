@@ -2,40 +2,144 @@
 
 At its core, MyPage is a plain Flask app in a standard Docker image — Home Assistant is just the convenient wrapper, not a requirement. You can run MyPage on any server with **Docker**.
 
-> The prebuilt image is at `ghcr.io/luckytriple7/mypage:latest` (amd64 + aarch64). You don't need the source code — just Docker, a `docker-compose.yml` and an `options.json`.
+> The prebuilt image is at `ghcr.io/luckytriple7/mypage:latest` (amd64 + aarch64). You don't need the source code — just Docker and a `docker-compose.yml`.
 
 ---
 
 ## Quick start
 
 ```bash
-# 1. Copy the example config and change the password
-cp options.example.json options.json
-nano options.json          # set at least "password"!
-
-# 2. Start
+# 1. Start — nothing to prepare
 docker compose up -d
+
+# 2. Read the generated admin password from the log
+docker compose logs mypage | grep -A 3 "Neue Installation"
 
 # 3. Open
 #   Public site:  http://<server>:17760
-#   Admin panel:  http://<server>:17761   (log in with username/password from options.json)
+#   Admin panel:  http://<server>:17761   (user "admin", password from step 2)
 ```
 
-On first start MyPage creates its data in the `./data` folder (`site.json`, `uploads/`, members, game states …).
+On first start MyPage creates its data in the `./data` folder (`site.json`, `uploads/`, members, game states …) and generates a random admin password (16 characters, upper and lower case plus digits). It appears **only in the log** — the disk holds nothing but a hash in `./data/admin_login.json`. Write it down and set your own in the admin panel right away.
+
+---
+
+## Several instances on one server (Dockge)
+
+MyPage has no instance limit: any number of containers can run side by side on one server, as long as each gets its **own host ports** and its **own data folder**. In [Dockge](https://github.com/louislam/dockge) that means **one stack per instance**. Each stack has its own folder under `/opt/docker/stacks/`, and `./data` resolves there automatically — nothing to name or separate by hand.
+
+```
+/opt/docker/stacks/
+├── mypagea/       compose.yaml  data
+└── mypageb/       compose.yaml  data
+```
+
+`/opt/docker/stacks/mypagea/compose.yaml`:
+
+```yaml
+services:
+  mypage:
+    image: ghcr.io/luckytriple7/mypage:latest
+    container_name: mypagea
+    ports:
+      - "17760:17760"        # public site
+      - "17761:17761"        # admin panel
+    volumes:
+      - ./data:/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:17760/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+`/opt/docker/stacks/mypageb/compose.yaml` — the same file, three lines different:
+
+```yaml
+    container_name: mypageb
+    ports:
+      - "17770:17760"
+      - "17771:17761"
+```
+
+Ports **17760** and **17761** on the right of the colon are hard-wired inside the container and stay the same in every instance; only the left, server-wide unique side has to differ.
+
+After *Deploy*, pick up the generated password from the stack's log tab (user `admin`), sign in and set your own under **System → Access** — a different one per instance. There is no shared login across containers.
+
+Then set the matching address in each instance under **Design → Public URL**. Without it MyPage guesses `http://<host>:17760`, which is wrong for every instance but the first, affecting preview, sitemap, RSS, PWA and mail links.
+
+**Things to watch:**
+
+- **Never point two containers at the same data folder.** `site.json`, the visitor counter, game states and sessions would overwrite each other.
+- **SMB storage** needs `cap_add: [SYS_ADMIN, DAC_READ_SEARCH]` and `security_opt: [apparmor:unconfined]` per container. Two instances must not use the same subfolder of the share — give each its own *subdirectory* in the settings.
+- **Brute-force protection counts per container**, not server-wide. Behind a reverse proxy, set `trusted_proxies` in every instance (see below), otherwise MyPage only ever sees the proxy address and one attack locks out all visitors at once.
+- **Memory**: roughly 200–400 MB per instance. Worth counting on a small VPS.
 
 ---
 
 ## Configuration
 
-### `options.json` — login credentials only
+### Admin access — changing the password
 
-The file is mounted read-only to `/data/options.json` in the container and read at start.
+In the admin panel under **System → Access**: enter the current password (plus the code if 2FA is on), then set user name and new password. At least **12 characters with an upper-case letter, a lower-case letter and a digit**. Changing it ends every other admin session; your own stays.
+
+Stored in `./data/admin_login.json` as a hash only. The file is **not** part of the backup ZIP — restoring last week's backup would otherwise silently bring the old password back.
+
+### Forgotten password
+
+```bash
+cd /opt/docker/stacks/mypagea      # folder of the stack / compose file
+rm ./data/admin_login.json
+docker compose restart
+docker compose logs | grep -A 3 "Neue Installation"
+```
+
+The password also shows up in the stack's log tab in Dockge. With several instances this only affects the one whose folder you deleted in; the others stay as they are.
+
+MyPage then generates a new password and writes it to the log. Content, members and settings are untouched. **2FA stays on** — deleting the file is deliberately not a full bypass for anyone with file access. If the second factor is lost too, also delete `./data/admin_2fa.json`.
+
+> If the "Neue Installation" message shows up unexpectedly, the volume path is usually wrong and MyPage started on an empty folder. Check the mount before adding content.
+
+### Storage limit (compose.yaml only)
+
+By default MyPage may use as much space as the disk offers. Set an overall limit in the compose.yaml:
+
+```yaml
+    environment:
+      MYPAGE_STORAGE_MAX_MB: 2048     # 0 or omitted = unlimited
+```
+
+Everything in the data folder counts: images, library PDFs, logos, member files, attachments, game states and the automatic backups. Member files on an SMB share sit outside the folder and do not count.
+
+Once the limit is reached, **new uploads are rejected** — browsing, deleting and cleaning up keep working so you can make room again. Instead of writing a new automatic backup, the existing ones are thinned out. Members see the smaller of their personal quota and the remaining overall space.
+
+The limit is deliberately **not in the admin panel**: a limit the content admin can raise is no limit. The panel only shows usage under **System → Storage usage** — a bar, the total and a breakdown by area (images, PDFs, member files, backups …) so you can see what is eating the space. With several instances, set a value per stack.
+
+### Viewing the site while it is being built (preview link)
+
+In maintenance mode every public address answers with 503, and switched-off areas with 404 — for you as well. Under **System → Operations → Preview link** you create an address that lifts exactly that:
+
+```
+https://your-domain.tld/?vorschau=<token>
+```
+
+On the first visit the token moves into a cookie and out of the address. From then on you see the real site with navigation and subpages, including the areas set to NO under Design. Everyone else keeps seeing the maintenance page.
+
+A slim bar at the bottom reminds you the preview is running and ends it on click. The lifetime is selectable (1 hour, 8 hours, 7 days), responses carry `noindex, nofollow` and `private, no-store`, and your own visits are not counted. *Revoke all links* invalidates every address issued so far, immediately.
+
+The link can be shared — a board member, client or partner can take a look before go-live without admin access.
+
+### `options.json` — optional
+
+No longer needed for the login. If you do mount it (read-only to `/data/options.json`), it can still carry two things:
 
 | Key | Meaning | Default |
 |---|---|---|
-| `username` | Admin user name | `admin` |
-| `password` | **Admin password — set this!** | _(empty)_ |
 | `session_hours` | Admin session lifetime in hours | `24` |
+| `trusted_proxies` | Addresses whose forwarding headers are trusted | all private networks |
+
+Upgrading from an older version that had `username`/`password` there: on the first start after the update MyPage imports them into `admin_login.json` as a hash, so your login keeps working. Afterwards both entries have no effect and the file can go.
 
 ### Everything else: admin panel → **Settings**
 
@@ -66,7 +170,6 @@ services:
       - "17761"
     volumes:
       - ./data:/config
-      - ./options.json:/data/options.json:ro
     restart: unless-stopped
 
   caddy:
@@ -130,13 +233,14 @@ Your data in `./data` is preserved.
 Two ways, ideally combined:
 
 1. **In the admin panel** under *System → Backup*, download a ZIP with all content (and restore it via *Restore backup*). The ZIP contains `settings.json` but **not** the key `settings.key`, so credentials cannot be read from it. Restoring onto a fresh installation means entering them once again.
-2. Back up the **`./data`** folder (additionally contains uploads, member files and `settings.key`) — keep that folder somewhere safe.
+2. Back up the **`./data`** folder (additionally contains uploads, member files, `settings.key` and `admin_login.json`) — keep that folder somewhere safe.
 
 ---
 
 ## Security notes
 
-- Set a **strong admin password** in `options.json` — without ingress, only this login protects the admin panel.
+- **Replace the initial password**: it sits in the container log, and logs get forwarded, collected and archived. Set your own under *System → Access* — without ingress, only this login protects the admin panel.
+- **`data/admin_login.json` lives in the data folder** so you can lock yourself out over SSH *and* back in. Anyone with file access to the server can therefore reset the login — on a rented server that means trusting the provider or using an encrypted filesystem.
 - `./data/settings.key` decrypts every stored credential: never share it or commit it to a public repository.
 - Make the admin panel reachable **over HTTPS only** (Caddy/Cloudflare Tunnel).
 - Brute-force protection (rate limit + temporary lockout) is built in; still, don't expose the admin panel publicly without need — ideally put it on a subdomain or add an extra layer (firewall/basic auth).

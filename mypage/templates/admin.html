@@ -641,11 +641,11 @@
       <nav>
         <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
-        <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
-        <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
+        <button class="tab-btn" data-tab="projects" id="tab-btn-projects">{{ t.tab_projects }}</button>
+        <button class="tab-btn" data-tab="blog" id="tab-btn-blog">{{ t.tab_blog }}</button>
         <button class="tab-btn" data-tab="travel" id="tab-btn-travel">{{ t.tab_travel }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
-        <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
+        <button class="tab-btn" data-tab="library" id="tab-btn-library">{{ t.tab_library }}</button>
         <button class="tab-btn" data-tab="ai" id="tab-btn-ai" style="display:none">✦ {{ t.tab_ai }}</button>
         <button class="tab-btn" data-tab="forms" id="tab-btn-forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
@@ -1045,7 +1045,7 @@
 
     <!-- Blog -->
     <section class="tab" id="tab-blog">
-      <div class="panel">
+      <div class="panel" id="blog-panel">
         <h3 style="display:flex;justify-content:space-between;align-items:center">
           {{ t.blog_heading }}
           <button class="btn small" onclick="openPostModal()">+ {{ t.new_post }}</button>
@@ -1962,6 +1962,7 @@
             </select>
             <p class="hint">{{ t.dm_enabled_hint }}</p>
           </div>
+          {% if on_ha %}
           <div class="opt">
             <label>{{ t.field_dm_ha_notify }}</label>
             <select id="d-dm_ha_notify">
@@ -1970,6 +1971,7 @@
             </select>
             <p class="hint">{{ t.dm_ha_notify_hint }}</p>
           </div>
+          {% endif %}
         </div>
         <div class="row">
           <div class="opt">
@@ -1997,6 +1999,32 @@
               <option value="1">{{ t.yes }}</option>
             </select>
             <p class="hint">{{ t.forms_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_blog_enabled }}</label>
+            <select id="d-blog_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.blog_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_library_enabled }}</label>
+            <select id="d-library_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.library_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_projects_enabled }}</label>
+            <select id="d-projects_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.projects_enabled_hint }}</p>
           </div>
         </div>
       </details>
@@ -2032,7 +2060,7 @@
               <option value="0">{{ t.no }}</option>
               <option value="1">{{ t.yes }}</option>
             </select>
-            <p class="hint">{{ t.weekly_review_hint }}</p>
+            <p class="hint">{% if on_ha %}{{ t.weekly_review_hint }}{% else %}{{ t.weekly_review_hint_docker }}{% endif %}</p>
           </div>
         </div>
       </details>
@@ -2280,7 +2308,7 @@
 
         <details class="panel fold" id="sy-log" data-load="loadLog">
           <summary><h3>{{ t.log_heading }}</h3><span class="count" id="log-info"></span></summary>
-          <p class="hint">{{ t.log_hint }}</p>
+          <p class="hint">{% if on_ha %}{{ t.log_hint }}{% else %}{{ t.log_hint_docker }}{% endif %}</p>
           <div class="media-bar">
             <label class="checkbox"><input type="checkbox" id="log-errors-only" onchange="renderLog()"> {{ t.log_errors_only }}</label>
             <button type="button" class="btn secondary small" onclick="loadLog()">{{ t.nf_reload }}</button>
@@ -2420,24 +2448,94 @@
           <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
         </details>
 
+        <details class="panel fold" id="sy-preview">
+          <summary><h3>{{ t.pvlink_heading }}</h3></summary>
+          <p class="hint">{{ t.pvlink_hint }}</p>
+          <div class="row">
+            <div>
+              <label>{{ t.preview_duration }}</label>
+              <select id="pv-hours">
+                <option value="1">{{ t.preview_1h }}</option>
+                <option value="8" selected>{{ t.preview_8h }}</option>
+                <option value="168">{{ t.preview_7d }}</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" onclick="previewLink()">{{ t.preview_create }}</button>
+            <button class="btn danger secondary" onclick="previewRevoke()">{{ t.preview_revoke }}</button>
+          </div>
+          <div id="pv-result" style="display:none;margin-top:14px">
+            <label>{{ t.preview_link_label }}</label>
+            <div class="upload-row">
+              <input type="text" id="pv-url" readonly onclick="this.select()">
+              <button class="btn secondary small" onclick="previewCopy()">{{ t.preview_copy }}</button>
+              <button class="btn secondary small" onclick="window.open(el('pv-url').value, '_blank')">{{ t.pvlink_open }}</button>
+            </div>
+            <p class="hint" id="pv-note"></p>
+          </div>
+        </details>
+
+        <details class="panel fold" id="sy-storage" data-load="loadStorage">
+          <summary><h3>{{ t.diskuse_heading }}</h3><span class="count" id="storage-info"></span></summary>
+          <p class="hint">{{ t.diskuse_hint }}</p>
+          <div id="storage-bar" style="height:10px;border-radius:5px;background:var(--bg);border:1px solid var(--border);overflow:hidden;margin:10px 0;display:none">
+            <div id="storage-bar-fill" style="height:100%;width:0;background:var(--accent)"></div>
+          </div>
+          <p class="hint" id="storage-total">…</p>
+          <div style="overflow-x:auto">
+            <table class="tbl" id="storage-table" style="width:100%;margin-top:10px">
+              <thead><tr><th>{{ t.diskuse_col_group }}</th><th style="text-align:right">{{ t.diskuse_col_size }}</th><th style="text-align:right">{{ t.diskuse_col_share }}</th></tr></thead>
+              <tbody id="storage-rows"></tbody>
+            </table>
+          </div>
+          <p class="hint" id="storage-smb" style="display:none">{{ t.diskuse_smb_note }}</p>
+        </details>
+
         <details class="panel fold" id="sy-export">
           <summary><h3>{{ t.export_heading }}</h3></summary>
           <p class="hint">{{ t.export_hint }}</p>
           <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
         </details>
 
+        {% if on_ha %}
         <details class="panel fold" id="sy-sensors">
           <summary><h3>{{ t.sensors_heading }}</h3></summary>
           <p class="hint">{{ t.sensors_hint }}</p>
         </details>
+        {% endif %}
       </div>
 
       <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_access }}">
         <h2 class="sys-head">{{ t.sysgrp_access }}</h2>
 
+        <details class="panel fold" id="sy-adminpw" data-load="loadAdminLogin">
+          <summary><h3>{{ t.adminpw_heading }}</h3><span class="count" id="adminpw-info"></span></summary>
+          <p class="hint" id="adminpw-hint">…</p>
+          <div id="adminpw-form" style="display:none">
+            <label>{{ t.adminpw_username }}</label>
+            <input type="text" id="adminpw-user" maxlength="64" autocomplete="username" style="max-width:280px">
+            <label>{{ t.adminpw_current }}</label>
+            <input type="password" id="adminpw-cur" autocomplete="current-password" style="max-width:280px">
+            <div id="adminpw-2fa" style="display:none">
+              <label>{{ t.adminpw_code }}</label>
+              <input type="text" id="adminpw-code" inputmode="numeric" maxlength="12" style="max-width:160px" placeholder="123456">
+            </div>
+            <label>{{ t.adminpw_new }}</label>
+            <input type="password" id="adminpw-new" autocomplete="new-password" style="max-width:280px">
+            <label>{{ t.adminpw_repeat }}</label>
+            <input type="password" id="adminpw-new2" autocomplete="new-password" style="max-width:280px">
+            <p class="hint" id="adminpw-rule" style="margin-top:8px"></p>
+            <div style="margin-top:12px">
+              <button class="btn" onclick="adminPwSave()">{{ t.adminpw_save }}</button>
+            </div>
+            <p class="hint" style="margin-top:14px">{{ t.adminpw_forgot }}</p>
+          </div>
+        </details>
+
         <details class="panel fold" id="sy-twofa" data-load="loadTwofa">
           <summary><h3>{{ t.twofa_heading }}</h3><span class="count" id="twofa-info"></span></summary>
-          <p class="hint">{{ t.twofa_hint }}</p>
+          <p class="hint">{% if on_ha %}{{ t.twofa_hint }}{% else %}{{ t.twofa_hint_docker }}{% endif %}</p>
           <div id="twofa-status" class="hint" style="margin-bottom:12px">…</div>
           <div id="twofa-off" style="display:none">
             <button class="btn" onclick="twofaSetup()">{{ t.twofa_enable_btn }}</button>
@@ -2609,6 +2707,25 @@
         <p class="hint">{{ t.set_backup_hint }}</p>
         <label>{{ t.set_auto_backup_keep }}</label>
         <input type="number" min="0" max="60" data-set="auto_backup_keep" style="max-width:160px">
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>🕒 {{ t.set_revisions_heading }}</h3>
+        <p class="hint">{{ t.set_revisions_hint }}</p>
+        <label>{{ t.set_revision_keep }}</label>
+        <input type="number" min="0" max="100" data-set="revision_keep" style="max-width:160px">
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>🛡 {{ t.set_csp_heading }}</h3>
+        <p class="hint">{{ t.set_csp_hint }}</p>
+        <label>{{ t.set_csp_mode }}</label>
+        <select data-set="csp_mode" style="max-width:380px">
+          <option value="report">{{ t.set_csp_report }}</option>
+          <option value="on">{{ t.set_csp_on }}</option>
+          <option value="off">{{ t.set_csp_off }}</option>
+        </select>
+        <p class="hint" style="margin-top:10px">{{ t.set_csp_note }}</p>
       </div>
 
       <div class="panel" data-jump-panel>
@@ -3557,6 +3674,10 @@
 
   <script>
     const T = {{ t|tojson }};
+    // Laeuft MyPage als Home-Assistant-Add-on? Ohne Supervisor hat alles, was
+    // mit HA zu tun hat, hier nichts verloren — Sensoren, Benachrichtigungen
+    // und Hinweise auf das Add-on-Protokoll gehen ins Leere.
+    const ON_HA = {{ on_ha|tojson }};
     const GAME_NAMES = { '66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen', 'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy', 'gluecksrad': 'Glücksrad', 'kniffel': 'Kniffel', 'chicago': 'Chicago' };
     let SITE = null;
     let editingId = null;
@@ -3661,6 +3782,113 @@
       await loadTwofa();
       showBackupCodes(d.backup_codes);
     }
+    // ── Vorschau-Link ──
+    async function previewLink() {
+      const hours = parseInt(el('pv-hours').value, 10);
+      const r = await apiJson('api/preview-link', 'POST', { hours });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(T.error_save, true); return; }
+      el('pv-url').value = d.url;
+      el('pv-result').style.display = '';
+      const until = new Date(d.expires * 1000).toLocaleString();
+      el('pv-note').textContent = T.preview_valid_until.replace('{until}', until)
+        + (d.public_url_set ? '' : ' ' + T.preview_no_public_url);
+      previewCopy();
+    }
+    function previewCopy() {
+      const inp = el('pv-url');
+      inp.select();
+      (navigator.clipboard ? navigator.clipboard.writeText(inp.value) : Promise.reject())
+        .then(() => toast(T.preview_copied))
+        .catch(() => { try { document.execCommand('copy'); toast(T.preview_copied); } catch { } });
+    }
+    async function previewRevoke() {
+      if (!confirm(T.preview_revoke_confirm)) return;
+      const r = await apiJson('api/preview-link/revoke', 'POST', {});
+      if (!r.ok) { toast(T.error_save, true); return; }
+      el('pv-result').style.display = 'none';
+      toast(T.preview_revoked);
+    }
+
+    // ── Speicherbelegung ──
+    function fmtBytes(n) {
+      if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
+      if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+      if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+      return n + ' B';
+    }
+    async function loadStorage() {
+      const r = await api('api/diskuse');
+      if (!r.ok) return;
+      const d = await r.json();
+      const rows = el('storage-rows');
+      rows.innerHTML = '';
+      (d.groups || []).forEach(g => {
+        const tr = document.createElement('tr');
+        const share = d.total ? Math.round(g.bytes * 100 / d.total) : 0;
+        [T['diskuse_grp_' + g.key] || g.key, fmtBytes(g.bytes), share + ' %'].forEach((v, i) => {
+          const td = document.createElement('td');
+          td.textContent = v;
+          if (i) td.style.textAlign = 'right';
+          tr.appendChild(td);
+        });
+        rows.appendChild(tr);
+      });
+      el('storage-info').textContent = fmtBytes(d.total);
+      el('storage-smb').style.display = d.smb ? '' : 'none';
+      if (d.limit) {
+        el('storage-bar').style.display = '';
+        const fill = el('storage-bar-fill');
+        fill.style.width = Math.min(100, d.pct) + '%';
+        fill.style.background = d.pct >= 100 ? 'var(--danger, #f85149)'
+                              : d.pct >= 80 ? '#d29922' : 'var(--accent)';
+        el('storage-total').textContent = T.diskuse_total_limit
+          .replace('{used}', fmtBytes(d.total))
+          .replace('{limit}', fmtBytes(d.limit))
+          .replace('{pct}', d.pct);
+      } else {
+        el('storage-bar').style.display = 'none';
+        el('storage-total').textContent = T.diskuse_total_nolimit
+          .replace('{used}', fmtBytes(d.total))
+          .replace('{free}', fmtBytes(d.disk_free));
+      }
+    }
+
+    // ── Admin-Zugang (nur ohne Home Assistant) ──
+    async function loadAdminLogin() {
+      const r = await api('api/admin-login');
+      if (!r.ok) return;
+      const d = await r.json();
+      el('adminpw-rule').textContent = T.adminpw_rule.replace('{n}', d.min_len);
+      if (d.on_ha) {
+        el('adminpw-info').textContent = '';
+        el('adminpw-hint').textContent = T.adminpw_on_ha;
+        el('adminpw-form').style.display = 'none';
+        return;
+      }
+      el('adminpw-form').style.display = '';
+      el('adminpw-user').value = d.username || 'admin';
+      el('adminpw-2fa').style.display = d.twofa ? '' : 'none';
+      el('adminpw-info').textContent = d.initial ? T.adminpw_state_initial : T.adminpw_state_set;
+      el('adminpw-hint').textContent = d.initial ? T.adminpw_hint_initial : T.adminpw_hint;
+    }
+    async function adminPwSave() {
+      const pw = el('adminpw-new').value;
+      if (pw !== el('adminpw-new2').value) { toast(T.adminpw_mismatch, true); return; }
+      const r = await apiJson('api/admin-login', 'POST', {
+        username: el('adminpw-user').value,
+        current: el('adminpw-cur').value,
+        code: el('adminpw-code').value,
+        new: pw,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(T['adminpw_err_' + (d.error || '')] || T.error_save, true); return; }
+      ['adminpw-cur', 'adminpw-code', 'adminpw-new', 'adminpw-new2'].forEach(i => el(i).value = '');
+      toast(d.sessions_ended ? T.adminpw_saved_sessions.replace('{n}', d.sessions_ended)
+                             : T.adminpw_saved);
+      loadAdminLogin();
+    }
+
     function showBackupCodes(codes) {
       el('twofa-codes-list').textContent = (codes || []).join('\n');
       el('twofa-codes').style.display = '';
@@ -6861,7 +7089,7 @@
       });
     }
     async function clearLog() {
-      if (!confirm(T.log_clear_confirm)) return;
+      if (!confirm(ON_HA ? T.log_clear_confirm : T.log_clear_confirm_docker)) return;
       const r = await apiJson('api/log/clear', 'POST', {});
       if (!r.ok) { toast(T.error_save, true); return; }
       loadLog();
@@ -7514,11 +7742,14 @@
       el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
       el('d-share_enabled').value = d.share_enabled ? '1' : '0';
       el('d-dm_enabled').value = d.dm_enabled ? '1' : '0';
-      el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
+      if (el('d-dm_ha_notify')) el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
       el('d-directory_enabled').value = d.directory_enabled ? '1' : '0';
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
       el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
       el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
+      el('d-blog_enabled').value = d.blog_enabled !== false ? '1' : '0';
+      el('d-library_enabled').value = d.library_enabled !== false ? '1' : '0';
+      el('d-projects_enabled').value = d.projects_enabled !== false ? '1' : '0';
       el('d-default_lang').value = ['de', 'en', 'auto'].includes(d.default_lang) ? d.default_lang : 'de';
       el('d-feed_lang').value = d.feed_lang === 'en' ? 'en' : 'de';
       el('d-ai_address').value = d.ai_address === 'du' ? 'du' : 'sie';
@@ -7588,10 +7819,24 @@
     // gespeichert; auch Reihenfolge und Augen-Zustand des Abschnitts bleiben
     // erhalten, weil das Panel im DOM stehen bleibt (`saveSectionOrder` liest
     // alle `.acc`, `toggleSectionVisible` nur die mit `acc-hidden`).
-    const MODULE_TABS = ['travel', 'forms'];
+    // Der Blog-Reiter beherbergt zusaetzlich den Newsletter — der hat einen
+    // eigenen Schalter. Steht der auf JA, bleibt der Reiter stehen und zeigt
+    // dann nur noch das Newsletter-Panel, sonst waere die Abonnentenliste mit
+    // dem Blog verschwunden.
+    const MODULE_TABS = ['travel', 'forms', 'blog', 'library', 'projects'];
     function applyModuleVisibility() {
       const d = (SITE && SITE.design) || {};
-      const on = { travel: !!d.travel_enabled, forms: d.forms_enabled !== false };
+      const blog = d.blog_enabled !== false;
+      const on = { travel: !!d.travel_enabled, forms: d.forms_enabled !== false,
+                   blog: blog || !!d.newsletter_enabled,
+                   library: d.library_enabled !== false,
+                   projects: d.projects_enabled !== false };
+      if (el('blog-panel')) el('blog-panel').style.display = blog ? '' : 'none';
+      // Sorten des Textstudios, die in einen abgeschalteten Bereich fuehren
+      [['blog', blog], ['project', on.projects], ['library', on.library]].forEach(([v, ok]) => {
+        const opt = document.querySelector('#ai-txt-kind option[value="' + v + '"]');
+        if (opt) opt.hidden = !ok;
+      });
       MODULE_TABS.forEach(key => {
         const btn = el('tab-btn-' + key);
         const acc = document.querySelector('#section-acc .acc[data-key="' + key + '"]');
@@ -7604,6 +7849,11 @@
           document.querySelector('.tab-btn[data-tab=design]').click();
         }
       });
+      // Nach der Schleife, damit sie es nicht wieder ueberschreibt: Die Karte im
+      // Reiter Inhalte verweist nur auf den Blog-Reiter — ohne Blog fuehrt der
+      // Knopf ins Leere, auch wenn der Newsletter den Reiter am Leben haelt.
+      const blogAcc = document.querySelector('#section-acc .acc[data-key="blog"]');
+      if (blogAcc) blogAcc.style.display = blog ? '' : 'none';
     }
 
     // ── Design-Vorlagen (1-Klick-Stile) ──
@@ -7697,11 +7947,15 @@
         comments_enabled: el('d-comments_enabled').value === '1',
         share_enabled:    el('d-share_enabled').value === '1',
         dm_enabled:       el('d-dm_enabled').value === '1',
-        dm_ha_notify:     el('d-dm_ha_notify').value === '1',
+        dm_ha_notify:     el('d-dm_ha_notify') ? el('d-dm_ha_notify').value === '1'
+                                              : !!(SITE.design || {}).dm_ha_notify,
         directory_enabled: el('d-directory_enabled').value === '1',
         search_enabled:    el('d-search_enabled').value === '1',
         travel_enabled:    el('d-travel_enabled').value === '1',
         forms_enabled:     el('d-forms_enabled').value === '1',
+        blog_enabled:      el('d-blog_enabled').value === '1',
+        library_enabled:   el('d-library_enabled').value === '1',
+        projects_enabled:  el('d-projects_enabled').value === '1',
         default_lang:      el('d-default_lang').value,
         feed_lang:         el('d-feed_lang').value,
         ai_address:        el('d-ai_address').value,
@@ -8521,6 +8775,8 @@
         user_games: T.audit_user_games, user_password: T.audit_user_password,
         user_resend: T.audit_user_resend, restore: T.audit_restore,
         newsletter_send: T.audit_newsletter,
+        preview_link: T.audit_preview_link, preview_revoke: T.audit_preview_revoke,
+        admin_password_changed: T.audit_admin_password,
         legal_import_pdf: T.audit_legal_import,
       };
       box.innerHTML = '';

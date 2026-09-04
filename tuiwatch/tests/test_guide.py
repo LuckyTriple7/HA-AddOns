@@ -2,7 +2,7 @@
 
 Wie die Klimatabelle: EINMAL je Ziel erzeugt, dauerhaft gespeichert, jeder weitere
 Abruf ohne KI-Aufruf. Hier wiegt das schwerer als beim Klima — der Reiseführer ist
-mit dreizehn Abschnitten und zwanzig Vokabeln der teuerste Einzelaufruf im Add-on.
+mit allen _GUIDE_SECTIONS und zwanzig Vokabeln der teuerste Einzelaufruf im Add-on.
 """
 import importlib
 import json
@@ -102,7 +102,7 @@ def test_refresh_forces_a_new_call(client, ai):
     assert d["cached"] is False and len(ai) == 2
 
 
-def test_token_budget_is_large_enough_for_thirteen_sections(client, ai):
+def test_token_budget_is_large_enough_for_all_sections(client, ai):
     """Eine abgeschnittene Antwort ist kein gültiges JSON — der Aufruf wäre komplett
     verloren. Deshalb deutlich mehr als die 3000 der Klimatabelle."""
     client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
@@ -297,3 +297,54 @@ def test_perplexity_citations_become_links(client, m, monkeypatch):
 def test_other_providers_are_untouched(client, ai):
     d = client.post("/api/ai/guide", json={"giata": 6, "label": "Y"}).get_json()
     assert d["data"]["zusammenfassung"] == GUIDE["zusammenfassung"]
+
+
+def test_gespeicherter_reisefuehrer_zeigt_die_kosten_seines_aufrufs(client, ai):
+    """Der Reisefuehrer wird EINMAL erzeugt und danach jahrelang aus der Datenbank
+    gelesen. Interessant ist, was dieser eine Aufruf gekostet hat -- die Gesamtsumme
+    steht in der Fusszeile der Oberflaeche und gehoert hier nicht hin."""
+    post = client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"}).get_json()
+    d = client.get("/api/guide/128").get_json()
+    assert d["found"] is True
+    assert d["usage"]["input_tokens"] == 10
+    assert d["usage"]["output_tokens"] == 20
+    assert d["usage"]["estimated_usd"] == post["usage"]["estimated_usd"]
+    assert "totals" not in d
+
+
+def test_kosten_auch_beim_zwischengespeicherten_post(client, ai):
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    d = client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"}).get_json()
+    assert d["cached"] is True
+    assert d["usage"]["output_tokens"] == 20
+    assert "totals" not in d
+
+
+def test_kostenanzeige_erhoeht_die_summen_nicht(client, ai):
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    before = client.get("/api/ai/usage").get_json()
+    client.get("/api/guide/128")
+    client.get("/api/guide/128")
+    assert client.get("/api/ai/usage").get_json()["calls"] == before["calls"]
+
+
+def test_reisefuehrer_von_vor_der_usage_spalte_bleibt_lesbar(client, m, ai):
+    """Altbestand hat keine gespeicherte `usage`. Dann steht im Fenster nichts --
+    besser als eine erfundene Zahl."""
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    with m.db() as con:
+        con.execute("UPDATE guide SET usage='' WHERE giata=128")
+    d = client.get("/api/guide/128").get_json()
+    assert d["found"] is True
+    assert "usage" not in d
+
+
+def test_neu_erzeugter_reisefuehrer_ueberschreibt_die_alten_kosten(client, m, ai):
+    """`refresh` kostet erneut -- dann muss auch die gespeicherte Zahl die neue sein."""
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    with m.db() as con:
+        con.execute("UPDATE guide SET usage=? WHERE giata=128",
+                    ('{"input_tokens": 1, "output_tokens": 2, "estimated_usd": 0.99}',))
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria", "refresh": True})
+    d = client.get("/api/guide/128").get_json()
+    assert d["usage"]["input_tokens"] == 10
