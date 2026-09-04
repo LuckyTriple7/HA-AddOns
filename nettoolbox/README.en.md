@@ -123,6 +123,53 @@ effect immediately, no restart needed: the file is re-read whenever its timestam
 
 Since the password and the token sit in there in the clear: `chmod 600 ./data/options.json`.
 
-**With Dockge:** stacks live under `/opt/stacks/<stackname>/`, so the `./data` volume ends up in
-`/opt/stacks/nettoolbox/data/`. Edit the file through the terminal Dockge offers for each stack,
-or over SSH.
+### With Dockge, step by step
+
+Dockge keeps every stack under `/opt/stacks/<stackname>/`, so the `./data` volume from the
+compose file ends up in `/opt/stacks/nettoolbox/data/`.
+
+1. Create a new stack `nettoolbox` in Dockge, paste the contents of
+   [docker-compose.yml](docker-compose.yml), then **Deploy**.
+2. The first start creates `/opt/stacks/nettoolbox/data/options.json` with a random password for
+   `admin`.
+3. Open that file — through the **terminal** Dockge offers for each stack (it starts in the
+   stack directory on the host), or over SSH:
+   ```sh
+   cat /opt/stacks/nettoolbox/data/options.json     # read the password
+   vi  /opt/stacks/nettoolbox/data/options.json     # edit
+   ```
+4. Tighten the permissions, since the password and the token sit in there in the clear:
+   ```sh
+   chmod 600 /opt/stacks/nettoolbox/data/options.json
+   ```
+5. Sign in at `http://<server>:17798` with `admin` and the password you just read.
+
+### Setting the worker options in options.json
+
+Only needed when a home instance exists that should hand its checks over here — see
+[Do I need the root-server worker?](#do-i-need-the-root-server-worker). This instance is then the
+**executing** side:
+
+First generate a token:
+
+```sh
+openssl rand -hex 32
+```
+
+Its output goes into `worker_token`:
+
+```json
+{
+  "username": "admin",
+  "password": "<your password>",
+  "worker_enabled": true,
+  "worker_token": "<the 64 characters from openssl>",
+  "worker_url": ""
+}
+```
+
+`worker_url` stays empty here — the address goes on the *asking* side, i.e. in the Home
+Assistant add-on. Saving is enough, no restart of the stack required.
+
+For the opposite direction, where this standalone instance hands its checks to a worker, put
+`worker_url` and `worker_token` here instead and leave `worker_enabled` at `false`.

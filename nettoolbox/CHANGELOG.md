@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.19] - 2026-09-04
+
+### Changed
+- **Dockge-Anleitung als echte Schritt-für-Schritt-Fassung (DE und EN).** Bisher stand dort nur
+  der Pfad `/opt/stacks/<stack>/data/`; jetzt fünf nummerierte Schritte vom Anlegen des Stacks
+  über das Ablesen des erzeugten Passworts bis zu `chmod 600` auf die `options.json`.
+- **Eigener Abschnitt "Worker-Optionen in der options.json setzen"** mit vollständigem
+  JSON-Beispiel für die ausführende Seite (`worker_enabled` + `worker_token`, `worker_url`
+  bleibt leer) und dem Gegenstück für den umgekehrten Fall. Der Schlüssel wird vorher per
+  `openssl rand -hex 32` erzeugt, statt im JSON-Beispiel versteckt zu sein.
+
 ## [0.1.18] - 2026-09-04
 
 ### Changed

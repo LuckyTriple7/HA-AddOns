@@ -123,6 +123,53 @@ Namen. Änderungen greifen sofort, ein Neustart ist nicht nötig: die Datei wird
 
 Da Passwort und Token im Klartext darin stehen: `chmod 600 ./data/options.json`.
 
-**Mit Dockge:** Stacks liegen unter `/opt/stacks/<stackname>/`, das `./data`-Volume also unter
-`/opt/stacks/nettoolbox/data/`. Bearbeiten lässt sich die Datei über das Terminal, das Dockge zu
-jedem Stack anbietet, oder per SSH.
+### Mit Dockge, Schritt für Schritt
+
+Dockge legt jeden Stack unter `/opt/stacks/<stackname>/` ab. Das `./data`-Volume aus der
+Compose-Datei landet damit in `/opt/stacks/nettoolbox/data/`.
+
+1. In Dockge einen neuen Stack `nettoolbox` anlegen und den Inhalt von
+   [docker-compose.yml](docker-compose.yml) einfügen, dann **Deploy**.
+2. Beim ersten Start entsteht `/opt/stacks/nettoolbox/data/options.json` mit einem zufälligen
+   Passwort für `admin`.
+3. Diese Datei öffnen — über das **Terminal**, das Dockge zu jedem Stack anbietet (es startet im
+   Stack-Verzeichnis auf dem Host), oder per SSH:
+   ```sh
+   cat /opt/stacks/nettoolbox/data/options.json     # Passwort ablesen
+   vi  /opt/stacks/nettoolbox/data/options.json     # bearbeiten
+   ```
+4. Rechte einschränken, denn Passwort und Token stehen im Klartext darin:
+   ```sh
+   chmod 600 /opt/stacks/nettoolbox/data/options.json
+   ```
+5. Anmelden auf `http://<server>:17798` mit `admin` und dem abgelesenen Passwort.
+
+### Worker-Optionen in der options.json setzen
+
+Nur nötig, wenn zusätzlich eine Heim-Instanz existiert, die ihre Prüfungen hierher durchreichen
+soll — siehe [Brauche ich den Root-Server-Worker?](#brauche-ich-den-root-server-worker). Diese
+Instanz ist dann die **ausführende** Seite:
+
+Zuerst einen Schlüssel erzeugen:
+
+```sh
+openssl rand -hex 32
+```
+
+Dessen Ausgabe kommt in `worker_token`:
+
+```json
+{
+  "username": "admin",
+  "password": "<dein Passwort>",
+  "worker_enabled": true,
+  "worker_token": "<die 64 Zeichen von openssl>",
+  "worker_url": ""
+}
+```
+
+`worker_url` bleibt hier leer — die Adresse wird auf der *fragenden* Seite eingetragen, also im
+Home-Assistant-Add-on. Speichern genügt, ein Neustart des Stacks ist nicht nötig.
+
+Soll es umgekehrt diese Standalone-Instanz sein, die ihre Prüfungen an einen Worker abgibt,
+stehen hier stattdessen `worker_url` und `worker_token`, und `worker_enabled` bleibt `false`.
