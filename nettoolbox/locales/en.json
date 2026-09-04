@@ -566,5 +566,9 @@
   "err_snapshot_domain_mismatch": "The two snapshots belong to different domains.",
   "f_tls_absurd_lifetime": "A lifetime of about {years} years — no public certificate authority issues that; the certificate is self-generated.",
   "f_tls_default_certificate": "Looks like the default certificate of a web server or reverse proxy: self-issued, no matching name, absurdly long lifetime. Typically no host is configured for this name at all — the proxy answers anyway, with its own landing page.",
-  "tls_details_unverified": "Details from a certificate that failed verification — they state what the server sent, not that it is valid."
+  "tls_details_unverified": "Details from a certificate that failed verification — they state what the server sent, not that it is valid.",
+  "software_style": "{name} style (not proof)",
+  "software_from_greeting": "Inferred from the wording of the EHLO greeting. Several mail servers copied sendmail's phrasing — this is a hint at style, not proof of a product.",
+  "field_ehlo_greeting": "EHLO reply",
+  "ehlo_greeting_title": "First line of the EHLO reply. Often the only thing a server reveals about itself once the banner has been anonymised."
 }

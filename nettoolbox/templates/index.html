@@ -1438,11 +1438,20 @@ function providerLine(provider){
   return row;
 }
 
+function softwareLabel(software){
+  if (!software || !software.known) return '';
+  // Ein aus der Begruessung geratener Stil ist kein Produktnachweis und wird
+  // auch nicht so beschriftet.
+  if (software.style_only) return fmtStr(T.software_style, { name: software.name });
+  return software.name + (software.version ? ' ' + software.version : '');
+}
+
 function softwareChip(software){
   if (!software || !software.known) return null;
-  const label = software.name + (software.version ? ' ' + software.version : '');
+  const label = softwareLabel(software);
   const chip = el('span', 'chip', label);
-  chip.title = software.source === 'ehlo' ? T.software_from_ehlo : T.software_from_banner;
+  chip.title = software.source === 'greeting' ? T.software_from_greeting
+    : (software.source === 'ehlo' ? T.software_from_ehlo : T.software_from_banner);
   return chip;
 }
 
@@ -2213,11 +2222,16 @@ async function smtpCheck(){
       });
       c1.appendChild(chips);
     }
+    if (r.ehlo_greeting) {
+      const greet = el('div', 'kv-tight');
+      greet.appendChild(el('span', '', T.field_ehlo_greeting));
+      greet.appendChild(el('span', 'mono', r.ehlo_greeting));
+      greet.title = T.ehlo_greeting_title;
+      c1.appendChild(greet);
+    }
     const row = el('div', 'kv-tight');
     row.appendChild(el('span', '', T.software_label));
-    row.appendChild(el('span', '', r.software && r.software.known
-      ? r.software.name + (r.software.version ? ' ' + r.software.version : '')
-      : T.software_unknown));
+    row.appendChild(el('span', '', softwareLabel(r.software) || T.software_unknown));
     c1.appendChild(row);
     grid.appendChild(c1);
 

@@ -125,6 +125,24 @@ def test_detect_software_admits_defeat():
     assert mailprovider.detect_software('220 ESMTP ready')['known'] is False
 
 
+def test_greeting_style_is_a_hint_not_a_name():
+    """Ein anonymisiertes Banner laesst nur noch den Wortlaut der Begruessung
+    -- der wird als Stil gemeldet und ausdruecklich als solcher markiert."""
+    out = mailprovider.detect_software(
+        '220 mail2.example.de ESMTP (bd055ad7d576)', [],
+        'mail2.example.de Hello host [203.0.113.1], pleased to meet you')
+    assert out['name'] == 'sendmail'
+    assert out['source'] == 'greeting'
+    assert out['style_only'] is True
+
+
+def test_banner_beats_greeting():
+    out = mailprovider.detect_software(
+        '220 mail ESMTP Postfix', [], 'mail Hello, pleased to meet you')
+    assert out['name'] == 'Postfix'
+    assert out.get('style_only') is None
+
+
 # ── smtpcheck: target parsing ────────────────────────────────────────────────
 
 @pytest.mark.parametrize('raw, host, port, explicit', [

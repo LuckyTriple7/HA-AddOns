@@ -143,7 +143,8 @@ def check_smtp(ctx: Context, target: str) -> dict:
         'host': host, 'port': port, 'input': typed_host,
         'mx_domain': mx_domain, 'mx_candidates': mx_candidates,
         'banner': '', 'banner_host': '',
-        'ehlo_ok': False, 'features': [], 'starttls_offered': False,
+        'ehlo_ok': False, 'ehlo_greeting': '', 'features': [], 'features_tls': [],
+        'features_new': [], 'starttls_offered': False,
         'starttls_ok': False, 'tls_protocol': '', 'tls_cipher': '',
         'reverse_match': None, 'relay_open': None,
         'source_ip': '', 'peer_ip': '', 'same_host': False,
@@ -229,11 +230,16 @@ def check_smtp(ctx: Context, target: str) -> dict:
     result['ehlo_ok'] = code == 250
     if result['ehlo_ok']:
         result['features'] = sorted(smtp.esmtp_features.keys())
+        # Die erste Zeile der EHLO-Antwort wurde bisher weggeworfen. Sie ist
+        # aber oft das Einzige, was ein Server ueber sich verraet, wenn das
+        # Banner anonymisiert wurde ("... Hello host [ip], pleased to meet
+        # you" ist sendmails Wortlaut).
+        result['ehlo_greeting'] = _text(ehlo_resp).splitlines()[0].strip()
         if not result['software']['known']:
             # Second chance for a banner that gave nothing away: a couple of
             # ESMTP extensions are vendor-specific enough to name the product.
             result['software'] = mailprovider.detect_software(
-                banner_text, result['features'])
+                banner_text, result['features'], result['ehlo_greeting'])
         findings.append(_finding(OK, 'smtp_ehlo_ok'))
     else:
         findings.append(_finding(FAIL, 'smtp_ehlo_failed', reason=_text(ehlo_resp)))
@@ -254,6 +260,18 @@ def check_smtp(ctx: Context, target: str) -> dict:
                 findings.append(_finding(OK, 'smtp_starttls_ok',
                                          protocol=result['tls_protocol']))
                 smtp.ehlo(_HELO_NAME)  # RFC 3207: state resets, EHLO again
+                # Nach STARTTLS zeigen viele Server mehr als davor -- vor
+                # allem AUTH samt Mechanismen, und die sind ein besseres
+                # Erkennungsmerkmal als ein Banner, das der Betreiber frei
+                # setzen kann. Die Liste ersetzt die von vorher nicht,
+                # sondern kommt daneben.
+                after = sorted(smtp.esmtp_features.keys())
+                result['features_tls'] = after
+                result['features_new'] = [f for f in after
+                                          if f not in result['features']]
+                if not result['software']['known']:
+                    result['software'] = mailprovider.detect_software(
+                        banner_text, after, result['ehlo_greeting'])
             else:
                 findings.append(_finding(WARN, 'smtp_starttls_failed'))
         except (smtplib.SMTPException, ssl.SSLError, OSError) as e:

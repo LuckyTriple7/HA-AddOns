@@ -566,5 +566,9 @@
   "err_snapshot_domain_mismatch": "Die beiden Aufnahmen gehören zu verschiedenen Domains.",
   "f_tls_absurd_lifetime": "Laufzeit von rund {years} Jahren — öffentliche Zertifizierungsstellen stellen so etwas nicht aus, das Zertifikat ist selbst erzeugt.",
   "f_tls_default_certificate": "Sieht nach dem Standardzertifikat eines Webservers oder Reverse-Proxys aus: selbst ausgestellt, kein passender Name, absurd lange Laufzeit. Typischerweise ist für diesen Namen schlicht kein Host eingerichtet — der Proxy antwortet trotzdem, mit seiner Startseite.",
-  "tls_details_unverified": "Angaben aus einem Zertifikat, das die Prüfung nicht bestanden hat — sie sagen, was der Server schickt, nicht dass es stimmt."
+  "tls_details_unverified": "Angaben aus einem Zertifikat, das die Prüfung nicht bestanden hat — sie sagen, was der Server schickt, nicht dass es stimmt.",
+  "software_style": "{name}-Stil (kein Nachweis)",
+  "software_from_greeting": "Aus dem Wortlaut der EHLO-Begrüßung geschlossen. Mehrere Mailserver haben sendmails Formulierungen übernommen — das ist ein Stilhinweis, kein Produktnachweis.",
+  "field_ehlo_greeting": "EHLO-Antwort",
+  "ehlo_greeting_title": "Erste Zeile der EHLO-Antwort. Oft das Einzige, was ein Server über sich verrät, wenn das Banner anonymisiert wurde."
 }

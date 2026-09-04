@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.29] - 2026-09-04
+
+### Added
+- **EHLO-Antwort wird angezeigt.** Die erste Zeile der EHLO-Antwort wurde bisher weggeworfen —
+  dabei ist sie oft das Einzige, was ein Server über sich verrät, wenn das Banner anonymisiert
+  wurde („… Hello host [ip], **pleased to meet you**" ist sendmails Wortlaut).
+- **Stilerkennung als letzte Instanz.** Sagen weder Banner noch EHLO-Erweiterungen etwas, wird
+  der Wortlaut der Begrüßung ausgewertet und ausdrücklich als „sendmail-Stil (kein Nachweis)"
+  ausgegeben — mehrere Mailserver haben sendmails Formulierungen übernommen, das ist ein
+  Stilhinweis und kein Produktnachweis.
+- **EHLO-Fähigkeiten nach STARTTLS.** Viele Server zeigen erst im verschlüsselten Kanal mehr,
+  vor allem AUTH samt Mechanismen; die zusätzliche Liste fließt in die Software-Erkennung ein
+  (bei STRATO kommt so z. B. `requiretls` dazu).
+
 ## [0.1.28] - 2026-09-04
 
 ### Added

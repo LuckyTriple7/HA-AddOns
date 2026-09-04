@@ -198,7 +198,26 @@ def detect_provider(hosts) -> dict:
             'known': bool(names)}
 
 
-def detect_software(banner: str, features=None) -> dict:
+# Die Begruessungszeile auf EHLO ist der letzte Anhaltspunkt, wenn Banner und
+# Erweiterungen nichts hergeben. Sie beweist kein Produkt -- mehrere MTAs
+# haben sendmails Wortlaut uebernommen -- und wird deshalb als Stil gemeldet,
+# nicht als Name.
+GREETING_PATTERNS = (
+    (r'pleased to meet you', 'sendmail'),
+    (r'\bnice to meet you\b', 'Exim'),
+    (r'\bat your service\b', 'Google'),
+)
+
+
+def detect_greeting_style(greeting: str) -> str:
+    text = (greeting or '').lower()
+    for pattern, name in GREETING_PATTERNS:
+        if re.search(pattern, text):
+            return name
+    return ''
+
+
+def detect_software(banner: str, features=None, greeting: str = '') -> dict:
     """The MTA software behind a greeting line.
 
     Trusts nothing: the banner is free text the operator controls, so the
@@ -219,4 +238,8 @@ def detect_software(banner: str, features=None) -> dict:
         if feature in upper:
             return {'name': name, 'version': '', 'source': 'ehlo',
                     'known': True}
+    style = detect_greeting_style(greeting)
+    if style:
+        return {'name': style, 'version': '', 'source': 'greeting',
+                'known': True, 'style_only': True}
     return {'name': '', 'version': '', 'source': '', 'known': False}
