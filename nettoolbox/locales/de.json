@@ -90,6 +90,7 @@
   "quota_hint": "Verbleibende Abfragen für heute.",
   "err_module_disabled": "Dieser Bereich ist für dieses Konto nicht freigeschaltet.",
   "err_quota_exhausted": "Tageskontingent aufgebraucht — morgen geht es weiter.",
+  "users_new_title": "Neues Konto anlegen",
   "users_new_name": "Benutzername",
   "users_new_mail": "E-Mail (für die Willkommensmail)",
   "users_is_admin": "Verwalter — darf Einstellungen, Wächter und Benutzer verwalten",

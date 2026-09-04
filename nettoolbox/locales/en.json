@@ -90,6 +90,7 @@
   "quota_hint": "Queries left for today.",
   "err_module_disabled": "This area is not enabled for this account.",
   "err_quota_exhausted": "Daily quota used up — it starts over tomorrow.",
+  "users_new_title": "Create a new account",
   "users_new_name": "User name",
   "users_new_mail": "Email (for the welcome message)",
   "users_is_admin": "Administrator — may manage settings, monitors and users",

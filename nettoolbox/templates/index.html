@@ -42,10 +42,11 @@ header { background: var(--surf); border-bottom: 1px solid var(--border);
             align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; }
 .modal-bg.open { display: flex; }
 .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 24px;
-         width: 100%; max-width: 920px; position: relative; }
-/* Der Dialog ist wegen der Benutzertabelle breit; ein SMTP-Server-Feld ueber
-   die volle Breite waere deshalb albern. */
-.set-row > input[type="text"], .set-row > input[type="password"] { max-width: 420px; }
+         width: 100%; max-width: 560px; position: relative; }
+/* Nur die Benutzerverwaltung braucht Platz fuer eine Tabelle. Ein Eingabefeld
+   ueber die volle Breite waere dort albern, deshalb der Deckel. */
+.modal.wide { max-width: 920px; }
+.modal.wide .set-row > input[type="text"] { max-width: 420px; }
 .modal-close { position: absolute; top: 12px; right: 12px; background: none; border: 1px solid var(--border);
                color: var(--muted); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
 .modal-close:hover { border-color: var(--accent); }
@@ -199,7 +200,10 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   <a href="{{ url_for('set_lang', lang='de', next=request.path) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
   <a href="{{ url_for('set_lang', lang='en', next=request.path) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
   {% if account %}<a class="lang-btn" href="{{ url_for('change_password') }}" title="{{ t.pw_title }}">{{ account }}</a>{% endif %}
-  {% if is_admin %}<button class="theme-btn" onclick="openSettings()" type="button" aria-label="settings" title="{{ t.settings_title }}">
+  {% if is_admin %}<button class="theme-btn" onclick="openUsers()" type="button" aria-label="users" title="{{ t.settings_group_users }}">
+    <svg viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg>
+  </button>
+  <button class="theme-btn" onclick="openSettings()" type="button" aria-label="settings" title="{{ t.settings_title }}">
     <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
   </button>{% endif %}
   <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="theme">
@@ -732,29 +736,6 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
 
     <div class="set-group">
-      <h3>{{ t.settings_group_users }}</h3>
-      <p class="hint" style="margin-top:0">{{ t.users_hint }}</p>
-      <div id="userTableBox" style="overflow-x:auto"></div>
-      <div class="set-row" style="margin-top:14px">
-        <label class="field" for="newUserName">{{ t.users_new_name }}</label>
-        <input type="text" id="newUserName" autocomplete="off" placeholder="max.mustermann">
-      </div>
-      <div class="set-row">
-        <label class="field" for="newUserMail">{{ t.users_new_mail }}</label>
-        <input type="text" id="newUserMail" autocomplete="off" placeholder="max@example.com">
-      </div>
-      <div class="set-row">
-        <label class="set-check">
-          <input type="checkbox" id="newUserAdmin"> {{ t.users_is_admin }}
-        </label>
-      </div>
-      <div class="set-row">
-        <button class="btn primary" id="userCreate" type="button">{{ t.users_create }}</button>
-        <span class="hint" id="userCreateResult"></span>
-      </div>
-    </div>
-
-    <div class="set-group">
       <h3>{{ t.settings_group_security }}</h3>
       <p class="hint" style="margin-top:0">{{ t.settings_security_hint }}</p>
       <div class="set-row">
@@ -812,6 +793,44 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
   </div>
 </div>
+
+<div class="modal-bg" id="usersBg">
+  <div class="modal wide">
+    <button class="modal-close" onclick="closeUsers()" type="button" aria-label="close">✕</button>
+    <h2 style="margin-bottom:4px">{{ t.settings_group_users }}</h2>
+    <p class="hint" style="margin-bottom:0">{{ t.users_hint }}</p>
+
+    <div class="set-group">
+      <div id="userTableBox" style="overflow-x:auto"></div>
+    </div>
+
+    <div class="set-group">
+      <h3>{{ t.users_new_title }}</h3>
+      <div class="set-row">
+        <label class="field" for="newUserName">{{ t.users_new_name }}</label>
+        <input type="text" id="newUserName" autocomplete="off" placeholder="max.mustermann">
+      </div>
+      <div class="set-row">
+        <label class="field" for="newUserMail">{{ t.users_new_mail }}</label>
+        <input type="text" id="newUserMail" autocomplete="off" placeholder="max@example.com">
+      </div>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="newUserAdmin"> {{ t.users_is_admin }}
+        </label>
+      </div>
+      <div class="set-row">
+        <button class="btn primary" id="userCreate" type="button">{{ t.users_create }}</button>
+        <span class="hint" id="userCreateResult"></span>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:18px; justify-content:flex-end">
+      <button class="btn" onclick="loadUsers()" type="button">{{ t.action_reload }}</button>
+    </div>
+  </div>
+</div>
+
 
 <div class="toast-wrap" id="toasts"></div>
 
@@ -929,6 +948,15 @@ function closeSettings(){
   $('settingsBg').classList.remove('open');
 }
 
+function openUsers(){
+  $('usersBg').classList.add('open');
+  loadUsers();
+}
+
+function closeUsers(){
+  $('usersBg').classList.remove('open');
+}
+
 async function loadSettings(){
   try {
     const data = await api('/api/settings');
@@ -945,7 +973,6 @@ async function loadSettings(){
     $('setTelegramToken').value = '';
     $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
     $('setTelegramChatId').value = v.telegram_chat_id || '';
-    loadUsers();
     $('setPublicUrl').value = v.public_url || '';
     $('setNotifyLoginFailMail').checked = v.notify_login_fail_email !== false;
     $('setNotifyLoginFailTg').checked = v.notify_login_fail_telegram !== false;

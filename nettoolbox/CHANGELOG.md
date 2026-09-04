@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2] - 2026-09-04
+
+### Changed
+- **Die Benutzerverwaltung hat einen eigenen Dialog** mit eigenem Knopf in der Kopfzeile
+  (Personensymbol neben dem Zahnrad, nur für Verwalter sichtbar). Sie hing bisher unten im
+  Einstellungsdialog und hatte mit SMTP-Zugangsdaten und Telegram-Token nichts zu tun.
+- **Der Einstellungsdialog ist wieder so breit wie früher** (560 px). Breit gemacht hatte ihn
+  allein die Benutzertabelle; die steht jetzt woanders. Nur der Benutzerdialog ist breit
+  (920 px), weil eine Tabelle nun einmal Platz braucht.
+
 ## [0.3.1] - 2026-09-04
 
 ### Added
