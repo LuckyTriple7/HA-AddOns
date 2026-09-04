@@ -29,6 +29,13 @@ about your domains leaves your own infrastructure.
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
   without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score
+- **Technology detection** — what a site is built with: CMS, shop, framework, JavaScript and
+  CSS libraries, web server, CDN/WAF, measurement and marketing services, consent tooling,
+  payment and support widgets, plus the DNS side (nameserver provider, mail provider,
+  services per SPF). Every hit names its evidence (header, cookie, meta tag, referenced file)
+  and how certain it is. Only the delivered response is judged — technology that JavaScript
+  loads in the browser stays invisible, and history or market share as offered by paid
+  services is not available here.
 - **Mail header analysis** — paste a received mail's header: Received chain with per-hop
   delay, the receiving side's SPF/DKIM/DMARC verdict, alignment check
 - **SMTP** — a domain is enough, the mail server is found through its MX record; banner, EHLO

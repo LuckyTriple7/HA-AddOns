@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.1.37] - 2026-09-04
+
+### Added
+- **Technik-Erkennung** (neue Karte im Reiter „HTTP"). Erkennt an einer einzelnen Adresse, womit
+  die Seite gebaut ist — die ehrliche Variante dessen, was Dienste wie BuiltWith anbieten:
+  - **169 Fingerabdrücke** in `techrules.py`, gruppiert nach CMS, Shop, Framework, JavaScript,
+    CSS/UI, Schriften, Webserver, Sprache/Laufzeit, CDN, WAF, Hosting, Captcha, Messung,
+    Tag-Verwaltung, Vermarktung, Einwilligung, Bezahlen, Support, Medien/Karten und Suche.
+  - Gesucht wird in **Antwort-Headern, Set-Cookie-Namen, Meta-Angaben, den eingebundenen
+    Dateien und im Quelltext**. Jeder Treffer zeigt im Tooltip seine **Fundstelle** und trägt
+    eine **Sicherheitsangabe** (sicher / wahrscheinlich / abgeleitet) — ein Fingerabdruck ist
+    ein Indiz, kein Beweis, und färbt deshalb nie eine Ampel.
+  - **Versionen** werden mitgenommen, wo die Seite sie preisgibt (`generator`-Meta,
+    `Server`-Header, `X-AspNet-Version`) — und dann als Hinweis gemeldet, denn eine nach außen
+    sichtbare Version erspart Angreifern die Suche nach der passenden Lücke.
+  - **DNS-Seite dazu**: Nameserver-Anbieter (53 Suffixe), Mail-Anbieter aus den MX-Namen
+    (über `mailprovider.py`) und die Dienste, die der SPF-Eintrag erlaubt (34 Ziele — Google
+    Workspace, Microsoft 365, Mailchimp, SendGrid, Brevo …). Gefragt wird die Zone über dem
+    Host, nicht `www.beispiel.de` — dort steht keiner dieser Einträge.
+  - Läuft im **Gesamtbericht** mit.
+- Grenzen, die im Ergebnis auch so benannt werden: **kein JavaScript** (beurteilt wird das
+  gelieferte Dokument, nicht das, was ein Browser daraus baut — eine leere Wurzel-`div` wird als
+  solche gemeldet) und **keine Historie/Marktanteile**, das braucht eine eigene
+  Crawler-Datenbank.
+
+### Changed
+- `netcore.http_get` liefert **jedes Set-Cookie einzeln** statt des zusammengeklebten Headers.
+  requests fügt gleichnamige Header mit Komma zusammen, und genau in `Expires=Wed, 01 Jan …`
+  steht selbst ein Komma — ein Split darauf hätte an der falschen Stelle getrennt.
+
 ## [0.1.36] - 2026-09-04
 
 ### Fixed

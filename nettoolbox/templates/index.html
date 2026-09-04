@@ -158,6 +158,14 @@ tr:last-child td { border-bottom: none; }
                font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted); }
+.tech-list { display: flex; flex-direction: column; gap: 4px; }
+.tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; }
+.tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
+.tech-ver { font-size: 0.72rem; color: var(--muted); }
+.tech-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+.tech-dot.high { background: var(--green-h); }
+.tech-dot.medium { background: var(--amber); }
+.tech-dot.low { background: var(--border); }
 footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size: 0.75rem; }
 </style>
 </head>
@@ -553,6 +561,20 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.seo_hint }}</p>
     <div id="seoResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M20,18H4V8H20M20,6H12L10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6M9,10V12H11V17H13V12H15V10H9Z"/></svg>{{ t.tech_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="techTarget">{{ t.field_url }}</label>
+        <input type="text" id="techTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="techRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.tech_hint }}</p>
+    <div id="techResult"></div>
   </div>
 </section>
 
@@ -1107,7 +1129,8 @@ function reportStepLabel(probe){
   return ({
     dns_all: T.dns_title, dnssec: T.dnssec_title, whois: T.whois_title,
     mail_health: T.mail_title, mx: T.mx_title, tls: T.tls_title,
-    http: T.http_title, seo: T.seo_title, blacklist: T.blacklist_title
+    http: T.http_title, seo: T.seo_title, tech: T.tech_title,
+    blacklist: T.blacklist_title
   })[probe] || probe;
 }
 
@@ -1117,6 +1140,7 @@ function reportHeadline(step){
   switch (step.probe) {
     case 'mail_health': return fmtStr(T.report_score, { score: r.score });
     case 'seo': return fmtStr(T.report_score, { score: r.score });
+    case 'tech': return (r.technologies || []).slice(0, 8).map(t => t.name).join(', ');
     case 'tls': return r.days_left === undefined || r.days_left === null
       ? '' : fmtStr(T.report_days_left, { days: r.days_left });
     case 'whois': return r.days_until_expiry === null || r.days_until_expiry === undefined
@@ -2562,6 +2586,96 @@ async function seoCheck(){
 
 $('seoRun').addEventListener('click', seoCheck);
 $('seoTarget').addEventListener('keydown', e => { if (e.key === 'Enter') seoCheck(); });
+
+// ── Technik-Erkennung ───────────────────────────────────────────────────────
+
+// Reihenfolge der Gruppen: erst was die Seite ausmacht (CMS, Shop, Framework),
+// dann Unterbau, dann alles Eingebundene. Kategorien ohne Treffer fallen weg.
+const TECH_CATS = ['cms', 'shop', 'framework', 'js', 'css', 'font', 'server',
+  'language', 'cdn', 'waf', 'hosting', 'captcha', 'analytics', 'tagmanager',
+  'marketing', 'consent', 'payment', 'support', 'media', 'search',
+  'dns', 'mail', 'misc'];
+
+function techEvidenceLine(ev){
+  if (ev.kind === 'implied') return fmtStr(T.tech_ev_implied, { detail: ev.detail });
+  return (T['tech_ev_' + ev.kind] || ev.kind) + ': ' + ev.detail;
+}
+
+function techItem(t){
+  const row = el('div', 'tech-item');
+  row.appendChild(el('span', 'tech-dot ' + t.confidence));
+  row.appendChild(el('span', '', t.name));
+  if (t.version) row.appendChild(el('span', 'tech-ver', t.version));
+  row.appendChild(el('span', 'tech-conf', T['tech_conf_' + t.confidence] || t.confidence));
+  // Die Fundstelle steht im Titel statt in der Zeile: sie ist der Beleg, den
+  // man sehen will, wenn man einem Treffer nicht glaubt -- aber nicht das,
+  // was die Liste lesbar haelt.
+  const evidence = (t.evidence || []).map(techEvidenceLine).join('\n');
+  if (evidence) row.title = T.tech_evidence_title + ':\n' + evidence;
+  return row;
+}
+
+async function techCheck(){
+  const target = $('techTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('techResult'); showLoading(box);
+  try {
+    const data = await runProbe('tech', { target: target }, target, $('techRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'chip', r.final_url));
+    badges.appendChild(el('span', 'chip', r.ms + ' ms'));
+    badges.appendChild(el('span', 'chip', Math.round(r.bytes / 1024) + ' KB'));
+    if (r.redirects) badges.appendChild(el('span', 'chip',
+      fmtStr(T.seo_redirects, { count: r.redirects })));
+    box.appendChild(badges);
+
+    box.appendChild(renderFindings(r.findings));
+
+    const techs = r.technologies || [];
+    if (!techs.length) {
+      box.appendChild(el('p', 'result-empty', T.tech_none));
+    } else {
+      const grid = el('div', 'subgrid');
+      TECH_CATS.forEach(cat => {
+        const rows = techs.filter(t => t.cat === cat);
+        if (!rows.length) return;
+        const card = el('div', 'subcard');
+        const head = el('h4', '', T['tech_cat_' + cat] || cat);
+        head.appendChild(el('span', 'chip', String(rows.length)));
+        card.appendChild(head);
+        const list = el('div', 'tech-list');
+        rows.forEach(t => list.appendChild(techItem(t)));
+        card.appendChild(list);
+        grid.appendChild(card);
+      });
+      box.appendChild(grid);
+    }
+
+    const dns = r.dns || {};
+    const extra = el('div', 'subgrid ipinfo-grid');
+    extra.appendChild(seoCard(T.tech_group_response, [
+      [T.tech_field_server, r.server || '—', true],
+      [T.tech_field_powered, r.powered_by || '—', true],
+      [T.tech_field_generator, r.generator || '—', true],
+      [T.tech_field_cookies, (r.cookies || []).join(', ') || '—', true],
+    ]));
+    if (dns.domain) {
+      extra.appendChild(seoCard(T.tech_group_dns, [
+        [T.tech_field_ns_provider, dns.ns_provider || '—'],
+        [T.tech_field_ns, (dns.ns || []).join(', ') || '—', true],
+        [T.tech_field_mail, (dns.mail_provider || []).join(', ') || '—'],
+        [T.tech_field_spf, (dns.spf_services || []).join(', ') || '—'],
+      ]));
+    }
+    box.appendChild(extra);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('techRun').addEventListener('click', techCheck);
+$('techTarget').addEventListener('keydown', e => { if (e.key === 'Enter') techCheck(); });
 
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 

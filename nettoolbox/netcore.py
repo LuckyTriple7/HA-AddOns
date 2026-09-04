@@ -255,6 +255,24 @@ def guard_target(ctx: Context, host: str) -> list:
 # ── HTTP ──────────────────────────────────────────────────────────────────────
 
 
+def _set_cookies(resp) -> list:
+    """Jedes Set-Cookie einzeln.
+
+    requests klebt gleichnamige Header mit Komma zusammen, und genau in einem
+    Cookie-Wert (Expires=Wed, 01 Jan ...) steht selbst ein Komma -- ein Split
+    darauf zerlegt die falsche Stelle. urllib3 hat die Einzelwerte noch, also
+    werden sie dort geholt; nur wenn das je wegfaellt, bleibt der
+    zusammengesetzte Header als Notloesung.
+    """
+    raw = getattr(resp, 'raw', None)
+    headers = getattr(raw, 'headers', None)
+    getlist = getattr(headers, 'getlist', None)
+    if callable(getlist):
+        return [str(value) for value in getlist('set-cookie')]
+    single = resp.headers.get('set-cookie', '')
+    return [single] if single else []
+
+
 def http_get(ctx: Context, url: str, max_bytes: int = 128 * 1024,
              accept: str = '*/*') -> dict:
     """A guarded GET. Only http(s), only public targets, size-capped."""
@@ -276,6 +294,7 @@ def http_get(ctx: Context, url: str, max_bytes: int = 128 * 1024,
                     break
             return {'status': resp.status_code,
                     'headers': {k.lower(): v for k, v in resp.headers.items()},
+                    'cookies': _set_cookies(resp),
                     'body': body.decode('utf-8', 'replace'),
                     'bytes': len(body),
                     'url': url}

@@ -27,6 +27,13 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
   ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand
+- **Technik-Erkennung** — womit eine Seite gebaut ist: CMS, Shop, Framework, JavaScript- und
+  CSS-Bibliotheken, Webserver, CDN/WAF, Mess- und Vermarktungsdienste, Einwilligungslösung,
+  Bezahl- und Support-Werkzeuge, dazu die DNS-Seite (Nameserver-Anbieter, Mail-Anbieter,
+  Dienste laut SPF). Jeder Treffer nennt seine Fundstelle (Header, Cookie, Meta-Angabe,
+  eingebundene Datei) und wie sicher er ist. Beurteilt wird nur die ausgelieferte Antwort —
+  Technik, die erst JavaScript im Browser nachlädt, bleibt unsichtbar, und Historie oder
+  Marktanteile wie bei kostenpflichtigen Diensten gibt es hier nicht.
 - **Mail-Kopf-Analyse** — Kopf einer empfangenen Mail einfügen: Received-Kette mit
   Verzögerung je Sprung, SPF/DKIM/DMARC-Urteil der Gegenseite, Ausrichtungsprüfung
 - **SMTP** — Domain genügt, der Mailserver wird über den MX-Eintrag selbst ermittelt; Banner,

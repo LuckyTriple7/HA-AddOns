@@ -14,6 +14,7 @@ import mailauth
 import mailheader
 import mailprovider
 import netutils
+import nettech
 import portcheck
 import quiccheck
 import seocheck
@@ -321,6 +322,10 @@ def p_seo(ctx: Context, params: dict) -> dict:
     return seocheck.check_seo(ctx, _str(params, 'target'))
 
 
+def p_tech(ctx: Context, params: dict) -> dict:
+    return nettech.check_tech(ctx, _str(params, 'target'))
+
+
 def _port_check_allowed(ctx: Context) -> None:
     """Der Portcheck lässt sich abschalten.
 
@@ -390,6 +395,7 @@ PROBES = {
     'smtp': p_smtp,
     'quic': p_quic,
     'seo': p_seo,
+    'tech': p_tech,
     'mailheader': p_mailheader,
     'ping': p_ping,
     'traceroute': p_traceroute,
@@ -411,7 +417,7 @@ TARGET_KIND = {
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
-    'seo': 'target', 'mailheader': 'text',
+    'seo': 'target', 'tech': 'target', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'ports': 'target', 'dualstack': 'target',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',

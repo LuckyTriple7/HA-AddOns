@@ -750,6 +750,7 @@ REPORT_STEPS = (
     ('tls', 'target'),
     ('http', 'target'),
     ('seo', 'target'),
+    ('tech', 'target'),
 )
 REPORT_WORKERS = 4
 

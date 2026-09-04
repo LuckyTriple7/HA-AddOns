@@ -22,9 +22,11 @@ import hasensors  # noqa: E402
 import mailheader  # noqa: E402
 import mailprovider  # noqa: E402
 import netcore  # noqa: E402
+import nettech  # noqa: E402
 import netutils  # noqa: E402
 import portcheck  # noqa: E402
 import seocheck  # noqa: E402
+import techrules  # noqa: E402
 import smtpcheck  # noqa: E402
 import tlscheck  # noqa: E402
 import tlsextra  # noqa: E402
@@ -647,3 +649,84 @@ def test_locales_have_the_same_keys():
         en = json.load(f)
     assert set(de) == set(en)
     assert not [k for k, v in de.items() if not str(v).strip()]
+
+
+# ── Technik-Erkennung ────────────────────────────────────────────────────────
+
+def test_every_rule_field_is_a_tuple_of_patterns():
+    """Ein vergessenes Komma macht aus ('x',) das nackte 'x' -- die Schleife
+    liefe dann ueber die einzelnen Zeichen und wuerde alles erkennen."""
+    for rule in techrules.RULES:
+        for key in ('html', 'script', 'cookie', 'url', 'implies'):
+            assert isinstance(rule.get(key, ()), tuple), (rule['name'], key)
+        for key in ('headers', 'meta'):
+            for pair in rule.get(key, ()):
+                assert isinstance(pair, tuple) and len(pair) == 2, (rule['name'], key)
+
+
+def test_every_pattern_compiles():
+    for rule in techrules.RULES:
+        for key in ('html', 'script', 'cookie', 'url'):
+            for pattern in rule.get(key, ()):
+                nettech._compiled(pattern)
+        for key in ('headers', 'meta'):
+            for _name, pattern in rule.get(key, ()):
+                nettech._compiled(pattern)
+
+
+def test_rule_names_are_unique_and_implies_resolve():
+    names = [r['name'] for r in techrules.RULES]
+    assert len(names) == len(set(names))
+    known = set(names)
+    for rule in techrules.RULES:
+        for implied in rule.get('implies', ()):
+            assert implied in known, implied
+
+
+def test_suffix_match_is_never_a_substring_search():
+    assert nettech._suffix_match('ns1.wixdns.net', techrules.NS_SUFFIXES) == 'Wix DNS'
+    assert nettech._suffix_match('wixdns.net.attacker.example',
+                                 techrules.NS_SUFFIXES) == ''
+
+
+def test_suffix_match_takes_the_longest():
+    table = (('outlook.com', 'kurz'), ('mail.protection.outlook.com', 'lang'))
+    assert nettech._suffix_match('mx.mail.protection.outlook.com', table) == 'lang'
+
+
+def test_scan_finds_wordpress_and_implies_php():
+    hits = nettech._Hits()
+    rule = next(r for r in techrules.RULES if r['name'] == 'WordPress')
+    assert nettech._scan_rule(rule, hits, {}, {'generator': 'WordPress 6.5.2'},
+                              [], [], '', 'https://example.com/')
+    nettech._apply_implies(hits)
+    wp = hits.by_name['WordPress']
+    assert wp['version'] == '6.5.2'
+    assert wp['confidence'] == nettech.HIGH
+    # Abgeleitetes bleibt abgeleitet: PHP wurde nicht gemessen, nur gefolgert.
+    assert hits.by_name['PHP']['confidence'] == nettech.LOW
+
+
+def test_scan_reads_cookie_names_not_values():
+    hits = nettech._Hits()
+    rule = next(r for r in techrules.RULES if r['name'] == 'PHP')
+    assert nettech._scan_rule(rule, hits, {}, {}, ['PHPSESSID'], [], '', '')
+    hits2 = nettech._Hits()
+    # Derselbe Text als Cookie-*Wert* darf nichts ausloesen.
+    assert not nettech._scan_rule(rule, hits2, {}, {}, ['sid'], [], '', '')
+
+
+def test_tech_findings_and_categories_are_translated():
+    import json
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(here, 'locales', 'de.json'), encoding='utf-8') as f:
+        de = json.load(f)
+    codes = ('tech_found', 'tech_nothing', 'tech_server_version',
+             'tech_powered_by', 'tech_aspnet_version', 'tech_generator_version',
+             'tech_trackers', 'tech_no_consent', 'tech_spa', 'tech_truncated')
+    for code in codes:
+        assert 'f_' + code in de, code
+    for rule in techrules.RULES:
+        assert 'tech_cat_' + rule['cat'] in de, rule['cat']
+    for extra in ('dns', 'mail'):
+        assert 'tech_cat_' + extra in de
