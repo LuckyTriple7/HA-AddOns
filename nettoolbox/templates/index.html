@@ -1895,25 +1895,28 @@ function pingLiveDraw(){
   // traegt jede Probe ihren eigenen Zeitstempel, statt einen festen Abstand
   // anzunehmen (eine Antwort kann laenger dauern als der Takt).
   const newest = pingLiveSamples[pingLiveSamples.length - 1].t || Date.now();
-  ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  const labelEvery = Math.max(1, Math.round(pingLiveSamples.length / 5));
-  pingLiveSamples.forEach((s, i) => {
-    const fromRight = pingLiveSamples.length - 1 - i;
-    if (fromRight % labelEvery !== 0) return;
+  // Beschriftet wird nach Abstand in Pixeln, nicht nach Anzahl der Messungen:
+  // solange erst wenige Punkte da sind, draengen sie sich am rechten Rand,
+  // und jede feste "jede n-te"-Regel schreibt die Beschriftungen uebereinander.
+  const minGap = 56;
+  let lastLabelX = Infinity;
+  for (let i = pingLiveSamples.length - 1; i >= 0; i--) {
     const x = xFor(i);
-    if (x < padLeft + 12) return;
+    if (x < padLeft + 18) break;
+    if (lastLabelX - x < minGap) continue;
     ctx.beginPath();
     ctx.moveTo(Math.round(x) + 0.5, padTop + plotH);
     ctx.lineTo(Math.round(x) + 0.5, padTop + plotH + 3);
     ctx.stroke();
-    const seconds = Math.round(((newest - (s.t || newest)) / 1000));
-    const label = fromRight === 0 ? T.ping_axis_now : '-' + seconds + ' s';
-    // Die aeusserste Beschriftung wuerde sonst am rechten Rand abgeschnitten.
-    const nearEdge = x > w - padRight - 14;
-    ctx.textAlign = nearEdge ? 'right' : 'center';
-    ctx.fillText(label, nearEdge ? w - padRight : x, padTop + plotH + 5);
-  });
+    const sample = pingLiveSamples[i];
+    const seconds = Math.round((newest - (sample.t || newest)) / 1000);
+    const newestOne = i === pingLiveSamples.length - 1;
+    ctx.textAlign = newestOne ? 'right' : 'center';
+    ctx.fillText(newestOne ? T.ping_axis_now : '-' + seconds + ' s',
+                 newestOne ? w - padRight : x, padTop + plotH + 5);
+    lastLabelX = x;
+  }
 
   ctx.beginPath();
   let started = false;

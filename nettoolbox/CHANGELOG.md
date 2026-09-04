@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.36] - 2026-09-04
+
+### Fixed
+- **Überlappende Zeitbeschriftung im Dauerping-Diagramm.** Beschriftet wurde jede n-te Messung —
+  solange erst wenige Punkte vorliegen, drängen die sich aber alle am rechten Rand, und die
+  Beschriftungen wurden übereinandergeschrieben („-8 s -6 s -5 s jetztjetzt"). Jetzt entscheidet
+  der **Abstand in Pixeln**: von rechts nach links wird nur beschriftet, was mindestens 56 Pixel
+  vom letzten Eintrag entfernt liegt. Damit stimmt der Abstand in jeder Phase — kurz nach dem
+  Start genauso wie bei vollem Diagramm.
+
 ## [0.1.35] - 2026-09-04
 
 ### Added
