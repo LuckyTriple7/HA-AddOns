@@ -18,6 +18,7 @@ import quiccheck
 import seocheck
 import smtpcheck
 import tlscheck
+import tlsextra
 from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
                      clean_ip, clean_rrtype, ip_is_public, mx_hosts,
                      query, reverse_name, txt_strings)
@@ -287,6 +288,10 @@ def p_tls(ctx: Context, params: dict) -> dict:
     return tlscheck.check_tls(ctx, _str(params, 'target'))
 
 
+def p_dane(ctx: Context, params: dict) -> dict:
+    return tlsextra.check_dane(ctx, _str(params, 'domain'))
+
+
 def p_whois(ctx: Context, params: dict) -> dict:
     return domaininfo.check_domain(ctx, _str(params, 'domain'))
 
@@ -354,6 +359,7 @@ PROBES = {
     'mx': p_mx,
     'blacklist': p_blacklist,
     'tls': p_tls,
+    'dane': p_dane,
     'whois': p_whois,
     'http': p_http,
     'smtp': p_smtp,
@@ -376,7 +382,7 @@ PROBES = {
 TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
-    'blacklist': 'ip', 'tls': 'target', 'whois': 'domain',
+    'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
     'seo': 'target', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',

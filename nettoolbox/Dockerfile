@@ -21,6 +21,7 @@ COPY mailheader.py .
 COPY mailprovider.py .
 COPY blocklists.py .
 COPY tlscheck.py .
+COPY tlsextra.py .
 COPY domaininfo.py .
 COPY httpcheck.py .
 COPY smtpcheck.py .

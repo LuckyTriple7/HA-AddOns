@@ -25,6 +25,7 @@ import netutils  # noqa: E402
 import seocheck  # noqa: E402
 import smtpcheck  # noqa: E402
 import tlscheck  # noqa: E402
+import tlsextra  # noqa: E402
 
 
 # ── netcore: input validation ────────────────────────────────────────────────
@@ -454,6 +455,78 @@ def test_push_counts_only_warn_and_fail_as_problems(pushed):
 def test_push_without_supervisor_does_nothing(monkeypatch):
     monkeypatch.setattr(hasensors, 'SUPERVISOR_TOKEN', '')
     assert hasensors.push([{'id': 1, 'name': 'x'}]) == 0
+
+
+# ── tlsextra: Kette, CAA, DANE ───────────────────────────────────────────────
+
+def _self_signed_der(common_name='test.example'):
+    """Ein echtes Zertifikat, in Sekundenbruchteilen erzeugt -- damit die
+    DER-Verarbeitung gegen etwas Echtes läuft und nicht gegen eine Attrappe."""
+    import datetime
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+                      x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Testfall')])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder()
+            .subject_name(name).issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(days=1))
+            .not_valid_after(now + datetime.timedelta(days=30))
+            .sign(key, hashes.SHA256()))
+    return cert.public_bytes(serialization.Encoding.DER)
+
+
+@pytest.mark.parametrize('issuer, identifier', [
+    ("R11", ''),
+    ("Let's Encrypt", 'letsencrypt.org'),
+    ('Sectigo Public Server Authentication CA DV E36', 'sectigo.com'),
+    ('DigiCert Global G2 TLS RSA SHA256 2020 CA1', 'digicert.com'),
+    ('Irgendeine Interne CA', ''),
+])
+def test_caa_identifier(issuer, identifier):
+    assert tlsextra.caa_identifier(issuer) == identifier
+
+
+def test_describe_chain_reads_real_certificates():
+    chain = tlsextra.describe_chain([_self_signed_der('blatt.example')])
+    assert chain[0]['subject'] == 'blatt.example'
+    assert chain[0]['self_issued'] is True
+
+
+def test_describe_chain_marks_unreadable_entries():
+    chain = tlsextra.describe_chain([b'kaputt'])
+    assert chain[0]['error'] == 'unreadable'
+
+
+def test_chain_findings_name_the_missing_intermediate():
+    codes = [f['code'] for f in tlsextra.chain_findings(
+        [], 'unable to get local issuer certificate')]
+    assert 'tls_chain_incomplete' in codes
+
+
+def test_chain_findings_flag_a_lonely_leaf():
+    chain = [{'self_issued': False}]
+    codes = [f['code'] for f in tlsextra.chain_findings(chain, '')]
+    assert codes == ['tls_chain_leaf_only']
+
+
+def test_tlsa_digest_matches_openssl_convention():
+    """Selector 0 = ganzes Zertifikat, 1 = öffentlicher Schlüssel;
+    Matching 1 = SHA-256, 2 = SHA-512."""
+    import hashlib
+    der = _self_signed_der()
+    assert tlsextra._tlsa_digest(der, 0, 1) == hashlib.sha256(der).hexdigest()
+    assert len(tlsextra._tlsa_digest(der, 1, 1)) == 64
+    assert len(tlsextra._tlsa_digest(der, 1, 2)) == 128
+    assert tlsextra._tlsa_digest(der, 0, 0) == der.hex()
+    with pytest.raises(ValueError):
+        tlsextra._tlsa_digest(der, 0, 9)
 
 
 # ── translations ─────────────────────────────────────────────────────────────

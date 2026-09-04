@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.32] - 2026-09-04
+
+### Added
+- **Zertifikatskette.** Die TLS-Prüfung zeigt jetzt alle vom Server gelieferten Zertifikate mit
+  Inhaber, Aussteller und Ablauf. Wichtiger noch ist der Fall, in dem eines **fehlt**: ein
+  fehlendes Zwischenzertifikat verzeihen Browser (sie holen es über AIA nach), Java, Python, curl
+  und Mailserver nicht — daraus entsteht das klassische „bei mir geht es doch". Der Fall wird
+  ausdrücklich benannt. Ein mitgeliefertes Wurzelzertifikat gilt als Hinweis, nicht als Fehler.
+- **CAA gegen den tatsächlichen Aussteller.** Im DNS steht, welche Zertifizierungsstelle für die
+  Domain ausstellen darf; verglichen hat das bisher niemand. Die Einträge werden vom Namen
+  aufwärts gesucht (so wie eine CA es täte) und gegen den Aussteller des ausgelieferten
+  Zertifikats gehalten — mit einer Zuordnungstabelle von rund 20 Ausstellern auf ihre
+  CAA-Kennung, weil die Namen der Zwischenzertifikate ständig wechseln („R11", „E5"), der
+  Organisationsname aber nicht.
+- **DANE / TLSA für Mailserver** (neue Karte im Mail-Reiter, Probe `dane`). Prüft für jeden
+  MX-Server, ob ein TLSA-Eintrag existiert und ob er noch zum wirklich ausgelieferten Zertifikat
+  passt — verglichen wird über echtes STARTTLS auf Port 25 und die vier Kombinationen aus
+  Selektor und Prüfsummenverfahren. Passt er nicht mehr, lehnen prüfende Absender die Zustellung
+  ab; das merkt man sonst erst an ausbleibender Post.
+- Die DNSSEC-Lage steht bei DANE mit dabei: in einer unsignierten Zone ist ein TLSA-Eintrag
+  wirkungslos, weil er unterwegs gefälscht werden könnte — das wird als Warnung gemeldet
+  (gefunden bei einer real geprüften Domain).
+
+### Notes
+- Das Auslesen der gelieferten Kette braucht Python 3.13; das Image bringt 3.14 mit. Auf älteren
+  Fassungen bleibt die Tabelle weg und ein Hinweis sagt warum — das Urteil über eine
+  unvollständige Kette hängt nicht daran, denn OpenSSL meldet diesen Fall ohnehin als eigenen
+  Prüffehler. Genau dieser Zweig ließ sich hier nur mit 3.11 prüfen.
+
 ## [0.1.31] - 2026-09-04
 
 ### Added

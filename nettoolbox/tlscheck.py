@@ -22,6 +22,10 @@ from datetime import datetime, timezone
 from cryptography import x509
 from cryptography.hazmat.primitives.serialization import Encoding
 
+import tlsextra
+
+_DER = Encoding.DER
+
 from netcore import Context, ProbeError, clean_host_or_ip, guard_target
 
 OK, INFO, WARN, FAIL = 'ok', 'info', 'warn', 'fail'
@@ -114,7 +118,8 @@ def _fetch_verified(host: str, port: int, timeout: float):
     context = ssl.create_default_context()
     with socket.create_connection((host, port), timeout=timeout) as sock:
         with context.wrap_socket(sock, server_hostname=host) as ssock:
-            return ssock.getpeercert(), ssock.version(), ssock.cipher()
+            return (ssock.getpeercert(), ssock.version(), ssock.cipher(),
+                    _peer_chain(ssock))
 
 
 def _fetch_unverified(host: str, port: int, timeout: float):
@@ -129,7 +134,7 @@ def _fetch_unverified(host: str, port: int, timeout: float):
     with socket.create_connection((host, port), timeout=timeout) as sock:
         with context.wrap_socket(sock, server_hostname=host) as ssock:
             return (ssock.version(), ssock.cipher(),
-                    ssock.getpeercert(binary_form=True))
+                    ssock.getpeercert(binary_form=True), _peer_chain(ssock))
 
 
 def _der_to_certdict(der: bytes) -> dict:
@@ -189,6 +194,27 @@ _OID_NAMES = {
 }
 
 
+def _peer_chain(ssock) -> list:
+    """Alle Zertifikate, die der Server geschickt hat, als DER.
+
+    Erst Python 3.13 gibt die Kette heraus (get_verified_chain /
+    get_unverified_chain). Auf älteren Fassungen bleibt die Liste leer und
+    die Oberfläche sagt das auch -- das Urteil über eine unvollständige
+    Kette hängt nicht daran, denn OpenSSL meldet den Fall ohnehin als
+    "unable to get local issuer certificate".
+    """
+    for name in ('get_verified_chain', 'get_unverified_chain'):
+        getter = getattr(ssock, name, None)
+        if getter is None:
+            continue
+        try:
+            return [c.public_bytes(_DER) if hasattr(c, 'public_bytes') else bytes(c)
+                    for c in (getter() or [])]
+        except Exception:  # noqa: BLE001 — eine fehlende Kette ist kein Fehler
+            continue
+    return []
+
+
 def _connection_error(e: Exception, where: str) -> ProbeError:
     if isinstance(e, socket.timeout):
         return ProbeError('tls_timeout', where)
@@ -210,12 +236,14 @@ def check_tls(ctx: Context, target: str) -> dict:
         'not_before': '', 'not_after': '', 'days_left': None,
         'lifetime_days': None, 'serial': '',
         'self_signed': False, 'hostname_match': False,
-        'details_verified': True, 'findings': findings,
+        'details_verified': True, 'chain': [], 'chain_available': False,
+        'caa': {}, 'findings': findings,
     }
 
     cert = None
+    chain_der = []
     try:
-        cert, proto, cipher = _fetch_verified(host, port, ctx.http_timeout)
+        cert, proto, cipher, chain_der = _fetch_verified(host, port, ctx.http_timeout)
         result['trusted'] = True
         result['details_available'] = True
         result['hostname_match'] = True
@@ -224,7 +252,7 @@ def check_tls(ctx: Context, target: str) -> dict:
         reason = getattr(e, 'verify_message', '') or str(e)
         result['verify_error'] = reason
         try:
-            proto, cipher, der = _fetch_unverified(host, port, ctx.http_timeout)
+            proto, cipher, der, chain_der = _fetch_unverified(host, port, ctx.http_timeout)
             cert = _der_to_certdict(der)
             result['details_available'] = bool(cert)
             # Ausdruecklich vermerkt: die Angaben stammen aus einem
@@ -343,11 +371,37 @@ def check_tls(ctx: Context, target: str) -> dict:
     else:
         findings.append(_finding(INFO, 'tls_details_unavailable'))
 
+    result['chain'] = tlsextra.describe_chain(chain_der)
+    result['chain_available'] = bool(chain_der)
+    if chain_der:
+        findings.extend(tlsextra.chain_findings(result['chain'],
+                                                result['verify_error']))
+    else:
+        # Ohne die Kette bleibt der eine Fall, den OpenSSL selbst meldet.
+        findings.extend(tlsextra.chain_findings([], result['verify_error']))
+
+    # CAA nur bei echten Namen -- bei einer IP gibt es keine Zone dafuer.
+    if result['issuer'] and not _is_ip(host):
+        try:
+            result['caa'] = tlsextra.check_caa(ctx, host, result['issuer'])
+            findings.extend(result['caa'].get('findings', []))
+        except ProbeError:
+            pass
+
     if _looks_like_placeholder(result):
         findings.append(_finding(INFO, 'tls_default_certificate'))
 
     result['level'] = _worst(findings)
     return result
+
+
+def _is_ip(value: str) -> bool:
+    import ipaddress
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
 
 
 def _looks_like_placeholder(result: dict) -> bool:

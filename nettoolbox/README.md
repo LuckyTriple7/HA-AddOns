@@ -20,7 +20,9 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Aufnahme vergleichen; zeigt, was sich seit einem Umzug geändert hat
 - **Reverse-DNS / MX** — PTR mit Vorwärts-Abgleich, MX-Server mit Adressen und Reverse-Namen
 - **Sperrlisten** — eine IP gegen 15 öffentliche DNSBL/RBL parallel geprüft, mit Begründungstext
-- **SSL/TLS** — Zertifikatskette, Ablaufdatum, Hostname-Abdeckung, ausgehandelte TLS-Version
+- **SSL/TLS** — Zertifikatskette (inkl. fehlendem Zwischenzertifikat), Ablaufdatum,
+  Hostname-Abdeckung, ausgehandelte TLS-Version, CAA gegen den tatsächlichen Aussteller
+- **DANE/TLSA** — TLSA-Einträge der MX-Server gegen deren echtes Zertifikat, samt DNSSEC-Lage
 - **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder

@@ -22,7 +22,9 @@ about your domains leaves your own infrastructure.
 - **Reverse DNS / MX** — PTR with forward confirmation, MX servers with addresses and reverse
   names
 - **Blocklists** — an IP checked against 15 public DNSBL/RBL lists in parallel, with reason text
-- **SSL/TLS** — certificate chain, expiry, hostname coverage, negotiated TLS version
+- **SSL/TLS** — certificate chain (including a missing intermediate), expiry, hostname
+  coverage, negotiated TLS version, CAA against the actual issuer
+- **DANE/TLSA** — TLSA records of the MX servers against their real certificate, with DNSSEC state
 - **Whois/RDAP** — registrar, registration/expiry dates, name servers; RDAP first, WHOIS fallback for TLDs without RDAP (e.g. .de)
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images

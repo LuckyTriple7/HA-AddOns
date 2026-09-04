@@ -322,6 +322,20 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     <div id="rblResult"></div>
   </div>
   <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7A2,2 0 0,1 14,9A2,2 0 0,1 12,11A2,2 0 0,1 10,9A2,2 0 0,1 12,7M12,12C13.5,12 16,12.75 16,14.25V16H8V14.25C8,12.75 10.5,12 12,12Z"/></svg>{{ t.dane_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="daneDomain">{{ t.field_domain }}</label>
+        <input type="text" id="daneDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="daneRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.dane_hint }}</p>
+    <div id="daneResult"></div>
+  </div>
+  <div class="card">
     <h2><svg viewBox="0 0 24 24"><path d="M20,8L12,13L4,8V6L12,11L20,6M20,4H4C2.9,4 2,4.9 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.9 21.1,4 20,4Z"/></svg>{{ t.header_title }}</h2>
     <label class="field" for="hdrText">{{ t.field_mail_header }}</label>
     <textarea id="hdrText" spellcheck="false" placeholder="Return-Path: ...&#10;Received: from ...&#10;Authentication-Results: ...&#10;From: ...&#10;Subject: ..."></textarea>
@@ -1837,6 +1851,49 @@ async function rblCheck(){
 $('rblRun').addEventListener('click', rblCheck);
 $('rblIp').addEventListener('keydown', e => { if (e.key === 'Enter') rblCheck(); });
 
+// ── DANE / TLSA ─────────────────────────────────────────────────────────────
+
+async function daneCheck(){
+  const domain = $('daneDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('daneResult'); showLoading(box);
+  try {
+    const data = await runProbe('dane', { domain: domain }, domain, $('daneRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'badge ' + (r.dnssec ? 'ok' : 'warn'),
+      r.dnssec ? T.dane_dnssec_yes : T.dane_dnssec_no));
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    [T.field_host, 'TLSA', T.dane_col_match, T.field_status].forEach(
+      h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', row.host));
+      tr.appendChild(el('td', '', String(row.records.length)));
+      // null heisst "nicht geprueft", nicht "passt nicht" -- die drei Faelle
+      // duerfen nicht zu zweien verschmelzen.
+      const state = row.matched === null ? '—' : (row.matched ? '✓' : '✗');
+      tr.appendChild(el('td', row.matched === false ? 'diff-removed' : '', state));
+      tr.appendChild(el('td', '', row.error ? errText(row.error)
+        : (row.records.length ? '' : T.dane_no_record)));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('daneRun').addEventListener('click', daneCheck);
+$('daneDomain').addEventListener('keydown', e => { if (e.key === 'Enter') daneCheck(); });
+
 // ── Mail-Kopf-Analyse ───────────────────────────────────────────────────────
 
 function hdrAuthChip(method, verdict){
@@ -1995,7 +2052,46 @@ async function tlsCheck(){
         c3.appendChild(chips);
         grid.appendChild(c3);
       }
+      if (r.caa && (r.caa.records || []).length) {
+        const c4 = el('div', 'subcard');
+        c4.appendChild(el('h4', '', 'CAA'));
+        [[T.caa_field_source, r.caa.source],
+         [T.caa_field_allowed, (r.caa.allowed || []).join(', ')],
+         [T.caa_field_issuer, r.caa.issuer_identifier || r.caa.issuer]
+        ].forEach(([label, value]) => {
+          if (!value) return;
+          const row = el('div', 'kv-tight');
+          row.appendChild(el('span', '', label));
+          row.appendChild(el('span', 'mono', value));
+          c4.appendChild(row);
+        });
+        grid.appendChild(c4);
+      }
       wrap.appendChild(grid);
+
+      if (r.chain_available && r.chain.length) {
+        wrap.appendChild(el('h3', '', T.tls_chain_title));
+        const table = el('table');
+        const thead = el('thead'); const trh = el('tr');
+        ['#', T.field_subject, T.field_issuer, T.field_not_after].forEach(
+          h => trh.appendChild(el('th', '', h)));
+        thead.appendChild(trh); table.appendChild(thead);
+        const tbody = el('tbody');
+        r.chain.forEach((cert, index) => {
+          const tr = el('tr');
+          tr.appendChild(el('td', '', String(index + 1)));
+          tr.appendChild(el('td', 'mono', cert.subject || '—'));
+          tr.appendChild(el('td', 'mono', cert.issuer || '—'));
+          tr.appendChild(el('td', '', cert.not_after || '—'));
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+      } else if (!r.chain_available) {
+        // Nur ein Hinweis, kein Fund: die Kette selbst kann in Ordnung sein,
+        // diese Python-Fassung gibt sie nur nicht heraus.
+        wrap.appendChild(el('p', 'hint', T.tls_chain_unavailable));
+      }
     } else if (r.verify_error) {
       wrap.appendChild(el('p', 'hint', T.tls_no_details + ' ' + r.verify_error));
     }
