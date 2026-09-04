@@ -2710,6 +2710,18 @@
       </div>
 
       <div class="panel" data-jump-panel>
+        <h3>🛡 {{ t.set_csp_heading }}</h3>
+        <p class="hint">{{ t.set_csp_hint }}</p>
+        <label>{{ t.set_csp_mode }}</label>
+        <select data-set="csp_mode" style="max-width:380px">
+          <option value="report">{{ t.set_csp_report }}</option>
+          <option value="on">{{ t.set_csp_on }}</option>
+          <option value="off">{{ t.set_csp_off }}</option>
+        </select>
+        <p class="hint" style="margin-top:10px">{{ t.set_csp_note }}</p>
+      </div>
+
+      <div class="panel" data-jump-panel>
         <h3>🔑 {{ t.set_key_heading }}</h3>
         <p class="hint">{{ t.set_key_hint }}</p>
         <p class="hint" id="set-key-state"></p>

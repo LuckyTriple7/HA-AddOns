@@ -12783,6 +12783,86 @@ public_app.after_request(_storage_after)
 admin_app.after_request(_storage_after)
 
 
+# ------------------------------------------------------------------ Sicherheits-Kopfzeilen
+#
+# Der Browser folgt allem, was im ausgelieferten HTML steht: ein eingeschleustes
+# `<script src="https://fremd/…">` ladet er ohne Rueckfrage. Die Kopfzeilen hier
+# sagen ihm vorher, was ueberhaupt erlaubt ist — zweite Verteidigungslinie hinter
+# sauberem Inhalt. Die erste bleibt noetig: `render_md` reicht rohes HTML durch,
+# und `fetch_github_readme` holt fremdes Markdown auf die Projektseite.
+#
+# `'unsafe-inline'` steht bewusst drin. Die Vorlagen arbeiten mit rund 660
+# `onclick`-Attributen und mehreren hundert `style="…"`; ein Nonce deckt nur
+# <script>-Bloecke ab, keine Attribute. Ohne Umbau waere eine strengere Regel
+# einfach eine kaputte Oberflaeche. Was trotzdem greift: fremde Skript-Quellen,
+# <object>, ein umgebogenes <base>, Formulare nach draussen, fremdes Einbetten.
+_CSP_COMMON = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    # Bilder und Medien duerfen von aussen kommen: Beitraege binden fremde
+    # Adressen ein, und `http:` steht dabei, weil MyPage im LAN selbst ohne TLS
+    # laeuft — ein Bild vom NAS soll nicht am Kopfzeilen-Schutz scheitern.
+    "img-src 'self' data: http: https:; "
+    "media-src 'self' https:; "
+    "font-src 'self'; connect-src 'self'; "
+    "object-src 'none'; base-uri 'none'; form-action 'self'"
+)
+
+# Oeffentlich: die beiden Video-Hosts aus `parse_video` duerfen eingebettet
+# werden, umgekehrt darf die Seite nirgends eingebettet werden (Klickjacking).
+CSP_PUBLIC = (_CSP_COMMON + "; frame-src https://www.youtube-nocookie.com "
+              "https://player.vimeo.com; frame-ancestors 'none'")
+
+# Admin: bewusst OHNE `frame-ancestors` und ohne `X-Frame-Options`. Ueber den
+# HA-Ingress laeuft das Panel in einem iframe von Home Assistant — eine Sperre
+# hier liesse das Panel weiss. `frame-src 'self'` deckt den Vorschaurahmen ab,
+# der die Seite per `srcdoc` zeigt.
+CSP_ADMIN = _CSP_COMMON + "; frame-src 'self'"
+
+# Faehigkeiten, die MyPage nicht braucht, gar nicht erst zulassen. Die vier
+# Video-Eintraege nennen die Embed-Hosts, sonst fehlt im eingebetteten Video der
+# Vollbild-Knopf. `clipboard-write` bleibt fuer die Kopier-Knoepfe.
+PERMISSIONS_POLICY = (
+    "accelerometer=(), ambient-light-sensor=(), camera=(), display-capture=(), "
+    "geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), "
+    "payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), "
+    "usb=(), xr-spatial-tracking=(), clipboard-write=(self), "
+    'autoplay=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com"), '
+    'encrypted-media=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com"), '
+    'fullscreen=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com"), '
+    'picture-in-picture=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com")'
+)
+
+
+def _security_headers(resp, csp: str):
+    """CSP, Permissions-Policy und die zwei kleinen Kopfzeilen an jede Antwort.
+
+    `setdefault` statt Zuweisung: Routen, die es besser wissen, behalten ihre
+    eigene Angabe — die PDF-Auslieferung setzt `Content-Security-Policy: sandbox`,
+    und das ist strenger als alles hier.
+
+    Der Modus kommt aus den Einstellungen und steht ab Werk auf `report`: Die
+    Regel wird mitgeschickt, blockiert aber nichts, sondern meldet in der Konsole,
+    was sie blockiert *haette*. So faellt ein Fehlalarm auf, bevor er als weisse
+    Seite auffaellt.
+    """
+    mode = str(load_config().get('csp_mode') or 'report')
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    resp.headers.setdefault('Permissions-Policy', PERMISSIONS_POLICY)
+    if mode == 'off':
+        return resp
+    name = ('Content-Security-Policy' if mode == 'on'
+            else 'Content-Security-Policy-Report-Only')
+    resp.headers.setdefault(name, csp)
+    return resp
+
+
+public_app.after_request(lambda r: _security_headers(r, CSP_PUBLIC))
+admin_app.after_request(lambda r: _security_headers(r, CSP_ADMIN))
+
+
 # Einstieg in die Vorschau: ?vorschau=<token> an einer beliebigen oeffentlichen
 # Adresse. Der Token wandert in einen Cookie und aus der Adresse heraus — sonst
 # steht er im Verlauf, im Referrer und in jedem geteilten Screenshot.

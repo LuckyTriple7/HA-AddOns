@@ -732,3 +732,23 @@ liegt `settings.key` zwangsläufig neben `settings.json`, siehe die Begründung 
    Adresse der Zweck.
 
 **Guardrail-Regel beachten:** Beides als abschaltbare Option bauen, Standard sicher.
+
+## Sicherheits-Kopfzeilen: Stufe 2 (offen seit 0.11.52)
+
+Seit 0.11.52 liegt eine Content-Security-Policy an, ab Werk als
+`Content-Security-Policy-Report-Only` (Einstellung `csp_mode`). Zwei Punkte fehlen
+noch, um sie wirklich scharf zu bekommen:
+
+1. **Markdown sanitisieren.** `render_md()` reicht rohes HTML unverändert durch —
+   `markdown.markdown('<script>alert(1)</script>')` liefert genau das zurück. Solange
+   nur der Admin schreibt, ist das gewollt (eigene `<div>`-Blöcke in Beiträgen). Über
+   `fetch_github_readme()` landet aber **fremdes** Markdown in `long_de` eines Projekts
+   und damit auf einer öffentlichen Seite. Naheliegend: `nh3` mit einer Erlaubnisliste,
+   entweder generell oder nur auf dem Import-Pfad. Die CSP ist dafür nur die zweite
+   Verteidigungslinie, nicht der Ersatz.
+2. **`'unsafe-inline'` loswerden.** Dafür müssen die Inline-Handler weg: rund 376 in
+   `admin.html`, 237 in den Spiele-Vorlagen, 50 in den öffentlichen — umzubauen auf
+   `data-*`-Attribute plus Event-Delegation. Erst danach trägt
+   `script-src 'self' 'nonce-…'`. Für die Stile geht ein Zwischenschritt schon vorher:
+   `style-src 'self' 'nonce-…'; style-src-attr 'unsafe-inline'` blockiert eingeschleuste
+   `<style>`-Blöcke und lässt die rund 600 `style="…"`-Attribute in Ruhe.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.52
+
+- 🔒 **Sicherheits-Kopfzeilen für den Browser.** Jede Antwort trägt jetzt eine Content-Security-Policy, eine Permissions-Policy sowie `X-Content-Type-Options: nosniff` und `Referrer-Policy: strict-origin-when-cross-origin`. Die Policy sagt dem Browser vorweg, was eine Seite darf: Skripte, Stile, Schriften und Verbindungen nur vom eigenen Server, eingebettete Videos nur von `youtube-nocookie.com` und `player.vimeo.com`, keine `<object>`, kein umgebogenes `<base>`, Formulare nur an die eigene App. Die öffentliche Seite darf zusätzlich nirgends eingebettet werden (`frame-ancestors 'none'`).
+- 🔒 Die Permissions-Policy schaltet ab, was MyPage nicht braucht — Kamera, Mikrofon, Standort, Bezahl-API, USB und ein Dutzend Sensoren. Erlaubt bleiben nur Zwischenablage (Kopier-Knöpfe) sowie Vollbild und Autoplay für die beiden Video-Hosts.
+- ⚙️ **Neue Einstellung `csp_mode`** (Einstellungen → Sicherheits-Kopfzeilen). Ab Werk steht sie auf **Nur melden**: Die Regel geht mit, blockiert aber nichts, sondern der Browser schreibt in seine Konsole (F12), was er blockiert hätte. Wer eine Weile ohne Meldung durchkommt, stellt auf **Durchsetzen**; **Aus** schickt gar keine Regel. Bewusst umschaltbar statt fest verdrahtet — eine Policy, die eine eigene Anpassung erschlägt, muss abschaltbar sein.
+- 🎯 Der Admin bekommt bewusst **kein** `frame-ancestors` und kein `X-Frame-Options`: Über den Home-Assistant-Ingress läuft das Panel in einem iframe von Home Assistant, eine Sperre hätte das Panel weiß gelassen.
+- 🧹 `'unsafe-inline'` steht vorerst in der Regel, weil Vorlagen und Spiele mit rund 660 `onclick`-Attributen arbeiten, die ein Nonce nicht abdeckt. Der Umbau auf Event-Delegation und eine Policy ohne `unsafe-inline` steht im Backlog; was jetzt schon greift, sind fremde Skript-Quellen und die übrigen Punkte oben.
+
 ## 0.11.51
 
 - 🔒 **Offene Weiterleitung im Einstieg der Vorschau geschlossen** (CodeQL `py/url-redirection`). Nach dem Setzen des Cookies leitet MyPage auf dieselbe Adresse ohne den Token weiter — dafür wurde der angefragte Pfad unverändert übernommen. Ein Aufruf von `//fremde-seite.de/?vorschau=…` hätte darin eine protokollrelative Adresse ergeben und damit nach draußen geführt. Das Ziel läuft jetzt über `_safe_next()`, wie alle anderen Weiterleitungen im Add-on.
