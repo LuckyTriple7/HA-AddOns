@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.21] - 2026-09-04
+
+### Added
+- **mailcow-Banner wird erkannt.** mailcow setzt Postfix' `mail_name` auf "Postcow", das Banner
+  nennt also nie "Postfix", obwohl genau das darunter läuft — die Software-Erkennung stand
+  deshalb auf "nicht erkannt". Neues Muster, Ausgabe: `Postfix (mailcow)`.
+- **Quelladresse der SMTP-Prüfung wird angezeigt** ("Geprüft von 10.0.0.5 → 203.0.113.10"). Für
+  den Relay-Test ist das die entscheidende Angabe, siehe unten.
+
+### Fixed
+- **Falscher Offene-Relais-Alarm, wenn Add-on und Mailserver auf derselben Maschine laufen.**
+  Mailserver stufen ihr eigenes Netz üblicherweise als vertrauenswürdig ein (Postfix
+  `mynetworks`) und nehmen von dort Post für fremde Domains an. Aus dieser Nähe sieht das
+  identisch zu einem offenen Relais aus, sagt über die Erreichbarkeit aus dem Internet aber
+  nichts.
+  - Quelle == Ziel derselben Verbindung: statt rotem "Relay offen" jetzt die Warnung "Relay
+    offen — von hier aus" mit der Erklärung und dem Rat, von außen zu prüfen.
+  - Quelle ist eine private Adresse (NAT oder Container): der Fund bleibt kritisch, bekommt aber
+    einen Hinweis danebengestellt, dass eine Prüfung aus einem fremden Netz nötig ist, falls
+    Add-on und Mailserver dieselbe Maschine oder dasselbe Docker-Netz teilen.
+
 ## [0.1.20] - 2026-09-04
 
 ### Added

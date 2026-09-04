@@ -440,5 +440,10 @@
   "err_null_mx": "Diese Domain erklärt per Null-MX (RFC 7505) ausdrücklich, dass sie keine Mail empfängt — es gibt hier bewusst keinen Mailserver.",
   "smtp_via_mx_chip": "MX-Host: {host}",
   "smtp_via_mx_title": "Aus dem MX-Eintrag von {domain} ermittelt. MX-Einträge insgesamt: {count}.",
-  "smtp_mx_tested": "Dieser MX-Host wurde geprüft (niedrigste Priorität)."
+  "smtp_mx_tested": "Dieser MX-Host wurde geprüft (niedrigste Priorität).",
+  "f_smtp_relay_open_local": "Der Server nimmt Post für fremde Domains an — geprüft wurde aber von derselben Maschine ({ip}), auf der er läuft. Mailserver stufen die eigene Maschine üblicherweise als vertrauenswürdig ein (Postfix mynetworks). Ob er das auch aus dem Internet täte, sagt dieser Test nicht — dafür von außen prüfen, etwa über den Root-Server-Worker.",
+  "f_smtp_relay_source_hint": "Geprüft wurde von einer privaten Adresse ({ip}) aus, die Verbindung läuft also über NAT oder aus einem Container. Läuft dieses Add-on auf derselben Maschine oder im selben Docker-Netz wie der Mailserver, steht diese Quelle womöglich in dessen mynetworks — dann ist der Befund kein offenes Relais nach außen. Zur Klärung von einem fremden Netz aus prüfen.",
+  "smtp_relay_badge_local": "Relay offen — von hier aus",
+  "smtp_source_label": "Geprüft von",
+  "smtp_source_title": "Quelladresse dieser Prüfung und die angesprochene Zieladresse. Wichtig für den Relay-Test: Mailserver vertrauen ihrem eigenen Netz."
 }

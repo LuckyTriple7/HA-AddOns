@@ -133,6 +133,9 @@ BANNER_PATTERNS = (
     (r'\bcyrus\b', 'Cyrus'),
     (r'\bapache james\b', 'Apache James'),
     (r'\bmailcow\b', 'mailcow'),
+    # mailcow setzt mail_name auf "Postcow", das Banner nennt also nie
+    # "Postfix" -- obwohl genau das darunter laeuft.
+    (r'\bpostcow\b', 'Postfix (mailcow)'),
     (r'\bmailu\b', 'Mailu'),
     (r'\bsmtpd\b', 'smtpd'),
     (r'\bmaddy\b', 'maddy'),

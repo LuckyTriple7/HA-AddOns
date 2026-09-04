@@ -118,6 +118,14 @@ def _resolve_target(ctx: Context, host: str, explicit_port: bool) -> tuple:
     raise ProbeError('no_mail_host', host)
 
 
+def _is_private(value: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return bool(addr.is_private or addr.is_loopback or addr.is_link_local)
+
+
 def _text(value) -> str:
     return value.decode('utf-8', 'replace') if isinstance(value, bytes) else str(value)
 
@@ -138,6 +146,7 @@ def check_smtp(ctx: Context, target: str) -> dict:
         'ehlo_ok': False, 'features': [], 'starttls_offered': False,
         'starttls_ok': False, 'tls_protocol': '', 'tls_cipher': '',
         'reverse_match': None, 'relay_open': None,
+        'source_ip': '', 'peer_ip': '', 'same_host': False,
         'software': mailprovider.detect_software(''),
         # The target host itself is often enough to name the operator --
         # smtpin.rzone.de is STRATO whether or not the banner says so.
@@ -156,6 +165,19 @@ def check_smtp(ctx: Context, target: str) -> dict:
     # connect() call fills it in) -- starttls() needs it for SNI, so it is
     # set by hand. Verified live against real servers, not assumed.
     smtp._host = host
+
+    # Wer fragt, entscheidet mit ueber die Antwort: ein Mailserver stuft die
+    # eigene Maschine oder das eigene Docker-Netz ueblicherweise als
+    # vertrauenswuerdig ein (Postfix mynetworks) und nimmt von dort Post fuer
+    # fremde Domains an. Das ist dann kein offenes Relay nach aussen, sieht
+    # aus dieser Naehe aber genau so aus -- deshalb wird festgehalten, von
+    # welcher Adresse aus geprueft wurde.
+    try:
+        result['source_ip'] = smtp.sock.getsockname()[0]
+        result['peer_ip'] = smtp.sock.getpeername()[0]
+        result['same_host'] = result['source_ip'] == result['peer_ip']
+    except (OSError, AttributeError, IndexError):
+        pass
 
     banner_text = _text(banner)
     result['banner'] = banner_text
@@ -244,8 +266,23 @@ def check_smtp(ctx: Context, target: str) -> dict:
         if code == 250:
             code2, _msg2 = smtp.rcpt(RELAY_TEST_RECIPIENT)
             result['relay_open'] = code2 == 250
-            if result['relay_open']:
+            if result['relay_open'] and result['same_host']:
+                # Gepruft wurde von derselben Maschine, auf der der
+                # Mailserver laeuft. Ein "ja, ich nehme das an" sagt hier
+                # nichts darueber aus, ob das auch aus dem Internet gilt --
+                # als offenes Relay zu melden waere schlicht falsch.
+                findings.append(_finding(WARN, 'smtp_relay_open_local',
+                                         ip=result['source_ip']))
+            elif result['relay_open']:
                 findings.append(_finding(FAIL, 'smtp_open_relay'))
+                if _is_private(result['source_ip']):
+                    # Die Quelladresse ist privat, die Verbindung laeuft also
+                    # ueber NAT oder aus einem Container heraus. Dann laesst
+                    # sich von hier aus nicht entscheiden, ob der Mailserver
+                    # ausgerechnet diese Quelle in mynetworks stehen hat --
+                    # etwa weil beide auf derselben Maschine laufen.
+                    findings.append(_finding(INFO, 'smtp_relay_source_hint',
+                                             ip=result['source_ip']))
             else:
                 findings.append(_finding(OK, 'smtp_relay_closed'))
         smtp.rset()

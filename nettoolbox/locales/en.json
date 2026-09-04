@@ -440,5 +440,10 @@
   "err_null_mx": "This domain declares a null MX (RFC 7505), stating outright that it accepts no mail — there is deliberately no mail server here.",
   "smtp_via_mx_chip": "MX host: {host}",
   "smtp_via_mx_title": "Taken from the MX record of {domain}. MX records in total: {count}.",
-  "smtp_mx_tested": "This MX host was the one tested (lowest preference)."
+  "smtp_mx_tested": "This MX host was the one tested (lowest preference).",
+  "f_smtp_relay_open_local": "The server accepts mail for foreign domains — but the test ran from the very machine it runs on ({ip}). Mail servers normally treat their own machine as trusted (Postfix mynetworks). Whether it would do the same from the internet is not what this test showed — check from outside for that, e.g. through the root-server worker.",
+  "f_smtp_relay_source_hint": "The test ran from a private address ({ip}), so the connection goes through NAT or out of a container. If this add-on runs on the same machine or in the same Docker network as the mail server, that source may well sit in its mynetworks — in which case this is not an open relay towards the internet. Check from a foreign network to settle it.",
+  "smtp_relay_badge_local": "Relay open — from here",
+  "smtp_source_label": "Tested from",
+  "smtp_source_title": "Source address of this check and the target address it reached. It matters for the relay test: mail servers trust their own network."
 }

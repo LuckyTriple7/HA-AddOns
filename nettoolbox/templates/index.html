@@ -1734,8 +1734,13 @@ async function smtpCheck(){
     badges.appendChild(el('span', 'badge ' + (r.starttls_ok ? 'ok' : (r.starttls_offered ? 'warn' : 'fail')),
       r.starttls_ok ? T.smtp_starttls_badge_ok : (r.starttls_offered ? T.smtp_starttls_badge_failed : T.smtp_starttls_badge_none)));
     if (r.relay_open !== null) {
-      badges.appendChild(el('span', 'badge ' + (r.relay_open ? 'fail' : 'ok'),
-        r.relay_open ? T.smtp_relay_badge_open : T.smtp_relay_badge_closed));
+      // Ein "offen" aus derselben Maschine heraus ist kein Alarm, sondern ein
+      // Messproblem -- die Plakette sagt das auch, statt rot zu schreien.
+      const relayLocal = r.relay_open && r.same_host;
+      badges.appendChild(el('span',
+        'badge ' + (relayLocal ? 'warn' : (r.relay_open ? 'fail' : 'ok')),
+        relayLocal ? T.smtp_relay_badge_local
+          : (r.relay_open ? T.smtp_relay_badge_open : T.smtp_relay_badge_closed)));
     }
     if (r.tls_protocol) badges.appendChild(el('span', 'chip', r.tls_protocol));
     if (r.mx_domain) {
@@ -1760,6 +1765,13 @@ async function smtpCheck(){
     const c1 = el('div', 'subcard');
     c1.appendChild(el('h4', '', T.field_banner));
     c1.appendChild(el('div', 'mono', r.banner || '—'));
+    if (r.source_ip) {
+      const row = el('div', 'kv-tight');
+      row.appendChild(el('span', '', T.smtp_source_label));
+      row.appendChild(el('span', 'mono', r.source_ip + ' → ' + r.peer_ip));
+      row.title = T.smtp_source_title;
+      c1.appendChild(row);
+    }
     if (r.mx_candidates && r.mx_candidates.length > 1) {
       // Als Chips und nicht als eine lange Zeile: in der schmalen Unterkarte
       // wuerde eine Komma-Liste sonst mitten in den Hostnamen umbrechen.
