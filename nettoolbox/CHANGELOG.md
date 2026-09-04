@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.2.0] - 2026-09-04
+
+### Added
+- **Benutzerkonten.** Bis hierher gab es genau ein Konto — Name und Kennwort aus den
+  Add-on-Optionen. Jetzt kann der Betreiber weitere Konten anlegen, damit jemand anderes
+  mitprüfen kann, ohne die Einstellungen zu sehen und ohne dass sich zwei Leute ein
+  Kennwort teilen. Verwaltet werden sie im Einstellungsdialog unter *Benutzer*.
+  - **Willkommensmail mit Startkennwort.** Beim Anlegen erzeugt NetToolbox ein zufälliges
+    Kennwort und schickt es an die hinterlegte Adresse. Ist kein SMTP eingerichtet oder
+    scheitert der Versand, steht das Kennwort in der Antwort in der Oberfläche — angelegt
+    ist das Konto in beiden Fällen.
+  - **Kennwortwechsel wird erzwungen.** Solange das Startkennwort gilt, führt jeder Weg auf
+    die Kennwortseite und jede API-Anfrage endet mit `password_change_required`. Der Zwang
+    wäre sonst keiner.
+  - **Sperren, entsperren, löschen, Kennwort zurücksetzen.** Alles drei beendet laufende
+    Sitzungen des Kontos sofort — ein gesperrtes Konto, das noch 24 Stunden weiterarbeitet,
+    ist nicht gesperrt. Löschen nimmt den Verlauf des Benutzers mit.
+  - Das eigene Konto lässt sich weder sperren noch löschen.
+
+### Changed
+- **Einstellungen und Wächter sind Betreibersache.** SMTP-Zugangsdaten, Telegram-Token, die
+  Technik-Regeln und alle Wächter-Routen antworten normalen Konten mit `forbidden`; Zahnrad
+  und Wächter-Reiter erscheinen bei ihnen gar nicht erst. Wächter verschicken Mails und
+  fragen dauerhaft fremde Server — das gehört dem Betreiber.
+- **Der Verlauf gehört dem Benutzer.** Jede Zeile trägt jetzt die Kennung des Kontos, das
+  die Prüfung ausgelöst hat; jeder sieht nur seinen eigenen Verlauf und löscht auch nur
+  diesen. Zeilen aus der Zeit davor gehören dem Betreiber.
+- **Über Ingress ist weiterhin immer der Betreiber angemeldet.** Bewusst so: die Benutzer-
+  Kopfzeilen des Supervisors kämen vom Client und wären fälschbar, sobald derselbe Port auch
+  im LAN liegt. Mehrbenutzerbetrieb gilt für den Weg über den eigenen Port bzw. die Domain
+  davor.
+- **Das Konto aus den Add-on-Optionen bleibt und ist immer Betreiber.** Es steht nicht in
+  der Benutzerliste und ist der Weg zurück, falls in der Verwaltung etwas verriegelt wurde.
+  Deshalb gibt es auch keine „letzter Betreiber"-Sperre: aussperren kann sich hier niemand.
+- Bestehende Anmeldungen überleben das Update — Sitzungen aus 0.1.43 zählen weiter als das
+  Konto aus den Optionen.
+
+### Fixed
+- Die Meldung über eine erfolgreiche Anmeldung nennt jetzt auch den Benutzernamen, die über
+  eine Sperre den Namen, mit dem es versucht wurde (auf die Zeichen eines Namens beschnitten,
+  damit die Eingabe des Aufrufers nicht in die Mail durchschlägt).
+
 ## [0.1.43] - 2026-09-04
 
 ### Added

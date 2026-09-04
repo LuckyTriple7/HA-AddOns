@@ -39,6 +39,7 @@ COPY snapshots.py .
 COPY settings.py .
 COPY probes.py .
 COPY remote.py .
+COPY users.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.
 COPY config.yaml .
 COPY templates/ templates/

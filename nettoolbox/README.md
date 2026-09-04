@@ -64,6 +64,11 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   [Brauche ich den Root-Server-Worker?](#brauche-ich-den-root-server-worker)
 - **Home-Assistant-Entitäten** — jeder Wächter als Sensor (`sensor.nettoolbox_<name>`) plus
   Sammelsensoren, damit Zustände auf Dashboards und in Automationen nutzbar sind
+- **Benutzerkonten** *(außerhalb von Ingress)* — der Betreiber legt weitere Konten an, jedes
+  mit eigenem Kennwort und eigenem Verlauf. Das Startkennwort kommt per Willkommensmail und
+  muss bei der ersten Anmeldung gewechselt werden; sperren, löschen und zurücksetzen geht
+  jederzeit. Einstellungen und Wächter bleiben dem Betreiber vorbehalten. Über Ingress ist
+  immer der Betreiber angemeldet — Home Assistant hat dort schon angemeldet.
 - **Anmeldeschutz außerhalb von Ingress** — nach 5 Fehlversuchen in 10 Minuten wird die IP
   für 15 Minuten gesperrt; die Sperre überlebt einen Neustart des Add-ons. Auf Wunsch meldet
   NetToolbox jede Sperre und/oder jede erfolgreiche Anmeldung, je Ereignis einzeln über Mail

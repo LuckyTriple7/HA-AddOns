@@ -31,6 +31,7 @@ import monitor
 import settings as usersettings
 import snapshots as dnssnapshots
 import techrules
+import users as useraccounts
 import wapimport
 import probes
 from netcore import Context, ProbeError
@@ -54,6 +55,7 @@ SECRET_PATH = _DATA + '/secret.key'
 HISTORY_PATH = _DATA + '/history.json'
 MONITOR_DB_PATH = _DATA + '/monitors.db'
 SNAPSHOT_DB_PATH = _DATA + '/snapshots.db'
+USERS_DB_PATH = _DATA + '/users.db'
 LOCALES_PATH = _BASE + '/locales'
 
 PORT = int(os.environ.get('NETTOOLBOX_PORT', '17798'))
@@ -205,6 +207,7 @@ def notify_config() -> dict:
 
 _monitor_store = monitor.MonitorStore(MONITOR_DB_PATH)
 _snapshot_store = dnssnapshots.SnapshotStore(SNAPSHOT_DB_PATH)
+_user_store = useraccounts.UserStore(USERS_DB_PATH)
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
@@ -217,9 +220,26 @@ def save_sessions() -> None:
     try:
         now = time.time()
         with open(SESSIONS_PATH, 'w', encoding='utf-8') as f:
-            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+            json.dump({k: v for k, v in sessions.items() if v['exp'] > now}, f)
     except Exception:
         log.warning("sessions could not be saved")
+
+
+def _session_value(raw) -> dict:
+    """Bis 0.1.43 stand hinter dem Token nur die Ablaufzeit -- es gab ja nur
+    ein Konto. Solche Einträge gelten weiter und zählen als der Betreiber;
+    sonst würfe das Update jeden Angemeldeten hinaus."""
+    if isinstance(raw, (int, float)):
+        return {'exp': float(raw), 'uid': useraccounts.OPTIONS_ADMIN_ID,
+                'must_change': False}
+    if isinstance(raw, dict) and isinstance(raw.get('exp'), (int, float)):
+        try:
+            uid = int(raw.get('uid') or useraccounts.OPTIONS_ADMIN_ID)
+        except (TypeError, ValueError):
+            return {}
+        return {'exp': float(raw['exp']), 'uid': uid,
+                'must_change': bool(raw.get('must_change'))}
+    return {}
 
 
 def load_sessions() -> None:
@@ -228,7 +248,12 @@ def load_sessions() -> None:
         with open(SESSIONS_PATH, encoding='utf-8') as f:
             data = json.load(f)
         now = time.time()
-        sessions = {k: v for k, v in data.items() if v > now}
+        restored = {}
+        for token, raw in (data or {}).items():
+            value = _session_value(raw)
+            if value and value['exp'] > now:
+                restored[str(token)] = value
+        sessions = restored
         if sessions:
             log.info("sessions restored: %d active", len(sessions))
     except FileNotFoundError:
@@ -237,22 +262,46 @@ def load_sessions() -> None:
         log.warning("sessions could not be loaded")
 
 
-def create_session(hours: int) -> str:
+def create_session(hours: int, uid: int, must_change: bool = False) -> str:
     token = secrets.token_hex(32)
     with _sessions_lock:
-        sessions[token] = time.time() + hours * 3600
+        sessions[token] = {'exp': time.time() + hours * 3600, 'uid': int(uid),
+                           'must_change': bool(must_change)}
         save_sessions()
     return token
 
 
-def is_valid_session(token) -> bool:
+def session_info(token) -> dict:
+    """Leeres dict = keine gültige Sitzung."""
     if not token or token not in sessions:
-        return False
-    if time.time() > sessions[token]:
+        return {}
+    value = sessions[token]
+    if time.time() > value['exp']:
         with _sessions_lock:
             sessions.pop(token, None)
-        return False
-    return True
+        return {}
+    return dict(value, token=token)
+
+
+def clear_change_flag(token: str) -> None:
+    """Nach dem Kennwortwechsel arbeitet dieselbe Sitzung weiter -- ein
+    erzwungener zweiter Anmeldevorgang wäre reine Schikane."""
+    with _sessions_lock:
+        if token in sessions:
+            sessions[token]['must_change'] = False
+            save_sessions()
+
+
+def drop_user_sessions(uid: int) -> int:
+    """Gesperrt, gelöscht oder Kennwort zurückgesetzt: laufende Sitzungen des
+    Kontos enden sofort und nicht erst in 24 Stunden."""
+    with _sessions_lock:
+        gone = [t for t, v in sessions.items() if v['uid'] == int(uid)]
+        for token in gone:
+            sessions.pop(token, None)
+        if gone:
+            save_sessions()
+    return len(gone)
 
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
@@ -335,7 +384,7 @@ def is_rate_limited(ip: str) -> bool:
         return False
 
 
-def record_failed_attempt(ip: str) -> None:
+def record_failed_attempt(ip: str, who: str = '') -> None:
     now = time.time()
     with _rate_lock:
         recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
@@ -352,7 +401,7 @@ def record_failed_attempt(ip: str) -> None:
         log.warning("login blocked for %d minutes after too many failures",
                     RATE_LIMIT_BLOCK // 60)
         if fresh:
-            notify_login_event('blocked', ip, len(recent))
+            notify_login_event('blocked', ip, len(recent), who)
 
 
 def clear_failed_attempts(ip: str) -> None:
@@ -406,7 +455,16 @@ def _login_origin() -> str:
     return 'Port %d' % PORT
 
 
-def notify_login_event(kind: str, ip: str, attempts: int = 0) -> None:
+def _safe_name(raw: str) -> str:
+    """Der Benutzername aus dem Formular kommt vom Aufrufer und landet in
+    einer Mail. Nur die Zeichen, die ein Name haben darf -- alles andere wäre
+    ein Weg, fremden Text in die Nachricht zu schreiben."""
+    name = ''.join(c for c in str(raw or '') if c.isalnum() or c in '._-')
+    return name[:32]
+
+
+def notify_login_event(kind: str, ip: str, attempts: int = 0,
+                       who: str = '') -> None:
     """kind 'blocked' -> zu viele Fehlversuche, 'ok' -> geglückte Anmeldung am
     Direktport. Über Ingress kommt hier nichts an: dort hat der Supervisor
     bereits angemeldet, es gibt kein Anmeldeformular."""
@@ -417,8 +475,10 @@ def notify_login_event(kind: str, ip: str, attempts: int = 0) -> None:
         email = bool(cfg.get('notify_login_fail_email', True))
         telegram = bool(cfg.get('notify_login_fail_telegram', True))
         subject = '🔴 [NetToolbox] Anmeldung gesperrt'
+        name = _safe_name(who)
         body = ("Zu viele fehlgeschlagene Anmeldeversuche.\n\n"
                 f"Aufgerufen über: {origin}\n"
+                f"Benutzername: {name or '?'}\n"
                 f"IP-Adresse: {ip}\n"
                 f"Versuche: {attempts} in {RATE_LIMIT_WINDOW // 60} Minuten\n"
                 f"Gesperrt für: {RATE_LIMIT_BLOCK // 60} Minuten\n"
@@ -430,6 +490,7 @@ def notify_login_event(kind: str, ip: str, attempts: int = 0) -> None:
         subject = '🔵 [NetToolbox] Anmeldung erfolgreich'
         body = ("Erfolgreiche Anmeldung.\n\n"
                 f"Aufgerufen über: {origin}\n"
+                f"Benutzername: {_safe_name(who) or '?'}\n"
                 f"IP-Adresse: {ip}\n"
                 f"Zeitpunkt: {when}\n\n"
                 "-- NetToolbox")
@@ -504,8 +565,76 @@ def _is_ingress() -> bool:
     return bool(request.script_root)
 
 
+# Hinter Ingress hat der Supervisor bereits angemeldet -- wer dort ankommt,
+# bedient Home Assistant und damit auch die Add-on-Optionen, ist also ohnehin
+# Betreiber. Ein eigenes Konto gibt es dort bewusst nicht: die Benutzer-
+# Kopfzeilen des Supervisors kämen vom Client und wären fälschbar, sobald
+# derselbe Port auch im LAN erreichbar ist. Mehrbenutzerbetrieb gilt deshalb
+# nur für den Weg über den eigenen Port bzw. die Domain davor.
+_INGRESS_ADMIN = {'id': useraccounts.OPTIONS_ADMIN_ID, 'username': 'ingress',
+                  'is_admin': True, 'must_change': False, 'blocked': False,
+                  'modules': '*', 'daily_quota': 0, 'via': 'ingress'}
+
+
+def _options_admin() -> dict:
+    """Das Konto aus den Add-on-Optionen. Es steht nicht in users.db und ist
+    immer Betreiber -- es ist der Weg zurück, wenn in der Benutzerverwaltung
+    etwas verriegelt wurde."""
+    return {'id': useraccounts.OPTIONS_ADMIN_ID,
+            'username': str(load_config().get('username') or 'admin'),
+            'is_admin': True, 'must_change': False, 'blocked': False,
+            'modules': '*', 'daily_quota': 0, 'via': 'options'}
+
+
+def current_user() -> dict:
+    """Leeres dict = niemand angemeldet. Je Anfrage einmal ermittelt."""
+    cached = getattr(g, 'user', None)
+    if cached is not None:
+        return cached
+    user = {}
+    if _is_ingress():
+        user = dict(_INGRESS_ADMIN)
+    else:
+        info = session_info(request.cookies.get('session'))
+        if info:
+            if info['uid'] == useraccounts.OPTIONS_ADMIN_ID:
+                user = _options_admin()
+            elif _user_store.available():
+                try:
+                    row = _user_store.get(info['uid'])
+                except (useraccounts.UserError, Exception):
+                    row = {}
+                # Gesperrt oder gelöscht wirkt sofort, nicht erst beim
+                # nächsten Anmelden.
+                if row and not row.get('blocked'):
+                    user = dict(row, via='account')
+            if user:
+                user['must_change'] = bool(info.get('must_change')) or bool(
+                    user.get('must_change'))
+                user['token'] = info['token']
+    g.user = user
+    return user
+
+
+def current_uid() -> int:
+    """Kennung des Anfragenden. Außerhalb einer Anfrage -- etwa aus einem
+    Hintergrund-Thread -- gilt der Betreiber."""
+    try:
+        return int(current_user().get('id') or 0)
+    except RuntimeError:
+        return useraccounts.OPTIONS_ADMIN_ID
+
+
 def _logged_in() -> bool:
-    return _is_ingress() or is_valid_session(request.cookies.get('session'))
+    return bool(current_user())
+
+
+def _is_admin() -> bool:
+    return bool(current_user().get('is_admin'))
+
+
+def _must_change() -> bool:
+    return bool(current_user().get('must_change'))
 
 
 @app.before_request
@@ -567,10 +696,13 @@ _ERROR_STATUS = {
     'monitor_not_found': 404, 'bad_probe': 400,
     'snapshot_not_found': 404, 'snapshot_store_broken': 503,
     'snapshot_domain_mismatch': 400,
+    'user_exists': 409, 'user_not_found': 404, 'bad_username': 400,
+    'bad_email': 400, 'weak_password': 400,
+    'bad_quota': 400, 'self_target': 409, 'user_store_broken': 503,
 }
 
 
-def api(rule: str, methods=('GET',)):
+def api(rule: str, methods=('GET',), admin: bool = False):
     """Route decorator: auth, CSRF and uniform error mapping in one place."""
     def deco(fn):
         @app.route(rule, methods=list(methods), endpoint='api_' + fn.__name__)
@@ -578,6 +710,12 @@ def api(rule: str, methods=('GET',)):
         def wrapper(*args, **kwargs):
             if not _logged_in():
                 return jsonify({'error': 'unauthorized'}), 401
+            # Solange das Startkennwort gilt, ist nichts anderes zu tun als
+            # es zu wechseln -- sonst wäre der Zwang keiner.
+            if _must_change():
+                return jsonify({'error': 'password_change_required'}), 403
+            if admin and not _is_admin():
+                return jsonify({'error': 'forbidden'}), 403
             if request.method not in ('GET', 'HEAD'):
                 if not _origin_ok() or not _csrf_ok():
                     return jsonify({'error': 'csrf'}), 403
@@ -589,6 +727,8 @@ def api(rule: str, methods=('GET',)):
             except monitor.MonitorError as e:
                 return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
             except dnssnapshots.SnapshotError as e:
+                return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
+            except useraccounts.UserError as e:
                 return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
             except Exception:
                 log.exception("unhandled error in %s", rule)
@@ -632,6 +772,9 @@ def _history_limit() -> int:
 def history_add(entry: dict) -> None:
     if _history_limit() <= 0:
         return
+    # Seit es mehrere Konten gibt, gehört jede Zeile zu einem davon. Ohne die
+    # Kennung läge der Verlauf des einen offen vor dem anderen.
+    entry = dict(entry, uid=current_uid())
     with _history_lock:
         _history.appendleft(entry)
         while len(_history) > _history_limit():
@@ -777,6 +920,27 @@ def set_lang(lang: str):
     return resp
 
 
+def _check_credentials(name: str, secret: str):
+    """Erst die angelegten Konten, dann das Konto aus den Add-on-Optionen.
+
+    Ein gesperrtes Konto verhält sich wie ein falsches Kennwort -- welcher
+    Name existiert, geht den Anfragenden nichts an.
+    """
+    if _user_store.available():
+        user = _user_store.verify(name, secret)
+        if user is not None:
+            return dict(user, via='account')
+    cfg = load_config()
+    user_ok = secrets.compare_digest(name, str(cfg.get('username') or ''))
+    # Beide Seiten hashen, damit ein falscher Name genauso lange dauert wie
+    # ein falsches Kennwort.
+    stored = generate_password_hash(str(cfg.get('password') or ''))
+    pass_ok = check_password_hash(stored, secret)
+    if user_ok and pass_ok:
+        return _options_admin()
+    return None
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     lang = detect_language(request)
@@ -791,26 +955,69 @@ def login():
         elif not _origin_ok() or not _csrf_ok():
             error = t.get('error_expired', 'Form expired.')
         else:
-            cfg = load_config()
-            user_ok = secrets.compare_digest(
-                request.form.get('username', ''), str(cfg.get('username') or ''))
-            # Hash both sides so a wrong user name costs the same time as a
-            # wrong password.
-            stored = generate_password_hash(str(cfg.get('password') or ''))
-            pass_ok = check_password_hash(stored, request.form.get('password', ''))
-            if user_ok and pass_ok:
+            name = request.form.get('username', '')
+            secret = request.form.get('password', '')
+            user = _check_credentials(name, secret)
+            if user is not None:
                 clear_failed_attempts(ip)
-                notify_login_event('ok', ip)
+                notify_login_event('ok', ip, who=user['username'])
                 hours = _cfg_int('session_hours', 24, 1, 720)
-                resp = make_response(redirect(_safe_next('/')))
-                resp.set_cookie('session', create_session(hours),
+                if user['id'] != useraccounts.OPTIONS_ADMIN_ID:
+                    _user_store.touch_login(user['id'])
+                forced = bool(user.get('must_change'))
+                resp = make_response(redirect(_safe_next(
+                    '/password' if forced else '/')))
+                resp.set_cookie('session',
+                                create_session(hours, user['id'], forced),
                                 httponly=True, samesite='Lax',
                                 secure=request.is_secure, max_age=hours * 3600)
                 return resp
-            record_failed_attempt(ip)
+            record_failed_attempt(ip, name)
             error = t.get('error_credentials', 'Invalid credentials.')
     return render_template('login.html', t=t, lang=lang, csrf=g.csrf,
                            error=error)
+
+
+@app.route('/password', methods=['GET', 'POST'])
+def change_password():
+    """Eigenes Kennwort wechseln -- freiwillig oder erzwungen, wenn noch das
+    Startkennwort gilt."""
+    lang = detect_language(request)
+    t = load_translations(lang)
+    user = current_user()
+    if not user:
+        return redirect(url_for('login'))
+    if user['id'] == useraccounts.OPTIONS_ADMIN_ID:
+        # Dieses Kennwort steht in den Add-on-Optionen und wird dort geändert.
+        return redirect(_safe_next('/'))
+    error = ''
+    if request.method == 'POST':
+        if not _origin_ok() or not _csrf_ok():
+            error = t.get('error_expired', 'Form expired.')
+        else:
+            current = request.form.get('current', '')
+            fresh = request.form.get('new', '')
+            again = request.form.get('again', '')
+            if _user_store.verify(user['username'], current) is None:
+                error = t.get('error_credentials', 'Invalid credentials.')
+            elif fresh != again:
+                error = t.get('pw_mismatch', 'Passwords do not match.')
+            elif fresh == current:
+                error = t.get('pw_same', 'Choose a different password.')
+            else:
+                try:
+                    _user_store.set_password(user['id'], fresh,
+                                             must_change=False)
+                except useraccounts.UserError:
+                    error = t.get('pw_weak', 'Password too short.')
+                else:
+                    clear_change_flag(user.get('token', ''))
+                    log.info("password changed for an account")
+                    return redirect(_safe_next('/'))
+    return render_template('password.html', t=t, lang=lang, csrf=g.csrf,
+                           error=error, username=user['username'],
+                           forced=bool(user.get('must_change')),
+                           minimum=useraccounts.PASSWORD_MIN)
 
 
 @app.route('/logout')
@@ -829,10 +1036,15 @@ def logout():
 def index():
     if not _logged_in():
         return redirect(url_for('login'))
+    if _must_change():
+        return redirect(url_for('change_password'))
+    user = current_user()
     lang = detect_language(request)
     return render_template(
         'index.html', t=load_translations(lang), lang=lang, csrf=g.csrf,
         version=APP_VERSION, ingress=_is_ingress(),
+        is_admin=bool(user.get('is_admin')),
+        account=(user['username'] if user.get('via') == 'account' else ''),
         probe_names=sorted(probes.PROBES),
         target_kind=probes.TARGET_KIND,
         rr_types=list(probes.COMMON_TYPES) + ['CNAME', 'PTR', 'SRV', 'DS',
@@ -1021,34 +1233,51 @@ def snapshot_compare(snapshot_id: int):
                                                  newer['records'])})
 
 
+def _history_rows_for(uid: int) -> list:
+    with _history_lock:
+        rows = list(_history)
+    # Zeilen ohne Kennung stammen aus der Zeit vor der Benutzerverwaltung und
+    # gehören damit dem Betreiber.
+    return [row for row in rows if int(row.get('uid') or 0) == uid]
+
+
 @api('/api/history')
 def history():
-    with _history_lock:
-        return jsonify({'rows': list(_history)[:_history_limit()]})
+    return jsonify({'rows': _history_rows_for(current_uid())[:_history_limit()]})
 
 
 @api('/api/history/clear', methods=('POST',))
 def history_clear():
+    uid = current_uid()
     with _history_lock:
+        keep = [row for row in _history if int(row.get('uid') or 0) != uid]
         _history.clear()
+        _history.extend(keep)
+        rows = list(_history)
     try:
-        os.remove(HISTORY_PATH)
+        if rows:
+            with open(HISTORY_PATH, 'w', encoding='utf-8') as f:
+                json.dump(rows, f)
+        else:
+            os.remove(HISTORY_PATH)
     except OSError:
         pass
+    except Exception:
+        log.warning("history could not be saved")
     return jsonify({'ok': True})
 
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 
 
-@api('/api/monitors')
+@api('/api/monitors', admin=True)
 def monitors_list():
     return jsonify({'rows': _monitor_store.list_monitors(),
                     'probes': sorted(monitor.MONITOR_PROBES),
                     'available': _monitor_store.available()})
 
 
-@api('/api/monitors', methods=('POST',))
+@api('/api/monitors', methods=('POST',), admin=True)
 def monitors_create():
     body = request.get_json(silent=True) or {}
     name = str(body.get('name') or '').strip()
@@ -1068,7 +1297,7 @@ def monitors_create():
     return jsonify({'id': mid})
 
 
-@api('/api/monitors/<int:monitor_id>', methods=('PUT',))
+@api('/api/monitors/<int:monitor_id>', methods=('PUT',), admin=True)
 def monitors_update(monitor_id: int):
     body = request.get_json(silent=True) or {}
     fields = {k: body[k] for k in
@@ -1079,7 +1308,7 @@ def monitors_update(monitor_id: int):
     return jsonify({'ok': True})
 
 
-@api('/api/monitors/<int:monitor_id>', methods=('DELETE',))
+@api('/api/monitors/<int:monitor_id>', methods=('DELETE',), admin=True)
 def monitors_delete(monitor_id: int):
     _monitor_store.get_monitor(monitor_id)
     _monitor_store.delete_monitor(monitor_id)
@@ -1087,7 +1316,7 @@ def monitors_delete(monitor_id: int):
     return jsonify({'ok': True})
 
 
-@api('/api/monitors/<int:monitor_id>/run', methods=('POST',))
+@api('/api/monitors/<int:monitor_id>/run', methods=('POST',), admin=True)
 def monitors_run(monitor_id: int):
     m = _monitor_store.get_monitor(monitor_id)
     result = monitor.run_monitor(_monitor_store, m, build_context(), notify_config())
@@ -1095,7 +1324,7 @@ def monitors_run(monitor_id: int):
     return jsonify(result)
 
 
-@api('/api/monitors/<int:monitor_id>/history')
+@api('/api/monitors/<int:monitor_id>/history', admin=True)
 def monitors_history(monitor_id: int):
     _monitor_store.get_monitor(monitor_id)
     return jsonify({'rows': _monitor_store.history(monitor_id)})
@@ -1104,13 +1333,13 @@ def monitors_history(monitor_id: int):
 # ── In-app settings (SMTP / Telegram) ──────────────────────────────────────────
 
 
-@api('/api/settings')
+@api('/api/settings', admin=True)
 def settings_get():
     return jsonify({'values': usersettings.public_view(load_config()),
                     'crypto_available': usersettings.crypto_available()})
 
 
-@api('/api/settings', methods=('POST',))
+@api('/api/settings', methods=('POST',), admin=True)
 def settings_save():
     body = request.get_json(silent=True) or {}
     if not isinstance(body, dict):
@@ -1122,6 +1351,124 @@ def settings_save():
         if not wapimport.status()['available']:
             _start_tech_rules_fetch()
     return jsonify({'ok': True, 'changed': changed})
+
+
+# ── Benutzerverwaltung ────────────────────────────────────────────────────────
+
+
+def send_account_mail(user: dict, password: str, reset: bool) -> tuple:
+    """Startkennwort an den Benutzer. Gibt (verschickt, Fehlercode) zurück --
+    ohne Mailweg bekommt der Betreiber das Kennwort in der Antwort und gibt es
+    selbst weiter, statt dass das Anlegen scheitert."""
+    if not user.get('email'):
+        return False, 'no_email'
+    if reset:
+        subject = '[NetToolbox] Neues Kennwort'
+        intro = 'Für dein Konto wurde ein neues Startkennwort gesetzt.'
+    else:
+        subject = '[NetToolbox] Zugang eingerichtet'
+        intro = 'Für dich wurde ein Zugang zu NetToolbox angelegt.'
+    body = (f"{intro}\n\n"
+            f"Adresse: {_login_origin()}\n"
+            f"Benutzername: {user['username']}\n"
+            f"Startkennwort: {password}\n\n"
+            "Das Kennwort gilt nur für die erste Anmeldung — danach fragt "
+            "NetToolbox sofort nach einem eigenen.\n\n"
+            "-- NetToolbox")
+    # smtp_to zeigt sonst auf die Adresse für Wächter-Meldungen; hier soll die
+    # Mail an den neuen Benutzer gehen.
+    cfg = dict(notify_config(), smtp_to=user['email'])
+    ok, error = monitor.send_email(cfg, subject, body)
+    return ok, ('' if ok else (error or 'not_configured'))
+
+
+def _need_user_store() -> None:
+    if not _user_store.available():
+        raise useraccounts.UserError('user_store_broken')
+
+
+def _reserved_name(name: str) -> bool:
+    """Der Name aus den Add-on-Optionen darf nicht doppelt vergeben werden --
+    sonst wäre nicht mehr entscheidbar, welches Konto gemeint ist."""
+    return str(name or '').strip().lower() == str(
+        load_config().get('username') or '').strip().lower()
+
+
+@api('/api/users', admin=True)
+def users_list():
+    _need_user_store()
+    return jsonify({'users': _user_store.list(),
+                    'options_admin': _options_admin()['username'],
+                    'self_id': current_user().get('id'),
+                    'password_min': useraccounts.PASSWORD_MIN})
+
+
+@api('/api/users', methods=('POST',), admin=True)
+def users_create():
+    _need_user_store()
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        raise ProbeError('bad_params')
+    if _reserved_name(body.get('username')):
+        raise useraccounts.UserError('user_exists')
+    user, password = _user_store.create(body.get('username'), body.get('email'),
+                                        bool(body.get('is_admin')),
+                                        body.get('note'))
+    sent, error = send_account_mail(user, password, reset=False)
+    log.info("account created (admin=%s, mail=%s)", bool(user['is_admin']), sent)
+    # Das Kennwort nur zeigen, wenn es nicht schon per Mail unterwegs ist --
+    # zwei Kopien desselben Geheimnisses sind eine zu viel.
+    return jsonify({'ok': True, 'user': user, 'mail_sent': sent,
+                    'mail_error': error,
+                    'password': '' if sent else password})
+
+
+@api('/api/users/<int:user_id>', methods=('PUT',), admin=True)
+def users_update(user_id: int):
+    _need_user_store()
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        raise ProbeError('bad_params')
+    if user_id == current_user().get('id') and (
+            'blocked' in body or 'is_admin' in body):
+        # Sich selbst aussperren geht schief, egal wie gut gemeint.
+        raise useraccounts.UserError('self_target')
+    fields = {k: body[k] for k in
+              ('email', 'note', 'blocked', 'is_admin', 'modules', 'daily_quota')
+              if k in body}
+    user = _user_store.update(user_id, fields)
+    if user['blocked']:
+        drop_user_sessions(user_id)
+    return jsonify({'ok': True, 'user': user})
+
+
+@api('/api/users/<int:user_id>', methods=('DELETE',), admin=True)
+def users_delete(user_id: int):
+    _need_user_store()
+    if user_id == current_user().get('id'):
+        raise useraccounts.UserError('self_target')
+    user = _user_store.delete(user_id)
+    drop_user_sessions(user_id)
+    with _history_lock:
+        keep = [row for row in _history if int(row.get('uid') or 0) != user_id]
+        _history.clear()
+        _history.extend(keep)
+    log.info("account deleted")
+    return jsonify({'ok': True, 'username': user['username']})
+
+
+@api('/api/users/<int:user_id>/reset', methods=('POST',), admin=True)
+def users_reset(user_id: int):
+    _need_user_store()
+    user, password = _user_store.reset_password(user_id)
+    # Ein zurückgesetztes Kennwort beendet laufende Sitzungen -- sonst bliebe
+    # ein übernommenes Konto trotz Reset offen.
+    drop_user_sessions(user_id)
+    sent, error = send_account_mail(user, password, reset=True)
+    log.info("account password reset (mail=%s)", sent)
+    return jsonify({'ok': True, 'user': user, 'mail_sent': sent,
+                    'mail_error': error,
+                    'password': '' if sent else password})
 
 
 # ── Zusatz-Datensatz fuer die Technik-Erkennung ───────────────────────────────
@@ -1195,19 +1542,19 @@ def _tech_rules_view() -> dict:
     return info
 
 
-@api('/api/tech-rules')
+@api('/api/tech-rules', admin=True)
 def tech_rules_get():
     return jsonify(_tech_rules_view())
 
 
-@api('/api/tech-rules/update', methods=('POST',))
+@api('/api/tech-rules/update', methods=('POST',), admin=True)
 def tech_rules_update():
     if not _start_tech_rules_fetch():
         return jsonify({'ok': False, 'error': 'update_running'}), 409
     return jsonify({'ok': True, 'started': True})
 
 
-@api('/api/tech-rules/remove', methods=('POST',))
+@api('/api/tech-rules/remove', methods=('POST',), admin=True)
 def tech_rules_remove():
     removed = wapimport.remove()
     return jsonify({'ok': True, 'removed': removed})
@@ -1224,7 +1571,7 @@ def _test_cfg(body: dict) -> dict:
     return cfg
 
 
-@api('/api/settings/test-email', methods=('POST',))
+@api('/api/settings/test-email', methods=('POST',), admin=True)
 def settings_test_email():
     body = request.get_json(silent=True) or {}
     cfg = _test_cfg(body if isinstance(body, dict) else {})
@@ -1236,7 +1583,7 @@ def settings_test_email():
     return jsonify({'ok': True})
 
 
-@api('/api/settings/test-telegram', methods=('POST',))
+@api('/api/settings/test-telegram', methods=('POST',), admin=True)
 def settings_test_telegram():
     body = request.get_json(silent=True) or {}
     cfg = _test_cfg(body if isinstance(body, dict) else {})
@@ -1326,6 +1673,14 @@ def _startup_checks() -> None:
             else:
                 log.warning("probe worker not usable yet: %s",
                             state.get('error'))
+
+    if _user_store.open():
+        count = len(_user_store.list())
+        if count:
+            log.info("user accounts: %d", count)
+    else:
+        log.warning("user store could not be opened (%s) — only the account "
+                    "from the add-on options can sign in", _user_store.broken)
 
     # Der Snapshot-Speicher haengt nicht am Monitoring: er wird auch dann
     # gebraucht, wenn niemand einen Waechter eingerichtet hat.
