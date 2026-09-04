@@ -2042,6 +2042,19 @@ async function headerAnalyse(){
     box.appendChild(badges);
     box.appendChild(renderFindings(r.findings));
 
+    if (r.stations && r.stations.length) {
+      // Was die Mail angefasst hat -- oft die einzige belastbare Auskunft
+      // ueber Anlagen, die von aussen nichts ueber sich verraten.
+      const line = el('div', 'row');
+      line.appendChild(el('span', 'detect-label', T.header_stations));
+      r.stations.forEach(st => {
+        const chip = el('span', 'chip', st.name);
+        chip.title = fmtStr(T.header_station_evidence, { evidence: st.evidence });
+        line.appendChild(chip);
+      });
+      box.appendChild(line);
+    }
+
     const grid = el('div', 'subgrid ipinfo-grid');
     const meta = el('div', 'subcard');
     meta.appendChild(el('h4', '', T.header_group_message));

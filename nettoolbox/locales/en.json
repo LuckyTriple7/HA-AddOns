@@ -653,5 +653,8 @@
   "f_dual_symmetric": "The same picture over IPv4 and IPv6 — no one-sided outages.",
   "f_dual_v6_missing": "Reachable over IPv4 but not over IPv6: {list}. Clients preferring IPv6 run into nothing — this is the reason behind “sometimes it does not work”.",
   "f_dual_v4_missing": "Reachable over IPv6 but not over IPv4: {list}",
-  "err_port_check_disabled": "The port check is switched off in the add-on options."
+  "err_port_check_disabled": "The port check is switched off in the add-on options.",
+  "header_stations": "Detected stations:",
+  "header_station_evidence": "Evidence in the header: {evidence}",
+  "f_hdr_stations": "Involved along the way: {list}"
 }

@@ -653,5 +653,8 @@
   "f_dual_symmetric": "Über IPv4 und IPv6 dasselbe Bild — keine einseitigen Ausfälle.",
   "f_dual_v6_missing": "Über IPv4 erreichbar, über IPv6 nicht: {list}. Clients, die IPv6 bevorzugen, laufen ins Leere — das ist der Grund für „manchmal geht es nicht“.",
   "f_dual_v4_missing": "Über IPv6 erreichbar, über IPv4 nicht: {list}",
-  "err_port_check_disabled": "Der Portcheck ist in den Add-on-Optionen abgeschaltet."
+  "err_port_check_disabled": "Der Portcheck ist in den Add-on-Optionen abgeschaltet.",
+  "header_stations": "Erkannte Stationen:",
+  "header_station_evidence": "Beleg im Kopf: {evidence}",
+  "f_hdr_stations": "Auf dem Weg beteiligt: {list}"
 }

@@ -375,6 +375,29 @@ def test_header_reads_dkim_tags(header):
                                           'canonicalisation': 'relaxed/relaxed'}]
 
 
+def test_header_detects_gateway_and_mta():
+    """Genau der Fall, um den es ging: von aussen sagt der Mailserver
+    nichts, im Kopf einer Mail steht beides."""
+    sample = ("Received: from gw.example ([10.0.0.20]) by mx.example with ESMTP; "
+              "Wed, 3 Sep 2026 10:00:05 +0200\n"
+              "Received: by notes01.example (Lotus Domino Release 12.0.2FP3) "
+              "with ESMTP; Wed, 3 Sep 2026 10:00:01 +0200\n"
+              "X-Barracuda-Spam-Score: 0.20\n"
+              "From: a@example.de\nSubject: x\n")
+    names = [s['name'] for s in mailheader.analyse(sample)['stations']]
+    assert 'HCL/IBM Domino (Notes)' in names
+    assert 'Barracuda (ESG / Spam Firewall)' in names
+
+
+def test_header_station_evidence_prefers_the_version():
+    sample = ("Received: by notes01.example (Lotus Domino Release 12.0.2FP3) with "
+              "ESMTP; Wed, 3 Sep 2026 10:00:01 +0200\nX-Lotus-FromDomain: X\n"
+              "From: a@example.de\n")
+    station = [s for s in mailheader.analyse(sample)['stations']
+               if s['name'].startswith('HCL')][0]
+    assert '12.0.2fp3' in station['evidence']
+
+
 def test_header_rejects_empty_and_oversized():
     with pytest.raises(ValueError):
         mailheader.analyse('   ')

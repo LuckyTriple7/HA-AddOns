@@ -30,6 +30,51 @@ _RECEIVED_WITH = re.compile(r'\bwith\s+([A-Za-z0-9/._-]+)', re.I)
 _RECEIVED_FOR = re.compile(r'\bfor\s+<([^>]+)>', re.I)
 _RECEIVED_IP = re.compile(r'[\[(]((?:\d{1,3}\.){3}\d{1,3}|[0-9a-f:]{6,})[\])]', re.I)
 _AUTH_METHOD = re.compile(r'\b(spf|dkim|dmarc|arc|compauth)\s*=\s*([a-z]+)', re.I)
+
+# Was eine Mail über die Anlagen verrät, durch die sie gelaufen ist. Von
+# außen sagt ein Mailserver oft gar nichts über sich -- ein anonymisiertes
+# Banner ist schnell gesetzt. Die Kopfzeilen, die er den Mails selbst
+# anhängt, stehen dagegen in jeder Nachricht, die er verarbeitet hat.
+GATEWAY_HEADERS = (
+    ('x-barracuda-', 'Barracuda (ESG / Spam Firewall)'),
+    ('x-proofpoint-', 'Proofpoint'),
+    ('x-mimecast-', 'Mimecast'),
+    ('x-hornetsecurity-', 'Hornetsecurity'),
+    ('x-ironport-', 'Cisco IronPort / ESA'),
+    ('x-sophos-', 'Sophos'),
+    ('x-forefront-antispam-report', 'Microsoft 365 (Defender)'),
+    ('x-ms-exchange-', 'Microsoft Exchange'),
+    ('x-microsoft-antispam', 'Microsoft 365'),
+    ('x-google-dkim-signature', 'Google Workspace'),
+    ('x-gm-message-state', 'Google Workspace'),
+    ('x-spam-status', 'SpamAssassin'),
+    ('x-rspamd-', 'Rspamd'),
+    ('x-virus-scanned', 'Virenprüfung (amavis o. ä.)'),
+    ('x-lotus-fromdomain', 'HCL/IBM Domino (Notes)'),
+    ('x-notes-item', 'HCL/IBM Domino (Notes)'),
+    ('x-kse-', 'Kaspersky Security'),
+    ('x-nsp-', 'NoSpamProxy'),
+    ('x-retarus-', 'Retarus'),
+)
+
+# Dieselbe Frage aus der anderen Richtung: die Software, die eine
+# Received-Zeile über sich selbst schreibt. Das steht in Klammern hinter
+# "by <host>" und ist erstaunlich verlässlich.
+RECEIVED_PRODUCTS = (
+    (r'lotus domino release ([^)\s]+)', 'HCL/IBM Domino (Notes)'),
+    (r'\bdomino\b', 'HCL/IBM Domino (Notes)'),
+    (r'\bbarracuda\b', 'Barracuda'),
+    (r'microsoft smtp server', 'Microsoft Exchange'),
+    (r'\bpostfix\b', 'Postfix'),
+    (r'\bexim\b', 'Exim'),
+    (r'esmtp sendmail', 'Sendmail'),
+    (r'\bzimbra\b', 'Zimbra'),
+    (r'\bmdaemon\b', 'MDaemon'),
+    (r'\bkerio\b', 'Kerio Connect'),
+    (r'\bicewarp\b', 'IceWarp'),
+    (r'\bopensmtpd\b', 'OpenSMTPD'),
+    (r'\bqmail\b', 'qmail'),
+)
 _DKIM_TAG = re.compile(r'\b([a-z]+)\s*=\s*([^;]+)')
 
 
@@ -101,6 +146,34 @@ def _dkim_signatures(values: list) -> list:
     return out
 
 
+def detect_stations(names: list, hops: list, mailer: str) -> list:
+    """[{'name': ..., 'evidence': ...}] — welche Anlagen die Mail angefasst hat.
+
+    Doppelnennungen fallen weg: ein Gateway, das sich über drei verschiedene
+    Kopfzeilen zu erkennen gibt, ist trotzdem ein Gateway.
+    """
+    found = {}
+    # Erst die Received-Zeilen: dort steht oft die Version mit dabei
+    # ("Lotus Domino Release 12.0.2FP3"), und der Beleg soll der
+    # aussagekräftigere von beiden sein.
+    for hop in hops:
+        text = (hop.get('raw') or '').lower()
+        for pattern, product in RECEIVED_PRODUCTS:
+            m = re.search(pattern, text)
+            if m:
+                found.setdefault(product, m.group(0))
+    lowered = [n.lower() for n in names]
+    for needle, product in GATEWAY_HEADERS:
+        hit = next((n for n in lowered if n.startswith(needle)), '')
+        if hit:
+            found.setdefault(product, hit)
+    text = (mailer or '').lower()
+    if 'lotus notes' in text or 'hcl notes' in text:
+        found.setdefault('HCL/IBM Notes (Client)', mailer)
+    return [{'name': name, 'evidence': evidence[:80]}
+            for name, evidence in found.items()]
+
+
 def analyse(raw: str) -> dict:
     text = (raw or '').strip()
     if not text:
@@ -160,6 +233,7 @@ def analyse(raw: str) -> dict:
         'list_unsubscribe': header('List-Unsubscribe'),
         'spam_status': header('X-Spam-Status') or header('X-Spam-Level'),
         'auth': auth, 'dkim_signatures': signatures,
+        'stations': [],
         'hops': hops, 'hop_count': len(hops), 'total_seconds': total,
         'findings': [],
     }
@@ -208,6 +282,16 @@ def analyse(raw: str) -> dict:
                                      seconds=int(total or 0)))
     if signatures and not any(s['domain'] for s in signatures):
         findings.append(_finding(INFO, 'hdr_dkim_unparsed'))
+
+    try:
+        names = [k for k, _v in message.items()]
+    except Exception:  # noqa: BLE001
+        names = []
+    result['stations'] = detect_stations(names, hops, result['mailer'])
+    if result['stations']:
+        findings.append(_finding(INFO, 'hdr_stations',
+                                 list=', '.join(s['name']
+                                                for s in result['stations'])))
 
     result['level'] = _worst(findings)
     return result

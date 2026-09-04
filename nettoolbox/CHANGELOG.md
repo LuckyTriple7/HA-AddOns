@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.34] - 2026-09-04
+
+### Added
+- **Die Kopf-Analyse erkennt jetzt die Anlagen, durch die eine Mail gelaufen ist.** Von außen
+  sagt ein Mailserver oft gar nichts über sich — ein anonymisiertes Banner ist schnell gesetzt.
+  Die Kopfzeilen, die er den Mails selbst anhängt, stehen dagegen in jeder Nachricht:
+  - **Hersteller-Kopfzeilen:** `X-Barracuda-*`, `X-Proofpoint-*`, `X-Mimecast-*`,
+    `X-Hornetsecurity-*`, `X-IronPort-*`, `X-Sophos-*`, `X-Forefront-Antispam-Report`,
+    `X-MS-Exchange-*`, `X-Gm-Message-State`, `X-Spam-Status` (SpamAssassin), `X-Rspamd-*`,
+    `X-Lotus-FromDomain` und `X-Notes-Item` (Domino), `X-KSE-*`, `X-NSP-*`, `X-Retarus-*`.
+  - **Produktangaben in den Received-Zeilen:** „Lotus Domino Release 12.0.2FP3", „Microsoft SMTP
+    Server", Postfix, Exim, Sendmail, Zimbra, MDaemon, Kerio, IceWarp, OpenSMTPD, qmail.
+  - **Programm des Absenders** aus `X-Mailer` (etwa Lotus/HCL Notes).
+- Angezeigt als Zeile „Erkannte Stationen" mit dem jeweiligen Beleg als Tooltip; bei mehreren
+  Belegen für dasselbe Produkt gewinnt der aussagekräftigere (die Received-Zeile mit Version).
+
 ## [0.1.33] - 2026-09-04
 
 ### Added
