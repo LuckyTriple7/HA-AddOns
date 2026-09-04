@@ -48,6 +48,7 @@ _OPTS = os.environ.get('NETTOOLBOX_OPTIONS', '/data')
 
 CONFIG_PATH = _OPTS + '/options.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
+BLOCKS_PATH = _DATA + '/blocks.json'
 SECRET_PATH = _DATA + '/secret.key'
 HISTORY_PATH = _DATA + '/history.json'
 MONITOR_DB_PATH = _DATA + '/monitors.db'
@@ -261,37 +262,153 @@ RATE_LIMIT_BLOCK = 900
 
 _failed_attempts: dict = defaultdict(list)
 _blocked_ips: dict = {}
+_rate_lock = threading.Lock()
+# One notification per block, not one per attempt -- an attack that keeps
+# knocking must not turn the lockout itself into a mail flood. Holds when the
+# already-notified block runs out; anything older means "a new block, notify".
+_notified_blocks: dict = {}
 
 
 def get_client_ip(req) -> str:
     return req.remote_addr or 'unknown'
 
 
+def save_blocks() -> None:
+    """Blocks and attempt counters outlive a restart -- an add-on update in the
+    middle of an attack used to hand the attacker a clean slate. The caller
+    holds _rate_lock."""
+    try:
+        now = time.time()
+        attempts = {ip: [t for t in stamps if now - t < RATE_LIMIT_WINDOW]
+                    for ip, stamps in _failed_attempts.items()}
+        data = {'blocked': {ip: ts for ip, ts in _blocked_ips.items() if ts > now},
+                'attempts': {ip: ts for ip, ts in attempts.items() if ts}}
+        with open(BLOCKS_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+    except Exception:
+        log.warning("login blocks could not be saved")
+
+
+def load_blocks() -> None:
+    try:
+        with open(BLOCKS_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return
+    except Exception:
+        log.warning("login blocks could not be loaded")
+        return
+    if not isinstance(data, dict):
+        return
+    now = time.time()
+    with _rate_lock:
+        for ip, until in (data.get('blocked') or {}).items():
+            if isinstance(until, (int, float)) and until > now:
+                _blocked_ips[str(ip)] = float(until)
+                # The notification for this block already went out before the
+                # restart -- restoring it must not send a second one.
+                _notified_blocks[str(ip)] = float(until)
+        for ip, stamps in (data.get('attempts') or {}).items():
+            keep = [float(t) for t in (stamps or [])
+                    if isinstance(t, (int, float)) and now - t < RATE_LIMIT_WINDOW]
+            if keep:
+                _failed_attempts[str(ip)] = keep
+        active = len(_blocked_ips)
+    if active:
+        log.info("login blocks restored: %d active", active)
+
+
 def is_rate_limited(ip: str) -> bool:
     now = time.time()
-    if ip in _blocked_ips:
-        if now < _blocked_ips[ip]:
-            return True
-        del _blocked_ips[ip]
-    _failed_attempts[ip] = [t for t in _failed_attempts[ip]
-                            if now - t < RATE_LIMIT_WINDOW]
-    return False
+    with _rate_lock:
+        until = _blocked_ips.get(ip)
+        if until is not None:
+            if now < until:
+                return True
+            del _blocked_ips[ip]
+            _failed_attempts.pop(ip, None)
+            save_blocks()
+            return False
+        _failed_attempts[ip] = [t for t in _failed_attempts[ip]
+                                if now - t < RATE_LIMIT_WINDOW]
+        return False
 
 
 def record_failed_attempt(ip: str) -> None:
     now = time.time()
-    recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
-    recent.append(now)
-    _failed_attempts[ip] = recent
-    if len(recent) >= RATE_LIMIT_MAX:
-        _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+    with _rate_lock:
+        recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+        recent.append(now)
+        _failed_attempts[ip] = recent
+        blocked = len(recent) >= RATE_LIMIT_MAX
+        fresh = False
+        if blocked:
+            _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+            fresh = _notified_blocks.get(ip, 0.0) < now
+            _notified_blocks[ip] = now + RATE_LIMIT_BLOCK
+        save_blocks()
+    if blocked:
         log.warning("login blocked for %d minutes after too many failures",
                     RATE_LIMIT_BLOCK // 60)
+        if fresh:
+            notify_login_event('blocked', ip, len(recent))
 
 
 def clear_failed_attempts(ip: str) -> None:
-    _failed_attempts.pop(ip, None)
-    _blocked_ips.pop(ip, None)
+    with _rate_lock:
+        had = _failed_attempts.pop(ip, None) is not None
+        had = (_blocked_ips.pop(ip, None) is not None) or had
+        _notified_blocks.pop(ip, None)
+        if had:
+            save_blocks()
+
+
+# ── Anmelde-Benachrichtigungen ────────────────────────────────────────────────
+# Dieselben Kanäle wie die Wächter (settings.json bzw. Add-on-Optionen) und
+# bewusst derselbe fest deutsche Wortlaut wie in monitor.py -- eine
+# Benachrichtigung muss ohne die Übersetzungsschicht der Oberfläche auskommen.
+
+
+def _notify_async(subject: str, body: str) -> None:
+    """Im Hintergrund zustellen: ein SMTP-Server, der nicht antwortet, darf die
+    Antwort auf den Anmeldeversuch nicht seine ganze Zeitgrenze lang aufhalten."""
+    def run():
+        cfg = notify_config()
+        ok, err = monitor.send_email(cfg, subject, body)
+        if not ok and err != 'not_configured':
+            log.warning("login notification: email failed: %s", err)
+        ok, err = monitor.send_telegram(cfg, subject + "\n" + body)
+        if not ok and err != 'not_configured':
+            log.warning("login notification: telegram failed: %s", err)
+    threading.Thread(target=run, daemon=True).start()
+
+
+def notify_login_event(kind: str, ip: str, attempts: int = 0) -> None:
+    """kind 'blocked' -> zu viele Fehlversuche, 'ok' -> geglückte Anmeldung am
+    Direktport. Über Ingress kommt hier nichts an: dort hat der Supervisor
+    bereits angemeldet, es gibt kein Anmeldeformular."""
+    cfg = notify_config()
+    when = time.strftime('%Y-%m-%d %H:%M:%S')
+    if kind == 'blocked':
+        if not cfg.get('notify_login_fail', True):
+            return
+        subject = '🔴 [NetToolbox] Anmeldung gesperrt'
+        body = ("Zu viele fehlgeschlagene Anmeldeversuche am Direktport "
+                f"{PORT}.\n\n"
+                f"IP-Adresse: {ip}\n"
+                f"Versuche: {attempts} in {RATE_LIMIT_WINDOW // 60} Minuten\n"
+                f"Gesperrt für: {RATE_LIMIT_BLOCK // 60} Minuten\n"
+                f"Zeitpunkt: {when}\n\n"
+                "-- NetToolbox")
+    else:
+        if not cfg.get('notify_login_ok', False):
+            return
+        subject = '🔵 [NetToolbox] Anmeldung erfolgreich'
+        body = (f"Erfolgreiche Anmeldung am Direktport {PORT}.\n\n"
+                f"IP-Adresse: {ip}\n"
+                f"Zeitpunkt: {when}\n\n"
+                "-- NetToolbox")
+    _notify_async(subject, body)
 
 
 # Probes cost other people's DNS servers, so the number per minute is capped
@@ -656,6 +773,7 @@ def login():
             pass_ok = check_password_hash(stored, request.form.get('password', ''))
             if user_ok and pass_ok:
                 clear_failed_attempts(ip)
+                notify_login_event('ok', ip)
                 hours = _cfg_int('session_hours', 24, 1, 720)
                 resp = make_response(redirect(_safe_next('/')))
                 resp.set_cookie('session', create_session(hours),
@@ -1206,6 +1324,7 @@ def _startup_checks() -> None:
 if __name__ == '__main__':
     _bootstrap_options()
     load_sessions()
+    load_blocks()
     history_load()
     _startup_checks()
 

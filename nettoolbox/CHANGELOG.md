@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.1.42] - 2026-09-04
+
+### Added
+- **Benachrichtigung bei Anmeldeversuchen am Direktport.** Über dieselben Kanäle wie die
+  Wächter — Mail und Telegram, eingerichtet über das Zahnradsymbol im Header. Zwei neue
+  Schalter in den Einstellungen unter *Anmeldung*:
+  - **Bei gesperrter IP melden** (voreingestellt an): eine Meldung, sobald eine IP nach zu
+    vielen Fehlversuchen gesperrt wird — mit IP-Adresse, Zahl der Versuche, Sperrdauer und
+    Zeitpunkt. **Eine Meldung je Sperre, nicht je Versuch**, sonst würde ein laufender
+    Angriff die Sperre selbst zur Mailflut machen.
+  - **Bei erfolgreicher Anmeldung melden** (voreingestellt aus): für den Fall, dass am
+    Direktport überhaupt niemand angemeldet sein sollte. Wer ihn täglich benutzt, lässt den
+    Schalter aus.
+  - Zugestellt wird im Hintergrund: ein SMTP-Server, der nicht antwortet, hält die Antwort
+    auf den Anmeldeversuch nicht mehr seine ganze Zeitgrenze lang auf.
+  - Über Ingress passiert nichts davon — dort gibt es kein Anmeldeformular, Home Assistant
+    hat den Benutzer bereits angemeldet.
+
+### Changed
+- **Sperren überleben jetzt einen Neustart** (`blocks.json` im Datenverzeichnis). Bisher lagen
+  sie nur im Arbeitsspeicher: ein Add-on-Update mitten in einem Angriff hat dem Angreifer eine
+  saubere Weste ausgestellt. Gespeichert werden laufende Sperren **und** die angefangenen
+  Fehlversuche; eine wiederhergestellte Sperre löst keine zweite Meldung aus.
+- **Die Zählerstände stehen jetzt unter einem Schloss** (`_rate_lock`). Fünf gleichzeitige
+  Anmeldeversuche konnten sich vorher gegenseitig überschreiben und so mehr Versuche
+  durchlassen als erlaubt.
+
 ## [0.1.41] - 2026-09-04
 
 ### Changed

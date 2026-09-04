@@ -33,6 +33,7 @@ ENC_PREFIX = 'enc:'
 GROUPS = (
     ('mail', 'mail'),
     ('telegram', 'telegram'),
+    ('security', 'security'),
     ('tech', 'tech'),
 )
 
@@ -46,6 +47,12 @@ FIELDS = {
     'smtp_tls': ('bool', True, None, 'mail', 'smtp_tls', ''),
     'telegram_bot_token': ('str', '', 200, 'telegram', 'telegram_bot_token', ''),
     'telegram_chat_id': ('str', '', 64, 'telegram', 'telegram_chat_id', ''),
+    # Anmelde-Meldungen gehen über dieselben beiden Kanäle wie die Wächter.
+    # Fehlversuche sind voreingestellt an (eine Meldung je Sperre, nicht je
+    # Versuch), erfolgreiche Anmeldungen aus -- wer den Direktport täglich
+    # benutzt, will dafür keine Mail.
+    'notify_login_fail': ('bool', True, None, 'security', 'notify_login_fail', ''),
+    'notify_login_ok': ('bool', False, None, 'security', 'notify_login_ok', ''),
     # Zusatz-Datensatz fuer die Technik-Erkennung: nicht mitgeliefert, sondern
     # auf Wunsch zur Laufzeit geladen -- er steht unter der GPL-3.0 und darf
     # deshalb nicht im Abbild stecken (wapimport.py erklaert das ausfuehrlich).

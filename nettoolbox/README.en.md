@@ -66,6 +66,11 @@ about your domains leaves your own infrastructure.
   [Do I need the root-server worker?](#do-i-need-the-root-server-worker)
 - **Home Assistant entities** — every monitor as a sensor (`sensor.nettoolbox_<name>`) plus
   summary sensors, so states can be used on dashboards and in automations
+- **Login protection on the direct port** — 5 failed attempts within 10 minutes block the
+  IP for 15 minutes, and the block survives an add-on restart. On request NetToolbox
+  reports every block and/or every successful login by email and Telegram
+  (Settings → *Login*). None of this applies behind Ingress — Home Assistant
+  authenticates there itself.
 - History, rate limiting, dark/light · DE/EN · HA Ingress
 
 ## Quick start
