@@ -90,6 +90,10 @@ h3 { font-size: 0.87rem; color: var(--text); margin-bottom: 8px; font-weight: 60
         transition: border-color .15s, box-shadow .15s; }
 .card:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--accent)); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Ergebnisse klebten an der Knopfzeile darueber. Der Abstand kommt erst,
+   wenn wirklich etwas dasteht -- ein leerer Kasten soll keine Luecke
+   hinterlassen. */
+div[id$="Result"]:not(:empty) { margin-top: 14px; }
 .grow { flex: 1 1 220px; }
 label.field { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
 input[type="text"], input[type="password"], select {

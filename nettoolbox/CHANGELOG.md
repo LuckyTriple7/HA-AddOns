@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5] - 2026-09-04
+
+### Changed
+- **Mehr Luft zwischen Knopfzeile und Ergebnis.** Die Zusammenfassung klebte direkt unter
+  "Auswerten" — betrifft alle Karten, nicht nur die Kopfanalyse. Der Abstand kommt erst, wenn
+  wirklich etwas dasteht, damit ein leerer Ergebniskasten keine Lücke hinterlässt.
+
 ## [0.3.4] - 2026-09-04
 
 ### Fixed
