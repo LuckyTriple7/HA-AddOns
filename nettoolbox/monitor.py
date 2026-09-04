@@ -28,6 +28,12 @@ MONITOR_PROBES = {
     'tls': 'target',
     'blacklist': 'ip',
     'mail_health': 'domain',
+    # Eine ablaufende Domain ist der teuerste stille Ausfall ueberhaupt --
+    # domaininfo rechnet die Restlaufzeit ohnehin aus und warnt ab 30 Tagen,
+    # es fehlte nur der Waechter drumherum.
+    'whois': 'domain',
+    'http': 'target',
+    'seo': 'target',
     # 'target' here holds a comma-separated domain list -- probes.py's
     # _list() splits it, so one monitor covers as many domains as needed
     # instead of one monitor per domain.
@@ -263,6 +269,19 @@ def summarize(probe: str, result: dict) -> str:
         return f"Punktestand {result.get('score', '?')}/100"
     if probe == 'aaaa_guard':
         return result.get('summary') or 'Keine Details'
+    if probe == 'whois':
+        days = result.get('days_until_expiry')
+        if days is None:
+            return f"Registrar {result.get('registrar') or '?'}, kein Ablaufdatum veröffentlicht"
+        if days < 0:
+            return f"Domain seit {abs(days)} Tagen abgelaufen"
+        return f"Domain noch {days} Tage registriert (bis {result.get('expires', '?')[:10]})"
+    if probe == 'http':
+        status = result.get('final_status', '?')
+        url = result.get('final_url', '')
+        return f"Status {status} auf {url}"
+    if probe == 'seo':
+        return f"SEO-Punktestand {result.get('score', '?')}/100"
     return (result.get('level') or 'ok').upper()
 
 

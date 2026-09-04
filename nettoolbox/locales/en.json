@@ -525,5 +525,10 @@
   "ph_url": "example.com or https://example.com/path",
   "ph_monitor_name": "My server",
   "rbl_delist": "Delisting",
-  "rbl_delist_title": "Opens the operator's lookup or removal page in a new tab."
+  "rbl_delist_title": "Opens the operator's lookup or removal page in a new tab.",
+  "monitor_probe_whois": "Domain expiry",
+  "monitor_probe_http": "Reachability",
+  "monitor_probe_seo": "SEO score",
+  "monitor_whois_hint": "Warns from 30 days of remaining registration. Not every TLD publishes an expiry date — .de (DENIC) and .eu (EURid) do not, so this watcher has nothing to report there. It works for .com/.net/.org and most new TLDs.",
+  "f_domain_no_expiry": "The registry publishes no expiry date for this TLD — the remaining registration period cannot be determined."
 }

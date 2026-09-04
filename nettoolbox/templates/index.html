@@ -485,6 +485,9 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
           <option value="blacklist">{{ t.nav_blacklist }}</option>
           <option value="mail_health">{{ t.nav_mail }}</option>
           <option value="aaaa_guard">{{ t.monitor_probe_aaaa }}</option>
+          <option value="whois">{{ t.monitor_probe_whois }}</option>
+          <option value="http">{{ t.monitor_probe_http }}</option>
+          <option value="seo">{{ t.monitor_probe_seo }}</option>
         </select>
       </div>
       <div class="grow">
@@ -496,7 +499,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
         <input type="text" id="monInterval" value="6" inputmode="numeric">
       </div>
     </div>
-    <div class="hint" id="monTargetHint" hidden>{{ t.monitor_aaaa_hint }}</div>
+    <div class="hint" id="monTargetHint" hidden></div>
     <div class="row" style="margin-top:8px; align-items:center">
       <label style="display:flex; align-items:center; gap:5px; font-size:0.82rem">
         <input type="checkbox" id="monEmail" checked> {{ t.field_notify_email }}
@@ -1942,9 +1945,16 @@ const monitorHistoryOpen = {};
 let editingMonitorId = null;
 
 function updateMonTargetHint(){
-  const aaaa = $('monProbe').value === 'aaaa_guard';
-  $('monTargetHint').hidden = !aaaa;
-  $('monTarget').placeholder = aaaa ? 'example.com, example.org, ...' : 'example.com';
+  // Zwei Sonderfaelle brauchen einen Satz Erklaerung an genau dieser Stelle:
+  // die Domainliste beim AAAA-Waechter und die Endungen, die gar kein
+  // Ablaufdatum veroeffentlichen.
+  const probe = $('monProbe').value;
+  const hints = { aaaa_guard: T.monitor_aaaa_hint, whois: T.monitor_whois_hint };
+  const hint = hints[probe] || '';
+  $('monTargetHint').textContent = hint;
+  $('monTargetHint').hidden = !hint;
+  $('monTarget').placeholder = probe === 'aaaa_guard'
+    ? 'example.com, example.org, ...' : T.ph_domain;
 }
 $('monProbe').addEventListener('change', updateMonTargetHint);
 updateMonTargetHint();
@@ -1972,7 +1982,9 @@ function cancelEditMonitor(){
   $('monCancelEdit').style.display = 'none';
   updateMonTargetHint();
 }
-const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist, mail_health: T.nav_mail, aaaa_guard: T.monitor_probe_aaaa });
+const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist,
+  mail_health: T.nav_mail, aaaa_guard: T.monitor_probe_aaaa,
+  whois: T.monitor_probe_whois, http: T.monitor_probe_http, seo: T.monitor_probe_seo });
 
 async function loadMonitors(){
   const box = $('monitorList');

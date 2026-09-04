@@ -525,5 +525,10 @@
   "ph_url": "example.com oder https://example.com/pfad",
   "ph_monitor_name": "Mein Server",
   "rbl_delist": "Austragen",
-  "rbl_delist_title": "Öffnet die Abfrage- bzw. Austragungsseite des Betreibers in einem neuen Tab."
+  "rbl_delist_title": "Öffnet die Abfrage- bzw. Austragungsseite des Betreibers in einem neuen Tab.",
+  "monitor_probe_whois": "Domain-Ablauf",
+  "monitor_probe_http": "Erreichbarkeit",
+  "monitor_probe_seo": "SEO-Punktestand",
+  "monitor_whois_hint": "Warnt ab 30 Tagen Restlaufzeit. Nicht jede Endung veröffentlicht ein Ablaufdatum — .de (DENIC) und .eu (EURid) tun es nicht, dort kann dieser Wächter nichts melden. Bei .com/.net/.org und den meisten neuen Endungen funktioniert er.",
+  "f_domain_no_expiry": "Die Registry veröffentlicht kein Ablaufdatum für diese Endung — eine Restlaufzeit lässt sich damit nicht bestimmen."
 }

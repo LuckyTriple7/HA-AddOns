@@ -211,6 +211,12 @@ def _apply_common_findings(result: dict, findings: list) -> None:
         except ValueError:
             pass
 
+    if not result['expires']:
+        # Nicht jede Registry veroeffentlicht das Ablaufdatum -- DENIC (.de)
+        # und EURid (.eu) tun es nicht. Ohne diesen Hinweis sieht ein
+        # Domain-Ablauf-Waechter fuer solche Endungen aus, als sei alles in
+        # Ordnung, obwohl er schlicht nichts zu pruefen hat.
+        findings.append(_finding(INFO, 'domain_no_expiry'))
     if not result['registrar'] and result['source'] == 'rdap':
         findings.append(_finding(INFO, 'domain_registrar_redacted'))
 
@@ -286,7 +292,13 @@ def _whois_lookup(ctx: Context, domain: str) -> dict:
     for key, pattern in _WHOIS_FIELD_PATTERNS:
         m = pattern.search(text)
         if m and not result[key]:
-            result[key] = m.group(1).strip()
+            value = m.group(1).strip()
+            # EURid schreibt "Registrar:" in eine eigene Zeile und den
+            # Namen eingerueckt darunter als "Name: netcup GmbH" -- ohne
+            # diese Kuerzung stand das Praefix mit im Ergebnis.
+            if key == 'registrar' and value.lower().startswith('name:'):
+                value = value.split(':', 1)[1].strip()
+            result[key] = value
 
     if not result['registered'] and not result['expires']:
         findings.append(_finding(INFO, 'whois_fields_withheld', server=server))

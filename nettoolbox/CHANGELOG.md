@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.25] - 2026-09-04
+
+### Added
+- **Drei neue Wächter im Monitoring:**
+  - **Domain-Ablauf** — meldet eine auslaufende Registrierung ab 30 Tagen Restlaufzeit, per Mail
+    oder Telegram wie die übrigen Wächter. Die Restlaufzeit rechnete `domaininfo.py` schon aus,
+    es fehlte nur der Wächter drumherum.
+  - **Erreichbarkeit** — HTTP-Status und Weiterleitungsziel einer Adresse.
+  - **SEO-Punktestand** — schlägt an, wenn der Wert kippt (etwa weil ein Deployment `noindex`
+    stehen lässt oder die Sitemap verschwindet).
+- Beim Domain-Ablauf steht direkt im Formular, wo die Grenze liegt: **.de (DENIC) und .eu
+  (EURid) veröffentlichen kein Ablaufdatum**, dort kann der Wächter nichts melden. Bei
+  .com/.net/.org und den meisten neuen Endungen funktioniert er (live geprüft: github.com,
+  noch 35 Tage).
+
+### Fixed
+- Fehlt das Ablaufdatum, sagt die Whois-Prüfung das jetzt ausdrücklich als Hinweis, statt es
+  stillschweigend leer zu lassen — sonst sieht ein Domain-Wächter für .de aus, als sei alles
+  geprüft.
+- **.eu-Whois: Registrar wurde als „Name: netcup GmbH" ausgegeben.** EURid schreibt „Registrar:"
+  in eine eigene Zeile und den Namen eingerückt darunter; das Präfix wird jetzt abgeschnitten.
+
 ## [0.1.24] - 2026-09-04
 
 ### Added
