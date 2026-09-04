@@ -11,24 +11,29 @@ configuration:
   worker_url:
     name: Root-Server-Worker — Adresse
     description: >-
-      Adresse einer zweiten NetToolbox-Instanz (z. B. auf einem Root-Server mit fester IPv4),
-      an die diese Instanz ihre Prüfungen weiterreicht — etwa https://tools.example.com. Leer
-      lassen, dann prüft diese Instanz selbst, mit den Einschränkungen der eigenen Internetleitung
-      (Port 25 meist gesperrt, manche Sperrlisten antworten öffentlichen Resolvern nicht).
+      Optional, im Normalfall leer lassen. Nur ausfüllen, wenn eine zweite NetToolbox-Instanz auf
+      einem Root-Server läuft, die die Prüfungen übernehmen soll — Basisadresse ohne Pfad, etwa
+      https://tools.example.com. Leer bedeutet: diese Instanz prüft selbst, mit den
+      Einschränkungen der eigenen Internetleitung (Port 25 meist gesperrt, manche Sperrlisten
+      antworten öffentlichen Resolvern nicht). Wer NetToolbox ohnehin nur auf einem Root-Server
+      betreibt, braucht hier nichts einzutragen.
   worker_token:
     name: Root-Server-Worker — Zugriffsschlüssel
     description: >-
       Muss mit dem worker_token der Ziel-Instanz übereinstimmen. Dort zusätzlich worker_enabled
-      einschalten.
+      einschalten, sonst antwortet sie mit worker_disabled. Der Schlüssel geht bei jeder Anfrage
+      mit, über http also im Klartext — den Worker deshalb hinter einen Reverse-Proxy mit TLS
+      stellen.
   worker_tls_verify:
     name: Root-Server-Worker — TLS-Zertifikat prüfen
     description: Nur bei einer https-Adresse mit selbstsigniertem Zertifikat abschalten.
   worker_enabled:
     name: Als Worker für andere Instanzen bereitstehen
     description: >-
-      Schaltet die Endpunkte /worker/info und /worker/probe frei. Nur mit einem starken,
-      zufälligen worker_token einschalten — jeder mit gültigem Schlüssel kann diese Instanz für
-      DNS- und HTTP-Abfragen benutzen.
+      Gehört auf die Gegenseite: einzuschalten auf der Instanz, die die Prüfungen ausführen soll,
+      nicht auf der, die sie abschickt. Schaltet die Endpunkte /worker/info und /worker/probe
+      frei. Nur mit einem starken, zufälligen worker_token einschalten — jeder mit gültigem
+      Schlüssel kann diese Instanz für DNS- und HTTP-Abfragen benutzen.
   resolvers:
     name: DNS-Resolver
     description: >-

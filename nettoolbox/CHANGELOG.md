@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.18] - 2026-09-04
+
+### Changed
+- **Dokumentation zum Root-Server-Worker neu geschrieben (DE und EN).** Der bisherige Text
+  beschrieb nur *wie* man den Worker einrichtet, nicht *ob* man ihn überhaupt braucht — mit dem
+  Ergebnis, dass eine einzelne Instanz auf einem Root-Server so aussah, als fehle ihr noch eine
+  Einstellung. Neuer Abschnitt "Brauche ich den Root-Server-Worker?" mit klarer Antwort: bei nur
+  einer Instanz, egal wo sie läuft, bleiben alle `worker_*`-Optionen leer, und die Statusanzeige
+  "Lokal" ist der gewünschte Zustand. Der Worker ist ausschließlich die Krücke für eine
+  Heim-Instanz hinter einem gesperrten Port 25.
+- Einrichtung jetzt als Zwei-Seiten-Tabelle: was auf dem Root-Server und was im
+  Home-Assistant-Add-on einzutragen ist, samt Hinweis auf `worker_disabled` als Antwort einer
+  Gegenseite ohne `worker_enabled`, und auf den Token, der über http im Klartext mitläuft.
+- Optionsbeschreibungen in `translations/de.yaml` und `en.yaml` entsprechend geschärft:
+  `worker_url` ist ausdrücklich optional, `worker_enabled` gehört auf die ausführende Seite.
+- Standalone-Abschnitt um die Dockge-Pfade ergänzt (`/opt/stacks/<stack>/data/options.json`) und
+  um den Hinweis, dass Änderungen an `options.json` sofort greifen.
+
+### Fixed
+- **Falsche Angabe zum erzeugten Passwort korrigiert.** README (DE/EN) und der Kommentarkopf der
+  `docker-compose.yml` verwiesen auf `docker compose logs` als Fundort — das Passwort steht aber
+  bewusst nur in `data/options.json` und nie im Protokoll.
+
 ## [0.1.17] - 2026-09-04
 
 ### Fixed

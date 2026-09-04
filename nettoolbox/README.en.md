@@ -30,17 +30,17 @@ about your domains leaves your own infrastructure.
 - **Monitoring** — check domains/IPs automatically at a chosen interval (TLS expiry, blocklists,
   mail health), notification by email or Telegram on a state change; SMTP/Telegram set up via
   the gear icon in the header, not the add-on options
-- **Root-server worker** — the same instance can act as a target for a second one: with a fixed
-  IPv4 and an open port 25, lookups run where blocklists actually answer and SMTP tests are
-  possible, instead of behind a typical home connection
+- **Root-server worker** *(optional)* — a home instance can hand its checks to a second instance
+  on a root server, where port 25 is open and blocklists answer. Running NetToolbox on the root
+  server in the first place makes this unnecessary — see
+  [Do I need the root-server worker?](#do-i-need-the-root-server-worker)
 - History, rate limiting, dark/light · DE/EN · HA Ingress
 
 ## Quick start
 
 1. Install the add-on, change `password` in the options
-2. Optional: run a second instance on a root server with a fixed IPv4, set `worker_enabled` and a
-   random `worker_token` there, and enter both under `worker_url` / `worker_token` on the
-   home instance
+2. That's it — every check works right away. The worker options are **optional** and only
+   needed for the special case described in the next section.
 
 ## Ports
 
@@ -48,15 +48,81 @@ about your domains leaves your own infrastructure.
 |------|---------|
 | 17798 | NetToolbox web UI (direct, sign-in required) |
 
+## Do I need the root-server worker?
+
+Short answer: **usually not.** The worker solves exactly one problem, and it is a problem of an
+ordinary home connection:
+
+- **Outbound port 25 is blocked** — most consumer ISPs block it, which makes SMTP tests
+  impossible.
+- **Blocklists stay silent** — Spamhaus and other DNSBLs often refuse to answer queries coming
+  from consumer IPs and large public resolvers.
+
+If a root server with a fixed IPv4 and an open port 25 is available, a second NetToolbox
+instance there can take over the checks — the home instance asks, the root server executes.
+
+**The decision in one line:**
+
+| Setup | What to configure |
+|-------|-------------------|
+| A single instance, wherever it runs (including directly on the root server) | **nothing.** Leave every `worker_*` option empty or `false` — the status pill reads "Local", which is the intended state |
+| A home instance **and** a second one on the root server | configure both sides, see below |
+
+Running NetToolbox on the root server in the first place means it already probes from exactly
+the connection that matters. There is nothing to hand off.
+
+### Setting it up when both instances run
+
+The token is the only access control, so it has to exist on **both** sides. Without
+`worker_enabled` the `/worker/info` and `/worker/probe` endpoints stay switched off and answer
+with `worker_disabled` — the client then only ever gets an error back.
+
+**1. On the root server** (the instance doing the work):
+
+```json
+"worker_enabled": true,
+"worker_token": "<output of: openssl rand -hex 32>"
+```
+
+**2. At home in the Home Assistant add-on** (the instance asking) under *Settings → Add-ons →
+NetToolbox → Configuration*:
+
+| Option | Value |
+|--------|-------|
+| `worker_url` | base address of the root server **without a path**, e.g. `https://nettoolbox.example.com` |
+| `worker_token` | the same random value as above |
+| `worker_tls_verify` | leave at `true` as long as a real certificate is in place |
+| `worker_enabled` | stays `false` here — the home instance is a client, not a worker |
+
+The status pill in the header then reads "Worker connected" (at home) and "Worker mode" (on the
+root server).
+
+> **Security:** the token travels as an `X-Nettoolbox-Token` header on every request. Over plain
+> `http://` it crosses the internet in the clear, and whoever holds it can use the root server as
+> a scanner. Put the worker behind a reverse proxy with TLS instead of exposing port 17798
+> directly.
+
 ## Standalone (without Home Assistant, e.g. with Dockge)
 
 The same image also runs without the Supervisor — see [docker-compose.yml](docker-compose.yml):
 
 ```sh
 docker compose up -d
-docker compose logs nettoolbox   # shows the generated password for "admin"
 ```
 
-On first start NetToolbox creates `data/options.json` itself, with a random password printed to
-the log. That same instance can act as a root-server worker (set `worker_enabled` and
-`worker_token` in the file) or as a client of one (`worker_url` and `worker_token`).
+On first start NetToolbox creates `data/options.json` itself, with a randomly generated password
+for the `admin` user. **That password is only ever written to the file, never to the log** —
+container logs are too easy to read and kept for too long:
+
+```sh
+cat ./data/options.json
+```
+
+Every option from the section above is set in that same file, under the same names. Changes take
+effect immediately, no restart needed: the file is re-read whenever its timestamp changes.
+
+Since the password and the token sit in there in the clear: `chmod 600 ./data/options.json`.
+
+**With Dockge:** stacks live under `/opt/stacks/<stackname>/`, so the `./data` volume ends up in
+`/opt/stacks/nettoolbox/data/`. Edit the file through the terminal Dockge offers for each stack,
+or over SSH.

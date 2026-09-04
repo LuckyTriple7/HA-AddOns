@@ -11,22 +11,27 @@ configuration:
   worker_url:
     name: Root-server worker — address
     description: >-
-      Address of a second NetToolbox instance (for example on a root server with a fixed IPv4)
-      that this instance hands its probes to — e.g. https://tools.example.com. Leave empty to
-      probe locally instead, with the limits of a typical home connection (port 25 usually
-      blocked, some blocklists refuse public resolvers).
+      Optional, normally left empty. Only fill this in when a second NetToolbox instance runs on
+      a root server and should take over the checks — base address without a path, e.g.
+      https://tools.example.com. Empty means this instance probes on its own, with the limits of
+      a typical home connection (port 25 usually blocked, some blocklists refuse public
+      resolvers). Running NetToolbox on a root server in the first place needs nothing here.
   worker_token:
     name: Root-server worker — access token
-    description: Must match the target instance's worker_token. Also enable worker_enabled there.
+    description: >-
+      Must match the target instance's worker_token. Also enable worker_enabled there, otherwise
+      it answers with worker_disabled. The token travels with every request, in the clear over
+      http — so put the worker behind a reverse proxy with TLS.
   worker_tls_verify:
     name: Root-server worker — verify TLS certificate
     description: Only disable for an https address with a self-signed certificate.
   worker_enabled:
     name: Act as a worker for other instances
     description: >-
-      Exposes the /worker/info and /worker/probe endpoints. Only enable with a strong, random
-      worker_token — anyone holding a valid token can use this instance to run DNS and HTTP
-      probes.
+      Belongs on the other side: enable it on the instance that runs the checks, not on the one
+      sending them. Exposes the /worker/info and /worker/probe endpoints. Only enable with a
+      strong, random worker_token — anyone holding a valid token can use this instance to run DNS
+      and HTTP probes.
   resolvers:
     name: DNS resolvers
     description: >-

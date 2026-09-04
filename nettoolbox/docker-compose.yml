@@ -2,14 +2,17 @@
 #
 # Schnellstart:
 #   1. docker compose up -d
-#   2. docker compose logs nettoolbox   → erzeugtes Passwort für "admin"
-#   3. http://<server>:17798 öffnen, mit admin + dem geloggten Passwort anmelden
+#   2. cat ./data/options.json          → erzeugtes Passwort für "admin"
+#   3. http://<server>:17798 öffnen und mit admin + diesem Passwort anmelden
 #
 # Eine data/options.json wird beim ersten Start automatisch angelegt (mit
-# zufälligem Passwort). Danach lässt sich dort alles einstellen — auch, ob
-# diese Instanz selbst als Root-Server-Worker für eine andere NetToolbox
-# dient (worker_enabled + worker_token) oder umgekehrt ihre eigenen Abfragen
-# an eine solche weiterreicht (worker_url + worker_token).
+# zufälligem Passwort). Das Passwort steht ausschließlich in dieser Datei und
+# bewusst nie im Container-Log. Danach lässt sich dort alles einstellen.
+#
+# Die worker_*-Optionen sind optional und nur für den Fall gedacht, dass eine
+# zweite Instanz zuhause ihre Prüfungen hierher durchreichen soll (dann hier
+# worker_enabled + worker_token setzen). Wer NetToolbox ohnehin nur auf einem
+# Root-Server betreibt, lässt sie leer — siehe README.
 
 services:
   nettoolbox:
