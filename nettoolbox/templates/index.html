@@ -457,6 +457,29 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     <p class="hint">{{ t.traceroute_hint }} {{ t.traceroute_icmp_hint }}</p>
     <div id="tracerouteResult"></div>
   </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M4,1H20A1,1 0 0,1 21,2V6A1,1 0 0,1 20,7H4A1,1 0 0,1 3,6V2A1,1 0 0,1 4,1M4,9H20A1,1 0 0,1 21,10V14A1,1 0 0,1 20,15H4A1,1 0 0,1 3,14V10A1,1 0 0,1 4,9M4,17H20A1,1 0 0,1 21,18V22A1,1 0 0,1 20,23H4A1,1 0 0,1 3,22V18A1,1 0 0,1 4,17M9,5H10V3H9V5M9,13H10V11H9V13M9,21H10V19H9V21M5,3V5H7V3H5M5,11V13H7V11H5M5,19V21H7V19H5Z"/></svg>{{ t.ports_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="portsTarget">{{ t.field_host_or_ip }}</label>
+        <input type="text" id="portsTarget" placeholder="{{ t.ph_host_or_ip }}" autocomplete="off">
+      </div>
+      <div style="width:100px">
+        <label class="field" for="portsFamily">{{ t.field_ip_family }}</label>
+        <select id="portsFamily">
+          <option value="">{{ t.ip_family_auto }}</option>
+          <option value="4">IPv4</option>
+          <option value="6">IPv6</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="portsRun">{{ t.action_check }}</button>
+        <button class="btn" id="dualRun">{{ t.action_dualstack }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.ports_hint }}</p>
+    <div id="portsResult"></div>
+  </div>
 </section>
 
 <section id="tab-tls">
@@ -1690,6 +1713,99 @@ $('pingRun').addEventListener('click', pingCheck);
 $('tracerouteRun').addEventListener('click', tracerouteCheck);
 $('pingTarget').addEventListener('keydown', e => { if (e.key === 'Enter') pingCheck(); });
 $('traceTarget').addEventListener('keydown', e => { if (e.key === 'Enter') tracerouteCheck(); });
+
+// ── Portcheck und IPv4/IPv6-Vergleich ───────────────────────────────────────
+
+function portStateCell(state){
+  // Drei Zustände, drei Farben: geschlossen ist eine Antwort, gefiltert ist
+  // Schweigen -- das darf nicht gleich aussehen.
+  const cls = { open: 'ok', closed: 'info', filtered: 'warn' }[state] || 'info';
+  return el('span', 'badge ' + cls, T['port_state_' + state] || state);
+}
+
+async function portsCheck(){
+  const target = $('portsTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('portsResult'); showLoading(box);
+  try {
+    const data = await runProbe('ports',
+      { target: target, family: $('portsFamily').value }, target, $('portsRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', r.address));
+    badges.appendChild(el('span', 'chip', 'IPv' + r.family));
+    badges.appendChild(el('span', 'chip',
+      fmtStr(T.ports_open_count, { open: r.open_count, checked: r.checked })));
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    ['Port', T.field_service, T.field_status].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', String(row.port)));
+      const service = el('td');
+      service.appendChild(el('span', '', row.service));
+      if (row.state === 'open' && !row.expected) {
+        const mark = el('span', 'chip', T.ports_unexpected_mark);
+        mark.title = T.ports_unexpected_title;
+        service.appendChild(mark);
+      }
+      tr.appendChild(service);
+      const state = el('td'); state.appendChild(portStateCell(row.state));
+      tr.appendChild(state);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+async function dualstackCheck(){
+  const target = $('portsTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('portsResult'); showLoading(box);
+  try {
+    const data = await runProbe('dualstack', { target: target }, target, $('dualRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', 'IPv4: ' + (r.v4_address || '—')));
+    badges.appendChild(el('span', 'chip', 'IPv6: ' + (r.v6_address || '—')));
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    const table = el('table');
+    const thead = el('thead'); const trh = el('tr');
+    ['Port', T.field_service, 'IPv4', 'IPv6'].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    r.rows.forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', String(row.port)));
+      tr.appendChild(el('td', '', row.service));
+      ['v4', 'v6'].forEach(key => {
+        const td = el('td');
+        if (row[key]) td.appendChild(portStateCell(row[key]));
+        else td.appendChild(el('span', '', '—'));
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('portsRun').addEventListener('click', portsCheck);
+$('dualRun').addEventListener('click', dualstackCheck);
+$('portsTarget').addEventListener('keydown', e => { if (e.key === 'Enter') portsCheck(); });
 
 // ── Dauerping (continuous ping, own loop -- deliberately not runProbe()'s
 // shared abort controller, so a click elsewhere in the app can't kill a

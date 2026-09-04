@@ -187,6 +187,7 @@ def build_context() -> Context:
         dns_timeout=float(_cfg_int('dns_timeout', 5, 1, 60)),
         http_timeout=float(_cfg_int('http_timeout', 10, 1, 120)),
         allow_private=bool(cfg.get('allow_private_targets')),
+        allow_port_check=bool(cfg.get('port_check_enabled', True)),
         user_agent='NetToolbox/' + (APP_VERSION or '0'))
 
 
@@ -408,6 +409,7 @@ _ERROR_STATUS = {
     'no_mail_host': 404, 'null_mx': 404, 'not_html': 415,
     'empty_header': 400, 'header_too_large': 413,
     'dane_unreachable': 502, 'dane_no_starttls': 502, 'dane_no_certificate': 502,
+    'port_check_disabled': 403,
     'dns_timeout': 504, 'http_timeout': 504, 'worker_timeout': 504,
     'tls_timeout': 504, 'whois_timeout': 504, 'smtp_timeout': 504,
     'quic_response_timeout': 504, 'ping_timeout': 504, 'traceroute_timeout': 504,

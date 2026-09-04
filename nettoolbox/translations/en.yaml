@@ -76,5 +76,12 @@ configuration:
       sensor.nettoolbox_probleme and binary_sensor.nettoolbox_problem, so the states can be
       shown on dashboards and used in automations. Refreshed every minute, because such states
       do not survive a Home Assistant restart. No effect outside the Supervisor.
+  port_check_enabled:
+    name: Allow port check
+    description: >-
+      Enables the “Port check” and “IPv4/IPv6 comparison” cards. Only a fixed, short list of
+      well-known services on exactly the host entered is probed — no network ranges, no port
+      ranges. Switch it off if this instance should never open connections to third-party
+      services.
 network:
   17798/tcp: NetToolbox web UI (direct, sign-in required)

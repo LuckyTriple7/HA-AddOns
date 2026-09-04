@@ -14,6 +14,7 @@ import mailauth
 import mailheader
 import mailprovider
 import netutils
+import portcheck
 import quiccheck
 import seocheck
 import smtpcheck
@@ -320,6 +321,29 @@ def p_seo(ctx: Context, params: dict) -> dict:
     return seocheck.check_seo(ctx, _str(params, 'target'))
 
 
+def _port_check_allowed(ctx: Context) -> None:
+    """Der Portcheck lässt sich abschalten.
+
+    Er ist harmlos gebaut (feste kurze Liste, ein Host, kein Bereich), aber
+    wer das Add-on jemandem zugänglich macht, soll entscheiden können, ob
+    von hier aus überhaupt Verbindungen zu fremden Diensten aufgebaut
+    werden.
+    """
+    if not getattr(ctx, 'allow_port_check', True):
+        raise ProbeError('port_check_disabled')
+
+
+def p_ports(ctx: Context, params: dict) -> dict:
+    _port_check_allowed(ctx)
+    return portcheck.check_ports(ctx, _str(params, 'target'),
+                                 family=_str(params, 'family'))
+
+
+def p_dualstack(ctx: Context, params: dict) -> dict:
+    _port_check_allowed(ctx)
+    return portcheck.check_dualstack(ctx, _str(params, 'target'))
+
+
 def p_ping(ctx: Context, params: dict) -> dict:
     count = params.get('count')
     if count is None:
@@ -368,6 +392,8 @@ PROBES = {
     'mailheader': p_mailheader,
     'ping': p_ping,
     'traceroute': p_traceroute,
+    'ports': p_ports,
+    'dualstack': p_dualstack,
     'ipinfo': p_ipinfo,
     'spf': p_spf,
     'dkim': p_dkim,
@@ -386,6 +412,7 @@ TARGET_KIND = {
     'http': 'target', 'smtp': 'target', 'quic': 'target',
     'seo': 'target', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
+    'ports': 'target', 'dualstack': 'target',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',
     'mail_health': 'domain',

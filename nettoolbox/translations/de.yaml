@@ -79,5 +79,12 @@ configuration:
       Zustände auf Dashboards zeigen und in Automationen verwenden. Wird jede Minute
       aktualisiert, weil solche Zustände einen Neustart von Home Assistant nicht überleben.
       Ohne Wirkung außerhalb des Supervisors.
+  port_check_enabled:
+    name: Portcheck erlauben
+    description: >-
+      Erlaubt die Karten „Portcheck" und „IPv4/IPv6-Vergleich". Geprüft wird eine feste, kurze
+      Liste bekannter Dienste auf genau dem eingegebenen Host — keine Netzbereiche, keine
+      Portbereiche. Abschalten, wenn von dieser Instanz aus grundsätzlich keine Verbindungen zu
+      fremden Diensten aufgebaut werden sollen.
 network:
   17798/tcp: NetToolbox Web-UI (direkt, Anmeldung erforderlich)

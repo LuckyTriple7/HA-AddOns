@@ -28,6 +28,7 @@ COPY smtpcheck.py .
 COPY quiccheck.py .
 COPY seocheck.py .
 COPY netutils.py .
+COPY portcheck.py .
 COPY geoip.py .
 COPY monitor.py .
 COPY hasensors.py .

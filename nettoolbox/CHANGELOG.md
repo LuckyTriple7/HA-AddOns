@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.33] - 2026-09-04
+
+### Added
+- **Portcheck** (neue Karte in den Netzwerk-Tools, `portcheck.py`). Eine feste Liste von 20
+  bekannten Diensten auf genau dem eingegebenen Host — keine Netzbereiche, keine Portbereiche,
+  kein Bannergrabbing. Unterschieden werden **drei** Zustände statt zwei: offen, **geschlossen**
+  (es antwortet jemand mit einer Ablehnung) und **gefiltert** (gar keine Antwort — dazwischen
+  steht eine Firewall). Genau dieser Unterschied ist bei der Fehlersuche der Punkt.
+- Dienste, die aus dem Internet erreichbar normalerweise nichts zu suchen haben (MySQL,
+  PostgreSQL, Redis, MongoDB, RDP, VNC, FTP), sind als solche markiert und ergeben einen eigenen
+  Warnfund, wenn sie offen stehen.
+- **IPv4/IPv6-Vergleich** — dieselben Dienste über beide Adressfamilien nebeneinander. Ein
+  Dienst, der nur über IPv4 antwortet, fällt sonst nur sporadisch auf: nämlich immer dann, wenn
+  ein Client IPv6 bevorzugt. Genau das wird als kritischer Fund benannt.
+- Beides über die neue Option **`port_check_enabled`** abschaltbar (Vorgabe an), damit eine
+  öffentlich erreichbare Instanz nicht ungefragt Verbindungen zu fremden Diensten aufbaut. Der
+  bestehende SSRF-Schutz greift unverändert: private Ziele bleiben gesperrt.
+
 ## [0.1.32] - 2026-09-04
 
 ### Added

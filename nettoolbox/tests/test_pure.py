@@ -9,6 +9,7 @@ Run with:  python3 -m pytest tests -q     (from the add-on directory)
 """
 
 import os
+import socket
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,6 +23,7 @@ import mailheader  # noqa: E402
 import mailprovider  # noqa: E402
 import netcore  # noqa: E402
 import netutils  # noqa: E402
+import portcheck  # noqa: E402
 import seocheck  # noqa: E402
 import smtpcheck  # noqa: E402
 import tlscheck  # noqa: E402
@@ -527,6 +529,62 @@ def test_tlsa_digest_matches_openssl_convention():
     assert tlsextra._tlsa_digest(der, 0, 0) == der.hex()
     with pytest.raises(ValueError):
         tlsextra._tlsa_digest(der, 0, 9)
+
+
+# ── portcheck ────────────────────────────────────────────────────────────────
+
+def test_port_list_is_sane():
+    """Eine feste, kurze Liste -- kein Scanner. Jeder Eintrag vollstaendig,
+    keine Dopplungen, und die riskanten Dienste sind als solche markiert."""
+    ports = [p for p, _service, _expected in portcheck.PORTS]
+    assert len(ports) == len(set(ports))
+    assert all(1 <= p <= 65535 for p in ports)
+    riskant = {p for p, _s, expected in portcheck.PORTS if not expected}
+    assert {3306, 5432, 6379, 3389, 27017} <= riskant
+
+
+def test_family_constants():
+    assert portcheck._family_const('4') == socket.AF_INET
+    assert portcheck._family_const('6') == socket.AF_INET6
+    assert portcheck._family_const('') == socket.AF_UNSPEC
+
+
+def test_probe_port_reports_closed_on_refusal(monkeypatch):
+    """Abgelehnt ist nicht dasselbe wie unbeantwortet -- genau darauf kommt
+    es bei der Fehlersuche an."""
+    class _Sock:
+        def __init__(self, *a, **kw):
+            pass
+
+        def settimeout(self, _t):
+            pass
+
+        def connect(self, _addr):
+            raise ConnectionRefusedError()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(portcheck.socket, 'socket', _Sock)
+    assert portcheck._probe_port(socket.AF_INET, '203.0.113.1', 25) == 'closed'
+
+
+def test_probe_port_reports_filtered_on_timeout(monkeypatch):
+    class _Sock:
+        def __init__(self, *a, **kw):
+            pass
+
+        def settimeout(self, _t):
+            pass
+
+        def connect(self, _addr):
+            raise socket.timeout()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(portcheck.socket, 'socket', _Sock)
+    assert portcheck._probe_port(socket.AF_INET, '203.0.113.1', 25) == 'filtered'
 
 
 # ── translations ─────────────────────────────────────────────────────────────

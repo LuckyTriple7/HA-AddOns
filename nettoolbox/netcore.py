@@ -41,6 +41,7 @@ class Context:
     dns_timeout: float = 5.0
     http_timeout: float = 10.0
     allow_private: bool = False
+    allow_port_check: bool = True
     user_agent: str = 'NetToolbox'
 
 

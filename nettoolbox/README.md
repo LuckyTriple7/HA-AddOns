@@ -34,6 +34,8 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **Anbieter-/Software-Erkennung** — Betreiber aus den MX-Namen (Microsoft 365, Google, IONOS, STRATO …), MTA-Software aus dem SMTP-Banner (Postfix, Exim, Exchange …)
 - **HTTP/3 (QUIC)** — echter Handschlag über UDP/443, nicht nur die Alt-Svc-Ankündigung
 - **Ping / Traceroute** — über die System-Werkzeuge im Container
+- **Portcheck** — 20 bekannte Dienste, unterscheidet offen / geschlossen / gefiltert;
+  dazu ein IPv4/IPv6-Vergleich, der einseitige Ausfälle sichtbar macht (abschaltbar)
 - **IP-Lookup** — Standort, Anbieter und AS-Nummer einer IP (ip-api.com), inkl. eigener öffentlicher IP
 - **DNSSEC** — DS/DNSKEY-Status, ob der Resolver die Antwort validiert (AD-Flag)
 - **Monitoring** — Domains/IPs automatisch im gewählten Abstand prüfen (TLS-Ablauf, Sperrlisten,
