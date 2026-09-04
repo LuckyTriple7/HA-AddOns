@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY netcore.py .
 COPY mailauth.py .
+COPY mailheader.py .
 COPY mailprovider.py .
 COPY blocklists.py .
 COPY tlscheck.py .

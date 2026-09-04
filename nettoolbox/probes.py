@@ -11,6 +11,7 @@ import domaininfo
 import geoip
 import httpcheck
 import mailauth
+import mailheader
 import mailprovider
 import netutils
 import quiccheck
@@ -302,6 +303,14 @@ def p_quic(ctx: Context, params: dict) -> dict:
     return quiccheck.check_quic(ctx, _str(params, 'target'))
 
 
+def p_mailheader(ctx: Context, params: dict) -> dict:
+    """Reine Textauswertung -- die einzige Prüfung ohne Netzzugriff."""
+    try:
+        return mailheader.analyse(_str(params, 'text'))
+    except ValueError as e:
+        raise ProbeError(str(e) or 'bad_params')
+
+
 def p_seo(ctx: Context, params: dict) -> dict:
     return seocheck.check_seo(ctx, _str(params, 'target'))
 
@@ -350,6 +359,7 @@ PROBES = {
     'smtp': p_smtp,
     'quic': p_quic,
     'seo': p_seo,
+    'mailheader': p_mailheader,
     'ping': p_ping,
     'traceroute': p_traceroute,
     'ipinfo': p_ipinfo,
@@ -368,7 +378,7 @@ TARGET_KIND = {
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
-    'seo': 'target',
+    'seo': 'target', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',
     'mta_sts': 'domain', 'tls_rpt': 'domain', 'bimi': 'domain',

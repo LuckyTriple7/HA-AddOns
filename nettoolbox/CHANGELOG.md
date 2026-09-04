@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.31] - 2026-09-04
+
+### Added
+- **Mail-Kopf analysieren** (neue Karte im Mail-Reiter, `mailheader.py`). Kompletten Kopf einer
+  empfangenen Mail einfügen — ausgewertet werden:
+  - **Weg der Mail:** jede `Received`-Zeile als Sprung (von, über, Protokoll, IP), in
+    Leserichtung von A nach B statt in der Kopfreihenfolge, mit **Verzögerung je Sprung** und
+    Gesamtlaufzeit. Ein Sprung über einer Minute wird rot hervorgehoben — das ist die Stelle, an
+    der eine Mail hing.
+  - **Urteil der Gegenseite:** SPF, DKIM und DMARC aus `Authentication-Results` (ersatzweise
+    `Received-SPF`), jeweils als eigener Fund.
+  - **Ausrichtung:** Absenderdomain gegen Rückweg (`Return-Path`) und `Reply-To` gegen
+    Absenderadresse — die zwei Abweichungen, an denen DMARC scheitert und die bei Phishing
+    typisch sind, jeweils mit dem Hinweis, wann sie trotzdem normal sind.
+  - Nachrichtenfelder, DKIM-Signaturen (Domain, Selektor, Verfahren), `X-Mailer`, Spam-Kopfzeilen.
+- Die einzige Prüfung ganz **ohne Netzzugriff**: nichts wird abgefragt, nichts gespeichert.
+  Eingelesen wird mit dem `email`-Paket der Standardbibliothek, gesucht statt streng geparst —
+  das `Received`-Format ist nur lose festgelegt, und was fehlt, bleibt leer, statt den Sprung zu
+  verwerfen.
+
 ## [0.1.30] - 2026-09-04
 
 ### Added

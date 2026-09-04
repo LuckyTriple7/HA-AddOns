@@ -77,7 +77,10 @@ input[type="text"], input[type="password"], select {
   width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
   padding: 8px 10px; border-radius: 6px; font-size: 0.87rem;
 }
-input:focus, select:focus { outline: none; border-color: var(--accent); }
+textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 10px; border-radius: 6px; font-size: 0.8rem; font-family: ui-monospace, monospace;
+  resize: vertical; min-height: 130px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .hint { font-size: 0.76rem; color: var(--muted); margin-top: 6px; }
 #pingLiveChart { display: block; width: 100%; height: 160px; margin-top: 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
@@ -317,6 +320,17 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.blacklist_hint }}</p>
     <div id="rblResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M20,8L12,13L4,8V6L12,11L20,6M20,4H4C2.9,4 2,4.9 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.9 21.1,4 20,4Z"/></svg>{{ t.header_title }}</h2>
+    <label class="field" for="hdrText">{{ t.field_mail_header }}</label>
+    <textarea id="hdrText" spellcheck="false" placeholder="Return-Path: ...&#10;Received: from ...&#10;Authentication-Results: ...&#10;From: ...&#10;Subject: ..."></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" id="hdrRun">{{ t.action_analyse }}</button>
+      <button class="btn" id="hdrClear">{{ t.action_reset_field }}</button>
+      <span class="hint" style="margin:0">{{ t.header_hint }}</span>
+    </div>
+    <div id="hdrResult"></div>
   </div>
 </section>
 
@@ -1822,6 +1836,101 @@ async function rblCheck(){
 
 $('rblRun').addEventListener('click', rblCheck);
 $('rblIp').addEventListener('keydown', e => { if (e.key === 'Enter') rblCheck(); });
+
+// ── Mail-Kopf-Analyse ───────────────────────────────────────────────────────
+
+function hdrAuthChip(method, verdict){
+  const good = verdict === 'pass';
+  const bad = ['fail', 'permerror', 'hardfail'].includes(verdict);
+  const chip = el('span', 'badge ' + (good ? 'ok' : (bad ? 'fail' : 'info')),
+    method + ': ' + verdict);
+  return chip;
+}
+
+async function headerAnalyse(){
+  const text = $('hdrText').value.trim();
+  if (!text) { toast(T.err_empty_target, true); return; }
+  const box = $('hdrResult'); showLoading(box);
+  try {
+    const data = await runProbe('mailheader', { text: text }, '', $('hdrRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    ['spf', 'dkim', 'dmarc'].forEach(m => {
+      if (r.auth[m]) badges.appendChild(hdrAuthChip(m.toUpperCase(), r.auth[m]));
+    });
+    badges.appendChild(el('span', 'chip', fmtStr(T.header_hops, { count: r.hop_count })));
+    if (r.total_seconds !== null) {
+      badges.appendChild(el('span', 'chip',
+        fmtStr(T.header_transit, { seconds: r.total_seconds })));
+    }
+    box.appendChild(badges);
+    box.appendChild(renderFindings(r.findings));
+
+    const grid = el('div', 'subgrid ipinfo-grid');
+    const meta = el('div', 'subcard');
+    meta.appendChild(el('h4', '', T.header_group_message));
+    [[T.header_field_from, r.from], [T.header_field_to, r.to],
+     [T.header_field_subject, r.subject], [T.header_field_date, r.date],
+     ['Return-Path', r.return_path], ['Reply-To', r.reply_to],
+     ['Message-ID', r.message_id], [T.header_field_mailer, r.mailer],
+     ['X-Spam', r.spam_status]].forEach(([label, value]) => {
+      if (!value) return;
+      const row = el('div', 'ipinfo-kv');
+      row.appendChild(el('span', '', label));
+      row.appendChild(el('span', 'mono', value));
+      meta.appendChild(row);
+    });
+    grid.appendChild(meta);
+
+    if (r.dkim_signatures.length) {
+      const dkim = el('div', 'subcard');
+      dkim.appendChild(el('h4', '', 'DKIM-Signaturen'));
+      r.dkim_signatures.forEach(sig => {
+        const row = el('div', 'ipinfo-kv');
+        row.appendChild(el('span', '', sig.selector || '—'));
+        row.appendChild(el('span', 'mono',
+          [sig.domain, sig.algorithm].filter(Boolean).join(' · ')));
+        dkim.appendChild(row);
+      });
+      grid.appendChild(dkim);
+    }
+    box.appendChild(grid);
+
+    if (r.hops.length) {
+      box.appendChild(el('h3', '', T.header_group_path));
+      const table = el('table');
+      const thead = el('thead'); const trh = el('tr');
+      ['#', T.header_col_from, T.header_col_by, T.header_col_with,
+       T.header_col_delay, T.header_field_date].forEach(h => trh.appendChild(el('th', '', h)));
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = el('tbody');
+      r.hops.forEach((hop, index) => {
+        const tr = el('tr');
+        tr.appendChild(el('td', '', String(index + 1)));
+        tr.appendChild(el('td', 'mono', hop.from + (hop.ip ? ' [' + hop.ip + ']' : '')));
+        tr.appendChild(el('td', 'mono', hop.by || '—'));
+        tr.appendChild(el('td', '', hop.with || '—'));
+        // Der auffaellige Sprung soll ins Auge springen, nicht gesucht werden.
+        const delay = el('td', hop.delay !== null && hop.delay >= 60 ? 'diff-removed' : '',
+          hop.delay === null ? '—' : hop.delay + ' s');
+        tr.appendChild(delay);
+        tr.appendChild(el('td', '', (hop.date || '').replace('T', ' ').slice(0, 19)));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      box.appendChild(table);
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+
+$('hdrRun').addEventListener('click', headerAnalyse);
+$('hdrClear').addEventListener('click', () => {
+  $('hdrText').value = '';
+  $('hdrResult').innerHTML = '';
+});
 
 // ── TLS tab ───────────────────────────────────────────────────────────────
 

@@ -27,6 +27,8 @@ about your domains leaves your own infrastructure.
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
   without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score
+- **Mail header analysis** — paste a received mail's header: Received chain with per-hop
+  delay, the receiving side's SPF/DKIM/DMARC verdict, alignment check
 - **SMTP** — a domain is enough, the mail server is found through its MX record; banner, EHLO
   capabilities, STARTTLS, open-relay test (never actually delivers mail)
 - **Operator / software detection** — operator from the MX names (Microsoft 365, Google, IONOS, STRATO …), MTA software from the SMTP banner (Postfix, Exim, Exchange …)

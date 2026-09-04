@@ -18,6 +18,7 @@ import pytest  # noqa: E402
 import blocklists  # noqa: E402
 import geoip  # noqa: E402
 import hasensors  # noqa: E402
+import mailheader  # noqa: E402
 import mailprovider  # noqa: E402
 import netcore  # noqa: E402
 import netutils  # noqa: E402
@@ -319,6 +320,71 @@ def test_placeholder_certificate_not_overreported(over):
 def test_der_to_certdict_survives_garbage():
     assert tlscheck._der_to_certdict(b'') == {}
     assert tlscheck._der_to_certdict(b'kein zertifikat') == {}
+
+
+# ── mailheader: Kopfanalyse ──────────────────────────────────────────────────
+
+SAMPLE_HEADER = """Return-Path: <newsletter@example-marketing.com>
+Received: from mx.ziel.de (mx.ziel.de [203.0.113.9]) by mail.ziel.de (Postfix) with ESMTPS id 4X2 for <kunde@ziel.de>; Wed, 3 Sep 2026 09:15:31 +0200
+Received: from smtp.absender.de (smtp.absender.de [198.51.100.20]) by mx.ziel.de (Postfix) with ESMTP id 3B1 for <kunde@ziel.de>; Wed, 3 Sep 2026 09:03:11 +0200
+Authentication-Results: mx.ziel.de; spf=pass smtp.mailfrom=example-marketing.com; dkim=fail header.d=absender.de; dmarc=fail (p=none) header.from=absender.de
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=absender.de; s=selector1; bh=abc
+From: "Ein Absender" <info@absender.de>
+To: kunde@ziel.de
+Subject: Testnachricht
+Date: Wed, 3 Sep 2026 09:03:00 +0200
+Message-ID: <abc123@absender.de>
+Reply-To: antwort@ganzwoanders.example
+"""
+
+
+@pytest.fixture(scope='module')
+def header():
+    return mailheader.analyse(SAMPLE_HEADER)
+
+
+def test_header_reads_the_verdicts(header):
+    assert header['auth'] == {'spf': 'pass', 'dkim': 'fail', 'dmarc': 'fail'}
+    assert header['level'] == 'fail'
+
+
+def test_header_orders_hops_oldest_first(header):
+    """Received-Zeilen stehen neueste zuerst -- gelesen wird der Weg aber
+    von A nach B."""
+    assert [h['by'] for h in header['hops']] == ['mx.ziel.de', 'mail.ziel.de']
+    assert header['hops'][0]['from'] == 'smtp.absender.de'
+    assert header['hops'][0]['ip'] == '198.51.100.20'
+    assert header['hops'][1]['delay'] == 740.0
+    assert header['total_seconds'] == 740.0
+
+
+def test_header_spots_missing_alignment(header):
+    codes = [f['code'] for f in header['findings']]
+    assert 'hdr_return_path_mismatch' in codes
+    assert 'hdr_reply_to_differs' in codes
+    assert 'hdr_hop_very_slow' in codes
+
+
+def test_header_reads_dkim_tags(header):
+    assert header['dkim_signatures'] == [{'domain': 'absender.de',
+                                          'selector': 'selector1',
+                                          'algorithm': 'rsa-sha256',
+                                          'canonicalisation': 'relaxed/relaxed'}]
+
+
+def test_header_rejects_empty_and_oversized():
+    with pytest.raises(ValueError):
+        mailheader.analyse('   ')
+    with pytest.raises(ValueError):
+        mailheader.analyse('X: ' + 'a' * (mailheader.MAX_HEADER_BYTES + 10))
+
+
+def test_header_survives_a_fragment():
+    """Ein halber Kopf ohne Received-Zeilen darf nicht scheitern, sondern
+    soll genau das als Fund melden."""
+    out = mailheader.analyse('From: a@b.de\nSubject: nur ein Ausschnitt')
+    assert 'hdr_no_received' in [f['code'] for f in out['findings']]
+    assert out['from_domain'] == 'b.de'
 
 
 # ── hasensors: Entitaeten fuer Home Assistant ────────────────────────────────
