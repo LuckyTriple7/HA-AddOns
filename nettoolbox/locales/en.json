@@ -18,7 +18,6 @@
   "nav_whois": "Whois",
   "nav_http": "Web",
   "nav_smtp": "SMTP",
-  "nav_dnssec": "DNSSEC",
   "nav_monitor": "Monitoring",
   "nav_history": "History",
   "dns_title": "DNS lookup",

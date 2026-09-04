@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.40] - 2026-09-04
+
+### Changed
+- **DNSSEC sitzt jetzt im DNS-Reiter**, gleich unter der Abfrage — ein eigener Reiter für eine
+  einzelne Karte war eine Station zu viel für etwas, das zur selben Frage gehört. Die Prüfung
+  selbst ist unverändert.
+
 ## [0.1.39] - 2026-09-04
 
 ### Added
