@@ -3627,6 +3627,16 @@ _PROBE_NAMES = frozenset((
 ))
 _PROBE_YEAR_RE = re.compile(r'^/(19|20)\d{2}/?$')
 
+# `/p/<slug>` ist eine echte Projektseite — `/p/<slug>/readme.md` daneben nicht,
+# und wird es nie: MyPage rendert das README in die Seite selbst, es liegt nie
+# als eigene Datei daneben. Ein Scanner errät den Slug trotzdem richtig (er
+# steht ja offen auf der Startseite) und haengt einen ueblichen Doku-Dateinamen
+# an, in der Hoffnung auf eine rohe Kopie. Der Referer solcher Treffer zeigt auf
+# genau diese Startseite — ohne diese Ausnahme sieht `record_notfound()` darin
+# einen eigenen kaputten Verweis und bietet eine Weiterleitung an, fuer die es
+# nie ein Ziel gibt.
+_PROBE_PROJECT_FILE_RE = re.compile(r'^/p/[^/]+/(readme|changelog|license)(\.md|\.txt)?$')
+
 
 def _is_probe(path: str) -> bool:
     """Sucht der Aufruf fremde Software statt einer Seite von hier?"""
@@ -3643,6 +3653,8 @@ def _is_probe(path: str) -> bool:
     # `/bak`, `/old-site`, `/staging` — und `/2021`, weil die Jahreszahl
     # derselben Vermutung folgt: hier liege die Seite von damals noch herum.
     if p.strip('/') in _PROBE_NAMES or _PROBE_YEAR_RE.match(p):
+        return True
+    if _PROBE_PROJECT_FILE_RE.match(p):
         return True
     return p.endswith(_PROBE_SUFFIXES) or any(part in p for part in _PROBE_PARTS)
 

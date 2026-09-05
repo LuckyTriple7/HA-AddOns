@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.59
+
+- 🚫 **`/p/<projekt>/readme.md` fiel als „eigener Link" durch, obwohl es die Seite nie gab.** Scanner errieten echte Projekt-Slugs von der Startseite und hängten `readme.md`/`changelog.md`/`license` an, in der Hoffnung auf eine rohe Kopie — MyPage rendert das README aber in die Projektseite selbst, nie als eigene Datei daneben. Der mitgeschickte Referer (die eigene Startseite) ließ `record_notfound()` das für einen echten kaputten Verweis halten und „Weiterleitung anlegen" anbieten, für die es nie ein Ziel gab. Solche Pfade zählen jetzt als Sonde: standardmäßig ausgeblendet, kein Weiterleitungs-Knopf mehr.
+
 ## 0.11.58
 
 - 🐛 **README wurde beim GitHub-Refresh (0.11.57) nicht mit aktualisiert.** Der Refresh für schon importierte Repos ließ den Long-Text bewusst unangetastet — auch mit angehaktem „README importieren". Jetzt zieht der Refresh das README ebenfalls nach, wenn die Checkbox gesetzt ist; ohne Haken bleibt der Long-Text wie zuvor unberührt.
