@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.3] - 2026-09-05
+
+### Added
+- **Leeren-Knopf bei der Domain-Verfügbarkeit.** Setzt Basisname, alle Endungs-Kästchen,
+  Endungs-Suche und Freitextfeld für weitere Endungen sowie das Ergebnis zurück.
+
 ## [0.7.2] - 2026-09-05
 
 ### Fixed

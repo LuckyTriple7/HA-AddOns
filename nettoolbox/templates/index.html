@@ -709,6 +709,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       </div>
       <div style="align-self:flex-end">
         <button class="btn primary" id="dcRun">{{ t.action_check }}</button>
+        <button class="btn" id="dcReset" type="button">{{ t.action_reset_field }}</button>
       </div>
     </div>
     <div class="row" style="margin-top:10px" id="dcTlds">
@@ -3427,6 +3428,16 @@ async function dcCheck(){
 }
 $('dcRun').addEventListener('click', dcCheck);
 $('dcBase').addEventListener('keydown', e => { if (e.key === 'Enter') dcCheck(); });
+
+function dcReset(){
+  $('dcBase').value = '';
+  document.querySelectorAll('.dc-tld').forEach(cb => { cb.checked = false; });
+  $('dcTldSearch').value = '';
+  $('dcTldResults').innerHTML = '';
+  $('dcExtraTlds').value = '';
+  $('dcResult').innerHTML = '';
+}
+$('dcReset').addEventListener('click', dcReset);
 
 // ── HTTP header tab ───────────────────────────────────────────────────────
 
