@@ -344,7 +344,7 @@ def p_domain_check(ctx: Context, params: dict) -> dict:
                  if not ianatlds.is_valid(d.rsplit('.', 1)[-1])})
     if bad:
         raise ProbeError('unknown_tld', ', '.join(bad)[:120])
-    rows = domaincheck.check_availability(ctx.cf_account_id, ctx.cf_api_token, domains)
+    rows = domaincheck.check_availability(ctx, ctx.cf_account_id, ctx.cf_api_token, domains)
     return {'domains': rows}
 
 

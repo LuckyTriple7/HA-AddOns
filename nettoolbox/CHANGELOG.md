@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.6.0] - 2026-09-05
+
+### Changed
+- **Domain-Verfügbarkeit: generischer Fallback statt Endungs-Tabelle.** Statt .de/.eu hart zu
+  verdrahten, greift jetzt für jede Endung, die Cloudflare nicht führt (`reason:
+  extension_not_supported*`), automatisch dieselbe Kette wie im Whois-Tab: erst IANAs
+  RDAP-Bootstrap-Liste (404 = frei, spezifikationsgemäß exakt — live bestätigt für .fr, .nl, .pl,
+  .cz, .no, .uk, .fi und hunderte mehr), sonst WHOIS über die von `whois.iana.org` genannte
+  Registry. Ohne Cloudflare-Konto läuft diese Kette für alle Endungen, ohne zu blockieren. Ein
+  Cloudflare-Fehler (falsches Token, nicht erreichbar) bricht die Prüfung nicht mehr ab, sondern
+  fällt auf dieselbe Kette zurück. .de bleibt der eine dokumentierte Sonderfall (DENIC hat RDAP,
+  steht aber nicht in IANAs Bootstrap-Liste).
+- **Renewal-Preis** wird jetzt mit angezeigt (Cloudflare liefert `registration_cost` und
+  `renewal_cost` — bisher wurde nur ersterer gezeigt).
+
+### Fixed
+- **Zwei echte Bugs beim Live-Testen des Umbaus gefunden und behoben** (betreffen auch den
+  bestehenden Whois-Tab, nicht nur den neuen Fallback): ein Datum ohne Uhrzeit (z. B. „1997-08-27“ in NIC.its Antwort) ließ `TypeError: can't subtract offset-naive and offset-aware datetimes`
+  hochgehen. Und die generische „nicht gefunden“-Erkennung kannte nur „no entries found“/„not
+  found“/„no match“ — EURid (.eu) und NIC.it (.it) schreiben bei freien Namen stattdessen
+  „Status: AVAILABLE“, was bisher als „vergeben“ durchging (falsch-negativ).
+
 ## [0.5.2] - 2026-09-05
 
 ### Added

@@ -33,12 +33,15 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Hostname-Abdeckung, ausgehandelte TLS-Version, CAA gegen den tatsächlichen Aussteller
 - **DANE/TLSA** — TLSA-Einträge der MX-Server gegen deren echtes Zertifikat, samt DNSSEC-Lage
 - **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
-- **Domain-Verfügbarkeit** — über das eigene Cloudflare-Konto (Registrar-API), verlässlicher als
-  WHOIS-„kein Treffer“; zwölf Endungen als Auswahl, Suchfeld über IANAs komplette TLD-Liste
-  (täglich aktualisiert, nicht ins Image gebacken) für beliebige weitere, bis zu 20 auf einmal —
-  eine erfundene Endung wird schon im Browser abgelehnt. .de (DENIC-RDAP) und .eu (EURid-WHOIS)
-  laufen direkt gegen die Registry, ohne Cloudflare-Konto — die beiden verkauft Cloudflare gar
-  nicht. Braucht sonst Cloudflare-Konto-ID + API-Token in den Einstellungen (nur Leserecht nötig)
+- **Domain-Verfügbarkeit** — über das eigene Cloudflare-Konto (Registrar-API, mit Registrierungs-
+  und Verlängerungspreis), verlässlicher als WHOIS-„kein Treffer“; zwölf Endungen als Auswahl,
+  Suchfeld über IANAs komplette TLD-Liste (täglich aktualisiert, nicht ins Image gebacken) für
+  beliebige weitere, bis zu 20 auf einmal — eine erfundene Endung wird schon im Browser abgelehnt.
+  Für jede Endung, die Cloudflare nicht führt (z. B. .de, .eu, .it — verkauft Cloudflare gar
+  nicht), greift automatisch dieselbe RDAP/WHOIS-Kette wie im Whois-Tab, live pro Endung
+  nachgeschlagen statt einer festen Tabelle; ohne Cloudflare-Konto läuft diese Kette für alle
+  Endungen. Cloudflare-Konto-ID + API-Token in den Einstellungen (nur Leserecht nötig) machen es
+  zuverlässiger und ergänzen den Preis
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
   ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand

@@ -34,12 +34,15 @@ about your domains leaves your own infrastructure.
   coverage, negotiated TLS version, CAA against the actual issuer
 - **DANE/TLSA** — TLSA records of the MX servers against their real certificate, with DNSSEC state
 - **Whois/RDAP** — registrar, registration/expiry dates, name servers; RDAP first, WHOIS fallback for TLDs without RDAP (e.g. .de)
-- **Domain availability** — via your own Cloudflare account (Registrar API), more reliable than a
-  WHOIS "no match"; twelve TLDs to pick from, plus a search box over IANA's full TLD list
-  (refreshed daily, never baked into the image) for any other, up to 20 at once — a made-up TLD
-  is rejected right in the browser. .de (DENIC RDAP) and .eu (EURid WHOIS) go straight to the
-  registry, no Cloudflare account needed — Cloudflare doesn't sell either. Otherwise needs a
-  Cloudflare Account ID + API token in Settings (read-only permission is enough)
+- **Domain availability** — via your own Cloudflare account (Registrar API, with both
+  registration and renewal price), more reliable than a WHOIS "no match"; twelve TLDs to pick
+  from, plus a search box over IANA's full TLD list (refreshed daily, never baked into the
+  image) for any other, up to 20 at once — a made-up TLD is rejected right in the browser. For
+  any TLD Cloudflare doesn't carry (e.g. .de, .eu, .it — Cloudflare sells none of them), the same
+  RDAP/WHOIS chain the Whois tab uses kicks in automatically, looked up live per TLD rather than
+  from a fixed table; with no Cloudflare account, that chain runs for every TLD. A Cloudflare
+  Account ID + API token in Settings (read-only permission is enough) make it more reliable and
+  add the price
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
   without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score

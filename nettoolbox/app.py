@@ -836,7 +836,7 @@ _ERROR_STATUS = {
     'bad_quota': 400, 'self_target': 409, 'user_store_broken': 503,
     'module_disabled': 403, 'quota_exhausted': 429,
     'unknown_session': 404, 'crypto_unavailable': 503,
-    'cloudflare_not_configured': 503, 'cloudflare_auth': 502,
+    'cloudflare_auth': 502,
     'cloudflare_timeout': 504, 'cloudflare_unreachable': 502,
     'cloudflare_bad_response': 502, 'cloudflare_error': 502,
     'unknown_tld': 400,

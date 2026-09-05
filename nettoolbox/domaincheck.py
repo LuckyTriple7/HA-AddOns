@@ -1,50 +1,60 @@
-"""Domain availability via Cloudflare's Registrar API, with two direct
-fallbacks for TLDs Cloudflare does not sell at all.
+"""Domain availability: Cloudflare's Registrar API first, with a generic
+IANA-driven fallback for whatever it doesn't sell -- no per-TLD table.
 
-Answering "is this free to register" from here directly (WHOIS "no match"
-text, RDAP) is not reliable across TLDs in general -- the wording varies per
-registry, several rate-limit hard against repeated lookups of names that
-don't exist yet, and there is no free public API that covers many TLDs at
-once. Cloudflare Registrar's own domain-check endpoint answers "can this
-actually be registered" (not just "is WHOIS empty") for up to 20 names per
-call, using the operator's own Cloudflare account -- so this needs an
-Account ID and an API token with Registrar read access, set in Settings.
+Cloudflare's own domain-check endpoint answers "can this actually be
+registered" (not just "is WHOIS empty") for up to 20 names per call, using
+the operator's own Cloudflare account -- so it needs an Account ID and an
+API token with Registrar read access, set in Settings. Checking does not
+require an active Registrar subscription -- only *registering* through
+Cloudflare would.
 
-Checking does not require an active Cloudflare Registrar subscription --
-only *registering* through Cloudflare would. A domain answered
-"not registrable" still might be perfectly available at another registrar;
-`reason` says why Cloudflare specifically won't do it (unsupported TLD,
-premium pricing, already taken, ...).
+For a TLD Cloudflare answers `reason: extension_not_supported*` for -- or
+for every TLD at all, if no Cloudflare account is configured -- the fallback
+is the exact same pipeline the Whois tab already uses (domaininfo.py):
+IANA's RDAP bootstrap registry first (hundreds of TLDs, RDAP's 404 meaning
+"not found" is spec-standard, so this half is exact), the classic WHOIS
+referral from whois.iana.org second. Both discovered live per TLD, nothing
+about "which server serves .fr/.nl/.pl/..." is hardcoded here.
 
-.de and .eu are the two exceptions worth naming: Cloudflare does not sell
-either (verified live against its published TLD list), but both registries
-answer the one question asked here cleanly enough to skip Cloudflare
-entirely -- DENIC over its own RDAP server (not in IANA's bootstrap
-registry, so the ordinary RDAP lookup in domaininfo.py falls back to plain
-WHOIS for it; verified live: https://data.iana.org/rdap/dns.json has no
-"de" entry), EURid over its own WHOIS format. Neither carries pricing, so
-those rows never do either -- Cloudflare is the only source for that here,
-and it doesn't sell these two.
+One named exception: DENIC (.de) runs a real RDAP server
+(rdap.denic.de) but is not listed in IANA's bootstrap file (verified live
+against https://data.iana.org/rdap/dns.json -- no "de" entry), so the
+generic pipeline above would otherwise fall back to plain WHOIS for it.
+Skipping straight to DENIC's RDAP is one documented patch for that one gap,
+not a general-purpose table.
+
+None of the fallback paths carry pricing -- only Cloudflare knows what it
+would charge, and by definition it isn't selling whatever ends up here.
+
+The WHOIS half stays best-effort by nature, not by oversight: domaininfo.py's
+"is this registered" detection covers the phrasings verified live so far
+("no entries found" / "not found" / "no match", plus a bare
+"status: available" -- .eu and .it both use exactly that and nothing else,
+confirmed live for both a registered and a free name each). A registry
+whose wording matches none of those reports found=True by default, which
+reads as "taken" here even when it might not be. Worse, at least one
+(.ch, verified live) refuses automated WHOIS outright ("Requests of this
+client are not permitted") and answers every query the same way -- there is
+no way to tell taken from free from here at all for it. None of this needs
+fixing per TLD before shipping; it is the honest cost of not paying
+Cloudflare (or another registrar API) for every ccTLD in existence.
 """
-
-import socket
 
 import requests
 
-from netcore import ProbeError
+from netcore import Context, ProbeError
+import domaininfo
 
 API_BASE = 'https://api.cloudflare.com/client/v4'
 MAX_DOMAINS = 20  # Cloudflare's own per-request cap
 REQUEST_TIMEOUT = 15.0
 
 DENIC_RDAP_URL = 'https://rdap.denic.de/domain/{}'
-EURID_WHOIS_HOST = 'whois.eu'
-EURID_WHOIS_PORT = 43
 
 
 def _check_de_domain(name: str) -> dict:
     """DENIC's RDAP server answers with plain HTTP status: 200 means
-    registered, 404 means free. No pricing this way."""
+    registered, 404 means free."""
     try:
         resp = requests.head(DENIC_RDAP_URL.format(name), timeout=REQUEST_TIMEOUT,
                              allow_redirects=True)
@@ -57,46 +67,26 @@ def _check_de_domain(name: str) -> dict:
     return {'name': name, 'registrable': False, 'reason': 'registry_check_failed'}
 
 
-def _whois_query(host: str, port: int, query: str) -> str:
-    with socket.create_connection((host, port), timeout=REQUEST_TIMEOUT) as sock:
-        sock.sendall((query + '\r\n').encode('ascii', 'ignore'))
-        chunks = []
-        sock.settimeout(REQUEST_TIMEOUT)
-        while True:
-            chunk = sock.recv(4096)
-            if not chunk:
-                break
-            chunks.append(chunk)
-    return b''.join(chunks).decode('utf-8', 'replace')
-
-
-def _check_eu_domain(name: str) -> dict:
-    """EURid's WHOIS (it runs no RDAP) marks a free name with its own
-    'Status: AVAILABLE' line -- nothing else in the response carries it."""
+def _check_via_registry(ctx: Context, name: str) -> dict:
+    """The generic fallback: same RDAP-bootstrap-then-WHOIS-referral chain
+    the Whois tab runs (domaininfo.check_domain), read as a plain yes/no.
+    'found' already means exactly "this name is registered" there -- an RDAP
+    404 sets it False without ever touching WHOIS (see domaininfo._rdap_fetch),
+    and a WHOIS "no entries found" sets it False too. Whatever fails outright
+    (no referral, both paths timing out) is reported honestly as unknown
+    rather than guessed either way."""
+    if name.rsplit('.', 1)[-1].lower() == 'de':
+        return _check_de_domain(name)
     try:
-        text = _whois_query(EURID_WHOIS_HOST, EURID_WHOIS_PORT, name)
-    except OSError:
+        result = domaininfo.check_domain(ctx, name)
+    except ProbeError:
         return {'name': name, 'registrable': False, 'reason': 'registry_check_failed'}
-    if 'Status: AVAILABLE' in text:
-        return {'name': name, 'registrable': True, 'tier': 'standard'}
-    if f'Domain: {name}' in text:
+    if result.get('found'):
         return {'name': name, 'registrable': False, 'reason': 'domain_unavailable'}
-    return {'name': name, 'registrable': False, 'reason': 'registry_check_failed'}
-
-
-# TLD (lowercase, no dot) -> direct checker. Everything else goes to
-# Cloudflare. Add an entry here only for a TLD verified live to answer
-# cleanly enough for a plain yes/no -- not a general-purpose fallback for
-# whatever else Cloudflare might be missing.
-_DIRECT_REGISTRIES = {
-    'de': _check_de_domain,
-    'eu': _check_eu_domain,
-}
+    return {'name': name, 'registrable': True, 'tier': 'standard'}
 
 
 def _check_cloudflare(account_id: str, api_token: str, domains: list) -> list:
-    if not account_id or not api_token:
-        raise ProbeError('cloudflare_not_configured')
     try:
         resp = requests.post(
             f'{API_BASE}/accounts/{account_id}/registrar/domain-check',
@@ -121,8 +111,8 @@ def _check_cloudflare(account_id: str, api_token: str, domains: list) -> list:
     return (data.get('result') or {}).get('domains') or []
 
 
-def check_availability(account_id: str, api_token: str, domains: list) -> list:
-    """Order matches the input list regardless of which registry answered
+def check_availability(ctx: Context, account_id: str, api_token: str, domains: list) -> list:
+    """Order matches the input list regardless of which source answered
     each one -- the caller never sees the split."""
     if not domains:
         raise ProbeError('empty_target')
@@ -130,20 +120,28 @@ def check_availability(account_id: str, api_token: str, domains: list) -> list:
         raise ProbeError('too_many_values', 'domains')
 
     rows_by_name = {}
-    cloudflare_names = []
-    for name in domains:
-        tld = name.rsplit('.', 1)[-1].lower()
-        checker = _DIRECT_REGISTRIES.get(tld)
-        if checker:
-            rows_by_name[name] = checker(name)
-        else:
-            cloudflare_names.append(name)
+    fallback_names = list(domains)
 
-    # A Cloudflare account is only needed for the names that actually go
-    # through Cloudflare -- an all-.de/.eu selection works without one.
-    if cloudflare_names:
-        for row in _check_cloudflare(account_id, api_token, cloudflare_names):
-            rows_by_name[row['name']] = row
+    if account_id and api_token:
+        try:
+            for row in _check_cloudflare(account_id, api_token, domains):
+                rows_by_name[row['name']] = row
+            # Only the ones Cloudflare itself declined for lack of TLD
+            # support go on to the registry fallback -- everything else
+            # (taken, premium, disallowed) is Cloudflare's own real answer.
+            fallback_names = [name for name, row in rows_by_name.items()
+                              if str(row.get('reason') or '').startswith('extension_not_supported')]
+        except ProbeError:
+            # Cloudflare itself unreachable or misconfigured: the registry
+            # pipeline below still answers the actual question on its own,
+            # just without Cloudflare's pricing/premium info. A broken
+            # token belongs in the Settings connection test, not in every
+            # single check failing outright.
+            rows_by_name = {}
+            fallback_names = list(domains)
+
+    for name in fallback_names:
+        rows_by_name[name] = _check_via_registry(ctx, name)
 
     return [rows_by_name[d] for d in domains]
 
