@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.1] - 2026-09-05
+
+### Added
+- **.de und .eu in der Domain-Verfügbarkeit, ohne Cloudflare-Konto.** Cloudflare verkauft beide
+  Endungen gar nicht erst (verifiziert gegen die offizielle TLD-Liste) — .de läuft jetzt direkt
+  über DENICs eigenen RDAP-Server (steht nicht in IANAs Bootstrap-Liste, deshalb bisher unbekannt;
+  200/404 als Antwort reicht als Ja/Nein), .eu über EURids WHOIS („Status: AVAILABLE“). Beide ohne
+  Preisangabe — die kennt nur Cloudflare, und das verkauft diese zwei Endungen nicht. Ein Check
+  aus nur .de/.eu braucht dadurch gar kein Cloudflare-Konto mehr.
+- **Freies Textfeld für beliebige Endungen** neben den zwölf Auswahl-Kästchen — nicht mehr nur
+  die vorgeschlagenen TLDs, bis zu 20 auf einmal (Cloudflares eigene Grenze).
+
 ## [0.5.0] - 2026-09-05
 
 ### Added

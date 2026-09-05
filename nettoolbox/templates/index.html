@@ -714,6 +714,12 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <label class="set-check"><input type="checkbox" class="dc-tld" value="{{ tld }}" {% if loop.index0 < 6 %}checked{% endif %}> .{{ tld }}</label>
       {% endfor %}
     </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label class="field" for="dcExtraTlds">{{ t.field_domain_check_extra_tlds }}</label>
+        <input type="text" id="dcExtraTlds" placeholder="xyz, name, ai" autocomplete="off">
+      </div>
+    </div>
     <div id="dcResult"></div>
   </div>
 </section>
@@ -3293,13 +3299,19 @@ const DC_REASON_KEY = {
   extension_disallows_registration: 'dc_reason_disallowed',
   domain_premium: 'dc_reason_premium',
   domain_unavailable: 'dc_reason_taken',
+  registry_check_failed: 'dc_reason_registry_check_failed',
 };
 
 async function dcCheck(){
   const base = $('dcBase').value.trim();
   if (!base) { toast(T.err_empty_target, true); return; }
-  const tlds = Array.from(document.querySelectorAll('.dc-tld:checked')).map(cb => cb.value);
+  const checked = Array.from(document.querySelectorAll('.dc-tld:checked')).map(cb => cb.value);
+  // Freie Endungen: kommagetrennt, führender Punkt egal, Groß-/Kleinschreibung egal.
+  const extra = $('dcExtraTlds').value.split(',')
+    .map(t => t.trim().toLowerCase().replace(/^\./, '')).filter(Boolean);
+  const tlds = Array.from(new Set([...checked, ...extra]));
   if (!tlds.length) { toast(T.dc_err_no_tld, true); return; }
+  if (tlds.length > 20) { toast(T.dc_err_too_many_tlds, true); return; }
   const domains = tlds.map(t => base + '.' + t);
   const box = $('dcResult'); showLoading(box);
   try {
