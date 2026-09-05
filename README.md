@@ -333,6 +333,17 @@ Weboberfläche für eine bestehende CrowdSec-Installation — die `cscli`-Befehl
 
 → [Dokumentation & Changelog](crowdpanel/README.md)
 
+### [Anubis](anubis/)
+
+Proof-of-Work-Bot-Challenge — vorgeschaltet vor einen Reverse Proxy, um automatisierte Zugriffe auszubremsen.
+
+- Reine Engine ohne eigene Oberfläche, ohne Ingress, ohne veröffentlichten Port
+- Mitgelieferte, eigenständige Policy ohne externe Importe — challenged jeden Client ohne gültiges Auth-Cookie
+- Fertig verdrahtet mit dem NPMplus-Add-on dieses Repos über `AUTH_REQUEST_ANUBIS_UPSTREAM`
+- Policy frei editierbar unter `/data/policy.yaml`
+
+→ [Dokumentation & Changelog](anubis/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -663,3 +674,14 @@ A web interface for an existing CrowdSec installation — the `cscli` commands a
 - No sign-in through Ingress, password and optional TOTP on port 17797
 
 → [Documentation & Changelog](crowdpanel/README.en.md)
+
+### [Anubis](anubis/)
+
+Proof-of-work bot challenge — placed in front of a reverse proxy to slow down automated traffic.
+
+- A bare engine with no UI of its own, no Ingress, no published port
+- Ships a self-contained policy with no external imports — challenges any client without a valid auth cookie
+- Pre-wired for this repo's NPMplus add-on via `AUTH_REQUEST_ANUBIS_UPSTREAM`
+- Policy freely editable at `/data/policy.yaml`
+
+→ [Documentation & Changelog](anubis/README.en.md)

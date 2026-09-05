@@ -1,0 +1,30 @@
+name: Anubis
+description: Proof-of-Work-Bot-Challenge (Anubis) als Auth-Request-Backend für NPMplus & Co.
+version: "0.0.1"
+slug: anubis
+url: https://github.com/LuckyTriple7/HA-AddOns
+
+image: "ghcr.io/luckytriple7/anubis"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: services
+boot: auto
+
+panel_icon: mdi:shield-bug-outline
+
+# Keine eigene Oberfläche, kein Ingress: Anubis wird ausschließlich intern von
+# einem Reverse Proxy angesprochen (z.B. NPMplus über
+# AUTH_REQUEST_ANUBIS_UPSTREAM). Bewusst kein "ports:"-Eintrag — dadurch ist
+# der Container von außen und aus dem LAN nicht erreichbar, nur andere
+# Add-on-Container finden ihn über seinen Hostnamen auf Port 8923.
+
+options:
+  TZ: "Europe/Berlin"
+  log_level: "info"
+
+schema:
+  TZ: str
+  log_level: list(debug|info|warn|error)

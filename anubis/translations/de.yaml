@@ -1,0 +1,7 @@
+configuration:
+  TZ:
+    name: Zeitzone
+    description: Zeitzone des Containers, z.B. für Zeitstempel im Protokoll.
+  log_level:
+    name: Log-Level
+    description: Ausführlichkeit des Anubis-Protokolls (debug, info, warn, error). Standard info.

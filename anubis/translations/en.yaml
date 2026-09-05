@@ -1,0 +1,7 @@
+configuration:
+  TZ:
+    name: Timezone
+    description: Container timezone, e.g. for log timestamps.
+  log_level:
+    name: Log level
+    description: Verbosity of the Anubis log (debug, info, warn, error). Default info.

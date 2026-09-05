@@ -1,0 +1,40 @@
+# Eigenständige Anubis-Policy ohne (data)/-Importe.
+#
+# Die mitgelieferte Standard-Policy von Anubis bindet zusätzliche Snippets aus
+# (data)/common/domain-fronting.yaml, (data)/bots/... usw. ein. Diese Dateien
+# liegen nur im Original-Image (KO_DATA_PATH) und sind über eine einzelne
+# gemountete Policy-Datei nicht erreichbar — der Fehler dazu lautet
+# "invalid source file: (data)/common/domain-fronting.yaml". Diese Policy
+# kommt deshalb bewusst ohne Importe aus.
+#
+# Kein impliziter ALLOW-Zweig: jeder Client, der nicht von einer Regel
+# erfasst wird, landet in der catch-all-Regel und wird ebenfalls challenged.
+# Das schließt curl, wget, Scanner und unbekannte Clients mit ein — sie
+# fallen sonst mit weight <= 0 durch eine Standard-Freigabe.
+bots:
+  - name: generic-browser
+    user_agent_regex: >-
+      Mozilla|Opera
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 2
+
+  - name: catch-all
+    expression: "true"
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 2
+
+dnsbl: false
+
+# Passend zur NPMplus-Auth-Request-Integration: sie wertet 401 als
+# "Challenge nötig" und 403 als "gesperrt".
+status_codes:
+  CHALLENGE: 401
+  DENY: 403
+
+store:
+  backend: memory
+  parameters: {}

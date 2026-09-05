@@ -395,6 +395,19 @@ Danach eine Domain aufrufen: es muss die Sperrseite kommen. Wieder freigeben:
 docker exec $CS cscli -c $CFG decisions delete --ip <deine-ip>
 ```
 
+## Anubis (Bot-Schutz)
+
+Proof-of-Work-Challenge vor einzelnen Proxy Hosts — bremst Scraper, Scanner und einfache Bots aus, ohne echten Login zu ersetzen. Läuft als eigenes Add-on: [Anubis](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/anubis/DOCS.md).
+
+NPMplus kennt Anubis bereits als Auth-Request-Anbieter (Reiter „Optionen" → **Auth Request**). Nötig ist nur die Adresse:
+
+```yaml
+extra_env:
+  - "AUTH_REQUEST_ANUBIS_UPSTREAM=http://424ccef4-anubis:8923"
+```
+
+Hostname wie bei CrowdSec per `docker inspect -f '{{.Config.Hostname}}' <anubis-container>` ermitteln — den eigenen Wert, nicht diesen abschreiben. Danach NPMplus neu starten und je Proxy Host unter „Auth Request" `anubis` auswählen.
+
 ## Ländersperre
 
 Sperrt ganze Länder direkt in nginx — ohne MaxMind-Konto, ohne Zusatzmodul, ohne CrowdSec. Die Entscheidung fällt beim ersten Paket, während CrowdSec erst nach der Auswertung der ersten Anfrage reagiert.
