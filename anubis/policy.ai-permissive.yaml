@@ -1,0 +1,173 @@
+  # KI-Bot-Stufe "permissiv": lässt alle gut dokumentierten KI/LLM-Clients
+  # mit veröffentlichter IP-Liste durch (ALLOW) — inklusive OpenAIs
+  # GPTBot-Trainings-Crawler. Blockt (DENY) nur die breite Sammel-Regel
+  # unbekannter/undokumentierter KI-Bots ohne eigene IP-Verifikation.
+  # Quelle: https://github.com/TecharoHQ/anubis/blob/main/data/meta/ai-block-permissive.yaml
+  # Extensive list of AI-affiliated agents based on https://github.com/ai-robots-txt/ai.robots.txt
+  # Add new/undocumented agents here. Where documentation exists, consider moving to dedicated policy files.
+  # Notes on various agents:
+  #  - Amazonbot: Well documented, but they refuse to state which agent collects training data.
+  #  - anthropic-ai/Claude-Web: Undocumented by Anthropic. Possibly deprecated or hallucinations?
+  #  - Perplexity*: Well documented, but they refuse to state which agent collects training data.
+  # Warning: May contain user agents that _must_ be blocked in robots.txt, or the opt-out will have no effect.
+  - name: "ai-catchall"
+    user_agent_regex: >-
+      AI2Bot|Ai2Bot-Dolma|aiHitBot|Amazonbot|anthropic-ai|Brightbot 1.0|Bytespider|Claude-Web|cohere-ai|cohere-training-data-crawler|Cotoyogi|Crawlspace|Diffbot|DuckAssistBot|FacebookBot|Factset_spyderbot|FirecrawlAgent|FriendlyCrawler|Google-CloudVertexBot|GoogleOther|GoogleOther-Image|GoogleOther-Video|iaskspider/2.0|ICC-Crawler|ImagesiftBot|img2dataset|imgproxy|ISSCyberRiskCrawler|Kangaroo Bot|meta-externalagent|Meta-ExternalAgent|meta-externalfetcher|Meta-ExternalFetcher|NovaAct|omgili|omgilibot|Operator|PanguBot|Perplexity-User|PerplexityBot|PetalBot|QualifiedBot|Scrapy|SemrushBot-OCOB|SemrushBot-SWA|Sidetrade indexer bot|TikTokSpider|Timpibot|VelenPublicWebCrawler|Webzio-Extended|wpbot|YouBot
+    action: DENY
+  # Indexing for search, does not collect training data
+  # https://platform.openai.com/docs/bots/overview-of-openai-crawlers
+  - name: openai-searchbot
+    user_agent_regex: OAI-SearchBot/1\.0; \+https\://openai\.com/searchbot
+    action: ALLOW
+    # https://openai.com/searchbot.json
+    remote_addresses:
+      [
+        "20.42.10.176/28",
+        "172.203.190.128/28",
+        "104.210.140.128/28",
+        "51.8.102.0/24",
+        "135.234.64.0/24",
+      ]
+  # Collects AI training data
+  # https://platform.openai.com/docs/bots/overview-of-openai-crawlers
+  - name: openai-gptbot
+    user_agent_regex: GPTBot/1\.1; \+https\://openai\.com/gptbot
+    action: ALLOW
+    # https://openai.com/gptbot.json
+    remote_addresses:
+      [
+        "52.230.152.0/24",
+        "20.171.206.0/24",
+        "20.171.207.0/24",
+        "4.227.36.0/25",
+        "20.125.66.80/28",
+        "172.182.204.0/24",
+        "172.182.214.0/24",
+        "172.182.215.0/24",
+      ]
+  # Indexing for search, does not collect training data
+  # https://docs.perplexity.ai/guides/bots
+  - name: perplexitybot
+    user_agent_regex: PerplexityBot/.+; \+https\://perplexity\.ai/perplexitybot
+    action: ALLOW
+    # https://www.perplexity.com/perplexitybot.json
+    remote_addresses:
+      [
+        "107.20.236.150/32",
+        "3.224.62.45/32",
+        "18.210.92.235/32",
+        "3.222.232.239/32",
+        "3.211.124.183/32",
+        "3.231.139.107/32",
+        "18.97.1.228/30",
+        "18.97.9.96/29",
+      ]
+  # Acts on behalf of user requests
+  # https://platform.openai.com/docs/bots/overview-of-openai-crawlers
+  - name: openai-chatgpt-user
+    user_agent_regex: ChatGPT-User/.+; \+https\://openai\.com/bot
+    action: ALLOW
+    # https://openai.com/chatgpt-user.json
+    # curl 'https://openai.com/chatgpt-user.json' | jq '.prefixes.[].ipv4Prefix' | sed 's/$/,/'
+    remote_addresses:
+      [
+        "13.65.138.112/28",
+        "23.98.179.16/28",
+        "13.65.138.96/28",
+        "172.183.222.128/28",
+        "20.102.212.144/28",
+        "40.116.73.208/28",
+        "172.183.143.224/28",
+        "52.190.190.16/28",
+        "13.83.237.176/28",
+        "51.8.155.64/28",
+        "74.249.86.176/28",
+        "51.8.155.48/28",
+        "20.55.229.144/28",
+        "135.237.131.208/28",
+        "135.237.133.48/28",
+        "51.8.155.112/28",
+        "135.237.133.112/28",
+        "52.159.249.96/28",
+        "52.190.137.16/28",
+        "52.255.111.112/28",
+        "40.84.181.32/28",
+        "172.178.141.112/28",
+        "52.190.142.64/28",
+        "172.178.140.144/28",
+        "52.190.137.144/28",
+        "172.178.141.128/28",
+        "57.154.187.32/28",
+        "4.196.118.112/28",
+        "20.193.50.32/28",
+        "20.215.188.192/28",
+        "20.215.214.16/28",
+        "4.197.22.112/28",
+        "4.197.115.112/28",
+        "172.213.21.16/28",
+        "172.213.11.144/28",
+        "172.213.12.112/28",
+        "172.213.21.144/28",
+        "20.90.7.144/28",
+        "57.154.175.0/28",
+        "57.154.174.112/28",
+        "52.236.94.144/28",
+        "137.135.191.176/28",
+        "23.98.186.192/28",
+        "23.98.186.96/28",
+        "23.98.186.176/28",
+        "23.98.186.64/28",
+        "68.221.67.192/28",
+        "68.221.67.160/28",
+        "13.83.167.128/28",
+        "20.228.106.176/28",
+        "52.159.227.32/28",
+        "68.220.57.64/28",
+        "172.213.21.112/28",
+        "68.221.67.224/28",
+        "68.221.75.16/28",
+        "20.97.189.96/28",
+        "52.252.113.240/28",
+        "52.230.163.32/28",
+        "172.212.159.64/28",
+        "52.255.111.80/28",
+        "52.255.111.0/28",
+        "4.151.241.240/28",
+        "52.255.111.32/28",
+        "52.255.111.48/28",
+        "52.255.111.16/28",
+        "52.230.164.176/28",
+        "52.176.139.176/28",
+        "52.173.234.16/28",
+        "4.151.71.176/28",
+        "4.151.119.48/28",
+        "52.255.109.112/28",
+        "52.255.109.80/28",
+        "20.161.75.208/28",
+        "68.154.28.96/28",
+        "52.255.109.128/28",
+        "52.225.75.208/28",
+        "52.190.139.48/28",
+        "68.221.67.240/28",
+        "52.156.77.144/28",
+        "52.148.129.32/28",
+        "40.84.221.208/28",
+        "104.210.139.224/28",
+        "40.84.221.224/28",
+        "104.210.139.192/28",
+      ]
+  # Acts on behalf of user requests
+  # https://docs.mistral.ai/robots/
+  - name: mistral-mistralai-user
+    user_agent_regex: MistralAI-User/.+; \+https\://docs\.mistral\.ai/robots
+    action: ALLOW
+    # https://mistral.ai/mistralai-user-ips.json
+    remote_addresses: ["20.240.160.161/32", "20.240.160.1/32"]
+  # Acts on behalf of user requests
+  # https://docs.perplexity.ai/guides/bots
+  - name: perplexity-user
+    user_agent_regex: Perplexity-User/.+; \+https\://perplexity\.ai/perplexity-user
+    action: ALLOW
+    # https://www.perplexity.com/perplexity-user.json
+    remote_addresses:
+      ["44.208.221.197/32", "34.193.163.52/32", "18.97.21.0/30", "18.97.43.80/29"]

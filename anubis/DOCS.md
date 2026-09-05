@@ -50,6 +50,46 @@ Weitere Crawler (z.B. Yandex) lassen sich nach demselben Muster **unterhalb** de
 
 **Grenzen:** Die Anbieter veröffentlichen ihre Crawler-IP-Bereiche gelegentlich neu. Ändert sich ein Bereich, bevor die Liste hier aktualisiert wird, würde der betroffene Teilbereich kurzzeitig wieder challenged — kein Datenverlust, nur ein vorübergehend nicht gecrawlter Ausschnitt.
 
+## Monitoring-Dienste
+
+Externe HTTP-Monitore lösen ebenfalls keine JavaScript-Proof-of-Work — ohne Ausnahme meldet ein Monitor auf eine geschützte Domain dauerhaft „down", obwohl der Dienst dahinter läuft.
+
+Die Option `allow_monitoring_services` (Standard **an**) nimmt **UptimeRobot** und **updown.io** per `ALLOW`-Regel aus, wieder per User-Agent **und** offizieller IP-Adresse gemeinsam geprüft. Landet im selben Mechanismus wie die Suchmaschinen-Freigabe, eigener Marker-Block `monitoring` in `/data/policy.yaml`.
+
+**Selbstgehostetes Uptime Kuma ist davon nicht abgedeckt** — es hat keine feste, veröffentlichte IP-Adresse, eine sichere Verifikation ist damit nicht möglich. Dafür stattdessen einen zweiten, internen Monitor direkt auf den Dienst legen, an Anubis vorbei:
+
+```text
+Extern:  https://dienst.domain.tld     → Reverse Proxy + Anubis
+Intern:  http://<interne-adresse>:port → Dienst selbst
+```
+
+## KI-Bot-Stufe
+
+`ai_bot_policy` steuert, wie Anubis mit bekannten KI/LLM-Clients umgeht — unabhängig von der catch-all-Regel, die sie ohnehin schon challenged. Vier Stufen, identisch zu den offiziellen Anubis-Voreinstellungen übernommen:
+
+| Stufe | Wirkung |
+|---|---|
+| `off` (Standard) | Keine eigene Regel — die allgemeine Challenge trifft KI-Bots wie jeden anderen unbekannten Client |
+| `aggressive` | **DENY** für jeden bekannten KI/LLM-Client vollständig, auch dokumentierte On-Demand-Abrufe (z.B. „ChatGPT, fass diese Seite zusammen" schlägt dann ebenfalls fehl) |
+| `moderate` | **DENY** für Trainings-Crawler (GPTBot, ClaudeBot) und die breite Sammel-Regel unbekannter KI-Bots, **ALLOW** für dokumentierte Suchindexierung (OAI-SearchBot, PerplexityBot) und On-Demand-Abrufe durch einen Menschen |
+| `permissive` | **ALLOW** für alle gut dokumentierten KI-Clients mit veröffentlichter IP-Liste, **inklusive** OpenAIs GPTBot-Trainings-Crawler — nur die breite Sammel-Regel bleibt `DENY` |
+
+Alle `ALLOW`-Regeln prüfen User-Agent **und** offizielle IP-Adresse gemeinsam. `DENY` heißt: sofortige Ablehnung ohne Challenge-Seite (spart dem Bot wie dem Server den Proof-of-Work-Umweg) — anders als bei catch-all, das auf `CHALLENGE` steht.
+
+`off` ändert am aktuellen Verhalten nichts: unbekannte KI-Bots landen weiter in catch-all und werden challenged (in der Praxis meist gleichbedeutend mit „kommt nicht durch", da sie kein JavaScript ausführen).
+
+## Vertrauenswürdige IP-Bereiche
+
+`trusted_ip_ranges` (Liste von IP-Adressen oder CIDR-Bereichen, z.B. `203.0.113.0/24`) nimmt eigene, selbst gewählte Adressen komplett von der Challenge aus — **ohne** User-Agent-Prüfung. Anders als bei Suchmaschinen/Monitoring/KI-Bots oben ist das keine Drittanbieter-Verifikation, sondern eine reine Vertrauensentscheidung des Betreibers, gedacht für eigene Infrastruktur (z.B. ein eigener Server, das Büro-Netz, ein Partnerdienst mit fester IP).
+
+```yaml
+trusted_ip_ranges:
+  - 203.0.113.0/24
+  - 198.51.100.5/32
+```
+
+Leer (Standard) = keine Ausnahme, keine Regel wird geschrieben.
+
 ## Einrichtung mit NPMplus
 
 1. Anubis-Add-on installieren und starten.

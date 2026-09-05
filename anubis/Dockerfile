@@ -25,6 +25,10 @@ COPY --from=anubis-bin /ko-app/anubis /usr/local/bin/anubis
 
 COPY policy.default.yaml /policy.default.yaml
 COPY policy.search-engines.yaml /policy.search-engines.yaml
+COPY policy.monitoring.yaml /policy.monitoring.yaml
+COPY policy.ai-aggressive.yaml /policy.ai-aggressive.yaml
+COPY policy.ai-moderate.yaml /policy.ai-moderate.yaml
+COPY policy.ai-permissive.yaml /policy.ai-permissive.yaml
 COPY --chmod=755 run.sh /run.sh
 
 EXPOSE 8923

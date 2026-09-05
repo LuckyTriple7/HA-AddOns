@@ -8,3 +8,12 @@ configuration:
   allow_search_engines:
     name: Let search engines through
     description: "Google, Bing, DuckDuckGo, Qwant, Internet Archive, Kagi, Marginalia, Mojeek, Common Crawl, Wikimedia and Arquivo.pt don't solve JavaScript proof-of-work and would get challenged too without this exemption — a domain then slowly vanishes from search results. Checks user agent AND the official IP address together. Default on. Off = truly every client gets challenged, search engines included."
+  allow_monitoring_services:
+    name: Let monitoring services through
+    description: "Exempts UptimeRobot and updown.io from the challenge (checked via user agent AND the official IP address), so an HTTP monitor doesn't permanently report 'down'. Self-hosted Uptime Kuma is unaffected (no fixed IP) — point a separate internal monitor straight at the service instead. Default on."
+  ai_bot_policy:
+    name: AI bot tier
+    description: "off = no dedicated rule, the generic challenge applies to AI bots too. aggressive = denies every known AI/LLM client outright, including on-demand fetches triggered by a human (e.g. 'ChatGPT, summarize this page'). moderate = denies training crawlers, allows documented search indexing and on-demand fetches through. permissive = allows all well-documented AI clients through, including training crawlers like GPTBot. Default off."
+  trusted_ip_ranges:
+    name: Trusted IP ranges
+    description: "Your own IP addresses or CIDR ranges (e.g. 203.0.113.0/24) that never see the challenge — a plain IP exemption with no user-agent check, meant for your own infrastructure. Empty = no exemption."

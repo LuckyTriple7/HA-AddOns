@@ -50,6 +50,46 @@ Other crawlers (e.g. Yandex) can be added the same way **below** the markers in 
 
 **Limits:** Providers occasionally republish their crawler IP ranges. If a range changes before the list here is refreshed, that part would briefly get challenged again — no data loss, just a temporarily uncrawled slice.
 
+## Monitoring services
+
+External HTTP monitors don't solve JavaScript proof-of-work either — without an exemption, a monitor on a protected domain permanently reports "down", even though the service behind it is running fine.
+
+The `allow_monitoring_services` option (default **on**) exempts **UptimeRobot** and **updown.io** via an `ALLOW` rule, again checking user agent **and** the official IP address together. Uses the same mechanism as the search-engine exemption, its own `monitoring` marker block in `/data/policy.yaml`.
+
+**Self-hosted Uptime Kuma is not covered by this** — it has no fixed, published IP address, so a secure verification isn't possible. Point a second, internal monitor straight at the service instead, bypassing Anubis:
+
+```text
+External: https://service.domain.tld       → reverse proxy + Anubis
+Internal: http://<internal-address>:port   → the service itself
+```
+
+## AI bot tier
+
+`ai_bot_policy` controls how Anubis treats known AI/LLM clients — independent of the catch-all rule, which already challenges them anyway. Four tiers, taken over identically from Anubis' own official presets:
+
+| Tier | Effect |
+|---|---|
+| `off` (default) | No dedicated rule — the generic challenge applies to AI bots like any other unknown client |
+| `aggressive` | **DENY** for every known AI/LLM client outright, including documented on-demand fetches (e.g. "ChatGPT, summarize this page" fails too) |
+| `moderate` | **DENY** for training crawlers (GPTBot, ClaudeBot) and the broad catch-all rule for unknown AI bots, **ALLOW** for documented search indexing (OAI-SearchBot, PerplexityBot) and human-triggered on-demand fetches |
+| `permissive` | **ALLOW** for all well-documented AI clients with a published IP list — **including** OpenAI's GPTBot training crawler — only the broad catch-all rule stays `DENY` |
+
+Every `ALLOW` rule checks user agent **and** the official IP address together. `DENY` means an immediate rejection with no challenge page (saves both the bot and the server the proof-of-work round trip) — unlike catch-all, which is `CHALLENGE`.
+
+`off` changes nothing about current behavior: unknown AI bots still fall into catch-all and get challenged (in practice usually equivalent to "doesn't get through", since they don't run JavaScript).
+
+## Trusted IP ranges
+
+`trusted_ip_ranges` (a list of IP addresses or CIDR ranges, e.g. `203.0.113.0/24`) exempts your own, hand-picked addresses from the challenge entirely — **without** a user-agent check. Unlike the search engine/monitoring/AI-bot exemptions above, this isn't third-party verification, it's a plain trust decision by the operator, meant for your own infrastructure (e.g. your own server, your office network, a partner service with a fixed IP).
+
+```yaml
+trusted_ip_ranges:
+  - 203.0.113.0/24
+  - 198.51.100.5/32
+```
+
+Empty (default) = no exemption, no rule gets written.
+
 ## Setting it up with NPMplus
 
 1. Install and start the Anubis add-on.

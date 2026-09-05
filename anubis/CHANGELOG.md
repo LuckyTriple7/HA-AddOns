@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.1.2] - 2026-09-05
+
+### Neu
+- Option `allow_monitoring_services` (Standard an): nimmt UptimeRobot und
+  updown.io per `ALLOW`-Regel aus (User-Agent UND offizielle IP-Adresse
+  gemeinsam), damit ein externer HTTP-Monitor nicht dauerhaft "down" meldet.
+  Selbstgehostetes Uptime Kuma bleibt außen vor — keine feste IP, dafür einen
+  internen Monitor direkt auf den Dienst legen.
+- Option `ai_bot_policy` (Standard `off`): steuert den Umgang mit bekannten
+  KI/LLM-Clients unabhängig von der catch-all-Regel, vier Stufen 1:1 aus
+  Anubis' eigenen Voreinstellungen übernommen — `off`, `aggressive` (DENY
+  für alles, auch On-Demand-Abrufe durch einen Menschen), `moderate` (DENY
+  für Trainings-Crawler, ALLOW für dokumentierte Suchindexierung +
+  On-Demand-Abrufe), `permissive` (ALLOW für alle dokumentierten KI-Clients
+  inklusive GPTBot-Training).
+- Option `trusted_ip_ranges` (Standard leer): eigene IP-Adressen/CIDR-
+  Bereiche komplett von der Challenge ausnehmen, ohne User-Agent-Prüfung —
+  gedacht für eigene Infrastruktur, keine Drittanbieter-Verifikation.
+- run.sh umgebaut: generalisierte `apply_managed_block`-Funktion verwaltet
+  jetzt vier unabhängige Marker-Blöcke in `/data/policy.yaml` (Suchmaschinen,
+  Monitoring, KI-Bot-Stufe, vertrauenswürdige IPs) statt nur einem — jeder
+  Block landet beim Einfügen automatisch hinter dem zuletzt verwalteten
+  Block, dadurch stellt sich nach jedem Neustart unabhängig vom Vorzustand
+  dieselbe Reihenfolge ein.
+- Simuliert: sechs aufeinanderfolgende "Neustarts" mit wechselnden
+  Options-Kombinationen (alle vier Schalter einzeln und gemeinsam getoggelt,
+  inklusive Rückkehr zu den Standardwerten) gegen die tatsächliche
+  run.sh-Funktion — jedes Mal gültiges YAML, korrekte Bot-Liste, keine
+  Duplikate.
+
 ## [0.1.1] - 2026-09-05
 
 ### Neu
