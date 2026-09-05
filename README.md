@@ -50,6 +50,8 @@ Die veröffentlichten Container-Images enthalten darüber hinaus fremde Software
 | LogPulse | ✅ | ✅ | Debian 12 |
 | NPMplus | ✅ | ✅ | Alpine |
 | CrowdPanel | ✅ | ✅ | Alpine |
+| NetToolbox | ✅ | ✅ | Alpine |
+| Anubis | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -404,6 +406,8 @@ https://github.com/LuckyTriple7/HA-AddOns
 | LogPulse | ✅ | ✅ | Debian 12 |
 | NPMplus | ✅ | ✅ | Alpine |
 | CrowdPanel | ✅ | ✅ | Alpine |
+| NetToolbox | ✅ | ✅ | Alpine |
+| Anubis | ✅ | ✅ | Alpine |
 
 ## Apps
 
