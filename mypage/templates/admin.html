@@ -8106,9 +8106,10 @@
       let html = '<div class="gh-list">';
       data.repos.forEach((repo, i) => {
         const dis = existing.has(repo.full_name);
-        html += `<label class="gh-repo" style="${dis ? 'opacity:.45' : 'cursor:pointer'}">
-          <input type="checkbox" data-i="${i}" ${dis ? 'disabled' : ''}>
+        html += `<label class="gh-repo" style="cursor:pointer">
+          <input type="checkbox" data-i="${i}">
           <strong>${repo.name}</strong>
+          ${dis ? `<span class="hint" style="margin:0">↻ ${T.gh_already}</span>` : ''}
           <span class="gh-desc"></span>
           <span class="hint" style="margin:0">★ ${repo.stars}</span>
         </label>`;
@@ -8130,7 +8131,7 @@
         { repos: selected, import_readme: el('gh-readme').checked });
       if (r.ok) {
         const data = await r.json();
-        toast(T.imported.replace('{n}', data.added));
+        toast(T.gh_import_result.replace('{n}', data.added).replace('{u}', data.updated || 0));
         loadGithubRepos();
         loadSite();
       } else { toast(T.error_save, true); }

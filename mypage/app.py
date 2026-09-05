@@ -12478,15 +12478,32 @@ def api_github_import():
     if not isinstance(repos, list):
         return jsonify({'error': 'invalid payload'}), 400
     site = load_site()
-    existing = {p.get('repo_full_name') for p in site['projects'] if p.get('repo_full_name')}
+    by_repo = {p.get('repo_full_name'): p for p in site['projects'] if p.get('repo_full_name')}
     added = 0
+    updated = 0
     for repo in repos[:50]:
         if not isinstance(repo, dict):
             continue
         full_name = _clean_str(repo.get('full_name'), 150)
-        if not full_name or not _GH_REPO_RE.match(full_name) or full_name in existing:
+        if not full_name or not _GH_REPO_RE.match(full_name):
             continue
-        site['projects'].append(_normalize_project({
+        existing_p = by_repo.get(full_name)
+        if existing_p:
+            # Schon importiertes Projekt: nur die GitHub-Metadaten nachziehen.
+            # Titel, Website-URL, Bilder, Video, Galerie und Long-Text sind oft
+            # von Hand nachbearbeitet — die bleiben beim Refresh unangetastet.
+            desc = _clean_str(repo.get('description', ''))
+            existing_p['desc_de']     = desc
+            existing_p['desc_en']     = desc
+            existing_p['language']    = _clean_str(repo.get('language', ''), 50)
+            existing_p['repo_url']    = _clean_str(repo.get('html_url', ''), 500)
+            existing_p['stars']       = max(0, int(repo.get('stars') or 0))
+            existing_p['repo_pushed'] = _clean_str(repo.get('pushed', ''), 10)
+            topics = repo.get('topics') or []
+            existing_p['tags'] = [_clean_str(t, 30) for t in topics if _clean_str(t, 30)][:8]
+            updated += 1
+            continue
+        new_p = _normalize_project({
             'long_de':        fetch_github_readme(full_name) if import_readme else '',
             'title':          repo.get('name') or full_name.split('/')[-1],
             'desc_de':        repo.get('description', ''),
@@ -12498,11 +12515,13 @@ def api_github_import():
             'stars':          repo.get('stars', 0),
             'repo_pushed':    repo.get('pushed', ''),
             'tags':           repo.get('topics', []),
-        }))
-        existing.add(full_name)
+        })
+        site['projects'].append(new_p)
+        by_repo[full_name] = new_p
         added += 1
-    save_site(site)
-    return jsonify({'ok': True, 'added': added})
+    if added or updated:
+        save_site(site)
+    return jsonify({'ok': True, 'added': added, 'updated': updated})
 
 
 @admin_app.route('/api/stats')

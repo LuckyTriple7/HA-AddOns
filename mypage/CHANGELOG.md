@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.57
+
+- 🔄 **GitHub-Import: schon importierte Repos ließen sich nie auffrischen.** Änderte sich Beschreibung, Sprache oder Topics eines Repos auf GitHub, blieb das im Add-on für immer beim Stand des ersten Imports — die Checkbox war für bereits importierte Repos ausgegraut und gesperrt, das Backend übersprang sie zusätzlich stillschweigend. Jetzt lässt sich jedes Repo erneut anhaken: Desc, Sprache, Tags, Repo-URL, Sterne und Push-Datum werden nachgezogen. Manuell gepflegte Felder (Titel, Website-URL, Bilder, Video, Galerie, Long-Text) bleiben dabei unangetastet.
+
 ## 0.11.56
 
 - 📧 **Versand-Mails bekommen jetzt eine ordentliche Message-ID und ein Datum.** `send_email()` setzte bisher nur `Subject`/`From`/`To` — ohne `Message-ID` und `Date` sind Mails (Willkommen, Passwort-Reset, Verifizierung, Kommentar-Antworten, …) für Spamfilter und Threading unvollständig. Neu: `Message-ID` (`email.utils.make_msgid`, mit SMTP-Host als Domain) und `Date` (`formatdate(localtime=True)`) werden bei jedem Versand gesetzt.

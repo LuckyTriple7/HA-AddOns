@@ -1629,6 +1629,8 @@
   "load_repos": "Repos laden",
   "import_selected": "Auswahl importieren",
   "imported": "{n} Projekt(e) importiert",
+  "gh_already": "schon importiert — erneut anhaken aktualisiert Desc/Sprache/Tags",
+  "gh_import_result": "{n} importiert, {u} aktualisiert",
   "no_repos": "Keine öffentlichen Repos gefunden.",
   "error_github": "GitHub-Abfrage fehlgeschlagen.",
   "error_user": "Bitte GitHub-Benutzernamen eingeben.",
