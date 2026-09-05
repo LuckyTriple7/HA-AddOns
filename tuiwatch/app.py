@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import make_msgid, formatdate
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -100,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.17"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.18"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1491,6 +1492,8 @@ def send_email(subject: str, html_body: str, to: str) -> None:
     msg['Subject'] = subject
     msg['From'] = sender
     msg['To'] = to
+    msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid(domain=host)
     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
     if use_tls:
         with smtplib.SMTP(host, port, timeout=20) as s:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.113.18
+
+- 📧 **Versand-Mails bekommen jetzt eine ordentliche Message-ID und ein Datum.** `send_email()` setzte bisher nur `Subject`/`From`/`To` — ohne `Message-ID` und `Date` sind Mails für Spamfilter und Threading (Antwort-Zuordnung im Postfach) unvollständig. Neu: `Message-ID` (`email.utils.make_msgid`, mit SMTP-Host als Domain) und `Date` (`formatdate(localtime=True)`) werden bei jedem Versand gesetzt.
+
 ## 0.113.17
 
 - 📇 **Das Nextcloud-Adressbuch ist wieder sichtbar — und benutzbar.** Die Empfängerauswahl hing an einem `<datalist>`, und das ist in Firefox praktisch unbrauchbar: Dort erscheint nur die **Adresse**, nie der Name, und sobald im Feld schon ein Standard-Empfänger steht, zeigt Firefox gar keine Vorschläge mehr. Dazu legen Passwortmanager wie Bitwarden ihr Ausfüll-Overlay über genau dieses Feld. Neu steht die Kontaktliste als eigener, aufklappbarer Block **unter** dem Eingabefeld — unabhängig von Browser-Eigenheiten und Overlays.
