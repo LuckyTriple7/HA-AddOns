@@ -30,7 +30,9 @@ Dieses Add-on liefert deshalb eine **eigenständige, importfreie Policy** mit (`
 
 Die catch-all-Regel challenged auch echte Suchmaschinen-Crawler — die lösen keine JavaScript-Proof-of-Work. Ohne Ausnahme verschwindet eine aktivierte Domain deshalb schleichend aus der Suche, weil Google & Co. beim erneuten Crawlen nicht mehr durchkommen.
 
-Die Option `allow_search_engines` (Standard **an**) nimmt deshalb **Googlebot und Bingbot** per `ALLOW`-Regel aus — geprüft wird dabei immer User-Agent **und** die jeweils offizielle IP-Adresse gemeinsam (`remote_addresses`), ein bloßer User-Agent-String ließe sich sonst von jedem Client fälschen. Ausschalten (`false`), wenn wirklich jeder Client challenged werden soll, auch Suchmaschinen — etwa bei einem rein privaten Dienst, der in keiner Suche auftauchen soll.
+Die Option `allow_search_engines` (Standard **an**) nimmt deshalb echte Suchmaschinen-, Web-Archiv- und Zitier-Crawler per `ALLOW`-Regel aus — geprüft wird dabei immer User-Agent **und** die jeweils offizielle IP-Adresse gemeinsam (`remote_addresses`), ein bloßer User-Agent-String ließe sich sonst von jedem Client fälschen. Ausschalten (`false`), wenn wirklich jeder Client challenged werden soll, auch Suchmaschinen — etwa bei einem rein privaten Dienst, der in keiner Suche auftauchen soll.
+
+Enthalten: **Google** (inklusive Search-Console-„Live-Test"/Google-InspectionTool), **Bing**, **DuckDuckGo**, **Qwant**, **Internet Archive**, **Kagi**, **Marginalia**, **Mojeek**, **Common Crawl**, **Wikimedia** (Citoid/Zotero Translation Server) und **Arquivo.pt**. Absichtlich **nicht** enthalten: **Yandex**.
 
 Die Regeln stehen zwischen zwei Markern in `/data/policy.yaml`:
 
@@ -44,9 +46,9 @@ Das Add-on schreibt **nur diesen Block** bei jedem Start neu, passend zur aktuel
 
 Bewusst **kein** `(data)/crawlers/_allow-good.yaml`-Import für diese Freigabe: genau ein Import dieser Art ist beim praktischen Testen schon einmal mit `invalid source file: (data)/common/domain-fronting.yaml` gescheitert. Die Google-/Bing-Regeln liegen deshalb wörtlich in `policy.search-engines.yaml` im Image, als Kopie der offiziellen Anubis-Quellen.
 
-Weitere Suchmaschinen (z.B. DuckDuckGo, Yandex, Kagi) lassen sich nach demselben Muster **unterhalb** der Marker in `/data/policy.yaml` ergänzen (außerhalb des verwalteten Blocks, sonst gehen sie beim nächsten Start wieder verloren) — die passende Regel liegt fertig unter `https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/<name>.yaml`.
+Weitere Crawler (z.B. Yandex) lassen sich nach demselben Muster **unterhalb** der Marker in `/data/policy.yaml` ergänzen (außerhalb des verwalteten Blocks, sonst gehen sie beim nächsten Start wieder verloren) — die passende Regel liegt fertig unter `https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/<name>.yaml`.
 
-**Grenzen:** Google und Bing veröffentlichen ihre Crawler-IP-Bereiche gelegentlich neu. Ändert sich ein Bereich, bevor die Liste aktualisiert wird, würde der betroffene Teilbereich kurzzeitig wieder challenged — kein Datenverlust, nur ein vorübergehend nicht gecrawlter Ausschnitt.
+**Grenzen:** Die Anbieter veröffentlichen ihre Crawler-IP-Bereiche gelegentlich neu. Ändert sich ein Bereich, bevor die Liste hier aktualisiert wird, würde der betroffene Teilbereich kurzzeitig wieder challenged — kein Datenverlust, nur ein vorübergehend nicht gecrawlter Ausschnitt.
 
 ## Einrichtung mit NPMplus
 

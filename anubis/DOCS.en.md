@@ -30,7 +30,9 @@ This add-on therefore ships a **self-contained, import-free policy** (`policy.de
 
 The catch-all rule challenges real search engine crawlers too — they don't solve JavaScript proof-of-work. Without an exemption, an activated domain slowly vanishes from search results, because Google & co. can no longer get through on re-crawl.
 
-The `allow_search_engines` option (default **on**) therefore exempts **Googlebot and Bingbot** via an `ALLOW` rule — always checking user agent **and** the respective official IP address together (`remote_addresses`); a bare user-agent string alone could be spoofed by anyone. Turn it off (`false`) if truly every client should be challenged, search engines included — for example for a purely private service that shouldn't show up in any search at all.
+The `allow_search_engines` option (default **on**) therefore exempts real search engine, web archive and citation crawlers via an `ALLOW` rule — always checking user agent **and** the respective official IP address together (`remote_addresses`); a bare user-agent string alone could be spoofed by anyone. Turn it off (`false`) if truly every client should be challenged, search engines included — for example for a purely private service that shouldn't show up in any search at all.
+
+Included: **Google** (including Search Console's "Live Test" / Google-InspectionTool), **Bing**, **DuckDuckGo**, **Qwant**, **Internet Archive**, **Kagi**, **Marginalia**, **Mojeek**, **Common Crawl**, **Wikimedia** (Citoid/Zotero Translation Server) and **Arquivo.pt**. Deliberately **not** included: **Yandex**.
 
 The rules live between two markers in `/data/policy.yaml`:
 
@@ -44,9 +46,9 @@ The add-on rewrites **only this block** on every start, matching the current `al
 
 Deliberately **no** `(data)/crawlers/_allow-good.yaml` import for this exemption: exactly this kind of import once failed in practice with `invalid source file: (data)/common/domain-fronting.yaml`. The Google/Bing rules therefore live literally in `policy.search-engines.yaml` inside the image, copied from Anubis' own official sources.
 
-Other search engines (e.g. DuckDuckGo, Yandex, Kagi) can be added the same way **below** the markers in `/data/policy.yaml` (outside the managed block, otherwise they'd be lost on the next start) — the matching rule is ready-made at `https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/<name>.yaml`.
+Other crawlers (e.g. Yandex) can be added the same way **below** the markers in `/data/policy.yaml` (outside the managed block, otherwise they'd be lost on the next start) — the matching rule is ready-made at `https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/<name>.yaml`.
 
-**Limits:** Google and Bing occasionally republish their crawler IP ranges. If a range changes before the list here is refreshed, that part would briefly get challenged again — no data loss, just a temporarily uncrawled slice.
+**Limits:** Providers occasionally republish their crawler IP ranges. If a range changes before the list here is refreshed, that part would briefly get challenged again — no data loss, just a temporarily uncrawled slice.
 
 ## Setting it up with NPMplus
 

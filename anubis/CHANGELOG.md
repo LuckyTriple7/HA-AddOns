@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.1] - 2026-09-05
+
+### Neu
+- Suchmaschinen-/Archiv-Allowlist (Option `allow_search_engines`) um DuckDuckGo,
+  Qwant, Internet Archive, Kagi, Marginalia, Mojeek, Common Crawl, Wikimedia
+  (Citoid/Zotero Translation Server) und Arquivo.pt erweitert — bisher waren
+  nur Google und Bing enthalten. Alle geprüft per User-Agent **und** offizieller
+  IP-Adresse gemeinsam, wie schon bei Google/Bing (Ausnahme: Internet Archive
+  und Arquivo.pt haben laut Anubis-Vorlage bewusst keinen User-Agent-Check,
+  dafür eine besonders enge IP-Liste).
+- Absichtlich **nicht** enthalten: Yandex.
+
+### Hinweis
+- Der verwaltete Marker-Block in `/data/policy.yaml` wächst dadurch deutlich
+  (v.a. durch DuckDuckGos ~480 Einzel-IPs) — rein zusätzliche Daten, keine
+  Verhaltensänderung an Struktur oder Toggle-Logik.
+
 ## [0.1.0] - 2026-09-05
 
 chore(deps): Bump alpine from 3.20 to 3.24 in /anubis

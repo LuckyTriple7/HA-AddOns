@@ -17,7 +17,7 @@ Internet → Reverse Proxy (z.B. NPMplus) → Anubis-Challenge → Anwendung
 
 - Reine Engine ohne eigene Oberfläche, ohne Ingress, ohne veröffentlichten Port — nur andere Add-on-Container erreichen sie über ihren Hostnamen auf Port 8923
 - Mitgelieferte, eigenständige Policy ohne externe Importe: challenged jeden Client ohne gültiges Auth-Cookie, kein impliziter ALLOW-Zweig
-- Googlebot und Bingbot standardmäßig ausgenommen (per IP+User-Agent verifiziert), abschaltbar über `allow_search_engines`
+- Google, Bing, DuckDuckGo, Qwant, Internet Archive, Kagi, Marginalia, Mojeek, Common Crawl, Wikimedia und Arquivo.pt standardmäßig ausgenommen (per IP+User-Agent verifiziert), abschaltbar über `allow_search_engines`
 - Fertig verdrahtet mit dem [NPMplus-Add-on](../npmplus/) dieses Repos über dessen `AUTH_REQUEST_ANUBIS_UPSTREAM`
 - Policy frei editierbar unter `/data/policy.yaml`
 
@@ -27,7 +27,7 @@ Internet → Reverse Proxy (z.B. NPMplus) → Anubis-Challenge → Anwendung
 |--------|----------|--------------|
 | `TZ` | `Europe/Berlin` | Zeitzone des Containers |
 | `log_level` | `info` | Log-Level: `debug`, `info`, `warn`, `error` |
-| `allow_search_engines` | `true` | Googlebot & Bingbot vom Challenge ausnehmen (verifiziert per IP+User-Agent). Aus = wirklich jeder wird challenged |
+| `allow_search_engines` | `true` | Echte Suchmaschinen-/Archiv-Crawler vom Challenge ausnehmen (verifiziert per IP+User-Agent). Aus = wirklich jeder wird challenged |
 
 Einrichtung mit NPMplus, Auth-Request-Test, Policy anpassen und Problembehandlung: **[Dokumentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/anubis/DOCS.md)**
 

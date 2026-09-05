@@ -7,4 +7,4 @@ configuration:
     description: Verbosity of the Anubis log (debug, info, warn, error). Default info.
   allow_search_engines:
     name: Let search engines through
-    description: "Googlebot and Bingbot don't solve JavaScript proof-of-work and would get challenged too without this exemption — a domain then slowly vanishes from search results. Checks user agent AND the official IP address together. Default on. Off = truly every client gets challenged, search engines included."
+    description: "Google, Bing, DuckDuckGo, Qwant, Internet Archive, Kagi, Marginalia, Mojeek, Common Crawl, Wikimedia and Arquivo.pt don't solve JavaScript proof-of-work and would get challenged too without this exemption — a domain then slowly vanishes from search results. Checks user agent AND the official IP address together. Default on. Off = truly every client gets challenged, search engines included."
