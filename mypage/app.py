@@ -34,6 +34,7 @@ import zipfile
 from array import array
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import make_msgid, formatdate
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as dtime
@@ -2285,9 +2286,11 @@ def send_email(subject: str, html_body: str, to: str | None = None,
         return
     try:
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From']    = sender
-        msg['To']      = to
+        msg['Subject']    = subject
+        msg['From']       = sender
+        msg['To']         = to
+        msg['Date']       = formatdate(localtime=True)
+        msg['Message-ID'] = make_msgid(domain=host)
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
         # Envelope-Sender = sichtbarer Absender (Alias muss am Postfach erlaubt sein)
         if use_tls:
