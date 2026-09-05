@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1] - 2026-09-05
+
+### Fixed
+- **Add-on startete nicht: `ModuleNotFoundError: No module named 'dkimgen'`.** Das Dockerfile
+  kopiert jede Python-Datei einzeln statt eines Platzhalters — die beiden mit 0.4.0 neuen Module
+  (`dkimgen.py`, `wpcheck.py`) fehlten in der Liste und landeten nie im Image.
+
 ## [0.4.0] - 2026-09-05
 
 ### Added

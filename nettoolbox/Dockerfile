@@ -40,6 +40,8 @@ COPY settings.py .
 COPY probes.py .
 COPY remote.py .
 COPY users.py .
+COPY dkimgen.py .
+COPY wpcheck.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.
 COPY config.yaml .
 COPY templates/ templates/
