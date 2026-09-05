@@ -46,6 +46,10 @@ class Context:
     # Betreiber ihn in den Einstellungen angefordert hat (wapimport.py).
     tech_extra_rules: bool = False
     user_agent: str = 'NetToolbox'
+    # Fürs Domain-Verfügbarkeits-Check (domaincheck.py) — eigenes
+    # Cloudflare-Konto des Betreibers, aus den Einstellungen.
+    cf_account_id: str = ''
+    cf_api_token: str = ''
 
 
 # ── Validation ────────────────────────────────────────────────────────────────

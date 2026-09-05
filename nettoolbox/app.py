@@ -27,6 +27,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import dkimgen
+import domaincheck
 import hasensors
 import monitor
 import settings as usersettings
@@ -189,14 +190,17 @@ def build_context() -> Context:
     resolvers = cfg.get('resolvers') or ['9.9.9.9', '1.1.1.1']
     if isinstance(resolvers, str):
         resolvers = [r for r in resolvers.replace(',', ' ').split() if r]
+    settings = usersettings.effective(cfg)
     return Context(
         resolvers=[str(r).strip() for r in resolvers if str(r).strip()][:8],
         dns_timeout=float(_cfg_int('dns_timeout', 5, 1, 60)),
         http_timeout=float(_cfg_int('http_timeout', 10, 1, 120)),
         allow_private=bool(cfg.get('allow_private_targets')),
         allow_port_check=bool(cfg.get('port_check_enabled', True)),
-        tech_extra_rules=bool(usersettings.effective(cfg).get('tech_extra_rules')),
-        user_agent='NetToolbox/' + (APP_VERSION or '0'))
+        tech_extra_rules=bool(settings.get('tech_extra_rules')),
+        user_agent='NetToolbox/' + (APP_VERSION or '0'),
+        cf_account_id=str(settings.get('cf_account_id') or ''),
+        cf_api_token=str(settings.get('cf_api_token') or ''))
 
 
 def notify_config() -> dict:
@@ -660,7 +664,13 @@ def _logged_in() -> bool:
 # fehlt absichtlich -- Wächter sind Betreibersache; "history" ebenfalls -- der
 # eigene Verlauf ist privat und immer sichtbar.
 
-MODULES = ('report', 'dns', 'mail', 'reverse', 'tls', 'whois', 'http')
+MODULES = ('report', 'dns', 'mail', 'reverse', 'tls', 'whois', 'http', 'domain_check')
+
+# TLDs zur Auswahl im Domain-Verfügbarkeits-Check. Nicht jede hier ist über
+# die Cloudflare-API tatsächlich registrierbar -- das sagt die Antwort selbst
+# (reason: extension_not_supported_via_api), keine Vorab-Filterung nötig.
+DOMAIN_CHECK_TLDS = ('de', 'com', 'net', 'org', 'io', 'eu', 'biz', 'app',
+                     'dev', 'info', 'co', 'shop')
 
 # Welche Prüfung zu welchem Reiter gehört. Aus der Oberfläche abgeleitet, nicht
 # geraten: eine fehlende Zuordnung fällt beim Start auf (siehe _startup_checks).
@@ -675,6 +685,7 @@ PROBE_MODULE = {
     'tls': 'tls',
     'whois': 'whois',
     'http': 'http', 'quic': 'http', 'seo': 'http', 'tech': 'http', 'wordpress': 'http',
+    'domain_check': 'domain_check',
 }
 
 
@@ -824,6 +835,9 @@ _ERROR_STATUS = {
     'bad_quota': 400, 'self_target': 409, 'user_store_broken': 503,
     'module_disabled': 403, 'quota_exhausted': 429,
     'unknown_session': 404, 'crypto_unavailable': 503,
+    'cloudflare_not_configured': 503, 'cloudflare_auth': 502,
+    'cloudflare_timeout': 504, 'cloudflare_unreachable': 502,
+    'cloudflare_bad_response': 502, 'cloudflare_error': 502,
 }
 
 
@@ -1199,6 +1213,7 @@ def index():
         target_kind=probes.TARGET_KIND,
         rr_types=list(probes.COMMON_TYPES) + ['PTR', 'DS', 'DNSKEY', 'TLSA',
                                               'NAPTR', 'SPF'],
+        domain_check_tlds=DOMAIN_CHECK_TLDS,
         resolvers=[{'label': label, 'server': server}
                    for label, server in probes.PUBLIC_RESOLVERS])
 
@@ -1210,6 +1225,7 @@ def index():
 def status():
     backend = get_backend()
     state = backend.ping()
+    settings = usersettings.effective(load_config())
     return jsonify({
         'version': APP_VERSION,
         'ingress': _is_ingress(),
@@ -1220,6 +1236,7 @@ def status():
         'resolvers': build_context().resolvers,
         'quota': quota_state(),
         'modules': allowed_modules(),
+        'domain_check_configured': bool(settings.get('cf_account_id') and settings.get('cf_api_token')),
     })
 
 
@@ -1952,6 +1969,20 @@ def settings_test_telegram():
         cfg, '[NetToolbox] Testnachricht — die Telegram-Einstellungen funktionieren.')
     if not ok:
         return jsonify({'ok': False, 'error': error or 'not_configured'}), 200
+    return jsonify({'ok': True})
+
+
+@api('/api/settings/test-cloudflare', methods=('POST',), admin=True)
+def settings_test_cloudflare():
+    """Nur das Token, per Cloudflares eigenem Verify-Endpunkt -- die
+    Konto-ID kommt erst beim eigentlichen Domain-Check ins Spiel."""
+    body = request.get_json(silent=True) or {}
+    cfg = _test_cfg(body if isinstance(body, dict) else {})
+    token = str(cfg.get('cf_api_token') or '')
+    if not token:
+        return jsonify({'ok': False, 'error': 'not_configured'}), 200
+    if not domaincheck.verify_token(token):
+        return jsonify({'ok': False, 'error': 'cloudflare_auth'}), 200
     return jsonify({'ok': True})
 
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0] - 2026-09-05
+
+### Added
+- **Domain-Verfügbarkeit** (neuer Reiter, eigenes Berechtigungsmodul). Prüft über das eigene
+  Cloudflare-Konto (Registrar-API), ob eine Domain registrierbar ist — verlässlicher als ein
+  WHOIS-„kein Treffer“, dessen Wortlaut je Endung anders aussieht. Basisname eingeben, Endungen
+  auswählen (bis zu 12 zur Wahl, de/com/net/org/io/eu/biz/app/dev/info/co/shop), Ergebnis zeigt
+  je Endung Verfügbarkeit, Grund (falls nicht registrierbar) und Preis. Braucht Cloudflare-Konto-ID
+  + API-Token (nur Leserecht fürs Registrar) in den Einstellungen, mit eigenem Verbindungstest.
+  Neu im Berechtigungssystem: je Benutzer einzeln freischaltbar wie jeder andere Reiter.
+
 ## [0.4.2] - 2026-09-05
 
 ### Fixed

@@ -33,6 +33,9 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Hostname-Abdeckung, ausgehandelte TLS-Version, CAA gegen den tatsächlichen Aussteller
 - **DANE/TLSA** — TLSA-Einträge der MX-Server gegen deren echtes Zertifikat, samt DNSSEC-Lage
 - **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
+- **Domain-Verfügbarkeit** — über das eigene Cloudflare-Konto (Registrar-API), verlässlicher als
+  WHOIS-„kein Treffer“; bis zu 12 Endungen zur Auswahl, Ergebnis mit Grund und Preis je Endung.
+  Braucht Cloudflare-Konto-ID + API-Token in den Einstellungen (nur Leserecht nötig)
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
   ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand

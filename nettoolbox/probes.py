@@ -17,6 +17,7 @@ import netutils
 import nettech
 import portcheck
 import quiccheck
+import domaincheck
 import seocheck
 import smtpcheck
 import tlscheck
@@ -332,6 +333,12 @@ def p_wordpress(ctx: Context, params: dict) -> dict:
     return wpcheck.check_wordpress(ctx, _str(params, 'target'))
 
 
+def p_domain_check(ctx: Context, params: dict) -> dict:
+    domains = [clean_domain(d) for d in _list(params, 'domains')]
+    rows = domaincheck.check_availability(ctx.cf_account_id, ctx.cf_api_token, domains)
+    return {'domains': rows}
+
+
 def _port_check_allowed(ctx: Context) -> None:
     """Der Portcheck lässt sich abschalten.
 
@@ -403,6 +410,7 @@ PROBES = {
     'seo': p_seo,
     'tech': p_tech,
     'wordpress': p_wordpress,
+    'domain_check': p_domain_check,
     'mailheader': p_mailheader,
     'ping': p_ping,
     'traceroute': p_traceroute,
@@ -424,7 +432,8 @@ TARGET_KIND = {
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
-    'seo': 'target', 'tech': 'target', 'wordpress': 'target', 'mailheader': 'text',
+    'seo': 'target', 'tech': 'target', 'wordpress': 'target',
+    'domain_check': 'domains', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'ports': 'target', 'dualstack': 'target',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',

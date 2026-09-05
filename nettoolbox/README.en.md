@@ -34,6 +34,9 @@ about your domains leaves your own infrastructure.
   coverage, negotiated TLS version, CAA against the actual issuer
 - **DANE/TLSA** — TLSA records of the MX servers against their real certificate, with DNSSEC state
 - **Whois/RDAP** — registrar, registration/expiry dates, name servers; RDAP first, WHOIS fallback for TLDs without RDAP (e.g. .de)
+- **Domain availability** — via your own Cloudflare account (Registrar API), more reliable than a
+  WHOIS "no match"; up to 12 TLDs to pick from, result shows a reason and price per TLD. Needs a
+  Cloudflare Account ID + API token in Settings (read-only permission is enough)
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
   without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score

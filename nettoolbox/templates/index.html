@@ -256,6 +256,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   {% if "tls" in modules %}<button data-tab="tls"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.nav_tls }}</button>{% endif %}
   {% if "whois" in modules %}<button data-tab="whois"><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.nav_whois }}</button>{% endif %}
   {% if "http" in modules %}<button data-tab="http"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.nav_http }}</button>{% endif %}
+  {% if "domain_check" in modules %}<button data-tab="domain_check"><svg viewBox="0 0 24 24"><path d="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.35 18.92,8M12,4.04C12.83,5.24 13.48,6.57 13.91,8H10.09C10.52,6.57 11.17,5.24 12,4.04M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M5.08,16H8.03C8.35,17.25 8.81,18.45 9.41,19.56C7.57,18.93 6.04,17.65 5.08,16M8.03,8H5.08C6.04,6.35 7.57,5.07 9.41,4.44C8.81,5.55 8.35,6.75 8.03,8M12,19.96C11.17,18.76 10.52,17.43 10.09,16H13.91C13.48,17.43 12.83,18.76 12,19.96M14.34,14H9.66C9.57,13.34 9.5,12.68 9.5,12C9.5,11.32 9.57,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14H16.36Z"/></svg>{{ t.nav_domain_check }}</button>{% endif %}
   {% if is_admin %}<button data-tab="monitor"><svg viewBox="0 0 24 24"><path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/></svg>{{ t.nav_monitor }}</button>{% endif %}
   <button data-tab="history"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.nav_history }}</button>
 </nav>
@@ -694,6 +695,29 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   </div>
 </section>
 
+<section id="tab-domain_check">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.35 18.92,8M12,4.04C12.83,5.24 13.48,6.57 13.91,8H10.09C10.52,6.57 11.17,5.24 12,4.04M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M5.08,16H8.03C8.35,17.25 8.81,18.45 9.41,19.56C7.57,18.93 6.04,17.65 5.08,16M8.03,8H5.08C6.04,6.35 7.57,5.07 9.41,4.44C8.81,5.55 8.35,6.75 8.03,8M12,19.96C11.17,18.76 10.52,17.43 10.09,16H13.91C13.48,17.43 12.83,18.76 12,19.96M14.34,14H9.66C9.57,13.34 9.5,12.68 9.5,12C9.5,11.32 9.57,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14H16.36Z"/></svg>{{ t.domain_check_title }}</h2>
+    <p class="hint">{{ t.domain_check_hint }}</p>
+    <div id="domainCheckConfigWarn" class="hint" style="color:var(--red)" hidden>{{ t.domain_check_not_configured }}</div>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="dcBase">{{ t.field_domain_check_base }}</label>
+        <input type="text" id="dcBase" placeholder="meintestname" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="dcRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px" id="dcTlds">
+      {% for tld in domain_check_tlds %}
+      <label class="set-check"><input type="checkbox" class="dc-tld" value="{{ tld }}" {% if loop.index0 < 6 %}checked{% endif %}> .{{ tld }}</label>
+      {% endfor %}
+    </div>
+    <div id="dcResult"></div>
+  </div>
+</section>
+
 <section id="tab-http">
   <div class="card">
     <h2><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.http_title }}</h2>
@@ -935,6 +959,24 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <div class="hint" id="setTechState"></div>
     </div>
 
+    <div class="set-group">
+      <h3>{{ t.settings_group_domain_check }}</h3>
+      <p class="hint" style="margin-top:0">{{ t.domain_check_settings_hint }}</p>
+      <div class="set-row">
+        <label class="field" for="setCfAccountId">{{ t.field_cf_account_id }}</label>
+        <input type="text" id="setCfAccountId" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <label class="field" for="setCfApiToken">{{ t.field_cf_api_token }}</label>
+        <input type="password" id="setCfApiToken" autocomplete="new-password">
+        <div class="hint" id="setCfApiTokenState"></div>
+      </div>
+      <div class="set-row">
+        <button class="btn" id="setTestCloudflare" type="button">{{ t.action_test_cloudflare }}</button>
+        <span class="hint" id="setTestCloudflareResult"></span>
+      </div>
+    </div>
+
     <div class="row" style="margin-top:18px; justify-content:flex-end">
       <button class="btn" onclick="loadSettings()" type="button">{{ t.action_reload }}</button>
       <button class="btn primary" id="setSave" onclick="saveSettings()" type="button">{{ t.action_save }}</button>
@@ -1134,6 +1176,9 @@ async function loadSettings(){
     $('setNotifyLoginFailTg').checked = v.notify_login_fail_telegram !== false;
     $('setNotifyLoginOkMail').checked = !!v.notify_login_ok_email;
     $('setNotifyLoginOkTg').checked = !!v.notify_login_ok_telegram;
+    $('setCfAccountId').value = v.cf_account_id || '';
+    $('setCfApiToken').value = '';
+    $('setCfApiTokenState').textContent = v.cf_api_token_set ? T.settings_secret_set : T.settings_secret_unset;
   } catch (e) { toast(errText(e.code), true); }
   loadTechRules(true);
 }
@@ -1247,7 +1292,8 @@ function userRow(u, selfId){
 // unter nav_mail_group. Eine Zuordnung statt einer Namensregel.
 const MODULE_LABEL = {
   report: 'nav_report', dns: 'nav_dns', mail: 'nav_mail_group',
-  reverse: 'nav_reverse', tls: 'nav_tls', whois: 'nav_whois', http: 'nav_http'
+  reverse: 'nav_reverse', tls: 'nav_tls', whois: 'nav_whois', http: 'nav_http',
+  domain_check: 'nav_domain_check'
 };
 
 function actionButton(action, label, id, cls){
@@ -1497,6 +1543,8 @@ function settingsFormValues(){
     notify_login_ok_telegram: $('setNotifyLoginOkTg').checked,
     tech_extra_rules: $('setTechExtra').checked,
     tech_rules_auto_update: $('setTechAuto').checked,
+    cf_account_id: $('setCfAccountId').value.trim(),
+    cf_api_token: $('setCfApiToken').value,
   };
 }
 
@@ -1528,6 +1576,7 @@ function testFailReason(code){
     timeout: T.settings_test_timeout,
     connection_failed: T.settings_test_connection_failed,
     no_email: T.err_no_email,
+    cloudflare_auth: T.settings_test_auth_failed,
   };
   return known[code] || code;
 }
@@ -1547,6 +1596,8 @@ $('setTestEmail').addEventListener('click', () =>
   sendSettingsTest('/api/settings/test-email', 'setTestEmail', 'setTestEmailResult'));
 $('setTestTelegram').addEventListener('click', () =>
   sendSettingsTest('/api/settings/test-telegram', 'setTestTelegram', 'setTestTelegramResult'));
+$('setTestCloudflare').addEventListener('click', () =>
+  sendSettingsTest('/api/settings/test-cloudflare', 'setTestCloudflare', 'setTestCloudflareResult'));
 
 // ── Status pill ─────────────────────────────────────────────────────────────
 
@@ -1564,6 +1615,9 @@ async function loadStatus(){
   try {
     const data = await api('/api/status');
     showQuota(data.quota);
+    if ($('domainCheckConfigWarn')) {
+      $('domainCheckConfigWarn').hidden = !!data.domain_check_configured;
+    }
     const pill = $('backendPill');
     const ok = data.backend && data.backend.ok;
     pill.className = 'pill ' + (ok ? 'ok' : 'bad');
@@ -3229,6 +3283,57 @@ async function whoisCheck(){
 
 $('whoisRun').addEventListener('click', whoisCheck);
 $('whoisDomain').addEventListener('keydown', e => { if (e.key === 'Enter') whoisCheck(); });
+
+// ── Domain-Verfügbarkeit ─────────────────────────────────────────────────────
+// reason kommt wörtlich von Cloudflare zurück -- kein Fehlercode dieser App,
+// deshalb eine eigene kleine Übersetzungstabelle statt errText().
+const DC_REASON_KEY = {
+  extension_not_supported_via_api: 'dc_reason_not_supported_api',
+  extension_not_supported: 'dc_reason_not_supported',
+  extension_disallows_registration: 'dc_reason_disallowed',
+  domain_premium: 'dc_reason_premium',
+  domain_unavailable: 'dc_reason_taken',
+};
+
+async function dcCheck(){
+  const base = $('dcBase').value.trim();
+  if (!base) { toast(T.err_empty_target, true); return; }
+  const tlds = Array.from(document.querySelectorAll('.dc-tld:checked')).map(cb => cb.value);
+  if (!tlds.length) { toast(T.dc_err_no_tld, true); return; }
+  const domains = tlds.map(t => base + '.' + t);
+  const box = $('dcResult'); showLoading(box);
+  try {
+    const data = await runProbe('domain_check', { domains: domains }, base, $('dcRun'));
+    box.innerHTML = '';
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_domain, T.dc_col_status, T.dc_col_reason, T.dc_col_price]
+      .forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    (data.result.domains || []).forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', row.name));
+      const statusTd = el('td');
+      statusTd.appendChild(el('span', 'badge ' + (row.registrable ? 'ok' : 'fail'),
+        row.registrable ? T.dc_available : T.dc_unavailable));
+      if (row.registrable && row.tier === 'premium') {
+        statusTd.appendChild(document.createTextNode(' '));
+        statusTd.appendChild(el('span', 'chip', T.dc_premium));
+      }
+      tr.appendChild(statusTd);
+      tr.appendChild(el('td', '', row.reason ? (T[DC_REASON_KEY[row.reason]] || row.reason) : '—'));
+      const price = row.pricing ? (row.pricing.registration_cost + ' ' + row.pricing.currency) : '—';
+      tr.appendChild(el('td', 'mono', price));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+$('dcRun').addEventListener('click', dcCheck);
+$('dcBase').addEventListener('keydown', e => { if (e.key === 'Enter') dcCheck(); });
 
 // ── HTTP header tab ───────────────────────────────────────────────────────
 

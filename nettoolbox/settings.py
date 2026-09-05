@@ -35,6 +35,7 @@ GROUPS = (
     ('telegram', 'telegram'),
     ('security', 'security'),
     ('tech', 'tech'),
+    ('domain_check', 'domain_check'),
 )
 
 FIELDS = {
@@ -70,9 +71,13 @@ FIELDS = {
     'tech_extra_rules': ('bool', False, None, 'tech', 'tech_extra_rules', ''),
     'tech_rules_auto_update': ('bool', True, None, 'tech',
                                'tech_rules_auto_update', ''),
+    # Domain-Verfügbarkeit (domaincheck.py) läuft über das eigene
+    # Cloudflare-Konto des Betreibers -- kein freier öffentlicher Dienst dafür.
+    'cf_account_id': ('str', '', 64, 'domain_check', 'cf_account_id', ''),
+    'cf_api_token': ('str', '', 500, 'domain_check', 'cf_api_token', ''),
 }
 
-SECRET_KEYS = frozenset({'smtp_password', 'telegram_bot_token'})
+SECRET_KEYS = frozenset({'smtp_password', 'telegram_bot_token', 'cf_api_token'})
 
 _lock = threading.Lock()
 _path = ''
