@@ -32,11 +32,13 @@ The WHOIS half stays best-effort by nature, not by oversight: domaininfo.py's
 "status: available" -- .eu and .it both use exactly that and nothing else,
 confirmed live for both a registered and a free name each). A registry
 whose wording matches none of those reports found=True by default, which
-reads as "taken" here even when it might not be. Worse, at least one
-(.ch, verified live) refuses automated WHOIS outright ("Requests of this
-client are not permitted") and answers every query the same way -- there is
-no way to tell taken from free from here at all for it. None of this needs
-fixing per TLD before shipping; it is the honest cost of not paying
+reads as "taken" here even when it might not be. Worse, some registries
+don't answer at all: .ch (verified live) refuses automated WHOIS outright
+("Requests of this client are not permitted"), and .es (verified live, from
+two unrelated networks) never even completes the TCP handshake to
+whois.nic.es -- both surface as registry_check_failed, an honest "could not
+tell" rather than a guess either way. None of this needs fixing per TLD
+before shipping; it is the honest cost of not paying
 Cloudflare (or another registrar API) for every ccTLD in existence.
 """
 
