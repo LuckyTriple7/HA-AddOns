@@ -27,6 +27,23 @@ __cf_bm). Those get set on perfectly normal, unblocked visits too -- they
 say "this site uses that vendor's bot-management product", not "this
 request just got blocked", and conflating the two would cry wolf on every
 ordinary page load a bot-management product happens to sit in front of.
+
+One honest limit worth spelling out: picking "Googlebot" etc. only sends
+that crawler's User-Agent string -- it does not, and cannot, make the
+request arrive from that crawler's real IP address. A serious allowlist
+checks both together, whichever form that takes -- a fixed list of the
+crawler's published IP ranges (Anubis's own bundled per-crawler data,
+requiring both an IP-range match *and* the UA regex, is one example: this
+repo's own anubis add-on ships exactly that for Google/Bing) or a live
+forward-confirmed reverse-DNS lookup are the two common approaches -- and
+either way the UA string alone is trivial to fake, which is exactly what
+picking an identity here does. So a "blocked" result while impersonating
+Googlebot proves the site does not blindly trust the UA string (arguably
+the more secure outcome); it says nothing about whether the real Googlebot,
+calling from Google's own address space, gets through -- that is a
+separate question this tool cannot answer, and Google Search Console's own
+live test (which does call from a real Google IP) is the right place to
+check it.
 """
 
 import dataclasses
@@ -52,6 +69,16 @@ IDENTITIES = {
     'browser': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                '(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'),
 }
+
+# Brand markers that make a User-Agent claim to *be* a specific named
+# crawler -- checked against the actual string that went out, so a
+# hand-typed custom UA claiming "Googlebot" gets the same caveat as picking
+# it from the list. 'default' and the plain 'browser' string never match
+# any of these, since neither claims to be something a serious allowlist
+# would verify by source IP in the first place.
+NAMED_CRAWLER_MARKERS = ('googlebot', 'bingbot', 'gptbot', 'claudebot', 'ccbot',
+                         'bytespider', 'yandexbot', 'duckduckbot', 'applebot',
+                         'oai-searchbot', 'perplexitybot')
 
 # name, category ('pow' proof-of-work · 'challenge' JS/interactive ·
 # 'waf' block page), site (the product's own home, for the finding text),
@@ -127,9 +154,16 @@ def check_bot_protection(ctx: Context, target: str, identity: str) -> dict:
             matches.append({'name': sig['name'], 'category': sig['category'],
                             'site': sig['site'], 'markers': hit})
 
+    claims_crawler = any(m in fetch_ctx.user_agent.lower() for m in NAMED_CRAWLER_MARKERS)
+
     return {
         'final_url': final_url, 'status': resp.get('status', 0),
         'identity': identity, 'user_agent': fetch_ctx.user_agent,
         'title': title[:200], 'bytes': resp.get('bytes', 0),
         'redirects': len(chain) - 1, 'detected': matches,
+        # The UA claims to be a named crawler, but the request still came
+        # from this add-on's own address -- a real allowlist checks the
+        # source IP too, so a match here doesn't prove the real crawler
+        # would be blocked, and no match doesn't prove it wouldn't be.
+        'claims_named_crawler': claims_crawler,
     }

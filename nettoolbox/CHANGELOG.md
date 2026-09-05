@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.1] - 2026-09-05
+
+### Added
+- **Hinweis, wenn eine benannte Suchmaschine/Crawler nachgeahmt wird.** Nachgeahmt wird nur der
+  User-Agent, nie die Herkunfts-IP — eine ernsthafte Positivliste (wie die eigenen Anubis-Regeln
+  in `anubis/policy.search-engines.yaml`, IP-Bereich UND User-Agent zusammen) lässt sich damit
+  nicht täuschen. Ein Treffer beim Googlebot-Test beweist also nicht, dass der echte Googlebot
+  auch blockiert wird — dafür ist Googles eigener Live-Test in der Search Console die
+  verlässlichere Quelle. Gilt jetzt auch für einen frei getippten User-Agent, der einen
+  bekannten Crawler-Namen enthält, nicht nur für die Dropdown-Auswahl.
+
 ## [0.7.0] - 2026-09-05
 
 ### Added

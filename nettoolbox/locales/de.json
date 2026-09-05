@@ -849,6 +849,7 @@
   "bot_cat_waf": "WAF-Sperrseite",
   "bot_markers": "Erkannt an: {markers}",
   "bot_none_detected": "Kein bekanntes Schutzsystem in der Antwort erkannt.",
+  "bot_ip_caveat": "Nachgeahmt wird nur der User-Agent, nicht die Herkunfts-IP. Eine ernsthafte Positivliste (z. B. Anubis' eigene Google-/Bing-Regeln) prüft echte Suchmaschinen-Crawler zusätzlich über deren tatsächliche IP-Bereiche — ein Treffer hier beweist also nicht, dass der echte Crawler auch blockiert wird, und kein Treffer beweist nicht das Gegenteil. Googles eigener Live-Test in der Search Console ruft von einer echten Google-IP ab und ist dafür die verlässlichere Quelle.",
   "tech_conf_high": "sicher",
   "tech_conf_medium": "wahrscheinlich",
   "tech_conf_low": "abgeleitet",

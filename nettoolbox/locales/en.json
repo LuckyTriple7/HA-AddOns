@@ -849,6 +849,7 @@
   "bot_cat_waf": "WAF block page",
   "bot_markers": "Detected via: {markers}",
   "bot_none_detected": "No known protection system detected in the response.",
+  "bot_ip_caveat": "Only the User-Agent is impersonated, not the source IP. A serious allowlist (e.g. Anubis's own Google/Bing rules) also checks a real search-engine crawler's actual IP ranges — a match here doesn't prove the real crawler would be blocked too, and no match doesn't prove the opposite. Google's own live test in Search Console calls from a real Google IP and is the more reliable source for that.",
   "tech_conf_high": "certain",
   "tech_conf_medium": "likely",
   "tech_conf_low": "implied",

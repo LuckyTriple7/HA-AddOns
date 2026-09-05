@@ -3844,6 +3844,7 @@ async function botCheck(){
     box.appendChild(badges);
 
     if (r.title) box.appendChild(el('p', 'mono', r.title));
+    if (r.claims_named_crawler) box.appendChild(el('p', 'hint', T.bot_ip_caveat));
 
     if (r.detected.length) {
       r.detected.forEach(d => {
