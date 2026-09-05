@@ -24,6 +24,7 @@ RUN apk add --no-cache bash jq tzdata
 COPY --from=anubis-bin /ko-app/anubis /usr/local/bin/anubis
 
 COPY policy.default.yaml /policy.default.yaml
+COPY policy.search-engines.yaml /policy.search-engines.yaml
 COPY --chmod=755 run.sh /run.sh
 
 EXPOSE 8923

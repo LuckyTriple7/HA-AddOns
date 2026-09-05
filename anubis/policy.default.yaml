@@ -2,16 +2,24 @@
 #
 # Die mitgelieferte Standard-Policy von Anubis bindet zusätzliche Snippets aus
 # (data)/common/domain-fronting.yaml, (data)/bots/... usw. ein. Diese Dateien
-# liegen nur im Original-Image (KO_DATA_PATH) und sind über eine einzelne
-# gemountete Policy-Datei nicht erreichbar — der Fehler dazu lautet
-# "invalid source file: (data)/common/domain-fronting.yaml". Diese Policy
-# kommt deshalb bewusst ohne Importe aus.
+# liegen im Original-Image nur als in das Binary compilierte Go-embed.FS-Daten
+# vor. Beim praktischen Testen ist genau ein solcher Import schon einmal mit
+# "invalid source file: (data)/common/domain-fronting.yaml" gescheitert —
+# diese Policy verzichtet deshalb bewusst komplett auf (data)/-Importe.
 #
-# Kein impliziter ALLOW-Zweig: jeder Client, der nicht von einer Regel
-# erfasst wird, landet in der catch-all-Regel und wird ebenfalls challenged.
-# Das schließt curl, wget, Scanner und unbekannte Clients mit ein — sie
-# fallen sonst mit weight <= 0 durch eine Standard-Freigabe.
+# Kein impliziter ALLOW-Zweig: jeder Client, der nicht von einer Regel erfasst
+# wird, landet in der catch-all-Regel und wird ebenfalls challenged. Das
+# schließt curl, wget, Scanner und unbekannte Clients mit ein — sie fallen
+# sonst mit weight <= 0 durch eine Standard-Freigabe.
+#
+# Der Block zwischen den >>>-/<<<-Markern unten wird vom Add-on bei jedem
+# Start neu geschrieben, je nach Option "allow_search_engines" — von Hand
+# eingetragene Regeln dort gehen beim nächsten Start verloren. Alles
+# außerhalb der Marker (z.B. eigene Regeln unterhalb) bleibt unangetastet.
 bots:
+  # >>> anubis-addon search-engines >>>
+  # <<< anubis-addon search-engines <<<
+
   - name: generic-browser
     user_agent_regex: >-
       Mozilla|Opera

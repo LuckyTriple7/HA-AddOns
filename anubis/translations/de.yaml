@@ -5,3 +5,6 @@ configuration:
   log_level:
     name: Log-Level
     description: Ausführlichkeit des Anubis-Protokolls (debug, info, warn, error). Standard info.
+  allow_search_engines:
+    name: Suchmaschinen durchlassen
+    description: "Googlebot und Bingbot lösen keine JavaScript-Proof-of-Work und würden ohne diese Ausnahme ebenfalls challenged — eine Domain verschwindet dann schleichend aus der Suche. Prüft User-Agent UND offizielle IP-Adresse gemeinsam. Standard an. Aus = wirklich jeder Client wird challenged, auch Suchmaschinen."

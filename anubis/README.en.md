@@ -17,6 +17,7 @@ Internet → reverse proxy (e.g. NPMplus) → Anubis challenge → application
 
 - A bare engine with no UI of its own, no Ingress, no published port — only other add-on containers reach it, via its hostname on port 8923
 - Ships a self-contained policy with no external imports: challenges any client without a valid auth cookie, no implicit ALLOW branch
+- Googlebot and Bingbot exempted by default (verified via IP+user agent), can be turned off via `allow_search_engines`
 - Pre-wired for this repo's [NPMplus add-on](../npmplus/) via its `AUTH_REQUEST_ANUBIS_UPSTREAM`
 - Policy freely editable at `/data/policy.yaml`
 
@@ -26,6 +27,7 @@ Internet → reverse proxy (e.g. NPMplus) → Anubis challenge → application
 |--------|---------|--------------|
 | `TZ` | `Europe/Berlin` | Container timezone |
 | `log_level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `allow_search_engines` | `true` | Exempt Googlebot & Bingbot from the challenge (verified via IP+user agent). Off = truly everyone gets challenged |
 
 Setup with NPMplus, testing the auth request, customizing the policy and troubleshooting: **[Documentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/anubis/DOCS.en.md)**
 
