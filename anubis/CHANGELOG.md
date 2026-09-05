@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.0] - 2026-09-05
+
+chore(deps): Bump alpine from 3.20 to 3.24 in /anubis
+
+
 ## [0.0.3] - 2026-09-05
 
 ### Behoben
