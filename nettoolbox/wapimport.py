@@ -207,7 +207,7 @@ def _convert(techs: dict, catalogue: dict) -> list:
 
 
 def _names(value) -> list:
-    """implies/requires koennen selbst Zusatzangaben tragen (Name\;confidence)."""
+    r"""implies/requires koennen selbst Zusatzangaben tragen (Name\;confidence)."""
     out = []
     for item in (value if isinstance(value, list) else [value] if value else []):
         name = str(item).split(TAG_SPLIT)[0].strip()

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.4] - 2026-09-05
+
+### Fixed
+- **`SyntaxWarning: invalid escape sequence '\;'`** beim Start (`wapimport.py:210`). Ein
+  unescapetes `\;` in einem normalen (nicht rohen) Docstring — reine Doku, keine Verhaltensänderung.
+
 ## [0.7.3] - 2026-09-05
 
 ### Added
