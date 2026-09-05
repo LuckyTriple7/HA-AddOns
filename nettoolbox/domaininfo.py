@@ -44,6 +44,18 @@ def _worst(findings: list) -> str:
     return OK
 
 
+def _score(findings: list) -> int:
+    """Same idea as the mail/SEO/HTTP/TLS scores. Weighted heavy: an expired
+    or on-hold domain is not a rough edge, it is the domain not working."""
+    score = 100
+    for f in findings:
+        if f['level'] == FAIL:
+            score -= 25
+        elif f['level'] == WARN:
+            score -= 10
+    return max(0, min(100, score))
+
+
 # ── RDAP bootstrap ───────────────────────────────────────────────────────────
 
 
@@ -320,8 +332,12 @@ def check_domain(ctx: Context, domain: str) -> dict:
     if base_urls:
         try:
             data = _rdap_fetch(ctx, domain, base_urls)
-            return _parse_rdap_result(domain, data)
+            result = _parse_rdap_result(domain, data)
+            result['score'] = _score(result['findings'])
+            return result
         except ProbeError:
             pass  # fall through to WHOIS below
 
-    return _whois_lookup(ctx, domain)
+    result = _whois_lookup(ctx, domain)
+    result['score'] = _score(result['findings'])
+    return result

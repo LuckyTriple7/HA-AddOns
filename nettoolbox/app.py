@@ -26,6 +26,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
+import dkimgen
 import hasensors
 import monitor
 import settings as usersettings
@@ -673,7 +674,7 @@ PROBE_MODULE = {
     'traceroute': 'reverse', 'ports': 'reverse', 'dualstack': 'reverse',
     'tls': 'tls',
     'whois': 'whois',
-    'http': 'http', 'quic': 'http', 'seo': 'http', 'tech': 'http',
+    'http': 'http', 'quic': 'http', 'seo': 'http', 'tech': 'http', 'wordpress': 'http',
 }
 
 
@@ -822,7 +823,7 @@ _ERROR_STATUS = {
     'bad_email': 400, 'weak_password': 400,
     'bad_quota': 400, 'self_target': 409, 'user_store_broken': 503,
     'module_disabled': 403, 'quota_exhausted': 429,
-    'unknown_session': 404,
+    'unknown_session': 404, 'crypto_unavailable': 503,
 }
 
 
@@ -1336,6 +1337,16 @@ def ping_live_stop():
     return jsonify({'ok': True})
 
 
+@api('/api/dkim/generate', methods=('POST',))
+def dkim_generate():
+    """A fresh RSA key pair for the record-generator UI. Local computation
+    only -- no DNS, no quota, no history row (see dkimgen.py)."""
+    require_module(PROBE_MODULE.get('dkim'))
+    if not dkimgen.AVAILABLE:
+        raise ProbeError('crypto_unavailable')
+    return jsonify(dkimgen.generate())
+
+
 REPORT_STEPS = (
     # (Prüfung, Parametername). Reihenfolge = Reihenfolge im Bericht; die
     # Ausführung selbst läuft parallel, weil jede Prüfung für sich steht.
@@ -1348,6 +1359,7 @@ REPORT_STEPS = (
     ('http', 'target'),
     ('seo', 'target'),
     ('tech', 'target'),
+    ('wordpress', 'target'),
 )
 REPORT_WORKERS = 4
 TECH_RULES_CHECK_SECONDS = 6 * 3600
@@ -1366,6 +1378,65 @@ def _report_step(name: str, params: dict) -> dict:
     except Exception as e:  # noqa: BLE001 — ein Bericht bricht nie ganz ab
         log.warning("report step %s failed: %s", name, type(e).__name__)
         return {'probe': name, 'error': 'internal'}
+
+
+def _dns_category_score(dns_all: dict, dnssec: dict) -> int:
+    """dns_all and dnssec carry no findings/score of their own (raw record
+    dumps and booleans) -- everything else in the report already brings a
+    score its own module computed, this is the one built here instead."""
+    score = 100
+    score -= 10 * len((dns_all or {}).get('errors') or [])
+    if (dnssec or {}).get('signed') and not (dnssec or {}).get('validated'):
+        # Signed but a validating resolver rejects it: broken, not merely
+        # unsigned -- most domains are unsigned and that costs nothing.
+        score -= 25
+    return max(0, min(100, score))
+
+
+def _report_scores(steps: list) -> dict:
+    """One 0–100 number per category, the same handful of buckets a
+    comparable online checker shows -- built from the scores each check
+    already computes for itself (see the various _score() functions).
+    A step that errored or never ran (no IP for the blocklist check, a
+    non-WordPress target) leaves its category out entirely rather than
+    inventing a number for it."""
+    by_probe = {s['probe']: s.get('result') or {} for s in steps if not s.get('error')}
+    categories = {}
+
+    whois = by_probe.get('whois')
+    if whois and 'score' in whois:
+        categories['domain'] = whois['score']
+
+    if 'dns_all' in by_probe or 'dnssec' in by_probe:
+        categories['dns'] = _dns_category_score(by_probe.get('dns_all'), by_probe.get('dnssec'))
+
+    http = by_probe.get('http')
+    if http and 'score' in http:
+        categories['website'] = http['score']
+
+    mail_health = by_probe.get('mail_health')
+    if mail_health and 'score' in mail_health:
+        categories['email'] = mail_health['score']
+
+    security_parts = [r['score'] for r in (by_probe.get('tls'), by_probe.get('blacklist'))
+                      if r and 'score' in r]
+    if security_parts:
+        categories['security'] = round(sum(security_parts) / len(security_parts))
+
+    seo = by_probe.get('seo')
+    if seo and 'score' in seo:
+        categories['seo'] = seo['score']
+
+    tech = by_probe.get('tech')
+    if tech and 'score' in tech:
+        categories['technology'] = tech['score']
+
+    wordpress = by_probe.get('wordpress')
+    if wordpress and wordpress.get('detected') and 'score' in wordpress:
+        categories['wordpress'] = wordpress['score']
+
+    total = round(sum(categories.values()) / len(categories)) if categories else None
+    return {'categories': categories, 'total': total}
 
 
 @api('/api/report', methods=('POST',))
@@ -1404,11 +1475,13 @@ def report():
     level = ('fail' if 'fail' in levels else
              'warn' if 'warn' in levels else
              'info' if 'info' in levels else 'ok')
+    scores = _report_scores(steps)
     history_add({'ts': int(started), 'probe': 'report', 'target': domain,
                  'level': level, 'backend': 'local',
                  'ms': int((time.time() - started) * 1000)})
     return jsonify({'domain': domain, 'ip': addresses[0] if addresses else '',
                     'steps': steps, 'level': level,
+                    'scores': scores['categories'], 'total_score': scores['total'],
                     'ms': int((time.time() - started) * 1000),
                     'generated': int(started)})
 

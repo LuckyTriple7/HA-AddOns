@@ -8,10 +8,19 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 
 ## Funktionen
 
-- **Gesamtbericht** — eine Domain eingeben, neun Prüfungen auf einem Blatt, Export als Markdown
+- **Gesamtbericht** — eine Domain eingeben, zehn Prüfungen auf einem Blatt, Punktestand für
+  acht Kategorien (Domain, DNS, Website, Mail, Sicherheit, SEO, Technik, WordPress — je aus dem
+  Score, den die einzelne Prüfung ohnehin schon mitbringt), Export als Markdown
 
-- **DNS** — alle gängigen Record-Typen, alle Standard-Typen in einem Rutsch, TXT, SOA mit
-  Nameserver-Sync-Check
+- **DNS** — alle gängigen Record-Typen (inkl. CNAME und SRV am Apex), alle Standard-Typen in
+  einem Rutsch, TXT, SOA mit Nameserver-Sync-Check
+- **Record-Generatoren** — SPF, DMARC, DKIM, MTA-STS und TLS-RPT direkt aus Eingabefeldern
+  bauen, ohne Netzabfrage und ohne Tageskontingent. DKIM erzeugt auf Wunsch ein neues
+  2048-Bit-RSA-Schlüsselpaar im Browser-Backend — der private Schlüssel wird nur einmalig
+  angezeigt, nie gespeichert.
+- **WordPress-Härtung** — erkennt eine Installation und prüft Version gegen die aktuelle
+  Veröffentlichung, offene Backup-Dateien der Konfiguration, xmlrpc.php, Benutzernamen über
+  die REST-API und Verzeichnis-Auflistung — mit eigenem 0–100-Punktestand
 - **Mail-Gesundheit** — SPF (inklusive Lookup-Zähler und Include-Kette), DKIM (Schlüsselstärke,
   Selektoren werden geraten), DMARC (Richtlinie, Berichtsadressen, Fremd-Domain-Autorisierung),
   MTA-STS (Policy gegen echte MX-Einträge geprüft), TLS-RPT, BIMI — mit eigenem 0–100-Punktestand

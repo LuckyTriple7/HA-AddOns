@@ -161,10 +161,20 @@ tr:last-child td { border-bottom: none; }
            border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .subgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 10px; margin-top: 10px; }
+.score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px,1fr)); gap: 8px; margin-top: 12px; }
+.score-tile { border: 1px solid var(--border); border-radius: 7px; padding: 10px 6px; text-align: center;
+              background: var(--surf2); }
+.score-tile.total { border-color: var(--accent); }
+.score-tile .score-num { display: block; font-size: 1.15rem; padding: 3px 0; margin-bottom: 4px; width: 100%; }
+.score-tile .score-label { font-size: 0.7rem; color: var(--muted); }
 .subcard { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surf2);
            transition: border-color .15s; }
 .subcard:hover { border-color: color-mix(in srgb, var(--border) 30%, var(--accent)); }
 .subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.subcard textarea { min-height: 56px; font-size: 0.7rem; }
+.subcard label.field { margin-top: 8px; }
+.subcard label.field:first-of-type { margin-top: 0; }
+.subcard label.check { display: block; font-size: 0.8rem; margin-top: 8px; }
 .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 0.8rem; }
 .kv span:first-child { color: var(--muted); }
 /* Eigene Zeilen für den IP-Lookup: feste Beschriftungsspalte statt
@@ -433,6 +443,105 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <div id="hdrResult"></div>
   </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M15,17H7V15H15V17M17,13H7V11H17V13M17,9H7V7H17V9Z"/></svg>{{ t.gen_title }}</h2>
+    <p class="hint">{{ t.gen_hint }}</p>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="genDomain">{{ t.field_domain }}</label>
+        <input type="text" id="genDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+    </div>
+    <div class="subgrid">
+      <div class="subcard">
+        <h4><span>SPF</span></h4>
+        <label class="field" for="genSpfIncludes">{{ t.gen_spf_includes }}</label>
+        <input type="text" id="genSpfIncludes" placeholder="_spf.google.com, sendgrid.net" autocomplete="off">
+        <label class="field" for="genSpfIp">{{ t.gen_spf_ip }}</label>
+        <input type="text" id="genSpfIp" placeholder="203.0.113.10, 2001:db8::1" autocomplete="off">
+        <label class="check"><input type="checkbox" id="genSpfMx" checked> {{ t.gen_spf_mx }}</label>
+        <label class="check"><input type="checkbox" id="genSpfA"> {{ t.gen_spf_a }}</label>
+        <label class="field" for="genSpfAll">{{ t.gen_spf_all }}</label>
+        <select id="genSpfAll">
+          <option value="~all" selected>{{ t.gen_all_softfail }}</option>
+          <option value="-all">{{ t.gen_all_fail }}</option>
+          <option value="?all">{{ t.gen_all_neutral }}</option>
+        </select>
+        <div class="hint" id="genSpfName"></div>
+        <div class="record-code" id="genSpfOut"></div>
+        <button class="btn" id="genSpfCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>DMARC</span></h4>
+        <label class="field" for="genDmarcPolicy">{{ t.gen_dmarc_policy }}</label>
+        <select id="genDmarcPolicy">
+          <option value="none" selected>{{ t.gen_policy_none }}</option>
+          <option value="quarantine">{{ t.gen_policy_quarantine }}</option>
+          <option value="reject">{{ t.gen_policy_reject }}</option>
+        </select>
+        <label class="field" for="genDmarcSp">{{ t.gen_dmarc_sp }}</label>
+        <select id="genDmarcSp">
+          <option value="" selected>{{ t.gen_sp_inherit }}</option>
+          <option value="none">{{ t.gen_policy_none }}</option>
+          <option value="quarantine">{{ t.gen_policy_quarantine }}</option>
+          <option value="reject">{{ t.gen_policy_reject }}</option>
+        </select>
+        <label class="field" for="genDmarcRua">{{ t.gen_dmarc_rua }}</label>
+        <input type="text" id="genDmarcRua" placeholder="dmarc@example.org" autocomplete="off">
+        <label class="field" for="genDmarcRuf">{{ t.gen_dmarc_ruf }}</label>
+        <input type="text" id="genDmarcRuf" autocomplete="off">
+        <label class="field" for="genDmarcPct">{{ t.gen_dmarc_pct }}</label>
+        <input type="text" id="genDmarcPct" placeholder="100" autocomplete="off">
+        <div class="hint" id="genDmarcName"></div>
+        <div class="record-code" id="genDmarcOut"></div>
+        <button class="btn" id="genDmarcCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>DKIM</span></h4>
+        <label class="field" for="genDkimSelector">{{ t.gen_dkim_selector }}</label>
+        <input type="text" id="genDkimSelector" placeholder="mail" autocomplete="off">
+        <label class="field" for="genDkimPubkey">{{ t.gen_dkim_pubkey }}</label>
+        <textarea id="genDkimPubkey" spellcheck="false"></textarea>
+        <button class="btn" id="genDkimGenerate" type="button" style="margin-top:8px">{{ t.gen_dkim_generate }}</button>
+        <div id="genDkimPrivWrap" hidden>
+          <label class="field" for="genDkimPrivkey" style="margin-top:8px">{{ t.gen_dkim_privkey }}</label>
+          <textarea id="genDkimPrivkey" readonly spellcheck="false"></textarea>
+          <p class="hint">{{ t.gen_dkim_privkey_hint }}</p>
+          <button class="btn" id="genDkimPrivCopy" type="button">{{ t.action_copy }}</button>
+        </div>
+        <div class="hint" id="genDkimName"></div>
+        <div class="record-code" id="genDkimOut"></div>
+        <button class="btn" id="genDkimCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>MTA-STS</span></h4>
+        <label class="field" for="genMtaStsMode">{{ t.gen_mtasts_mode }}</label>
+        <select id="genMtaStsMode">
+          <option value="testing" selected>{{ t.gen_mode_testing }}</option>
+          <option value="enforce">{{ t.gen_mode_enforce }}</option>
+          <option value="none">{{ t.gen_mode_none }}</option>
+        </select>
+        <label class="field" for="genMtaStsMx">{{ t.gen_mtasts_mx }}</label>
+        <input type="text" id="genMtaStsMx" placeholder="mail.example.org" autocomplete="off">
+        <label class="field" for="genMtaStsMaxage">{{ t.gen_mtasts_maxage }}</label>
+        <input type="text" id="genMtaStsMaxage" placeholder="604800" autocomplete="off">
+        <div class="hint" id="genMtaStsName"></div>
+        <div class="record-code" id="genMtaStsOut"></div>
+        <button class="btn" id="genMtaStsCopy" type="button">{{ t.action_copy }}</button>
+        <p class="hint" id="genMtaStsPolicyHint"></p>
+        <div class="record-code" id="genMtaStsPolicy"></div>
+        <button class="btn" id="genMtaStsPolicyCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>TLS-RPT</span></h4>
+        <label class="field" for="genTlsRptRua">{{ t.gen_tlsrpt_rua }}</label>
+        <input type="text" id="genTlsRptRua" placeholder="tlsrpt@example.org" autocomplete="off">
+        <div class="hint" id="genTlsRptName"></div>
+        <div class="record-code" id="genTlsRptOut"></div>
+        <button class="btn" id="genTlsRptCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section id="tab-reverse">
@@ -632,6 +741,20 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.tech_hint }}</p>
     <div id="techResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C6.5,2 2,6.5 2,12C2,17.5 6.5,22 12,22C17.5,22 22,17.5 22,12C22,6.5 17.5,2 12,2M12,20C7.59,20 4,16.41 4,12C4,10.91 4.22,9.87 4.61,8.92L10.34,17.66L12,20M17.39,15.08L11.75,4.06C11.83,4.06 11.91,4 12,4C16.41,4 20,7.59 20,12C20,13.5 19.59,14.9 18.89,16.11L17.39,15.08Z"/></svg>{{ t.wp_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="wpTarget">{{ t.field_url }}</label>
+        <input type="text" id="wpTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="wpRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.wp_hint }}</p>
+    <div id="wpResult"></div>
   </div>
 </section>
 
@@ -1664,7 +1787,7 @@ function reportStepLabel(probe){
     dns_all: T.dns_title, dnssec: T.dnssec_title, whois: T.whois_title,
     mail_health: T.mail_title, mx: T.mx_title, tls: T.tls_title,
     http: T.http_title, seo: T.seo_title, tech: T.tech_title,
-    blacklist: T.blacklist_title
+    wordpress: T.wp_title, blacklist: T.blacklist_title
   })[probe] || probe;
 }
 
@@ -1675,6 +1798,8 @@ function reportHeadline(step){
     case 'mail_health': return fmtStr(T.report_score, { score: r.score });
     case 'seo': return fmtStr(T.report_score, { score: r.score });
     case 'tech': return (r.technologies || []).slice(0, 8).map(t => t.name).join(', ');
+    case 'wordpress': return r.detected
+      ? fmtStr(T.report_score, { score: r.score }) : T.wp_not_applicable;
     case 'tls': return r.days_left === undefined || r.days_left === null
       ? '' : fmtStr(T.report_days_left, { days: r.days_left });
     case 'whois': return r.days_until_expiry === null || r.days_until_expiry === undefined
@@ -1689,6 +1814,44 @@ function reportHeadline(step){
   }
 }
 
+// Reihenfolge + Beschriftung der Score-Kacheln. Eine Kategorie fehlt aus der
+// Antwort, wenn ihre Pruefung nie lief oder fehlschlug -- dann taucht sie
+// hier auch nicht auf, statt eine erfundene Zahl zu zeigen.
+const SCORE_CATEGORIES = ['domain', 'dns', 'website', 'email', 'security', 'seo',
+                         'technology', 'wordpress'];
+function scoreCategoryLabel(cat){
+  return ({
+    domain: T.score_cat_domain, dns: T.score_cat_dns, website: T.score_cat_website,
+    email: T.score_cat_email, security: T.score_cat_security, seo: T.score_cat_seo,
+    technology: T.score_cat_technology, wordpress: T.score_cat_wordpress
+  })[cat] || cat;
+}
+function scoreTier(score){
+  if (score >= 80) return 'ok';
+  if (score >= 50) return 'warn';
+  return 'fail';
+}
+
+function renderReportScores(data){
+  const wrap = el('div', 'score-grid');
+  if (data.total_score !== null && data.total_score !== undefined) {
+    const tile = el('div', 'score-tile total');
+    tile.appendChild(el('span', 'score-num badge ' + scoreTier(data.total_score),
+      String(data.total_score)));
+    tile.appendChild(el('span', 'score-label', T.score_cat_total));
+    wrap.appendChild(tile);
+  }
+  SCORE_CATEGORIES.forEach(cat => {
+    const score = (data.scores || {})[cat];
+    if (score === undefined) return;
+    const tile = el('div', 'score-tile');
+    tile.appendChild(el('span', 'score-num badge ' + scoreTier(score), String(score)));
+    tile.appendChild(el('span', 'score-label', scoreCategoryLabel(cat)));
+    wrap.appendChild(tile);
+  });
+  return wrap;
+}
+
 let lastReport = null;
 
 function renderReport(data){
@@ -1700,6 +1863,7 @@ function renderReport(data){
   if (data.ip) head.appendChild(el('span', 'chip', data.ip));
   head.appendChild(el('span', 'chip', Math.round(data.ms / 100) / 10 + ' s'));
   box.appendChild(head);
+  if (data.scores && Object.keys(data.scores).length) box.appendChild(renderReportScores(data));
 
   data.steps.forEach(step => {
     const card = el('div', 'subcard');
@@ -1726,6 +1890,13 @@ function reportMarkdown(data){
                  fmtStr(T.report_md_generated, { when: when }),
                  fmtStr(T.report_md_overall, { level: T['level_' + data.level] || data.level })];
   if (data.ip) lines.push(fmtStr(T.report_md_ip, { ip: data.ip }));
+  if (data.total_score !== null && data.total_score !== undefined) {
+    lines.push(fmtStr(T.report_md_total_score, { score: data.total_score }));
+    SCORE_CATEGORIES.forEach(cat => {
+      const score = (data.scores || {})[cat];
+      if (score !== undefined) lines.push('- ' + scoreCategoryLabel(cat) + ': ' + score);
+    });
+  }
   lines.push('');
   data.steps.forEach(step => {
     lines.push('## ' + reportStepLabel(step.probe));
@@ -2768,6 +2939,122 @@ $('hdrClear').addEventListener('click', () => {
   $('hdrResult').innerHTML = '';
 });
 
+// ── Record-Generatoren ───────────────────────────────────────────────────────
+// Bauen Einträge nur aus dem, was in den Feldern steht -- ohne Netzabfrage,
+// deshalb ohne Tageskontingent und ohne Verlaufszeile. Läuft bei jeder
+// Eingabe live neu, kein eigener "Erzeugen"-Knopf nötig.
+
+function genRecordName(domain, label){
+  return domain ? (label.replace('{domain}', domain) + ' (TXT)') : label + ' (TXT)';
+}
+
+function genMailtoList(raw){
+  return raw.split(',').map(s => s.trim()).filter(Boolean)
+    .map(a => /^https?:/i.test(a) ? a : 'mailto:' + a).join(',');
+}
+
+function genCopy(sourceId){
+  const text = $(sourceId).textContent || $(sourceId).value || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => toast(T.gen_copied))
+    .catch(() => toast(errText('clipboard'), true));
+}
+
+function genBuildSpf(){
+  const domain = $('genDomain').value.trim();
+  const includes = $('genSpfIncludes').value.split(',').map(s => s.trim()).filter(Boolean);
+  const ips = $('genSpfIp').value.split(',').map(s => s.trim()).filter(Boolean);
+  const parts = ['v=spf1'];
+  if ($('genSpfMx').checked) parts.push('mx');
+  if ($('genSpfA').checked) parts.push('a');
+  ips.forEach(ip => parts.push((ip.includes(':') ? 'ip6:' : 'ip4:') + ip));
+  includes.forEach(inc => parts.push('include:' + inc));
+  parts.push($('genSpfAll').value);
+  $('genSpfOut').textContent = parts.join(' ');
+  $('genSpfName').textContent = genRecordName(domain, domain || '{domain}');
+}
+
+function genBuildDmarc(){
+  const domain = $('genDomain').value.trim();
+  const parts = ['v=DMARC1', 'p=' + $('genDmarcPolicy').value];
+  if ($('genDmarcSp').value) parts.push('sp=' + $('genDmarcSp').value);
+  const rua = genMailtoList($('genDmarcRua').value);
+  if (rua) parts.push('rua=' + rua);
+  const ruf = genMailtoList($('genDmarcRuf').value);
+  if (ruf) parts.push('ruf=' + ruf);
+  const pct = $('genDmarcPct').value.trim();
+  if (pct && pct !== '100') parts.push('pct=' + pct);
+  $('genDmarcOut').textContent = parts.join('; ') + ';';
+  $('genDmarcName').textContent = genRecordName(domain, '_dmarc.' + (domain || '{domain}'));
+}
+
+function genBuildDkim(){
+  const domain = $('genDomain').value.trim();
+  const selector = $('genDkimSelector').value.trim() || 'mail';
+  const pub = $('genDkimPubkey').value.replace(/\s+/g, '');
+  $('genDkimOut').textContent = pub ? ('v=DKIM1; k=rsa; p=' + pub) : '';
+  $('genDkimName').textContent = genRecordName(domain, selector + '._domainkey.' + (domain || '{domain}'));
+}
+
+function genBuildMtaSts(){
+  const domain = $('genDomain').value.trim();
+  const mode = $('genMtaStsMode').value;
+  const mxList = $('genMtaStsMx').value.split(',').map(s => s.trim()).filter(Boolean);
+  const maxAge = $('genMtaStsMaxage').value.trim() || '604800';
+  $('genMtaStsOut').textContent = 'v=STSv1; id=' + Date.now();
+  $('genMtaStsName').textContent = genRecordName(domain, '_mta-sts.' + (domain || '{domain}'));
+  const lines = ['version: STSv1', 'mode: ' + mode];
+  mxList.forEach(mx => lines.push('mx: ' + mx));
+  lines.push('max_age: ' + maxAge);
+  $('genMtaStsPolicy').textContent = lines.join('\n');
+  $('genMtaStsPolicyHint').textContent =
+    fmtStr(T.gen_mtasts_policy_hint, { domain: domain || '{domain}' });
+}
+
+function genBuildTlsRpt(){
+  const domain = $('genDomain').value.trim();
+  const rua = genMailtoList($('genTlsRptRua').value);
+  $('genTlsRptOut').textContent = 'v=TLSRPTv1; rua=' + rua;
+  $('genTlsRptName').textContent = genRecordName(domain, '_smtp._tls.' + (domain || '{domain}'));
+}
+
+function genBuildAll(){
+  genBuildSpf(); genBuildDmarc(); genBuildDkim(); genBuildMtaSts(); genBuildTlsRpt();
+}
+
+// Ein Domain-Feld für alle fünf -- nur der DNS-Name je Eintrag braucht es,
+// der Wert selbst ist domainunabhängig.
+['genDomain', 'genSpfIncludes', 'genSpfIp', 'genSpfMx', 'genSpfA', 'genSpfAll',
+ 'genDmarcPolicy', 'genDmarcSp', 'genDmarcRua', 'genDmarcRuf', 'genDmarcPct',
+ 'genDkimSelector', 'genDkimPubkey', 'genMtaStsMode', 'genMtaStsMx', 'genMtaStsMaxage',
+ 'genTlsRptRua'].forEach(id => {
+  $(id).addEventListener('input', genBuildAll);
+  $(id).addEventListener('change', genBuildAll);
+});
+
+$('genDkimGenerate').addEventListener('click', async () => {
+  const btn = $('genDkimGenerate');
+  btn.disabled = true;
+  try {
+    const data = await api('/api/dkim/generate', { method: 'POST' });
+    $('genDkimPubkey').value = data.public_key;
+    $('genDkimPrivkey').value = data.private_key;
+    $('genDkimPrivWrap').hidden = false;
+    genBuildDkim();
+  } catch (e) { toast(errText(e.code), true); }
+  finally { btn.disabled = false; }
+});
+
+$('genSpfCopy').addEventListener('click', () => genCopy('genSpfOut'));
+$('genDmarcCopy').addEventListener('click', () => genCopy('genDmarcOut'));
+$('genDkimCopy').addEventListener('click', () => genCopy('genDkimOut'));
+$('genDkimPrivCopy').addEventListener('click', () => genCopy('genDkimPrivkey'));
+$('genMtaStsCopy').addEventListener('click', () => genCopy('genMtaStsOut'));
+$('genMtaStsPolicyCopy').addEventListener('click', () => genCopy('genMtaStsPolicy'));
+$('genTlsRptCopy').addEventListener('click', () => genCopy('genTlsRptOut'));
+
+genBuildAll();
+
 // ── TLS tab ───────────────────────────────────────────────────────────────
 
 async function tlsCheck(){
@@ -3288,6 +3575,47 @@ async function techCheck(){
 
 $('techRun').addEventListener('click', techCheck);
 $('techTarget').addEventListener('keydown', e => { if (e.key === 'Enter') techCheck(); });
+
+async function wpCheck(){
+  const target = $('wpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('wpResult'); showLoading(box);
+  try {
+    const data = await runProbe('wordpress', { target: target }, target, $('wpRun'));
+    const r = data.result;
+    box.innerHTML = '';
+
+    if (!r.detected) {
+      box.appendChild(renderFindings(r.findings));
+      return;
+    }
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.wp_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    box.appendChild(score);
+
+    const badges = el('div', 'row');
+    if (r.version) badges.appendChild(el('span', 'chip',
+      fmtStr(T.wp_version_chip, { version: r.version })));
+    if (r.latest) badges.appendChild(el('span', 'chip',
+      fmtStr(T.wp_latest_chip, { version: r.latest })));
+    badges.appendChild(el('span', 'chip', r.ms + ' ms'));
+    box.appendChild(badges);
+
+    box.appendChild(renderFindings(r.findings));
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+$('wpRun').addEventListener('click', wpCheck);
+$('wpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') wpCheck(); });
 
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.0] - 2026-09-05
+
+### Added
+- **Record-Generatoren im Mail-Tab.** Baut SPF-, DMARC-, DKIM-, MTA-STS- und TLS-RPT-Einträge
+  direkt aus Eingabefeldern — ohne Netzabfrage, kein Tageskontingent. DKIM kann wahlweise einen
+  vorhandenen Public Key formatieren oder ein neues 2048-Bit-RSA-Schlüsselpaar erzeugen (privater
+  Schlüssel nur einmalig angezeigt, nirgends gespeichert).
+- **CNAME und SRV in der DNS-Gesamtabfrage.** `dns_all` prüft jetzt auch diese beiden Typen an der
+  Zone selbst — ein CNAME am Apex ist ein Konfigurationsfehler, den man so sofort sieht.
+- **WordPress-Härtungscheck** (neuer Reiter im HTTP-Tab, auch Teil des Gesamtberichts). Erkennt
+  eine Installation und prüft Version gegen die aktuelle Veröffentlichung, offene Backup-Dateien
+  der Konfiguration, xmlrpc.php, Benutzernamen über die REST-API und Verzeichnis-Auflistung —
+  mit eigenem 0–100-Punktestand. Kein Plugin-/Theme-Scan, kein CVE-Abgleich.
+- **Punktestand je Kategorie im Gesamtbericht.** Domain, DNS, Website, Mail, Sicherheit, SEO,
+  Technik und WordPress bekommen je eine 0–100-Zahl plus Gesamt-Score — gebaut aus den Scores,
+  die Mail-Gesundheit, SEO und HTTP schon hatten, jetzt ergänzt um TLS, Whois, Technik-Erkennung
+  und Sperrlisten. Eine Kategorie ohne Ergebnis (Prüfung fehlgeschlagen, keine WordPress-Seite)
+  fehlt in der Übersicht, statt eine erfundene Zahl zu zeigen.
+
 ## [0.3.7] - 2026-09-05
 
 ### Fixed

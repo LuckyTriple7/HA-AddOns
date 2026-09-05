@@ -86,6 +86,19 @@ def _worst(findings: list) -> str:
     return OK
 
 
+def _score(findings: list) -> int:
+    """Same idea as the mail/SEO/HTTP/TLS/domain scores. Lighter weight: what
+    this check flags (an exposed version string, an insecure cookie) is a
+    leak, not something broken outright."""
+    score = 100
+    for f in findings:
+        if f['level'] == FAIL:
+            score -= 15
+        elif f['level'] == WARN:
+            score -= 6
+    return max(0, min(100, score))
+
+
 # ── Mustervergleich ──────────────────────────────────────────────────────────
 
 _CACHE = {}
@@ -690,5 +703,5 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
         'dns': dns_info,
         'rules_used': {'builtin': len(_builtin_rules()), 'extra': len(extra)},
         'scan_complete': complete,
-        'findings': findings, 'level': _worst(findings),
+        'findings': findings, 'level': _worst(findings), 'score': _score(findings),
     }

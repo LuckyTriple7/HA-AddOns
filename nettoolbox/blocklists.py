@@ -118,6 +118,16 @@ def _check_one(ctx: Context, ip: str, label: str, zone: str,
     return row
 
 
+def _score(listed: list, blocked: list) -> int:
+    """Not the generic findings-count formula used elsewhere: one 'fail'
+    finding above can mean one list or all seven, and that difference
+    matters for how bad a listing actually is. A single hit is already a
+    real deliverability problem with whoever consults that list, so the
+    penalty per listing is steep rather than scaling gently."""
+    score = 100 - 30 * len(listed) - 3 * len(blocked)
+    return max(0, min(100, score))
+
+
 def check_blacklist(ctx: Context, ip: str) -> dict:
     ip = clean_ip(ip)
     if ':' in ip:
@@ -155,4 +165,5 @@ def check_blacklist(ctx: Context, ip: str) -> dict:
     level = 'fail' if listed else ('info' if (blocked or errors) else 'ok')
     return {'ip': ip, 'rows': rows, 'listed_count': len(listed),
             'blocked_count': len(blocked), 'error_count': len(errors),
-            'checked': len(rows), 'findings': findings, 'level': level}
+            'checked': len(rows), 'findings': findings, 'level': level,
+            'score': _score(listed, blocked)}

@@ -21,6 +21,7 @@ import seocheck
 import smtpcheck
 import tlscheck
 import tlsextra
+import wpcheck
 from netcore import (Context, ProbeError, clean_domain, clean_host_or_ip,
                      clean_ip, clean_rrtype, ip_is_public, mx_hosts,
                      query, reverse_name, txt_strings)
@@ -38,7 +39,7 @@ PUBLIC_RESOLVERS = (
     ('CleanBrowsing', '185.228.168.9'),
 )
 
-COMMON_TYPES = ('A', 'AAAA', 'MX', 'NS', 'TXT', 'SOA', 'CAA')
+COMMON_TYPES = ('A', 'AAAA', 'MX', 'NS', 'TXT', 'SOA', 'CAA', 'CNAME', 'SRV')
 
 
 def _str(params: dict, key: str, default: str = '') -> str:
@@ -327,6 +328,10 @@ def p_tech(ctx: Context, params: dict) -> dict:
                               extra_rules=bool(ctx.tech_extra_rules))
 
 
+def p_wordpress(ctx: Context, params: dict) -> dict:
+    return wpcheck.check_wordpress(ctx, _str(params, 'target'))
+
+
 def _port_check_allowed(ctx: Context) -> None:
     """Der Portcheck lässt sich abschalten.
 
@@ -397,6 +402,7 @@ PROBES = {
     'quic': p_quic,
     'seo': p_seo,
     'tech': p_tech,
+    'wordpress': p_wordpress,
     'mailheader': p_mailheader,
     'ping': p_ping,
     'traceroute': p_traceroute,
@@ -418,7 +424,7 @@ TARGET_KIND = {
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
-    'seo': 'target', 'tech': 'target', 'mailheader': 'text',
+    'seo': 'target', 'tech': 'target', 'wordpress': 'target', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'ports': 'target', 'dualstack': 'target',
     'spf': 'domain', 'dkim': 'domain', 'dmarc': 'domain',

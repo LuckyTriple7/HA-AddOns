@@ -8,10 +8,18 @@ about your domains leaves your own infrastructure.
 
 ## Features
 
-- **Full report** — enter one domain, nine checks on a single sheet, Markdown export
+- **Full report** — enter one domain, ten checks on a single sheet, a score for eight
+  categories (domain, DNS, website, mail, security, SEO, technology, WordPress — each built
+  from the score its own check already computes), Markdown export
 
-- **DNS** — every common record type, all standard types in one pass, TXT, SOA with a
-  name-server sync check
+- **DNS** — every common record type (including CNAME and SRV at the apex), all standard types
+  in one pass, TXT, SOA with a name-server sync check
+- **Record generators** — build SPF, DMARC, DKIM, MTA-STS and TLS-RPT records straight from
+  input fields, no network lookup and no daily quota. DKIM can generate a fresh 2048-bit RSA key
+  pair in the browser's backend on request — the private key is shown once and never stored.
+- **WordPress hardening** — detects an install and checks its version against the current
+  release, exposed configuration backup files, xmlrpc.php, usernames via the REST API, and
+  directory listing — with its own 0-100 score
 - **Mail health** — SPF (including RFC 7208 lookup count and include-chain resolution), DKIM
   (key strength, common selectors are guessed), DMARC (policy, report addresses, foreign-domain
   authorisation), MTA-STS (policy file checked against the real MX records), TLS-RPT, BIMI — with
