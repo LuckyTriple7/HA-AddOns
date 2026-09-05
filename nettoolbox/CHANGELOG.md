@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2] - 2026-09-05
+
+### Fixed
+- **CNAME und SRV standen doppelt im Typ-Auswahlfeld der DNS-Abfrage.** Mit 0.4.0 in
+  `COMMON_TYPES` aufgenommen, aber an der Stelle, die die Liste fürs Auswahlfeld zusammenbaut,
+  nochmal einzeln angehängt. Dabei fiel auf: **SPF** (der eigene, längst veraltete Record-Typ,
+  nicht der TXT-basierte) fehlte im Feld komplett, obwohl er in der Validierung längst erlaubt
+  war — jetzt ergänzt.
+
 ## [0.4.1] - 2026-09-05
 
 ### Fixed

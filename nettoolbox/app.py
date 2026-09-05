@@ -1197,8 +1197,8 @@ def index():
         account=(user['username'] if user.get('via') == 'account' else ''),
         probe_names=sorted(probes.PROBES),
         target_kind=probes.TARGET_KIND,
-        rr_types=list(probes.COMMON_TYPES) + ['CNAME', 'PTR', 'SRV', 'DS',
-                                              'DNSKEY', 'TLSA', 'NAPTR'],
+        rr_types=list(probes.COMMON_TYPES) + ['PTR', 'DS', 'DNSKEY', 'TLSA',
+                                              'NAPTR', 'SPF'],
         resolvers=[{'label': label, 'server': server}
                    for label, server in probes.PUBLIC_RESOLVERS])
 
