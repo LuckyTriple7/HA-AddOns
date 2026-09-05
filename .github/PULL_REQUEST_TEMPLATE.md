@@ -28,6 +28,8 @@
 - [ ] LogPulse
 - [ ] NPMplus
 - [ ] CrowdPanel
+- [ ] NetToolbox
+- [ ] Anubis
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change

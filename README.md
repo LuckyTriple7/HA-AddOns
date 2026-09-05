@@ -344,6 +344,18 @@ Proof-of-Work-Bot-Challenge — vorgeschaltet vor einen Reverse Proxy, um automa
 
 → [Dokumentation & Changelog](anubis/README.md)
 
+### [NetToolbox](nettoolbox/)
+
+Netzwerk- und Mail-Diagnose — DNS, Mail-Gesundheit, Sperrlisten und mehr, ohne fremde API.
+
+- Gesamtbericht: eine Domain eingeben, zehn Prüfungen auf einem Blatt, Punktestand für acht Kategorien
+- Mail-Gesundheit (SPF/DKIM/DMARC/MTA-STS/TLS-RPT/BIMI) mit eigenem 0–100-Punktestand
+- Record-Generatoren für SPF, DMARC, DKIM, MTA-STS und TLS-RPT — ohne Netzabfrage
+- Propagation gegen acht Resolver, Sperrlisten-Check gegen 15 DNSBL/RBL, SSL/TLS- und DANE/TLSA-Prüfung
+- Domain-Verfügbarkeit über das eigene Cloudflare-Konto, WHOIS/RDAP-Fallback für Endungen ohne Registrar-API
+
+→ [Dokumentation & Changelog](nettoolbox/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -685,3 +697,15 @@ Proof-of-work bot challenge — placed in front of a reverse proxy to slow down 
 - Policy freely editable at `/data/policy.yaml`
 
 → [Documentation & Changelog](anubis/README.en.md)
+
+### [NetToolbox](nettoolbox/)
+
+Network and mail diagnostics — DNS, mail health, blocklists and more, no third-party API.
+
+- Full report: enter one domain, ten checks on a single sheet, a score for eight categories
+- Mail health (SPF/DKIM/DMARC/MTA-STS/TLS-RPT/BIMI) with its own 0–100 score
+- Record generators for SPF, DMARC, DKIM, MTA-STS and TLS-RPT — no network lookup
+- Propagation check against eight resolvers, blocklist check against 15 DNSBL/RBL, SSL/TLS and DANE/TLSA checks
+- Domain availability via your own Cloudflare account, WHOIS/RDAP fallback for TLDs without a registrar API
+
+→ [Documentation & Changelog](nettoolbox/README.en.md)
