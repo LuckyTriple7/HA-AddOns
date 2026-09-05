@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.6] - 2026-09-05
+
+### Changed
+- **Benutzername öffnet Dropdown statt direkt die Kennwortseite.** Klick auf den Namen in der
+  Kopfzeile springt nicht mehr sofort zum Kennwortwechsel, sondern öffnet ein kleines Menü mit
+  dem Eintrag "Kennwort ändern" — Platz für weitere Einträge ist da.
+- **Abmelden-Knopf zeigt nur noch ein Symbol**, kein Text mehr. Tooltip und aria-label bleiben
+  für Zugänglichkeit erhalten.
+
 ## [0.3.5] - 2026-09-04
 
 ### Changed
