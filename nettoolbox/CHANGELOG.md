@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0] - 2026-09-05
+
+### Added
+- **Bot-/Crawler-Schutz-Test** (neue Karte im Web-Tab, `botcheck.py`). Ruft eine Seite unter
+  einer wählbaren Kennung ab (NetToolbox-Standard, echter Browser zum Vergleich, Googlebot,
+  Bingbot, GPTBot, ClaudeBot, CCBot oder ein selbst getippter User-Agent) und prüft die Antwort
+  auf bekannte Bot-Schutzsysteme: Anubis (Proof-of-Work), Cloudflares JS-Challenge, plus ein paar
+  bekannte WAF-Sperrseiten (Cloudflare, Imperva Incapsula, Sucuri, AWS WAF/CloudFront,
+  ModSecurity). Läuft ohne Browser und ohne die Challenge zu lösen — genau das, was ein echter
+  Crawler ohne Browser dahinter auch sähe. Anubis' eigenes Muster (Titel „Making sure you're not
+  a bot!“, `/.within.website/x/`-Pfad, `anubis-cookie-verification`-Cookie) live gegen Anubis'
+  eigene Beispielseite bestätigt.
+
 ## [0.6.0] - 2026-09-05
 
 ### Changed

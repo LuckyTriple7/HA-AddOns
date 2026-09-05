@@ -43,6 +43,11 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Endungen. Cloudflare-Konto-ID + API-Token in den Einstellungen (nur Leserecht nötig) machen es
   zuverlässiger und ergänzen den Preis
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
+- **Bot-/Crawler-Schutz-Test** — ruft eine Seite unter wählbarer Kennung ab (Standard, Browser
+  zum Vergleich, Googlebot, Bingbot, GPTBot, ClaudeBot, CCBot, eigener User-Agent) und prüft die
+  Antwort auf bekannte Schutzsysteme: Anubis (Proof-of-Work, live gegen dessen eigene Beispielseite
+  bestätigt), Cloudflares JS-Challenge, plus einige bekannte WAF-Sperrseiten. Ohne Browser, ohne
+  Challenge zu lösen — sieht genau das, was ein echter Crawler auch sähe
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
   ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand
 - **Technik-Erkennung** — womit eine Seite gebaut ist: CMS, Shop, Framework, JavaScript- und

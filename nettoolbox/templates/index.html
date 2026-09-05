@@ -795,6 +795,39 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     <p class="hint">{{ t.wp_hint }}</p>
     <div id="wpResult"></div>
   </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z"/></svg>{{ t.bot_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="botTarget">{{ t.field_url }}</label>
+        <input type="text" id="botTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="width:170px">
+        <label class="field" for="botIdentity">{{ t.field_bot_identity }}</label>
+        <select id="botIdentity">
+          <option value="default">{{ t.bot_identity_default }}</option>
+          <option value="browser">{{ t.bot_identity_browser }}</option>
+          <option value="googlebot">Googlebot</option>
+          <option value="bingbot">Bingbot</option>
+          <option value="gptbot">GPTBot</option>
+          <option value="claudebot">ClaudeBot</option>
+          <option value="ccbot">CCBot</option>
+          <option value="custom">{{ t.bot_identity_custom }}</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="botRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div class="row" id="botCustomRow" hidden style="margin-top:8px">
+      <div class="grow">
+        <label class="field" for="botCustomUa">{{ t.field_bot_custom_ua }}</label>
+        <input type="text" id="botCustomUa" placeholder="MeinCrawler/1.0" autocomplete="off">
+      </div>
+    </div>
+    <p class="hint">{{ t.bot_hint }}</p>
+    <div id="botResult"></div>
+  </div>
 </section>
 
 <section id="tab-monitor">
@@ -3781,6 +3814,54 @@ async function wpCheck(){
 }
 $('wpRun').addEventListener('click', wpCheck);
 $('wpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') wpCheck(); });
+
+// ── Bot-/Crawler-Schutz-Test ─────────────────────────────────────────────────
+
+$('botIdentity').addEventListener('change', () => {
+  $('botCustomRow').hidden = $('botIdentity').value !== 'custom';
+});
+
+async function botCheck(){
+  const target = $('botTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  let identity = $('botIdentity').value;
+  if (identity === 'custom') {
+    const ua = $('botCustomUa').value.trim();
+    if (!ua) { toast(T.bot_err_no_custom_ua, true); return; }
+    identity = ua;
+  }
+  const box = $('botResult'); showLoading(box);
+  try {
+    const data = await runProbe('botcheck', { target: target, identity: identity }, target, $('botRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'chip', String(r.status)));
+    badges.appendChild(el('span', 'chip', r.final_url));
+    if (r.redirects) badges.appendChild(el('span', 'chip',
+      fmtStr(T.seo_redirects, { count: r.redirects })));
+    box.appendChild(badges);
+
+    if (r.title) box.appendChild(el('p', 'mono', r.title));
+
+    if (r.detected.length) {
+      r.detected.forEach(d => {
+        const card = el('div', 'subcard');
+        const h = el('h4');
+        h.appendChild(el('span', '', d.name));
+        h.appendChild(el('span', 'badge info', T['bot_cat_' + d.category] || d.category));
+        card.appendChild(h);
+        card.appendChild(el('p', 'hint', fmtStr(T.bot_markers, { markers: d.markers.join(', ') })));
+        box.appendChild(card);
+      });
+    } else {
+      box.appendChild(el('p', 'result-empty', T.bot_none_detected));
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+$('botRun').addEventListener('click', botCheck);
+$('botTarget').addEventListener('keydown', e => { if (e.key === 'Enter') botCheck(); });
 
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 

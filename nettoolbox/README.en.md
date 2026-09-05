@@ -44,6 +44,11 @@ about your domains leaves your own infrastructure.
   Account ID + API token in Settings (read-only permission is enough) make it more reliable and
   add the price
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
+- **Bot/crawler protection test** — fetches a page under a chosen identity (default, browser for
+  comparison, Googlebot, Bingbot, GPTBot, ClaudeBot, CCBot, custom User-Agent) and checks the
+  response against known protection systems: Anubis (proof-of-work, confirmed live against its
+  own reference deployment), Cloudflare's JS challenge, plus a few well-known WAF block pages. No
+  browser, no solving the challenge — sees exactly what a real crawler would too
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
   without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score
 - **Technology detection** — what a site is built with: CMS, shop, framework, JavaScript and

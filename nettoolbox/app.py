@@ -686,6 +686,7 @@ PROBE_MODULE = {
     'tls': 'tls',
     'whois': 'whois',
     'http': 'http', 'quic': 'http', 'seo': 'http', 'tech': 'http', 'wordpress': 'http',
+    'botcheck': 'http',
     'domain_check': 'domain_check',
 }
 

@@ -17,6 +17,7 @@ import netutils
 import nettech
 import portcheck
 import quiccheck
+import botcheck
 import domaincheck
 import ianatlds
 import seocheck
@@ -334,6 +335,11 @@ def p_wordpress(ctx: Context, params: dict) -> dict:
     return wpcheck.check_wordpress(ctx, _str(params, 'target'))
 
 
+def p_botcheck(ctx: Context, params: dict) -> dict:
+    identity = _str(params, 'identity') or 'default'
+    return botcheck.check_bot_protection(ctx, _str(params, 'target'), identity)
+
+
 def p_domain_check(ctx: Context, params: dict) -> dict:
     domains = [clean_domain(d) for d in _list(params, 'domains')]
     # Vor jeder Registry: eine Endung, die IANA nicht kennt, wäre sonst erst
@@ -419,6 +425,7 @@ PROBES = {
     'seo': p_seo,
     'tech': p_tech,
     'wordpress': p_wordpress,
+    'botcheck': p_botcheck,
     'domain_check': p_domain_check,
     'mailheader': p_mailheader,
     'ping': p_ping,
@@ -441,7 +448,7 @@ TARGET_KIND = {
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
     'http': 'target', 'smtp': 'target', 'quic': 'target',
-    'seo': 'target', 'tech': 'target', 'wordpress': 'target',
+    'seo': 'target', 'tech': 'target', 'wordpress': 'target', 'botcheck': 'target',
     'domain_check': 'domains', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'ports': 'target', 'dualstack': 'target',
