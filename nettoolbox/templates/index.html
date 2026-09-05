@@ -203,6 +203,8 @@ tr:last-child td { border-bottom: none; }
                font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted); }
+.chip.pick { cursor: pointer; background: none; }
+.chip.pick:hover { border-color: var(--accent); color: var(--accent); }
 .tech-list { display: flex; flex-direction: column; gap: 4px; }
 .tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; }
 .tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
@@ -713,6 +715,13 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       {% for tld in domain_check_tlds %}
       <label class="set-check"><input type="checkbox" class="dc-tld" value="{{ tld }}" {% if loop.index0 < 6 %}checked{% endif %}> .{{ tld }}</label>
       {% endfor %}
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label class="field" for="dcTldSearch">{{ t.field_domain_check_tld_search }}</label>
+        <input type="text" id="dcTldSearch" placeholder="{{ t.ph_tld_search }}" autocomplete="off">
+        <div class="chips" id="dcTldResults" style="margin-top:6px"></div>
+      </div>
     </div>
     <div class="row" style="margin-top:10px">
       <div class="grow">
@@ -1677,6 +1686,7 @@ document.querySelectorAll('#tabs button').forEach(btn => {
     $('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'history') loadHistory();
     if (btn.dataset.tab === 'monitor') loadMonitors();
+    if (btn.dataset.tab === 'domain_check') dcLoadTlds();
   });
 });
 
@@ -3302,9 +3312,42 @@ const DC_REASON_KEY = {
   registry_check_failed: 'dc_reason_registry_check_failed',
 };
 
+// IANAs eigene Liste -- fürs Suchfeld und um eine getippte Endung schon im
+// Browser abzulehnen, statt erst bei Cloudflare/DENIC/EURid zu scheitern.
+// Einmal pro Seitenaufruf geladen, nicht bei jedem Tastendruck.
+let dcAllTlds = [];
+let dcTldsRequested = false;
+
+async function dcLoadTlds(){
+  if (dcTldsRequested) return;
+  dcTldsRequested = true;
+  try {
+    const data = await api('/api/domain-check/tlds');
+    dcAllTlds = data.tlds || [];
+  } catch (e) { /* Suche bleibt dann leer, Validierung wird übersprungen */ }
+}
+
+function dcTldSearchUpdate(){
+  const q = $('dcTldSearch').value.trim().toLowerCase();
+  const box = $('dcTldResults');
+  box.innerHTML = '';
+  if (!q || !dcAllTlds.length) return;
+  dcAllTlds.filter(t => t.includes(q)).slice(0, 20).forEach(t => {
+    const chip = el('span', 'chip pick', '.' + t);
+    chip.addEventListener('click', () => {
+      const cur = $('dcExtraTlds').value.split(',').map(s => s.trim()).filter(Boolean);
+      if (!cur.includes(t)) { cur.push(t); $('dcExtraTlds').value = cur.join(', '); }
+    });
+    box.appendChild(chip);
+  });
+}
+$('dcTldSearch').addEventListener('input', dcTldSearchUpdate);
+$('dcTldSearch').addEventListener('focus', dcLoadTlds);
+
 async function dcCheck(){
   const base = $('dcBase').value.trim();
   if (!base) { toast(T.err_empty_target, true); return; }
+  await dcLoadTlds();
   const checked = Array.from(document.querySelectorAll('.dc-tld:checked')).map(cb => cb.value);
   // Freie Endungen: kommagetrennt, führender Punkt egal, Groß-/Kleinschreibung egal.
   const extra = $('dcExtraTlds').value.split(',')
@@ -3312,6 +3355,10 @@ async function dcCheck(){
   const tlds = Array.from(new Set([...checked, ...extra]));
   if (!tlds.length) { toast(T.dc_err_no_tld, true); return; }
   if (tlds.length > 20) { toast(T.dc_err_too_many_tlds, true); return; }
+  if (dcAllTlds.length) {
+    const bad = tlds.filter(t => !dcAllTlds.includes(t));
+    if (bad.length) { toast(fmtStr(T.dc_err_unknown_tld, { tlds: bad.join(', ') }), true); return; }
+  }
   const domains = tlds.map(t => base + '.' + t);
   const box = $('dcResult'); showLoading(box);
   try {

@@ -43,6 +43,7 @@ COPY users.py .
 COPY dkimgen.py .
 COPY wpcheck.py .
 COPY domaincheck.py .
+COPY ianatlds.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.
 COPY config.yaml .
 COPY templates/ templates/

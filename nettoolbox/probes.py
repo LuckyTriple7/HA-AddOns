@@ -18,6 +18,7 @@ import nettech
 import portcheck
 import quiccheck
 import domaincheck
+import ianatlds
 import seocheck
 import smtpcheck
 import tlscheck
@@ -335,6 +336,14 @@ def p_wordpress(ctx: Context, params: dict) -> dict:
 
 def p_domain_check(ctx: Context, params: dict) -> dict:
     domains = [clean_domain(d) for d in _list(params, 'domains')]
+    # Vor jeder Registry: eine Endung, die IANA nicht kennt, wäre sonst erst
+    # bei Cloudflare (oder DENIC/EURid) ein Fehlschlag statt einer klaren
+    # Meldung hier. Ein leerer Cache (frisch installiert, noch kein Abruf
+    # gelaufen) prüft nichts nach -- besser als jede Endung abzulehnen.
+    bad = sorted({d.rsplit('.', 1)[-1] for d in domains
+                 if not ianatlds.is_valid(d.rsplit('.', 1)[-1])})
+    if bad:
+        raise ProbeError('unknown_tld', ', '.join(bad)[:120])
     rows = domaincheck.check_availability(ctx.cf_account_id, ctx.cf_api_token, domains)
     return {'domains': rows}
 

@@ -29,6 +29,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import dkimgen
 import domaincheck
 import hasensors
+import ianatlds
 import monitor
 import settings as usersettings
 import snapshots as dnssnapshots
@@ -838,6 +839,7 @@ _ERROR_STATUS = {
     'cloudflare_not_configured': 503, 'cloudflare_auth': 502,
     'cloudflare_timeout': 504, 'cloudflare_unreachable': 502,
     'cloudflare_bad_response': 502, 'cloudflare_error': 502,
+    'unknown_tld': 400,
 }
 
 
@@ -1362,6 +1364,17 @@ def dkim_generate():
     if not dkimgen.AVAILABLE:
         raise ProbeError('crypto_unavailable')
     return jsonify(dkimgen.generate())
+
+
+@api('/api/domain-check/tlds')
+def domain_check_tlds():
+    """IANA's own list, for the search box and for validating a typed TLD
+    before it goes out to Cloudflare/DENIC/EURid. Serving the cached list
+    back is metadata, not a probe -- no quota, no history row."""
+    require_module('domain_check')
+    info = ianatlds.status()
+    return jsonify({'tlds': ianatlds.get_tlds(), 'count': info['count'],
+                    'fetched': info['fetched']})
 
 
 REPORT_STEPS = (
@@ -1910,6 +1923,22 @@ def _tech_rules_loop() -> None:
         time.sleep(TECH_RULES_CHECK_SECONDS)
 
 
+IANA_TLD_CHECK_SECONDS = 6 * 3600
+
+
+def _iana_tlds_loop() -> None:
+    """Checks every six hours, actually fetches only once the cached list is
+    more than a day old -- same shape as _tech_rules_loop, just without a
+    settings gate: this one is on by default, no license to opt into."""
+    while True:
+        try:
+            if ianatlds.needs_update():
+                ianatlds.fetch()
+        except Exception:  # noqa: BLE001
+            log.warning("IANA TLD list refresh failed", exc_info=_verbose())
+        time.sleep(IANA_TLD_CHECK_SECONDS)
+
+
 def _tech_rules_view() -> dict:
     cfg = usersettings.effective(load_config())
     info = wapimport.status()
@@ -2040,6 +2069,8 @@ def _startup_checks() -> None:
     usersettings.migrate()
     wapimport.init(_DATA)
     threading.Thread(target=_tech_rules_loop, daemon=True).start()
+    ianatlds.init(_DATA)
+    threading.Thread(target=_iana_tlds_loop, daemon=True).start()
     if not usersettings.crypto_available():
         log.warning("cryptography package unavailable — SMTP/Telegram secrets "
                     "entered in the UI cannot be saved")

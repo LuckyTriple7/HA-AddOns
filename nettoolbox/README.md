@@ -34,10 +34,11 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 - **DANE/TLSA** — TLSA-Einträge der MX-Server gegen deren echtes Zertifikat, samt DNSSEC-Lage
 - **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
 - **Domain-Verfügbarkeit** — über das eigene Cloudflare-Konto (Registrar-API), verlässlicher als
-  WHOIS-„kein Treffer“; zwölf Endungen als Auswahl, freies Textfeld für beliebige weitere, bis zu
-  20 auf einmal. .de (DENIC-RDAP) und .eu (EURid-WHOIS) laufen direkt gegen die Registry, ohne
-  Cloudflare-Konto — die beiden verkauft Cloudflare gar nicht. Braucht sonst Cloudflare-Konto-ID
-  + API-Token in den Einstellungen (nur Leserecht nötig)
+  WHOIS-„kein Treffer“; zwölf Endungen als Auswahl, Suchfeld über IANAs komplette TLD-Liste
+  (täglich aktualisiert, nicht ins Image gebacken) für beliebige weitere, bis zu 20 auf einmal —
+  eine erfundene Endung wird schon im Browser abgelehnt. .de (DENIC-RDAP) und .eu (EURid-WHOIS)
+  laufen direkt gegen die Registry, ohne Cloudflare-Konto — die beiden verkauft Cloudflare gar
+  nicht. Braucht sonst Cloudflare-Konto-ID + API-Token in den Einstellungen (nur Leserecht nötig)
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
   ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand

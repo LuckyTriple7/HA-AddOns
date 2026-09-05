@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.2] - 2026-09-05
+
+### Added
+- **IANAs offizielle TLD-Liste in der Domain-Verfügbarkeit** (`ianatlds.py`). Wird zur Laufzeit
+  geladen und einmal täglich aktualisiert (nicht ins Image gebacken — die Liste ändert sich,
+  ein eingefrorener Stand würde nur veralten). Zwei Effekte: ein Suchfeld findet Endungen aus
+  allen ~1440 echten TLDs zum Antippen, und eine getippte Endung wird schon im Browser bzw.
+  spätestens vom Server abgelehnt, bevor sie je bei Cloudflare/DENIC/EURid ankommt. Ohne
+  geladene Liste (frisch installiert, noch kein Abruf gelaufen) wird nichts blockiert.
+
 ## [0.5.1] - 2026-09-05
 
 ### Added
