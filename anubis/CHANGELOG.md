@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.3] - 2026-09-05
+
+### Behoben
+- **Google Search Console meldete geschützte Domains als „nicht indexierbar".**
+  Am Add-on-Log nachgewiesen: die IP passte (`66.249.79.x`, Googles echter
+  Crawl-Bereich), aber der User-Agent war `Google-InspectionTool/1.0` — das
+  eigene Werkzeug hinter „URL-Prüfung"/„Live-Test" in Search Console, mit
+  anderem User-Agent als der reguläre Googlebot-Crawler
+  (`+http://www.google.com/bot.html`). Die googlebot-Regel erkennt jetzt
+  beide User-Agents; Anubis' eigene Vorlage im Techaro-Projekt kennt das
+  Inspection-Tool bisher gar nicht.
+
 ## [0.0.2] - 2026-09-05
 
 ### Behoben

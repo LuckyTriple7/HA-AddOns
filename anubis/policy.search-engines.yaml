@@ -8,8 +8,16 @@
   # https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/googlebot.yaml
   # https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/bingbot.yaml
   # IP-Bereiche ändern sich gelegentlich — bei Bedarf von dort auffrischen.
+  #
+  # Erweitert gegenüber der Anubis-Vorlage um Google-InspectionTool: das ist
+  # der User-Agent, den Google Search Console für "URL-Prüfung"/"Live-Test"
+  # verwendet — ein eigenes Google-Produkt, kommt aus denselben IP-Bereichen,
+  # aber nicht "+http://www.google.com/bot.html" wie der reguläre Crawler.
+  # Ohne diese Ergänzung meldet Search Console die Seite als nicht indexierbar
+  # (Anubis challenged das Inspection-Tool wie jeden unbekannten Client) —
+  # am eigenen Log nachgewiesen (IP passend, aber User-Agent traf keine Regel).
   - name: googlebot
-    user_agent_regex: \+http\://www\.google\.com/bot\.html
+    user_agent_regex: \+http\://www\.google\.com/bot\.html|Google-InspectionTool
     action: ALLOW
     remote_addresses:
       - 2001:4860:4801:10::/64
