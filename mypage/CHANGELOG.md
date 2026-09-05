@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.58
+
+- 🐛 **README wurde beim GitHub-Refresh (0.11.57) nicht mit aktualisiert.** Der Refresh für schon importierte Repos ließ den Long-Text bewusst unangetastet — auch mit angehaktem „README importieren". Jetzt zieht der Refresh das README ebenfalls nach, wenn die Checkbox gesetzt ist; ohne Haken bleibt der Long-Text wie zuvor unberührt.
+
 ## 0.11.57
 
 - 🔄 **GitHub-Import: schon importierte Repos ließen sich nie auffrischen.** Änderte sich Beschreibung, Sprache oder Topics eines Repos auf GitHub, blieb das im Add-on für immer beim Stand des ersten Imports — die Checkbox war für bereits importierte Repos ausgegraut und gesperrt, das Backend übersprang sie zusätzlich stillschweigend. Jetzt lässt sich jedes Repo erneut anhaken: Desc, Sprache, Tags, Repo-URL, Sterne und Push-Datum werden nachgezogen. Manuell gepflegte Felder (Titel, Website-URL, Bilder, Video, Galerie, Long-Text) bleiben dabei unangetastet.

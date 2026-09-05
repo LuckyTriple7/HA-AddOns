@@ -12490,8 +12490,11 @@ def api_github_import():
         existing_p = by_repo.get(full_name)
         if existing_p:
             # Schon importiertes Projekt: nur die GitHub-Metadaten nachziehen.
-            # Titel, Website-URL, Bilder, Video, Galerie und Long-Text sind oft
-            # von Hand nachbearbeitet — die bleiben beim Refresh unangetastet.
+            # Titel, Website-URL, Bilder, Video und Galerie sind oft von Hand
+            # nachbearbeitet — die bleiben beim Refresh unangetastet. Der
+            # Long-Text kommt nur bei angehaktem "README importieren" mit —
+            # sonst würde ein unbeabsichtigt gesetzter Haken bei jedem Refresh
+            # eine von Hand geschriebene Projektbeschreibung überschreiben.
             desc = _clean_str(repo.get('description', ''))
             existing_p['desc_de']     = desc
             existing_p['desc_en']     = desc
@@ -12501,6 +12504,8 @@ def api_github_import():
             existing_p['repo_pushed'] = _clean_str(repo.get('pushed', ''), 10)
             topics = repo.get('topics') or []
             existing_p['tags'] = [_clean_str(t, 30) for t in topics if _clean_str(t, 30)][:8]
+            if import_readme:
+                existing_p['long_de'] = _clean_str(fetch_github_readme(full_name), 20000)
             updated += 1
             continue
         new_p = _normalize_project({
