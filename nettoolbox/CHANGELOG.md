@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.7] - 2026-09-05
+
+### Fixed
+- **Dauerping füllte den Verlauf und das Tageskontingent pro Tick.** Der Chart fragt alle
+  700ms nach — jeder Tick lief bisher über den normalen Ping-Endpunkt und zählte einzeln
+  gegen Kontingent und Verlauf, eine Minute Dauerping kostete rund 85 Abfragen. Start und
+  Stop laufen jetzt über eine eigene Sitzung: Start bucht einmal ab und legt eine Zeile an,
+  die Ticks selbst kosten nichts mehr, Stop schreibt Verlust/Ergebnis in dieselbe Zeile.
+
 ## [0.3.6] - 2026-09-05
 
 ### Changed

@@ -822,6 +822,7 @@ _ERROR_STATUS = {
     'bad_email': 400, 'weak_password': 400,
     'bad_quota': 400, 'self_target': 409, 'user_store_broken': 503,
     'module_disabled': 403, 'quota_exhausted': 429,
+    'unknown_session': 404,
 }
 
 
@@ -892,16 +893,40 @@ def _history_limit() -> int:
     return _cfg_int('history_size', 200, 0, 5000)
 
 
-def history_add(entry: dict) -> None:
+def history_add(entry: dict) -> str:
+    """Legt eine Zeile an und liefert ihre Kennung zurück -- das Dauerping
+    braucht sie, um die eine Zeile später mit dem Endergebnis zu überschreiben
+    statt pro Tick eine neue anzulegen (siehe history_update)."""
+    entry_id = secrets.token_hex(8)
     if _history_limit() <= 0:
-        return
+        return entry_id
     # Seit es mehrere Konten gibt, gehört jede Zeile zu einem davon. Ohne die
     # Kennung läge der Verlauf des einen offen vor dem anderen.
-    entry = dict(entry, uid=current_uid())
+    entry = dict(entry, id=entry_id, uid=current_uid())
     with _history_lock:
         _history.appendleft(entry)
         while len(_history) > _history_limit():
             _history.pop()
+        rows = list(_history)
+    try:
+        with open(HISTORY_PATH, 'w', encoding='utf-8') as f:
+            json.dump(rows, f)
+    except Exception:
+        log.warning("history could not be saved")
+    return entry_id
+
+
+def history_update(entry_id: str, updates: dict) -> None:
+    """Schreibt eine bestehende Zeile fort. Kein Treffer (Verlauf inzwischen
+    geleert, oder ein anderes Konto) heißt: nichts zu tun, keine Fehlermeldung
+    -- das Dauerping ist ein Nebenschauplatz, kein kritischer Pfad."""
+    with _history_lock:
+        for row in _history:
+            if row.get('id') == entry_id and int(row.get('uid') or 0) == current_uid():
+                row.update(updates)
+                break
+        else:
+            return
         rows = list(_history)
     try:
         with open(HISTORY_PATH, 'w', encoding='utf-8') as f:
@@ -1227,6 +1252,88 @@ def probe():
                     'backend': answer.get('backend', 'local'),
                     'worker': answer.get('worker') or {},
                     'ms': answer.get('ms', 0)})
+
+
+# ── Dauerping ─────────────────────────────────────────────────────────────────
+# Der Chart im Frontend tickt alle 700ms mit einer eigenen Anfrage, solange
+# "Stop" nicht gedrückt wurde -- über eine ganze Sitzung können das hunderte
+# sein. Ohne eigenen Weg würde jeder Tick übers Tageskontingent gebucht und der
+# Verlauf mit einer Zeile pro Tick vollaufen. Start bucht daher einmal ab und
+# legt eine Zeile an, jeder Tick hängt nur noch ein Ergebnis in den Speicher,
+# Stop schreibt die Zusammenfassung in die eine Zeile.
+_live_ping: dict = {}
+_live_ping_lock = threading.Lock()
+LIVE_PING_IDLE_SECONDS = 120  # keine Ticks mehr -> Sitzung gilt als verwaist
+
+
+def _live_ping_gc() -> None:
+    now = time.time()
+    for sid in [s for s, v in _live_ping.items() if now - v['last'] > LIVE_PING_IDLE_SECONDS]:
+        _live_ping.pop(sid, None)
+
+
+@api('/api/ping/live/start', methods=('POST',))
+def ping_live_start():
+    require_module(PROBE_MODULE.get('ping'))
+    body = request.get_json(silent=True) or {}
+    target = str(body.get('target') or '')[:253]
+    if not target:
+        raise ProbeError('empty_target')
+    family = str(body.get('family') or '')
+    spend_quota()
+    entry_id = history_add({'ts': int(time.time()), 'probe': 'ping', 'target': target,
+                            'level': 'info', 'backend': 'local', 'ms': 0})
+    with _live_ping_lock:
+        _live_ping_gc()
+        _live_ping[entry_id] = {'uid': current_uid(), 'target': target, 'family': family,
+                                'sent': 0, 'received': 0, 'backend': 'local', 'last': time.time()}
+    log_activity('ping', target, '')
+    return jsonify({'session': entry_id})
+
+
+@api('/api/ping/live/tick', methods=('POST',))
+def ping_live_tick():
+    body = request.get_json(silent=True) or {}
+    sid = str(body.get('session') or '')
+    with _live_ping_lock:
+        session = _live_ping.get(sid)
+        if not session or session['uid'] != current_uid():
+            raise ProbeError('unknown_session')
+        target, family = session['target'], session['family']
+    if not probe_budget_left():
+        return jsonify({'error': 'rate_limited'}), 429
+    answer = get_backend().run('ping', {'target': target, 'count': 1, 'family': family})
+    replies = (answer.get('result') or {}).get('replies') or []
+    ms = replies[0]['ms'] if replies else None
+    with _live_ping_lock:
+        session = _live_ping.get(sid)
+        if session:
+            session['sent'] += 1
+            session['received'] += 1 if ms is not None else 0
+            session['backend'] = answer.get('backend', 'local')
+            session['last'] = time.time()
+    return jsonify({'ms': ms})
+
+
+@api('/api/ping/live/stop', methods=('POST',))
+def ping_live_stop():
+    body = request.get_json(silent=True) or {}
+    sid = str(body.get('session') or '')
+    with _live_ping_lock:
+        session = _live_ping.pop(sid, None)
+    if session and session['uid'] == current_uid():
+        sent, received = session['sent'], session['received']
+        if sent == 0:
+            level = 'info'
+        elif received == 0:
+            level = 'fail'
+        elif received < sent:
+            level = 'warn'
+        else:
+            level = 'ok'
+        history_update(sid, {'level': level, 'sent': sent, 'received': received,
+                             'backend': session['backend']})
+    return jsonify({'ok': True})
 
 
 REPORT_STEPS = (

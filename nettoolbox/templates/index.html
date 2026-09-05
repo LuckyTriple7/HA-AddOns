@@ -2379,6 +2379,7 @@ $('portsList').addEventListener('keydown', e => { if (e.key === 'Enter') portsCh
 // request either) ───────────────────────────────────────────────────────
 
 let pingLiveActive = false;
+let pingLiveSession = null;
 let pingLiveSamples = [];  // {ms: number|null} in arrival order, newest last
 const PING_LIVE_MAX_POINTS = 120;
 
@@ -2386,6 +2387,11 @@ function pingLiveStop(){
   pingLiveActive = false;
   $('pingLiveRun').textContent = T.action_ping_live_start;
   $('pingLiveRun').classList.remove('danger');
+  const sid = pingLiveSession;
+  pingLiveSession = null;
+  // Schreibt die Zusammenfassung in die eine Verlaufszeile der Sitzung.
+  // Best effort: schlägt der Aufruf fehl, bleibt die Zeile beim Platzhalter.
+  if (sid) api('/api/ping/live/stop', { method: 'POST', body: { session: sid } }).catch(() => {});
 }
 
 // Ein "runder" Achsenendwert -- 137 ms ergibt eine Achse bis 150, nicht bis
@@ -2507,14 +2513,16 @@ function pingLiveUpdateStats(){
   $('pingLiveLoss').textContent = lost + ' ' + T.ping_loss_label;
 }
 
-async function pingLiveTick(target, family){
+async function pingLiveTick(){
   if (!pingLiveActive) return;
   let ms = null;
   try {
-    const data = await api('/api/probe', { method: 'POST',
-      body: { probe: 'ping', params: { target: target, count: 1, family: family } } });
-    const r = data.result;
-    ms = (r.replies && r.replies[0]) ? r.replies[0].ms : null;
+    // Ein Tick trägt nur die Sitzungskennung -- Ziel und Familie kennt der
+    // Server schon aus dem Start, sonst würde jeder Tick erneut übers
+    // Tageskontingent laufen statt nur die eine Sitzung.
+    const data = await api('/api/ping/live/tick', { method: 'POST',
+      body: { session: pingLiveSession } });
+    ms = (data.ms === undefined) ? null : data.ms;
   } catch (e) {
     // A dropped/rate-limited tick is a gap in the chart, not a reason to
     // stop a session meant to run "until Stop is pressed".
@@ -2526,19 +2534,33 @@ async function pingLiveTick(target, family){
   $('pingLiveCur').textContent = ms !== null ? (ms + ' ms') : T.ping_live_timeout;
   pingLiveUpdateStats();
   pingLiveDraw();
-  setTimeout(() => pingLiveTick(target, family), 700);
+  setTimeout(pingLiveTick, 700);
 }
 
-function pingLiveStart(){
+async function pingLiveStart(){
   const target = $('pingTarget').value.trim();
   if (!target) { toast(T.err_empty_target, true); return; }
   const family = $('pingFamily').value;  // locked in for the whole session
+  $('pingLiveRun').disabled = true;
+  try {
+    // Eine Sitzung kostet einmal Kontingent und legt eine Verlaufszeile an --
+    // die Ticks selbst tun keins von beidem mehr (siehe pingLiveTick).
+    const data = await api('/api/ping/live/start', { method: 'POST',
+      body: { target: target, family: family } });
+    pingLiveSession = data.session;
+  } catch (e) {
+    toast(errText(e.code), true);
+    return;
+  } finally {
+    $('pingLiveRun').disabled = false;
+    refreshQuota();
+  }
   pingLiveSamples = [];
   pingLiveActive = true;
   $('pingLiveBox').hidden = false;
   $('pingLiveRun').textContent = T.action_ping_live_stop;
   $('pingLiveRun').classList.add('danger');
-  pingLiveTick(target, family);
+  pingLiveTick();
 }
 
 $('pingLiveRun').addEventListener('click', () => {
