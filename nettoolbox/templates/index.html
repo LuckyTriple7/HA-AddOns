@@ -3837,6 +3837,7 @@ async function botCheck(){
     const r = data.result;
 
     const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
     badges.appendChild(el('span', 'chip', String(r.status)));
     badges.appendChild(el('span', 'chip', r.final_url));
     if (r.redirects) badges.appendChild(el('span', 'chip',

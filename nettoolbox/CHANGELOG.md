@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.2] - 2026-09-05
+
+### Fixed
+- **Bot-/Crawler-Schutz-Test hatte im Verlauf keine Ergebnis-Plakette.** `botcheck.py` lieferte
+  kein `level` zurück, die Spalte blieb leer. Jetzt: `warn`, wenn ein bekanntes Schutzsystem
+  gegriffen hat (auch bei HTTP 200 — Anubis antwortet mit 200, während es die Challenge zeigt)
+  oder der Status selbst schon kein sauberes 2xx war; sonst `ok`. Auch im Einzel-Ergebnis oben
+  jetzt eine Plakette, wie bei den anderen Checks.
+
 ## [0.7.1] - 2026-09-05
 
 ### Added

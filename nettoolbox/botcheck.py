@@ -155,12 +155,19 @@ def check_bot_protection(ctx: Context, target: str, identity: str) -> dict:
                             'site': sig['site'], 'markers': hit})
 
     claims_crawler = any(m in fetch_ctx.user_agent.lower() for m in NAMED_CRAWLER_MARKERS)
+    status = resp.get('status', 0)
+    # Not a judgement of "good"/"bad" -- detecting or not detecting a
+    # protection system is the point of the check either way. It only
+    # flags that *something* intervened: a known system fired (Anubis
+    # answers 200 even while challenging, so the status alone would miss
+    # that), or the plain status itself was never a clean 2xx to begin with.
+    level = 'warn' if (matches or status >= 400 or status == 0) else 'ok'
 
     return {
-        'final_url': final_url, 'status': resp.get('status', 0),
+        'final_url': final_url, 'status': status,
         'identity': identity, 'user_agent': fetch_ctx.user_agent,
         'title': title[:200], 'bytes': resp.get('bytes', 0),
-        'redirects': len(chain) - 1, 'detected': matches,
+        'redirects': len(chain) - 1, 'detected': matches, 'level': level,
         # The UA claims to be a named crawler, but the request still came
         # from this add-on's own address -- a real allowlist checks the
         # source IP too, so a match here doesn't prove the real crawler
