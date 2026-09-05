@@ -29,6 +29,8 @@ body:
         - LogPulse
         - NPMplus
         - CrowdPanel
+        - NetToolbox
+        - Anubis
         - Sonstiges
     validations:
       required: true

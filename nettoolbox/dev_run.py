@@ -41,6 +41,7 @@ import app  # noqa: E402  — erst nach den Umgebungsvariablen importieren
 if __name__ == '__main__':
     port = int(os.environ.get('NETTOOLBOX_PORT', app.PORT))
     app.load_sessions()
+    app.load_blocks()
     app.history_load()
     app._startup_checks()
     print(f'NetToolbox dev auf http://127.0.0.1:{port}')

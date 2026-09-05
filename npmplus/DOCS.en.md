@@ -390,6 +390,19 @@ Then open one of your domains: the block page must appear. Undo it with:
 docker exec $CS cscli -c $CFG decisions delete --ip <your-ip>
 ```
 
+## Anubis (bot protection)
+
+A proof-of-work challenge in front of individual Proxy Hosts — slows down scrapers, scanners and simple bots without replacing a real login. Runs as its own add-on: [Anubis](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/anubis/DOCS.en.md).
+
+NPMplus already knows Anubis as an auth-request provider ("Details" tab → **Auth Request**). All that's needed is the address:
+
+```yaml
+extra_env:
+  - "AUTH_REQUEST_ANUBIS_UPSTREAM=http://424ccef4-anubis:8923"
+```
+
+Find the hostname the same way as for CrowdSec, via `docker inspect -f '{{.Config.Hostname}}' <anubis-container>` — use your own value, don't copy this one. Then restart NPMplus and select `anubis` under "Auth Request" on each Proxy Host.
+
 ## Country filter
 
 Blocks whole countries inside nginx — no MaxMind account, no extra module, no CrowdSec. The decision is made on the very first packet, whereas CrowdSec only reacts after the first request has been parsed.

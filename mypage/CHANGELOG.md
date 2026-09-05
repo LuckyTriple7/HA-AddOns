@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.56
+
+- 📧 **Versand-Mails bekommen jetzt eine ordentliche Message-ID und ein Datum.** `send_email()` setzte bisher nur `Subject`/`From`/`To` — ohne `Message-ID` und `Date` sind Mails (Willkommen, Passwort-Reset, Verifizierung, Kommentar-Antworten, …) für Spamfilter und Threading unvollständig. Neu: `Message-ID` (`email.utils.make_msgid`, mit SMTP-Host als Domain) und `Date` (`formatdate(localtime=True)`) werden bei jedem Versand gesetzt.
+
 ## 0.11.55
 
 - 🐛 **Die Einstellung für die früheren Stände gab es gar nicht.** Der Hinweis im Reiter *System* verwies auf eine Add-on-Option, die weder in `config.yaml` stand noch in den Einstellungen — gelesen wurde `revision_keep` zwar, gesetzt werden konnte es nirgends. Es blieb also immer beim eingebauten Standard von 20 Ständen, und die Meldung „Frühere Stände sind deaktiviert" konnte nie erscheinen. Die Einstellung steht jetzt im Zahnrad unter **Frühere Stände (Rückgängig)**, 0 bis 100, `0` schaltet die Sicherung ab.

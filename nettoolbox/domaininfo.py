@@ -44,6 +44,18 @@ def _worst(findings: list) -> str:
     return OK
 
 
+def _score(findings: list) -> int:
+    """Same idea as the mail/SEO/HTTP/TLS scores. Weighted heavy: an expired
+    or on-hold domain is not a rough edge, it is the domain not working."""
+    score = 100
+    for f in findings:
+        if f['level'] == FAIL:
+            score -= 25
+        elif f['level'] == WARN:
+            score -= 10
+    return max(0, min(100, score))
+
+
 # ── RDAP bootstrap ───────────────────────────────────────────────────────────
 
 
@@ -179,6 +191,19 @@ def _parse_rdap_result(domain: str, data: dict) -> dict:
     return result
 
 
+def _parse_iso_utc(value: str):
+    """Some registries' WHOIS dates carry no time component at all (nic.it:
+    a bare "1997-08-27"), which fromisoformat happily parses as a naive
+    datetime -- fine on its own, but datetime.now(timezone.utc) is aware,
+    and subtracting the two raises TypeError, not the ValueError callers
+    already guard against. Attaching UTC to a naive result is a rounding
+    error of at most a day, not a wrong answer."""
+    parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def _apply_common_findings(result: dict, findings: list) -> None:
     status_lower = [s.lower() for s in result['status']]
     if any('hold' in s for s in status_lower):
@@ -190,7 +215,7 @@ def _apply_common_findings(result: dict, findings: list) -> None:
 
     if result['registered']:
         try:
-            registered = datetime.fromisoformat(result['registered'].replace('Z', '+00:00'))
+            registered = _parse_iso_utc(result['registered'])
             age_days = (datetime.now(timezone.utc) - registered).days
             if age_days < 30:
                 findings.append(_finding(INFO, 'domain_young', days=age_days))
@@ -199,7 +224,7 @@ def _apply_common_findings(result: dict, findings: list) -> None:
 
     if result['expires']:
         try:
-            expires = datetime.fromisoformat(result['expires'].replace('Z', '+00:00'))
+            expires = _parse_iso_utc(result['expires'])
             days_left = (expires - datetime.now(timezone.utc)).days
             result['days_until_expiry'] = days_left
             if days_left < 0:
@@ -283,7 +308,14 @@ def _whois_lookup(ctx: Context, domain: str) -> dict:
         'raw': text.strip()[:4000], 'findings': findings,
     }
     low = text.lower()
-    if 'no entries found' in low or 'not found' in low or 'no match' in low:
+    # EURid and IIT-CNR (.eu/.it) don't say "not found" at all -- a free
+    # name gets its own "Status: AVAILABLE" line instead, already captured
+    # into result['status'] above. Checked there rather than as a raw
+    # substring: "status: available" only ever appears in that one field
+    # for either registry, live-verified for both.
+    status_lower = [s.lower() for s in result['status']]
+    if ('no entries found' in low or 'not found' in low or 'no match' in low
+            or 'available' in status_lower):
         result['found'] = False
         findings.append(_finding(WARN, 'domain_not_found', domain=domain))
         result['level'] = _worst(findings)
@@ -320,8 +352,12 @@ def check_domain(ctx: Context, domain: str) -> dict:
     if base_urls:
         try:
             data = _rdap_fetch(ctx, domain, base_urls)
-            return _parse_rdap_result(domain, data)
+            result = _parse_rdap_result(domain, data)
+            result['score'] = _score(result['findings'])
+            return result
         except ProbeError:
             pass  # fall through to WHOIS below
 
-    return _whois_lookup(ctx, domain)
+    result = _whois_lookup(ctx, domain)
+    result['score'] = _score(result['findings'])
+    return result

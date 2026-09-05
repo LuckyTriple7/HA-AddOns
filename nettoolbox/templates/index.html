@@ -38,11 +38,24 @@ header { background: var(--surf); border-bottom: 1px solid var(--border);
 .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px;
              border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; }
 .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+.user-menu { position: relative; }
+.user-dropdown { display: none; position: absolute; top: calc(100% + 6px); right: 0; min-width: 170px;
+                 background: var(--surf); border: 1px solid var(--border); border-radius: 6px;
+                 box-shadow: 0 8px 24px rgba(0,0,0,.3); z-index: 30; overflow: hidden; }
+.user-dropdown.open { display: block; }
+.user-dropdown a { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 0.82rem;
+                   color: var(--text); text-decoration: none; }
+.user-dropdown a:hover { background: var(--surf2); }
+.user-dropdown svg { width: 15px; height: 15px; fill: currentColor; flex: none; }
 .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100;
             align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; }
 .modal-bg.open { display: flex; }
 .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 24px;
          width: 100%; max-width: 560px; position: relative; }
+/* Nur die Benutzerverwaltung braucht Platz fuer eine Tabelle. Ein Eingabefeld
+   ueber die volle Breite waere dort albern, deshalb der Deckel. */
+.modal.wide { max-width: 920px; }
+.modal.wide .set-row > input[type="text"] { max-width: 420px; }
 .modal-close { position: absolute; top: 12px; right: 12px; background: none; border: 1px solid var(--border);
                color: var(--muted); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
 .modal-close:hover { border-color: var(--accent); }
@@ -51,6 +64,21 @@ header { background: var(--surf); border-bottom: 1px solid var(--border);
 .set-row { margin-bottom: 12px; }
 .set-lbl { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; }
 .set-check { display: flex; align-items: center; gap: 6px; font-size: 0.83rem; }
+.set-row > .field { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+.set-channels { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+/* Benutzertabelle: Knoepfe nebeneinander statt untereinander, und nur das
+   Ziel im Protokoll darf umbrechen -- der Rest sind kurze Felder. */
+#userTableBox th, #userTableBox td { white-space: nowrap; }
+#userTableBox td.user-actions { text-align: right; }
+#userTableBox td.user-mail { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+#userTableBox td.user-detail { white-space: normal; background: var(--bg); }
+.user-detail-row { margin-top: 10px; }
+.quota-input { width: 70px; }
+.user-detail-row > .set-check { white-space: nowrap; }
+.user-log-box { max-height: 260px; overflow: auto; border: 1px solid var(--border);
+                border-radius: 6px; margin-bottom: 8px; }
+.user-log td, .user-log th { padding: 4px 8px; font-size: 0.78rem; }
+.user-log td:nth-child(3) { white-space: normal; word-break: break-all; }
 .icon-moon { display: block; } .icon-sun { display: none; }
 [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
 nav { display: flex; gap: 2px; padding: 0 16px; background: var(--surf); border-bottom: 1px solid var(--border);
@@ -71,6 +99,10 @@ h3 { font-size: 0.87rem; color: var(--text); margin-bottom: 8px; font-weight: 60
         transition: border-color .15s, box-shadow .15s; }
 .card:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--accent)); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Ergebnisse klebten an der Knopfzeile darueber. Der Abstand kommt erst,
+   wenn wirklich etwas dasteht -- ein leerer Kasten soll keine Luecke
+   hinterlassen. */
+div[id$="Result"]:not(:empty) { margin-top: 14px; }
 .grow { flex: 1 1 220px; }
 label.field { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
 input[type="text"], input[type="password"], select {
@@ -129,10 +161,20 @@ tr:last-child td { border-bottom: none; }
            border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .subgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 10px; margin-top: 10px; }
+.score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px,1fr)); gap: 8px; margin-top: 12px; }
+.score-tile { border: 1px solid var(--border); border-radius: 7px; padding: 10px 6px; text-align: center;
+              background: var(--surf2); }
+.score-tile.total { border-color: var(--accent); }
+.score-tile .score-num { display: block; font-size: 1.15rem; padding: 3px 0; margin-bottom: 4px; width: 100%; }
+.score-tile .score-label { font-size: 0.7rem; color: var(--muted); }
 .subcard { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surf2);
            transition: border-color .15s; }
 .subcard:hover { border-color: color-mix(in srgb, var(--border) 30%, var(--accent)); }
 .subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.subcard textarea { min-height: 56px; font-size: 0.7rem; }
+.subcard label.field { margin-top: 8px; }
+.subcard label.field:first-of-type { margin-top: 0; }
+.subcard label.check { display: block; font-size: 0.8rem; margin-top: 8px; }
 .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 0.8rem; }
 .kv span:first-child { color: var(--muted); }
 /* Eigene Zeilen für den IP-Lookup: feste Beschriftungsspalte statt
@@ -142,13 +184,16 @@ tr:last-child td { border-bottom: none; }
 .ipinfo-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 .ipinfo-kv { display: grid; grid-template-columns: 106px 1fr; gap: 10px;
              align-items: baseline; padding: 3px 0; font-size: 0.8rem; }
-.ipinfo-kv > span:first-child { color: var(--muted); }
+.ipinfo-kv > span:first-child { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .ipinfo-kv > :last-child { text-align: left; word-break: normal; overflow-wrap: anywhere; }
 .detect-label { font-size: 0.78rem; color: var(--muted); align-self: center; }
+.dkim-sig { padding: 5px 0; }
+.dkim-sig + .dkim-sig { border-top: 1px solid var(--border); }
+.dkim-sig > .hint { margin-top: 2px; }
 /* Schmalere Beschriftungsspalte fuer Zeilen in den engen Unterkarten. */
 .kv-tight { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline;
             margin-top: 6px; font-size: 0.8rem; }
-.kv-tight > span:first-child { color: var(--muted); }
+.kv-tight > span:first-child { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .kv-tight > :last-child { word-break: normal; overflow-wrap: anywhere; }
 .toast-wrap { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
 .toast { background: var(--surf); border: 1px solid var(--border); border-radius: 6px; padding: 9px 14px;
@@ -158,6 +203,8 @@ tr:last-child td { border-bottom: none; }
                font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted); }
+.chip.pick { cursor: pointer; background: none; }
+.chip.pick:hover { border-color: var(--accent); color: var(--accent); }
 .tech-list { display: flex; flex-direction: column; gap: 4px; }
 .tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; }
 .tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
@@ -177,27 +224,42 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     <span class="version">{{ version }}</span>
   </div>
   <span class="pill" id="backendPill"><span class="dot"></span><span id="backendLabel">…</span></span>
+  <span class="pill" id="quotaPill" style="display:none"></span>
   <a href="{{ url_for('set_lang', lang='de', next=request.path) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
   <a href="{{ url_for('set_lang', lang='en', next=request.path) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+  {% if account %}
+  <div class="user-menu" id="userMenu">
+    <button class="lang-btn" type="button" id="userMenuBtn" onclick="toggleUserMenu()">{{ account }}</button>
+    <div class="user-dropdown" id="userDropdown">
+      <a href="{{ url_for('change_password') }}"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.pw_title }}</a>
+    </div>
+  </div>
+  {% endif %}
+  {% if is_admin %}<button class="theme-btn" onclick="openUsers()" type="button" aria-label="users" title="{{ t.settings_group_users }}">
+    <svg viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg>
+  </button>
   <button class="theme-btn" onclick="openSettings()" type="button" aria-label="settings" title="{{ t.settings_title }}">
     <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
-  </button>
+  </button>{% endif %}
   <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="theme">
     <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
     <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
   </button>
-  {% if not ingress %}<a class="btn" href="{{ url_for('logout') }}">{{ t.logout }}</a>{% endif %}
+  {% if not ingress %}<a class="theme-btn" href="{{ url_for('logout') }}" title="{{ t.logout }}" aria-label="{{ t.logout }}">
+    <svg viewBox="0 0 24 24"><path d="M16,17V14H9V10H16V7L21,12L16,17M14,2A2,2 0 0,1 16,4V6H14V4H5V20H14V18H16V20A2,2 0 0,1 14,22H5A2,2 0 0,1 3,20V4A2,2 0 0,1 5,2H14Z"/></svg>
+  </a>{% endif %}
 </header>
 
 <nav id="tabs">
-  <button data-tab="report" class="active"><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8,12H16V14H8V12M8,16H13V18H8V16Z"/></svg>{{ t.nav_report }}</button>
-  <button data-tab="dns"><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.nav_dns }}</button>
-  <button data-tab="mail"><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.nav_mail_group }}</button>
-  <button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>
-  <button data-tab="tls"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.nav_tls }}</button>
-  <button data-tab="whois"><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.nav_whois }}</button>
-  <button data-tab="http"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.nav_http }}</button>
-  <button data-tab="monitor"><svg viewBox="0 0 24 24"><path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/></svg>{{ t.nav_monitor }}</button>
+  {% if "report" in modules %}<button data-tab="report" class="active"><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8,12H16V14H8V12M8,16H13V18H8V16Z"/></svg>{{ t.nav_report }}</button>{% endif %}
+  {% if "dns" in modules %}<button data-tab="dns"><svg viewBox="0 0 24 24"><path d="M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"/></svg>{{ t.nav_dns }}</button>{% endif %}
+  {% if "mail" in modules %}<button data-tab="mail"><svg viewBox="0 0 24 24"><path d="M20,4H4C2.9,4 2,4.9 2,6V18C2,19.1 2.9,20 4,20H20C21.1,20 22,19.1 22,18V6C22,4.9 21.1,4 20,4M20,8L12,13L4,8V6L12,11L20,6V8Z"/></svg>{{ t.nav_mail_group }}</button>{% endif %}
+  {% if "reverse" in modules %}<button data-tab="reverse"><svg viewBox="0 0 24 24"><path d="M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"/></svg>{{ t.nav_reverse }}</button>{% endif %}
+  {% if "tls" in modules %}<button data-tab="tls"><svg viewBox="0 0 24 24"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/></svg>{{ t.nav_tls }}</button>{% endif %}
+  {% if "whois" in modules %}<button data-tab="whois"><svg viewBox="0 0 24 24"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>{{ t.nav_whois }}</button>{% endif %}
+  {% if "http" in modules %}<button data-tab="http"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.nav_http }}</button>{% endif %}
+  {% if "domain_check" in modules %}<button data-tab="domain_check"><svg viewBox="0 0 24 24"><path d="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.35 18.92,8M12,4.04C12.83,5.24 13.48,6.57 13.91,8H10.09C10.52,6.57 11.17,5.24 12,4.04M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M5.08,16H8.03C8.35,17.25 8.81,18.45 9.41,19.56C7.57,18.93 6.04,17.65 5.08,16M8.03,8H5.08C6.04,6.35 7.57,5.07 9.41,4.44C8.81,5.55 8.35,6.75 8.03,8M12,19.96C11.17,18.76 10.52,17.43 10.09,16H13.91C13.48,17.43 12.83,18.76 12,19.96M14.34,14H9.66C9.57,13.34 9.5,12.68 9.5,12C9.5,11.32 9.57,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14H16.36Z"/></svg>{{ t.nav_domain_check }}</button>{% endif %}
+  {% if is_admin %}<button data-tab="monitor"><svg viewBox="0 0 24 24"><path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/></svg>{{ t.nav_monitor }}</button>{% endif %}
   <button data-tab="history"><svg viewBox="0 0 24 24"><path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z"/></svg>{{ t.nav_history }}</button>
 </nav>
 
@@ -384,6 +446,105 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <div id="hdrResult"></div>
   </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M15,17H7V15H15V17M17,13H7V11H17V13M17,9H7V7H17V9Z"/></svg>{{ t.gen_title }}</h2>
+    <p class="hint">{{ t.gen_hint }}</p>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="genDomain">{{ t.field_domain }}</label>
+        <input type="text" id="genDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+    </div>
+    <div class="subgrid">
+      <div class="subcard">
+        <h4><span>SPF</span></h4>
+        <label class="field" for="genSpfIncludes">{{ t.gen_spf_includes }}</label>
+        <input type="text" id="genSpfIncludes" placeholder="_spf.google.com, sendgrid.net" autocomplete="off">
+        <label class="field" for="genSpfIp">{{ t.gen_spf_ip }}</label>
+        <input type="text" id="genSpfIp" placeholder="203.0.113.10, 2001:db8::1" autocomplete="off">
+        <label class="check"><input type="checkbox" id="genSpfMx" checked> {{ t.gen_spf_mx }}</label>
+        <label class="check"><input type="checkbox" id="genSpfA"> {{ t.gen_spf_a }}</label>
+        <label class="field" for="genSpfAll">{{ t.gen_spf_all }}</label>
+        <select id="genSpfAll">
+          <option value="~all" selected>{{ t.gen_all_softfail }}</option>
+          <option value="-all">{{ t.gen_all_fail }}</option>
+          <option value="?all">{{ t.gen_all_neutral }}</option>
+        </select>
+        <div class="hint" id="genSpfName"></div>
+        <div class="record-code" id="genSpfOut"></div>
+        <button class="btn" id="genSpfCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>DMARC</span></h4>
+        <label class="field" for="genDmarcPolicy">{{ t.gen_dmarc_policy }}</label>
+        <select id="genDmarcPolicy">
+          <option value="none" selected>{{ t.gen_policy_none }}</option>
+          <option value="quarantine">{{ t.gen_policy_quarantine }}</option>
+          <option value="reject">{{ t.gen_policy_reject }}</option>
+        </select>
+        <label class="field" for="genDmarcSp">{{ t.gen_dmarc_sp }}</label>
+        <select id="genDmarcSp">
+          <option value="" selected>{{ t.gen_sp_inherit }}</option>
+          <option value="none">{{ t.gen_policy_none }}</option>
+          <option value="quarantine">{{ t.gen_policy_quarantine }}</option>
+          <option value="reject">{{ t.gen_policy_reject }}</option>
+        </select>
+        <label class="field" for="genDmarcRua">{{ t.gen_dmarc_rua }}</label>
+        <input type="text" id="genDmarcRua" placeholder="dmarc@example.org" autocomplete="off">
+        <label class="field" for="genDmarcRuf">{{ t.gen_dmarc_ruf }}</label>
+        <input type="text" id="genDmarcRuf" autocomplete="off">
+        <label class="field" for="genDmarcPct">{{ t.gen_dmarc_pct }}</label>
+        <input type="text" id="genDmarcPct" placeholder="100" autocomplete="off">
+        <div class="hint" id="genDmarcName"></div>
+        <div class="record-code" id="genDmarcOut"></div>
+        <button class="btn" id="genDmarcCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>DKIM</span></h4>
+        <label class="field" for="genDkimSelector">{{ t.gen_dkim_selector }}</label>
+        <input type="text" id="genDkimSelector" placeholder="mail" autocomplete="off">
+        <label class="field" for="genDkimPubkey">{{ t.gen_dkim_pubkey }}</label>
+        <textarea id="genDkimPubkey" spellcheck="false"></textarea>
+        <button class="btn" id="genDkimGenerate" type="button" style="margin-top:8px">{{ t.gen_dkim_generate }}</button>
+        <div id="genDkimPrivWrap" hidden>
+          <label class="field" for="genDkimPrivkey" style="margin-top:8px">{{ t.gen_dkim_privkey }}</label>
+          <textarea id="genDkimPrivkey" readonly spellcheck="false"></textarea>
+          <p class="hint">{{ t.gen_dkim_privkey_hint }}</p>
+          <button class="btn" id="genDkimPrivCopy" type="button">{{ t.action_copy }}</button>
+        </div>
+        <div class="hint" id="genDkimName"></div>
+        <div class="record-code" id="genDkimOut"></div>
+        <button class="btn" id="genDkimCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>MTA-STS</span></h4>
+        <label class="field" for="genMtaStsMode">{{ t.gen_mtasts_mode }}</label>
+        <select id="genMtaStsMode">
+          <option value="testing" selected>{{ t.gen_mode_testing }}</option>
+          <option value="enforce">{{ t.gen_mode_enforce }}</option>
+          <option value="none">{{ t.gen_mode_none }}</option>
+        </select>
+        <label class="field" for="genMtaStsMx">{{ t.gen_mtasts_mx }}</label>
+        <input type="text" id="genMtaStsMx" placeholder="mail.example.org" autocomplete="off">
+        <label class="field" for="genMtaStsMaxage">{{ t.gen_mtasts_maxage }}</label>
+        <input type="text" id="genMtaStsMaxage" placeholder="604800" autocomplete="off">
+        <div class="hint" id="genMtaStsName"></div>
+        <div class="record-code" id="genMtaStsOut"></div>
+        <button class="btn" id="genMtaStsCopy" type="button">{{ t.action_copy }}</button>
+        <p class="hint" id="genMtaStsPolicyHint"></p>
+        <div class="record-code" id="genMtaStsPolicy"></div>
+        <button class="btn" id="genMtaStsPolicyCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+      <div class="subcard">
+        <h4><span>TLS-RPT</span></h4>
+        <label class="field" for="genTlsRptRua">{{ t.gen_tlsrpt_rua }}</label>
+        <input type="text" id="genTlsRptRua" placeholder="tlsrpt@example.org" autocomplete="off">
+        <div class="hint" id="genTlsRptName"></div>
+        <div class="record-code" id="genTlsRptOut"></div>
+        <button class="btn" id="genTlsRptCopy" type="button">{{ t.action_copy }}</button>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section id="tab-reverse">
@@ -536,6 +697,42 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   </div>
 </section>
 
+<section id="tab-domain_check">
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.35 18.92,8M12,4.04C12.83,5.24 13.48,6.57 13.91,8H10.09C10.52,6.57 11.17,5.24 12,4.04M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M5.08,16H8.03C8.35,17.25 8.81,18.45 9.41,19.56C7.57,18.93 6.04,17.65 5.08,16M8.03,8H5.08C6.04,6.35 7.57,5.07 9.41,4.44C8.81,5.55 8.35,6.75 8.03,8M12,19.96C11.17,18.76 10.52,17.43 10.09,16H13.91C13.48,17.43 12.83,18.76 12,19.96M14.34,14H9.66C9.57,13.34 9.5,12.68 9.5,12C9.5,11.32 9.57,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14H16.36Z"/></svg>{{ t.domain_check_title }}</h2>
+    <p class="hint">{{ t.domain_check_hint }}</p>
+    <div id="domainCheckConfigWarn" class="hint" hidden>{{ t.domain_check_not_configured }}</div>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="dcBase">{{ t.field_domain_check_base }}</label>
+        <input type="text" id="dcBase" placeholder="meintestname" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="dcRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px" id="dcTlds">
+      {% for tld in domain_check_tlds %}
+      <label class="set-check"><input type="checkbox" class="dc-tld" value="{{ tld }}" {% if loop.index0 < 6 %}checked{% endif %}> .{{ tld }}</label>
+      {% endfor %}
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label class="field" for="dcTldSearch">{{ t.field_domain_check_tld_search }}</label>
+        <input type="text" id="dcTldSearch" placeholder="{{ t.ph_tld_search }}" autocomplete="off">
+        <div class="chips" id="dcTldResults" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label class="field" for="dcExtraTlds">{{ t.field_domain_check_extra_tlds }}</label>
+        <input type="text" id="dcExtraTlds" placeholder="xyz, name, ai" autocomplete="off">
+      </div>
+    </div>
+    <div id="dcResult"></div>
+  </div>
+</section>
+
 <section id="tab-http">
   <div class="card">
     <h2><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="17" width="18" height="3" rx="1"/></svg>{{ t.http_title }}</h2>
@@ -583,6 +780,20 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
     <p class="hint">{{ t.tech_hint }}</p>
     <div id="techResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2C6.5,2 2,6.5 2,12C2,17.5 6.5,22 12,22C17.5,22 22,17.5 22,12C22,6.5 17.5,2 12,2M12,20C7.59,20 4,16.41 4,12C4,10.91 4.22,9.87 4.61,8.92L10.34,17.66L12,20M17.39,15.08L11.75,4.06C11.83,4.06 11.91,4 12,4C16.41,4 20,7.59 20,12C20,13.5 19.59,14.9 18.89,16.11L17.39,15.08Z"/></svg>{{ t.wp_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="wpTarget">{{ t.field_url }}</label>
+        <input type="text" id="wpTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="wpRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.wp_hint }}</p>
+    <div id="wpResult"></div>
   </div>
 </section>
 
@@ -712,6 +923,38 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     </div>
 
     <div class="set-group">
+      <h3>{{ t.settings_group_security }}</h3>
+      <p class="hint" style="margin-top:0">{{ t.settings_security_hint }}</p>
+      <div class="set-row">
+        <label class="field" for="setPublicUrl">{{ t.field_public_url }}</label>
+        <input type="text" id="setPublicUrl" autocomplete="off" placeholder="https://netz.example.com">
+        <div class="hint">{{ t.public_url_hint }}</div>
+      </div>
+      <div class="set-row">
+        <div class="field">{{ t.field_notify_login_fail }}</div>
+        <div class="set-channels">
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginFailMail" checked> {{ t.notify_channel_email }}
+          </label>
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginFailTg" checked> {{ t.notify_channel_telegram }}
+          </label>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="field">{{ t.field_notify_login_ok }}</div>
+        <div class="set-channels">
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginOkMail"> {{ t.notify_channel_email }}
+          </label>
+          <label class="set-check">
+            <input type="checkbox" id="setNotifyLoginOkTg"> {{ t.notify_channel_telegram }}
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-group">
       <h3>{{ t.settings_group_tech }}</h3>
       <p class="hint" style="margin-top:0">{{ t.tech_rules_hint }}</p>
       <div class="set-row">
@@ -731,12 +974,68 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <div class="hint" id="setTechState"></div>
     </div>
 
+    <div class="set-group">
+      <h3>{{ t.settings_group_domain_check }}</h3>
+      <p class="hint" style="margin-top:0">{{ t.domain_check_settings_hint }}</p>
+      <div class="set-row">
+        <label class="field" for="setCfAccountId">{{ t.field_cf_account_id }}</label>
+        <input type="text" id="setCfAccountId" autocomplete="off">
+      </div>
+      <div class="set-row">
+        <label class="field" for="setCfApiToken">{{ t.field_cf_api_token }}</label>
+        <input type="password" id="setCfApiToken" autocomplete="new-password">
+        <div class="hint" id="setCfApiTokenState"></div>
+      </div>
+      <div class="set-row">
+        <button class="btn" id="setTestCloudflare" type="button">{{ t.action_test_cloudflare }}</button>
+        <span class="hint" id="setTestCloudflareResult"></span>
+      </div>
+    </div>
+
     <div class="row" style="margin-top:18px; justify-content:flex-end">
       <button class="btn" onclick="loadSettings()" type="button">{{ t.action_reload }}</button>
       <button class="btn primary" id="setSave" onclick="saveSettings()" type="button">{{ t.action_save }}</button>
     </div>
   </div>
 </div>
+
+<div class="modal-bg" id="usersBg">
+  <div class="modal wide">
+    <button class="modal-close" onclick="closeUsers()" type="button" aria-label="close">✕</button>
+    <h2 style="margin-bottom:4px">{{ t.settings_group_users }}</h2>
+    <p class="hint" style="margin-bottom:0">{{ t.users_hint }}</p>
+
+    <div class="set-group">
+      <div id="userTableBox" style="overflow-x:auto"></div>
+    </div>
+
+    <div class="set-group">
+      <h3>{{ t.users_new_title }}</h3>
+      <div class="set-row">
+        <label class="field" for="newUserName">{{ t.users_new_name }}</label>
+        <input type="text" id="newUserName" autocomplete="off" placeholder="max.mustermann">
+      </div>
+      <div class="set-row">
+        <label class="field" for="newUserMail">{{ t.users_new_mail }}</label>
+        <input type="text" id="newUserMail" autocomplete="off" placeholder="max@example.com">
+      </div>
+      <div class="set-row">
+        <label class="set-check">
+          <input type="checkbox" id="newUserAdmin"> {{ t.users_is_admin }}
+        </label>
+      </div>
+      <div class="set-row">
+        <button class="btn primary" id="userCreate" type="button">{{ t.users_create }}</button>
+        <span class="hint" id="userCreateResult"></span>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:18px; justify-content:flex-end">
+      <button class="btn" onclick="loadUsers()" type="button">{{ t.action_reload }}</button>
+    </div>
+  </div>
+</div>
+
 
 <div class="toast-wrap" id="toasts"></div>
 
@@ -839,10 +1138,19 @@ async function runProbe(name, params, target, button){
   } finally {
     if (button) { button.disabled = false; }
     if (currentAbort === controller) { currentAbort = null; }
+    refreshQuota();
   }
 }
 
 // ── Settings (SMTP / Telegram) ──────────────────────────────────────────────
+
+function toggleUserMenu(){
+  $('userDropdown').classList.toggle('open');
+}
+document.addEventListener('click', ev => {
+  const menu = $('userMenu');
+  if (menu && !menu.contains(ev.target)) $('userDropdown').classList.remove('open');
+});
 
 function openSettings(){
   $('settingsBg').classList.add('open');
@@ -851,6 +1159,15 @@ function openSettings(){
 
 function closeSettings(){
   $('settingsBg').classList.remove('open');
+}
+
+function openUsers(){
+  $('usersBg').classList.add('open');
+  loadUsers();
+}
+
+function closeUsers(){
+  $('usersBg').classList.remove('open');
 }
 
 async function loadSettings(){
@@ -869,6 +1186,14 @@ async function loadSettings(){
     $('setTelegramToken').value = '';
     $('setTelegramTokenState').textContent = v.telegram_bot_token_set ? T.settings_secret_set : T.settings_secret_unset;
     $('setTelegramChatId').value = v.telegram_chat_id || '';
+    $('setPublicUrl').value = v.public_url || '';
+    $('setNotifyLoginFailMail').checked = v.notify_login_fail_email !== false;
+    $('setNotifyLoginFailTg').checked = v.notify_login_fail_telegram !== false;
+    $('setNotifyLoginOkMail').checked = !!v.notify_login_ok_email;
+    $('setNotifyLoginOkTg').checked = !!v.notify_login_ok_telegram;
+    $('setCfAccountId').value = v.cf_account_id || '';
+    $('setCfApiToken').value = '';
+    $('setCfApiTokenState').textContent = v.cf_api_token_set ? T.settings_secret_set : T.settings_secret_unset;
   } catch (e) { toast(errText(e.code), true); }
   loadTechRules(true);
 }
@@ -942,6 +1267,279 @@ async function removeTechRules(){
 $('setTechFetch').addEventListener('click', fetchTechRules);
 $('setTechRemove').addEventListener('click', removeTechRules);
 
+// ── Benutzerverwaltung ──────────────────────────────────────────────────────
+// Freier Text nie ins Markup: Zeilen werden per el() gebaut, Aktionen haengen
+// an data-* und laufen ueber eine Delegation am Tabellenkoerper.
+
+function userDate(ts){
+  return ts ? new Date(ts * 1000).toLocaleDateString(G.lang) : '—';
+}
+
+function userRow(u, selfId){
+  const tr = el('tr');
+  const name = el('td');
+  name.appendChild(el('span', '', u.username));
+  if (u.is_admin) name.appendChild(el('span', 'badge info', ' ' + T.users_admin_badge));
+  tr.appendChild(name);
+  tr.appendChild(el('td', 'user-mail', u.email || '—'));
+  const state = u.blocked ? T.users_state_blocked
+    : (u.must_change ? T.users_state_pending : T.users_state_active);
+  tr.appendChild(el('td', '', state));
+  tr.appendChild(el('td', '', userDate(u.last_login_ts)));
+  // Eine Zeile, ein Knopf. Fuenf Knoepfe je Zeile haben die Tabelle breiter
+  // gemacht als den Dialog -- alles Weitere steht in der aufklappbaren Zeile
+  // darunter, wo die volle Breite zur Verfuegung steht.
+  const actions = el('td', 'user-actions');
+  if (u.id !== selfId) {
+    const b = el('button', 'btn', T.users_manage);
+    b.type = 'button';
+    b.dataset.userAction = 'edit';
+    b.dataset.userId = String(u.id);
+    actions.appendChild(b);
+  } else {
+    actions.appendChild(el('span', 'hint', T.users_self));
+  }
+  tr.appendChild(actions);
+  return tr;
+}
+
+// Reiter heissen in den Uebersetzungen nicht alle nav_<modul> -- "mail" liegt
+// unter nav_mail_group. Eine Zuordnung statt einer Namensregel.
+const MODULE_LABEL = {
+  report: 'nav_report', dns: 'nav_dns', mail: 'nav_mail_group',
+  reverse: 'nav_reverse', tls: 'nav_tls', whois: 'nav_whois', http: 'nav_http',
+  domain_check: 'nav_domain_check'
+};
+
+function actionButton(action, label, id, cls){
+  const b = el('button', 'btn' + (cls ? ' ' + cls : ''), label);
+  b.type = 'button';
+  b.dataset.userAction = action;
+  b.dataset.userId = String(id);
+  return b;
+}
+
+function userDetailRow(u, modules){
+  const tr = el('tr');
+  tr.dataset.detailFor = String(u.id);
+  tr.style.display = 'none';
+  const td = el('td', 'user-detail');
+  td.colSpan = 5;
+
+  const mods = el('div', 'set-channels');
+  mods.appendChild(el('span', 'field', T.users_modules_label));
+  modules.forEach(m => {
+    const label = el('label', 'set-check');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.moduleFor = String(u.id);
+    cb.value = m;
+    cb.checked = u.modules === '*' || u.modules.split(',').indexOf(m) >= 0;
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(' ' + (T[MODULE_LABEL[m]] || m)));
+    mods.appendChild(label);
+  });
+  td.appendChild(mods);
+
+  const quotaRow = el('div', 'set-channels user-detail-row');
+  const quotaLabel = el('label', 'set-check', T.users_quota + ' ');
+  const quota = document.createElement('input');
+  quota.type = 'text';
+  quota.inputMode = 'numeric';
+  quota.className = 'quota-input';
+  quota.dataset.quotaFor = String(u.id);
+  quota.value = String(u.daily_quota || 0);
+  quotaLabel.appendChild(quota);
+  quotaRow.appendChild(quotaLabel);
+  quotaRow.appendChild(actionButton('save', T.action_save, u.id, 'primary'));
+  quotaRow.appendChild(actionButton('quota', T.users_quota_reset, u.id));
+  td.appendChild(quotaRow);
+  td.appendChild(el('div', 'hint', T.users_quota_hint));
+
+  const bar = el('div', 'set-channels user-detail-row');
+  bar.appendChild(actionButton('block', u.blocked ? T.users_unblock : T.users_block, u.id));
+  bar.querySelector('button').dataset.blocked = u.blocked ? '1' : '';
+  bar.appendChild(actionButton('reset', T.users_reset, u.id));
+  bar.appendChild(actionButton('log', T.users_log, u.id));
+  bar.appendChild(actionButton('delete', T.users_delete, u.id, 'danger'));
+  td.appendChild(bar);
+
+  const logBox = el('div');
+  logBox.dataset.logFor = String(u.id);
+  logBox.style.marginTop = '10px';
+  td.appendChild(logBox);
+  tr.appendChild(td);
+  return tr;
+}
+
+function renderUserLog(box, data){
+  box.innerHTML = '';
+  if (!data.rows.length) { box.appendChild(el('div', 'hint', T.users_log_empty)); return; }
+  const table = el('table', 'user-log');
+  const head = document.createElement('thead');
+  const hr = el('tr');
+  [T.users_col_when, T.users_col_probe, T.users_col_target, T.users_col_result]
+    .forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      hr.appendChild(th);
+    });
+  head.appendChild(hr);
+  table.appendChild(head);
+  const body = document.createElement('tbody');
+  data.rows.forEach(r => {
+    const tr = el('tr');
+    tr.appendChild(el('td', '', new Date(r.ts * 1000).toLocaleString(G.lang)));
+    tr.appendChild(el('td', '', T['probe_' + r.probe] || r.probe));
+    tr.appendChild(el('td', '', r.target || '—'));
+    tr.appendChild(el('td', '', r.level ? (T['level_' + r.level] || r.level) : '—'));
+    body.appendChild(tr);
+  });
+  table.appendChild(body);
+  const wrap = el('div', 'user-log-box');
+  wrap.appendChild(table);
+  box.appendChild(wrap);
+  box.appendChild(actionButton('logclear', T.users_log_clear, box.dataset.logFor, 'danger'));
+}
+
+async function loadUsers(){
+  const box = $('userTableBox');
+  if (!box) return;
+  try {
+    const data = await api('/api/users');
+    box.innerHTML = '';
+    const table = el('table');
+    const head = el('tr');
+    [T.users_col_name, T.users_col_mail, T.users_col_state,
+     T.users_col_last, ''].forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      head.appendChild(th);
+    });
+    const thead = document.createElement('thead');
+    thead.appendChild(head);
+    table.appendChild(thead);
+    const body = document.createElement('tbody');
+    body.id = 'userTableBody';
+    if (!data.users.length) {
+      const tr = el('tr');
+      const td = el('td', 'hint', T.users_none);
+      td.colSpan = 5;
+      tr.appendChild(td);
+      body.appendChild(tr);
+    } else {
+      data.users.forEach(u => {
+        body.appendChild(userRow(u, data.self_id));
+        if (u.id !== data.self_id) {
+          body.appendChild(userDetailRow(u, data.modules || []));
+        }
+      });
+    }
+    table.appendChild(body);
+    box.appendChild(table);
+    body.addEventListener('click', onUserAction);
+  } catch (e) {
+    box.textContent = errText(e.code);
+  }
+}
+
+function showAccountSecret(target, data){
+  // Ohne Mailweg ist die Anzeige der einzige Ort, an dem das Startkennwort je
+  // steht -- danach ist es nur noch als Hash vorhanden.
+  const nolink = data.link_missing ? ' ' + T.users_mail_no_link : '';
+  if (data.mail_sent) { target.textContent = T.users_mail_sent + nolink; return; }
+  target.textContent = fmtStr(T.users_mail_failed, {
+    reason: testFailReason(data.mail_error || 'not_configured'),
+    password: data.password || '—'
+  }) + nolink;
+}
+
+async function onUserAction(ev){
+  const btn = ev.target.closest('button[data-user-action]');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.userId, 10);
+  const action = btn.dataset.userAction;
+  btn.disabled = true;
+  try {
+    const detail = document.querySelector('tr[data-detail-for="' + id + '"]');
+    if (!detail) { btn.disabled = false; return; }
+    if (action === 'edit') {
+      detail.style.display = detail.style.display === 'none' ? '' : 'none';
+      btn.disabled = false;
+      return;
+    }
+    if (action === 'log') {
+      const box = detail.querySelector('div[data-log-for]');
+      box.textContent = T.loading;
+      renderUserLog(box, await api('/api/users/' + id + '/log'));
+      btn.disabled = false;
+      return;
+    }
+    if (action === 'logclear') {
+      if (!confirm(T.users_log_clear_confirm)) { btn.disabled = false; return; }
+      await api('/api/users/' + id + '/log', { method: 'DELETE' });
+      renderUserLog(btn.parentElement, await api('/api/users/' + id + '/log'));
+      return;
+    }
+    if (action === 'save') {
+      const boxes = detail.querySelectorAll('input[data-module-for]');
+      const picked = [];
+      boxes.forEach(cb => { if (cb.checked) picked.push(cb.value); });
+      const quota = detail.querySelector('input[data-quota-for]').value.trim();
+      await api('/api/users/' + id, { method: 'PUT', body: {
+        modules: picked.length === boxes.length ? '*' : picked.join(','),
+        daily_quota: quota || 0
+      }});
+      toast(T.settings_saved);
+      await loadUsers();
+      return;
+    }
+    if (action === 'quota') {
+      await api('/api/users/' + id + '/quota-reset', { method: 'POST', body: {} });
+      toast(T.settings_saved);
+      btn.disabled = false;
+      return;
+    }
+    if (action === 'block') {
+      await api('/api/users/' + id, { method: 'PUT',
+        body: { blocked: !btn.dataset.blocked } });
+    } else if (action === 'reset') {
+      if (!confirm(T.users_reset_confirm)) { btn.disabled = false; return; }
+      const data = await api('/api/users/' + id + '/reset', { method: 'POST', body: {} });
+      showAccountSecret($('userCreateResult'), data);
+    } else if (action === 'delete') {
+      if (!confirm(T.users_delete_confirm)) { btn.disabled = false; return; }
+      await api('/api/users/' + id, { method: 'DELETE' });
+    }
+    await loadUsers();
+  } catch (e) {
+    toast(errText(e.code), true);
+    btn.disabled = false;
+  }
+}
+
+async function createUser(){
+  const btn = $('userCreate');
+  const out = $('userCreateResult');
+  btn.disabled = true;
+  out.textContent = '';
+  try {
+    const data = await api('/api/users', { method: 'POST', body: {
+      username: $('newUserName').value.trim(),
+      email: $('newUserMail').value.trim(),
+      is_admin: $('newUserAdmin').checked
+    }});
+    $('newUserName').value = '';
+    $('newUserMail').value = '';
+    $('newUserAdmin').checked = false;
+    showAccountSecret(out, data);
+    await loadUsers();
+  } catch (e) { out.textContent = errText(e.code); }
+  finally { btn.disabled = false; }
+}
+
+if ($('userCreate')) $('userCreate').addEventListener('click', createUser);
+
 function settingsFormValues(){
   return {
     smtp_host: $('setSmtpHost').value.trim(),
@@ -953,8 +1551,15 @@ function settingsFormValues(){
     smtp_tls: $('setSmtpTls').checked,
     telegram_bot_token: $('setTelegramToken').value.trim(),
     telegram_chat_id: $('setTelegramChatId').value.trim(),
+    public_url: $('setPublicUrl').value.trim(),
+    notify_login_fail_email: $('setNotifyLoginFailMail').checked,
+    notify_login_fail_telegram: $('setNotifyLoginFailTg').checked,
+    notify_login_ok_email: $('setNotifyLoginOkMail').checked,
+    notify_login_ok_telegram: $('setNotifyLoginOkTg').checked,
     tech_extra_rules: $('setTechExtra').checked,
     tech_rules_auto_update: $('setTechAuto').checked,
+    cf_account_id: $('setCfAccountId').value.trim(),
+    cf_api_token: $('setCfApiToken').value,
   };
 }
 
@@ -969,6 +1574,12 @@ async function saveSettings(){
   finally { btn.disabled = false; }
 }
 
+// Jede Pruefung veraendert den Zaehler; ohne Auffrischen zeigt die Kopfzeile
+// den Stand von vor der Abfrage.
+function refreshQuota(){
+  api('/api/status').then(d => showQuota(d.quota)).catch(() => {});
+}
+
 function testFailReason(code){
   // monitor.py only ever returns one of these short category codes (or
   // 'http_NNN' for a Telegram status code) -- never the raw exception text,
@@ -979,6 +1590,8 @@ function testFailReason(code){
     recipient_refused: T.settings_test_recipient_refused,
     timeout: T.settings_test_timeout,
     connection_failed: T.settings_test_connection_failed,
+    no_email: T.err_no_email,
+    cloudflare_auth: T.settings_test_auth_failed,
   };
   return known[code] || code;
 }
@@ -998,12 +1611,28 @@ $('setTestEmail').addEventListener('click', () =>
   sendSettingsTest('/api/settings/test-email', 'setTestEmail', 'setTestEmailResult'));
 $('setTestTelegram').addEventListener('click', () =>
   sendSettingsTest('/api/settings/test-telegram', 'setTestTelegram', 'setTestTelegramResult'));
+$('setTestCloudflare').addEventListener('click', () =>
+  sendSettingsTest('/api/settings/test-cloudflare', 'setTestCloudflare', 'setTestCloudflareResult'));
 
 // ── Status pill ─────────────────────────────────────────────────────────────
+
+function showQuota(quota){
+  const pill = $('quotaPill');
+  if (!quota || !quota.limit) { pill.style.display = 'none'; return; }
+  const left = Math.max(0, quota.limit - quota.used);
+  pill.style.display = '';
+  pill.className = 'pill' + (left ? '' : ' bad');
+  pill.textContent = fmtStr(T.quota_pill, { left: left, limit: quota.limit });
+  pill.title = T.quota_hint;
+}
 
 async function loadStatus(){
   try {
     const data = await api('/api/status');
+    showQuota(data.quota);
+    if ($('domainCheckConfigWarn')) {
+      $('domainCheckConfigWarn').hidden = !!data.domain_check_configured;
+    }
     const pill = $('backendPill');
     const ok = data.backend && data.backend.ok;
     pill.className = 'pill ' + (ok ? 'ok' : 'bad');
@@ -1036,6 +1665,19 @@ async function loadStatus(){
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
 
+// Ist der Bericht fuer dieses Konto gesperrt, fehlt sein Knopf und damit der
+// voreingestellte aktive Reiter. Dann uebernimmt der erste vorhandene.
+(function () {
+  const tabs = document.querySelectorAll('#tabs button');
+  if (!tabs.length || document.querySelector('#tabs button.active')) return;
+  tabs[0].classList.add('active');
+  const section = $('tab-' + tabs[0].dataset.tab);
+  if (section) {
+    document.querySelectorAll('main section').forEach(s => s.classList.remove('active'));
+    section.classList.add('active');
+  }
+})();
+
 document.querySelectorAll('#tabs button').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
@@ -1044,6 +1686,7 @@ document.querySelectorAll('#tabs button').forEach(btn => {
     $('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'history') loadHistory();
     if (btn.dataset.tab === 'monitor') loadMonitors();
+    if (btn.dataset.tab === 'domain_check') dcLoadTlds();
   });
 });
 
@@ -1214,7 +1857,7 @@ function reportStepLabel(probe){
     dns_all: T.dns_title, dnssec: T.dnssec_title, whois: T.whois_title,
     mail_health: T.mail_title, mx: T.mx_title, tls: T.tls_title,
     http: T.http_title, seo: T.seo_title, tech: T.tech_title,
-    blacklist: T.blacklist_title
+    wordpress: T.wp_title, blacklist: T.blacklist_title
   })[probe] || probe;
 }
 
@@ -1225,6 +1868,8 @@ function reportHeadline(step){
     case 'mail_health': return fmtStr(T.report_score, { score: r.score });
     case 'seo': return fmtStr(T.report_score, { score: r.score });
     case 'tech': return (r.technologies || []).slice(0, 8).map(t => t.name).join(', ');
+    case 'wordpress': return r.detected
+      ? fmtStr(T.report_score, { score: r.score }) : T.wp_not_applicable;
     case 'tls': return r.days_left === undefined || r.days_left === null
       ? '' : fmtStr(T.report_days_left, { days: r.days_left });
     case 'whois': return r.days_until_expiry === null || r.days_until_expiry === undefined
@@ -1239,6 +1884,44 @@ function reportHeadline(step){
   }
 }
 
+// Reihenfolge + Beschriftung der Score-Kacheln. Eine Kategorie fehlt aus der
+// Antwort, wenn ihre Pruefung nie lief oder fehlschlug -- dann taucht sie
+// hier auch nicht auf, statt eine erfundene Zahl zu zeigen.
+const SCORE_CATEGORIES = ['domain', 'dns', 'website', 'email', 'security', 'seo',
+                         'technology', 'wordpress'];
+function scoreCategoryLabel(cat){
+  return ({
+    domain: T.score_cat_domain, dns: T.score_cat_dns, website: T.score_cat_website,
+    email: T.score_cat_email, security: T.score_cat_security, seo: T.score_cat_seo,
+    technology: T.score_cat_technology, wordpress: T.score_cat_wordpress
+  })[cat] || cat;
+}
+function scoreTier(score){
+  if (score >= 80) return 'ok';
+  if (score >= 50) return 'warn';
+  return 'fail';
+}
+
+function renderReportScores(data){
+  const wrap = el('div', 'score-grid');
+  if (data.total_score !== null && data.total_score !== undefined) {
+    const tile = el('div', 'score-tile total');
+    tile.appendChild(el('span', 'score-num badge ' + scoreTier(data.total_score),
+      String(data.total_score)));
+    tile.appendChild(el('span', 'score-label', T.score_cat_total));
+    wrap.appendChild(tile);
+  }
+  SCORE_CATEGORIES.forEach(cat => {
+    const score = (data.scores || {})[cat];
+    if (score === undefined) return;
+    const tile = el('div', 'score-tile');
+    tile.appendChild(el('span', 'score-num badge ' + scoreTier(score), String(score)));
+    tile.appendChild(el('span', 'score-label', scoreCategoryLabel(cat)));
+    wrap.appendChild(tile);
+  });
+  return wrap;
+}
+
 let lastReport = null;
 
 function renderReport(data){
@@ -1250,6 +1933,7 @@ function renderReport(data){
   if (data.ip) head.appendChild(el('span', 'chip', data.ip));
   head.appendChild(el('span', 'chip', Math.round(data.ms / 100) / 10 + ' s'));
   box.appendChild(head);
+  if (data.scores && Object.keys(data.scores).length) box.appendChild(renderReportScores(data));
 
   data.steps.forEach(step => {
     const card = el('div', 'subcard');
@@ -1276,6 +1960,13 @@ function reportMarkdown(data){
                  fmtStr(T.report_md_generated, { when: when }),
                  fmtStr(T.report_md_overall, { level: T['level_' + data.level] || data.level })];
   if (data.ip) lines.push(fmtStr(T.report_md_ip, { ip: data.ip }));
+  if (data.total_score !== null && data.total_score !== undefined) {
+    lines.push(fmtStr(T.report_md_total_score, { score: data.total_score }));
+    SCORE_CATEGORIES.forEach(cat => {
+      const score = (data.scores || {})[cat];
+      if (score !== undefined) lines.push('- ' + scoreCategoryLabel(cat) + ': ' + score);
+    });
+  }
   lines.push('');
   data.steps.forEach(step => {
     lines.push('## ' + reportStepLabel(step.probe));
@@ -1313,6 +2004,7 @@ async function runReport(){
   $('reportRun').disabled = true;
   try {
     const data = await api('/api/report', { method: 'POST', body: { domain: domain } });
+    refreshQuota();
     lastReport = data;
     renderReport(data);
     $('reportDownload').style.display = '';
@@ -1928,6 +2620,7 @@ $('portsList').addEventListener('keydown', e => { if (e.key === 'Enter') portsCh
 // request either) ───────────────────────────────────────────────────────
 
 let pingLiveActive = false;
+let pingLiveSession = null;
 let pingLiveSamples = [];  // {ms: number|null} in arrival order, newest last
 const PING_LIVE_MAX_POINTS = 120;
 
@@ -1935,6 +2628,11 @@ function pingLiveStop(){
   pingLiveActive = false;
   $('pingLiveRun').textContent = T.action_ping_live_start;
   $('pingLiveRun').classList.remove('danger');
+  const sid = pingLiveSession;
+  pingLiveSession = null;
+  // Schreibt die Zusammenfassung in die eine Verlaufszeile der Sitzung.
+  // Best effort: schlägt der Aufruf fehl, bleibt die Zeile beim Platzhalter.
+  if (sid) api('/api/ping/live/stop', { method: 'POST', body: { session: sid } }).catch(() => {});
 }
 
 // Ein "runder" Achsenendwert -- 137 ms ergibt eine Achse bis 150, nicht bis
@@ -2056,14 +2754,16 @@ function pingLiveUpdateStats(){
   $('pingLiveLoss').textContent = lost + ' ' + T.ping_loss_label;
 }
 
-async function pingLiveTick(target, family){
+async function pingLiveTick(){
   if (!pingLiveActive) return;
   let ms = null;
   try {
-    const data = await api('/api/probe', { method: 'POST',
-      body: { probe: 'ping', params: { target: target, count: 1, family: family } } });
-    const r = data.result;
-    ms = (r.replies && r.replies[0]) ? r.replies[0].ms : null;
+    // Ein Tick trägt nur die Sitzungskennung -- Ziel und Familie kennt der
+    // Server schon aus dem Start, sonst würde jeder Tick erneut übers
+    // Tageskontingent laufen statt nur die eine Sitzung.
+    const data = await api('/api/ping/live/tick', { method: 'POST',
+      body: { session: pingLiveSession } });
+    ms = (data.ms === undefined) ? null : data.ms;
   } catch (e) {
     // A dropped/rate-limited tick is a gap in the chart, not a reason to
     // stop a session meant to run "until Stop is pressed".
@@ -2075,19 +2775,33 @@ async function pingLiveTick(target, family){
   $('pingLiveCur').textContent = ms !== null ? (ms + ' ms') : T.ping_live_timeout;
   pingLiveUpdateStats();
   pingLiveDraw();
-  setTimeout(() => pingLiveTick(target, family), 700);
+  setTimeout(pingLiveTick, 700);
 }
 
-function pingLiveStart(){
+async function pingLiveStart(){
   const target = $('pingTarget').value.trim();
   if (!target) { toast(T.err_empty_target, true); return; }
   const family = $('pingFamily').value;  // locked in for the whole session
+  $('pingLiveRun').disabled = true;
+  try {
+    // Eine Sitzung kostet einmal Kontingent und legt eine Verlaufszeile an --
+    // die Ticks selbst tun keins von beidem mehr (siehe pingLiveTick).
+    const data = await api('/api/ping/live/start', { method: 'POST',
+      body: { target: target, family: family } });
+    pingLiveSession = data.session;
+  } catch (e) {
+    toast(errText(e.code), true);
+    return;
+  } finally {
+    $('pingLiveRun').disabled = false;
+    refreshQuota();
+  }
   pingLiveSamples = [];
   pingLiveActive = true;
   $('pingLiveBox').hidden = false;
   $('pingLiveRun').textContent = T.action_ping_live_stop;
   $('pingLiveRun').classList.add('danger');
-  pingLiveTick(target, family);
+  pingLiveTick();
 }
 
 $('pingLiveRun').addEventListener('click', () => {
@@ -2252,10 +2966,10 @@ async function headerAnalyse(){
       const dkim = el('div', 'subcard');
       dkim.appendChild(el('h4', '', 'DKIM-Signaturen'));
       r.dkim_signatures.forEach(sig => {
-        const row = el('div', 'ipinfo-kv');
-        row.appendChild(el('span', '', sig.selector || '—'));
-        row.appendChild(el('span', 'mono',
-          [sig.domain, sig.algorithm].filter(Boolean).join(' · ')));
+        const row = el('div', 'dkim-sig');
+        row.appendChild(el('div', 'mono', sig.selector || '—'));
+        row.appendChild(el('div', 'hint',
+          [sig.domain, sig.algorithm, sig.canonicalisation].filter(Boolean).join(' · ')));
         dkim.appendChild(row);
       });
       grid.appendChild(dkim);
@@ -2294,6 +3008,122 @@ $('hdrClear').addEventListener('click', () => {
   $('hdrText').value = '';
   $('hdrResult').innerHTML = '';
 });
+
+// ── Record-Generatoren ───────────────────────────────────────────────────────
+// Bauen Einträge nur aus dem, was in den Feldern steht -- ohne Netzabfrage,
+// deshalb ohne Tageskontingent und ohne Verlaufszeile. Läuft bei jeder
+// Eingabe live neu, kein eigener "Erzeugen"-Knopf nötig.
+
+function genRecordName(domain, label){
+  return domain ? (label.replace('{domain}', domain) + ' (TXT)') : label + ' (TXT)';
+}
+
+function genMailtoList(raw){
+  return raw.split(',').map(s => s.trim()).filter(Boolean)
+    .map(a => /^https?:/i.test(a) ? a : 'mailto:' + a).join(',');
+}
+
+function genCopy(sourceId){
+  const text = $(sourceId).textContent || $(sourceId).value || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => toast(T.gen_copied))
+    .catch(() => toast(errText('clipboard'), true));
+}
+
+function genBuildSpf(){
+  const domain = $('genDomain').value.trim();
+  const includes = $('genSpfIncludes').value.split(',').map(s => s.trim()).filter(Boolean);
+  const ips = $('genSpfIp').value.split(',').map(s => s.trim()).filter(Boolean);
+  const parts = ['v=spf1'];
+  if ($('genSpfMx').checked) parts.push('mx');
+  if ($('genSpfA').checked) parts.push('a');
+  ips.forEach(ip => parts.push((ip.includes(':') ? 'ip6:' : 'ip4:') + ip));
+  includes.forEach(inc => parts.push('include:' + inc));
+  parts.push($('genSpfAll').value);
+  $('genSpfOut').textContent = parts.join(' ');
+  $('genSpfName').textContent = genRecordName(domain, domain || '{domain}');
+}
+
+function genBuildDmarc(){
+  const domain = $('genDomain').value.trim();
+  const parts = ['v=DMARC1', 'p=' + $('genDmarcPolicy').value];
+  if ($('genDmarcSp').value) parts.push('sp=' + $('genDmarcSp').value);
+  const rua = genMailtoList($('genDmarcRua').value);
+  if (rua) parts.push('rua=' + rua);
+  const ruf = genMailtoList($('genDmarcRuf').value);
+  if (ruf) parts.push('ruf=' + ruf);
+  const pct = $('genDmarcPct').value.trim();
+  if (pct && pct !== '100') parts.push('pct=' + pct);
+  $('genDmarcOut').textContent = parts.join('; ') + ';';
+  $('genDmarcName').textContent = genRecordName(domain, '_dmarc.' + (domain || '{domain}'));
+}
+
+function genBuildDkim(){
+  const domain = $('genDomain').value.trim();
+  const selector = $('genDkimSelector').value.trim() || 'mail';
+  const pub = $('genDkimPubkey').value.replace(/\s+/g, '');
+  $('genDkimOut').textContent = pub ? ('v=DKIM1; k=rsa; p=' + pub) : '';
+  $('genDkimName').textContent = genRecordName(domain, selector + '._domainkey.' + (domain || '{domain}'));
+}
+
+function genBuildMtaSts(){
+  const domain = $('genDomain').value.trim();
+  const mode = $('genMtaStsMode').value;
+  const mxList = $('genMtaStsMx').value.split(',').map(s => s.trim()).filter(Boolean);
+  const maxAge = $('genMtaStsMaxage').value.trim() || '604800';
+  $('genMtaStsOut').textContent = 'v=STSv1; id=' + Date.now();
+  $('genMtaStsName').textContent = genRecordName(domain, '_mta-sts.' + (domain || '{domain}'));
+  const lines = ['version: STSv1', 'mode: ' + mode];
+  mxList.forEach(mx => lines.push('mx: ' + mx));
+  lines.push('max_age: ' + maxAge);
+  $('genMtaStsPolicy').textContent = lines.join('\n');
+  $('genMtaStsPolicyHint').textContent =
+    fmtStr(T.gen_mtasts_policy_hint, { domain: domain || '{domain}' });
+}
+
+function genBuildTlsRpt(){
+  const domain = $('genDomain').value.trim();
+  const rua = genMailtoList($('genTlsRptRua').value);
+  $('genTlsRptOut').textContent = 'v=TLSRPTv1; rua=' + rua;
+  $('genTlsRptName').textContent = genRecordName(domain, '_smtp._tls.' + (domain || '{domain}'));
+}
+
+function genBuildAll(){
+  genBuildSpf(); genBuildDmarc(); genBuildDkim(); genBuildMtaSts(); genBuildTlsRpt();
+}
+
+// Ein Domain-Feld für alle fünf -- nur der DNS-Name je Eintrag braucht es,
+// der Wert selbst ist domainunabhängig.
+['genDomain', 'genSpfIncludes', 'genSpfIp', 'genSpfMx', 'genSpfA', 'genSpfAll',
+ 'genDmarcPolicy', 'genDmarcSp', 'genDmarcRua', 'genDmarcRuf', 'genDmarcPct',
+ 'genDkimSelector', 'genDkimPubkey', 'genMtaStsMode', 'genMtaStsMx', 'genMtaStsMaxage',
+ 'genTlsRptRua'].forEach(id => {
+  $(id).addEventListener('input', genBuildAll);
+  $(id).addEventListener('change', genBuildAll);
+});
+
+$('genDkimGenerate').addEventListener('click', async () => {
+  const btn = $('genDkimGenerate');
+  btn.disabled = true;
+  try {
+    const data = await api('/api/dkim/generate', { method: 'POST' });
+    $('genDkimPubkey').value = data.public_key;
+    $('genDkimPrivkey').value = data.private_key;
+    $('genDkimPrivWrap').hidden = false;
+    genBuildDkim();
+  } catch (e) { toast(errText(e.code), true); }
+  finally { btn.disabled = false; }
+});
+
+$('genSpfCopy').addEventListener('click', () => genCopy('genSpfOut'));
+$('genDmarcCopy').addEventListener('click', () => genCopy('genDmarcOut'));
+$('genDkimCopy').addEventListener('click', () => genCopy('genDkimOut'));
+$('genDkimPrivCopy').addEventListener('click', () => genCopy('genDkimPrivkey'));
+$('genMtaStsCopy').addEventListener('click', () => genCopy('genMtaStsOut'));
+$('genMtaStsPolicyCopy').addEventListener('click', () => genCopy('genMtaStsPolicy'));
+$('genTlsRptCopy').addEventListener('click', () => genCopy('genTlsRptOut'));
+
+genBuildAll();
 
 // ── TLS tab ───────────────────────────────────────────────────────────────
 
@@ -2469,6 +3299,101 @@ async function whoisCheck(){
 
 $('whoisRun').addEventListener('click', whoisCheck);
 $('whoisDomain').addEventListener('keydown', e => { if (e.key === 'Enter') whoisCheck(); });
+
+// ── Domain-Verfügbarkeit ─────────────────────────────────────────────────────
+// reason kommt wörtlich von Cloudflare zurück -- kein Fehlercode dieser App,
+// deshalb eine eigene kleine Übersetzungstabelle statt errText().
+const DC_REASON_KEY = {
+  extension_not_supported_via_api: 'dc_reason_not_supported_api',
+  extension_not_supported: 'dc_reason_not_supported',
+  extension_disallows_registration: 'dc_reason_disallowed',
+  domain_premium: 'dc_reason_premium',
+  domain_unavailable: 'dc_reason_taken',
+  registry_check_failed: 'dc_reason_registry_check_failed',
+};
+
+// IANAs eigene Liste -- fürs Suchfeld und um eine getippte Endung schon im
+// Browser abzulehnen, statt erst bei Cloudflare/DENIC/EURid zu scheitern.
+// Einmal pro Seitenaufruf geladen, nicht bei jedem Tastendruck.
+let dcAllTlds = [];
+let dcTldsRequested = false;
+
+async function dcLoadTlds(){
+  if (dcTldsRequested) return;
+  dcTldsRequested = true;
+  try {
+    const data = await api('/api/domain-check/tlds');
+    dcAllTlds = data.tlds || [];
+  } catch (e) { /* Suche bleibt dann leer, Validierung wird übersprungen */ }
+}
+
+function dcTldSearchUpdate(){
+  const q = $('dcTldSearch').value.trim().toLowerCase();
+  const box = $('dcTldResults');
+  box.innerHTML = '';
+  if (!q || !dcAllTlds.length) return;
+  dcAllTlds.filter(t => t.includes(q)).slice(0, 20).forEach(t => {
+    const chip = el('span', 'chip pick', '.' + t);
+    chip.addEventListener('click', () => {
+      const cur = $('dcExtraTlds').value.split(',').map(s => s.trim()).filter(Boolean);
+      if (!cur.includes(t)) { cur.push(t); $('dcExtraTlds').value = cur.join(', '); }
+    });
+    box.appendChild(chip);
+  });
+}
+$('dcTldSearch').addEventListener('input', dcTldSearchUpdate);
+$('dcTldSearch').addEventListener('focus', dcLoadTlds);
+
+async function dcCheck(){
+  const base = $('dcBase').value.trim();
+  if (!base) { toast(T.err_empty_target, true); return; }
+  await dcLoadTlds();
+  const checked = Array.from(document.querySelectorAll('.dc-tld:checked')).map(cb => cb.value);
+  // Freie Endungen: kommagetrennt, führender Punkt egal, Groß-/Kleinschreibung egal.
+  const extra = $('dcExtraTlds').value.split(',')
+    .map(t => t.trim().toLowerCase().replace(/^\./, '')).filter(Boolean);
+  const tlds = Array.from(new Set([...checked, ...extra]));
+  if (!tlds.length) { toast(T.dc_err_no_tld, true); return; }
+  if (tlds.length > 20) { toast(T.dc_err_too_many_tlds, true); return; }
+  if (dcAllTlds.length) {
+    const bad = tlds.filter(t => !dcAllTlds.includes(t));
+    if (bad.length) { toast(fmtStr(T.dc_err_unknown_tld, { tlds: bad.join(', ') }), true); return; }
+  }
+  const domains = tlds.map(t => base + '.' + t);
+  const box = $('dcResult'); showLoading(box);
+  try {
+    const data = await runProbe('domain_check', { domains: domains }, base, $('dcRun'));
+    box.innerHTML = '';
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_domain, T.dc_col_status, T.dc_col_reason, T.dc_col_price, T.dc_col_renewal]
+      .forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    (data.result.domains || []).forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', row.name));
+      const statusTd = el('td');
+      statusTd.appendChild(el('span', 'badge ' + (row.registrable ? 'ok' : 'fail'),
+        row.registrable ? T.dc_available : T.dc_unavailable));
+      if (row.registrable && row.tier === 'premium') {
+        statusTd.appendChild(document.createTextNode(' '));
+        statusTd.appendChild(el('span', 'chip', T.dc_premium));
+      }
+      tr.appendChild(statusTd);
+      tr.appendChild(el('td', '', row.reason ? (T[DC_REASON_KEY[row.reason]] || row.reason) : '—'));
+      const p = row.pricing;
+      tr.appendChild(el('td', 'mono', p ? (p.registration_cost + ' ' + p.currency) : '—'));
+      tr.appendChild(el('td', 'mono', p ? (p.renewal_cost + ' ' + p.currency) : '—'));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+$('dcRun').addEventListener('click', dcCheck);
+$('dcBase').addEventListener('keydown', e => { if (e.key === 'Enter') dcCheck(); });
 
 // ── HTTP header tab ───────────────────────────────────────────────────────
 
@@ -2815,6 +3740,47 @@ async function techCheck(){
 
 $('techRun').addEventListener('click', techCheck);
 $('techTarget').addEventListener('keydown', e => { if (e.key === 'Enter') techCheck(); });
+
+async function wpCheck(){
+  const target = $('wpTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  const box = $('wpResult'); showLoading(box);
+  try {
+    const data = await runProbe('wordpress', { target: target }, target, $('wpRun'));
+    const r = data.result;
+    box.innerHTML = '';
+
+    if (!r.detected) {
+      box.appendChild(renderFindings(r.findings));
+      return;
+    }
+
+    const score = el('div', 'score-ring');
+    const ring = r.score >= 80 ? 'var(--green-h)' : (r.score >= 50 ? 'var(--amber)' : 'var(--red)');
+    const donut = el('div', 'score-donut');
+    donut.style.setProperty('--pct', r.score);
+    donut.style.setProperty('--ring', ring);
+    donut.appendChild(el('div', 'score-num', r.score));
+    score.appendChild(donut);
+    const info = el('div');
+    info.appendChild(el('div', 'score-label', T.wp_score_label));
+    info.appendChild(levelBadge(r.level));
+    score.appendChild(info);
+    box.appendChild(score);
+
+    const badges = el('div', 'row');
+    if (r.version) badges.appendChild(el('span', 'chip',
+      fmtStr(T.wp_version_chip, { version: r.version })));
+    if (r.latest) badges.appendChild(el('span', 'chip',
+      fmtStr(T.wp_latest_chip, { version: r.latest })));
+    badges.appendChild(el('span', 'chip', r.ms + ' ms'));
+    box.appendChild(badges);
+
+    box.appendChild(renderFindings(r.findings));
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+$('wpRun').addEventListener('click', wpCheck);
+$('wpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') wpCheck(); });
 
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 

@@ -12,6 +12,7 @@ import functools
 import json
 import logging
 import os
+import re
 import secrets
 import signal
 import threading
@@ -25,11 +26,15 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
+import dkimgen
+import domaincheck
 import hasensors
+import ianatlds
 import monitor
 import settings as usersettings
 import snapshots as dnssnapshots
 import techrules
+import users as useraccounts
 import wapimport
 import probes
 from netcore import Context, ProbeError
@@ -48,10 +53,12 @@ _OPTS = os.environ.get('NETTOOLBOX_OPTIONS', '/data')
 
 CONFIG_PATH = _OPTS + '/options.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
+BLOCKS_PATH = _DATA + '/blocks.json'
 SECRET_PATH = _DATA + '/secret.key'
 HISTORY_PATH = _DATA + '/history.json'
 MONITOR_DB_PATH = _DATA + '/monitors.db'
 SNAPSHOT_DB_PATH = _DATA + '/snapshots.db'
+USERS_DB_PATH = _DATA + '/users.db'
 LOCALES_PATH = _BASE + '/locales'
 
 PORT = int(os.environ.get('NETTOOLBOX_PORT', '17798'))
@@ -184,14 +191,17 @@ def build_context() -> Context:
     resolvers = cfg.get('resolvers') or ['9.9.9.9', '1.1.1.1']
     if isinstance(resolvers, str):
         resolvers = [r for r in resolvers.replace(',', ' ').split() if r]
+    settings = usersettings.effective(cfg)
     return Context(
         resolvers=[str(r).strip() for r in resolvers if str(r).strip()][:8],
         dns_timeout=float(_cfg_int('dns_timeout', 5, 1, 60)),
         http_timeout=float(_cfg_int('http_timeout', 10, 1, 120)),
         allow_private=bool(cfg.get('allow_private_targets')),
         allow_port_check=bool(cfg.get('port_check_enabled', True)),
-        tech_extra_rules=bool(usersettings.effective(cfg).get('tech_extra_rules')),
-        user_agent='NetToolbox/' + (APP_VERSION or '0'))
+        tech_extra_rules=bool(settings.get('tech_extra_rules')),
+        user_agent='NetToolbox/' + (APP_VERSION or '0'),
+        cf_account_id=str(settings.get('cf_account_id') or ''),
+        cf_api_token=str(settings.get('cf_api_token') or ''))
 
 
 def notify_config() -> dict:
@@ -203,6 +213,7 @@ def notify_config() -> dict:
 
 _monitor_store = monitor.MonitorStore(MONITOR_DB_PATH)
 _snapshot_store = dnssnapshots.SnapshotStore(SNAPSHOT_DB_PATH)
+_user_store = useraccounts.UserStore(USERS_DB_PATH)
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
@@ -215,9 +226,26 @@ def save_sessions() -> None:
     try:
         now = time.time()
         with open(SESSIONS_PATH, 'w', encoding='utf-8') as f:
-            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+            json.dump({k: v for k, v in sessions.items() if v['exp'] > now}, f)
     except Exception:
         log.warning("sessions could not be saved")
+
+
+def _session_value(raw) -> dict:
+    """Bis 0.1.43 stand hinter dem Token nur die Ablaufzeit -- es gab ja nur
+    ein Konto. Solche Einträge gelten weiter und zählen als der Betreiber;
+    sonst würfe das Update jeden Angemeldeten hinaus."""
+    if isinstance(raw, (int, float)):
+        return {'exp': float(raw), 'uid': useraccounts.OPTIONS_ADMIN_ID,
+                'must_change': False}
+    if isinstance(raw, dict) and isinstance(raw.get('exp'), (int, float)):
+        try:
+            uid = int(raw.get('uid') or useraccounts.OPTIONS_ADMIN_ID)
+        except (TypeError, ValueError):
+            return {}
+        return {'exp': float(raw['exp']), 'uid': uid,
+                'must_change': bool(raw.get('must_change'))}
+    return {}
 
 
 def load_sessions() -> None:
@@ -226,7 +254,12 @@ def load_sessions() -> None:
         with open(SESSIONS_PATH, encoding='utf-8') as f:
             data = json.load(f)
         now = time.time()
-        sessions = {k: v for k, v in data.items() if v > now}
+        restored = {}
+        for token, raw in (data or {}).items():
+            value = _session_value(raw)
+            if value and value['exp'] > now:
+                restored[str(token)] = value
+        sessions = restored
         if sessions:
             log.info("sessions restored: %d active", len(sessions))
     except FileNotFoundError:
@@ -235,22 +268,46 @@ def load_sessions() -> None:
         log.warning("sessions could not be loaded")
 
 
-def create_session(hours: int) -> str:
+def create_session(hours: int, uid: int, must_change: bool = False) -> str:
     token = secrets.token_hex(32)
     with _sessions_lock:
-        sessions[token] = time.time() + hours * 3600
+        sessions[token] = {'exp': time.time() + hours * 3600, 'uid': int(uid),
+                           'must_change': bool(must_change)}
         save_sessions()
     return token
 
 
-def is_valid_session(token) -> bool:
+def session_info(token) -> dict:
+    """Leeres dict = keine gültige Sitzung."""
     if not token or token not in sessions:
-        return False
-    if time.time() > sessions[token]:
+        return {}
+    value = sessions[token]
+    if time.time() > value['exp']:
         with _sessions_lock:
             sessions.pop(token, None)
-        return False
-    return True
+        return {}
+    return dict(value, token=token)
+
+
+def clear_change_flag(token: str) -> None:
+    """Nach dem Kennwortwechsel arbeitet dieselbe Sitzung weiter -- ein
+    erzwungener zweiter Anmeldevorgang wäre reine Schikane."""
+    with _sessions_lock:
+        if token in sessions:
+            sessions[token]['must_change'] = False
+            save_sessions()
+
+
+def drop_user_sessions(uid: int) -> int:
+    """Gesperrt, gelöscht oder Kennwort zurückgesetzt: laufende Sitzungen des
+    Kontos enden sofort und nicht erst in 24 Stunden."""
+    with _sessions_lock:
+        gone = [t for t, v in sessions.items() if v['uid'] == int(uid)]
+        for token in gone:
+            sessions.pop(token, None)
+        if gone:
+            save_sessions()
+    return len(gone)
 
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
@@ -261,37 +318,216 @@ RATE_LIMIT_BLOCK = 900
 
 _failed_attempts: dict = defaultdict(list)
 _blocked_ips: dict = {}
+_rate_lock = threading.Lock()
+# One notification per block, not one per attempt -- an attack that keeps
+# knocking must not turn the lockout itself into a mail flood. Holds when the
+# already-notified block runs out; anything older means "a new block, notify".
+_notified_blocks: dict = {}
 
 
 def get_client_ip(req) -> str:
     return req.remote_addr or 'unknown'
 
 
+def save_blocks() -> None:
+    """Blocks and attempt counters outlive a restart -- an add-on update in the
+    middle of an attack used to hand the attacker a clean slate. The caller
+    holds _rate_lock."""
+    try:
+        now = time.time()
+        attempts = {ip: [t for t in stamps if now - t < RATE_LIMIT_WINDOW]
+                    for ip, stamps in _failed_attempts.items()}
+        data = {'blocked': {ip: ts for ip, ts in _blocked_ips.items() if ts > now},
+                'attempts': {ip: ts for ip, ts in attempts.items() if ts}}
+        with open(BLOCKS_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+    except Exception:
+        log.warning("login blocks could not be saved")
+
+
+def load_blocks() -> None:
+    try:
+        with open(BLOCKS_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return
+    except Exception:
+        log.warning("login blocks could not be loaded")
+        return
+    if not isinstance(data, dict):
+        return
+    now = time.time()
+    with _rate_lock:
+        for ip, until in (data.get('blocked') or {}).items():
+            if isinstance(until, (int, float)) and until > now:
+                _blocked_ips[str(ip)] = float(until)
+                # The notification for this block already went out before the
+                # restart -- restoring it must not send a second one.
+                _notified_blocks[str(ip)] = float(until)
+        for ip, stamps in (data.get('attempts') or {}).items():
+            keep = [float(t) for t in (stamps or [])
+                    if isinstance(t, (int, float)) and now - t < RATE_LIMIT_WINDOW]
+            if keep:
+                _failed_attempts[str(ip)] = keep
+        active = len(_blocked_ips)
+    if active:
+        log.info("login blocks restored: %d active", active)
+
+
 def is_rate_limited(ip: str) -> bool:
     now = time.time()
-    if ip in _blocked_ips:
-        if now < _blocked_ips[ip]:
-            return True
-        del _blocked_ips[ip]
-    _failed_attempts[ip] = [t for t in _failed_attempts[ip]
-                            if now - t < RATE_LIMIT_WINDOW]
-    return False
+    with _rate_lock:
+        until = _blocked_ips.get(ip)
+        if until is not None:
+            if now < until:
+                return True
+            del _blocked_ips[ip]
+            _failed_attempts.pop(ip, None)
+            save_blocks()
+            return False
+        _failed_attempts[ip] = [t for t in _failed_attempts[ip]
+                                if now - t < RATE_LIMIT_WINDOW]
+        return False
 
 
-def record_failed_attempt(ip: str) -> None:
+def record_failed_attempt(ip: str, who: str = '') -> None:
     now = time.time()
-    recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
-    recent.append(now)
-    _failed_attempts[ip] = recent
-    if len(recent) >= RATE_LIMIT_MAX:
-        _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+    with _rate_lock:
+        recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+        recent.append(now)
+        _failed_attempts[ip] = recent
+        blocked = len(recent) >= RATE_LIMIT_MAX
+        fresh = False
+        if blocked:
+            _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+            fresh = _notified_blocks.get(ip, 0.0) < now
+            _notified_blocks[ip] = now + RATE_LIMIT_BLOCK
+        save_blocks()
+    if blocked:
         log.warning("login blocked for %d minutes after too many failures",
                     RATE_LIMIT_BLOCK // 60)
+        if fresh:
+            notify_login_event('blocked', ip, len(recent), who)
 
 
 def clear_failed_attempts(ip: str) -> None:
-    _failed_attempts.pop(ip, None)
-    _blocked_ips.pop(ip, None)
+    with _rate_lock:
+        had = _failed_attempts.pop(ip, None) is not None
+        had = (_blocked_ips.pop(ip, None) is not None) or had
+        _notified_blocks.pop(ip, None)
+        if had:
+            save_blocks()
+
+
+# ── Anmelde-Benachrichtigungen ────────────────────────────────────────────────
+# Dieselben Kanäle wie die Wächter (settings.json bzw. Add-on-Optionen) und
+# bewusst derselbe fest deutsche Wortlaut wie in monitor.py -- eine
+# Benachrichtigung muss ohne die Übersetzungsschicht der Oberfläche auskommen.
+
+
+def _notify_async(subject: str, body: str, email: bool, telegram: bool) -> None:
+    """Im Hintergrund zustellen: ein SMTP-Server, der nicht antwortet, darf die
+    Antwort auf den Anmeldeversuch nicht seine ganze Zeitgrenze lang aufhalten."""
+    def run():
+        cfg = notify_config()
+        if email:
+            ok, err = monitor.send_email(cfg, subject, body)
+            if not ok and err != 'not_configured':
+                log.warning("login notification: email failed: %s", err)
+        if telegram:
+            ok, err = monitor.send_telegram(cfg, subject + "\n" + body)
+            if not ok and err != 'not_configured':
+                log.warning("login notification: telegram failed: %s", err)
+    threading.Thread(target=run, daemon=True).start()
+
+
+# Host-Namen, IPv4 und IPv6 in Klammern, jeweils mit optionalem Port -- alles
+# andere kommt nicht in die Nachricht.
+_HOST_SHAPE = re.compile(r'^[A-Za-z0-9._:\[\]-]{1,100}$')
+
+
+def _login_origin() -> str:
+    """Die Adresse, die im Browser stand. Steht ein Reverse-Proxy davor, ist
+    das die Domain und nicht Port 17798 -- "Anmeldung am Direktport 17798" ist
+    dann schlicht falsch. Der Host-Header kommt vom Aufrufer und ist damit
+    fälschbar; er wird deshalb nur übernommen, wenn er wie ein Hostname
+    aussieht, und nie als anklickbarer Link ausgegeben."""
+    try:
+        host = request.host or ''
+    except RuntimeError:  # außerhalb eines Requests aufgerufen
+        host = ''
+    if host and _HOST_SHAPE.match(host):
+        return host
+    return 'Port %d' % PORT
+
+
+def _safe_name(raw: str) -> str:
+    """Der Benutzername aus dem Formular kommt vom Aufrufer und landet in
+    einer Mail. Nur die Zeichen, die ein Name haben darf -- alles andere wäre
+    ein Weg, fremden Text in die Nachricht zu schreiben."""
+    name = ''.join(c for c in str(raw or '') if c.isalnum() or c in '._-')
+    return name[:32]
+
+
+def public_base_url() -> str:
+    """Adresse, unter der NetToolbox von außen erreichbar ist -- für Links in
+    Mails. Eingetragenes sticht Ermitteltes: wer ein Konto über Ingress
+    anlegt, ruft gerade Home Assistant auf, und dessen Adresse führt niemanden
+    zur Anmeldung. Ohne Eintrag und über Ingress gibt es lieber keinen Link
+    als einen falschen."""
+    raw = str(notify_config().get('public_url') or '').strip()
+    if raw:
+        parts = urlsplit(raw)
+        if (parts.scheme in ('http', 'https') and parts.netloc
+                and _HOST_SHAPE.match(parts.netloc)):
+            return urlunsplit((parts.scheme, parts.netloc,
+                               parts.path.rstrip('/'), '', ''))
+        return ''
+    try:
+        if _is_ingress():
+            return ''
+        host = request.host or ''
+    except RuntimeError:
+        return ''
+    if host and _HOST_SHAPE.match(host):
+        return request.scheme + '://' + host
+    return ''
+
+
+def notify_login_event(kind: str, ip: str, attempts: int = 0,
+                       who: str = '') -> None:
+    """kind 'blocked' -> zu viele Fehlversuche, 'ok' -> geglückte Anmeldung am
+    Direktport. Über Ingress kommt hier nichts an: dort hat der Supervisor
+    bereits angemeldet, es gibt kein Anmeldeformular."""
+    cfg = notify_config()
+    when = time.strftime('%Y-%m-%d %H:%M:%S')
+    origin = _login_origin()
+    if kind == 'blocked':
+        email = bool(cfg.get('notify_login_fail_email', True))
+        telegram = bool(cfg.get('notify_login_fail_telegram', True))
+        subject = '🔴 [NetToolbox] Anmeldung gesperrt'
+        name = _safe_name(who)
+        body = ("Zu viele fehlgeschlagene Anmeldeversuche.\n\n"
+                f"Aufgerufen über: {origin}\n"
+                f"Benutzername: {name or '?'}\n"
+                f"IP-Adresse: {ip}\n"
+                f"Versuche: {attempts} in {RATE_LIMIT_WINDOW // 60} Minuten\n"
+                f"Gesperrt für: {RATE_LIMIT_BLOCK // 60} Minuten\n"
+                f"Zeitpunkt: {when}\n\n"
+                "-- NetToolbox")
+    else:
+        email = bool(cfg.get('notify_login_ok_email', False))
+        telegram = bool(cfg.get('notify_login_ok_telegram', False))
+        subject = '🔵 [NetToolbox] Anmeldung erfolgreich'
+        body = ("Erfolgreiche Anmeldung.\n\n"
+                f"Aufgerufen über: {origin}\n"
+                f"Benutzername: {_safe_name(who) or '?'}\n"
+                f"IP-Adresse: {ip}\n"
+                f"Zeitpunkt: {when}\n\n"
+                "-- NetToolbox")
+    if not email and not telegram:
+        return
+    _notify_async(subject, body, email, telegram)
 
 
 # Probes cost other people's DNS servers, so the number per minute is capped
@@ -360,8 +596,180 @@ def _is_ingress() -> bool:
     return bool(request.script_root)
 
 
+# Hinter Ingress hat der Supervisor bereits angemeldet -- wer dort ankommt,
+# bedient Home Assistant und damit auch die Add-on-Optionen, ist also ohnehin
+# Betreiber. Ein eigenes Konto gibt es dort bewusst nicht: die Benutzer-
+# Kopfzeilen des Supervisors kämen vom Client und wären fälschbar, sobald
+# derselbe Port auch im LAN erreichbar ist. Mehrbenutzerbetrieb gilt deshalb
+# nur für den Weg über den eigenen Port bzw. die Domain davor.
+_INGRESS_ADMIN = {'id': useraccounts.OPTIONS_ADMIN_ID, 'username': 'ingress',
+                  'is_admin': True, 'must_change': False, 'blocked': False,
+                  'modules': '*', 'daily_quota': 0, 'via': 'ingress'}
+
+
+def _options_admin() -> dict:
+    """Das Konto aus den Add-on-Optionen. Es steht nicht in users.db und ist
+    immer Betreiber -- es ist der Weg zurück, wenn in der Benutzerverwaltung
+    etwas verriegelt wurde."""
+    return {'id': useraccounts.OPTIONS_ADMIN_ID,
+            'username': str(load_config().get('username') or 'admin'),
+            'is_admin': True, 'must_change': False, 'blocked': False,
+            'modules': '*', 'daily_quota': 0, 'via': 'options'}
+
+
+def current_user() -> dict:
+    """Leeres dict = niemand angemeldet. Je Anfrage einmal ermittelt."""
+    cached = getattr(g, 'user', None)
+    if cached is not None:
+        return cached
+    user = {}
+    if _is_ingress():
+        user = dict(_INGRESS_ADMIN)
+    else:
+        info = session_info(request.cookies.get('session'))
+        if info:
+            if info['uid'] == useraccounts.OPTIONS_ADMIN_ID:
+                user = _options_admin()
+            elif _user_store.available():
+                try:
+                    row = _user_store.get(info['uid'])
+                except (useraccounts.UserError, Exception):
+                    row = {}
+                # Gesperrt oder gelöscht wirkt sofort, nicht erst beim
+                # nächsten Anmelden.
+                if row and not row.get('blocked'):
+                    user = dict(row, via='account')
+            if user:
+                user['must_change'] = bool(info.get('must_change')) or bool(
+                    user.get('must_change'))
+                user['token'] = info['token']
+    g.user = user
+    return user
+
+
+def current_uid() -> int:
+    """Kennung des Anfragenden. Außerhalb einer Anfrage -- etwa aus einem
+    Hintergrund-Thread -- gilt der Betreiber."""
+    try:
+        return int(current_user().get('id') or 0)
+    except RuntimeError:
+        return useraccounts.OPTIONS_ADMIN_ID
+
+
 def _logged_in() -> bool:
-    return _is_ingress() or is_valid_session(request.cookies.get('session'))
+    return bool(current_user())
+
+
+# ── Module und Tageskontingent ────────────────────────────────────────────────
+# Freischaltbar sind die Reiter, hinter denen Prüfungen stecken. "monitor"
+# fehlt absichtlich -- Wächter sind Betreibersache; "history" ebenfalls -- der
+# eigene Verlauf ist privat und immer sichtbar.
+
+MODULES = ('report', 'dns', 'mail', 'reverse', 'tls', 'whois', 'http', 'domain_check')
+
+# TLDs zur Auswahl im Domain-Verfügbarkeits-Check. Nicht jede hier ist über
+# die Cloudflare-API tatsächlich registrierbar -- das sagt die Antwort selbst
+# (reason: extension_not_supported_via_api), keine Vorab-Filterung nötig.
+DOMAIN_CHECK_TLDS = ('de', 'com', 'net', 'org', 'io', 'eu', 'biz', 'app',
+                     'dev', 'info', 'co', 'shop')
+
+# Welche Prüfung zu welchem Reiter gehört. Aus der Oberfläche abgeleitet, nicht
+# geraten: eine fehlende Zuordnung fällt beim Start auf (siehe _startup_checks).
+PROBE_MODULE = {
+    'dns': 'dns', 'dns_all': 'dns', 'txt': 'dns', 'soa': 'dns',
+    'propagation': 'dns', 'dnssec': 'dns', 'aaaa_guard': 'dns',
+    'mx': 'mail', 'mail_health': 'mail', 'blacklist': 'mail', 'dane': 'mail',
+    'mailheader': 'mail', 'smtp': 'mail', 'spf': 'mail', 'dkim': 'mail',
+    'dmarc': 'mail', 'mta_sts': 'mail', 'tls_rpt': 'mail', 'bimi': 'mail',
+    'reverse': 'reverse', 'ipinfo': 'reverse', 'ping': 'reverse',
+    'traceroute': 'reverse', 'ports': 'reverse', 'dualstack': 'reverse',
+    'tls': 'tls',
+    'whois': 'whois',
+    'http': 'http', 'quic': 'http', 'seo': 'http', 'tech': 'http', 'wordpress': 'http',
+    'domain_check': 'domain_check',
+}
+
+
+def clean_modules(raw) -> str:
+    """'*' heißt alle. Sonst die bekannten Namen, kommagetrennt und in fester
+    Reihenfolge -- was die Oberfläche schickt, wird nie übernommen wie es ist."""
+    if raw in (None, '', '*'):
+        return '*'
+    if isinstance(raw, (list, tuple)):
+        parts = [str(p).strip() for p in raw]
+    else:
+        parts = str(raw).replace(',', ' ').split()
+    keep = [m for m in MODULES if m in parts]
+    return ','.join(keep)
+
+
+def user_modules(user: dict) -> set:
+    raw = str(user.get('modules') or '*')
+    if raw == '*':
+        return set(MODULES)
+    return {m for m in raw.replace(',', ' ').split() if m in MODULES}
+
+
+def allowed_modules() -> list:
+    """Reihenfolge wie in MODULES, damit die Oberfläche stabil bleibt."""
+    user = current_user()
+    if user.get('is_admin'):
+        return list(MODULES)
+    allowed = user_modules(user)
+    return [m for m in MODULES if m in allowed]
+
+
+def require_module(module: str) -> None:
+    if not module:
+        return
+    user = current_user()
+    if user.get('is_admin'):
+        return
+    if module not in user_modules(user):
+        raise useraccounts.UserError('module_disabled')
+
+
+def _today() -> str:
+    return time.strftime('%Y-%m-%d')
+
+
+def quota_state() -> dict:
+    """Was die Oberfläche über das eigene Kontingent wissen darf."""
+    user = current_user()
+    limit = int(user.get('daily_quota') or 0)
+    if user.get('is_admin') or limit <= 0 or not _user_store.available():
+        return {'limit': 0, 'used': 0}
+    return {'limit': limit,
+            'used': _user_store.usage_today(user['id'], _today())}
+
+
+def spend_quota() -> None:
+    """Eine Abfrage abbuchen. Ein Gesamtbericht kostet ebenfalls genau eine --
+    er beantwortet eine Frage, auch wenn intern neun Prüfungen laufen."""
+    user = current_user()
+    limit = int(user.get('daily_quota') or 0)
+    if user.get('is_admin') or limit <= 0 or not _user_store.available():
+        return
+    if not _user_store.spend(user['id'], _today(), limit):
+        raise useraccounts.UserError('quota_exhausted')
+
+
+def log_activity(probe: str, target: str, level: str) -> None:
+    """Protokoll für den Betreiber. Nur für angelegte Konten: das Konto aus
+    den Optionen steht nicht in der Datenbank, seine Zeilen hätten dort kein
+    Gegenüber."""
+    uid = current_uid()
+    if uid == useraccounts.OPTIONS_ADMIN_ID or not _user_store.available():
+        return
+    _user_store.log_activity(uid, probe, target, level)
+
+
+def _is_admin() -> bool:
+    return bool(current_user().get('is_admin'))
+
+
+def _must_change() -> bool:
+    return bool(current_user().get('must_change'))
 
 
 @app.before_request
@@ -423,10 +831,19 @@ _ERROR_STATUS = {
     'monitor_not_found': 404, 'bad_probe': 400,
     'snapshot_not_found': 404, 'snapshot_store_broken': 503,
     'snapshot_domain_mismatch': 400,
+    'user_exists': 409, 'user_not_found': 404, 'bad_username': 400,
+    'bad_email': 400, 'weak_password': 400,
+    'bad_quota': 400, 'self_target': 409, 'user_store_broken': 503,
+    'module_disabled': 403, 'quota_exhausted': 429,
+    'unknown_session': 404, 'crypto_unavailable': 503,
+    'cloudflare_auth': 502,
+    'cloudflare_timeout': 504, 'cloudflare_unreachable': 502,
+    'cloudflare_bad_response': 502, 'cloudflare_error': 502,
+    'unknown_tld': 400,
 }
 
 
-def api(rule: str, methods=('GET',)):
+def api(rule: str, methods=('GET',), admin: bool = False):
     """Route decorator: auth, CSRF and uniform error mapping in one place."""
     def deco(fn):
         @app.route(rule, methods=list(methods), endpoint='api_' + fn.__name__)
@@ -434,6 +851,12 @@ def api(rule: str, methods=('GET',)):
         def wrapper(*args, **kwargs):
             if not _logged_in():
                 return jsonify({'error': 'unauthorized'}), 401
+            # Solange das Startkennwort gilt, ist nichts anderes zu tun als
+            # es zu wechseln -- sonst wäre der Zwang keiner.
+            if _must_change():
+                return jsonify({'error': 'password_change_required'}), 403
+            if admin and not _is_admin():
+                return jsonify({'error': 'forbidden'}), 403
             if request.method not in ('GET', 'HEAD'):
                 if not _origin_ok() or not _csrf_ok():
                     return jsonify({'error': 'csrf'}), 403
@@ -445,6 +868,8 @@ def api(rule: str, methods=('GET',)):
             except monitor.MonitorError as e:
                 return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
             except dnssnapshots.SnapshotError as e:
+                return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
+            except useraccounts.UserError as e:
                 return jsonify({'error': e.code}), _ERROR_STATUS.get(e.code, 400)
             except Exception:
                 log.exception("unhandled error in %s", rule)
@@ -485,13 +910,40 @@ def _history_limit() -> int:
     return _cfg_int('history_size', 200, 0, 5000)
 
 
-def history_add(entry: dict) -> None:
+def history_add(entry: dict) -> str:
+    """Legt eine Zeile an und liefert ihre Kennung zurück -- das Dauerping
+    braucht sie, um die eine Zeile später mit dem Endergebnis zu überschreiben
+    statt pro Tick eine neue anzulegen (siehe history_update)."""
+    entry_id = secrets.token_hex(8)
     if _history_limit() <= 0:
-        return
+        return entry_id
+    # Seit es mehrere Konten gibt, gehört jede Zeile zu einem davon. Ohne die
+    # Kennung läge der Verlauf des einen offen vor dem anderen.
+    entry = dict(entry, id=entry_id, uid=current_uid())
     with _history_lock:
         _history.appendleft(entry)
         while len(_history) > _history_limit():
             _history.pop()
+        rows = list(_history)
+    try:
+        with open(HISTORY_PATH, 'w', encoding='utf-8') as f:
+            json.dump(rows, f)
+    except Exception:
+        log.warning("history could not be saved")
+    return entry_id
+
+
+def history_update(entry_id: str, updates: dict) -> None:
+    """Schreibt eine bestehende Zeile fort. Kein Treffer (Verlauf inzwischen
+    geleert, oder ein anderes Konto) heißt: nichts zu tun, keine Fehlermeldung
+    -- das Dauerping ist ein Nebenschauplatz, kein kritischer Pfad."""
+    with _history_lock:
+        for row in _history:
+            if row.get('id') == entry_id and int(row.get('uid') or 0) == current_uid():
+                row.update(updates)
+                break
+        else:
+            return
         rows = list(_history)
     try:
         with open(HISTORY_PATH, 'w', encoding='utf-8') as f:
@@ -633,6 +1085,27 @@ def set_lang(lang: str):
     return resp
 
 
+def _check_credentials(name: str, secret: str):
+    """Erst die angelegten Konten, dann das Konto aus den Add-on-Optionen.
+
+    Ein gesperrtes Konto verhält sich wie ein falsches Kennwort -- welcher
+    Name existiert, geht den Anfragenden nichts an.
+    """
+    if _user_store.available():
+        user = _user_store.verify(name, secret)
+        if user is not None:
+            return dict(user, via='account')
+    cfg = load_config()
+    user_ok = secrets.compare_digest(name, str(cfg.get('username') or ''))
+    # Beide Seiten hashen, damit ein falscher Name genauso lange dauert wie
+    # ein falsches Kennwort.
+    stored = generate_password_hash(str(cfg.get('password') or ''))
+    pass_ok = check_password_hash(stored, secret)
+    if user_ok and pass_ok:
+        return _options_admin()
+    return None
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     lang = detect_language(request)
@@ -647,25 +1120,69 @@ def login():
         elif not _origin_ok() or not _csrf_ok():
             error = t.get('error_expired', 'Form expired.')
         else:
-            cfg = load_config()
-            user_ok = secrets.compare_digest(
-                request.form.get('username', ''), str(cfg.get('username') or ''))
-            # Hash both sides so a wrong user name costs the same time as a
-            # wrong password.
-            stored = generate_password_hash(str(cfg.get('password') or ''))
-            pass_ok = check_password_hash(stored, request.form.get('password', ''))
-            if user_ok and pass_ok:
+            name = request.form.get('username', '')
+            secret = request.form.get('password', '')
+            user = _check_credentials(name, secret)
+            if user is not None:
                 clear_failed_attempts(ip)
+                notify_login_event('ok', ip, who=user['username'])
                 hours = _cfg_int('session_hours', 24, 1, 720)
-                resp = make_response(redirect(_safe_next('/')))
-                resp.set_cookie('session', create_session(hours),
+                if user['id'] != useraccounts.OPTIONS_ADMIN_ID:
+                    _user_store.touch_login(user['id'])
+                forced = bool(user.get('must_change'))
+                resp = make_response(redirect(_safe_next(
+                    '/password' if forced else '/')))
+                resp.set_cookie('session',
+                                create_session(hours, user['id'], forced),
                                 httponly=True, samesite='Lax',
                                 secure=request.is_secure, max_age=hours * 3600)
                 return resp
-            record_failed_attempt(ip)
+            record_failed_attempt(ip, name)
             error = t.get('error_credentials', 'Invalid credentials.')
     return render_template('login.html', t=t, lang=lang, csrf=g.csrf,
                            error=error)
+
+
+@app.route('/password', methods=['GET', 'POST'])
+def change_password():
+    """Eigenes Kennwort wechseln -- freiwillig oder erzwungen, wenn noch das
+    Startkennwort gilt."""
+    lang = detect_language(request)
+    t = load_translations(lang)
+    user = current_user()
+    if not user:
+        return redirect(url_for('login'))
+    if user['id'] == useraccounts.OPTIONS_ADMIN_ID:
+        # Dieses Kennwort steht in den Add-on-Optionen und wird dort geändert.
+        return redirect(_safe_next('/'))
+    error = ''
+    if request.method == 'POST':
+        if not _origin_ok() or not _csrf_ok():
+            error = t.get('error_expired', 'Form expired.')
+        else:
+            current = request.form.get('current', '')
+            fresh = request.form.get('new', '')
+            again = request.form.get('again', '')
+            if _user_store.verify(user['username'], current) is None:
+                error = t.get('error_credentials', 'Invalid credentials.')
+            elif fresh != again:
+                error = t.get('pw_mismatch', 'Passwords do not match.')
+            elif fresh == current:
+                error = t.get('pw_same', 'Choose a different password.')
+            else:
+                try:
+                    _user_store.set_password(user['id'], fresh,
+                                             must_change=False)
+                except useraccounts.UserError:
+                    error = t.get('pw_weak', 'Password too short.')
+                else:
+                    clear_change_flag(user.get('token', ''))
+                    log.info("password changed for an account")
+                    return redirect(_safe_next('/'))
+    return render_template('password.html', t=t, lang=lang, csrf=g.csrf,
+                           error=error, username=user['username'],
+                           forced=bool(user.get('must_change')),
+                           minimum=useraccounts.PASSWORD_MIN)
 
 
 @app.route('/logout')
@@ -684,14 +1201,21 @@ def logout():
 def index():
     if not _logged_in():
         return redirect(url_for('login'))
+    if _must_change():
+        return redirect(url_for('change_password'))
+    user = current_user()
     lang = detect_language(request)
     return render_template(
         'index.html', t=load_translations(lang), lang=lang, csrf=g.csrf,
         version=APP_VERSION, ingress=_is_ingress(),
+        is_admin=bool(user.get('is_admin')),
+        modules=allowed_modules(),
+        account=(user['username'] if user.get('via') == 'account' else ''),
         probe_names=sorted(probes.PROBES),
         target_kind=probes.TARGET_KIND,
-        rr_types=list(probes.COMMON_TYPES) + ['CNAME', 'PTR', 'SRV', 'DS',
-                                              'DNSKEY', 'TLSA', 'NAPTR'],
+        rr_types=list(probes.COMMON_TYPES) + ['PTR', 'DS', 'DNSKEY', 'TLSA',
+                                              'NAPTR', 'SPF'],
+        domain_check_tlds=DOMAIN_CHECK_TLDS,
         resolvers=[{'label': label, 'server': server}
                    for label, server in probes.PUBLIC_RESOLVERS])
 
@@ -703,6 +1227,7 @@ def index():
 def status():
     backend = get_backend()
     state = backend.ping()
+    settings = usersettings.effective(load_config())
     return jsonify({
         'version': APP_VERSION,
         'ingress': _is_ingress(),
@@ -711,6 +1236,9 @@ def status():
         'allow_private': bool(load_config().get('allow_private_targets')),
         'ha_sensors': ha_sensors_enabled(),
         'resolvers': build_context().resolvers,
+        'quota': quota_state(),
+        'modules': allowed_modules(),
+        'domain_check_configured': bool(settings.get('cf_account_id') and settings.get('cf_api_token')),
     })
 
 
@@ -725,21 +1253,128 @@ def probe():
     params = body.get('params') or {}
     if not isinstance(params, dict):
         raise ProbeError('bad_params')
+    require_module(PROBE_MODULE.get(name))
+    spend_quota()
     answer = get_backend().run(name, params)
     result = answer.get('result') or {}
+    target = str(params.get('domain') or params.get('name')
+                 or params.get('ip') or params.get('target') or '')[:253]
     history_add({
         'ts': int(time.time()),
         'probe': name,
-        'target': str(params.get('domain') or params.get('name')
-                      or params.get('ip') or '')[:253],
+        'target': target,
         'level': result.get('level', ''),
         'backend': answer.get('backend', 'local'),
         'ms': answer.get('ms', 0),
     })
+    log_activity(name, target, result.get('level', ''))
     return jsonify({'probe': name, 'result': result,
                     'backend': answer.get('backend', 'local'),
                     'worker': answer.get('worker') or {},
                     'ms': answer.get('ms', 0)})
+
+
+# ── Dauerping ─────────────────────────────────────────────────────────────────
+# Der Chart im Frontend tickt alle 700ms mit einer eigenen Anfrage, solange
+# "Stop" nicht gedrückt wurde -- über eine ganze Sitzung können das hunderte
+# sein. Ohne eigenen Weg würde jeder Tick übers Tageskontingent gebucht und der
+# Verlauf mit einer Zeile pro Tick vollaufen. Start bucht daher einmal ab und
+# legt eine Zeile an, jeder Tick hängt nur noch ein Ergebnis in den Speicher,
+# Stop schreibt die Zusammenfassung in die eine Zeile.
+_live_ping: dict = {}
+_live_ping_lock = threading.Lock()
+LIVE_PING_IDLE_SECONDS = 120  # keine Ticks mehr -> Sitzung gilt als verwaist
+
+
+def _live_ping_gc() -> None:
+    now = time.time()
+    for sid in [s for s, v in _live_ping.items() if now - v['last'] > LIVE_PING_IDLE_SECONDS]:
+        _live_ping.pop(sid, None)
+
+
+@api('/api/ping/live/start', methods=('POST',))
+def ping_live_start():
+    require_module(PROBE_MODULE.get('ping'))
+    body = request.get_json(silent=True) or {}
+    target = str(body.get('target') or '')[:253]
+    if not target:
+        raise ProbeError('empty_target')
+    family = str(body.get('family') or '')
+    spend_quota()
+    entry_id = history_add({'ts': int(time.time()), 'probe': 'ping', 'target': target,
+                            'level': 'info', 'backend': 'local', 'ms': 0})
+    with _live_ping_lock:
+        _live_ping_gc()
+        _live_ping[entry_id] = {'uid': current_uid(), 'target': target, 'family': family,
+                                'sent': 0, 'received': 0, 'backend': 'local', 'last': time.time()}
+    log_activity('ping', target, '')
+    return jsonify({'session': entry_id})
+
+
+@api('/api/ping/live/tick', methods=('POST',))
+def ping_live_tick():
+    body = request.get_json(silent=True) or {}
+    sid = str(body.get('session') or '')
+    with _live_ping_lock:
+        session = _live_ping.get(sid)
+        if not session or session['uid'] != current_uid():
+            raise ProbeError('unknown_session')
+        target, family = session['target'], session['family']
+    if not probe_budget_left():
+        return jsonify({'error': 'rate_limited'}), 429
+    answer = get_backend().run('ping', {'target': target, 'count': 1, 'family': family})
+    replies = (answer.get('result') or {}).get('replies') or []
+    ms = replies[0]['ms'] if replies else None
+    with _live_ping_lock:
+        session = _live_ping.get(sid)
+        if session:
+            session['sent'] += 1
+            session['received'] += 1 if ms is not None else 0
+            session['backend'] = answer.get('backend', 'local')
+            session['last'] = time.time()
+    return jsonify({'ms': ms})
+
+
+@api('/api/ping/live/stop', methods=('POST',))
+def ping_live_stop():
+    body = request.get_json(silent=True) or {}
+    sid = str(body.get('session') or '')
+    with _live_ping_lock:
+        session = _live_ping.pop(sid, None)
+    if session and session['uid'] == current_uid():
+        sent, received = session['sent'], session['received']
+        if sent == 0:
+            level = 'info'
+        elif received == 0:
+            level = 'fail'
+        elif received < sent:
+            level = 'warn'
+        else:
+            level = 'ok'
+        history_update(sid, {'level': level, 'sent': sent, 'received': received,
+                             'backend': session['backend']})
+    return jsonify({'ok': True})
+
+
+@api('/api/dkim/generate', methods=('POST',))
+def dkim_generate():
+    """A fresh RSA key pair for the record-generator UI. Local computation
+    only -- no DNS, no quota, no history row (see dkimgen.py)."""
+    require_module(PROBE_MODULE.get('dkim'))
+    if not dkimgen.AVAILABLE:
+        raise ProbeError('crypto_unavailable')
+    return jsonify(dkimgen.generate())
+
+
+@api('/api/domain-check/tlds')
+def domain_check_tlds():
+    """IANA's own list, for the search box and for validating a typed TLD
+    before it goes out to Cloudflare/DENIC/EURid. Serving the cached list
+    back is metadata, not a probe -- no quota, no history row."""
+    require_module('domain_check')
+    info = ianatlds.status()
+    return jsonify({'tlds': ianatlds.get_tlds(), 'count': info['count'],
+                    'fetched': info['fetched']})
 
 
 REPORT_STEPS = (
@@ -754,6 +1389,7 @@ REPORT_STEPS = (
     ('http', 'target'),
     ('seo', 'target'),
     ('tech', 'target'),
+    ('wordpress', 'target'),
 )
 REPORT_WORKERS = 4
 TECH_RULES_CHECK_SECONDS = 6 * 3600
@@ -774,14 +1410,77 @@ def _report_step(name: str, params: dict) -> dict:
         return {'probe': name, 'error': 'internal'}
 
 
+def _dns_category_score(dns_all: dict, dnssec: dict) -> int:
+    """dns_all and dnssec carry no findings/score of their own (raw record
+    dumps and booleans) -- everything else in the report already brings a
+    score its own module computed, this is the one built here instead."""
+    score = 100
+    score -= 10 * len((dns_all or {}).get('errors') or [])
+    if (dnssec or {}).get('signed') and not (dnssec or {}).get('validated'):
+        # Signed but a validating resolver rejects it: broken, not merely
+        # unsigned -- most domains are unsigned and that costs nothing.
+        score -= 25
+    return max(0, min(100, score))
+
+
+def _report_scores(steps: list) -> dict:
+    """One 0–100 number per category, the same handful of buckets a
+    comparable online checker shows -- built from the scores each check
+    already computes for itself (see the various _score() functions).
+    A step that errored or never ran (no IP for the blocklist check, a
+    non-WordPress target) leaves its category out entirely rather than
+    inventing a number for it."""
+    by_probe = {s['probe']: s.get('result') or {} for s in steps if not s.get('error')}
+    categories = {}
+
+    whois = by_probe.get('whois')
+    if whois and 'score' in whois:
+        categories['domain'] = whois['score']
+
+    if 'dns_all' in by_probe or 'dnssec' in by_probe:
+        categories['dns'] = _dns_category_score(by_probe.get('dns_all'), by_probe.get('dnssec'))
+
+    http = by_probe.get('http')
+    if http and 'score' in http:
+        categories['website'] = http['score']
+
+    mail_health = by_probe.get('mail_health')
+    if mail_health and 'score' in mail_health:
+        categories['email'] = mail_health['score']
+
+    security_parts = [r['score'] for r in (by_probe.get('tls'), by_probe.get('blacklist'))
+                      if r and 'score' in r]
+    if security_parts:
+        categories['security'] = round(sum(security_parts) / len(security_parts))
+
+    seo = by_probe.get('seo')
+    if seo and 'score' in seo:
+        categories['seo'] = seo['score']
+
+    tech = by_probe.get('tech')
+    if tech and 'score' in tech:
+        categories['technology'] = tech['score']
+
+    wordpress = by_probe.get('wordpress')
+    if wordpress and wordpress.get('detected') and 'score' in wordpress:
+        categories['wordpress'] = wordpress['score']
+
+    total = round(sum(categories.values()) / len(categories)) if categories else None
+    return {'categories': categories, 'total': total}
+
+
 @api('/api/report', methods=('POST',))
 def report():
     body = request.get_json(silent=True) or {}
     domain = probes.clean_domain(str(body.get('domain') or ''))
+    require_module('report')
     # Jede Teilprüfung zählt einzeln gegen das Rate-Limit, sonst wäre ein
-    # Bericht ein Weg, es zu umgehen.
+    # Bericht ein Weg, es zu umgehen. Gegen das Tageskontingent zählt er
+    # dagegen als eine Abfrage -- er beantwortet eine Frage.
     if not all(probe_budget_left() for _ in range(len(REPORT_STEPS) + 1)):
         return jsonify({'error': 'rate_limited'}), 429
+    spend_quota()
+    log_activity('report', domain, '')
 
     started = time.time()
     steps = []
@@ -806,11 +1505,13 @@ def report():
     level = ('fail' if 'fail' in levels else
              'warn' if 'warn' in levels else
              'info' if 'info' in levels else 'ok')
+    scores = _report_scores(steps)
     history_add({'ts': int(started), 'probe': 'report', 'target': domain,
                  'level': level, 'backend': 'local',
                  'ms': int((time.time() - started) * 1000)})
     return jsonify({'domain': domain, 'ip': addresses[0] if addresses else '',
                     'steps': steps, 'level': level,
+                    'scores': scores['categories'], 'total_score': scores['total'],
                     'ms': int((time.time() - started) * 1000),
                     'generated': int(started)})
 
@@ -824,6 +1525,7 @@ def _snapshot_store_ready():
 @api('/api/snapshots', methods=('GET', 'POST'))
 def snapshots_route():
     store = _snapshot_store_ready()
+    require_module('dns')
     if request.method == 'GET':
         domain = str(request.args.get('domain') or '').strip().lower()[:253]
         return jsonify({'snapshots': store.list(domain)})
@@ -832,6 +1534,8 @@ def snapshots_route():
     body = request.get_json(silent=True) or {}
     domain = probes.clean_domain(str(body.get('domain') or ''))
     label = str(body.get('label') or '')[:80]
+    spend_quota()
+    log_activity('snapshot', domain, '')
     records = dnssnapshots.capture(build_context(), domain)
     return jsonify({'snapshot': store.add(domain, records, label)})
 
@@ -839,6 +1543,7 @@ def snapshots_route():
 @api('/api/snapshots/<int:snapshot_id>', methods=('GET', 'DELETE'))
 def snapshot_route(snapshot_id: int):
     store = _snapshot_store_ready()
+    require_module('dns')
     if request.method == 'DELETE':
         store.delete(snapshot_id)
         return jsonify({'ok': True})
@@ -849,12 +1554,14 @@ def snapshot_route(snapshot_id: int):
 def snapshot_compare(snapshot_id: int):
     """Gegen den jetzigen Stand oder gegen eine zweite Aufnahme."""
     store = _snapshot_store_ready()
+    require_module('dns')
     snapshot = store.get(snapshot_id)
     body = request.get_json(silent=True) or {}
     against = str(body.get('against') or 'live')
     if against == 'live':
         if not probe_budget_left():
             return jsonify({'error': 'rate_limited'}), 429
+        spend_quota()
         other = {'id': 0, 'domain': snapshot['domain'], 'ts': int(time.time()),
                  'label': '', 'records': dnssnapshots.capture(build_context(),
                                                               snapshot['domain'])}
@@ -876,34 +1583,51 @@ def snapshot_compare(snapshot_id: int):
                                                  newer['records'])})
 
 
+def _history_rows_for(uid: int) -> list:
+    with _history_lock:
+        rows = list(_history)
+    # Zeilen ohne Kennung stammen aus der Zeit vor der Benutzerverwaltung und
+    # gehören damit dem Betreiber.
+    return [row for row in rows if int(row.get('uid') or 0) == uid]
+
+
 @api('/api/history')
 def history():
-    with _history_lock:
-        return jsonify({'rows': list(_history)[:_history_limit()]})
+    return jsonify({'rows': _history_rows_for(current_uid())[:_history_limit()]})
 
 
 @api('/api/history/clear', methods=('POST',))
 def history_clear():
+    uid = current_uid()
     with _history_lock:
+        keep = [row for row in _history if int(row.get('uid') or 0) != uid]
         _history.clear()
+        _history.extend(keep)
+        rows = list(_history)
     try:
-        os.remove(HISTORY_PATH)
+        if rows:
+            with open(HISTORY_PATH, 'w', encoding='utf-8') as f:
+                json.dump(rows, f)
+        else:
+            os.remove(HISTORY_PATH)
     except OSError:
         pass
+    except Exception:
+        log.warning("history could not be saved")
     return jsonify({'ok': True})
 
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 
 
-@api('/api/monitors')
+@api('/api/monitors', admin=True)
 def monitors_list():
     return jsonify({'rows': _monitor_store.list_monitors(),
                     'probes': sorted(monitor.MONITOR_PROBES),
                     'available': _monitor_store.available()})
 
 
-@api('/api/monitors', methods=('POST',))
+@api('/api/monitors', methods=('POST',), admin=True)
 def monitors_create():
     body = request.get_json(silent=True) or {}
     name = str(body.get('name') or '').strip()
@@ -923,7 +1647,7 @@ def monitors_create():
     return jsonify({'id': mid})
 
 
-@api('/api/monitors/<int:monitor_id>', methods=('PUT',))
+@api('/api/monitors/<int:monitor_id>', methods=('PUT',), admin=True)
 def monitors_update(monitor_id: int):
     body = request.get_json(silent=True) or {}
     fields = {k: body[k] for k in
@@ -934,7 +1658,7 @@ def monitors_update(monitor_id: int):
     return jsonify({'ok': True})
 
 
-@api('/api/monitors/<int:monitor_id>', methods=('DELETE',))
+@api('/api/monitors/<int:monitor_id>', methods=('DELETE',), admin=True)
 def monitors_delete(monitor_id: int):
     _monitor_store.get_monitor(monitor_id)
     _monitor_store.delete_monitor(monitor_id)
@@ -942,7 +1666,7 @@ def monitors_delete(monitor_id: int):
     return jsonify({'ok': True})
 
 
-@api('/api/monitors/<int:monitor_id>/run', methods=('POST',))
+@api('/api/monitors/<int:monitor_id>/run', methods=('POST',), admin=True)
 def monitors_run(monitor_id: int):
     m = _monitor_store.get_monitor(monitor_id)
     result = monitor.run_monitor(_monitor_store, m, build_context(), notify_config())
@@ -950,7 +1674,7 @@ def monitors_run(monitor_id: int):
     return jsonify(result)
 
 
-@api('/api/monitors/<int:monitor_id>/history')
+@api('/api/monitors/<int:monitor_id>/history', admin=True)
 def monitors_history(monitor_id: int):
     _monitor_store.get_monitor(monitor_id)
     return jsonify({'rows': _monitor_store.history(monitor_id)})
@@ -959,13 +1683,13 @@ def monitors_history(monitor_id: int):
 # ── In-app settings (SMTP / Telegram) ──────────────────────────────────────────
 
 
-@api('/api/settings')
+@api('/api/settings', admin=True)
 def settings_get():
     return jsonify({'values': usersettings.public_view(load_config()),
                     'crypto_available': usersettings.crypto_available()})
 
 
-@api('/api/settings', methods=('POST',))
+@api('/api/settings', methods=('POST',), admin=True)
 def settings_save():
     body = request.get_json(silent=True) or {}
     if not isinstance(body, dict):
@@ -977,6 +1701,165 @@ def settings_save():
         if not wapimport.status()['available']:
             _start_tech_rules_fetch()
     return jsonify({'ok': True, 'changed': changed})
+
+
+# ── Benutzerverwaltung ────────────────────────────────────────────────────────
+
+
+def send_account_mail(user: dict, password: str, reset: bool) -> tuple:
+    """Startkennwort an den Benutzer. Gibt (verschickt, Fehlercode) zurück --
+    ohne Mailweg bekommt der Betreiber das Kennwort in der Antwort und gibt es
+    selbst weiter, statt dass das Anlegen scheitert."""
+    if not user.get('email'):
+        return False, 'no_email'
+    if reset:
+        subject = '[NetToolbox] Neues Kennwort'
+        intro = 'Für dein Konto wurde ein neues Startkennwort gesetzt.'
+    else:
+        subject = '[NetToolbox] Zugang eingerichtet'
+        intro = 'Für dich wurde ein Zugang zu NetToolbox angelegt.'
+    base = public_base_url()
+    # Lieber gar keine Adresse als eine falsche: über Ingress ist die
+    # aufgerufene Adresse die von Home Assistant, dort gibt es keine
+    # Anmeldeseite. Dann steht in der Mail, dass der Betreiber sie nennt.
+    where = ('Anmelden: ' + base + '/login' if base
+             else 'Die Adresse zum Anmelden nennt dir der Betreiber.')
+    body = (f"{intro}\n\n"
+            f"{where}\n"
+            f"Benutzername: {user['username']}\n"
+            f"Startkennwort: {password}\n\n"
+            "Das Kennwort gilt nur für die erste Anmeldung — danach fragt "
+            "NetToolbox sofort nach einem eigenen.\n\n"
+            "-- NetToolbox")
+    # smtp_to zeigt sonst auf die Adresse für Wächter-Meldungen; hier soll die
+    # Mail an den neuen Benutzer gehen.
+    cfg = dict(notify_config(), smtp_to=user['email'])
+    ok, error = monitor.send_email(cfg, subject, body)
+    return ok, ('' if ok else (error or 'not_configured'))
+
+
+def _link_missing() -> bool:
+    """Die Mail konnte keinen Anmeldelink tragen -- der Betreiber soll das
+    erfahren und die öffentliche Adresse eintragen."""
+    return not public_base_url()
+
+
+def _need_user_store() -> None:
+    if not _user_store.available():
+        raise useraccounts.UserError('user_store_broken')
+
+
+def _reserved_name(name: str) -> bool:
+    """Der Name aus den Add-on-Optionen darf nicht doppelt vergeben werden --
+    sonst wäre nicht mehr entscheidbar, welches Konto gemeint ist."""
+    return str(name or '').strip().lower() == str(
+        load_config().get('username') or '').strip().lower()
+
+
+@api('/api/users', admin=True)
+def users_list():
+    _need_user_store()
+    return jsonify({'users': _user_store.list(),
+                    'options_admin': _options_admin()['username'],
+                    'self_id': current_user().get('id'),
+                    'password_min': useraccounts.PASSWORD_MIN,
+                    'modules': list(MODULES),
+                    'today': {u['id']: _user_store.usage_today(u['id'], _today())
+                              for u in _user_store.list()}})
+
+
+@api('/api/users', methods=('POST',), admin=True)
+def users_create():
+    _need_user_store()
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        raise ProbeError('bad_params')
+    if _reserved_name(body.get('username')):
+        raise useraccounts.UserError('user_exists')
+    user, password = _user_store.create(body.get('username'), body.get('email'),
+                                        bool(body.get('is_admin')),
+                                        body.get('note'))
+    sent, error = send_account_mail(user, password, reset=False)
+    log.info("account created (admin=%s, mail=%s)", bool(user['is_admin']), sent)
+    # Das Kennwort nur zeigen, wenn es nicht schon per Mail unterwegs ist --
+    # zwei Kopien desselben Geheimnisses sind eine zu viel.
+    return jsonify({'ok': True, 'user': user, 'mail_sent': sent,
+                    'mail_error': error, 'link_missing': _link_missing(),
+                    'password': '' if sent else password})
+
+
+@api('/api/users/<int:user_id>', methods=('PUT',), admin=True)
+def users_update(user_id: int):
+    _need_user_store()
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        raise ProbeError('bad_params')
+    if user_id == current_user().get('id') and (
+            'blocked' in body or 'is_admin' in body):
+        # Sich selbst aussperren geht schief, egal wie gut gemeint.
+        raise useraccounts.UserError('self_target')
+    fields = {k: body[k] for k in
+              ('email', 'note', 'blocked', 'is_admin', 'modules', 'daily_quota')
+              if k in body}
+    if 'modules' in fields:
+        fields['modules'] = clean_modules(fields['modules'])
+    user = _user_store.update(user_id, fields)
+    if user['blocked']:
+        drop_user_sessions(user_id)
+    return jsonify({'ok': True, 'user': user})
+
+
+@api('/api/users/<int:user_id>', methods=('DELETE',), admin=True)
+def users_delete(user_id: int):
+    _need_user_store()
+    if user_id == current_user().get('id'):
+        raise useraccounts.UserError('self_target')
+    user = _user_store.delete(user_id)
+    drop_user_sessions(user_id)
+    with _history_lock:
+        keep = [row for row in _history if int(row.get('uid') or 0) != user_id]
+        _history.clear()
+        _history.extend(keep)
+    log.info("account deleted")
+    return jsonify({'ok': True, 'username': user['username']})
+
+
+@api('/api/users/<int:user_id>/log', admin=True)
+def users_log(user_id: int):
+    _need_user_store()
+    _user_store.get(user_id)  # wirft user_not_found, wenn es das Konto nicht gibt
+    return jsonify({'rows': _user_store.activity(user_id, 200),
+                    'today': _user_store.usage_today(user_id, _today())})
+
+
+@api('/api/users/<int:user_id>/log', methods=('DELETE',), admin=True)
+def users_log_clear(user_id: int):
+    _need_user_store()
+    _user_store.get(user_id)
+    _user_store.forget_user(user_id)
+    return jsonify({'ok': True})
+
+
+@api('/api/users/<int:user_id>/quota-reset', methods=('POST',), admin=True)
+def users_quota_reset(user_id: int):
+    _need_user_store()
+    _user_store.get(user_id)
+    _user_store.forget_day(user_id, _today())
+    return jsonify({'ok': True})
+
+
+@api('/api/users/<int:user_id>/reset', methods=('POST',), admin=True)
+def users_reset(user_id: int):
+    _need_user_store()
+    user, password = _user_store.reset_password(user_id)
+    # Ein zurückgesetztes Kennwort beendet laufende Sitzungen -- sonst bliebe
+    # ein übernommenes Konto trotz Reset offen.
+    drop_user_sessions(user_id)
+    sent, error = send_account_mail(user, password, reset=True)
+    log.info("account password reset (mail=%s)", sent)
+    return jsonify({'ok': True, 'user': user, 'mail_sent': sent,
+                    'mail_error': error, 'link_missing': _link_missing(),
+                    'password': '' if sent else password})
 
 
 # ── Zusatz-Datensatz fuer die Technik-Erkennung ───────────────────────────────
@@ -1040,6 +1923,22 @@ def _tech_rules_loop() -> None:
         time.sleep(TECH_RULES_CHECK_SECONDS)
 
 
+IANA_TLD_CHECK_SECONDS = 6 * 3600
+
+
+def _iana_tlds_loop() -> None:
+    """Checks every six hours, actually fetches only once the cached list is
+    more than a day old -- same shape as _tech_rules_loop, just without a
+    settings gate: this one is on by default, no license to opt into."""
+    while True:
+        try:
+            if ianatlds.needs_update():
+                ianatlds.fetch()
+        except Exception:  # noqa: BLE001
+            log.warning("IANA TLD list refresh failed", exc_info=_verbose())
+        time.sleep(IANA_TLD_CHECK_SECONDS)
+
+
 def _tech_rules_view() -> dict:
     cfg = usersettings.effective(load_config())
     info = wapimport.status()
@@ -1050,19 +1949,19 @@ def _tech_rules_view() -> dict:
     return info
 
 
-@api('/api/tech-rules')
+@api('/api/tech-rules', admin=True)
 def tech_rules_get():
     return jsonify(_tech_rules_view())
 
 
-@api('/api/tech-rules/update', methods=('POST',))
+@api('/api/tech-rules/update', methods=('POST',), admin=True)
 def tech_rules_update():
     if not _start_tech_rules_fetch():
         return jsonify({'ok': False, 'error': 'update_running'}), 409
     return jsonify({'ok': True, 'started': True})
 
 
-@api('/api/tech-rules/remove', methods=('POST',))
+@api('/api/tech-rules/remove', methods=('POST',), admin=True)
 def tech_rules_remove():
     removed = wapimport.remove()
     return jsonify({'ok': True, 'removed': removed})
@@ -1079,7 +1978,7 @@ def _test_cfg(body: dict) -> dict:
     return cfg
 
 
-@api('/api/settings/test-email', methods=('POST',))
+@api('/api/settings/test-email', methods=('POST',), admin=True)
 def settings_test_email():
     body = request.get_json(silent=True) or {}
     cfg = _test_cfg(body if isinstance(body, dict) else {})
@@ -1091,7 +1990,7 @@ def settings_test_email():
     return jsonify({'ok': True})
 
 
-@api('/api/settings/test-telegram', methods=('POST',))
+@api('/api/settings/test-telegram', methods=('POST',), admin=True)
 def settings_test_telegram():
     body = request.get_json(silent=True) or {}
     cfg = _test_cfg(body if isinstance(body, dict) else {})
@@ -1099,6 +1998,20 @@ def settings_test_telegram():
         cfg, '[NetToolbox] Testnachricht — die Telegram-Einstellungen funktionieren.')
     if not ok:
         return jsonify({'ok': False, 'error': error or 'not_configured'}), 200
+    return jsonify({'ok': True})
+
+
+@api('/api/settings/test-cloudflare', methods=('POST',), admin=True)
+def settings_test_cloudflare():
+    """Nur das Token, per Cloudflares eigenem Verify-Endpunkt -- die
+    Konto-ID kommt erst beim eigentlichen Domain-Check ins Spiel."""
+    body = request.get_json(silent=True) or {}
+    cfg = _test_cfg(body if isinstance(body, dict) else {})
+    token = str(cfg.get('cf_api_token') or '')
+    if not token:
+        return jsonify({'ok': False, 'error': 'not_configured'}), 200
+    if not domaincheck.verify_token(token):
+        return jsonify({'ok': False, 'error': 'cloudflare_auth'}), 200
     return jsonify({'ok': True})
 
 
@@ -1153,8 +2066,11 @@ def _ha_push_loop() -> None:
 
 def _startup_checks() -> None:
     usersettings.init(_DATA)
+    usersettings.migrate()
     wapimport.init(_DATA)
     threading.Thread(target=_tech_rules_loop, daemon=True).start()
+    ianatlds.init(_DATA)
+    threading.Thread(target=_iana_tlds_loop, daemon=True).start()
     if not usersettings.crypto_available():
         log.warning("cryptography package unavailable — SMTP/Telegram secrets "
                     "entered in the UI cannot be saved")
@@ -1181,6 +2097,20 @@ def _startup_checks() -> None:
                 log.warning("probe worker not usable yet: %s",
                             state.get('error'))
 
+    missing = sorted(set(probes.PROBES) - set(PROBE_MODULE))
+    if missing:
+        # Eine Prüfung ohne Reiter-Zuordnung liefe an der Freischaltung vorbei.
+        log.warning("probes without a module: %s — they stay available to "
+                    "everyone", ', '.join(missing))
+
+    if _user_store.open():
+        count = len(_user_store.list())
+        if count:
+            log.info("user accounts: %d", count)
+    else:
+        log.warning("user store could not be opened (%s) — only the account "
+                    "from the add-on options can sign in", _user_store.broken)
+
     # Der Snapshot-Speicher haengt nicht am Monitoring: er wird auch dann
     # gebraucht, wenn niemand einen Waechter eingerichtet hat.
     if not _snapshot_store.open():
@@ -1206,6 +2136,7 @@ def _startup_checks() -> None:
 if __name__ == '__main__':
     _bootstrap_options()
     load_sessions()
+    load_blocks()
     history_load()
     _startup_checks()
 

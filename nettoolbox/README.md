@@ -8,10 +8,19 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 
 ## Funktionen
 
-- **Gesamtbericht** — eine Domain eingeben, neun Prüfungen auf einem Blatt, Export als Markdown
+- **Gesamtbericht** — eine Domain eingeben, zehn Prüfungen auf einem Blatt, Punktestand für
+  acht Kategorien (Domain, DNS, Website, Mail, Sicherheit, SEO, Technik, WordPress — je aus dem
+  Score, den die einzelne Prüfung ohnehin schon mitbringt), Export als Markdown
 
-- **DNS** — alle gängigen Record-Typen, alle Standard-Typen in einem Rutsch, TXT, SOA mit
-  Nameserver-Sync-Check
+- **DNS** — alle gängigen Record-Typen (inkl. CNAME und SRV am Apex), alle Standard-Typen in
+  einem Rutsch, TXT, SOA mit Nameserver-Sync-Check
+- **Record-Generatoren** — SPF, DMARC, DKIM, MTA-STS und TLS-RPT direkt aus Eingabefeldern
+  bauen, ohne Netzabfrage und ohne Tageskontingent. DKIM erzeugt auf Wunsch ein neues
+  2048-Bit-RSA-Schlüsselpaar im Browser-Backend — der private Schlüssel wird nur einmalig
+  angezeigt, nie gespeichert.
+- **WordPress-Härtung** — erkennt eine Installation und prüft Version gegen die aktuelle
+  Veröffentlichung, offene Backup-Dateien der Konfiguration, xmlrpc.php, Benutzernamen über
+  die REST-API und Verzeichnis-Auflistung — mit eigenem 0–100-Punktestand
 - **Mail-Gesundheit** — SPF (inklusive Lookup-Zähler und Include-Kette), DKIM (Schlüsselstärke,
   Selektoren werden geraten), DMARC (Richtlinie, Berichtsadressen, Fremd-Domain-Autorisierung),
   MTA-STS (Policy gegen echte MX-Einträge geprüft), TLS-RPT, BIMI — mit eigenem 0–100-Punktestand
@@ -24,6 +33,15 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Hostname-Abdeckung, ausgehandelte TLS-Version, CAA gegen den tatsächlichen Aussteller
 - **DANE/TLSA** — TLSA-Einträge der MX-Server gegen deren echtes Zertifikat, samt DNSSEC-Lage
 - **Whois/RDAP** — Registrar, Registrierungs-/Ablaufdatum, Nameserver; RDAP zuerst, WHOIS-Fallback für Endungen ohne RDAP (z. B. .de)
+- **Domain-Verfügbarkeit** — über das eigene Cloudflare-Konto (Registrar-API, mit Registrierungs-
+  und Verlängerungspreis), verlässlicher als WHOIS-„kein Treffer“; zwölf Endungen als Auswahl,
+  Suchfeld über IANAs komplette TLD-Liste (täglich aktualisiert, nicht ins Image gebacken) für
+  beliebige weitere, bis zu 20 auf einmal — eine erfundene Endung wird schon im Browser abgelehnt.
+  Für jede Endung, die Cloudflare nicht führt (z. B. .de, .eu, .it — verkauft Cloudflare gar
+  nicht), greift automatisch dieselbe RDAP/WHOIS-Kette wie im Whois-Tab, live pro Endung
+  nachgeschlagen statt einer festen Tabelle; ohne Cloudflare-Konto läuft diese Kette für alle
+  Endungen. Cloudflare-Konto-ID + API-Token in den Einstellungen (nur Leserecht nötig) machen es
+  zuverlässiger und ergänzen den Preis
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
   ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand
@@ -64,6 +82,25 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   [Brauche ich den Root-Server-Worker?](#brauche-ich-den-root-server-worker)
 - **Home-Assistant-Entitäten** — jeder Wächter als Sensor (`sensor.nettoolbox_<name>`) plus
   Sammelsensoren, damit Zustände auf Dashboards und in Automationen nutzbar sind
+- **Benutzerkonten** *(außerhalb von Ingress)* — der Betreiber legt weitere Konten an, jedes
+  mit eigenem Kennwort und eigenem Verlauf. Das Startkennwort kommt per Willkommensmail und
+  muss bei der ersten Anmeldung gewechselt werden; sperren, löschen und zurücksetzen geht
+  jederzeit. Einstellungen und Wächter bleiben dem Betreiber vorbehalten. Über Ingress ist
+  immer der Betreiber angemeldet — Home Assistant hat dort schon angemeldet.
+  - **Module je Konto freischalten** — welche Reiter jemand benutzen darf, wird pro Konto
+    gesetzt; Gesperrtes erscheint nicht und wird auch serverseitig abgewiesen.
+  - **Tageskontingent je Konto** — z. B. 10 Abfragen am Tag über alle freigeschalteten
+    Module, ein Gesamtbericht zählt als eine. 0 heißt unbegrenzt.
+  - **Protokoll je Konto** — der Betreiber sieht, wer was geprüft hat, und kann es löschen.
+  - Die Willkommensmail enthält einen **Anmeldelink**. Wer Konten über Home Assistant
+    anlegt, trägt die öffentliche Adresse einmal in den Einstellungen ein — die
+    Ingress-Adresse führt zu keiner Anmeldeseite.
+- **Anmeldeschutz außerhalb von Ingress** — nach 5 Fehlversuchen in 10 Minuten wird die IP
+  für 15 Minuten gesperrt; die Sperre überlebt einen Neustart des Add-ons. Auf Wunsch meldet
+  NetToolbox jede Sperre und/oder jede erfolgreiche Anmeldung, je Ereignis einzeln über Mail
+  und/oder Telegram (Einstellungen → *Anmeldung*). Die Meldung nennt die aufgerufene Adresse
+  und die IP des Aufrufers. Über Ingress greift nichts davon — dort meldet Home Assistant
+  selbst an.
 - Verlauf, Rate-Limit, Dark/Light · DE/EN · HA Ingress
 
 ## Schnellstart

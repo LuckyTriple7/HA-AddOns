@@ -54,6 +54,19 @@ def _worst(findings: list) -> str:
     return OK
 
 
+def _score(findings: list) -> int:
+    """Same idea as the mail/SEO/HTTP scores. Weighted heavier than those:
+    a bad certificate breaks the connection outright, it does not just look
+    worse to a visitor."""
+    score = 100
+    for f in findings:
+        if f['level'] == FAIL:
+            score -= 20
+        elif f['level'] == WARN:
+            score -= 8
+    return max(0, min(100, score))
+
+
 def _parse_target(raw: str) -> tuple:
     raw = (raw or '').strip()
     if not raw:
@@ -392,6 +405,7 @@ def check_tls(ctx: Context, target: str) -> dict:
         findings.append(_finding(INFO, 'tls_default_certificate'))
 
     result['level'] = _worst(findings)
+    result['score'] = _score(findings)
     return result
 
 

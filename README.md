@@ -50,6 +50,8 @@ Die veröffentlichten Container-Images enthalten darüber hinaus fremde Software
 | LogPulse | ✅ | ✅ | Debian 12 |
 | NPMplus | ✅ | ✅ | Alpine |
 | CrowdPanel | ✅ | ✅ | Alpine |
+| NetToolbox | ✅ | ✅ | Alpine |
+| Anubis | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -333,6 +335,29 @@ Weboberfläche für eine bestehende CrowdSec-Installation — die `cscli`-Befehl
 
 → [Dokumentation & Changelog](crowdpanel/README.md)
 
+### [Anubis](anubis/)
+
+Proof-of-Work-Bot-Challenge — vorgeschaltet vor einen Reverse Proxy, um automatisierte Zugriffe auszubremsen.
+
+- Reine Engine ohne eigene Oberfläche, ohne Ingress, ohne veröffentlichten Port
+- Mitgelieferte, eigenständige Policy ohne externe Importe — challenged jeden Client ohne gültiges Auth-Cookie
+- Fertig verdrahtet mit dem NPMplus-Add-on dieses Repos über `AUTH_REQUEST_ANUBIS_UPSTREAM`
+- Policy frei editierbar unter `/data/policy.yaml`
+
+→ [Dokumentation & Changelog](anubis/README.md)
+
+### [NetToolbox](nettoolbox/)
+
+Netzwerk- und Mail-Diagnose — DNS, Mail-Gesundheit, Sperrlisten und mehr, ohne fremde API.
+
+- Gesamtbericht: eine Domain eingeben, zehn Prüfungen auf einem Blatt, Punktestand für acht Kategorien
+- Mail-Gesundheit (SPF/DKIM/DMARC/MTA-STS/TLS-RPT/BIMI) mit eigenem 0–100-Punktestand
+- Record-Generatoren für SPF, DMARC, DKIM, MTA-STS und TLS-RPT — ohne Netzabfrage
+- Propagation gegen acht Resolver, Sperrlisten-Check gegen 15 DNSBL/RBL, SSL/TLS- und DANE/TLSA-Prüfung
+- Domain-Verfügbarkeit über das eigene Cloudflare-Konto, WHOIS/RDAP-Fallback für Endungen ohne Registrar-API
+
+→ [Dokumentation & Changelog](nettoolbox/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -381,6 +406,8 @@ https://github.com/LuckyTriple7/HA-AddOns
 | LogPulse | ✅ | ✅ | Debian 12 |
 | NPMplus | ✅ | ✅ | Alpine |
 | CrowdPanel | ✅ | ✅ | Alpine |
+| NetToolbox | ✅ | ✅ | Alpine |
+| Anubis | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -663,3 +690,26 @@ A web interface for an existing CrowdSec installation — the `cscli` commands a
 - No sign-in through Ingress, password and optional TOTP on port 17797
 
 → [Documentation & Changelog](crowdpanel/README.en.md)
+
+### [Anubis](anubis/)
+
+Proof-of-work bot challenge — placed in front of a reverse proxy to slow down automated traffic.
+
+- A bare engine with no UI of its own, no Ingress, no published port
+- Ships a self-contained policy with no external imports — challenges any client without a valid auth cookie
+- Pre-wired for this repo's NPMplus add-on via `AUTH_REQUEST_ANUBIS_UPSTREAM`
+- Policy freely editable at `/data/policy.yaml`
+
+→ [Documentation & Changelog](anubis/README.en.md)
+
+### [NetToolbox](nettoolbox/)
+
+Network and mail diagnostics — DNS, mail health, blocklists and more, no third-party API.
+
+- Full report: enter one domain, ten checks on a single sheet, a score for eight categories
+- Mail health (SPF/DKIM/DMARC/MTA-STS/TLS-RPT/BIMI) with its own 0–100 score
+- Record generators for SPF, DMARC, DKIM, MTA-STS and TLS-RPT — no network lookup
+- Propagation check against eight resolvers, blocklist check against 15 DNSBL/RBL, SSL/TLS and DANE/TLSA checks
+- Domain availability via your own Cloudflare account, WHOIS/RDAP fallback for TLDs without a registrar API
+
+→ [Documentation & Changelog](nettoolbox/README.en.md)

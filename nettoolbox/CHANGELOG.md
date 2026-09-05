@@ -1,5 +1,292 @@
 # Changelog
 
+## [0.6.0] - 2026-09-05
+
+### Changed
+- **Domain-Verfügbarkeit: generischer Fallback statt Endungs-Tabelle.** Statt .de/.eu hart zu
+  verdrahten, greift jetzt für jede Endung, die Cloudflare nicht führt (`reason:
+  extension_not_supported*`), automatisch dieselbe Kette wie im Whois-Tab: erst IANAs
+  RDAP-Bootstrap-Liste (404 = frei, spezifikationsgemäß exakt — live bestätigt für .fr, .nl, .pl,
+  .cz, .no, .uk, .fi und hunderte mehr), sonst WHOIS über die von `whois.iana.org` genannte
+  Registry. Ohne Cloudflare-Konto läuft diese Kette für alle Endungen, ohne zu blockieren. Ein
+  Cloudflare-Fehler (falsches Token, nicht erreichbar) bricht die Prüfung nicht mehr ab, sondern
+  fällt auf dieselbe Kette zurück. .de bleibt der eine dokumentierte Sonderfall (DENIC hat RDAP,
+  steht aber nicht in IANAs Bootstrap-Liste).
+- **Renewal-Preis** wird jetzt mit angezeigt (Cloudflare liefert `registration_cost` und
+  `renewal_cost` — bisher wurde nur ersterer gezeigt).
+
+### Fixed
+- **Zwei echte Bugs beim Live-Testen des Umbaus gefunden und behoben** (betreffen auch den
+  bestehenden Whois-Tab, nicht nur den neuen Fallback): ein Datum ohne Uhrzeit (z. B. „1997-08-27“ in NIC.its Antwort) ließ `TypeError: can't subtract offset-naive and offset-aware datetimes`
+  hochgehen. Und die generische „nicht gefunden“-Erkennung kannte nur „no entries found“/„not
+  found“/„no match“ — EURid (.eu) und NIC.it (.it) schreiben bei freien Namen stattdessen
+  „Status: AVAILABLE“, was bisher als „vergeben“ durchging (falsch-negativ).
+
+## [0.5.2] - 2026-09-05
+
+### Added
+- **IANAs offizielle TLD-Liste in der Domain-Verfügbarkeit** (`ianatlds.py`). Wird zur Laufzeit
+  geladen und einmal täglich aktualisiert (nicht ins Image gebacken — die Liste ändert sich,
+  ein eingefrorener Stand würde nur veralten). Zwei Effekte: ein Suchfeld findet Endungen aus
+  allen ~1440 echten TLDs zum Antippen, und eine getippte Endung wird schon im Browser bzw.
+  spätestens vom Server abgelehnt, bevor sie je bei Cloudflare/DENIC/EURid ankommt. Ohne
+  geladene Liste (frisch installiert, noch kein Abruf gelaufen) wird nichts blockiert.
+
+## [0.5.1] - 2026-09-05
+
+### Added
+- **.de und .eu in der Domain-Verfügbarkeit, ohne Cloudflare-Konto.** Cloudflare verkauft beide
+  Endungen gar nicht erst (verifiziert gegen die offizielle TLD-Liste) — .de läuft jetzt direkt
+  über DENICs eigenen RDAP-Server (steht nicht in IANAs Bootstrap-Liste, deshalb bisher unbekannt;
+  200/404 als Antwort reicht als Ja/Nein), .eu über EURids WHOIS („Status: AVAILABLE“). Beide ohne
+  Preisangabe — die kennt nur Cloudflare, und das verkauft diese zwei Endungen nicht. Ein Check
+  aus nur .de/.eu braucht dadurch gar kein Cloudflare-Konto mehr.
+- **Freies Textfeld für beliebige Endungen** neben den zwölf Auswahl-Kästchen — nicht mehr nur
+  die vorgeschlagenen TLDs, bis zu 20 auf einmal (Cloudflares eigene Grenze).
+
+## [0.5.0] - 2026-09-05
+
+### Added
+- **Domain-Verfügbarkeit** (neuer Reiter, eigenes Berechtigungsmodul). Prüft über das eigene
+  Cloudflare-Konto (Registrar-API), ob eine Domain registrierbar ist — verlässlicher als ein
+  WHOIS-„kein Treffer“, dessen Wortlaut je Endung anders aussieht. Basisname eingeben, Endungen
+  auswählen (bis zu 12 zur Wahl, de/com/net/org/io/eu/biz/app/dev/info/co/shop), Ergebnis zeigt
+  je Endung Verfügbarkeit, Grund (falls nicht registrierbar) und Preis. Braucht Cloudflare-Konto-ID
+  + API-Token (nur Leserecht fürs Registrar) in den Einstellungen, mit eigenem Verbindungstest.
+  Neu im Berechtigungssystem: je Benutzer einzeln freischaltbar wie jeder andere Reiter.
+
+## [0.4.2] - 2026-09-05
+
+### Fixed
+- **CNAME und SRV standen doppelt im Typ-Auswahlfeld der DNS-Abfrage.** Mit 0.4.0 in
+  `COMMON_TYPES` aufgenommen, aber an der Stelle, die die Liste fürs Auswahlfeld zusammenbaut,
+  nochmal einzeln angehängt. Dabei fiel auf: **SPF** (der eigene, längst veraltete Record-Typ,
+  nicht der TXT-basierte) fehlte im Feld komplett, obwohl er in der Validierung längst erlaubt
+  war — jetzt ergänzt.
+
+## [0.4.1] - 2026-09-05
+
+### Fixed
+- **Add-on startete nicht: `ModuleNotFoundError: No module named 'dkimgen'`.** Das Dockerfile
+  kopiert jede Python-Datei einzeln statt eines Platzhalters — die beiden mit 0.4.0 neuen Module
+  (`dkimgen.py`, `wpcheck.py`) fehlten in der Liste und landeten nie im Image.
+
+## [0.4.0] - 2026-09-05
+
+### Added
+- **Record-Generatoren im Mail-Tab.** Baut SPF-, DMARC-, DKIM-, MTA-STS- und TLS-RPT-Einträge
+  direkt aus Eingabefeldern — ohne Netzabfrage, kein Tageskontingent. DKIM kann wahlweise einen
+  vorhandenen Public Key formatieren oder ein neues 2048-Bit-RSA-Schlüsselpaar erzeugen (privater
+  Schlüssel nur einmalig angezeigt, nirgends gespeichert).
+- **CNAME und SRV in der DNS-Gesamtabfrage.** `dns_all` prüft jetzt auch diese beiden Typen an der
+  Zone selbst — ein CNAME am Apex ist ein Konfigurationsfehler, den man so sofort sieht.
+- **WordPress-Härtungscheck** (neuer Reiter im HTTP-Tab, auch Teil des Gesamtberichts). Erkennt
+  eine Installation und prüft Version gegen die aktuelle Veröffentlichung, offene Backup-Dateien
+  der Konfiguration, xmlrpc.php, Benutzernamen über die REST-API und Verzeichnis-Auflistung —
+  mit eigenem 0–100-Punktestand. Kein Plugin-/Theme-Scan, kein CVE-Abgleich.
+- **Punktestand je Kategorie im Gesamtbericht.** Domain, DNS, Website, Mail, Sicherheit, SEO,
+  Technik und WordPress bekommen je eine 0–100-Zahl plus Gesamt-Score — gebaut aus den Scores,
+  die Mail-Gesundheit, SEO und HTTP schon hatten, jetzt ergänzt um TLS, Whois, Technik-Erkennung
+  und Sperrlisten. Eine Kategorie ohne Ergebnis (Prüfung fehlgeschlagen, keine WordPress-Seite)
+  fehlt in der Übersicht, statt eine erfundene Zahl zu zeigen.
+
+## [0.3.7] - 2026-09-05
+
+### Fixed
+- **Dauerping füllte den Verlauf und das Tageskontingent pro Tick.** Der Chart fragt alle
+  700ms nach — jeder Tick lief bisher über den normalen Ping-Endpunkt und zählte einzeln
+  gegen Kontingent und Verlauf, eine Minute Dauerping kostete rund 85 Abfragen. Start und
+  Stop laufen jetzt über eine eigene Sitzung: Start bucht einmal ab und legt eine Zeile an,
+  die Ticks selbst kosten nichts mehr, Stop schreibt Verlust/Ergebnis in dieselbe Zeile.
+
+## [0.3.6] - 2026-09-05
+
+### Changed
+- **Benutzername öffnet Dropdown statt direkt die Kennwortseite.** Klick auf den Namen in der
+  Kopfzeile springt nicht mehr sofort zum Kennwortwechsel, sondern öffnet ein kleines Menü mit
+  dem Eintrag "Kennwort ändern" — Platz für weitere Einträge ist da.
+- **Abmelden-Knopf zeigt nur noch ein Symbol**, kein Text mehr. Tooltip und aria-label bleiben
+  für Zugänglichkeit erhalten.
+
+## [0.3.5] - 2026-09-04
+
+### Changed
+- **Mehr Luft zwischen Knopfzeile und Ergebnis.** Die Zusammenfassung klebte direkt unter
+  "Auswerten" — betrifft alle Karten, nicht nur die Kopfanalyse. Der Abstand kommt erst, wenn
+  wirklich etwas dasteht, damit ein leerer Ergebniskasten keine Lücke hinterlässt.
+
+## [0.3.4] - 2026-09-04
+
+### Fixed
+- **DKIM-Signaturen überlagerten sich.** Der Selektor stand in einer 106 Pixel breiten
+  Beschriftungsspalte — Amazon SES vergibt 32 Zeichen lange Selektoren, die liefen in die
+  Nachbarspalte hinein. Selektor und Angaben stehen jetzt untereinander statt nebeneinander,
+  und die Canonicalisation wird gleich mit angezeigt. Rasterzellen im IP-Lookup und in den
+  engen Unterkarten schrumpfen jetzt ebenfalls unter ihren Inhalt, statt überzulaufen.
+
+## [0.3.3] - 2026-09-04
+
+### Fixed
+- **Aus dem Webmailer kopierte Mail-Köpfe werden endlich gelesen.** GMX (und andere) zeigen
+  den Quelltext als Tabelle; wer die markiert und einfügt, bekommt Name, Doppelpunkt und Wert
+  auf **drei** Zeilen. Für den Parser war das kein Kopf mehr, sondern Fließtext — die Analyse
+  meldete stumpf „SPF taucht im Kopf nicht auf", „keine Received-Zeilen", „keine Message-ID",
+  obwohl alles davon dastand. Solche Dreiergruppen (und die Zweiervariante `Name` / `: Wert`)
+  werden jetzt vor der Auswertung wieder zusammengesetzt, und ein Hinweis sagt, dass das
+  passiert ist. Eingerückte Fortsetzungszeilen bleiben unangetastet — sonst zerlegte die
+  Reparatur gefaltete Received-Zeilen.
+- **Die eigenen Benachrichtigungsmails haben jetzt `Date` und `Message-ID`.** Beides gehört
+  nach RFC 5322 in jede Mail, und `smtplib` setzt von sich aus keines von beiden. Aufgefallen
+  ist es, weil die Kopfanalyse an einer Willkommensmail des Add-ons selbst „keine
+  Message-ID" meldete — zu Recht. Manche Empfänger werten das als Spam-Merkmal.
+
+## [0.3.2] - 2026-09-04
+
+### Changed
+- **Die Benutzerverwaltung hat einen eigenen Dialog** mit eigenem Knopf in der Kopfzeile
+  (Personensymbol neben dem Zahnrad, nur für Verwalter sichtbar). Sie hing bisher unten im
+  Einstellungsdialog und hatte mit SMTP-Zugangsdaten und Telegram-Token nichts zu tun.
+- **Der Einstellungsdialog ist wieder so breit wie früher** (560 px). Breit gemacht hatte ihn
+  allein die Benutzertabelle; die steht jetzt woanders. Nur der Benutzerdialog ist breit
+  (920 px), weil eine Tabelle nun einmal Platz braucht.
+
+## [0.3.1] - 2026-09-04
+
+### Added
+- **Anmeldelink in der Willkommens- und der Kennwortmail.** Bisher stand dort nur der
+  Hostname. Ohne weiteres Zutun nimmt NetToolbox die Adresse, unter der es gerade aufgerufen
+  wurde — steht ein Reverse-Proxy davor, ist das die Domain samt https.
+- **Neue Einstellung „Öffentliche Adresse"** (Einstellungen → *Anmeldung*). Nötig, wenn
+  Konten über Home Assistant angelegt werden: die Ingress-Adresse führt zu keiner
+  Anmeldeseite, ein Link darauf wäre falsch. Eingetragenes sticht Ermitteltes. Ohne
+  brauchbare Adresse steht in der Mail bewusst **kein** Link, sondern der Hinweis, dass der
+  Betreiber sie nennt — und die Oberfläche sagt dem Betreiber, dass er sie eintragen sollte.
+  Übernommen wird nur, was wie eine Adresse aussieht (http/https, plausibler Host);
+  `javascript:` und Ähnliches fallen durch.
+
+### Changed
+- **Die Benutzertabelle passt jetzt in den Dialog.** Fünf Knöpfe je Zeile haben die Tabelle
+  breiter gemacht als das Fenster, sodass alles ineinanderlief. Jede Zeile hat nur noch
+  **Verwalten**; Module, Tageskontingent, Sperren, Kennwort zurücksetzen, Protokoll und
+  Löschen stehen darunter in der aufklappbaren Zeile, wo die volle Breite da ist. Der
+  Einstellungsdialog ist dafür breiter (920 statt 560 px), die Formularfelder bleiben aber
+  auf lesbarer Breite.
+- Das Protokoll hat Spaltenüberschriften und scrollt in einem eigenen Rahmen, statt die
+  Seite zu verlängern.
+
+## [0.3.0] - 2026-09-04
+
+### Added
+- **Module je Konto freischalten.** Für jedes Konto lässt sich einzeln festlegen, welche
+  Reiter es benutzen darf: Bericht, DNS, Mail, Netzwerk-Tools, SSL/TLS, Whois, Web. Was
+  gesperrt ist, erscheint in der Oberfläche gar nicht erst — und wird zusätzlich auf dem
+  Server abgewiesen (`module_disabled`), damit die Sperre nicht am Browser hängt. Die
+  Zuordnung Prüfung → Reiter steht in `PROBE_MODULE`; eine Prüfung ohne Zuordnung meldet
+  sich beim Start im Protokoll, statt still an der Freischaltung vorbeizulaufen.
+- **Tageskontingent je Konto.** Zahl der Abfragen pro Tag über alle freigeschalteten Module,
+  0 heißt unbegrenzt. **Ein Gesamtbericht zählt als eine Abfrage**, obwohl intern neun
+  Prüfungen laufen. Gebucht wird in einer einzigen SQL-Anweisung unter dem Schreibschloss —
+  zwei gleichzeitige Prüfungen können sich nicht beide die letzte freie Abfrage nehmen.
+  In der Kopfzeile steht, wie viele Abfragen der Tag noch hergibt; der Zähler springt um
+  Mitternacht zurück und lässt sich vom Betreiber vorzeitig zurücksetzen.
+- **Protokoll je Benutzer.** Der Betreiber sieht zu jedem Konto die letzten 200 Prüfungen
+  mit Zeitpunkt, Prüfung, Ziel und Ergebnis — und kann es löschen. Aufgehoben werden je
+  Konto 500 Zeilen; ein Protokoll, das unbegrenzt wächst, ist in einer Add-on-Datenbank nur
+  eine Zeitbombe.
+- Momentaufnahmen hängen am DNS-Modul und kosten ebenfalls eine Abfrage — sie sind DNS-
+  Abfragen, nur unter anderem Namen.
+
+### Changed
+- Die Beschriftung **Betreiber** beim Anlegen heißt jetzt *Verwalter — darf Einstellungen,
+  Wächter und Benutzer verwalten*. „Betreiber" allein sagte nicht, was der Haken bewirkt.
+- Ist der Bericht für ein Konto gesperrt, fehlt sein Reiter — dann übernimmt der erste
+  vorhandene Reiter als Startseite, statt dass die Oberfläche ohne aktiven Reiter aufgeht.
+
+## [0.2.0] - 2026-09-04
+
+### Added
+- **Benutzerkonten.** Bis hierher gab es genau ein Konto — Name und Kennwort aus den
+  Add-on-Optionen. Jetzt kann der Betreiber weitere Konten anlegen, damit jemand anderes
+  mitprüfen kann, ohne die Einstellungen zu sehen und ohne dass sich zwei Leute ein
+  Kennwort teilen. Verwaltet werden sie im Einstellungsdialog unter *Benutzer*.
+  - **Willkommensmail mit Startkennwort.** Beim Anlegen erzeugt NetToolbox ein zufälliges
+    Kennwort und schickt es an die hinterlegte Adresse. Ist kein SMTP eingerichtet oder
+    scheitert der Versand, steht das Kennwort in der Antwort in der Oberfläche — angelegt
+    ist das Konto in beiden Fällen.
+  - **Kennwortwechsel wird erzwungen.** Solange das Startkennwort gilt, führt jeder Weg auf
+    die Kennwortseite und jede API-Anfrage endet mit `password_change_required`. Der Zwang
+    wäre sonst keiner.
+  - **Sperren, entsperren, löschen, Kennwort zurücksetzen.** Alles drei beendet laufende
+    Sitzungen des Kontos sofort — ein gesperrtes Konto, das noch 24 Stunden weiterarbeitet,
+    ist nicht gesperrt. Löschen nimmt den Verlauf des Benutzers mit.
+  - Das eigene Konto lässt sich weder sperren noch löschen.
+
+### Changed
+- **Einstellungen und Wächter sind Betreibersache.** SMTP-Zugangsdaten, Telegram-Token, die
+  Technik-Regeln und alle Wächter-Routen antworten normalen Konten mit `forbidden`; Zahnrad
+  und Wächter-Reiter erscheinen bei ihnen gar nicht erst. Wächter verschicken Mails und
+  fragen dauerhaft fremde Server — das gehört dem Betreiber.
+- **Der Verlauf gehört dem Benutzer.** Jede Zeile trägt jetzt die Kennung des Kontos, das
+  die Prüfung ausgelöst hat; jeder sieht nur seinen eigenen Verlauf und löscht auch nur
+  diesen. Zeilen aus der Zeit davor gehören dem Betreiber.
+- **Über Ingress ist weiterhin immer der Betreiber angemeldet.** Bewusst so: die Benutzer-
+  Kopfzeilen des Supervisors kämen vom Client und wären fälschbar, sobald derselbe Port auch
+  im LAN liegt. Mehrbenutzerbetrieb gilt für den Weg über den eigenen Port bzw. die Domain
+  davor.
+- **Das Konto aus den Add-on-Optionen bleibt und ist immer Betreiber.** Es steht nicht in
+  der Benutzerliste und ist der Weg zurück, falls in der Verwaltung etwas verriegelt wurde.
+  Deshalb gibt es auch keine „letzter Betreiber"-Sperre: aussperren kann sich hier niemand.
+- Bestehende Anmeldungen überleben das Update — Sitzungen aus 0.1.43 zählen weiter als das
+  Konto aus den Optionen.
+
+### Fixed
+- Die Meldung über eine erfolgreiche Anmeldung nennt jetzt auch den Benutzernamen, die über
+  eine Sperre den Namen, mit dem es versucht wurde (auf die Zeichen eines Namens beschnitten,
+  damit die Eingabe des Aufrufers nicht in die Mail durchschlägt).
+
+## [0.1.43] - 2026-09-04
+
+### Added
+- **Kanal je Ereignis wählbar.** Statt eines Schalters je Ereignis hat jetzt jedes Ereignis
+  seine eigenen Haken für Mail und Telegram — genau wie ein Wächter seine Kanäle selbst
+  wählt. Zum Beispiel Sperren nur nach Telegram, erfolgreiche Anmeldungen gar nicht.
+  Bestehende Einstellungen aus 0.1.42 werden beim ersten Start übernommen: ein gesetzter
+  alter Schalter gilt für beide Kanäle, so wie er es vorher auch tat.
+
+### Changed
+- **Die Meldung nennt jetzt die Adresse, die im Browser stand**, statt pauschal
+  „Direktport 17798“. Steht ein Reverse-Proxy davor, ist das die Domain — die Angabe war
+  vorher schlicht falsch, wenn niemand den Port je zu Gesicht bekommt. Der Host-Header
+  kommt vom Aufrufer und ist damit fälschbar; er wird nur übernommen, wenn er wie ein
+  Hostname aussieht, sonst steht wieder der Port in der Meldung.
+
+## [0.1.42] - 2026-09-04
+
+### Added
+- **Benachrichtigung bei Anmeldeversuchen am Direktport.** Über dieselben Kanäle wie die
+  Wächter — Mail und Telegram, eingerichtet über das Zahnradsymbol im Header. Zwei neue
+  Schalter in den Einstellungen unter *Anmeldung*:
+  - **Bei gesperrter IP melden** (voreingestellt an): eine Meldung, sobald eine IP nach zu
+    vielen Fehlversuchen gesperrt wird — mit IP-Adresse, Zahl der Versuche, Sperrdauer und
+    Zeitpunkt. **Eine Meldung je Sperre, nicht je Versuch**, sonst würde ein laufender
+    Angriff die Sperre selbst zur Mailflut machen.
+  - **Bei erfolgreicher Anmeldung melden** (voreingestellt aus): für den Fall, dass am
+    Direktport überhaupt niemand angemeldet sein sollte. Wer ihn täglich benutzt, lässt den
+    Schalter aus.
+  - Zugestellt wird im Hintergrund: ein SMTP-Server, der nicht antwortet, hält die Antwort
+    auf den Anmeldeversuch nicht mehr seine ganze Zeitgrenze lang auf.
+  - Über Ingress passiert nichts davon — dort gibt es kein Anmeldeformular, Home Assistant
+    hat den Benutzer bereits angemeldet.
+
+### Changed
+- **Sperren überleben jetzt einen Neustart** (`blocks.json` im Datenverzeichnis). Bisher lagen
+  sie nur im Arbeitsspeicher: ein Add-on-Update mitten in einem Angriff hat dem Angreifer eine
+  saubere Weste ausgestellt. Gespeichert werden laufende Sperren **und** die angefangenen
+  Fehlversuche; eine wiederhergestellte Sperre löst keine zweite Meldung aus.
+- **Die Zählerstände stehen jetzt unter einem Schloss** (`_rate_lock`). Fünf gleichzeitige
+  Anmeldeversuche konnten sich vorher gegenseitig überschreiben und so mehr Versuche
+  durchlassen als erlaubt.
+
 ## [0.1.41] - 2026-09-04
 
 ### Changed

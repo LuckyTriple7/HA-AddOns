@@ -8,10 +8,18 @@ about your domains leaves your own infrastructure.
 
 ## Features
 
-- **Full report** — enter one domain, nine checks on a single sheet, Markdown export
+- **Full report** — enter one domain, ten checks on a single sheet, a score for eight
+  categories (domain, DNS, website, mail, security, SEO, technology, WordPress — each built
+  from the score its own check already computes), Markdown export
 
-- **DNS** — every common record type, all standard types in one pass, TXT, SOA with a
-  name-server sync check
+- **DNS** — every common record type (including CNAME and SRV at the apex), all standard types
+  in one pass, TXT, SOA with a name-server sync check
+- **Record generators** — build SPF, DMARC, DKIM, MTA-STS and TLS-RPT records straight from
+  input fields, no network lookup and no daily quota. DKIM can generate a fresh 2048-bit RSA key
+  pair in the browser's backend on request — the private key is shown once and never stored.
+- **WordPress hardening** — detects an install and checks its version against the current
+  release, exposed configuration backup files, xmlrpc.php, usernames via the REST API, and
+  directory listing — with its own 0-100 score
 - **Mail health** — SPF (including RFC 7208 lookup count and include-chain resolution), DKIM
   (key strength, common selectors are guessed), DMARC (policy, report addresses, foreign-domain
   authorisation), MTA-STS (policy file checked against the real MX records), TLS-RPT, BIMI — with
@@ -26,6 +34,15 @@ about your domains leaves your own infrastructure.
   coverage, negotiated TLS version, CAA against the actual issuer
 - **DANE/TLSA** — TLSA records of the MX servers against their real certificate, with DNSSEC state
 - **Whois/RDAP** — registrar, registration/expiry dates, name servers; RDAP first, WHOIS fallback for TLDs without RDAP (e.g. .de)
+- **Domain availability** — via your own Cloudflare account (Registrar API, with both
+  registration and renewal price), more reliable than a WHOIS "no match"; twelve TLDs to pick
+  from, plus a search box over IANA's full TLD list (refreshed daily, never baked into the
+  image) for any other, up to 20 at once — a made-up TLD is rejected right in the browser. For
+  any TLD Cloudflare doesn't carry (e.g. .de, .eu, .it — Cloudflare sells none of them), the same
+  RDAP/WHOIS chain the Whois tab uses kicks in automatically, looked up live per TLD rather than
+  from a fixed table; with no Cloudflare account, that chain runs for every TLD. A Cloudflare
+  Account ID + API token in Settings (read-only permission is enough) make it more reliable and
+  add the price
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
   without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score
@@ -66,6 +83,24 @@ about your domains leaves your own infrastructure.
   [Do I need the root-server worker?](#do-i-need-the-root-server-worker)
 - **Home Assistant entities** — every monitor as a sensor (`sensor.nettoolbox_<name>`) plus
   summary sensors, so states can be used on dashboards and in automations
+- **User accounts** *(outside Ingress)* — the operator creates further accounts, each with
+  its own password and its own history. The initial password arrives by welcome email and
+  must be changed on first sign-in; blocking, deleting and resetting work at any time.
+  Settings and monitors stay with the operator. Behind Ingress the operator is always signed
+  in — Home Assistant has already authenticated there.
+  - **Per-account modules** — which tabs an account may use is set per account; what is off
+    does not show up and is rejected server-side as well.
+  - **Per-account daily quota** — e.g. 10 queries a day across all enabled modules, a full
+    report counting as one. 0 means unlimited.
+  - **Per-account log** — the operator sees who checked what, and can clear it.
+  - The welcome email carries a **sign-in link**. If accounts are created through Home
+    Assistant, set the public address once in the settings — the Ingress address leads
+    to no sign-in page.
+- **Login protection outside Ingress** — 5 failed attempts within 10 minutes block the IP
+  for 15 minutes, and the block survives an add-on restart. On request NetToolbox reports
+  every block and/or every successful login, each event choosing email and/or Telegram
+  (Settings → *Login*). The message names the address that was used and the caller's IP.
+  None of this applies behind Ingress — Home Assistant authenticates there itself.
 - History, rate limiting, dark/light · DE/EN · HA Ingress
 
 ## Quick start
