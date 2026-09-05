@@ -3,6 +3,7 @@ gitpulse/dev_data/
 mypage/dev_data/
 mypage/.venv/
 tuiwatch/.venv/
+nettoolbox/.venv/
 tuiwatch/dev_data/
 tuiwatch/_*
 __pycache__/
