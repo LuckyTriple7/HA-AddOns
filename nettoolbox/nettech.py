@@ -144,6 +144,19 @@ def _match(test: dict, text: str) -> dict:
     return {'text': found.group(0)[:120], 'version': version}
 
 
+# Ein Versionsfund muss auch wie eine Version aussehen. Importierte Regeln
+# fangen mit ihrer Klammer sonst auch mal einen Cache-Buster oder Hash ein
+# ("bootstrap.css?ver=2E477967E482F32E65D4EA9B") -- der stand dann als Version
+# in der Liste. Lieber keine Version zeigen als eine erfundene.
+_VERSION_RE = re.compile(r'[vV]?\d{1,8}(?:\.\d{1,5}){0,4}'
+                         r'(?:[-+.][A-Za-z0-9][A-Za-z0-9.\-]{0,12})?')
+
+
+def _plausible_version(value: str) -> str:
+    value = (value or '').strip().strip('.-+_')
+    return value if _VERSION_RE.fullmatch(value) else ''
+
+
 _SLUG_RE = re.compile(r'[^a-z0-9]')
 
 
@@ -244,6 +257,7 @@ class _Hits:
         confidence = confidence or CONFIDENCE.get(kind, LOW)
         if CONFIDENCE_ORDER[confidence] > CONFIDENCE_ORDER[entry['confidence']]:
             entry['confidence'] = confidence
+        version = _plausible_version(version)
         if version and not entry['version']:
             entry['version'] = version[:24]
         row = {'kind': kind, 'detail': detail[:160]}

@@ -143,6 +143,7 @@ tr:last-child td { border-bottom: none; }
 .finding-list { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
 .finding-list li { display: flex; gap: 8px; align-items: baseline; font-size: 0.83rem;
                     border-left: 2px solid var(--border); padding: 2px 0 2px 9px; }
+.finding-list li > span { min-width: 0; overflow-wrap: anywhere; }
 .finding-list li:has(.badge.ok) { border-left-color: var(--green-h); }
 .finding-list li:has(.badge.warn) { border-left-color: var(--amber); }
 .finding-list li:has(.badge.fail) { border-left-color: var(--red); }
@@ -170,7 +171,11 @@ tr:last-child td { border-bottom: none; }
 .subcard { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surf2);
            transition: border-color .15s; }
 .subcard:hover { border-color: color-mix(in srgb, var(--border) 30%, var(--accent)); }
-.subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* Ueberschriften tragen oft einen Namen vom Server (Waechter, Domain,
+   Bot) neben einer Plakette -- der Name bricht um, die Plakette weicht nie. */
+.subcard h4 > span { min-width: 0; overflow-wrap: anywhere; }
+.subcard h4 > .badge, .subcard h4 > .chip { flex: none; overflow-wrap: normal; }
 .subcard textarea { min-height: 56px; font-size: 0.7rem; }
 .subcard label.field { margin-top: 8px; }
 .subcard label.field:first-of-type { margin-top: 0; }
@@ -202,13 +207,19 @@ tr:last-child td { border-bottom: none; }
 .record-code { background: var(--surf2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
                font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-.chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted); }
+.chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted);
+        max-width: 100%; overflow-wrap: anywhere; }
 .chip.pick { cursor: pointer; background: none; }
 .chip.pick:hover { border-color: var(--accent); color: var(--accent); }
 .tech-list { display: flex; flex-direction: column; gap: 4px; }
-.tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; }
-.tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
-.tech-ver { font-size: 0.72rem; color: var(--muted); }
+/* Die Bewertung rechts weicht nie, die Version zuerst (flex-shrink 100), der
+   Name zuletzt -- und beide schneiden mit Auslassungspunkten ab, statt mitten
+   im Wort zu brechen. Eine Regel, die statt der Version einen Cache-Buster
+   einfaengt, schob sonst das "sicher" aus der Karte heraus. */
+.tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; min-width: 0; }
+.tech-item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; flex: none; }
+.tech-ver { font-size: 0.72rem; color: var(--muted); flex: 0 100 auto; }
 .tech-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
 .tech-dot.high { background: var(--green-h); }
 .tech-dot.medium { background: var(--amber); }

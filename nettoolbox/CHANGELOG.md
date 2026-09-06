@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.6] - 2026-09-06
+
+### Fixed
+- **Technik-Erkennung: langer Versionstext lief aus der Karte.** Eine Regel hatte statt der
+  Version einen Cache-Buster eingefangen (`2E477967E482F32E65D4EA9B`), und die Bewertung
+  („sicher") wurde rechts aus der Karte geschoben. Zwei Stellen behoben:
+  - `nettech.py` nimmt einen Versionsfund nur noch an, wenn er wie eine Version aussieht
+    (`3.7.1`, `v2.0.0-beta1`, `20240115`). Hashes und Zufallszeichen werden verworfen —
+    lieber keine Version zeigen als eine erfundene. Der Fund selbst bleibt als Beleg im
+    Tooltip stehen.
+  - Im Layout schrumpft jetzt die Version zuerst und schneidet mit Auslassungspunkten ab,
+    der Name danach; die Bewertung rechts weicht nie.
+- **Gleicher Fehler an drei weiteren Stellen vorbeugend behoben.** Plaketten (`.chip`) mit
+  langer Adresse oder langem Hostnamen umbrechen jetzt innerhalb der Plakette statt die
+  Karte zu sprengen; Befund-Zeilen und Karten-Überschriften mit servergeliefertem Namen
+  (Wächter, Bot-Schutz, Snapshot-Domain) halten ihre Plakette in der Karte.
+
 ## [0.7.5] - 2026-09-06
 
 ### Fixed

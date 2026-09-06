@@ -1,6 +1,6 @@
 name: NetToolbox
 description: Netzwerk- und Mail-Diagnose — DNS-Abfragen, SPF, DKIM, DMARC, MTA-STS
-version: "0.7.5"
+version: "0.7.6"
 slug: nettoolbox
 url: https://github.com/LuckyTriple7/HA-AddOns
 
