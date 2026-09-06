@@ -33,6 +33,7 @@ ARG FIREFOX_VERSION=155.0.1
 ARG THUNDERBIRD_VERSION=155.0
 ARG RCLONE_VERSION=1.75.1
 ARG OPENCODE_VERSION=1.18.29
+ARG TAILSCALE_VERSION=1.102.3
 
 # XFCE Desktop-Umgebung + Anwendungen installieren
 RUN apt-get update \
@@ -98,6 +99,8 @@ RUN apt-get update \
         fuse3 \
         unzip \
         nfs-common \
+        iproute2 \
+        iptables \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -114,6 +117,21 @@ RUN ARCH=$(dpkg --print-architecture) \
     && cp "/tmp/rclone/rclone-v${RCLONE_VERSION}-linux-${RCLONE_ARCH}/rclone" /usr/local/bin/rclone \
     && chmod 755 /usr/local/bin/rclone \
     && rm -rf /tmp/rclone.zip /tmp/rclone
+
+# Tailscale: statische Binaries von pkgs.tailscale.com
+# (Debian-Repo laesst sich nicht auf eine Version pinnen)
+ARG TAILSCALE_VERSION
+RUN ARCH=$(dpkg --print-architecture) \
+    && case "$ARCH" in \
+        amd64)   TS_ARCH="amd64" ;; \
+        aarch64|arm64) TS_ARCH="arm64" ;; \
+        *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac \
+    && curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}.tgz" -o /tmp/tailscale.tgz \
+    && tar -xzf /tmp/tailscale.tgz -C /tmp \
+    && install -m 755 "/tmp/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}/tailscale"  /usr/local/bin/tailscale \
+    && install -m 755 "/tmp/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}/tailscaled" /usr/local/bin/tailscaled \
+    && rm -rf /tmp/tailscale.tgz "/tmp/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}"
 
 # OpenCode CLI direkt installieren (wird von der OpenCode-VSCode-Extension benötigt)
 ARG OPENCODE_VERSION
@@ -270,7 +288,7 @@ RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
 # Eigene rootfs-Skripte einspielen
 COPY rootfs/ /
 RUN find /etc/cont-init.d -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true \
-    && chmod +x /usr/local/bin/geany-gio
+    && chmod +x /usr/local/bin/geany-gio /usr/local/bin/tailscaled-supervise
 
 # Entrypoint installieren
 COPY ha_entrypoint.sh /ha_entrypoint.sh

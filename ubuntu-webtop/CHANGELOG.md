@@ -1,3 +1,14 @@
+## [1.8.66] - 2026-09-06
+
+### Hinzugefügt
+
+- Tailscale-Client integriert: Rechner im eigenen Tailnet (z.B. der eigene Server) sind direkt aus dem Desktop erreichbar
+- Neue Optionen: `tailscale_enabled`, `tailscale_authkey`, `tailscale_hostname`, `tailscale_login_server`, `tailscale_accept_routes`, `tailscale_accept_dns` (MagicDNS), `tailscale_exit_node`
+- Tailscale-State liegt unter `/config/tailscale` und überlebt Neustart, Update und "Neu Aufbauen" — der Auth-Key wird nur einmalig gebraucht
+- Anmeldung wahlweise per Auth-Key oder per Anmelde-Link aus dem Add-on-Log (zusätzlich in `/config/tailscale/login-url.txt`)
+- Tailscale startet vor den SMB-/NFS-Mounts, damit Freigaben über Tailnet-Adressen gemountet werden können
+- Update-Workflow prüft Tailscale jetzt mit (`.webtop-tailscale-version`)
+
 ## [1.8.65] - 2026-09-05
 
 ### Aktualisiert

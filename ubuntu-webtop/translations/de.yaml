@@ -95,3 +95,24 @@ configuration:
   nfs_3_share:
     name: NFS-Freigabe 3
     description: NFS-Exportpfad für Mount 3.
+  tailscale_enabled:
+    name: Tailscale aktivieren
+    description: Startet den Tailscale-Client im Desktop, damit Rechner im eigenen Tailnet (z.B. der eigene Server) direkt erreichbar sind. Standard false.
+  tailscale_authkey:
+    name: Tailscale Auth-Key
+    description: Einmaliger Auth-Key (tskey-auth-...) aus der Tailscale-Admin-Konsole fuer die erste Anmeldung. Leer lassen, um sich per Anmelde-Link aus dem Add-on-Log anzumelden. Nach der ersten Anmeldung wird der Key nicht mehr gebraucht und kann geleert werden.
+  tailscale_hostname:
+    name: Tailscale-Hostname
+    description: Name, unter dem der Desktop im Tailnet erscheint. Standard ha-webtop.
+  tailscale_login_server:
+    name: Alternativer Login-Server
+    description: URL eines eigenen Control-Servers (z.B. Headscale). Leer lassen fuer die offizielle Tailscale-Cloud. Wirkt nur bei der ersten Anmeldung.
+  tailscale_accept_routes:
+    name: Subnetz-Routen annehmen
+    description: Von Subnetz-Routern im Tailnet angebotene Netze (z.B. das LAN hinterm eigenen Server) mitbenutzen. Standard true.
+  tailscale_accept_dns:
+    name: MagicDNS verwenden
+    description: DNS-Einstellungen des Tailnets uebernehmen, damit Geraete ueber ihren Namen statt ihrer 100.x-IP erreichbar sind. Aendert die /etc/resolv.conf des Containers. Bei DNS-Problemen wieder ausschalten. Standard false.
+  tailscale_exit_node:
+    name: Exit-Node
+    description: Name oder Tailnet-IP eines Exit-Nodes, ueber den der gesamte Internetverkehr des Desktops laufen soll. Leer lassen fuer direkten Internetzugang.

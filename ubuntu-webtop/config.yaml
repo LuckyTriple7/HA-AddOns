@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox, Thunderbird und vielen weiteren Programmen vorinstalliert
-version: "1.8.65"
+version: "1.8.66"
 slug: ubuntu_webtop
 init: false
 
@@ -18,6 +18,9 @@ privileged:
   - SYS_ADMIN
   - DAC_READ_SEARCH
   - SYS_PTRACE
+  - NET_ADMIN
+  - NET_RAW
+  - MKNOD
 
 devices:
   - /dev/dri
@@ -25,6 +28,7 @@ devices:
   - /dev/dri/card1
   - /dev/dri/renderD128
   - /dev/fuse
+  - /dev/net/tun
 
 webui: http://[HOST]:[PORT:3000]
 
@@ -85,6 +89,13 @@ options:
   nfs_2_share: ""
   nfs_3_server: ""
   nfs_3_share: ""
+  tailscale_enabled: false
+  tailscale_authkey: ""
+  tailscale_hostname: "ha-webtop"
+  tailscale_login_server: ""
+  tailscale_accept_routes: true
+  tailscale_accept_dns: false
+  tailscale_exit_node: ""
 
 schema:
   PUID: int
@@ -121,6 +132,13 @@ schema:
   nfs_2_share: str?
   nfs_3_server: str?
   nfs_3_share: str?
+  tailscale_enabled: bool
+  tailscale_authkey: password?
+  tailscale_hostname: str?
+  tailscale_login_server: str?
+  tailscale_accept_routes: bool
+  tailscale_accept_dns: bool
+  tailscale_exit_node: str?
 
 panel_icon: mdi:monitor
 panel_admin: false

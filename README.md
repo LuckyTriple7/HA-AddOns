@@ -108,6 +108,7 @@ Vollständiger XFCE-Desktop im Webbrowser, direkt in Home Assistant integriert.
 - KasmVNC-Streaming (CPU-effizient, delta-basiert)
 - Systemsprache Deutsch (de_DE.UTF-8)
 - Firefox, Thunderbird, Geany, VLC, Thunar mit SMB-Netzwerkzugriff und mehr
+- Tailscale-VPN-Client für den Zugriff auf eigene Server im Tailnet
 - Persistente Konfiguration über Updates hinweg
 
 | | |
@@ -466,6 +467,7 @@ Full XFCE desktop in the browser, directly integrated into Home Assistant.
 - KasmVNC streaming (CPU-efficient, delta-based)
 - System language German (de_DE.UTF-8)
 - Firefox, Thunderbird, Geany, VLC, Thunar with SMB network access and more
+- Tailscale VPN client for reaching your own servers on the tailnet
 - Persistent configuration across updates
 
 | | |

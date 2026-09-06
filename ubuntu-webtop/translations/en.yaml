@@ -95,3 +95,24 @@ configuration:
   nfs_3_share:
     name: NFS Share 3
     description: NFS export path for mount 3.
+  tailscale_enabled:
+    name: Enable Tailscale
+    description: Starts the Tailscale client inside the desktop so machines on your tailnet (e.g. your own server) are reachable directly. Default false.
+  tailscale_authkey:
+    name: Tailscale Auth Key
+    description: One-time auth key (tskey-auth-...) from the Tailscale admin console for the initial login. Leave empty to log in via the link printed in the add-on log. Once logged in the key is no longer needed and can be cleared.
+  tailscale_hostname:
+    name: Tailscale Hostname
+    description: Name this desktop shows up as on the tailnet. Default ha-webtop.
+  tailscale_login_server:
+    name: Custom Login Server
+    description: URL of your own control server (e.g. Headscale). Leave empty for the official Tailscale cloud. Only applied at first login.
+  tailscale_accept_routes:
+    name: Accept Subnet Routes
+    description: Use networks advertised by subnet routers on the tailnet (e.g. the LAN behind your own server). Default true.
+  tailscale_accept_dns:
+    name: Use MagicDNS
+    description: Adopt the tailnet DNS settings so devices are reachable by name instead of their 100.x IP. Rewrites the container's /etc/resolv.conf. Turn off again if DNS breaks. Default false.
+  tailscale_exit_node:
+    name: Exit Node
+    description: Name or tailnet IP of an exit node that all of the desktop's internet traffic should go through. Leave empty for direct internet access.
