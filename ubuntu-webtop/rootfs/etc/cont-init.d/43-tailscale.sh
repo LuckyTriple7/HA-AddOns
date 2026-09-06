@@ -45,7 +45,8 @@ chmod 750 "$STATE_DIR"
 
 # --- TUN-Geraet ---------------------------------------------------------
 # HA reicht /dev/net/tun per "devices:" durch. Fehlt es (alter Supervisor,
-# Kernmodul nicht geladen), legen wir es selbst an. Klappt auch das nicht,
+# Kernmodul nicht geladen), versuchen wir es selbst anzulegen - das klappt nur,
+# wenn der Container CAP_MKNOD hat (HA erlaubt die Capability nicht). Scheitert es,
 # laeuft tailscaled im Userspace-Modus — dann ist das Tailnet nur ueber den
 # lokalen Proxy 127.0.0.1:1055 erreichbar, nicht transparent fuer alle Apps.
 TUN_ARGS=()

@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox, Thunderbird und vielen weiteren Programmen vorinstalliert
-version: "1.8.66"
+version: "1.8.67"
 slug: ubuntu_webtop
 init: false
 
@@ -20,7 +20,6 @@ privileged:
   - SYS_PTRACE
   - NET_ADMIN
   - NET_RAW
-  - MKNOD
 
 devices:
   - /dev/dri

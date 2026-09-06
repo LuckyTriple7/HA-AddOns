@@ -1,3 +1,9 @@
+## [1.8.67] - 2026-09-06
+
+### Behoben
+
+- `MKNOD` aus `privileged:` entfernt — Home Assistant erlaubt in `privileged` nur die Capabilities aus der Supervisor-Liste (BPF, CHECKPOINT_RESTORE, DAC_READ_SEARCH, IPC_LOCK, NET_ADMIN, NET_RAW, PERFMON, SYS_ADMIN, SYS_MODULE, SYS_NICE, SYS_PTRACE, SYS_RAWIO, SYS_RESOURCE, SYS_TIME). Durch den ungültigen Wert war das Add-on-Manifest kaputt: der Store zeigte 1.8.66 nicht an und stellte das Add-on ohne Icon dar.
+
 ## [1.8.66] - 2026-09-06
 
 ### Hinzugefügt
