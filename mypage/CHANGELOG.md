@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.61
+
+- 🏷️ **Frühere Stände: Reihenfolge, Sichtbarkeit und Wasserzeichen standen als roher Schlüssel in der Liste.** Die Spalte „Geändert" übersetzt die Abschnitte von `site.json` über `sec_*`-Schlüssel — für acht davon (`section_order`, `hidden_sections`, `members_sections`, `album_protect`, `watermark_text`, `tips_rotation`, `tips_random`, `indexnow_key`) fehlte die Beschriftung, sie erschienen englisch-technisch. Jetzt in DE und EN benannt.
+
 ## 0.11.60
 
 - 📌 **Frühere Stände und automatische Backups lassen sich jetzt festhalten.** Wer eine Website aufbaut, speichert im Minutentakt — die 20 Revisionen sind nach einem Tag durchrotiert, das ZIP vom Ausgangsstand nach einer Woche gelöscht. Ein Klick auf 📌 nimmt einen Stand aus der Rotation: er wird nie automatisch entfernt und zählt nicht gegen die eingestellte Aufbewahrung, sodass die letzten Tage vollständig erhalten bleiben. Der Marker steckt im Dateinamen (`site-…-keep.json`, `mypage-auto-…-keep.zip`), es gibt also keine Indexdatei, die vom Verzeichnis abweichen könnte. Höchstens 10 Revisionen und 3 Backups gleichzeitig, damit die Rotation nicht ins Leere läuft; Löschen geht erst nach dem Freigeben. Ist das Speicherlimit erreicht und liegen nur noch festgehaltene Sicherungen, meldet das die Systemdiagnose, statt still keine Backups mehr anzulegen.
