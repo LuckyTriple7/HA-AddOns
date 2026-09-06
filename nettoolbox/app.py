@@ -23,6 +23,7 @@ from urllib.parse import urlsplit, urlunsplit
 from flask import (Flask, g, jsonify, make_response, redirect,
                    render_template, request, url_for)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -2144,6 +2145,41 @@ def _startup_checks() -> None:
             log.warning("monitor store could not be opened — monitoring disabled")
 
 
+def _serve(port: int = 0) -> None:
+    """Waitress statt Flasks eingebautem Server.
+
+    Werkzeugs Entwicklungsserver legt pro Anfrage einen neuen Thread an, ohne
+    Obergrenze, und kennt weder Verbindungslimit noch Timeout fuer haengende
+    Verbindungen -- auf dem direkten LAN-Port ist das angreifbar. Nebenbei
+    verriet er sich mit "Server: Werkzeug/3.1.8 Python/3.14.7", also Framework
+    und exakte Python-Version; genau so eine Kopfzeile meldet die HTTP-Pruefung
+    dieses Add-ons bei fremden Servern als Befund.
+
+    Ein laufender Portscan oder traceroute wird nicht abgeschnitten: Waitress
+    schliesst einen Kanal nur, solange keine Anfrage darauf laeuft
+    (`if (not channel.requests) and channel.last_activity < cutoff`).
+    """
+    # Acht Bearbeiter-Threads: eine Anfrage faechert intern selbst ueber
+    # concurrent.futures auf (Gesamtbericht, Sperrlisten), hier zaehlen also
+    # gleichzeitige Aufrufer, nicht gleichzeitige Pruefungen.
+    serve(app, host='0.0.0.0', port=port or PORT, threads=8,
+          ident=None,   # keine Server-Version im Antwort-Header
+          max_request_body_size=app.config['MAX_CONTENT_LENGTH'],
+          # Waitress entfernt X-Forwarded-* standardmaessig, bevor die Anwendung
+          # sie sieht. ProxyFix oben wertet sie aus, bekaeme sie sonst nie zu
+          # Gesicht -- hinter dem HA-Ingress kaeme fuer jeden Aufrufer dieselbe
+          # Adresse des Supervisors an, und Sperrlisten wie Ratenbegrenzung
+          # traefen alle Benutzer gemeinsam. (MyPage ist beim gleichen Wechsel
+          # genau darueber gestolpert, v0.8.10.)
+          #
+          # Damit bleibt X-Forwarded-For faelschbar, wer den Port 17798 direkt
+          # erreicht -- das ist unveraendert der Stand von vorher, der
+          # Werkzeug-Server hat die Kopfzeile ebenso durchgereicht. Der
+          # Serverwechsel aendert hier bewusst nichts in die eine oder andere
+          # Richtung; das gehoert getrennt behandelt.
+          clear_untrusted_proxy_headers=False)
+
+
 if __name__ == '__main__':
     _bootstrap_options()
     load_sessions()
@@ -2159,4 +2195,4 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, _shutdown)
 
     log.info("NetToolbox %s ready on port %d", APP_VERSION or '?', PORT)
-    app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
+    _serve()

@@ -1099,3 +1099,59 @@ def test_status_watch_names_the_hop_that_failed_not_the_start(monkeypatch):
     assert r['state'] == 'error:tls_error'
     assert r['final_url'] == 'https://example.com'
     assert len(r['chain']) == 1
+
+
+# ── Flask / Werkzeug / Waitress erkennen ─────────────────────────────────────
+
+
+def _detect(headers, cookies):
+    subject = nettech._Subject(headers, {}, cookies, [], '<html></html>', 'http://x/')
+    rules = list(nettech._builtin_rules())
+    hits = nettech._Hits()
+    nettech._scan(rules, subject, hits, time.monotonic() + 10)
+    nettech._drop_unmet_requirements(rules, hits)
+    nettech._apply_implies(rules, hits)
+    return {e['name']: e['version'] for e in hits.by_name.values()}
+
+
+def test_werkzeug_dev_server_gives_up_framework_and_python_version():
+    found = _detect({'server': 'Werkzeug/3.1.8 Python/3.14.7'}, [])
+    assert found.get('Werkzeug') == '3.1.8'
+    assert found.get('Python') == '3.14.7'
+
+
+def test_waitress_is_recognised_as_a_python_server():
+    assert 'Waitress' in _detect({'server': 'waitress'}, [])
+
+
+def test_flask_is_found_through_its_signed_session_cookie():
+    """Beide Formen: unkomprimiert (eyJ...) und zlib-gepackt (.eJ...)."""
+    for value in ('eyJhIjoxfQ.ap2uIA.RsK7TxLJEgrEefDxgCXPxU4ODCs',
+                  '.eJyrVkpUslKqHAWVgwko1QIA8x6_LA.ap2uIA.suQq_nPIJMAQ'):
+        assert 'Flask' in _detect({}, [('session', value)]), value
+
+
+def test_a_jwt_under_the_name_session_is_not_reported_as_flask():
+    """Ein JWT hat dieselben drei Abschnitte und beginnt ebenfalls mit eyJ --
+    ohne den Ausschluss meldete jeder Express-Dienst faelschlich Flask."""
+    for jwt in ('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig',
+                'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig'):
+        assert 'Flask' not in _detect({}, [('session', jwt)]), jwt
+
+
+def test_an_opaque_random_session_token_reveals_nothing():
+    """secrets.token_hex(32) -- was MyPage und NetToolbox selbst setzen."""
+    assert _detect({}, [('session', 'a3f' + '0' * 61), ('lang', 'de')]) == {}
+
+
+def test_prefilter_ignores_what_a_lookaround_forbids():
+    """Der Vorfilter sucht die laengste Zeichenfolge, die vorkommen *muss*.
+    Aus `eyJ(?!hbGciOi|0eXAi)` zog er frueher "hbgcioi" heraus und drehte die
+    Regel damit um: sie sprang nur noch in dem Fall an, den sie ausschliesst."""
+    assert wapimport._literal_of(r'eyJ(?!hbGciOi|0eXAi)[\w-]+') == ''
+    assert wapimport._literal_of(r'foo(?=barbaz)quux') == 'quux'
+    # Klammern in einer Zeichenklasse sind woertlich, kein Gruppenanfang.
+    assert wapimport._literal_of(r'a[)(?!x]bcdefgh') == 'bcdefgh'
+    # Muster ohne Lookaround bleiben, wie sie waren.
+    assert wapimport._literal_of(r'wp-content/themes') == 'wp-content/themes'
+    assert wapimport._literal_of(r'^Werkzeug(?:/(?P<v>[\d.]+))?') == 'werkzeug'

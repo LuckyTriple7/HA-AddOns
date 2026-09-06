@@ -201,6 +201,10 @@ def _tests_from_builtin(rule: dict) -> list:
         tests.append({'k': 'meta', 'f': field, 'p': pattern, 'v': 'v'})
     for pattern in rule.get('cookie', ()):
         tests.append({'k': 'cookie', 'p': pattern, 'v': 'v'})
+    # Der Name allein reicht nicht immer: 'session' heisst bei Flask genauso
+    # wie bei jeder selbstgebauten Anmeldung. Hier zaehlt die Form des Wertes.
+    for field, pattern in rule.get('cookie_value', ()):
+        tests.append({'k': 'cookie', 'f': field, 'p': pattern, 'v': 'v'})
     for pattern in rule.get('script', ()):
         tests.append({'k': 'script', 'p': pattern, 'v': 'v'})
     for pattern in rule.get('url', ()):

@@ -93,6 +93,7 @@ CATEGORY_WORDS = (
 # Wappalyzer haengt Zusatzangaben mit \; an das Muster: confidence, version.
 TAG_SPLIT = r'\;'
 _LITERAL_RE = re.compile(r'[A-Za-z0-9_./-]{4,}')
+_LOOKAROUND_RE = re.compile(r'\(\?<?[=!]')
 _VERSION_GROUP_RE = re.compile(r'^\\(\d)$')
 # Muster mit einem Quantifizierer direkt hinter einer quantifizierten Gruppe --
 # das klassische (a+)+ -- werden gar nicht erst uebernommen.
@@ -114,12 +115,76 @@ def init(data_dir: str) -> None:
 
 # ── Import ───────────────────────────────────────────────────────────────────
 
+def _strip_lookarounds(pattern: str) -> str:
+    """Lookarounds gegen einen Trenner tauschen.
+
+    Was in (?=...), (?!...), (?<=...) oder (?<!...) steht, ist keine Zeichenfolge,
+    die im Text vorkommen muss -- bei einem negativen Lookaround ist es genau das
+    Gegenteil. Ohne diesen Schritt zog der Vorfilter aus `eyJ(?!hbGciOi|0eXAi)`
+    das Stueck "hbgcioi" als Vorbedingung heraus und liess die Regel nur noch in
+    genau dem Fall anspringen, den sie ausschliessen soll.
+    """
+    out, i, n = [], 0, len(pattern)
+    while i < n:
+        ch = pattern[i]
+        if ch == '\\' and i + 1 < n:
+            out.append(pattern[i:i + 2])
+            i += 2
+            continue
+        if ch == '[':                                # Zeichenklasse: ( ) zaehlen darin nicht
+            j = _end_of_class(pattern, i)
+            out.append(pattern[i:j])
+            i = j
+            continue
+        if _LOOKAROUND_RE.match(pattern, i):
+            out.append(' ')                          # trennt, taugt selbst nicht als Literal
+            i = _end_of_group(pattern, i)
+            continue
+        out.append(ch)
+        i += 1
+    return ''.join(out)
+
+
+def _end_of_class(pattern: str, start: int) -> int:
+    """Index hinter der schliessenden ] der Zeichenklasse bei `start`."""
+    j = start + 1
+    if j < len(pattern) and pattern[j] == '^':
+        j += 1
+    if j < len(pattern) and pattern[j] == ']':       # ] direkt am Anfang ist woertlich
+        j += 1
+    while j < len(pattern) and pattern[j] != ']':
+        j += 2 if pattern[j] == '\\' else 1
+    return min(j + 1, len(pattern))
+
+
+def _end_of_group(pattern: str, start: int) -> int:
+    """Index hinter der zugehoerigen schliessenden ) der Gruppe bei `start`."""
+    depth, j, n = 0, start, len(pattern)
+    while j < n:
+        ch = pattern[j]
+        if ch == '\\':
+            j += 2
+            continue
+        if ch == '[':
+            j = _end_of_class(pattern, j)
+            continue
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    return n
+
+
 def _literal_of(pattern: str) -> str:
     """Das laengste woertliche Teilstueck, nach dem sich vorab suchen laesst.
 
     Ein Stueck, dessen letztes Zeichen von einem ? oder * gefolgt wird, ist
     optional -- es taugt nicht als Vorbedingung und wird deshalb gekuerzt.
     """
+    pattern = _strip_lookarounds(pattern)
     best = ''
     for found in _LITERAL_RE.finditer(pattern):
         part = found.group(0)

@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.8.0] - 2026-09-06
+
+### Changed
+- **Waitress statt Flasks eingebautem Server.** Werkzeugs Entwicklungsserver legt pro Anfrage
+  einen neuen Thread an, ohne Obergrenze, und kennt weder Verbindungslimit noch Timeout für
+  hängende Verbindungen — auf dem direkten LAN-Port 17798 ist das angreifbar. Waitress
+  arbeitet mit festem Thread-Pool (8) und Warteschlange. Nebenbei verschwindet die Kopfzeile
+  `Server: Werkzeug/3.1.8 Python/3.14.7`, die Framework *und* exakte Python-Version verriet —
+  genau so eine Kopfzeile meldet die HTTP-Prüfung dieses Add-ons bei fremden Servern als Befund.
+  - `clear_untrusted_proxy_headers=False` ist dabei Pflicht: Waitress löscht `X-Forwarded-*`
+    standardmäßig, bevor die Anwendung sie sieht. Ohne die Einstellung käme hinter dem
+    HA-Ingress für jeden Aufrufer dieselbe Adresse an, und Sperrlisten wie Ratenbegrenzung
+    träfen alle Benutzer gemeinsam. (MyPage ist beim gleichen Wechsel genau darüber
+    gestolpert, v0.8.10.) Im Versuch nachgestellt: mit Waitress-Standard sieht ProxyFix
+    `127.0.0.1`, mit der Einstellung die echte Adresse.
+  - Lange Prüfungen werden nicht abgeschnitten: Waitress schließt einen Kanal nur, solange
+    keine Anfrage darauf läuft (`if (not channel.requests) and channel.last_activity < cutoff`).
+  - `dev_run.py` startet jetzt denselben Server wie der Container statt eines eigenen
+    `app.run()` — sonst prüft der Testlauf einen anderen Stack als den ausgelieferten.
+
+### Added
+- **Technik-Erkennung kennt Flask, Werkzeug und Waitress.** Django, Express, Rails, Gunicorn
+  und Uvicorn waren längst drin, Flask fehlte bei 169 Regeln komplett; ein unverblümtes
+  `Server: Werkzeug/3.1.8` ergab bisher nur „Python".
+  - **Werkzeug** und **Waitress** über den `Server`-Header, mit Version. Werkzeug nennt die
+    Python-Version gleich mit (`Werkzeug/3.1.8 Python/3.14.7`) — die wird jetzt ausgelesen.
+  - **Flask** über sein signiertes Sitzungscookie: Name `session`, Wert
+    `<Nutzlast>.<Zeitstempel>.<Signatur>` aus itsdangerous, beginnend mit `eyJ` oder `.eJ`.
+    Der Server-Header allein taugt dafür nicht — Werkzeug trägt auch eine blanke
+    WSGI-Anwendung.
+  - Ein **JWT** sieht genauso aus (gleiche drei Abschnitte, ebenfalls `eyJ`) und ist
+    ausgenommen: bei Flask ist der erste Abschnitt der Sitzungsinhalt, beim JWT der Kopf mit
+    `alg`/`typ`. Ohne diesen Ausschluss meldete jeder Express-Dienst mit JWT im Cookie
+    `session` fälschlich Flask.
+- Regeln können den **Wert** eines Cookies prüfen (`cookie_value`), nicht nur den Namen —
+  `session` heißt bei Flask genauso wie bei jeder selbstgebauten Anmeldung.
+
+### Fixed
+- **Der Vorfilter drehte Regeln mit negativem Lookaround um.** `_literal_of` sucht die längste
+  Zeichenfolge, die vorkommen *muss*, um Regeln billig zu überspringen — zog sie aber auch aus
+  `(?!...)` heraus. Aus `eyJ(?!hbGciOi|0eXAi)` wurde „hbgcioi" als Vorbedingung, die Regel
+  sprang also nur noch in genau dem Fall an, den sie ausschließen soll. Lookarounds werden
+  jetzt vor der Suche entfernt; Klammern innerhalb einer Zeichenklasse zählen dabei nicht als
+  Gruppenanfang. Betraf auch den importierten Wappalyzer-Datensatz, dort still.
+
 ## [0.7.8] - 2026-09-06
 
 ### Fixed

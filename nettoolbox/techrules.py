@@ -7,6 +7,7 @@ Stellen, an denen sie sich in einer ausgelieferten Antwort verrät:
     'headers'  ((Header-Name, Regex), ...)   -- Antwort-Header
     'meta'     ((Meta-Name,   Regex), ...)   -- <meta name=... content=...>
     'cookie'   (Regex, ...)                  -- Name eines Set-Cookie
+    'cookie_value' ((Cookie-Name, Regex), ...) -- Wert eines Set-Cookie
     'script'   (Regex, ...)                  -- src/href der eingebundenen Dateien
     'html'     (Regex, ...)                  -- Rohtext der Seite
     'url'      (Regex, ...)                  -- die finale Adresse selbst
@@ -196,6 +197,24 @@ RULES = (
      'cookie': (r'^_session_id',), 'implies': ('Ruby',)},
     {'name': 'Express', 'cat': 'framework', 'site': 'expressjs.com',
      'headers': (('x-powered-by', r'^Express'),), 'implies': ('Node.js',)},
+    # Der Server-Header allein beweist Flask nicht -- Werkzeug traegt auch eine
+    # blanke WSGI-Anwendung. Eindeutig ist dagegen das signierte Sitzungscookie:
+    # Flask legt es unter dem Namen 'session' ab, der Wert ist
+    # <Nutzlast>.<Zeitstempel>.<Signatur> aus itsdangerous und beginnt mit 'eyJ'
+    # (JSON) oder '.eJ' (zlib-gepackt, daher der fuehrende Punkt).
+    #
+    # Ein JWT sieht genauso aus -- gleiche drei Abschnitte, ebenfalls 'eyJ'.
+    # Der Unterschied steckt im ersten Abschnitt: bei Flask ist er der
+    # Sitzungsinhalt ({"a":1} -> eyJhIjoxfQ), beim JWT der Kopf mit alg/typ
+    # ({"alg":"HS256",...} -> eyJhbGciOi..., {"typ":"JWT",...} -> eyJ0eXAi...).
+    # Ohne diesen Ausschluss meldete jeder Express-Dienst, der sein JWT unter
+    # dem Namen 'session' ablegt, faelschlich Flask. Die gepackte Form mit
+    # fuehrendem Punkt gibt es beim JWT gar nicht.
+    {'name': 'Flask', 'cat': 'framework', 'site': 'flask.palletsprojects.com',
+     'cookie_value': ((
+         'session',
+         r'^(?:\.e[Jy]|eyJ(?!hbGciOi|0eXAi))[\w-]+\.[\w-]+\.[\w-]+$'),),
+     'implies': ('Python',)},
     {'name': 'Yii', 'cat': 'framework', 'site': 'yiiframework.com',
      'cookie': (r'^YII_CSRF_TOKEN', r'^_csrf'), 'implies': ('PHP',)},
     {'name': 'Phoenix', 'cat': 'framework', 'site': 'phoenixframework.org',
@@ -285,6 +304,15 @@ RULES = (
      'implies': ('Python',)},
     {'name': 'Uvicorn', 'cat': 'server', 'site': 'uvicorn.org',
      'headers': (('server', r'^uvicorn'),), 'implies': ('Python',)},
+    # Werkzeugs eingebauter Server ist ein Entwicklungsserver. Wer ihn oeffentlich
+    # betreibt, hat kein Verbindungslimit und keinen Timeout -- der Fund ist also
+    # mehr als eine Namensnennung.
+    {'name': 'Werkzeug', 'cat': 'server', 'site': 'werkzeug.palletsprojects.com',
+     'headers': (('server', r'^Werkzeug(?:/(?P<v>[\d.]+))?'),),
+     'implies': ('Python',)},
+    {'name': 'Waitress', 'cat': 'server', 'site': 'docs.pylonsproject.org',
+     'headers': (('server', r'^waitress(?:/(?P<v>[\d.]+))?'),),
+     'implies': ('Python',)},
     {'name': 'Kestrel', 'cat': 'server', 'site': 'microsoft.com',
      'headers': (('server', r'^Kestrel'),), 'implies': ('ASP.NET',)},
     {'name': 'Google Frontend', 'cat': 'server', 'site': 'cloud.google.com',
@@ -308,7 +336,10 @@ RULES = (
     {'name': 'Node.js', 'cat': 'language', 'site': 'nodejs.org',
      'headers': (('x-powered-by', r'^Express|Next\.js|Nuxt'),)},
     {'name': 'Python', 'cat': 'language', 'site': 'python.org',
-     'headers': (('server', r'gunicorn|uvicorn|Werkzeug'),)},
+     'headers': (('server', r'gunicorn|uvicorn|Werkzeug|waitress'),
+                 # Werkzeug nennt die Python-Version gleich mit:
+                 # "Werkzeug/3.1.8 Python/3.14.7".
+                 ('server', r'Python/(?P<v>[\d.]+)'))},
     {'name': 'Ruby', 'cat': 'language', 'site': 'ruby-lang.org',
      'headers': (('x-powered-by', r'Phusion Passenger'),)},
 

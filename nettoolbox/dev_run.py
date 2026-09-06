@@ -45,4 +45,8 @@ if __name__ == '__main__':
     app.history_load()
     app._startup_checks()
     print(f'NetToolbox dev auf http://127.0.0.1:{port}')
-    app.app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+    # Bewusst derselbe Server wie im Container (app._serve, Waitress) statt
+    # app.app.run: sonst prueft der Testlauf einen anderen Stack als den, der
+    # ausgeliefert wird -- der fehlende Server-Header etwa waere hier nie
+    # aufgefallen.
+    app._serve(port)
