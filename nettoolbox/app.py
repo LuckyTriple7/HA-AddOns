@@ -1224,6 +1224,15 @@ def index():
 # ── API ───────────────────────────────────────────────────────────────────────
 
 
+@api('/api/csrf')
+def csrf_token():
+    """Frischer CSRF-Merkzettel für eine lange offene Seite. Der Merkzettel
+    läuft nach 12 Stunden ab, die Sitzung erst nach 24 -- ohne diesen Weg
+    scheitert danach jedes Absenden, bis der Benutzer neu lädt. Die
+    before_request-Vorbereitung hat den neuen Wert schon gesetzt."""
+    return jsonify({'csrf': g.csrf})
+
+
 @api('/api/status')
 def status():
     backend = get_backend()

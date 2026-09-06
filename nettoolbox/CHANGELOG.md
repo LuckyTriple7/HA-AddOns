@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.5] - 2026-09-06
+
+### Fixed
+- **Abgelaufene Sitzung zeigte nur Fehler statt zur Anmeldung zu führen.** Jeder Aufruf
+  kam mit `401` zurück, die Seite blieb stehen und meldete Fehler um Fehler; erst ein
+  Neuladen brachte die Anmeldemaske. Jetzt führt der erste `401` mit einem Hinweis
+  zurück zur Anmeldung.
+- **Nach 12 Stunden scheiterte jedes Absenden auf einer offen gelassenen Seite.** Der
+  CSRF-Merkzettel läuft früher ab als die Sitzung (12 h gegen 24 h) — die Sitzung war
+  noch gültig, aber der Server lehnte jedes `POST` mit `csrf` ab, bis der Benutzer neu
+  lud. Neue Route `GET /api/csrf` holt einen frischen Merkzettel, der fehlgeschlagene
+  Aufruf wird einmal automatisch wiederholt.
+
 ## [0.7.4] - 2026-09-05
 
 ### Fixed

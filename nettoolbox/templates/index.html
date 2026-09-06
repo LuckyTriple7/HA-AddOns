@@ -1130,6 +1130,35 @@ function errText(code){
   return T[key] || T.err_generic || code;
 }
 
+// Eine abgelaufene Sitzung meldet sich nur noch mit 401 auf jeden Aufruf.
+// Ohne diesen Weg zurück bleibt die Seite stehen und wirft Fehler-Meldung um
+// Fehler-Meldung, obwohl niemand mehr angemeldet ist.
+let sessionEnded = false;
+function sessionGone(){
+  if (sessionEnded) return;
+  sessionEnded = true;
+  toast(T.session_expired || 'Session expired', true);
+  setTimeout(() => { location.href = (G.base || '') + '/'; }, 1500);
+}
+
+// Der CSRF-Merkzettel läuft früher ab als die Sitzung (12 h gegen 24 h).
+// Dann ist man noch angemeldet, aber jedes Absenden scheitert -- bis heute
+// half nur neu laden. Einmal frisch holen reicht.
+async function refreshCsrf(){
+  try {
+    const res = await fetch((G.base || '') + '/api/csrf', {
+      credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) {
+      if (res.status === 401) sessionGone();
+      return false;
+    }
+    const data = await res.json();
+    if (data && data.csrf) { G.csrf = data.csrf; return true; }
+  } catch (e) { /* offline: der nächste Aufruf meldet es ohnehin */ }
+  return false;
+}
+
 async function api(path, opts){
   opts = opts || {};
   let res;
@@ -1149,8 +1178,16 @@ async function api(path, opts){
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
   if (!res.ok) {
+    const code = (data && data.error) || 'internal';
+    if (res.status === 401) sessionGone();
+    if (res.status === 403 && code === 'csrf' && !opts.retried) {
+      if (await refreshCsrf()) {
+        const again = Object.assign({}, opts, { retried: true });
+        return api(path, again);
+      }
+    }
     const e = new Error('api');
-    e.code = (data && data.error) || 'internal';
+    e.code = code;
     throw e;
   }
   return data || {};
