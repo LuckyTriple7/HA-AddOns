@@ -685,7 +685,8 @@ PROBE_MODULE = {
     'traceroute': 'reverse', 'ports': 'reverse', 'dualstack': 'reverse',
     'tls': 'tls',
     'whois': 'whois',
-    'http': 'http', 'quic': 'http', 'seo': 'http', 'tech': 'http', 'wordpress': 'http',
+    'http': 'http', 'http_status': 'http', 'quic': 'http', 'seo': 'http',
+    'tech': 'http', 'wordpress': 'http',
     'botcheck': 'http',
     'domain_check': 'domain_check',
 }

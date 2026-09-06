@@ -21,6 +21,7 @@ import pytest  # noqa: E402
 import blocklists  # noqa: E402
 import geoip  # noqa: E402
 import hasensors  # noqa: E402
+import httpcheck  # noqa: E402
 import mailheader  # noqa: E402
 import monitor  # noqa: E402
 import mailprovider  # noqa: E402
@@ -28,6 +29,7 @@ import netcore  # noqa: E402
 import nettech  # noqa: E402
 import netutils  # noqa: E402
 import portcheck  # noqa: E402
+import probes  # noqa: E402
 import seocheck  # noqa: E402
 import techrules  # noqa: E402
 import wapimport  # noqa: E402
@@ -956,3 +958,128 @@ def test_tech_findings_and_categories_are_translated():
         assert 'tech_cat_' + rule['cat'] in de, rule['cat']
     for extra in ('dns', 'mail'):
         assert 'tech_cat_' + extra in de
+
+
+# ── Statuswächter ────────────────────────────────────────────────────────────
+
+
+class _FakeCtx(netcore.Context):
+    pass
+
+
+def _http_status(monkeypatch, responses):
+    """responses: dict url -> (status, headers) oder eine ProbeError."""
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        answer = responses[url]
+        if isinstance(answer, Exception):
+            raise answer
+        status, headers = answer
+        return {'status': status, 'headers': headers, 'cookies': [],
+                'body': '', 'bytes': 0, 'url': url}
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    return httpcheck.check_http_status(_FakeCtx(), 'example.com')
+
+
+def test_status_watch_reports_final_code_behind_a_redirect(monkeypatch):
+    r = _http_status(monkeypatch, {
+        'https://example.com': (301, {'location': 'https://www.example.com'}),
+        'https://www.example.com': (200, {}),
+    })
+    assert r['status'] == 200
+    assert r['state'] == '200'
+    assert r['level'] == 'ok'
+    assert r['final_url'] == 'https://www.example.com'
+    assert len(r['chain']) == 2
+
+
+def test_status_watch_flags_a_server_error(monkeypatch):
+    r = _http_status(monkeypatch, {'https://example.com': (503, {})})
+    assert (r['status'], r['state'], r['level']) == (503, '503', 'fail')
+
+
+def test_status_watch_turns_an_outage_into_a_state_not_an_exception(monkeypatch):
+    # Der Kernpunkt: ein toter Server wirft im Netzstack eine ProbeError. Fliegt
+    # die durch, protokolliert das Monitoring nur einen Laufzeitfehler und
+    # benachrichtigt niemanden -- ausgerechnet beim härtesten Ausfall.
+    r = _http_status(monkeypatch, {
+        'https://example.com': netcore.ProbeError('http_error', 'x')})
+    assert r['level'] == 'fail'
+    assert r['state'] == 'error:http_error'
+    assert r['status'] == 0
+
+
+def test_status_watch_still_rejects_a_bad_target(monkeypatch):
+    with pytest.raises(netcore.ProbeError):
+        _http_status(monkeypatch, {
+            'https://example.com': netcore.ProbeError('private_target', 'x')})
+
+
+def _store(tmp_path):
+    store = monitor.MonitorStore(str(tmp_path / 'm.db'))
+    assert store.open()
+    return store
+
+
+def test_monitor_notifies_when_only_the_status_code_changed(tmp_path, monkeypatch):
+    """500 -> 503 ist zweimal 'fail'. Ohne den Zustandsvergleich wäre das
+    keine Änderung und der Wechsel bliebe unbemerkt."""
+    store = _store(tmp_path)
+    mid = store.create_monitor('Web', 'http_status', 'example.com', 6, False, False)
+    store.record_run(mid, 'fail', 'HTTP 500', False, '500')
+    m = store.get_monitor(mid)
+    assert m['last_state'] == '500'
+
+    sent = []
+    result = {'level': 'fail', 'state': '503', 'status': 503,
+              'final_url': 'https://example.com', 'chain': [{}], 'response_ms': 12}
+
+    class _Probes:
+        @staticmethod
+        def run(name, params, ctx):
+            return result
+
+    monkeypatch.setitem(sys.modules, 'probes', _Probes)
+    monkeypatch.setattr(monitor, 'notify',
+                        lambda cfg, mon, lvl, summ: sent.append(summ) or True)
+    out = monitor.run_monitor(store, m, None, {})
+    assert out['notified'] is True
+    assert len(sent) == 1
+    assert store.get_monitor(mid)['last_state'] == '503'
+
+
+def test_monitor_schema_1_database_gains_the_state_column(tmp_path):
+    """CREATE TABLE IF NOT EXISTS rührt eine vorhandene Tabelle nicht an -- ohne
+    ALTER TABLE liefe jede Bestandsinstallation in einen OperationalError."""
+    import sqlite3
+    path = str(tmp_path / 'old.db')
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE monitors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+            probe TEXT NOT NULL, target TEXT NOT NULL,
+            interval_hours INTEGER NOT NULL DEFAULT 6,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            notify_email INTEGER NOT NULL DEFAULT 1,
+            notify_telegram INTEGER NOT NULL DEFAULT 1,
+            created_ts INTEGER NOT NULL, last_run_ts INTEGER,
+            last_level TEXT NOT NULL DEFAULT '',
+            last_summary TEXT NOT NULL DEFAULT '',
+            last_error TEXT NOT NULL DEFAULT '');
+        INSERT INTO monitors (name, probe, target, created_ts)
+            VALUES ('alt', 'tls', 'example.com', 1);
+    """)
+    con.commit()
+    con.close()
+
+    store = monitor.MonitorStore(path)
+    assert store.open()
+    rows = store.list_monitors()
+    assert rows[0]['last_state'] == ''
+    store.record_run(rows[0]['id'], 'ok', 'noch gut', False, '')
+
+
+def test_every_monitor_probe_is_a_real_probe_with_a_summary_and_a_label():
+    for probe in monitor.MONITOR_PROBES:
+        assert probe in probes.PROBES, probe
+        assert probe in hasensors._PROBE_NAME, probe
+        assert monitor.summarize(probe, {}), probe

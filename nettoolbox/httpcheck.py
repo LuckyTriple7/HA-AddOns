@@ -15,6 +15,7 @@ is whether the server *advertises* h3 via the Alt-Svc response header
 """
 
 import re
+import time
 
 from netcore import Context, ProbeError, http_get
 
@@ -145,3 +146,71 @@ def _score(findings: list) -> int:
         elif f['level'] == WARN:
             score -= 5
     return max(0, min(100, score))
+
+
+# ── Statuswächter ────────────────────────────────────────────────────────────
+# Eine einzige Frage: welchen Code liefert die Adresse gerade? Bewusst nicht
+# über check_http gelöst -- das bewertet Sicherheitskopfzeilen mit und steht
+# dadurch auf fast jeder echten Seite dauerhaft auf WARN oder FAIL. Ein
+# Ausfall (200 -> 503) ändert diese Gesamtstufe gar nicht und löste im
+# Monitoring deshalb nie eine Meldung aus.
+
+# Ein Ausfall meldet sich nicht immer mit einem Statuscode. Diese Fehler sind
+# das Messergebnis und keine Falscheingabe, also werden sie als Zustand
+# festgehalten statt die Prüfung abzubrechen -- sonst bliebe ausgerechnet der
+# harte Ausfall (Server weg, Name futsch, Zertifikat abgelaufen) stumm, weil
+# der Monitor eine geworfene ProbeError nur als Laufzeitfehler protokolliert.
+OUTAGE_CODES = frozenset((
+    'host_unresolvable', 'http_timeout', 'http_error', 'tls_error',
+    'redirect_loop', 'too_many_redirects',
+))
+
+
+def check_http_status(ctx: Context, target: str) -> dict:
+    start_url = normalise_url(target)
+    findings = []
+    started = time.monotonic()
+    chain, error = [], ''
+    try:
+        chain = follow_redirects(ctx, start_url)
+    except ProbeError as e:
+        # Alles andere (leeres Ziel, private Adresse, kaputte URL) ist eine
+        # Falscheingabe und bleibt ein Fehler, kein Messwert.
+        if e.code not in OUTAGE_CODES:
+            raise
+        error = e.code
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+
+    if error:
+        status = 0
+        final_url = start_url
+        findings.append(_finding(FAIL, 'status_unreachable', reason=error))
+    else:
+        final = chain[-1]
+        status = final['status']
+        final_url = final['url']
+        if 200 <= status < 300:
+            findings.append(_finding(OK, 'status_ok', status=status))
+        elif 300 <= status < 400:
+            # Endet die Kette auf einer Weiterleitung, fehlte das Location-Feld
+            # oder es zeigte auf etwas, dem hier nicht gefolgt wird.
+            findings.append(_finding(WARN, 'status_dangling_redirect', status=status))
+        elif 400 <= status < 500:
+            findings.append(_finding(FAIL, 'status_client_error', status=status))
+        else:
+            findings.append(_finding(FAIL, 'status_server_error', status=status))
+
+    if len(chain) > 1:
+        findings.append(_finding(INFO, 'status_redirected', count=len(chain) - 1))
+
+    return {
+        'start_url': start_url, 'final_url': final_url, 'status': status,
+        'error': error, 'response_ms': elapsed_ms,
+        'chain': [{'url': hop['url'], 'status': hop['status']} for hop in chain],
+        # Der Fingerabdruck, den das Monitoring vergleicht. Die Stufe allein
+        # reicht nicht: 500 -> 503 ist beide Male FAIL, aber sehr wohl eine
+        # Änderung, die gemeldet gehört.
+        'state': f'error:{error}' if error else str(status),
+        'findings': findings,
+        'level': _worst(findings),
+    }

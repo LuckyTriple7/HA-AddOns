@@ -306,6 +306,10 @@ def p_http(ctx: Context, params: dict) -> dict:
     return httpcheck.check_http(ctx, _str(params, 'target'))
 
 
+def p_http_status(ctx: Context, params: dict) -> dict:
+    return httpcheck.check_http_status(ctx, _str(params, 'target'))
+
+
 def p_smtp(ctx: Context, params: dict) -> dict:
     return smtpcheck.check_smtp(ctx, _str(params, 'target'))
 
@@ -420,6 +424,7 @@ PROBES = {
     'dane': p_dane,
     'whois': p_whois,
     'http': p_http,
+    'http_status': p_http_status,
     'smtp': p_smtp,
     'quic': p_quic,
     'seo': p_seo,
@@ -447,7 +452,7 @@ TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
-    'http': 'target', 'smtp': 'target', 'quic': 'target',
+    'http': 'target', 'http_status': 'target', 'smtp': 'target', 'quic': 'target',
     'seo': 'target', 'tech': 'target', 'wordpress': 'target', 'botcheck': 'target',
     'domain_check': 'domains', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',

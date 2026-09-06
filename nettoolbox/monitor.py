@@ -20,7 +20,7 @@ import requests
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Which probe a monitor can run, and which parameter key that probe expects
 # its target under (probes.py's own registry uses different key names per
@@ -34,6 +34,11 @@ MONITOR_PROBES = {
     # es fehlte nur der Waechter drumherum.
     'whois': 'domain',
     'http': 'target',
+    # Reiner Statuswächter: schlägt bei jeder Änderung des Codes an, nicht
+    # erst bei einer Änderung der Stufe -- 'http' oben bewertet die
+    # Sicherheitskopfzeilen und steht dadurch dauerhaft auf WARN/FAIL, ein
+    # 200 -> 503 bewegte diese Stufe nie.
+    'http_status': 'target',
     'seo': 'target',
     # 'target' here holds a comma-separated domain list -- probes.py's
     # _list() splits it, so one monitor covers as many domains as needed
@@ -57,7 +62,8 @@ CREATE TABLE IF NOT EXISTS monitors (
     last_run_ts     INTEGER,
     last_level      TEXT    NOT NULL DEFAULT '',
     last_summary    TEXT    NOT NULL DEFAULT '',
-    last_error      TEXT    NOT NULL DEFAULT ''
+    last_error      TEXT    NOT NULL DEFAULT '',
+    last_state      TEXT    NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS monitor_history (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,6 +116,7 @@ class MonitorStore:
             con = self._connect()
             with self._write_lock:
                 con.executescript(_SCHEMA)
+                self._migrate(con)
                 con.execute('INSERT OR REPLACE INTO meta VALUES (?,?)',
                            ('schema_version', str(SCHEMA_VERSION)))
                 con.commit()
@@ -119,6 +126,17 @@ class MonitorStore:
             log.warning("monitor store unavailable (%s) — monitoring disabled",
                         self._broken)
             return False
+
+    @staticmethod
+    def _migrate(con: sqlite3.Connection) -> None:
+        """Fehlende Spalten nachziehen. CREATE TABLE IF NOT EXISTS lässt eine
+        bereits vorhandene Tabelle unangetastet, eine Datenbank aus Schema 1
+        bekäme last_state also nie -- und jeder Zugriff darauf endete in einem
+        OperationalError, der das ganze Monitoring abschaltet."""
+        have = {row[1] for row in con.execute('PRAGMA table_info(monitors)')}
+        if 'last_state' not in have:
+            con.execute("ALTER TABLE monitors ADD COLUMN "
+                        "last_state TEXT NOT NULL DEFAULT ''")
 
     def available(self) -> bool:
         return not self._broken
@@ -200,7 +218,7 @@ class MonitorStore:
         return [dict(r) for r in rows]
 
     def record_run(self, monitor_id: int, level: str, summary: str,
-                   notified: bool) -> None:
+                   notified: bool, state: str = '') -> None:
         now = int(time.time())
         with self._write_lock:
             con = self._connect()
@@ -210,8 +228,9 @@ class MonitorStore:
                 (monitor_id, now, level, summary[:500], 1 if notified else 0))
             con.execute(
                 """UPDATE monitors SET last_run_ts = ?, last_level = ?,
-                   last_summary = ?, last_error = '' WHERE id = ?""",
-                (now, level, summary[:500], monitor_id))
+                   last_summary = ?, last_state = ?, last_error = ''
+                   WHERE id = ?""",
+                (now, level, summary[:500], state[:80], monitor_id))
             # Keep only the newest HISTORY_KEEP rows per monitor -- this is a
             # health log, not an audit trail; unbounded growth serves nobody.
             con.execute(
@@ -249,6 +268,19 @@ class MonitorStore:
 # short and probe-specific rather than trying to mirror every finding.
 
 
+# Klartext für die Ausfallgründe des Statuswächters. Eine Benachrichtigung
+# landet in einer Mail oder bei Telegram, wo niemand einen Fehlercode
+# nachschlägt -- der Rest dieses Moduls ist aus demselben Grund fest deutsch.
+_OUTAGE_TEXT = {
+    'host_unresolvable': 'Name nicht auflösbar',
+    'http_timeout': 'Zeitüberschreitung',
+    'http_error': 'keine Verbindung',
+    'tls_error': 'TLS-Fehler',
+    'redirect_loop': 'Weiterleitungsschleife',
+    'too_many_redirects': 'zu viele Weiterleitungen',
+}
+
+
 def summarize(probe: str, result: dict) -> str:
     """Plain description, no level prefix -- notify() and the monitor card
     both show the level as its own colored badge/emoji already; repeating it
@@ -281,6 +313,14 @@ def summarize(probe: str, result: dict) -> str:
         status = result.get('final_status', '?')
         url = result.get('final_url', '')
         return f"Status {status} auf {url}"
+    if probe == 'http_status':
+        url = result.get('final_url') or ''
+        if result.get('error'):
+            return f"{_OUTAGE_TEXT.get(result['error'], result['error'])} — {url}"
+        hops = max(0, len(result.get('chain') or []) - 1)
+        detour = f" über {hops} Weiterleitung(en)" if hops else ''
+        return (f"HTTP {result.get('status', '?')} auf {url}{detour}"
+                f" ({result.get('response_ms', '?')} ms)")
     if probe == 'seo':
         return f"SEO-Punktestand {result.get('score', '?')}/100"
     return (result.get('level') or 'ok').upper()
@@ -403,16 +443,26 @@ def run_monitor(store: MonitorStore, monitor: dict, ctx, notify_cfg: dict) -> di
     level = result.get('level', 'ok')
     summary = summarize(monitor['probe'], result)
     previous_level = monitor.get('last_level') or ''
-    changed = previous_level != '' and previous_level != level
+    first_run = previous_level == ''
+    # Manche Prüfungen liefern einen eigenen Zustands-Fingerabdruck mit (der
+    # Statuswächter den Code selbst). Dann zählt dessen Änderung, denn eine
+    # Stufe allein verschluckt genau die interessanten Fälle: 500 -> 503 und
+    # 401 -> 404 sind beide Male dieselbe Stufe, aber sehr wohl eine Änderung.
+    state = str(result.get('state') or '')
+    previous_state = str(monitor.get('last_state') or '')
+    if state:
+        changed = not first_run and (state != previous_state or level != previous_level)
+    else:
+        changed = not first_run and level != previous_level
     # First run: only a hard failure is worth an immediate alert. 'info' is
     # routine (a single MX, a missing BIMI logo — completely normal) and
     # would otherwise fire the moment anyone adds a monitor; the baseline is
     # set silently instead and only *changes* from it get reported after.
-    should_notify = changed or (previous_level == '' and level == 'fail')
+    should_notify = changed or (first_run and level == 'fail')
     notified = False
     if should_notify:
         notified = notify(notify_cfg, monitor, level, summary)
-    store.record_run(monitor['id'], level, summary, notified)
+    store.record_run(monitor['id'], level, summary, notified, state)
     return {'ok': True, 'level': level, 'summary': summary, 'notified': notified}
 
 

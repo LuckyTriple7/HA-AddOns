@@ -861,6 +861,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
           <option value="aaaa_guard">{{ t.monitor_probe_aaaa }}</option>
           <option value="whois">{{ t.monitor_probe_whois }}</option>
           <option value="http">{{ t.monitor_probe_http }}</option>
+          <option value="http_status">{{ t.monitor_probe_http_status }}</option>
           <option value="seo">{{ t.monitor_probe_seo }}</option>
         </select>
       </div>
@@ -3489,6 +3490,14 @@ $('dcReset').addEventListener('click', dcReset);
 
 // ── HTTP header tab ───────────────────────────────────────────────────────
 
+const statusClass = code => {
+  const n = Number(code) || 0;
+  if (n >= 200 && n < 300) return 'ok';
+  if (n >= 300 && n < 400) return 'info';
+  if (n >= 400) return 'fail';
+  return 'warn';
+};
+
 async function httpCheck(){
   const target = $('httpTarget').value.trim();
   if (!target) { toast(T.err_empty_target, true); return; }
@@ -3513,6 +3522,11 @@ async function httpCheck(){
     wrap.appendChild(score);
 
     const badges = el('div', 'row');
+    // Der Statuscode stand bisher nur in der Weiterleitungstabelle -- und die
+    // erscheint erst ab zwei Sprüngen. Bei einer Seite, die direkt mit 200
+    // (oder 503) antwortet, war das Ergebnis der Abfrage nirgends zu sehen.
+    badges.appendChild(el('span', 'badge ' + statusClass(r.final_status),
+      'HTTP ' + r.final_status));
     badges.appendChild(el('span', 'badge ' + (r.https ? 'ok' : 'warn'), r.https ? 'HTTPS' : 'HTTP'));
     badges.appendChild(el('span', 'badge ' + (r.http3_advertised ? 'ok' : 'info'),
       'HTTP/3: ' + (r.http3_advertised ? T.http3_yes : T.http3_no)));
@@ -4030,7 +4044,8 @@ function updateMonTargetHint(){
   // die Domainliste beim AAAA-Waechter und die Endungen, die gar kein
   // Ablaufdatum veroeffentlichen.
   const probe = $('monProbe').value;
-  const hints = { aaaa_guard: T.monitor_aaaa_hint, whois: T.monitor_whois_hint };
+  const hints = { aaaa_guard: T.monitor_aaaa_hint, whois: T.monitor_whois_hint,
+                  http_status: T.monitor_http_status_hint };
   const hint = hints[probe] || '';
   $('monTargetHint').textContent = hint;
   $('monTargetHint').hidden = !hint;
@@ -4065,7 +4080,8 @@ function cancelEditMonitor(){
 }
 const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist,
   mail_health: T.nav_mail, aaaa_guard: T.monitor_probe_aaaa,
-  whois: T.monitor_probe_whois, http: T.monitor_probe_http, seo: T.monitor_probe_seo });
+  whois: T.monitor_probe_whois, http: T.monitor_probe_http,
+  http_status: T.monitor_probe_http_status, seo: T.monitor_probe_seo });
 
 async function loadMonitors(){
   const box = $('monitorList');

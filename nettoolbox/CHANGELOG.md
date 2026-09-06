@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.7.7] - 2026-09-06
+
+### Added
+- **Neuer Monitor-Typ „HTTP-Statuscode".** Meldet jede Änderung des Statuscodes einer
+  Adresse — auch dann, wenn die Bewertungsstufe gleich bleibt (`500` → `503` ist zweimal
+  „Kritisch", aber sehr wohl eine Änderung). Der bestehende Typ „Erreichbarkeit" konnte das
+  nicht: der bewertet die Sicherheitskopfzeilen mit und steht dadurch auf fast jeder Seite
+  dauerhaft auf „Achtung"/„Kritisch" — ein Ausfall von `200` auf `503` bewegte diese Stufe
+  gar nicht und löste nie eine Benachrichtigung aus.
+  - Weiterleitungen werden verfolgt (bis zu 8 Sprünge), gemeldet wird der Code am **Ende**
+    der Kette. `domain.de` genügt also — ein vorangestelltes `http://` ist nicht nötig und
+    ändert am Ergebnis nichts, weil das `301` von nginx nur ein Zwischenschritt ist.
+  - Antwortet der Server gar nicht mehr (Name nicht auflösbar, Zeitüberschreitung, keine
+    Verbindung, TLS-Fehler, Weiterleitungsschleife), ist das jetzt ein gemeldeter Zustand
+    statt eines stillen Laufzeitfehlers. Ausgerechnet der härteste Ausfall blieb bisher stumm.
+  - Die Antwortzeit in Millisekunden steht mit in der Meldung.
+
+### Fixed
+- **Der HTTP-Statuscode war in „HTTP-Header, Weiterleitungen und HTTP/3" nirgends zu sehen.**
+  Er wurde ermittelt, aber nur innerhalb der Weiterleitungstabelle gezeigt — und die
+  erscheint erst ab zwei Sprüngen. Bei einer Seite, die direkt mit `200` (oder `503`)
+  antwortet, fehlte das eigentliche Ergebnis der Abfrage komplett. Jetzt steht der Code als
+  eigene Plakette neben HTTPS und HTTP/3, farbig nach Bereich (2xx grün, 3xx blau, ab 4xx rot).
+- **Zwei Fehlertexte waren doppelt vergeben und überschrieben still die neuen aus 0.7.5.**
+  `err_unauthorized` und `err_csrf` standen in `locales/de.json` und `locales/en.json`
+  jeweils zweimal; beim Einlesen gewinnt der letzte Eintrag, also erschien weiterhin
+  „Nicht angemeldet." statt „Sitzung abgelaufen — bitte neu anmelden.". Die alten
+  Zweitbelegungen entfernt.
+
+### Changed
+- Die Monitor-Datenbank merkt sich pro Wächter zusätzlich einen Zustands-Fingerabdruck
+  (`last_state`, Schema 2). Bestehende Datenbanken werden beim Start automatisch erweitert;
+  für alle übrigen Monitor-Typen ändert sich nichts.
+
 ## [0.7.6] - 2026-09-06
 
 ### Fixed
