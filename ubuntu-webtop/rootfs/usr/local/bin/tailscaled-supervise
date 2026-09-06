@@ -2,21 +2,25 @@
 # Haelt tailscaled am Leben: startet den Daemon neu, falls er sich beendet.
 # Wird von /etc/cont-init.d/43-tailscale.sh im Hintergrund gestartet.
 #
-# Aufruf: tailscaled-supervise <statedir> <socket> <netfilter-mode> <logfile> [weitere tailscaled-Argumente]
+# Aufruf: tailscaled-supervise <statedir> <socket> <logfile> [weitere tailscaled-Argumente]
+#
+# Achtung: tailscaled kennt nur -tun -state -statedir -socket -port
+# -socks5-server -outbound-http-proxy-listen. Netzwerk-Einstellungen wie
+# --netfilter-mode, --accept-routes usw. gehoeren an "tailscale up"/"set",
+# nicht an den Daemon - sonst wirft er seine Usage aus und beendet sich.
 
 STATE_DIR="$1"
 SOCKET="$2"
-NETFILTER="$3"
-LOGFILE="$4"
-shift 4
+LOGFILE="$3"
+shift 3
 
 while true; do
     /usr/local/bin/tailscaled \
         --statedir="$STATE_DIR" \
         --socket="$SOCKET" \
         --port=41641 \
-        --netfilter-mode="$NETFILTER" \
         "$@" >>"$LOGFILE" 2>&1
-    echo "[tailscale] $(date '+%Y-%m-%d %H:%M:%S') tailscaled beendet (Code $?) - Neustart in 5s" >>"$LOGFILE"
+    RC=$?
+    echo "[tailscale] $(date '+%Y-%m-%d %H:%M:%S') tailscaled beendet (Code ${RC}) - Neustart in 5s" >>"$LOGFILE"
     sleep 5
 done

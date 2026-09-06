@@ -68,14 +68,17 @@ else
               --outbound-http-proxy-listen=localhost:1055)
 fi
 
-# netfilter nur einschalten, wenn ein Exit-Node benutzt wird - sonst
-# produziert tailscaled im Container nur iptables-Fehler.
+# netfilter nur einschalten, wenn ein Exit-Node ueber ein echtes TUN-Geraet
+# benutzt wird - sonst produziert tailscale im Container nur iptables-Fehler.
+# (Im Userspace-Modus laesst tailscale ohnehin nur "off" zu.)
 NETFILTER="off"
-[ -n "$EXIT_NODE" ] && NETFILTER="on"
+if [ -n "$EXIT_NODE" ] && [ ${#TUN_ARGS[@]} -eq 0 ]; then
+    NETFILTER="on"
+fi
 
 # --- Daemon mit Neustart-Schleife starten -------------------------------
 nohup /usr/local/bin/tailscaled-supervise \
-    "$STATE_DIR" "$SOCKET" "$NETFILTER" "$LOGFILE" "${TUN_ARGS[@]}" \
+    "$STATE_DIR" "$SOCKET" "$LOGFILE" "${TUN_ARGS[@]}" \
     >/dev/null 2>&1 &
 
 log "tailscaled gestartet (State: ${STATE_DIR}, Log: ${LOGFILE})"
@@ -91,7 +94,8 @@ for _ in $(seq 1 30); do
 done
 
 if [ "$DAEMON_OK" != "true" ]; then
-    log "FEHLER: tailscaled antwortet nicht — $(tail -3 "$LOGFILE" 2>/dev/null)"
+    log "FEHLER: tailscaled antwortet nicht. Letzte Zeilen aus ${LOGFILE}:"
+    tail -15 "$LOGFILE" 2>/dev/null | sed 's/^/[tailscale] /'
     exit 0
 fi
 
@@ -106,13 +110,14 @@ log "Backend-Status: ${BACKEND}"
 UP_ARGS=(--hostname="$TS_HOSTNAME"
          --accept-routes="$ACCEPT_ROUTES"
          --accept-dns="$ACCEPT_DNS"
-         --exit-node="$EXIT_NODE")
+         --exit-node="$EXIT_NODE"
+         --netfilter-mode="$NETFILTER")
 [ -n "$LOGIN_SERVER" ] && UP_ARGS+=(--login-server="$LOGIN_SERVER")
 
 if [ "$BACKEND" = "NeedsLogin" ] || [ "$BACKEND" = "NoState" ]; then
     if [ -n "$AUTHKEY" ]; then
         log "Melde am Tailnet an (Auth-Key)…"
-        UP_OUT=$(ts up --authkey="$AUTHKEY" --timeout=60s "${UP_ARGS[@]}" 2>&1)
+        UP_OUT=$(ts up --auth-key="$AUTHKEY" --timeout=60s "${UP_ARGS[@]}" 2>&1)
         UP_RC=$?
         [ -n "$UP_OUT" ] && echo "$UP_OUT" | sed 's/^/[tailscale] /'
         if [ "$UP_RC" -eq 0 ]; then
@@ -147,7 +152,8 @@ else
     ts set --hostname="$TS_HOSTNAME" \
            --accept-routes="$ACCEPT_ROUTES" \
            --accept-dns="$ACCEPT_DNS" \
-           --exit-node="$EXIT_NODE" 2>&1 | sed 's/^/[tailscale] /' || true
+           --exit-node="$EXIT_NODE" \
+           --netfilter-mode="$NETFILTER" 2>&1 | sed 's/^/[tailscale] /' || true
     ts up --timeout=30s "${UP_ARGS[@]}" >/dev/null 2>&1 || true
 fi
 

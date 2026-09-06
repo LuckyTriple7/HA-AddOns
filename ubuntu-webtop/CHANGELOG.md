@@ -1,3 +1,13 @@
+## [1.8.68] - 2026-09-06
+
+### Behoben
+
+- `--netfilter-mode` wurde faelschlich an `tailscaled` uebergeben — das Flag gehoert zu `tailscale up`/`tailscale set`. Der Daemon warf bei jedem Start seine Usage-Hilfe aus und beendete sich, der Watchdog startete ihn alle 5 Sekunden neu: keine Verbindung, keine Anmeldung, Tailnet-Adressen nicht anpingbar.
+- `--authkey` durch das aktuelle `--auth-key` ersetzt.
+- Exit-Code des Daemons wurde im Watchdog-Log falsch ausgegeben (`$(date)` ueberschrieb `$?`, daher immer "Code 0").
+- netfilter wird nur noch bei Exit-Node *und* echtem TUN-Geraet eingeschaltet — im Userspace-Modus laesst Tailscale nur `off` zu.
+- Scheitert der Daemon-Start, stehen jetzt 15 Zeilen aus `tailscaled.log` direkt im Add-on-Log statt nur einer Fehlerzeile.
+
 ## [1.8.67] - 2026-09-06
 
 ### Behoben
