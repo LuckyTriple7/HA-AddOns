@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.60
+
+- 📌 **Frühere Stände und automatische Backups lassen sich jetzt festhalten.** Wer eine Website aufbaut, speichert im Minutentakt — die 20 Revisionen sind nach einem Tag durchrotiert, das ZIP vom Ausgangsstand nach einer Woche gelöscht. Ein Klick auf 📌 nimmt einen Stand aus der Rotation: er wird nie automatisch entfernt und zählt nicht gegen die eingestellte Aufbewahrung, sodass die letzten Tage vollständig erhalten bleiben. Der Marker steckt im Dateinamen (`site-…-keep.json`, `mypage-auto-…-keep.zip`), es gibt also keine Indexdatei, die vom Verzeichnis abweichen könnte. Höchstens 10 Revisionen und 3 Backups gleichzeitig, damit die Rotation nicht ins Leere läuft; Löschen geht erst nach dem Freigeben. Ist das Speicherlimit erreicht und liegen nur noch festgehaltene Sicherungen, meldet das die Systemdiagnose, statt still keine Backups mehr anzulegen.
+
 ## 0.11.59
 
 - 🚫 **`/p/<projekt>/readme.md` fiel als „eigener Link" durch, obwohl es die Seite nie gab.** Scanner errieten echte Projekt-Slugs von der Startseite und hängten `readme.md`/`changelog.md`/`license` an, in der Hoffnung auf eine rohe Kopie — MyPage rendert das README aber in die Projektseite selbst, nie als eigene Datei daneben. Der mitgeschickte Referer (die eigene Startseite) ließ `record_notfound()` das für einen echten kaputten Verweis halten und „Weiterleitung anlegen" anbieten, für die es nie ein Ziel gab. Solche Pfade zählen jetzt als Sonde: standardmäßig ausgeblendet, kein Weiterleitungs-Knopf mehr.

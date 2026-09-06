@@ -6958,12 +6958,19 @@
         const row = document.createElement('div');
         row.className = 'redirect-row';
         row.innerHTML =
-          `<span style="flex:1">${b.date} &middot; <span class="hint">${size}</span></span>
+          `<span style="flex:1">${b.date} &middot; <span class="hint">${size}${b.pinned ? ' &middot; 📌 ' + escHtml(T.pin_badge) : ''}</span></span>
+           <button type="button" class="btn ${b.pinned ? '' : 'secondary'} small" title="${escHtml(b.pinned ? T.pin_release : T.pin_keep)}">📌</button>
            <button type="button" class="btn secondary small">⬇</button>
            <button type="button" class="btn danger small">✕</button>`;
-        const [dl, del] = row.querySelectorAll('button');
+        const [pin, dl, del] = row.querySelectorAll('button');
+        pin.onclick = () => pinAutoBackup(b.name, !b.pinned);
         dl.onclick = () => { window.location.href = 'api/backups/' + encodeURIComponent(b.name); };
         del.onclick = () => deleteAutoBackup(b.name);
+        // Festgehaltenes lässt sich erst nach dem Freigeben löschen — der
+        // Server weist es sonst ab, und ein Knopf, der nur Fehler wirft, ist
+        // schlechter als einer, der gar nicht erst anfasst.
+        del.disabled = !!b.pinned;
+        if (b.pinned) del.title = T.pin_locked;
         box.appendChild(row);
       });
     }
@@ -6973,6 +6980,16 @@
       const r = await apiJson('api/backups/run', 'POST', {});
       toast(r.ok ? T.autobackup_done : T.error_save, !r.ok);
       if (btn) btn.disabled = false;
+      loadAutoBackups();
+    }
+    async function pinAutoBackup(name, want) {
+      const r = await apiJson('api/backups/' + encodeURIComponent(name) + '/pin', 'POST', { pinned: want });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error === 'pin limit' ? T.pin_limit : T.error_save, true);
+      } else {
+        toast(want ? T.pin_done : T.pin_undone);
+      }
       loadAutoBackups();
     }
     async function deleteAutoBackup(name) {
@@ -7007,14 +7024,18 @@
         const row = document.createElement('div');
         row.className = 'redirect-row';
         row.innerHTML =
-          `<span style="flex:1">${escHtml(revTime(r.ts))} &middot; <span class="hint">${escHtml(revChanged(r.changed))}</span></span>
+          `<span style="flex:1">${escHtml(revTime(r.ts))} &middot; <span class="hint">${escHtml(revChanged(r.changed))}${r.pinned ? ' &middot; 📌 ' + escHtml(T.pin_badge) : ''}</span></span>
            <button type="button" class="btn secondary small">↺ ${escHtml(T.revisions_restore)}</button>
+           <button type="button" class="btn ${r.pinned ? '' : 'secondary'} small" title="${escHtml(r.pinned ? T.pin_release : T.pin_keep)}">📌</button>
            <button type="button" class="btn secondary small" title="⬇">⬇</button>
            <button type="button" class="btn danger small">✕</button>`;
-        const [rest, dl, del] = row.querySelectorAll('button');
+        const [rest, pin, dl, del] = row.querySelectorAll('button');
         rest.onclick = () => restoreRevision(r.name);
+        pin.onclick = () => pinRevision(r.name, !r.pinned);
         dl.onclick = () => { window.location.href = 'api/revisions/' + encodeURIComponent(r.name); };
         del.onclick = () => deleteRevision(r.name);
+        del.disabled = !!r.pinned;
+        if (r.pinned) del.title = T.pin_locked;
         box.appendChild(row);
       });
     }
@@ -7023,6 +7044,16 @@
       const r = await apiJson('api/revisions/' + encodeURIComponent(name) + '/restore', 'POST', {});
       toast(r.ok ? T.revisions_restored : T.error_save, !r.ok);
       if (r.ok) { await loadSite(); }
+      loadRevisions();
+    }
+    async function pinRevision(name, want) {
+      const r = await apiJson('api/revisions/' + encodeURIComponent(name) + '/pin', 'POST', { pinned: want });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error === 'pin limit' ? T.pin_limit : T.error_save, true);
+      } else {
+        toast(want ? T.pin_done : T.pin_undone);
+      }
       loadRevisions();
     }
     async function deleteRevision(name) {
