@@ -135,19 +135,23 @@ tr:last-child td { border-bottom: none; }
 .diff-block .diff-name { font-size: 0.78rem; color: var(--muted); }
 .diff-removed { color: var(--red); }
 .diff-added { color: var(--green-h); }
-.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600; }
+/* flex: none ist Pflicht, nicht Kosmetik: eine Plakette in einer Flex-Zeile,
+   die daneben min-width:0 und overflow-wrap:anywhere erbt, schrumpft sonst auf
+   Nullbreite und bricht ihren Text zeichenweise senkrecht um. max-width haelt
+   sie trotzdem in der Karte, und umgebrochen wird dann an Leerzeichen. */
+.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600;
+         flex: none; max-width: 100%; overflow-wrap: normal; }
 .badge.ok { background: rgba(35,134,54,.15); color: var(--green-h); }
 .badge.info { background: rgba(88,166,255,.15); color: var(--blue); }
 .badge.warn { background: rgba(210,153,34,.15); color: var(--amber); }
 .badge.fail { background: rgba(248,81,73,.15); color: var(--red); }
 .finding-list { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
-.finding-list li { display: flex; gap: 8px; align-items: baseline; font-size: 0.83rem;
-                    border-left: 2px solid var(--border); padding: 2px 0 2px 9px; }
-.finding-list li > span { min-width: 0; overflow-wrap: anywhere; }
-.finding-list li:has(.badge.ok) { border-left-color: var(--green-h); }
-.finding-list li:has(.badge.warn) { border-left-color: var(--amber); }
-.finding-list li:has(.badge.fail) { border-left-color: var(--red); }
-.finding-list li:has(.badge.info) { border-left-color: var(--blue); }
+.finding-list li { font-size: 0.83rem; border-left: 3px solid var(--border);
+                    padding: 2px 0 2px 9px; min-width: 0; overflow-wrap: anywhere; }
+.finding-list li.lvl-ok { border-left-color: var(--green-h); }
+.finding-list li.lvl-warn { border-left-color: var(--amber); }
+.finding-list li.lvl-fail { border-left-color: var(--red); }
+.finding-list li.lvl-info { border-left-color: var(--blue); }
 .score-ring { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
 .score-donut { position: relative; width: 84px; height: 84px; border-radius: 50%; flex: none;
                background: conic-gradient(var(--ring, var(--accent)) calc(var(--pct, 0) * 3.6deg), var(--border) 0); }
@@ -1802,9 +1806,14 @@ function fmtStr(template, args){
 function renderFindings(findings){
   const ul = el('ul', 'finding-list');
   (findings || []).forEach(f => {
-    const li = el('li');
-    li.appendChild(levelBadge(f.level));
-    li.appendChild(el('span', '', findingText(f)));
+    // Die Stufe trägt jetzt allein der farbige Balken links. Als Plakette
+    // stand sie in jeder einzelnen Zeile und wiederholte damit nur, was die
+    // Farbe schon sagt -- in einer schmalen Karte fraß sie zusätzlich die
+    // halbe Breite. Als Titel bleibt der Klartext erreichbar, damit die
+    // Information nicht rein farblich kodiert ist.
+    const level = f.level || 'info';
+    const li = el('li', 'lvl-' + level, findingText(f));
+    li.title = T['level_' + level] || level;
     ul.appendChild(li);
   });
   return ul;

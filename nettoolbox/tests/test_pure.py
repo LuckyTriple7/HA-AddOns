@@ -1083,3 +1083,19 @@ def test_every_monitor_probe_is_a_real_probe_with_a_summary_and_a_label():
         assert probe in probes.PROBES, probe
         assert probe in hasensors._PROBE_NAME, probe
         assert monitor.summarize(probe, {}), probe
+
+
+def test_status_watch_names_the_hop_that_failed_not_the_start(monkeypatch):
+    """http://x -> 301 -> https://x scheitert am Zertifikat: gemeldet gehört
+    die zweite Adresse. Vorher fiel die halbfertige Kette weg und die Meldung
+    zeigte auf die Startadresse, an der gar nichts kaputt war."""
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        if url == 'http://example.com':
+            return {'status': 301, 'headers': {'location': 'https://example.com'},
+                    'cookies': [], 'body': '', 'bytes': 0, 'url': url}
+        raise netcore.ProbeError('tls_error', url)
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    r = httpcheck.check_http_status(_FakeCtx(), 'http://example.com')
+    assert r['state'] == 'error:tls_error'
+    assert r['final_url'] == 'https://example.com'
+    assert len(r['chain']) == 1

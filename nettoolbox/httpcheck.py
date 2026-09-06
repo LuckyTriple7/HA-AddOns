@@ -61,8 +61,13 @@ def normalise_url(raw: str) -> str:
     return raw
 
 
-def follow_redirects(ctx: Context, url: str) -> list:
-    chain = []
+def follow_redirects(ctx: Context, url: str, chain_out: list = None) -> list:
+    """chain_out sammelt die Sprünge mit, während sie entstehen. Ohne das ist
+    bei einem Abbruch alles Gesammelte weg, und der Statuswächter kann nur die
+    Startadresse als Fehlerort nennen -- obwohl der Fehler eine Weiterleitung
+    später auftrat (http://example.de -> 301 -> https://example.de scheitert
+    am Zertifikat: gemeldet gehört die zweite Adresse, nicht die erste)."""
+    chain = chain_out if chain_out is not None else []
     seen = set()
     current = url
     for _ in range(MAX_REDIRECTS):
@@ -172,7 +177,7 @@ def check_http_status(ctx: Context, target: str) -> dict:
     started = time.monotonic()
     chain, error = [], ''
     try:
-        chain = follow_redirects(ctx, start_url)
+        follow_redirects(ctx, start_url, chain_out=chain)
     except ProbeError as e:
         # Alles andere (leeres Ziel, private Adresse, kaputte URL) ist eine
         # Falscheingabe und bleibt ein Fehler, kein Messwert.
@@ -183,7 +188,10 @@ def check_http_status(ctx: Context, target: str) -> dict:
 
     if error:
         status = 0
-        final_url = start_url
+        # Die Adresse, an der es wirklich scheiterte: der letzte Sprung, dem
+        # noch gefolgt wurde, sonst die Startadresse.
+        last = chain[-1] if chain else None
+        final_url = (last['headers'].get('location') or last['url']) if last else start_url
         findings.append(_finding(FAIL, 'status_unreachable', reason=error))
     else:
         final = chain[-1]

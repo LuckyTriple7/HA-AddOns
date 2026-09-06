@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.8] - 2026-09-06
+
+### Fixed
+- **Stufen-Plaketten in den Befundzeilen brachen senkrecht um.** In den schmalen Karten der
+  Mail-Gesundheit stand „Kritisch" oder „Hinweis" als ein Buchstabe pro Zeile untereinander.
+  Ursache war eine Regel aus 0.7.6 (`.finding-list li > span { min-width: 0 }`), die lange
+  Befundtexte umbrechen lassen sollte — sie traf aber auch die Plakette daneben, und die
+  schrumpfte im Flex-Container auf 29 px Breite bei 64 px Höhe.
+- **Die Stufe steht in den Befundzeilen jetzt nur noch im farbigen Balken links.** Als
+  Plakette wiederholte sie in jeder einzelnen Zeile, was die Farbe schon sagt, und fraß dabei
+  die halbe Kartenbreite. Der Balken ist dafür von 2 auf 3 px verbreitert; der Klartext
+  („Kritisch", „Achtung", …) bleibt als Titel der Zeile erreichbar, damit die Information
+  nicht rein farblich kodiert ist.
+- **Dieselbe Fehlerklasse für alle Plaketten geschlossen.** `.badge` bekommt `flex: none`,
+  kann also in keiner Flex-Zeile mehr zusammengequetscht werden, und `max-width: 100%` hält
+  eine lange Plakette trotzdem in ihrer Karte — umgebrochen wird dann an Leerzeichen statt
+  zeichenweise. Das betrifft alle Reiter, nicht nur die Mail-Gesundheit.
+- **Statuswächter zeigte bei einem Fehler auf die falsche Adresse.** Scheiterte die Kette erst
+  nach einer Weiterleitung, wurde die halbfertige Kette verworfen und die Startadresse als
+  Fehlerort gemeldet — bei `http://2-ways.de` also `http://2-ways.de`, obwohl dort nichts
+  kaputt ist: der Zertifikatsfehler tritt erst auf `https://2-ways.de` auf. `follow_redirects`
+  sammelt die Sprünge jetzt mit, während sie entstehen, und die Meldung nennt den Sprung, der
+  wirklich fehlschlug.
+
 ## [0.7.7] - 2026-09-06
 
 ### Added
