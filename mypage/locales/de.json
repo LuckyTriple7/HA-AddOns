@@ -1954,6 +1954,7 @@
   "or_upload": "oder hochladen",
   "uploaded": "Bild hochgeladen",
   "error_save": "Speichern fehlgeschlagen.",
+  "session_expired": "Sitzung abgelaufen — zurück zur Anmeldung.",
   "error_load": "Laden fehlgeschlagen.",
   "error_upload": "Upload fehlgeschlagen (nur PNG/JPG/GIF/WebP, max. 8 MB).",
   "projects": "Projekte",

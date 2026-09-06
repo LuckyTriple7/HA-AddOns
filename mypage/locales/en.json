@@ -1954,6 +1954,7 @@
   "or_upload": "or upload",
   "uploaded": "Image uploaded",
   "error_save": "Saving failed.",
+  "session_expired": "Session expired — back to the login.",
   "error_load": "Loading failed.",
   "error_upload": "Upload failed (PNG/JPG/GIF/WebP only, max. 8 MB).",
   "projects": "Projects",

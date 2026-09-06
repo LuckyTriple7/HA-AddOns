@@ -3684,6 +3684,27 @@
     let uploadCb = null;
 
     const el = id => document.getElementById(id);
+
+    // Eine abgelaufene Sitzung antwortet auf jeden Aufruf mit 401. Ohne diesen
+    // Weg zurück blieb die Seite stehen und meldete nur "Laden fehlgeschlagen"
+    // oder "Nicht gespeichert", obwohl niemand mehr angemeldet ist. Der Umweg
+    // über window.fetch greift auch bei den zwei Dutzend Aufrufen, die nicht
+    // über api()/apiJson() laufen. Unter dem HA-Ingress kommt nie ein 401 --
+    // dort meldet Home Assistant an.
+    let sessionEnded = false;
+    function sessionGone() {
+      if (sessionEnded) return;
+      sessionEnded = true;
+      try { toast(T.session_expired || 'Session expired', true); } catch (e) {}
+      setTimeout(() => { location.href = 'login'; }, 1500);
+    }
+    const _rawFetch = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+      const r = await _rawFetch(...args);
+      if (r.status === 401) sessionGone();
+      return r;
+    };
+
     // Relative URLs, damit alles auch hinter dem HA-Ingress-Proxy funktioniert
     const api = path => fetch(path.replace(/^\//, ''), { credentials: 'same-origin' });
     const apiJson = (path, method, body) => fetch(path.replace(/^\//, ''), {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.62
+
+- 🔐 **Abgelaufene Anmeldung führt jetzt zurück zur Anmeldeseite.** War die Sitzung nach 24 Stunden abgelaufen, antwortete das Verwaltungsprogramm auf jeden Aufruf mit `401` — sichtbar wurde davon aber nur „Laden fehlgeschlagen“ oder „Nicht gespeichert“, und man musste selbst darauf kommen, neu zu laden. Nur drei von rund dreissig Aufrufen leiteten weiter. Jetzt fängt eine Schicht um `fetch` jede solche Antwort ab, zeigt einen Hinweis und führt zur Anmeldung. Betrifft nur den direkten Port — über den HA-Ingress meldet Home Assistant an, dort gibt es keine ablaufende Sitzung.
+
 ## 0.11.61
 
 - 🏷️ **Frühere Stände: Reihenfolge, Sichtbarkeit und Wasserzeichen standen als roher Schlüssel in der Liste.** Die Spalte „Geändert" übersetzt die Abschnitte von `site.json` über `sec_*`-Schlüssel — für acht davon (`section_order`, `hidden_sections`, `members_sections`, `album_protect`, `watermark_text`, `tips_rotation`, `tips_random`, `indexnow_key`) fehlte die Beschriftung, sie erschienen englisch-technisch. Jetzt in DE und EN benannt.
