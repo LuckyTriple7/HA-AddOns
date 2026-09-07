@@ -992,6 +992,16 @@ def test_status_watch_reports_final_code_behind_a_redirect(monkeypatch):
     assert len(r['chain']) == 2
 
 
+def test_status_watch_marks_a_check_that_had_to_use_http(monkeypatch):
+    # Ohne Kennzeichnung im Fingerabdruck bliebe ein kaputtes Zertifikat
+    # unbemerkt: die Seite antwortet über HTTP weiter mit 200.
+    r = _http_status(monkeypatch, {
+        'https://example.com': netcore.ProbeError('tls_error', 'x'),
+        'http://example.com': (200, {})})
+    assert (r['status'], r['state']) == (200, '200@http')
+    assert 'http_https_unreachable' in [f['code'] for f in r['findings']]
+
+
 def test_status_watch_flags_a_server_error(monkeypatch):
     r = _http_status(monkeypatch, {'https://example.com': (503, {})})
     assert (r['status'], r['state'], r['level']) == (503, '503', 'fail')
@@ -1002,7 +1012,10 @@ def test_status_watch_turns_an_outage_into_a_state_not_an_exception(monkeypatch)
     # die durch, protokolliert das Monitoring nur einen Laufzeitfehler und
     # benachrichtigt niemanden -- ausgerechnet beim härtesten Ausfall.
     r = _http_status(monkeypatch, {
-        'https://example.com': netcore.ProbeError('http_error', 'x')})
+        'https://example.com': netcore.ProbeError('http_error', 'x'),
+        # Auch der HTTPS-Rückfall auf HTTP muss scheitern, sonst ist der Host
+        # eben nicht tot; gemeldet wird dann der HTTPS-Fehler.
+        'http://example.com': netcore.ProbeError('http_error', 'x')})
     assert r['level'] == 'fail'
     assert r['state'] == 'error:http_error'
     assert r['status'] == 0
@@ -1155,3 +1168,101 @@ def test_prefilter_ignores_what_a_lookaround_forbids():
     # Muster ohne Lookaround bleiben, wie sie waren.
     assert wapimport._literal_of(r'wp-content/themes') == 'wp-content/themes'
     assert wapimport._literal_of(r'^Werkzeug(?:/(?P<v>[\d.]+))?') == 'werkzeug'
+
+
+# ── HTTP-Pruefung: Bot-Schutzwand und HTTPS-Rueckfall ────────────────────────
+
+
+def _http_check(monkeypatch, responses, target='example.com'):
+    """responses: dict url -> (status, headers, cookies, body) oder ProbeError."""
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        answer = responses[url]
+        if isinstance(answer, Exception):
+            raise answer
+        status, headers = answer[0], answer[1]
+        cookies = answer[2] if len(answer) > 2 else []
+        body = answer[3] if len(answer) > 3 else ''
+        return {'status': status, 'headers': headers, 'cookies': cookies,
+                'body': body, 'bytes': len(body), 'url': url}
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    return httpcheck.check_http(_FakeCtx(), target)
+
+
+def test_bot_wall_page_is_not_reported_as_missing_headers(monkeypatch):
+    # Anubis (NPMplus) beantwortet die Anfrage selbst. Seine Pruefseite setzt
+    # keine CSP -- das ueber den Server dahinter zu behaupten waere falsch.
+    r = _http_check(monkeypatch, {'https://example.com': (
+        200,
+        {'strict-transport-security': 'max-age=63072000',
+         'referrer-policy': 'strict-origin-when-cross-origin'},
+        ['techaro.lol-anubis-auth-347ddb4a=; Path=/'],
+        '<script id="anubis_challenge" type="application/json">{}</script>')})
+    assert r['bot_wall'] == 'Anubis'
+    codes = [f['code'] for f in r['findings']]
+    assert not [c for c in codes if c.endswith('_missing')]
+    assert 'header_behind_bot_wall' in codes
+    assert 'content-security-policy' in [
+        f for f in r['findings'] if f['code'] == 'header_behind_bot_wall'
+    ][0]['args']['names']
+    # Nichts Gemessenes ist schlecht, also bleibt die Gesamtstufe gruen.
+    assert (r['level'], r['score']) == ('ok', 100)
+
+
+def test_missing_headers_still_count_without_a_bot_wall(monkeypatch):
+    r = _http_check(monkeypatch, {'https://example.com': (200, {})})
+    assert r['bot_wall'] == ''
+    assert 'header_content_security_policy_missing' in [
+        f['code'] for f in r['findings']]
+    assert r['level'] == 'fail'
+
+
+def test_broken_https_falls_back_to_http_when_no_scheme_was_typed(monkeypatch):
+    # fim-hv.de: HTTPS scheitert am Zertifikat, ueber HTTP laeuft die
+    # Weiterleitungskette sauber bis zum eigentlichen Ziel.
+    r = _http_check(monkeypatch, {
+        'https://example.com': netcore.ProbeError('tls_error', 'x'),
+        'http://example.com': (302, {'location': 'https://ziel.example'}),
+        'https://ziel.example': (200, {}),
+    })
+    assert r['final_url'] == 'https://ziel.example'
+    assert [f['code'] for f in r['findings']][0] == 'http_https_unreachable'
+    assert r['start_url'] == 'http://example.com'
+
+
+def test_typed_https_scheme_keeps_the_honest_tls_error(monkeypatch):
+    with pytest.raises(netcore.ProbeError) as excinfo:
+        _http_check(monkeypatch, {
+            'https://example.com': netcore.ProbeError('tls_error', 'x'),
+            'http://example.com': (200, {}),
+        }, target='https://example.com')
+    assert excinfo.value.code == 'tls_error'
+
+
+def test_dead_host_reports_the_https_error_not_the_http_one(monkeypatch):
+    with pytest.raises(netcore.ProbeError) as excinfo:
+        _http_check(monkeypatch, {
+            'https://example.com': netcore.ProbeError('tls_error', 'x'),
+            'http://example.com': netcore.ProbeError('http_error', 'x'),
+        })
+    assert excinfo.value.code == 'tls_error'
+
+
+def test_response_carries_no_page_bodies(monkeypatch):
+    # Der Rumpf dient nur der Waechter-Erkennung; in Antwort und
+    # Schnappschuss hat er nichts verloren.
+    r = _http_check(monkeypatch, {'https://example.com': (
+        200, {}, [], 'x' * 8192)})
+    assert all('body' not in hop for hop in r['chain'])
+
+
+def test_new_http_finding_codes_are_translated():
+    import json
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ('de.json', 'en.json'):
+        with open(os.path.join(here, 'locales', name), encoding='utf-8') as f:
+            texts = json.load(f)
+        for code in ('http_bot_wall', 'header_behind_bot_wall',
+                     'http_https_unreachable'):
+            assert 'f_' + code in texts, (name, code)
+        for key in ('bot_wall_label', 'header_not_measurable'):
+            assert key in texts, (name, key)

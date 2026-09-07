@@ -77,7 +77,8 @@ def follow_redirects(ctx: Context, url: str, chain_out: list = None) -> list:
         resp = http_get(ctx, current, max_bytes=HEADER_FETCH_BYTES,
                         accept='text/html,*/*')
         chain.append({'url': current, 'status': resp['status'],
-                      'headers': resp['headers']})
+                      'headers': resp['headers'], 'cookies': resp['cookies'],
+                      'body': resp['body']})
         if resp['status'] not in (301, 302, 303, 307, 308):
             return chain
         location = resp['headers'].get('location', '')
@@ -93,22 +94,87 @@ def follow_redirects(ctx: Context, url: str, chain_out: list = None) -> list:
     raise ProbeError('too_many_redirects', url)
 
 
-def check_http(ctx: Context, target: str) -> dict:
+# Ein nackter Domainname wird oben zu https:// ergaenzt -- als Vorgabe richtig,
+# aber es gibt Adressen, die nur ueber HTTP antworten und von dort auf das
+# eigentliche Ziel weiterleiten (Weiterleitungsdienste von Registraren etwa:
+# fim-hv.de -> hausfairwaltet.de). Dort scheitert der HTTPS-Versuch am
+# Zertifikat, und die ganze Pruefung brach mit einem Fehler ab -- obwohl die
+# Kette ueber HTTP sauber bis zu einer HTTPS-Seite durchlaeuft. Nachgefasst
+# wird nur, wenn der Benutzer selbst kein Schema angab: wer https:// eintippt,
+# bekommt weiter den ehrlichen Fehler statt einer stillen Herabstufung.
+_HTTPS_FALLBACK_CODES = frozenset(('tls_error', 'http_error', 'http_timeout'))
+
+
+def open_chain(ctx: Context, target: str, chain_out: list = None) -> tuple:
+    """(start_url, chain, fallback_reason) -- fallback_reason ist der
+    HTTPS-Fehlercode, falls ersatzweise ueber HTTP geprueft wurde."""
+    implied_scheme = not _ABS_URL_RE.match((target or '').strip())
     start_url = normalise_url(target)
-    chain = follow_redirects(ctx, start_url)
+    try:
+        return start_url, follow_redirects(ctx, start_url, chain_out), ''
+    except ProbeError as https_error:
+        if not (implied_scheme and https_error.code in _HTTPS_FALLBACK_CODES):
+            raise
+        http_url = 'http://' + start_url.split('://', 1)[1]
+        if chain_out is not None:
+            del chain_out[:]
+        try:
+            chain = follow_redirects(ctx, http_url, chain_out)
+        except ProbeError:
+            # Beide Wege tot: gemeldet gehoert der HTTPS-Fehler, denn das war
+            # die Adresse, die geprueft werden sollte.
+            raise https_error
+        return http_url, chain, https_error.code
+
+
+# Ein Waechter wie Anubis (in NPMplus zuschaltbar) oder eine
+# Cloudflare-Challenge beantwortet die Anfrage selbst: HTTP 200, ausgeliefert
+# wird aber dessen Pruefseite. Deren Kopfzeilen sind die des Waechters --
+# Content-Security-Policy und X-Frame-Options fehlen dort schlicht, obwohl der
+# Server dahinter sie sehr wohl setzt. Als "fehlt" gemeldet waere das eine
+# Falschaussage ueber eine fremde Seite, darum wird die Pruefseite erkannt und
+# der Befund als "nicht messbar" ausgewiesen.
+def _bot_wall(hop: dict) -> str:
+    body = hop.get('body') or ''
+    cookies = ' '.join(hop.get('cookies') or ())
+    headers = hop.get('headers') or {}
+    if ('-anubis-' in cookies or 'anubis_challenge' in body
+            or '/.within.website/x/cmd/anubis' in body):
+        return 'Anubis'
+    if (headers.get('cf-mitigated', '').strip().lower() == 'challenge'
+            or 'cf-browser-verification' in body
+            or '/cdn-cgi/challenge-platform' in body):
+        return 'Cloudflare'
+    return ''
+
+
+def check_http(ctx: Context, target: str) -> dict:
+    start_url, chain, https_fallback = open_chain(ctx, target)
     final = chain[-1]
     headers = final['headers']
     findings = []
 
     final_is_https = final['url'].lower().startswith('https://')
+    wall = _bot_wall(final)
     result = {
         'start_url': start_url, 'final_url': final['url'],
-        'final_status': final['status'], 'chain': chain, 'https': final_is_https,
+        'final_status': final['status'], 'https': final_is_https,
+        # Ohne Rumpf: der dient nur der Waechter-Erkennung und blaehte sonst
+        # jede Antwort und jeden Schnappschuss um 8 KB je Sprung auf.
+        'chain': [{'url': hop['url'], 'status': hop['status'],
+                   'headers': hop['headers']} for hop in chain],
+        'bot_wall': wall,
         'security_headers': {name: headers.get(name, '') for name in _SECURITY_HEADERS},
         'server': headers.get('server', ''), 'powered_by': headers.get('x-powered-by', ''),
         'http3_advertised': bool(_ALT_SVC_H3_RE.search(headers.get('alt-svc', ''))),
         'alt_svc': headers.get('alt-svc', ''), 'findings': findings,
     }
+
+    if https_fallback:
+        findings.append(_finding(WARN, 'http_https_unreachable',
+                                 reason=https_fallback))
+    if wall:
+        findings.append(_finding(INFO, 'http_bot_wall', wall=wall))
 
     if chain[0]['url'].lower().startswith('http://'):
         if final_is_https:
@@ -116,13 +182,19 @@ def check_http(ctx: Context, target: str) -> dict:
         else:
             findings.append(_finding(FAIL, 'http_no_https_redirect'))
 
+    unmeasurable = []
     for name in _SECURITY_HEADERS:
         code = 'header_' + name.replace('-', '_')
         if result['security_headers'][name]:
             findings.append(_finding(OK, code + '_present'))
+        elif wall:
+            unmeasurable.append(name)
         else:
             level = FAIL if name in _REQUIRED_HEADERS else WARN
             findings.append(_finding(level, code + '_missing'))
+    if unmeasurable:
+        findings.append(_finding(INFO, 'header_behind_bot_wall', wall=wall,
+                                 names=', '.join(unmeasurable)))
 
     if result['server']:
         findings.append(_finding(INFO, 'header_server_disclosed', value=result['server']))
@@ -175,9 +247,10 @@ def check_http_status(ctx: Context, target: str) -> dict:
     start_url = normalise_url(target)
     findings = []
     started = time.monotonic()
-    chain, error = [], ''
+    chain, error, https_fallback = [], '', ''
     try:
-        follow_redirects(ctx, start_url, chain_out=chain)
+        start_url, chain, https_fallback = open_chain(ctx, target,
+                                                      chain_out=chain)
     except ProbeError as e:
         # Alles andere (leeres Ziel, private Adresse, kaputte URL) ist eine
         # Falscheingabe und bleibt ein Fehler, kein Messwert.
@@ -208,6 +281,9 @@ def check_http_status(ctx: Context, target: str) -> dict:
         else:
             findings.append(_finding(FAIL, 'status_server_error', status=status))
 
+    if https_fallback:
+        findings.append(_finding(INFO, 'http_https_unreachable',
+                                 reason=https_fallback))
     if len(chain) > 1:
         findings.append(_finding(INFO, 'status_redirected', count=len(chain) - 1))
 
@@ -217,8 +293,12 @@ def check_http_status(ctx: Context, target: str) -> dict:
         'chain': [{'url': hop['url'], 'status': hop['status']} for hop in chain],
         # Der Fingerabdruck, den das Monitoring vergleicht. Die Stufe allein
         # reicht nicht: 500 -> 503 ist beide Male FAIL, aber sehr wohl eine
-        # Änderung, die gemeldet gehört.
-        'state': f'error:{error}' if error else str(status),
+        # Änderung, die gemeldet gehört. Der HTTPS-Rückfall gehört mit hinein:
+        # sonst bliebe ein frisch kaputtes Zertifikat still, weil die Seite
+        # über HTTP weiter mit 200 antwortet -- so wird aus '200' ein
+        # '200@http' und damit eine gemeldete Änderung.
+        'state': (f'error:{error}' if error
+                  else (f'{status}@http' if https_fallback else str(status))),
         'findings': findings,
         'level': _worst(findings),
     }

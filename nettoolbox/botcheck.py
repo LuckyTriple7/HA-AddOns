@@ -135,8 +135,10 @@ def check_bot_protection(ctx: Context, target: str, identity: str) -> dict:
         user_agent = (identity or '').strip()[:200] or None
     fetch_ctx = ctx if user_agent is None else dataclasses.replace(ctx, user_agent=user_agent)
 
-    start_url = httpcheck.normalise_url(target)
-    chain = httpcheck.follow_redirects(fetch_ctx, start_url)
+    # open_chain statt normalise_url + follow_redirects: nur so faellt
+    # ein ohne Schema eingetipptes Ziel mit kaputtem HTTPS auf HTTP
+    # zurueck, statt die ganze Pruefung mit einem Fehler abzubrechen.
+    start_url, chain, _ = httpcheck.open_chain(fetch_ctx, target)
     final_url = chain[-1]['url']
     resp = http_get(fetch_ctx, final_url, max_bytes=MAX_BYTES, accept='text/html,*/*')
 

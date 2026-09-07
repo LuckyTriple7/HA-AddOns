@@ -169,8 +169,10 @@ def _check_directory_listing(ctx: Context, origin: str, findings: list) -> None:
 
 
 def check_wordpress(ctx: Context, target: str) -> dict:
-    start_url = httpcheck.normalise_url(target)
-    chain = httpcheck.follow_redirects(ctx, start_url)
+    # open_chain statt normalise_url + follow_redirects: nur so faellt
+    # ein ohne Schema eingetipptes Ziel mit kaputtem HTTPS auf HTTP
+    # zurueck, statt die ganze Pruefung mit einem Fehler abzubrechen.
+    start_url, chain, _ = httpcheck.open_chain(ctx, target)
     final_url = chain[-1]['url']
     parsed = urlparse(final_url)
     origin = f'{parsed.scheme}://{parsed.netloc}'

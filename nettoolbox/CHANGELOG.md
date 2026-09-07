@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.8.1] - 2026-09-07
+
+### Fixed
+- **Bot-Schutzwände melden keine fehlenden Sicherheits-Header mehr.** Steht vor einer Seite
+  ein Wächter wie Anubis (in NPMplus zuschaltbar) oder eine Cloudflare-Challenge, beantwortet
+  der die Anfrage selbst: HTTP 200, ausgeliefert wird aber dessen Prüfseite. Deren Kopfzeilen
+  sind die des Wächters — `Content-Security-Policy`, `X-Frame-Options` und `Permissions-Policy`
+  fehlen dort schlicht, obwohl der Server dahinter sie sehr wohl setzt. Gemeldet wurde das als
+  „fehlt“ samt roter Gesamtwertung, also eine Falschaussage über eine fremde Seite. Die
+  Prüfseite wird jetzt erkannt (Anubis am Cookie `*-anubis-*` bzw. am eingebetteten
+  `anubis_challenge`, Cloudflare an `cf-mitigated: challenge` bzw. `/cdn-cgi/challenge-platform`);
+  die nicht sichtbaren Kopfzeilen erscheinen dann als „nicht messbar“ statt als Mangel, eine
+  Plakette nennt den Wächter, und die Punktzahl zieht sie nicht mehr ab. Tatsächlich gesetzte
+  Kopfzeilen (HSTS, `X-Content-Type-Options`, `Referrer-Policy`) werden weiter normal bewertet.
+- **Ziele ohne funktionierendes HTTPS brechen die Prüfung nicht mehr ab.** Ein ohne Schema
+  eingetipptes Ziel wird zu `https://` ergänzt; Weiterleitungsdienste mancher Registrare
+  antworten aber nur über HTTP (`fim-hv.de` -> `hausfairwaltet.de`). Dort scheiterte der
+  HTTPS-Versuch am Zertifikat, und HTTP-Prüfung, Technik, SEO, WordPress und Bot-Prüfung
+  endeten mit einem Fehler, statt der Kette zu folgen. Jetzt wird nach einem
+  HTTPS-Fehlschlag über HTTP nachgefasst — aber nur, wenn der Benutzer selbst kein Schema
+  angab: wer `https://` eintippt, bekommt weiter den ehrlichen Fehler. Der Rückfall steht als
+  Befund im Ergebnis, und im Statuswächter trägt ihn der Fingerabdruck (`200@http` statt
+  `200`), damit ein frisch kaputtes Zertifikat eine Meldung auslöst statt still zu bleiben.
+
+### Changed
+- Die Weiterleitungskette in der Antwort der HTTP-Prüfung enthält keine Seitenrümpfe mehr.
+  Die dienen nur der Wächter-Erkennung und hätten Antwort und Schnappschuss um bis zu 8 KB
+  je Sprung aufgebläht.
+
 ## [0.8.0] - 2026-09-06
 
 ### Changed

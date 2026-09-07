@@ -3539,6 +3539,10 @@ async function httpCheck(){
     badges.appendChild(el('span', 'badge ' + (r.https ? 'ok' : 'warn'), r.https ? 'HTTPS' : 'HTTP'));
     badges.appendChild(el('span', 'badge ' + (r.http3_advertised ? 'ok' : 'info'),
       'HTTP/3: ' + (r.http3_advertised ? T.http3_yes : T.http3_no)));
+    // Hat ein Bot-Schutz geantwortet, gehoert das ganz nach oben: alles
+    // Folgende beschreibt dann dessen Pruefseite, nicht die eigentliche Seite.
+    if (r.bot_wall) badges.appendChild(el('span', 'badge info',
+      T.bot_wall_label + ': ' + r.bot_wall));
     wrap.appendChild(badges);
 
     wrap.appendChild(renderFindings(r.findings));
@@ -3570,7 +3574,13 @@ async function httpCheck(){
       const c = el('div', 'subcard');
       const hd = el('h4');
       hd.appendChild(el('span', '', name));
-      hd.appendChild(el('span', 'badge ' + (value ? 'ok' : 'warn'), value ? T.level_ok : T.level_warn));
+      // Fehlt die Kopfzeile hinter einer Bot-Pruefseite, ist sie nicht
+      // gemessen, sondern unmessbar -- "Achtung" waere eine Falschaussage
+      // ueber den Server dahinter.
+      const missingLabel = r.bot_wall ? T.header_not_measurable : T.level_warn;
+      const missingClass = r.bot_wall ? 'info' : 'warn';
+      hd.appendChild(el('span', 'badge ' + (value ? 'ok' : missingClass),
+        value ? T.level_ok : missingLabel));
       c.appendChild(hd);
       if (value) c.appendChild(el('div', 'mono', value));
       grid.appendChild(c);
