@@ -106,6 +106,10 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   und/oder Telegram (Einstellungen → *Anmeldung*). Die Meldung nennt die aufgerufene Adresse
   und die IP des Aufrufers. Über Ingress greift nichts davon — dort meldet Home Assistant
   selbst an.
+- **Konsole** (Terminal-Symbol im Kopf, nur für Verwalter) — zeigt live mit, was das
+  Add-on gerade tut: jede Prüfung mit Ziel, Stufe und Dauer, jeden Monitor-Lauf, jeden
+  Fehlschlag. Der Schalter *Details* hängt zusätzlich jede DNS-Abfrage und jeden
+  HTTP-Abruf an — ohne Neustart, für die Fehlersuche am laufenden Add-on.
 - Verlauf, Rate-Limit, Dark/Light · DE/EN · HA Ingress
 
 ## Schnellstart

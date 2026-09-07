@@ -44,6 +44,7 @@ if __name__ == '__main__':
     app.load_blocks()
     app.history_load()
     app._startup_checks()
+    app._apply_log_level(app._verbose())
     print(f'NetToolbox dev auf http://127.0.0.1:{port}')
     # Bewusst derselbe Server wie im Container (app._serve, Waitress) statt
     # app.app.run: sonst prueft der Testlauf einen anderen Stack als den, der

@@ -106,6 +106,10 @@ about your domains leaves your own infrastructure.
   every block and/or every successful login, each event choosing email and/or Telegram
   (Settings → *Login*). The message names the address that was used and the caller's IP.
   None of this applies behind Ingress — Home Assistant authenticates there itself.
+- **Console** (terminal icon in the header, admins only) — a live view of what the
+  add-on is doing: every check with its target, level and duration, every monitor run,
+  every failure. The *Details* switch adds every DNS query and every HTTP fetch on top —
+  no restart needed, for debugging a running add-on.
 - History, rate limiting, dark/light · DE/EN · HA Ingress
 
 ## Quick start

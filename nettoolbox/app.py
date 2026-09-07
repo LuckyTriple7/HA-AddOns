@@ -10,6 +10,7 @@ token and it answers probe requests from another instance.
 import concurrent.futures
 import functools
 import json
+import collections
 import logging
 import os
 import re
@@ -45,6 +46,45 @@ logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
+# Auf DEBUG protokolliert urllib3 jede Verbindung und jeden Header. Das ist
+# das Protokoll einer fremden Bibliothek über Ziele, die der Benutzer gerade
+# prüft -- in der Konsole verdrängt es binnen Sekunden alles Eigene.
+for _noisy in ('urllib3', 'requests', 'charset_normalizer', 'PIL',
+               'waitress', 'waitress.queue'):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
+# ── Konsole ──────────────────────────────────────────────────────────────────
+# Ein Ringpuffer im Speicher, aus dem das Konsolen-Panel im Verwalter-Bereich
+# pollt. Zweck ist Fehlersuche ohne Zugriff auf das Add-on-Protokoll: die
+# HA-Oberfläche zeigt es nur als Ganzes, und wer über Ingress arbeitet, müsste
+# dafür das Fenster wechseln. Bewusst nur im Speicher -- Prüfziele sind
+# Fremddaten (Domains, IP-Adressen anderer Leute), die nichts auf der Platte
+# verloren haben und beim Neustart verschwinden sollen.
+# 1500 Zeilen: ein Gesamtbericht schreibt je nach Modulen 30-60 Zeilen, der
+# Monitor im Hintergrund eine je Prüfung. Bei ~150 Bytes je Zeile sind das gut
+# 220 KB -- vertretbar, und der interessante Teil überlebt eine Weile.
+_log_buffer: collections.deque = collections.deque(maxlen=1500)
+
+
+class _BufferHandler(logging.Handler):
+    """Hängt jede Protokollzeile zusätzlich in den Ringpuffer."""
+
+    _fmt = logging.Formatter('[%(levelname)s] [%(asctime)s] %(message)s',
+                             datefmt='%Y-%m-%d %H:%M:%S')
+
+    def emit(self, record):
+        try:
+            _log_buffer.append({'ts': int(record.created * 1000),
+                                'level': record.levelname,
+                                'msg': self._fmt.format(record)})
+        except Exception:
+            # Ein Fehler beim Protokollieren darf die Prüfung nicht abbrechen.
+            pass
+
+
+_buffer_handler = _BufferHandler()
+_buffer_handler.setLevel(logging.DEBUG)
+logging.getLogger().addHandler(_buffer_handler)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -157,6 +197,14 @@ def _cfg_str(key: str) -> str:
 
 def _verbose() -> bool:
     return bool(load_config().get('verbose_log'))
+
+
+def _apply_log_level(debug: bool) -> None:
+    """Stufe des Wurzel-Loggers. Die Detailzeilen (jede DNS-Abfrage, jeder
+    HTTP-Abruf) hängen daran -- ohne sie ist die Konsole ein Ereignisprotokoll,
+    mit ihnen ein Mitschnitt. Zur Laufzeit umschaltbar, damit die Fehlersuche
+    an einem laufenden Add-on keinen Neustart kostet."""
+    logging.getLogger().setLevel(logging.DEBUG if debug else logging.INFO)
 
 
 def _load_or_create_secret_key() -> str:
@@ -1267,10 +1315,21 @@ def probe():
         raise ProbeError('bad_params')
     require_module(PROBE_MODULE.get(name))
     spend_quota()
-    answer = get_backend().run(name, params)
-    result = answer.get('result') or {}
     target = str(params.get('domain') or params.get('name')
                  or params.get('ip') or params.get('target') or '')[:253]
+    # Zwei Zeilen statt einer: bricht eine Prüfung ab oder hängt sie, steht in
+    # der Konsole trotzdem, was gerade lief -- die Abschlusszeile käme nie.
+    log.info("probe %s: %s", name, target or '(no target)')
+    try:
+        answer = get_backend().run(name, params)
+    except ProbeError as e:
+        log.warning("probe %s: %s -> %s %s", name, target or '-', e.code,
+                    e.detail or '')
+        raise
+    result = answer.get('result') or {}
+    log.info("probe %s: %s -> %s (%d ms, %s)", name, target or '-',
+             result.get('level') or '-', answer.get('ms', 0),
+             answer.get('backend', 'local'))
     history_add({
         'ts': int(time.time()),
         'probe': name,
@@ -1284,6 +1343,46 @@ def probe():
                     'backend': answer.get('backend', 'local'),
                     'worker': answer.get('worker') or {},
                     'ms': answer.get('ms', 0)})
+
+
+# ── Konsole ───────────────────────────────────────────────────────────────────
+# Nur für Verwalter: der Puffer enthält die Prüfziele *aller* Benutzer, und in
+# einem Mehrbenutzer-Add-on ist das fremde Aktivität.
+
+CONSOLE_TAIL_DEFAULT = 300
+
+
+@api('/api/console', admin=True)
+def console_lines():
+    """Die letzten Zeilen, älteste zuerst. Das Panel baut seinen Inhalt bei
+    jedem Abruf neu auf, deshalb standardmäßig nur ein Ausschnitt statt der
+    vollen 1500 Zeilen."""
+    try:
+        limit = int(request.args.get('limit', CONSOLE_TAIL_DEFAULT))
+    except (TypeError, ValueError):
+        limit = CONSOLE_TAIL_DEFAULT
+    limit = max(50, min(_log_buffer.maxlen, limit))
+    lines = list(_log_buffer)[-limit:]
+    return jsonify({'lines': lines, 'total': len(_log_buffer),
+                    'debug': logging.getLogger().level <= logging.DEBUG})
+
+
+@api('/api/console/level', methods=('POST',), admin=True)
+def console_level():
+    """Detailzeilen an oder aus, ohne Neustart. Der Dauerzustand steht in der
+    Add-on-Option verbose_log; diese Umschaltung gilt bis zum Neustart."""
+    body = request.get_json(silent=True) or {}
+    debug = bool(body.get('debug'))
+    _apply_log_level(debug)
+    log.info("console: detail lines %s", 'on' if debug else 'off')
+    return jsonify({'debug': debug})
+
+
+@api('/api/console/clear', methods=('POST',), admin=True)
+def console_clear():
+    _log_buffer.clear()
+    log.info("console: buffer cleared")
+    return jsonify({'ok': True})
 
 
 # ── Dauerping ─────────────────────────────────────────────────────────────────
@@ -1413,9 +1512,12 @@ def _report_step(name: str, params: dict) -> dict:
     mit — genau wie beim Monitoring."""
     try:
         answer = get_backend().run(name, params)
-        return {'probe': name, 'result': answer.get('result') or {},
-                'ms': answer.get('ms', 0)}
+        result = answer.get('result') or {}
+        log.info("report step %s -> %s (%d ms)", name,
+                 result.get('level') or '-', answer.get('ms', 0))
+        return {'probe': name, 'result': result, 'ms': answer.get('ms', 0)}
     except ProbeError as e:
+        log.info("report step %s -> %s %s", name, e.code, e.detail or '')
         return {'probe': name, 'error': e.code, 'detail': e.detail[:120]}
     except Exception as e:  # noqa: BLE001 — ein Bericht bricht nie ganz ab
         log.warning("report step %s failed: %s", name, type(e).__name__)
@@ -2182,6 +2284,10 @@ def _serve(port: int = 0) -> None:
 
 if __name__ == '__main__':
     _bootstrap_options()
+    # Erst jetzt sind die Optionen gelesen: verbose_log entscheidet, ob die
+    # Detailzeilen (DNS, HTTP) von Anfang an mitlaufen. Umschalten geht danach
+    # in der Konsole, ohne Neustart.
+    _apply_log_level(_verbose())
     load_sessions()
     load_blocks()
     history_load()

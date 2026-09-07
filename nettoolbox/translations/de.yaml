@@ -60,7 +60,10 @@ configuration:
     description: Wie viele zurückliegende Prüfungen im Verlauf aufgehoben werden. 0 schaltet den Verlauf ab.
   verbose_log:
     name: Ausführliches Protokoll
-    description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.
+    description: >-
+      Schreibt zusätzliche Zeilen (jede DNS-Abfrage, jeder HTTP-Abruf) ins Add-on-Protokoll
+      und in die Konsole der Oberfläche. Nur zur Fehlersuche. In der Konsole lässt sich das
+      auch ohne Neustart einschalten, dann gilt es bis zum nächsten Start.
   monitoring_enabled:
     name: Monitoring aktiv
     description: >-

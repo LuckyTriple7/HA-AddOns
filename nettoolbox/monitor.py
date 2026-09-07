@@ -437,6 +437,12 @@ def run_monitor(store: MonitorStore, monitor: dict, ctx, notify_cfg: dict) -> di
         result = probes_module.run(monitor['probe'], {param_key: monitor['target']}, ctx)
     except Exception as e:
         code = getattr(e, 'code', type(e).__name__)
+        # Im Add-on-Protokoll stand bisher nur der harte Absturz (log.exception
+        # in der Schleife). Ein Monitor, der bei jedem Lauf sauber mit einem
+        # Fehlercode zurückkommt, blieb dagegen still -- in der Konsole ist
+        # genau das die Zeile, die man sucht.
+        log.warning("monitor %s (%s %s): %s", monitor['id'], monitor['probe'],
+                    monitor['target'], code)
         store.record_error(monitor['id'], str(code))
         return {'ok': False, 'error': str(code)}
 
@@ -463,6 +469,9 @@ def run_monitor(store: MonitorStore, monitor: dict, ctx, notify_cfg: dict) -> di
     if should_notify:
         notified = notify(notify_cfg, monitor, level, summary)
     store.record_run(monitor['id'], level, summary, notified, state)
+    log.info("monitor %s (%s %s) -> %s%s%s", monitor['id'], monitor['probe'],
+             monitor['target'], level, ' [changed]' if changed else '',
+             ' [notified]' if notified else '')
     return {'ok': True, 'level': level, 'summary': summary, 'notified': notified}
 
 

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.0] - 2026-09-07
+
+### Added
+- **Konsole in der Oberfläche** (Terminal-Symbol im Kopf, nur für Verwalter). Zeigt live mit,
+  was das Add-on gerade tut: jede Prüfung mit Ziel, Ergebnisstufe, Dauer und Backend, jeden
+  Lauf des Monitorings, jeden Schritt eines Gesamtberichts und jeden Fehlschlag mit seinem
+  Fehlercode. Bisher stand all das nur im Add-on-Protokoll von Home Assistant — wer über
+  Ingress arbeitet, musste dafür das Fenster wechseln, und ein Monitor, der sauber mit einem
+  Fehlercode zurückkam, tauchte dort gar nicht auf.
+  - **Details-Schalter** hängt zusätzlich jede einzelne DNS-Abfrage (Typ, Name, Resolver,
+    Trefferzahl, Dauer) und jeden HTTP-Abruf (Adresse, Status, Bytes, Dauer) an. Umschaltbar
+    zur Laufzeit, ohne Neustart; der Dauerzustand bleibt die Add-on-Option
+    *Ausführliches Protokoll*.
+  - Filter je Stufe (ERROR/WARN/INFO/DEBUG), Textsuche, Leeren, verschieb- und
+    vergrößerbares Fenster. Die Auswahl überlebt einen Seitenwechsel.
+  - Der Puffer (1500 Zeilen) liegt nur im Speicher und ist Verwaltern vorbehalten: er
+    enthält die Prüfziele aller Konten, und Domains und IP-Adressen anderer Leute haben
+    weder auf der Platte noch in fremden Sitzungen etwas verloren.
+  - Fremde Bibliotheken bleiben auf WARNING gedämpft (urllib3 & Co. protokollieren auf DEBUG
+    jede Verbindung und jeden Header und verdrängten sonst binnen Sekunden alles Eigene).
+
 ## [0.8.2] - 2026-09-07
 
 ### Fixed
