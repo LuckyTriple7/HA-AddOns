@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.10.0] - 2026-09-07
+
+### Added
+- **Subdomain-Suche** im DNS-Reiter. Listet jeden Namen unter einer Domain, der je in einem
+  öffentlichen Zertifikat stand — Certificate Transparency macht das seit 2013 zwangsläufig
+  öffentlich, auch für Hosts, die längst abgeschaltet sind oder nie in einer erreichbaren
+  Zonendatei standen. Je Name: Anzahl der Zertifikate, erstes und letztes Auftauchen,
+  Ablauf des jüngsten Zertifikats und die Live-Auflösung samt A-Records. *Liste kopieren*
+  legt die nackten Namen in die Zwischenablage.
+  - Namen mit Zertifikat, die gerade nicht auflösen, werden gesondert genannt — aber als
+    Hinweis, nicht als Mangel: das ist oft ein vergessener Host, ebenso oft ein Name, der
+    absichtlich nur intern auflöst (Split-DNS). Platzhalter (`*.beispiel.de`) zählen dabei
+    nicht mit, die lösen nie selbst auf.
+  - Quelle ist api.ctlogs.dev — die CT-Logs selbst sind Merkle-Bäume mit Millionen Einträgen
+    pro Tag, sie ohne fertigen Index zu durchsuchen hieße, sie erst komplett einzulesen.
+  - **Optionaler API-Schlüssel** in den Einstellungen (verschlüsselt wie die übrigen
+    Geheimfelder). Ohne Schlüssel läuft die Suche anonym: eine Abfrage je Sekunde aus einem
+    gemeinsamen Kontingent, das unter Last abweist. Ein kostenloser Schlüssel
+    (account.ctlogs.dev, Anmeldung mit GitHub oder Google, 10.000 Abfragen im Monat,
+    nicht-kommerziell) hebt beides auf. Das Zeitfenster von 90 Tagen bleibt in beiden Fällen
+    und steht als Befund im Ergebnis — was älter ist, hat nur der kostenpflichtige Tarif.
+  - Die Seitenfolge hält den Takt von einer Anfrage je Sekunde selbst ein und fasst bei einer
+    Bremsantwort (429) einmal nach, statt in einen Fehler zu laufen; nach fünf Seiten
+    (500 Namen) bricht sie ab und sagt das auch.
+
 ## [0.9.0] - 2026-09-07
 
 ### Added

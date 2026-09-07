@@ -36,6 +36,7 @@ GROUPS = (
     ('security', 'security'),
     ('tech', 'tech'),
     ('domain_check', 'domain_check'),
+    ('ctlogs', 'ctlogs'),
 )
 
 FIELDS = {
@@ -75,9 +76,13 @@ FIELDS = {
     # Cloudflare-Konto des Betreibers -- kein freier öffentlicher Dienst dafür.
     'cf_account_id': ('str', '', 64, 'domain_check', 'cf_account_id', ''),
     'cf_api_token': ('str', '', 500, 'domain_check', 'cf_api_token', ''),
+    # Subdomain-Suche (subdomains.py). Optional: ohne Schlüssel läuft die
+    # Suche anonym weiter, nur getaktet und aus einem geteilten Pool.
+    'ctlogs_api_key': ('str', '', 200, 'ctlogs', 'ctlogs_api_key', ''),
 }
 
-SECRET_KEYS = frozenset({'smtp_password', 'telegram_bot_token', 'cf_api_token'})
+SECRET_KEYS = frozenset({'smtp_password', 'telegram_bot_token', 'cf_api_token',
+                        'ctlogs_api_key'})
 
 _lock = threading.Lock()
 _path = ''

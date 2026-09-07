@@ -14,6 +14,10 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 
 - **DNS** — alle gängigen Record-Typen (inkl. CNAME und SRV am Apex), alle Standard-Typen in
   einem Rutsch, TXT, SOA mit Nameserver-Sync-Check
+- **Subdomain-Suche** — alle Namen unter einer Domain, die je in einem öffentlichen
+  Zertifikat standen (Certificate Transparency), mit Zertifikatszahl, Zeitraum und
+  Live-Auflösung je Name; findet auch längst abgeschaltete Hosts. Läuft ohne
+  Anmeldung, ein kostenloser API-Schlüssel ist optional eintragbar.
 - **Record-Generatoren** — SPF, DMARC, DKIM, MTA-STS und TLS-RPT direkt aus Eingabefeldern
   bauen, ohne Netzabfrage und ohne Tageskontingent. DKIM erzeugt auf Wunsch ein neues
   2048-Bit-RSA-Schlüsselpaar im Browser-Backend — der private Schlüssel wird nur einmalig

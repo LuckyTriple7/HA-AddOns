@@ -14,6 +14,10 @@ about your domains leaves your own infrastructure.
 
 - **DNS** — every common record type (including CNAME and SRV at the apex), all standard types
   in one pass, TXT, SOA with a name-server sync check
+- **Subdomain search** — every name under a domain that ever appeared in a public
+  certificate (Certificate Transparency), with certificate count, time range and live
+  resolution per name; finds hosts switched off long ago. Works without signing up, an
+  optional free API key can be stored.
 - **Record generators** — build SPF, DMARC, DKIM, MTA-STS and TLS-RPT records straight from
   input fields, no network lookup and no daily quota. DKIM can generate a fresh 2048-bit RSA key
   pair in the browser's backend on request — the private key is shown once and never stored.

@@ -250,7 +250,8 @@ def build_context() -> Context:
         tech_extra_rules=bool(settings.get('tech_extra_rules')),
         user_agent='NetToolbox/' + (APP_VERSION or '0'),
         cf_account_id=str(settings.get('cf_account_id') or ''),
-        cf_api_token=str(settings.get('cf_api_token') or ''))
+        cf_api_token=str(settings.get('cf_api_token') or ''),
+        ctlogs_api_key=str(settings.get('ctlogs_api_key') or ''))
 
 
 def notify_config() -> dict:
@@ -727,6 +728,7 @@ DOMAIN_CHECK_TLDS = ('de', 'com', 'net', 'org', 'io', 'eu', 'biz', 'app',
 PROBE_MODULE = {
     'dns': 'dns', 'dns_all': 'dns', 'txt': 'dns', 'soa': 'dns',
     'propagation': 'dns', 'dnssec': 'dns', 'aaaa_guard': 'dns',
+    'subdomains': 'dns',
     'mx': 'mail', 'mail_health': 'mail', 'blacklist': 'mail', 'dane': 'mail',
     'mailheader': 'mail', 'smtp': 'mail', 'spf': 'mail', 'dkim': 'mail',
     'dmarc': 'mail', 'mta_sts': 'mail', 'tls_rpt': 'mail', 'bimi': 'mail',

@@ -32,6 +32,7 @@ import portcheck  # noqa: E402
 import probes  # noqa: E402
 import seocheck  # noqa: E402
 import techrules  # noqa: E402
+import subdomains  # noqa: E402
 import wapimport  # noqa: E402
 import smtpcheck  # noqa: E402
 import tlscheck  # noqa: E402
@@ -1287,3 +1288,108 @@ def test_tech_check_names_the_bot_wall_and_drops_its_hygiene_verdicts(monkeypatc
     assert codes[0] == 'tech_bot_wall'
     assert not [c for c in codes if c.startswith('tech_cookie_')]
     assert 'tech_server_version' not in codes
+
+
+# ── Subdomain-Suche (CT-Logs) ────────────────────────────────────────────────
+
+
+def _page(hosts, has_next=False, cursor='', days=90):
+    return {'hosts': hosts, 'has_next': has_next, 'next_cursor': cursor,
+            'history_window_days': days}
+
+
+def _host(name, dns='ok', certs=3, a=None):
+    return {'host': name, 'certs': certs, 'dns': dns,
+            'first_seen': '2026-01-02T03:04:05Z',
+            'last_seen': '2026-05-06T07:08:09Z',
+            'last_not_after': '2026-08-09T10:11:12Z',
+            'a': a if a is not None else (['203.0.113.7'] if dns == 'ok' else [])}
+
+
+def _sub(monkeypatch, pages, key=''):
+    """pages: Liste der Antworten, die nacheinander geliefert werden."""
+    seen = []
+
+    def fake_page(domain, cursor, api_key):
+        seen.append((domain, cursor, api_key))
+        return pages[len(seen) - 1]
+    monkeypatch.setattr(subdomains, '_fetch_page', fake_page)
+    monkeypatch.setattr(subdomains.time, 'sleep', lambda _s: None)
+    ctx = _FakeCtx(ctlogs_api_key=key)
+    return subdomains.check_subdomains(ctx, 'Example.COM.'), seen
+
+
+def test_subdomain_search_normalises_the_domain_and_reads_the_rows(monkeypatch):
+    r, seen = _sub(monkeypatch, [_page([
+        _host('example.com'), _host('*.example.com'), _host('alt.example.com', dns='nodata')])])
+    # Punkt am Ende und Großschreibung gehören nicht in die Anfrage.
+    assert seen[0][0] == 'example.com'
+    assert r['count'] == 3 and r['live'] == 2 and r['wildcards'] == 1
+    assert [h['host'] for h in r['hosts']][1] == '*.example.com'
+    assert r['hosts'][1]['wildcard'] is True
+    # Zeitstempel auf den Tag gekürzt -- die Uhrzeit einer Ausstellung sagt nichts.
+    assert r['hosts'][0]['first_seen'] == '2026-01-02'
+
+
+def test_subdomain_search_follows_pages_until_the_service_says_stop(monkeypatch):
+    r, seen = _sub(monkeypatch, [
+        _page([_host('a.example.com')], has_next=True, cursor='C1'),
+        _page([_host('b.example.com')]),
+    ])
+    assert [c for _d, c, _k in seen] == ['', 'C1']
+    assert r['count'] == 2 and r['pages'] == 2 and r['truncated'] is False
+
+
+def test_subdomain_search_stops_after_the_page_budget_and_says_so(monkeypatch):
+    pages = [_page([_host(f'h{i}.example.com')], has_next=True, cursor=f'C{i}')
+             for i in range(subdomains.MAX_PAGES + 2)]
+    r, seen = _sub(monkeypatch, pages)
+    assert len(seen) == subdomains.MAX_PAGES
+    assert r['truncated'] is True
+    assert 'sub_truncated' in [f['code'] for f in r['findings']]
+
+
+def test_unresolved_names_are_a_hint_not_a_verdict(monkeypatch):
+    # Ein Name mit Zertifikat, der nirgendwohin zeigt, kann ein vergessener
+    # Host sein -- oder Split-DNS. Als Mangel gewertet wäre das geraten.
+    r, _seen = _sub(monkeypatch, [_page([
+        _host('example.com'), _host('old.example.com', dns='nxdomain')])])
+    hit = [f for f in r['findings'] if f['code'] == 'sub_unresolved']
+    assert hit and hit[0]['level'] == 'info'
+    assert 'old.example.com' in hit[0]['args']['names']
+    assert r['level'] == 'ok'
+    # Platzhalter zählen hier nicht mit: *.example.com löst nie selbst auf.
+    r2, _s2 = _sub(monkeypatch, [_page([_host('*.example.com', dns='nodata')])])
+    assert 'sub_unresolved' not in [f['code'] for f in r2['findings']]
+
+
+def test_the_history_window_is_named_and_depends_on_the_key(monkeypatch):
+    r, _seen = _sub(monkeypatch, [_page([_host('example.com')], days=90)])
+    assert 'sub_window_anon' in [f['code'] for f in r['findings']]
+    r2, seen2 = _sub(monkeypatch, [_page([_host('example.com')])], key='K')
+    assert seen2[0][2] == 'K'
+    assert 'sub_window' in [f['code'] for f in r2['findings']]
+
+
+def test_empty_result_is_an_answer_not_an_error(monkeypatch):
+    r, _seen = _sub(monkeypatch, [_page([])])
+    assert r['count'] == 0 and r['level'] == 'ok'
+    assert [f['code'] for f in r['findings']] == ['sub_none']
+
+
+def test_subdomain_findings_and_errors_are_translated():
+    import json
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ('de.json', 'en.json'):
+        with open(os.path.join(here, 'locales', name), encoding='utf-8') as f:
+            texts = json.load(f)
+        for code in ('sub_found', 'sub_none', 'sub_wildcards', 'sub_unresolved',
+                     'sub_truncated', 'sub_window', 'sub_window_anon'):
+            assert 'f_' + code in texts, (name, code)
+        for code in ('ctlogs_timeout', 'ctlogs_unreachable', 'ctlogs_rate_limited',
+                     'ctlogs_bad_key', 'ctlogs_busy', 'ctlogs_error',
+                     'ctlogs_bad_response'):
+            assert 'err_' + code in texts, (name, code)
+        for key in ('sub_title', 'sub_hint', 'field_host', 'field_dns_state',
+                    'settings_group_ctlogs', 'field_ctlogs_api_key'):
+            assert key in texts, (name, key)

@@ -22,6 +22,7 @@ import domaincheck
 import ianatlds
 import seocheck
 import smtpcheck
+import subdomains
 import tlscheck
 import tlsextra
 import wpcheck
@@ -302,6 +303,11 @@ def p_whois(ctx: Context, params: dict) -> dict:
     return domaininfo.check_domain(ctx, _str(params, 'domain'))
 
 
+def p_subdomains(ctx: Context, params: dict) -> dict:
+    """Namen unter einer Domain aus den Certificate-Transparency-Logs."""
+    return subdomains.check_subdomains(ctx, clean_domain(_str(params, 'domain')))
+
+
 def p_http(ctx: Context, params: dict) -> dict:
     return httpcheck.check_http(ctx, _str(params, 'target'))
 
@@ -416,6 +422,7 @@ PROBES = {
     'aaaa_guard': p_aaaa_guard,
     'propagation': p_propagation,
     'dnssec': p_dnssec,
+    'subdomains': p_subdomains,
     'txt': p_txt,
     'soa': p_soa,
     'mx': p_mx,
@@ -452,6 +459,7 @@ TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
+    'subdomains': 'domain',
     'http': 'target', 'http_status': 'target', 'smtp': 'target', 'quic': 'target',
     'seo': 'target', 'tech': 'target', 'wordpress': 'target', 'botcheck': 'target',
     'domain_check': 'domains', 'mailheader': 'text',

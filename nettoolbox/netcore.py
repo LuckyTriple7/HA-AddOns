@@ -51,6 +51,9 @@ class Context:
     # Cloudflare-Konto des Betreibers, aus den Einstellungen.
     cf_account_id: str = ''
     cf_api_token: str = ''
+    # Subdomain-Suche über die CT-Logs (subdomains.py). Leer heißt anonym:
+    # eine Anfrage je Sekunde aus einem geteilten Pool, 90 Tage Verlauf.
+    ctlogs_api_key: str = ''
 
 
 # ── Validation ────────────────────────────────────────────────────────────────

@@ -45,6 +45,7 @@ COPY wpcheck.py .
 COPY domaincheck.py .
 COPY ianatlds.py .
 COPY botcheck.py .
+COPY subdomains.py .
 # Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.
 COPY config.yaml .
 COPY templates/ templates/
