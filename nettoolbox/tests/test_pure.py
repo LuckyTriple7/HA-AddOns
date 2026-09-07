@@ -1266,3 +1266,24 @@ def test_new_http_finding_codes_are_translated():
             assert 'f_' + code in texts, (name, code)
         for key in ('bot_wall_label', 'header_not_measurable'):
             assert key in texts, (name, key)
+
+
+def test_tech_check_names_the_bot_wall_and_drops_its_hygiene_verdicts(monkeypatch):
+    # Anubis' eigenes Cookie hat kein HttpOnly und sein Server-Header ist
+    # seiner -- als Mangel der geprueften Seite waere beides falsch.
+    page = ('<html><head><title>Making sure you\'re not a bot!</title>'
+            '<script id="anubis_challenge">{}</script></head><body></body></html>')
+
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        return {'status': 200, 'url': url, 'bytes': len(page), 'body': page,
+                'headers': {'server': 'nginx/1.2.3'},
+                'cookies': ['techaro.lol-anubis-auth-1=x; Path=/']}
+    monkeypatch.setattr(nettech, 'http_get', fake_get)
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    monkeypatch.setattr(nettech, '_dns_side', lambda *a, **k: {})
+    r = nettech.check_tech(_FakeCtx(), 'example.com')
+    assert r['bot_wall'] == 'Anubis'
+    codes = [f['code'] for f in r['findings']]
+    assert codes[0] == 'tech_bot_wall'
+    assert not [c for c in codes if c.startswith('tech_cookie_')]
+    assert 'tech_server_version' not in codes

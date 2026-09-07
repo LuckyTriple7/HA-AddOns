@@ -905,6 +905,7 @@
   "tech_cat_misc": "Other",
   "f_tech_found": "{count} technology/technologies detected.",
   "f_tech_nothing": "No known technology detected — the site gives nothing away, or it builds its content in JavaScript only.",
+  "f_tech_bot_wall": "A bot protection ({wall}) answered — what was inspected is its challenge page, not the technology of the site behind it.",
   "f_tech_server_version": "The server states its version: {value}. That saves an attacker the work of finding which flaws apply.",
   "f_tech_powered_by": "X-Powered-By reveals the technology in use: {value}. The header serves no purpose and can be switched off.",
   "f_tech_aspnet_version": "X-AspNet-Version reveals the .NET version: {value}.",

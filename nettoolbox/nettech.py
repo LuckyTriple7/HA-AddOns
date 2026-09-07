@@ -591,6 +591,13 @@ def _dns_side(ctx: Context, host: str, hits: _Hits) -> dict:
 
 # ── Hauptpruefung ────────────────────────────────────────────────────────────
 
+# Befunde, die auch vor einer Bot-Pruefseite noch etwas ueber die Messung
+# aussagen statt ueber die Hygiene der falschen Seite.
+_WALL_SAFE_CODES = frozenset((
+    'tech_bot_wall', 'tech_found', 'tech_truncated', 'tech_budget',
+))
+
+
 def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
     # open_chain statt normalise_url + follow_redirects: nur so faellt
     # ein ohne Schema eingetipptes Ziel mit kaputtem HTTPS auf HTTP
@@ -636,6 +643,14 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
 
     cookie_rows = _parse_cookies(resp.get('cookies', []))
     subject = _Subject(headers, page.metas, cookies, resources, body, final_url)
+
+    # Steht ein Waechter davor (Anubis, Cloudflare-Challenge), ist das hier
+    # Untersuchte dessen Pruefseite: eigenes Markup, eigene Kopfzeilen, eigene
+    # Cookies. Alles Erkannte beschreibt dann den Waechter und nicht die Seite
+    # dahinter -- das gehoert dazugesagt, sonst liest sich ein leeres Ergebnis
+    # wie "diese Seite benutzt keinerlei Technik".
+    wall = httpcheck.bot_wall({'headers': headers, 'body': body,
+                               'cookies': resp.get('cookies', [])})
 
     rules = list(_builtin_rules())
     extra = _extra_rules() if extra_rules else []
@@ -695,8 +710,13 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
     findings.extend(_cookie_findings(cookie_rows, parsed.scheme == 'https'))
     if _SPA_ROOT_RE.search(body):
         findings.append(_finding(INFO, 'tech_spa'))
+    if wall:
+        findings.insert(0, _finding(INFO, 'tech_bot_wall', wall=wall))
     if not technologies:
-        findings.append(_finding(INFO, 'tech_nothing'))
+        # Hinter einer Pruefseite ist "nichts gefunden" kein Ergebnis ueber die
+        # Seite, sondern ueber den Waechter -- das sagt der Befund oben schon.
+        if not wall:
+            findings.append(_finding(INFO, 'tech_nothing'))
     else:
         findings.append(_finding(OK, 'tech_found', count=len(technologies)))
     if not complete:
@@ -706,10 +726,19 @@ def check_tech(ctx: Context, target: str, extra_rules: bool = False) -> dict:
         findings.append(_finding(INFO, 'tech_truncated',
                                  kb=MAX_HTML_BYTES // 1024))
 
+    # Hinter einer Pruefseite faellt jedes Hygiene-Urteil auf den Waechter
+    # statt auf die Seite: Anubis' eigenes Cookie hat kein HttpOnly (sein
+    # Skript muss es lesen), und der Server-Header ist der des Waechters.
+    # Als Mangel der geprueften Seite gemeldet waere das wieder eine
+    # Falschaussage -- was zaehlbar bleibt, ist nur der Messrahmen.
+    if wall:
+        findings = [f for f in findings if f['code'] in _WALL_SAFE_CODES]
+
     return {
         'start_url': start_url, 'final_url': final_url,
         'status': resp['status'], 'ms': ms, 'bytes': resp['bytes'],
         'truncated': truncated, 'redirects': len(chain) - 1,
+        'bot_wall': wall,
         'server': server, 'powered_by': powered,
         'generator': generator,
         'title': ' '.join(page.title.split())[:160],

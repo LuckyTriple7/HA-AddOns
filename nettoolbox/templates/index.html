@@ -3766,6 +3766,10 @@ async function techCheck(){
     badges.appendChild(el('span', 'chip', Math.round(r.bytes / 1024) + ' KB'));
     if (r.redirects) badges.appendChild(el('span', 'chip',
       fmtStr(T.seo_redirects, { count: r.redirects })));
+    // Waechter-Plakette wie in der HTTP-Pruefung: alles Weitere beschreibt
+    // sonst unbemerkt die Pruefseite statt der eigentlichen Seite.
+    if (r.bot_wall) badges.appendChild(el('span', 'badge info',
+      T.bot_wall_label + ': ' + r.bot_wall));
     const used = r.rules_used || {};
     badges.appendChild(el('span', 'chip', used.extra
       ? fmtStr(T.tech_rules_chip_both, { builtin: used.builtin, extra: used.extra })

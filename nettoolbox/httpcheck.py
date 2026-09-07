@@ -134,7 +134,7 @@ def open_chain(ctx: Context, target: str, chain_out: list = None) -> tuple:
 # Server dahinter sie sehr wohl setzt. Als "fehlt" gemeldet waere das eine
 # Falschaussage ueber eine fremde Seite, darum wird die Pruefseite erkannt und
 # der Befund als "nicht messbar" ausgewiesen.
-def _bot_wall(hop: dict) -> str:
+def bot_wall(hop: dict) -> str:
     body = hop.get('body') or ''
     cookies = ' '.join(hop.get('cookies') or ())
     headers = hop.get('headers') or {}
@@ -155,7 +155,7 @@ def check_http(ctx: Context, target: str) -> dict:
     findings = []
 
     final_is_https = final['url'].lower().startswith('https://')
-    wall = _bot_wall(final)
+    wall = bot_wall(final)
     result = {
         'start_url': start_url, 'final_url': final['url'],
         'final_status': final['status'], 'https': final_is_https,

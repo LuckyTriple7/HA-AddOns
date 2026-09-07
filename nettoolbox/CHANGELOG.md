@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.2] - 2026-09-07
+
+### Fixed
+- **Die Technik-Erkennung kennzeichnet Bot-Schutzwände jetzt genauso wie die HTTP-Prüfung.**
+  Steht ein Wächter davor (Anubis, Cloudflare-Challenge), untersucht sie dessen Prüfseite:
+  eigenes Markup, eigene Kopfzeilen, eigene Cookies. Sichtbar war das nirgends — das Ergebnis
+  las sich wie eine Aussage über die eigentliche Seite. Neu: Plakette mit dem Namen des
+  Wächters, ein Befund, der es benennt, und die Hygiene-Urteile fallen weg, die sonst dem
+  Falschen angelastet würden (Anubis' eigenes Cookie hat kein `HttpOnly`, weil sein Skript es
+  lesen muss; der `Server`-Header ist der des Wächters). „Keine Technik erkannt“ erscheint dort
+  ebenfalls nicht mehr — das wäre eine Aussage über den Wächter, nicht über die Seite.
+
 ## [0.8.1] - 2026-09-07
 
 ### Fixed

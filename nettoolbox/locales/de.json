@@ -905,6 +905,7 @@
   "tech_cat_misc": "Sonstiges",
   "f_tech_found": "{count} Technik(en) erkannt.",
   "f_tech_nothing": "Keine bekannte Technik erkannt — die Seite verrät nichts, oder sie baut ihren Inhalt erst per JavaScript auf.",
+  "f_tech_bot_wall": "Ein Bot-Schutz ({wall}) hat geantwortet — untersucht wurde dessen Prüfseite, nicht die Technik der Seite dahinter.",
   "f_tech_server_version": "Der Server nennt seine Version: {value}. Das erspart Angreifern die Suche, welche Lücken hier passen.",
   "f_tech_powered_by": "X-Powered-By verrät die eingesetzte Technik: {value}. Der Header hat keinen Nutzen und lässt sich abschalten.",
   "f_tech_aspnet_version": "X-AspNet-Version verrät die .NET-Version: {value}.",
