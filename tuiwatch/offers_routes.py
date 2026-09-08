@@ -472,6 +472,10 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
+        # Historie weg -> es gibt keine letzte Kalender-Bewegung mehr (Spalte, siehe
+        # _calendar_last_move_ts); sonst blinkte der Kalender-Knopf weiter.
+        con.execute('UPDATE offers SET calendar_last_move_ts=0 WHERE id=?', (offer_id,))
+    A._stats_cache_drop(offer_id)      # Preisverlauf ist weg, Statistik ungueltig
     A._log_event(offer_id, 'reset', 'Tracking zurückgesetzt')
     with A._compare_lock:
         A._compare_state.pop(offer_id, None)

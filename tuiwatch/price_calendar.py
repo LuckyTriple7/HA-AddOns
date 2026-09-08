@@ -119,6 +119,11 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
     # Monatsbewegung mitschreiben, solange beide Preistabellen noch hier vorliegen.
     _store_month_moves(con, offer_id, ts,
                        prev_prices, {d['date']: d['price'] for d in days})
+    if real_changed:
+        # Genau hier ist der Zeitpunkt der letzten ECHTEN Bewegung bekannt — die
+        # Spalte spart `/api/offers` den Scan ueber die ganze Historie, siehe
+        # _calendar_last_move_ts().
+        con.execute('UPDATE offers SET calendar_last_move_ts=? WHERE id=?', (ts, offer_id))
     return real_changed
 
 
@@ -389,26 +394,46 @@ def _calendar_moves(con, offer_id: int) -> dict[str, dict]:
     return moves
 
 
-def _calendar_last_move_ts(con) -> dict[int, int]:
-    """Zeitpunkt der letzten ECHTEN Kalender-Preisbewegung je Angebot — ein
-    einziger Query fuer die ganze Angebotsliste.
+def _recalc_last_move_ts(con, offer_id: int | None = None) -> None:
+    """`offers.calendar_last_move_ts` aus der Historie neu berechnen — fuer den
+    einen oder (ohne `offer_id`) fuer alle.
 
-    `_collect_offers` braucht von `_calendar_moves` nur `max(ts)`, holt dafuer
-    aber alle `calendar_history`-Zeilen jedes Angebots nach Python. Das ist der
-    mit Abstand teuerste Teil von `/api/offers` — und die Liste wird alle 5 s
-    von jedem offenen Browser gepollt, waehrend `calendar_history` als einzige
-    Tabelle wirklich schnell waechst.
+    Der teure Weg, absichtlich: ein Scan ueber die ganze `calendar_history`. Er
+    laeuft nur, wo die Spalte nicht mitgepflegt werden kann — bei der einmaligen
+    Migration, nach einem Restore (der schreibt Historienzeilen direkt) und nach
+    dem Zuruecksetzen eines Angebots.
 
     "Echt" heisst wie in `_calendar_moves`: mindestens zwei bekannte Preise fuer
-    dasselbe Reisedatum (ein Datum mit nur einem Snapshot ist die Baseline aus
-    dem Erstabruf, keine Bewegung). Angebote ohne Bewegung fehlen im Ergebnis.
-    """
+    dasselbe Reisedatum (ein Datum mit nur einem Snapshot ist die Baseline aus dem
+    Erstabruf, keine Bewegung)."""
     rows = con.execute(
         'SELECT offer_id, MAX(mx) mt FROM ('
         ' SELECT offer_id, travel_date, MAX(ts) mx, COUNT(*) c'
-        ' FROM calendar_history GROUP BY offer_id, travel_date'
-        ') WHERE c >= 2 GROUP BY offer_id').fetchall()
-    return {r['offer_id']: r['mt'] for r in rows}
+        ' FROM calendar_history WHERE (? IS NULL OR offer_id=?) GROUP BY offer_id, travel_date'
+        ') WHERE c >= 2 GROUP BY offer_id', (offer_id, offer_id)).fetchall()
+    found = {r['offer_id']: r['mt'] for r in rows}
+    targets = ([offer_id] if offer_id is not None
+               else [r['id'] for r in con.execute('SELECT id FROM offers').fetchall()])
+    con.executemany('UPDATE offers SET calendar_last_move_ts=? WHERE id=?',
+                    [(found.get(oid, 0), oid) for oid in targets])
+
+
+def _calendar_last_move_ts(con) -> dict[int, int]:
+    """Zeitpunkt der letzten ECHTEN Kalender-Preisbewegung je Angebot, aus der
+    mitgepflegten Spalte `offers.calendar_last_move_ts`.
+
+    Frueher wurde das bei jedem Aufruf aus `calendar_history` aggregiert. Das ist
+    ein Scan ueber die am schnellsten wachsende Tabelle — gemessen 43 ms von
+    68 ms, die `/api/offers` insgesamt brauchte, und die Liste holt jeder offene
+    Browser alle 5 s. Den Wert kennt aber schon `_store_calendar_snapshot()`, das
+    die Bewegungen selbst schreibt: seitdem steht er in der Spalte, und hier bleibt
+    ein Lesen der (kleinen) offers-Tabelle uebrig — 0,02 ms statt 43 ms.
+
+    Angebote ohne Bewegung fehlen im Ergebnis, wie gehabt."""
+    rows = con.execute(
+        'SELECT id, calendar_last_move_ts t FROM offers '
+        'WHERE COALESCE(calendar_last_move_ts,0) > 0').fetchall()
+    return {r['id']: r['t'] for r in rows}
 
 
 def _calendar_top_moves(moves: dict, limit: int = 12) -> list[dict]:

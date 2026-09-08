@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.113.22
+
+- ⚡ **Die Angebotsliste ist rund 20× schneller.** `/api/offers` holt jeder offene Browser alle 5 Sekunden; auf einer Testdatenbank mit 20 Angeboten, 58.000 Preis- und 250.000 Kalenderzeilen (16,6 MB) brauchte der Aufbau **68 ms — jetzt 3 ms**. Merklich ist das vor allem auf schwacher Hardware und bei mehreren offenen Tabs; spürbar wird es dort, wo die Liste bisher beim Scrollen kurz hakte.
+- 📌 **Die letzte Kalender-Bewegung steht jetzt in der Angebotszeile** statt bei jedem Abruf aus der gesamten Kalenderhistorie zusammengesucht zu werden. Das war mit 43 der 68 ms der größte Einzelposten — und er wuchs mit jeder gespeicherten Preisänderung weiter. Beim ersten Start nach dem Update wird die Spalte einmalig aus der vorhandenen Historie gefüllt; danach schreibt sie der Kalenderabruf selbst mit.
+- 📌 **Die Preisstatistik je Angebot** (niedrigster/höchster/durchschnittlicher Preis) las bisher alle fünf Sekunden den kompletten Verlauf des Angebots. Sie wird jetzt gemerkt und erst dann neu gerechnet, wenn tatsächlich eine neue Messung dazugekommen ist.
+- 📌 **Der 30-Tage-Schnitt** läuft in einer Abfrage für alle Angebote statt in einer je Angebot, und Trend und Preisdelta teilen sich denselben Datenabruf.
+- 🧮 **`PRAGMA optimize`** beim Start und alle sechs Stunden: SQLite hält damit seine Statistiken aktuell und wählt bessere Abfragepläne. Allein das brachte im Test 68 → 56 ms, bevor überhaupt Code angefasst wurde.
+- ✅ 11 neue Tests (Statistik-Cache inkl. Zurücksetzen und fehlgeschlagener Messungen, gepflegte Spalte gegen den alten Vollscan geprüft, Restore und Zurücksetzen) plus Messungen vorher/nachher auf derselben Datenbank.
+
 ## 0.113.21
 
 - ⌨️ **Die Pfeiltasten blättern jetzt genauso weit zurück wie die Schaltflächen im Kalender.** Seit 0.113.20 sind abgereiste Termine wieder sichtbar — die Tastatursteuerung stellte ihre Monatsliste aber selbst aus den buchbaren Tagen zusammen und blieb deshalb beim aktuellen Monat stehen, während ‹ und › schon weiter in die Vergangenheit blätterten. Beide Wege nutzen nun dieselbe Monatsliste (buchbar plus abgereist).
