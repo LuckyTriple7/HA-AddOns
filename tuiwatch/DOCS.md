@@ -29,7 +29,14 @@ Die übrigen Optionen sind seit **0.104.1** aus dem Schema entfernt und tauchen 
 
 ### Zahnrad → **Einstellungen**
 
-Gespeichert wird in `settings.json` im privaten Datenverzeichnis des Add-ons (`/data`, neben `options.json`), in 13 Gruppen von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
+Gespeichert wird in `settings.json` im privaten Datenverzeichnis des Add-ons (`/data`, neben `options.json`), in 13 Kategorien von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
+
+Der Dialog ist zweispaltig: **links die Kategorien**, rechts die Felder der gewählten Kategorie. Dazu:
+
+* **Suchfeld** oben — filtert über Beschriftung *und* Erklärtext quer durch alle Kategorien. „chromium" findet so den Browser-Fallback, ohne dass man weiß, in welcher Kategorie er steht.
+* **Erklärtexte klappen hinter dem ⓘ auf**, statt dauerhaft zu stehen. Vollständig erhalten, aber nicht mehr im Weg.
+* **Punkt vor der Kategorie** bei allem, was Zugangsdaten braucht (Telegram, E-Mail, Nextcloud, KI): gefüllt = hinterlegt, offen = fehlt. So sieht man Einrichtungslücken, ohne hineinzuklicken.
+* **Speichern-Leiste unten** bleibt stehen und zählt die offenen Änderungen — auch über Kategoriewechsel hinweg, gespeichert wird immer alles zusammen.
 
 * **Geheime Felder** (Telegram-Token, SMTP-Passwort, Nextcloud-App-Passwort, Anthropic-/Gemini-/Perplexity-Key) werden mit `settings.key` verschlüsselt und nie an den Browser zurückgegeben — er sieht nur „gesetzt"/„nicht gesetzt". Ein **leeres Feld heißt „unverändert lassen"**; zum Entfernen den Knopf **Löschen** benutzen.
 * Fast alles greift **sofort**, ohne Neustart. Ausnahme: `enable_public_share` und `public_port` — der zweite Webserver für die öffentlichen Angebots-Links wird einmalig beim Start gebunden. Der Dialog weist darauf hin.

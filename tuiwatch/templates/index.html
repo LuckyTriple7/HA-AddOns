@@ -458,6 +458,48 @@
     .set-secret-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .set-state { font-size:var(--fs-xs); color:var(--muted); font-weight:400; }
     .set-warn { color:var(--bad, #ef4444); }
+    /* ── Einstellungen: Navigation links, Inhalt rechts ──────────────────────
+       67 Optionen in 13 Gruppen ergaben untereinander 7.400 px Scrollstrecke —
+       ueber acht Bildschirmhoehen ohne Sprungziel. Die Kategorienliste zeigt
+       jeweils nur eine Gruppe, die Erklaertexte klappen hinter ⓘ auf. */
+    .set-head { margin:10px 0 12px; }
+    .set-head input[type=search] { width:100%; }
+    .set-layout { display:grid; grid-template-columns:238px minmax(0,1fr); gap:16px; align-items:start; }
+    .set-nav { display:flex; flex-direction:column; gap:2px; position:sticky; top:0; }
+    .set-nav button { display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+      background:none; border:0; color:var(--fg); font:inherit; font-size:var(--fs-sm);
+      padding:7px 9px; border-radius:var(--r-ui); cursor:pointer; }
+    .set-nav button:hover { background:var(--surf2); }
+    .set-nav button.on { background:var(--surf2); font-weight:600; box-shadow:inset 2px 0 0 var(--accent); }
+    .set-nav .set-navname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .set-nav .set-count { font-size:var(--fs-2xs); color:var(--muted); }
+    /* Punkt nur bei Kategorien mit Zugangsdaten: er beantwortet "eingerichtet?",
+       nicht "eingeschaltet?" — bei Schaltern waere fast alles gefuellt. */
+    .set-dot { width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+    .set-dot.on { background:var(--green); }
+    .set-dot.off { border:1px solid var(--muted); }
+    .set-pane[hidden] { display:none; }
+    .set-pane > h3 { font-size:var(--fs-md); margin:0 0 10px; }
+    .set-panes .set-group { border-top:0; margin-top:0; padding-top:0; }
+    .set-row .set-lbl-row { display:flex; align-items:baseline; gap:6px; }
+    .set-info { background:none; border:0; color:var(--muted); cursor:pointer; font-size:var(--fs-xs);
+      line-height:1; padding:2px 4px; border-radius:var(--r-ui); }
+    .set-info:hover, .set-info[aria-expanded=true] { color:var(--accent); background:var(--surf2); }
+    .set-row .hint.set-hint { border-left:2px solid var(--border); padding-left:8px; margin-top:5px; }
+    .set-bar { position:sticky; bottom:-18px; margin-top:16px; padding:12px 0 2px;
+      background:var(--surf); border-top:1px solid var(--border);
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .set-bar .hint.dirty { color:var(--accent); font-weight:600; }
+    .set-hit-cat { font-size:var(--fs-2xs); color:var(--muted); text-transform:uppercase;
+      letter-spacing:.04em; margin:14px 0 4px; }
+    .set-empty { color:var(--muted); padding:18px 2px; }
+    @media (max-width:760px){
+      /* Schmal: die Kategorien wandern als waagerechte Leiste ueber den Inhalt. */
+      .set-layout { grid-template-columns:1fr; gap:10px; }
+      .set-nav { flex-direction:row; overflow-x:auto; position:static; padding-bottom:4px; }
+      .set-nav button { width:auto; white-space:nowrap; }
+      .set-nav .set-count { display:none; }
+    }
     .modal h2 { font-size:var(--fs-lg); margin-bottom:4px; }
     .modal .sub { font-size:var(--fs-sm); color:var(--muted); margin-bottom:14px; }
     /* Nextcloud-Kontakte im E-Mail-Dialog: Name und Adresse in je einer Zeile,
@@ -1801,19 +1843,23 @@
 
   <!-- Einstellungen (settings.json, siehe settings.py) -->
   <div class="modal-bg" id="settings-bg">
-    <div class="modal" style="max-width:760px">
+    <div class="modal" style="max-width:900px">
       <button class="icon-btn modal-close" onclick="closeSettings()">
         <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2><svg class="i"><use href="#i-gear"/></svg> Einstellungen</h2>
-      <div class="sub">Gespeichert wird in <code>settings.json</code> im Datenverzeichnis des Add-ons;
-        Tokens und Passwörter verschlüsselt. In der Home-Assistant-Konfiguration stehen nur noch
-        Benutzername, Passwort und Sitzungsdauer. Ein leeres Geheimfeld heißt „unverändert lassen“.</div>
+      <div class="set-head">
+        <input type="search" id="set-search" placeholder="Einstellung suchen (auch im Erklärtext)…"
+               autocomplete="off" oninput="setSearch(this.value)">
+      </div>
       <div class="set-warn hint" id="set-crypto-warn" style="display:none">
         Verschlüsselung nicht verfügbar — geheime Felder können nicht gespeichert werden.</div>
-      <div id="settings-body"><div class="cmp-load">lädt…</div></div>
+      <div class="set-layout">
+        <nav class="set-nav" id="set-nav"></nav>
+        <div class="set-panes" id="settings-body"><div class="cmp-load">lädt…</div></div>
+      </div>
 
-      <div class="set-group" id="set-aiusage-group">
+      <div class="set-group" id="set-aiusage-group" data-cat="ai" hidden>
         <h3>💶 KI-Kosten</h3>
         <div class="set-row">
           <div class="hint">Setzt die Zähler für heute, diesen Monat und gesamt auf null — die Anzeige
@@ -1826,7 +1872,7 @@
           <button class="btn sec" type="button" onclick="resetAiUsage(this)">KI-Kosten zurücksetzen</button>
         </div>
       </div>
-      <div class="set-group" id="set-key-group">
+      <div class="set-group" id="set-key-group" data-cat="backup" hidden>
         <h3>🔑 Schlüssel &amp; Komplettsicherung</h3>
         <div class="set-row">
           <div class="hint">Der Schlüssel entschlüsselt alle gespeicherten Zugangsdaten und liegt bewusst
@@ -1865,7 +1911,9 @@
           <input type="file" id="set-backup-key-file" accept=".zip,application/zip" style="display:none">
         </div>
       </div>
-      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <div class="set-bar">
+        <span class="hint" id="set-dirty">Keine Änderungen</span>
+        <span style="flex:1"></span>
         <button class="btn sec" onclick="loadSettings()">Neu laden</button>
         <button class="btn" id="set-save" onclick="saveSettings(this)">Speichern</button>
       </div>

@@ -6038,6 +6038,17 @@
     // geleert wird ausschliesslich ueber den Loeschen-Knopf.
     const SET_CLEAR = new Set();
 
+    // Delegiert und einmalig: der Inhalt wird bei jedem Laden neu aufgebaut, der
+    // Zaehler haengt deshalb am Container statt an den einzelnen Feldern. Das
+    // Skript laeuft am Ende des Body, das Element steht hier also schon.
+    (() => {
+      const body = $('#settings-body');
+      if(!body) return;
+      const zaehl = e => { if(e.target.dataset && e.target.dataset.set) setDirtyCount(); };
+      body.addEventListener('input', zaehl);
+      body.addEventListener('change', zaehl);
+    })();
+
     function openSettings(){
       $('#settings-bg').classList.add('show');
       loadSettings();
@@ -6047,38 +6058,66 @@
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
 
+    // Erklaertext eingeklappt hinter ⓘ: die 67 Hinweise (Ø 234 Zeichen) machten
+    // rund 70 % der Dialoghoehe aus. Der Text bleibt vollstaendig erhalten, steht
+    // im DOM (die Suche findet ihn) und klappt auf Klick auf.
+    function setHintHtml(f){
+      if(!f.hint) return '';
+      const id = 'set-h-' + f.key;
+      return `<div class="hint set-hint" id="${id}" hidden>${esc(f.hint)}`
+        + `${f.restart ? ' <b>Neustart nötig.</b>' : ''}</div>`;
+    }
+    function setInfoBtn(f){
+      if(!f.hint) return '';
+      return `<button type="button" class="set-info" aria-expanded="false" aria-controls="set-h-${f.key}"`
+        + ` title="Erklärung anzeigen" onclick="setToggleHint('${f.key}', this)">ⓘ</button>`;
+    }
+    function setToggleHint(key, btn){
+      const el = $('#set-h-' + key); if(!el) return;
+      el.hidden = !el.hidden;
+      btn.setAttribute('aria-expanded', String(!el.hidden));
+    }
+    // Feldbreite nach Inhalt: eine Zahl braucht keine 420 px, ein Schluessel schon.
+    function setWidth(f){
+      if(f.kind === 'int' || f.kind === 'float') return ' style="max-width:150px"';
+      if(f.kind === 'choice') return ' style="max-width:260px"';
+      return '';
+    }
+
     function setFieldHtml(f){
       const id = 'set-f-' + f.key;
-      const hint = f.hint ? `<div class="hint">${esc(f.hint)}${f.restart ? ' <b>Neustart nötig.</b>' : ''}</div>` : '';
+      const hint = setHintHtml(f), info = setInfoBtn(f);
+      const such = esc(((f.label||'') + ' ' + (f.hint||'') + ' ' + f.key).toLowerCase());
+      const row = (inner, extra='') =>
+        `<div class="set-row${extra}" data-field="${f.key}" data-such="${such}">${inner}${hint}</div>`;
       if(f.secret){
-        return `<div class="set-row">
-          <label class="set-lbl" for="${id}">${esc(f.label)}
-            <span class="set-state" id="set-state-${f.key}">${f.set ? 'gesetzt' : 'nicht gesetzt'}</span></label>
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}
+            <span class="set-state" id="set-state-${f.key}">${f.set ? 'gesetzt' : 'nicht gesetzt'}</span></label>${info}</div>
           <div class="set-secret-row">
             <input type="password" id="${id}" data-set="${f.key}" data-secret autocomplete="new-password"
                    placeholder="${f.set ? 'gesetzt — leer lassen heißt unverändert' : 'nicht gesetzt'}">
             <button class="btn sec" type="button" data-clear="${f.key}">Löschen</button>
-          </div>${hint}</div>`;
+          </div>`);
       }
       if(f.kind === 'bool'){
-        return `<div class="set-row set-bool"><label class="set-lbl" for="${id}">
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">
             <input type="checkbox" id="${id}" data-set="${f.key}" ${f.value ? 'checked' : ''}>
-            ${esc(f.label)}</label>${hint}</div>`;
+            ${esc(f.label)}</label>${info}</div>`, ' set-bool');
       }
       if(f.kind === 'choice'){
         const opts = (f.choices || []).map(c =>
           `<option value="${esc(c)}"${String(f.value) === String(c) ? ' selected' : ''}>${esc(c)}</option>`).join('');
-        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
-          <select id="${id}" data-set="${f.key}">${opts}</select>${hint}</div>`;
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>${info}</div>
+          <select id="${id}" data-set="${f.key}"${setWidth(f)}>${opts}</select>`);
       }
       if(f.kind === 'int' || f.kind === 'float'){
         const step = f.kind === 'float' ? ' step="0.1"' : '';
-        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>${info}</div>
           <input type="number" id="${id}" data-set="${f.key}" min="${f.min}" max="${f.max}"${step}
-                 value="${esc(f.value)}">${hint}</div>`;
+                 value="${esc(f.value)}"${setWidth(f)}>`);
       }
-      return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
-        <input type="text" id="${id}" data-set="${f.key}" value="${esc(f.value)}" autocomplete="off">${hint}</div>`;
+      return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>${info}</div>
+        <input type="text" id="${id}" data-set="${f.key}" value="${esc(f.value)}" autocomplete="off">`);
     }
 
     async function loadSettings(){
@@ -6092,10 +6131,126 @@
         d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load">Einstellungen konnten nicht geladen werden.</div>'; return; }
       $('#set-crypto-warn').style.display = d.crypto ? 'none' : '';
-      body.innerHTML = (d.groups || []).map(g =>
-        `<div class="set-group"><h3>${esc(g.title)}</h3>${(g.items || []).map(setFieldHtml).join('')}</div>`).join('');
+      SET_GROUPS = d.groups || [];
+      body.innerHTML = SET_GROUPS.map(g =>
+        `<section class="set-pane" data-cat="${esc(g.group)}" hidden><h3>${esc(g.title)}</h3>`
+        + `<div class="set-group">${(g.items || []).map(setFieldHtml).join('')}</div></section>`).join('')
+        + '<div class="set-empty" id="set-noresult" hidden>Keine Einstellung gefunden.</div>';
+      // Die beiden fest im HTML stehenden Bloecke (KI-Kosten, Schluessel) wandern
+      // per DOM-Umzug in ihre Kategorie — verschoben, nicht kopiert, damit ihre
+      // IDs und Ereignisbehandler unveraendert weiterarbeiten.
+      document.querySelectorAll('#settings-bg [data-cat][id]').forEach(block => {
+        const ziel = body.querySelector(`.set-pane[data-cat="${block.dataset.cat}"]`);
+        if(ziel){ block.hidden = false; ziel.appendChild(block); }
+      });
       body.querySelectorAll('[data-clear]').forEach(b =>
         b.addEventListener('click', () => clearSecret(b.dataset.clear)));
+      setBuildNav();
+      setSelectCat(SET_CAT && SET_GROUPS.some(g => g.group === SET_CAT)
+                   ? SET_CAT : (SET_GROUPS[0] || {}).group);
+      setSnapshot();
+      const suche = $('#set-search');
+      if(suche && suche.value) setSearch(suche.value);
+    }
+
+    // ── Kategorien, Suche, Änderungszähler ────────────────────────────────────
+    let SET_GROUPS = [], SET_CAT = null, SET_BASE = {};
+
+    // Punkt neben einer Kategorie: gefuellt, sobald alle ihre Zugangsdaten
+    // hinterlegt sind. Kategorien ohne Geheimfelder bekommen keinen — dort gibt es
+    // kein "eingerichtet", nur an- und ausgeschaltete Optionen.
+    function setCatDot(g){
+      const secrets = (g.items || []).filter(f => f.secret);
+      // Kategorien ohne Zugangsdaten bekommen einen unsichtbaren Platzhalter statt
+      // gar nichts: sonst ruecken ihre Beschriftungen gegenueber den anderen ein.
+      if(!secrets.length) return '<span class="set-dot" style="visibility:hidden"></span>';
+      const alle = secrets.every(f => f.set);
+      return `<span class="set-dot ${alle ? 'on' : 'off'}" title="${alle
+        ? 'Zugangsdaten hinterlegt' : 'Zugangsdaten fehlen'}"></span>`;
+    }
+    function setBuildNav(){
+      $('#set-nav').innerHTML = SET_GROUPS.map(g =>
+        `<button type="button" data-cat="${esc(g.group)}" onclick="setSelectCat('${esc(g.group)}')">`
+        + `${setCatDot(g)}<span class="set-navname">${esc(g.title)}</span>`
+        + `<span class="set-count">${(g.items || []).length}</span></button>`).join('');
+    }
+    function setSelectCat(cat){
+      if(!cat) return;
+      SET_CAT = cat;
+      const suche = $('#set-search');
+      if(suche && suche.value){ suche.value = ''; setSearch(''); }
+      $('#settings-body').querySelectorAll('.set-pane').forEach(p =>
+        p.hidden = p.dataset.cat !== cat);
+      let aktiv = null;
+      $('#set-nav').querySelectorAll('button').forEach(b => {
+        const an = b.dataset.cat === cat;
+        b.classList.toggle('on', an);
+        if(an) aktiv = b;
+      });
+      // Auf schmalen Bildschirmen ist die Kategorienliste eine waagerechte Leiste —
+      // die aktive Kategorie kann dann ausserhalb des Sichtbereichs liegen.
+      if(aktiv && aktiv.scrollIntoView) aktiv.scrollIntoView({block:'nearest', inline:'nearest'});
+      $('#settings-body').scrollTop = 0;
+    }
+    // Suche ueber Beschriftung, Schluessel UND Erklaertext: bei 67 Optionen ist das
+    // der kuerzeste Weg, und der Erklaertext enthaelt oft das gesuchte Wort
+    // ("Chromium", "Postfach"), das in der Beschriftung gar nicht vorkommt.
+    function setSearch(q){
+      const suche = (q || '').trim().toLowerCase();
+      const body = $('#settings-body');
+      const panes = [...body.querySelectorAll('.set-pane')];
+      if(!suche){
+        body.querySelectorAll('.set-row').forEach(r => r.hidden = false);
+        body.querySelectorAll('.set-group[data-cat]').forEach(b => b.hidden = false);
+        $('#set-noresult').hidden = true;
+        panes.forEach(p => p.hidden = p.dataset.cat !== SET_CAT);
+        $('#set-nav').querySelectorAll('button').forEach(b =>
+          b.classList.toggle('on', b.dataset.cat === SET_CAT));
+        return;
+      }
+      // Die beiden fest im HTML stehenden Bloecke (KI-Kosten, Schluessel) sind
+      // keine Einstellungen, sondern Aktionen — ihre Zeilen tragen kein data-such
+      // und wuerden sonst unter jedem Suchwort stehen bleiben.
+      body.querySelectorAll('.set-group[data-cat]').forEach(b => b.hidden = true);
+      let treffer = 0;
+      panes.forEach(p => {
+        let sichtbar = 0;
+        p.querySelectorAll('.set-row[data-such]').forEach(r => {
+          const passt = r.dataset.such.includes(suche);
+          r.hidden = !passt;
+          if(passt) sichtbar++;
+        });
+        p.hidden = !sichtbar;             // Treffer quer über alle Kategorien
+        treffer += sichtbar;
+      });
+      $('#set-noresult').hidden = treffer > 0;
+      $('#set-nav').querySelectorAll('button').forEach(b => b.classList.remove('on'));
+    }
+
+    // Änderungszähler: der Ausgangsstand wird nach dem Rendern festgehalten, damit
+    // die Leiste unten sagen kann, ob und wie viel offen ist — vorher stand der
+    // Speichern-Knopf am Ende von 7.400 px, ohne Hinweis darauf, dass etwas offen war.
+    function setFieldValue(inp){
+      if(inp.hasAttribute('data-secret')) return inp.value;
+      return inp.type === 'checkbox' ? String(inp.checked) : String(inp.value);
+    }
+    function setSnapshot(){
+      SET_BASE = {};
+      $('#settings-body').querySelectorAll('[data-set]').forEach(inp => {
+        SET_BASE[inp.dataset.set] = setFieldValue(inp);
+      });
+      setDirtyCount();
+    }
+    function setDirtyCount(){
+      let n = SET_CLEAR.size;
+      $('#settings-body').querySelectorAll('[data-set]').forEach(inp => {
+        if(setFieldValue(inp) !== SET_BASE[inp.dataset.set]) n++;
+      });
+      const el = $('#set-dirty');
+      el.textContent = n ? `${n} ${n === 1 ? 'Änderung' : 'Änderungen'} nicht gespeichert`
+                         : 'Keine Änderungen';
+      el.classList.toggle('dirty', n > 0);
+      return n;
     }
 
     function clearSecret(key){
@@ -6105,6 +6260,7 @@
       if(inp) inp.value = '';
       const st = $('#set-state-' + key);
       if(st) st.textContent = 'wird beim Speichern gelöscht';
+      setDirtyCount();
     }
 
     async function saveSettings(btn){

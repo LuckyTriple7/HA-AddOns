@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.113.28
+
+- ⚙️ **Der Einstellungen-Dialog ist neu aufgebaut.** Vorher standen 67 Optionen mit ihren 67 Erklärtexten untereinander: **7.420 Pixel Scrollstrecke**, über acht Bildschirmhöhen am Stück, ohne Suche und ohne Sprungziel — der Speichern-Knopf lag ganz am Ende. Jetzt sind es je Kategorie **rund 600 bis 800 Pixel**.
+- 📑 **Kategorien links, Inhalt rechts.** Ein Klick zeigt genau die Felder einer Kategorie, mit der Zahl der Optionen daneben. Auf schmalen Bildschirmen wird daraus eine waagerechte Leiste über dem Inhalt, die automatisch zur aktiven Kategorie scrollt.
+- 🔍 **Suchfeld** über allem — es filtert Beschriftung **und** Erklärtext quer durch alle Kategorien. „chromium" findet so den Browser-Fallback, ohne dass man wissen muss, wo er einsortiert ist.
+- ⓘ **Erklärtexte klappen auf Klick auf.** Sie machten vorher rund 70 % der Dialoghöhe aus. Der Text ist vollständig erhalten und wird von der Suche weiterhin gefunden — er steht nur nicht mehr permanent im Weg.
+- ● **Statuspunkt je Kategorie**, wo Zugangsdaten nötig sind (Telegram, E-Mail, Nextcloud, KI): gefüllt = hinterlegt, offen = fehlt. Einrichtungslücken sieht man jetzt, ohne hineinzuklicken.
+- 💾 **Die Speichern-Leiste bleibt unten stehen** und zählt mit: „3 Änderungen nicht gespeichert". Änderungen über mehrere Kategorien hinweg werden zusammen gespeichert, und nach dem Speichern bleibt die zuletzt gewählte Kategorie offen.
+- 📏 Eingabefelder sind jetzt so breit wie ihr Inhalt: eine Zahl braucht keine 420 Pixel, ein Schlüssel schon.
+- ✅ Im Browser geprüft (1280 und 420 Pixel): Kategoriewechsel, Suche, aufklappende Hinweise, Änderungszähler über drei Kategorien hinweg und Speichern — Werte kommen korrekt an, der Statuspunkt springt danach um.
+
 ## 0.113.27
 
 - 📊 **Vorjahresvergleich jetzt auch als Monatsmittel — dort, wo der Tagesvergleich nichts findet.** Wurde der 01.05. im Vorjahr gar nicht angeboten, gibt es für diesen Tag keinen Vergleichswert; der Mai als Ganzes lässt sich trotzdem vergleichen. Über dem Kalenderraster steht deshalb neu eine Zeile: **„Ø 898 € aus 18 Terminen · Vorjahr Ø 770 € (6 Termine) +16,6 %"**.
