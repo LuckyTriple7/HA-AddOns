@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.113.24
+
+- 📅 **Neue Kalender-Ansicht „Vorjahr": kostet dieser Reisetermin mehr als vor einem Jahr?** Der Knopf über dem Raster schaltet jetzt reihum durch **Preis → Trend → Vorjahr**. In der Vorjahr-Ansicht zeigt jede Zelle die Differenz zum gleichen Termin 52 Wochen früher — rot teurer, grün günstiger, die Farbtiefe nach Größe der Abweichung. Der Tooltip nennt Vergleichstermin, damaligen Preis und die Abweichung in Prozent.
+- 🗓️ **52 Wochen, nicht „ein Jahr":** verglichen wird mit dem Termin 364 Tage früher, damit der **Wochentag** stimmt. Bei Pauschalreisen hängt der Preis am Anreisetag — ein Samstag mit einem Freitag verglichen wäre ein systematischer Fehler.
+- 💶 Als Vergleichswert dient der **zuletzt vor der Abreise beobachtete Preis** des Vorjahrestermins: was er am Ende gekostet hat, nicht was er irgendwann einmal kostete.
+- 📈 Auch im Tagesverlauf (Klick auf das Trend-Symbol einer Zelle) steht die Vorjahreszeile jetzt über dem Diagramm.
+- 🙈 Die Ansicht erscheint nur, wenn es für das Angebot überhaupt Vorjahresdaten gibt — der Knopf überspringt sie sonst. Die Daten stammen aus der eigenen Kalenderhistorie, es wird nichts nachgeladen: Wer TUIWatch noch kein Jahr laufen lässt, sieht den Modus schlicht nicht.
+- ✅ 4 neue Tests (Wochentagstreue der 364 Tage, letzter statt erster Vorjahrespreis, keine Vermischung zwischen Angeboten, Payload) plus ein Durchlauf im Browser über alle drei Ansichten.
+
 ## 0.113.23
 
 - 🔁 **Die Angebotsliste wird nur noch übertragen, wenn sie sich geändert hat.** Bisher schickte jeder offene Tab alle 5 Sekunden die komplette Liste über die Leitung, obwohl sich zwischen zwei Preisprüfungen — also stundenlang — nichts daran ändert. Jetzt hängt an der Antwort eine Kennung (ETag); kennt der Browser den Stand schon, kommt ein leeres „unverändert" zurück. Spürbar vor allem über einen Cloudflare-Tunnel und mobil.

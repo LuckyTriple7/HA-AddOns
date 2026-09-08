@@ -496,6 +496,49 @@ def _expired_days(con, offer_id: int, known: set[str]) -> list[dict]:
             for r in rows if r['travel_date'] not in known]
 
 
+# Abstand zum Vorjahrestermin: 364 Tage = genau 52 Wochen. Bewusst nicht "ein
+# Jahr": Pauschalreisen haengen am Wochentag (Anreise Samstag bleibt Samstag), und
+# Preisniveau wie Ferienlage richten sich eher nach der Kalenderwoche als nach dem
+# Datum. 365 Tage wuerden den Wochentag verschieben und Samstag mit Freitag
+# vergleichen — bei Flugpauschalreisen ein systematischer Fehler.
+LAST_YEAR_OFFSET_DAYS = 364
+
+
+def _last_year_prices(con, offer_id: int, travel_dates: list[str]) -> dict:
+    """Zu jedem Reisetag der zuletzt beobachtete Preis des Vorjahrestermins.
+
+    Quelle ist dieselbe `calendar_history`, die auch die abgereisten Termine
+    speist: der letzte vor der Abreise gesehene Preis ist der ehrlichste
+    Vergleichswert — was der Termin am Ende gekostet hat, nicht was er ein Jahr
+    vorher mal kostete.
+
+    Rueckgabe: {Reisetag: {"date": Vorjahrestermin, "price": Preis}} — nur fuer
+    Tage, zu denen es wirklich Vorjahresdaten gibt. Wer TUIWatch noch kein Jahr
+    laufen laesst, bekommt hier schlicht nichts, und die Ansicht sagt das auch."""
+    if not travel_dates:
+        return {}
+    want = {}
+    for d in travel_dates:
+        try:
+            ly = (date.fromisoformat(d) - timedelta(days=LAST_YEAR_OFFSET_DAYS)).isoformat()
+        except ValueError:
+            continue
+        want[ly] = d
+    # Bereichsabfrage statt einer IN-Liste mit mehreren hundert Datumswerten: der
+    # Index (offer_id, travel_date, ts) traegt das direkt, und gefiltert wird
+    # anschliessend in Python gegen `want`.
+    rows = con.execute(
+        'SELECT travel_date, price, MAX(id) FROM calendar_history '
+        'WHERE offer_id=? AND travel_date>=? AND travel_date<=? GROUP BY travel_date',
+        (offer_id, min(want), max(want))).fetchall()
+    out = {}
+    for r in rows:
+        heute = want.get(r['travel_date'])
+        if heute:
+            out[heute] = {'date': r['travel_date'], 'price': r['price']}
+    return out
+
+
 def _calendar_payload(offer_id: int) -> dict:
     with A._calendar_lock:
         st = dict(A._calendar_state.get(offer_id) or {})
@@ -508,6 +551,11 @@ def _calendar_payload(offer_id: int) -> dict:
         snap = A._json_loads_safe(row['data'], {}) if row else {}
         expired = _expired_days(
             con, offer_id, {d.get('date') for d in (snap.get('days') or [])}) if row else []
+        # Vorjahresvergleich fuer die buchbaren Tage — abgereiste brauchen ihn nicht,
+        # bei denen steht der eigene Endpreis ja schon in der Zelle.
+        last_year = _last_year_prices(
+            con, offer_id, [d['date'] for d in (snap.get('days') or [])
+                            if d.get('date')]) if row else {}
         # Pausenzustand immer mitliefern, auch ohne Snapshot — sonst könnte die UI
         # bei einem Angebot, dessen allererster Abruf schon scheiterte, nicht sagen,
         # warum nichts mehr passiert.
@@ -524,6 +572,7 @@ def _calendar_payload(offer_id: int) -> dict:
         out['top_moves'] = _calendar_top_moves(moves)
         # Abgereiste Termine: nur zur Anzeige im Raster, siehe _expired_days().
         out['expired_days'] = expired
+        out['last_year'] = last_year
         # Der teuerste Termin kam erst später dazu (v0.67.0). Für Snapshots, die
         # davor abgerufen wurden, hier aus den Tagesdaten nachrechnen — sonst müsste
         # der Nutzer jeden Kalender neu abrufen, nur um die Spanne zu sehen.

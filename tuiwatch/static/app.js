@@ -7201,10 +7201,30 @@
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
-    let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
+    let calTimer = null, calId = null, calData = null, calMonth = null;
+    // Ansicht des Kalenderrasters: Preis (Heatmap), Trend (Bewegung seit dem letzten
+    // Abruf) oder Vorjahr (Vergleich mit dem Termin 52 Wochen frueher).
+    let calView = 'preis';
     let calMovesOpen = false;   // "Größte Bewegungen"-Liste: default eingeklappt, Zustand überlebt Monatswechsel
     let calMonths = null, calMonthsOpen = false;   // Monatsübersicht (Preisniveau + Trend je Reisemonat)
-    function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
+    // Reihum: Preis → Trend → Vorjahr → Preis. Der Vorjahr-Schritt faellt aus, wenn
+    // es fuer dieses Angebot noch keine Vorjahresdaten gibt — ein Modus, der nur
+    // graue Zellen zeigt, ist kein Modus.
+    function calViewCycle(){
+      const hatVorjahr = calData && calData.last_year && Object.keys(calData.last_year).length;
+      const modi = hatVorjahr ? ['preis','trend','vorjahr'] : ['preis','trend'];
+      calView = modi[(modi.indexOf(calView) + 1) % modi.length];
+      drawCalMonth();
+    }
+    function calViewLabel(){
+      const naechst = {preis:'trend', trend:'vorjahr', vorjahr:'preis'};
+      const hatVorjahr = calData && calData.last_year && Object.keys(calData.last_year).length;
+      let z = naechst[calView] || 'preis';
+      if(z === 'vorjahr' && !hatVorjahr) z = 'preis';
+      if(z === 'trend')   return '<svg class="i"><use href="#i-trend"/></svg> Trend';
+      if(z === 'vorjahr') return '<svg class="i"><use href="#i-calendar"/></svg> Vorjahr';
+      return '<svg class="i"><use href="#i-euro"/></svg> Preis';
+    }
     async function openCalDayChart(iso){
       const box = $('#cal-day-chart');
       box.classList.add('show');
@@ -7213,8 +7233,22 @@
       try { d = await fetch(api('/api/calendar/'+calId+'/day/'+iso)).then(r=>r.json()); }
       catch(e){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Preisverlauf konnte nicht geladen werden.</div>'; return; }
       const pts = (d.points||[]).map(p=>({ts:p.ts, price:p.price}));
+      // Vorjahreszeile: der Chart zeigt den Verlauf DIESES Termins — was der
+      // gleiche Termin 52 Wochen frueher zuletzt kostete, ist der Bezugspunkt dazu.
+      const ly = (calData && calData.last_year || {})[iso];
+      const nowP = (calData && (calData.days||[]).find(x=>x.date===iso) || {}).price;
+      let lyLine = '';
+      if(ly){
+        const diff = (nowP!=null) ? nowP - ly.price : null;
+        const pct = (diff!=null && ly.price) ? diff / ly.price * 100 : null;
+        lyLine = `<div class="hint" style="margin-bottom:6px">Vorjahr (${fmtD(ly.date)}): <b>${eur(ly.price)}</b>`
+          + (diff!=null ? ` · heute ${diff>0?'+':'−'}${eur(Math.abs(diff))}`
+             + (pct!=null ? ` (${pct>0?'+':'−'}${Math.abs(pct).toLocaleString('de-DE',{maximumFractionDigits:1})} %)` : '') : '')
+          + '</div>';
+      }
       box.innerHTML = `<div class="cal-day-hd"><b>Preisverlauf: ${fmtD(iso)}</b>
           <button class="btn sec" onclick="closeCalDayChart()">✕</button></div>
+        ${lyLine}
         <canvas id="cal-day-canvas" style="width:100%;height:120px;display:block"></canvas>`;
       if(pts.length<2){
         $('#cal-day-canvas').outerHTML = '<div class="hint">Noch keine Preisänderung für dieses Datum aufgezeichnet.</div>';
@@ -7530,6 +7564,7 @@
     function drawCalMonth(){
       const job = calData; if(!job) return;
       const pm = {}; (job.days||[]).forEach(d=>pm[d.date]=d.price);
+      const lastYear = job.last_year || {};        // Vorjahrestermin je Reisetag
       const past = calPastMap(job);                 // abgereist, nur Anzeige
       const pastSeen = {};                          // Datum → letzter Beobachtungstag
       (job.expired_days||[]).forEach(d=>{
@@ -7569,28 +7604,48 @@
         if(iso===job.priciest_date) cls.push('priciest');
         if(iso===job.tracked_date) cls.push('tracked');
         const mv = moves[iso];
+        // Vorjahr: der zuletzt beobachtete Preis des Termins 52 Wochen frueher.
+        const ly = lastYear[iso];
+        const lyDiff = (ly && price!=null) ? price - ly.price : null;
+        const lyPct = (lyDiff!=null && ly.price) ? lyDiff / ly.price * 100 : null;
         let style = '';
-        if(calTrendView){
+        if(calView==='trend'){
           if(mv){  // Trend: rot=gestiegen, grün=gefallen
             const hue = mv.delta>0 ? 4 : 132;
             style = ` style="background:hsla(${hue},65%,45%,.22)"`;
+          }
+        } else if(calView==='vorjahr'){
+          if(lyPct!=null){
+            // Farbtiefe nach Groesse der Abweichung, gedeckelt bei 20 % — sonst
+            // faerbt ein einzelner Ausreisser den ganzen Monat gleich kraeftig.
+            const hue = lyDiff>0 ? 4 : 132;
+            const a = (0.10 + Math.min(Math.abs(lyPct), 20) / 20 * 0.22).toFixed(2);
+            style = ` style="background:hsla(${hue},65%,45%,${a})"`;
           }
         } else if(price!=null){  // Heatmap: günstig=grün → teuer=rot
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
         const deltaBadge = mv ? `<span class="hist-diff ${mv.delta>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${mv.delta>0?'▲ +':'▼ '}${eur(mv.delta)}</span>` : '';
+        const lyBadge = lyDiff!=null ? `<span class="hist-diff ${lyDiff>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${lyDiff>0?'▲ +':'▼ '}${eur(Math.abs(lyDiff))}</span>` : '';
         const infoIcon = shown!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')"><svg class="i"><use href="#i-trend"/></svg></span>` : '';
         const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
-          + (calTrendView && mv ? deltaBadge
+          + (calView==='trend' && mv ? deltaBadge
+             : calView==='vorjahr' && lyDiff!=null ? lyBadge
              : shown!=null ? `<span class="cal-p">${calPrice(shown)}</span>` : '<span class="cal-p na">–</span>');
+        // Im Vorjahr-Modus gehoert der Vergleichswert in den Tooltip — die Zelle
+        // zeigt nur die Differenz, ohne Bezugsgroesse waere die wertlos.
+        const lyTitle = ly ? `Vorjahr (${fmtD(ly.date)}): ${eur(ly.price)}`
+          + (lyPct!=null ? ` · ${lyPct>0?'+':'−'}${Math.abs(lyPct).toLocaleString('de-DE',{maximumFractionDigits:1})} %` : '') : '';
         // data-iso: Ankerpunkt für calJump(), das die Zelle nach dem Monatswechsel
         // kurz hervorhebt — im 30-Tage-Raster wäre sonst nicht erkennbar, welcher
         // Tag gemeint war.
         if(price!=null && base){
           cls.push('clk');
-          cells += `<a class="${cls.join(' ')}" data-iso="${iso}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
+          const tip = (lyTitle ? lyTitle + ' · ' : '')
+            + 'Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken';
+          cells += `<a class="${cls.join(' ')}" data-iso="${iso}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="${esc(tip)}"${style}>${inner}</a>`;
         } else if(pastPrice!=null){
           // Kein tui.com-Link: der Termin ist abgereist. Der Tagesverlauf bleibt
           // über das Trend-Symbol erreichbar, dafür ist die Historie ja da.
@@ -7639,7 +7694,7 @@
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
           <span class="cal-title">${monthName}</span>
           <div style="display:flex;gap:6px;align-items:center">
-            <button class="btn sec" onclick="toggleCalTrend()" title="Preis- oder Trend-Ansicht umschalten">${calTrendView?'<svg class="i"><use href="#i-euro"/></svg> Preis':'<svg class="i"><use href="#i-trend"/></svg> Trend'}</button>
+            <button class="btn sec" onclick="calViewCycle()" title="Ansicht umschalten: Preis, Bewegung seit dem letzten Abruf, Vergleich mit dem Vorjahr">${calViewLabel()}</button>
             <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
           </div>
         </div>
@@ -7652,6 +7707,7 @@
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
           <span><i class="lg-past"></i>abgereist – letzter bekannter Preis</span>
+          ${Object.keys(lastYear).length ? '<span><i class="lg-lastyear"></i>Vorjahr-Ansicht: rot = teurer als vor 52 Wochen, grün = günstiger</span>' : ''}
           <span><span class="ampel g"></span>→<span class="ampel r"></span> günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · <svg class="i"><use href="#i-trend"/></svg>: Preisverlauf dieses Tages</span>
         </div>${calFooter(job)}`;
     }
