@@ -2835,8 +2835,8 @@
       // keine weiteren Listener).
       if($('#giata-lightbox-bg').classList.contains('show')) return;
       if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
-      if(!calData || !calData.days) return;
-      const months=[...new Set(calData.days.map(d=>d.date.slice(0,7)))].sort();
+      const months = calMonthList(calData);
+      if(!months.length) return;
       const idx=months.indexOf(calMonth);
       const t = e.key==='ArrowLeft' ? (idx>0?months[idx-1]:'') : (idx<months.length-1?months[idx+1]:'');
       if(t){ calGo(t); e.preventDefault(); }
@@ -7433,6 +7433,19 @@
       return m;
     }
 
+    // Alle Monate mit Daten — buchbar UND abgereist. Heisst bewusst nicht
+    // calMonths: so heisst schon die Monatsuebersicht-Antwort (let calMonths), und
+    // ein zweiter gleicher Name im globalen Scope ueberschreibt den ersten still.
+    // Eine Funktion fuer beide
+    // Blaetterwege: das Tastatur-Handling baute die Liste frueher selbst aus
+    // calData.days und kam deshalb nur bis zum aktuellen Monat zurueck, waehrend
+    // die Pfeil-Schaltflaechen schon weiter blaetterten.
+    function calMonthList(job){
+      if(!job) return [];
+      return [...new Set([...(job.days||[]).map(d=>d.date.slice(0,7)),
+                          ...Object.keys(calPastMap(job)).map(d=>d.slice(0,7))])].sort();
+    }
+
     function renderCalendar(job){
       calData = job;
       if(!(job.days && job.days.length) && !Object.keys(calPastMap(job)).length){
@@ -7516,8 +7529,7 @@
         if(d && d.ts) pastSeen[d.date]=new Date(d.ts*1000).toLocaleDateString('de-DE');
       });
       const moves = job.moves || {};
-      const months = [...new Set([...(job.days||[]).map(d=>d.date.slice(0,7)),
-                                  ...Object.keys(past).map(d=>d.slice(0,7))])].sort();
+      const months = calMonthList(job);
       if(!months.includes(calMonth)) calMonth = months[0];
       const [Y,M] = calMonth.split('-').map(Number);
       const first = new Date(Y, M-1, 1);

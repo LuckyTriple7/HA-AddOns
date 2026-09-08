@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.113.21
+
+- ⌨️ **Die Pfeiltasten blättern jetzt genauso weit zurück wie die Schaltflächen im Kalender.** Seit 0.113.20 sind abgereiste Termine wieder sichtbar — die Tastatursteuerung stellte ihre Monatsliste aber selbst aus den buchbaren Tagen zusammen und blieb deshalb beim aktuellen Monat stehen, während ‹ und › schon weiter in die Vergangenheit blätterten. Beide Wege nutzen nun dieselbe Monatsliste (buchbar plus abgereist).
+- ✅ Im Browser geprüft: ← bis zum ersten Monat mit Historie, → bis zum letzten Reisemonat, an beiden Enden sauberer Anschlag.
+
 ## 0.113.20
 
 - 📅 **Abgereiste Termine bleiben jetzt im Preiskalender sichtbar.** TUI liefert seinen Kalender immer nur ab heute — ein Reisetag, der vorbei ist, verschwand deshalb beim nächsten Abruf aus der Anzeige, obwohl TUIWatch seine Preise weiter kennt (die Historie wird nie gelöscht). Wer im Mai angefangen hat zu beobachten, sah im September nur noch die Zukunft. Neu werden die vergangenen Reisetage aus der Historie ins Raster zurückgeholt: gestrichelter Rahmen, durchgestrichener Preis, dazu der Hinweis „Abgereist – nicht mehr buchbar" samt Datum der letzten Beobachtung. Die zurückliegenden Monate lassen sich wieder anblättern, und das Trend-Symbol öffnet dort weiterhin den Preisverlauf des Tages.
