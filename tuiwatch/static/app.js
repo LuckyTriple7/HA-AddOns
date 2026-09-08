@@ -7627,8 +7627,18 @@
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
-        const deltaBadge = mv ? `<span class="hist-diff ${mv.delta>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${mv.delta>0?'▲ +':'▼ '}${eur(mv.delta)}</span>` : '';
-        const lyBadge = lyDiff!=null ? `<span class="hist-diff ${lyDiff>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${lyDiff>0?'▲ +':'▼ '}${eur(Math.abs(lyDiff))}</span>` : '';
+        // Betrag immer OHNE Vorzeichen: die Richtung steht schon im Pfeil, und auf
+        // dem Handy kuerzt calPrice() die Nachkommastellen — beides zusammen haelt
+        // die Plakette schmal genug, dass sie in einer Zeile bleibt (kein Umbruch
+        // zwischen Betrag und „€", siehe .cal-cell .hist-diff im Stylesheet).
+        // Auf dem Handy faellt der Richtungspfeil weg und die Plakette wird enger:
+        // bei ~50 px Zellenbreite passt "▲ 123 €" sonst nicht in eine Zeile, und
+        // umbrechen soll sie nie. Die Richtung steht weiterhin in der Farbe.
+        const badge = (wert, cls) => `<span class="hist-diff ${cls}" style="margin:0;`
+          + (calNarrow ? 'font-size:.60rem;padding:1px 3px">' : 'font-size:.68rem;padding:1px 5px">')
+          + `${calNarrow ? '' : (wert>0?'▲ ':'▼ ')}${calPrice(Math.abs(wert))}</span>`;
+        const deltaBadge = mv ? badge(mv.delta, mv.delta>0?'up':'down') : '';
+        const lyBadge = lyDiff!=null ? badge(lyDiff, lyDiff>0?'up':'down') : '';
         const infoIcon = shown!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')"><svg class="i"><use href="#i-trend"/></svg></span>` : '';
         const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig

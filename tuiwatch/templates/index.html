@@ -440,6 +440,9 @@
     .gl-nav:hover { background:rgba(255,255,255,.3); }
     .gl-count { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:var(--fs-xs); padding:3px 10px; border-radius:var(--r-pill); pointer-events:none; }
     .modal { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
+    /* Der Preiskalender ist das einzige Fenster mit einem 7-Spalten-Raster: bei
+       680 px blieben je Zelle nur ~85 px, in denen Betrag und Plakette konkurrieren. */
+    #cal-bg .modal { max-width:860px; }
     /* Flache Fenster (Laptop im Querformat): mehr Höhe fürs Modal, weniger Rand */
     @media (max-height:760px){ .modal-bg { padding:8px; } .modal { max-height:96vh; padding:14px; } }
     /* Einstellungen-Dialog: eine Zeile je Feld, Erklärung darunter */
@@ -681,7 +684,12 @@
     .cal-cell { min-height:52px; border:1px solid var(--border); border-radius:var(--r-ui); padding:4px 5px; display:flex; flex-direction:column; justify-content:space-between; background:var(--surf2); }
     .cal-cell.empty { border:none; background:transparent; }
     .cal-cell .cal-d { font-size:var(--fs-xs); color:var(--muted); }
-    .cal-cell .cal-p { font-size:var(--fs-sm); font-weight:700; text-align:right; }
+    /* nowrap: der Betrag und sein „€" gehoeren in eine Zeile. Ohne das brach der
+       Zelleninhalt bei laengeren Betraegen ("+70,00 €") um und das Waehrungszeichen
+       stand allein darunter. Gilt fuer den Preis wie fuer die Differenz-Plaketten
+       der Trend- und Vorjahr-Ansicht. */
+    .cal-cell .cal-p { font-size:var(--fs-sm); font-weight:700; text-align:right; white-space:nowrap; }
+    .cal-cell .hist-diff { white-space:nowrap; margin-left:0; align-self:flex-end; }
     .cal-cell .cal-p.na { color:var(--muted); font-weight:400; }
     .cal-cell.out { opacity:.4; }
     /* Abgereist: nicht mehr buchbar, aber der zuletzt beobachtete Preis bleibt

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.113.26
+
+- 🔧 **Im Preiskalender rutschte das „€" gelegentlich in die nächste Zeile.** Betrag und Währungszeichen der Trend- und Vorjahr-Plaketten stehen jetzt garantiert in einer Zeile (`white-space: nowrap`) — genauso wie die Preisangabe selbst.
+- ↔️ **Das Kalenderfenster ist breiter** (860 statt 680 Pixel). Es ist das einzige Fenster mit einem 7-Spalten-Raster; bei 680 Pixeln blieben je Tag nur rund 85 Pixel, in denen Betrag und Plakette um denselben Platz kämpften. Jetzt sind es 114.
+- 📱 **Auf schmalen Bildschirmen** wird die Plakette enger gesetzt und lässt den Richtungspfeil weg — bei rund 50 Pixeln Zellenbreite passt „▲ 123 €" sonst nicht in eine Zeile. Die Richtung steht dort weiterhin in der Farbe (rot teurer, grün günstiger).
+- ➖ Nebenbei: die Trend-Plakette zeigte den Betrag doppelt negativ („▼ −10,00 €"). Das Vorzeichen steckt im Pfeil, der Betrag steht jetzt ohne.
+- ✅ Im Browser nachgemessen (1280, 420 und 360 Pixel Breite, alle drei Ansichten): kein Umbruch mehr, und keine Plakette ragt über ihre Zelle hinaus.
+
 ## 0.113.25
 
 - 🗄️ **Neuer Datenbank-Dialog:** ein Klick auf „DB …" in der Fußzeile zeigt jetzt den belegten Platz, den davon ungenutzten Anteil und den Umfang des Verlaufs (Preismessungen, Kalender-Beobachtungen, Monatswerte, Ereignisse) — und bietet die beiden Wartungsschritte an.
