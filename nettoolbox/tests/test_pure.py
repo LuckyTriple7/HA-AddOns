@@ -1356,7 +1356,9 @@ def test_unresolved_names_are_a_hint_not_a_verdict(monkeypatch):
         _host('example.com'), _host('old.example.com', dns='nxdomain')])])
     hit = [f for f in r['findings'] if f['code'] == 'sub_unresolved']
     assert hit and hit[0]['level'] == 'info'
-    assert 'old.example.com' in hit[0]['args']['names']
+    # Auf den ganzen Namen prüfen, nicht auf ein Stück der Aufzählung: ein
+    # Teilstring-Test wäre auch für sehr.alt.example.com.fremd.de wahr.
+    assert 'old.example.com' in hit[0]['args']['names'].split(', ')
     assert r['level'] == 'ok'
     # Platzhalter zählen hier nicht mit: *.example.com löst nie selbst auf.
     r2, _s2 = _sub(monkeypatch, [_page([_host('*.example.com', dns='nodata')])])
