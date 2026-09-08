@@ -7422,19 +7422,35 @@
       loadOffers();
     }
 
+    // Abgereiste Reisetage (expired_days) kommen aus der Historie, nicht aus dem
+    // Snapshot: TUI liefert ab heute, ein vergangener Termin fällt beim nächsten
+    // Abruf aus job.days heraus. Sie werden nur ins Raster gemischt — nie in
+    // Heatmap-Spanne, günstigster/teuerster Termin oder die tui.com-Links, denn
+    // buchbar sind sie nicht mehr (siehe _expired_days() in price_calendar.py).
+    function calPastMap(job){
+      const m = {};
+      (job && job.expired_days || []).forEach(d=>{ if(d && d.price!=null) m[d.date]=d.price; });
+      return m;
+    }
+
     function renderCalendar(job){
       calData = job;
-      if(!(job.days && job.days.length)){
+      if(!(job.days && job.days.length) && !Object.keys(calPastMap(job)).length){
         const msg = job.error || job.note || 'Preiskalender nicht verfügbar';
         $('#cal-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+'</div>' + calFooter(job);
         return;
       }
       if(!calMonth){
         // Standard: der Monat des Reisebeginns (window_start) — sofern dafür Daten da sind;
-        // sonst günstigster-im-Zeitraum / günstigster / erster Tag.
+        // sonst günstigster-im-Zeitraum / günstigster / erster Tag. Ist die Reise
+        // vorbei und es gibt nur noch Historie, der letzte abgereiste Termin.
+        const days = job.days || [];
+        const past = Object.keys(calPastMap(job)).sort();
         const wm = (job.window_start||'').slice(0,7);
-        const has = job.days.some(d=>d.date.slice(0,7)===wm);
-        calMonth = (wm && has) ? wm : (job.tracked_date || job.cheapest_date || job.days[0].date).slice(0,7);
+        const has = days.some(d=>d.date.slice(0,7)===wm) || past.some(d=>d.slice(0,7)===wm);
+        const fallback = job.tracked_date || job.cheapest_date
+          || (days.length ? days[0].date : past[past.length-1]);
+        calMonth = (wm && has) ? wm : (fallback||'').slice(0,7);
       }
       drawCalMonth();
     }
@@ -7493,16 +7509,22 @@
 
     function drawCalMonth(){
       const job = calData; if(!job) return;
-      const pm = {}; job.days.forEach(d=>pm[d.date]=d.price);
+      const pm = {}; (job.days||[]).forEach(d=>pm[d.date]=d.price);
+      const past = calPastMap(job);                 // abgereist, nur Anzeige
+      const pastSeen = {};                          // Datum → letzter Beobachtungstag
+      (job.expired_days||[]).forEach(d=>{
+        if(d && d.ts) pastSeen[d.date]=new Date(d.ts*1000).toLocaleDateString('de-DE');
+      });
       const moves = job.moves || {};
-      const months = [...new Set(job.days.map(d=>d.date.slice(0,7)))].sort();
+      const months = [...new Set([...(job.days||[]).map(d=>d.date.slice(0,7)),
+                                  ...Object.keys(past).map(d=>d.slice(0,7))])].sort();
       if(!months.includes(calMonth)) calMonth = months[0];
       const [Y,M] = calMonth.split('-').map(Number);
       const first = new Date(Y, M-1, 1);
       const startWd = (first.getDay()+6)%7;          // Montag = 0
       const dim = new Date(Y, M, 0).getDate();
       const ws = job.window_start, we = job.window_end;
-      const allP = job.days.map(x=>x.price);
+      const allP = (job.days||[]).map(x=>x.price);
       const pmin = Math.min(...allP), pmax = Math.max(...allP);
       const offer = (curOffers||[]).find(x=>x.id===calId) || {};
       const base = offer.url || '';
@@ -7518,9 +7540,12 @@
       for(let d=1; d<=dim; d++){
         const iso = `${Y}-${String(M).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const price = pm[iso];
+        const pastPrice = price==null ? past[iso] : undefined;   // nur wenn nicht mehr buchbar
+        const shown = price!=null ? price : pastPrice;
         const inWin = (!ws||iso>=ws) && (!we||iso<=we);
         const cls = ['cal-cell'];
         if(!inWin) cls.push('out');
+        if(pastPrice!=null) cls.push('past');
         if(iso===job.cheapest_date) cls.push('cheapest');
         if(iso===job.priciest_date) cls.push('priciest');
         if(iso===job.tracked_date) cls.push('tracked');
@@ -7536,17 +7561,22 @@
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
         const deltaBadge = mv ? `<span class="hist-diff ${mv.delta>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${mv.delta>0?'▲ +':'▼ '}${eur(mv.delta)}</span>` : '';
-        const infoIcon = price!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')"><svg class="i"><use href="#i-trend"/></svg></span>` : '';
+        const infoIcon = shown!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')"><svg class="i"><use href="#i-trend"/></svg></span>` : '';
         const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
           + (calTrendView && mv ? deltaBadge
-             : price!=null ? `<span class="cal-p">${calPrice(price)}</span>` : '<span class="cal-p na">–</span>');
+             : shown!=null ? `<span class="cal-p">${calPrice(shown)}</span>` : '<span class="cal-p na">–</span>');
         // data-iso: Ankerpunkt für calJump(), das die Zelle nach dem Monatswechsel
         // kurz hervorhebt — im 30-Tage-Raster wäre sonst nicht erkennbar, welcher
         // Tag gemeint war.
         if(price!=null && base){
           cls.push('clk');
           cells += `<a class="${cls.join(' ')}" data-iso="${iso}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
+        } else if(pastPrice!=null){
+          // Kein tui.com-Link: der Termin ist abgereist. Der Tagesverlauf bleibt
+          // über das Trend-Symbol erreichbar, dafür ist die Historie ja da.
+          const ago = pastSeen[iso] ? ' (zuletzt gesehen am ' + pastSeen[iso] + ')' : '';
+          cells += `<div class="${cls.join(' ')}" data-iso="${iso}" title="Abgereist – nicht mehr buchbar. Letzter beobachteter Preis${ago}."${style}>${inner}</div>`;
         } else {
           cells += `<div class="${cls.join(' ')}" data-iso="${iso}"${style}>${inner}</div>`;
         }
@@ -7602,6 +7632,7 @@
           <span><i class="lg-pricey"></i>teuerster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
+          <span><i class="lg-past"></i>abgereist – letzter bekannter Preis</span>
           <span><span class="ampel g"></span>→<span class="ampel r"></span> günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · <svg class="i"><use href="#i-trend"/></svg>: Preisverlauf dieses Tages</span>
         </div>${calFooter(job)}`;
     }

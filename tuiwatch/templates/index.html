@@ -684,6 +684,11 @@
     .cal-cell .cal-p { font-size:var(--fs-sm); font-weight:700; text-align:right; }
     .cal-cell .cal-p.na { color:var(--muted); font-weight:400; }
     .cal-cell.out { opacity:.4; }
+    /* Abgereist: nicht mehr buchbar, aber der zuletzt beobachtete Preis bleibt
+       sichtbar. Gestrichelter Rahmen + Schraffur, damit die Zelle auch ohne Farbe
+       (Heatmap gilt nur für buchbare Tage) sofort als "vorbei" lesbar ist. */
+    .cal-cell.past { border-style:dashed; opacity:.62; background:repeating-linear-gradient(135deg,var(--surf2),var(--surf2) 6px,rgba(127,127,127,.10) 6px,rgba(127,127,127,.10) 12px); }
+    .cal-cell.past .cal-p { font-weight:600; text-decoration:line-through; text-decoration-thickness:1px; }
     .cal-cell.cheapest { border-color:var(--green); background:rgba(70,180,124,.16); }
     .cal-cell.cheapest .cal-p { color:var(--green); }
     /* Teuerster Termin als Gegenstück zum günstigsten — die Heatmap färbt zwar
@@ -769,6 +774,7 @@
     .cal-legend .lg-pricey { border:1px solid var(--red); }
     .cal-legend .lg-track { border:2px solid var(--accent); }
     .cal-legend .lg-out { background:var(--surf2); opacity:.4; }
+    .cal-legend .lg-past { background:repeating-linear-gradient(135deg,var(--surf2),var(--surf2) 3px,var(--border) 3px,var(--border) 5px); border:1px dashed var(--border); }
     @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:var(--fs-2xs); } }
     .cal-info { position:absolute; top:2px; right:3px; font-size:10px; line-height:1; cursor:pointer; z-index:2; opacity:.5; }
     .cal-info:hover { opacity:1; }

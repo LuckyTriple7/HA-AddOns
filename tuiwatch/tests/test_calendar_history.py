@@ -6,6 +6,7 @@ import io
 import json
 import time
 import zipfile
+from datetime import date, timedelta
 
 import pytest
 
@@ -363,3 +364,62 @@ def test_calendar_alert_set_after_move_and_cleared_on_view(m):
 
     offers = m._collect_offers()
     assert next(o for o in offers if o["id"] == oid)["calendar_alert"] is False   # gesehen -> erloschen
+
+
+# ── Abgereiste Termine bleiben sichtbar ────────────────────────────────────────
+
+def test_expired_days_returns_past_dates_missing_from_snapshot(m):
+    """Der Kern des Ganzen: TUI liefert ab heute, ein abgereister Termin faellt
+    beim naechsten Abruf aus `calendar_cache` — die Historie kennt ihn aber weiter
+    und `_calendar_payload` reicht ihn als `expired_days` nach."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/expired?duration=7")
+    past = (date.today() - timedelta(days=40)).isoformat()
+    past2 = (date.today() - timedelta(days=39)).isoformat()
+    future = (date.today() + timedelta(days=60)).isoformat()
+    with m.db() as con:
+        # Erst der alte Stand mit beiden Reisetagen, dann der neue ohne sie.
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 500), (past2, 510), (future, 800)]))
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 540), (future, 820)]))
+        pc._store_calendar_snapshot(con, oid, _cal([(future, 830)]))
+    out = pc._calendar_payload(oid)
+    assert [d["date"] for d in out["days"]] == [future]
+    exp = {d["date"]: d["price"] for d in out["expired_days"]}
+    # Zuletzt beobachteter Preis, nicht der erste.
+    assert exp == {past: 540, past2: 510}
+
+
+def test_expired_days_skips_dates_still_in_snapshot(m):
+    """Ein vergangenes Datum, das der Snapshot noch enthaelt, darf nicht doppelt
+    auftauchen — sonst stuende es im Raster zweimal (buchbar und abgereist)."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/dup?duration=7")
+    past = (date.today() - timedelta(days=5)).isoformat()
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 500)]))
+    out = pc._calendar_payload(oid)
+    assert out["expired_days"] == []
+
+
+def test_expired_days_empty_without_history(m):
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/none?duration=7")
+    future = (date.today() + timedelta(days=30)).isoformat()
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, _cal([(future, 700)]))
+    assert pc._calendar_payload(oid)["expired_days"] == []
+
+
+def test_expired_days_survive_when_tui_returns_nothing(m, monkeypatch):
+    """Liefert TUI gar nichts mehr (`ok=False`), bleibt der letzte Snapshot stehen —
+    und die abgereisten Tage daraus dürfen nicht als `expired_days` doppelt kommen."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/gone?duration=7")
+    past = (date.today() - timedelta(days=10)).isoformat()
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 600)]))
+    monkeypatch.setattr(m, "fetch_calendar", lambda *a, **k: {"ok": False, "days": []})
+    pc._run_calendar(oid)
+    out = pc._calendar_payload(oid)
+    assert [d["date"] for d in out["days"]] == [past]     # alter Snapshot unberührt
+    assert out["expired_days"] == []

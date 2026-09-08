@@ -443,6 +443,34 @@ def _calendar_moves_since(con, offer_id: int, since_ts: int) -> list[str]:
     return sorted({r['travel_date'][:7] for r in rows})
 
 
+def _expired_days(con, offer_id: int, known: set[str]) -> list[dict]:
+    """Reisetage, die TUI nicht mehr liefert, aus `calendar_history` nachreichen.
+
+    `fetch_calendar` fragt die API ab HEUTE ab, ein abgereister Termin verschwindet
+    also beim nächsten Abruf aus dem Snapshot in `calendar_cache` — und damit aus dem
+    Kalenderraster, obwohl die Historie seine Preise weiter kennt (sie wird nie
+    beschnitten). Hier kommen genau diese Tage zurück: alles vor heute, was nicht
+    ohnehin schon im Snapshot steht, mit dem ZULETZT beobachteten Preis.
+
+    Bewusst getrennt von `days` zurückgegeben, nicht dort eingemischt: `days` ist die
+    Liste der buchbaren Termine und speist günstigster/teuerster Termin, Heatmap,
+    Buchungsscore und die KI-Prompts. Ein vergangener Tag als "günstigster Termin"
+    wäre dort schlicht falsch.
+
+    Der Zuschlag geht über `MAX(id)`, nicht über `MAX(ts)`: bei einem Aggregat aus
+    min()/max() stammen die übrigen Spalten in SQLite aus genau der Zeile mit dem
+    Extremum — bei gleichem `ts` (zwei Snapshots in derselben Sekunde, etwa beim
+    Wiedereinspielen eines Backups) wäre unter mehreren Zeilen aber unbestimmt,
+    welche gewinnt. Die laufende `id` ist eindeutig und steigt mit jeder Beobachtung,
+    trifft also verlässlich die zuletzt geschriebene."""
+    rows = con.execute(
+        'SELECT travel_date, price, ts, MAX(id) FROM calendar_history '
+        'WHERE offer_id=? AND travel_date<? GROUP BY travel_date ORDER BY travel_date',
+        (offer_id, date.today().isoformat())).fetchall()
+    return [{'date': r['travel_date'], 'price': r['price'], 'ts': r['ts']}
+            for r in rows if r['travel_date'] not in known]
+
+
 def _calendar_payload(offer_id: int) -> dict:
     with A._calendar_lock:
         st = dict(A._calendar_state.get(offer_id) or {})
@@ -452,6 +480,9 @@ def _calendar_payload(offer_id: int) -> dict:
         row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
         moves = _calendar_moves(con, offer_id) if row else {}
+        snap = A._json_loads_safe(row['data'], {}) if row else {}
+        expired = _expired_days(
+            con, offer_id, {d.get('date') for d in (snap.get('days') or [])}) if row else []
         # Pausenzustand immer mitliefern, auch ohne Snapshot — sonst könnte die UI
         # bei einem Angebot, dessen allererster Abruf schon scheiterte, nicht sagen,
         # warum nichts mehr passiert.
@@ -461,11 +492,13 @@ def _calendar_payload(offer_id: int) -> dict:
     fails = (st_row['f'] if st_row else 0)
     archived = bool(st_row['a']) if st_row else False
     if row:
-        out = A._json_loads_safe(row['data'], {})
+        out = snap
         out['status'] = 'done'
         out['ts'] = row['ts']
         out['moves'] = moves
         out['top_moves'] = _calendar_top_moves(moves)
+        # Abgereiste Termine: nur zur Anzeige im Raster, siehe _expired_days().
+        out['expired_days'] = expired
         # Der teuerste Termin kam erst später dazu (v0.67.0). Für Snapshots, die
         # davor abgerufen wurden, hier aus den Tagesdaten nachrechnen — sonst müsste
         # der Nutzer jeden Kalender neu abrufen, nur um die Spanne zu sehen.

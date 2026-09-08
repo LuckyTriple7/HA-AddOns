@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.20
+
+- 📅 **Abgereiste Termine bleiben jetzt im Preiskalender sichtbar.** TUI liefert seinen Kalender immer nur ab heute — ein Reisetag, der vorbei ist, verschwand deshalb beim nächsten Abruf aus der Anzeige, obwohl TUIWatch seine Preise weiter kennt (die Historie wird nie gelöscht). Wer im Mai angefangen hat zu beobachten, sah im September nur noch die Zukunft. Neu werden die vergangenen Reisetage aus der Historie ins Raster zurückgeholt: gestrichelter Rahmen, durchgestrichener Preis, dazu der Hinweis „Abgereist – nicht mehr buchbar" samt Datum der letzten Beobachtung. Die zurückliegenden Monate lassen sich wieder anblättern, und das Trend-Symbol öffnet dort weiterhin den Preisverlauf des Tages.
+- 🎯 **Bewusst nur Anzeige:** abgereiste Tage sind nicht anklickbar (auf tui.com gibt es sie nicht mehr) und zählen weder für „günstigster/teuerster Termin" noch für die Farbskala, den Buchungsscore oder die KI-Auswertungen — dort geht es um buchbare Termine, ein vergangener Tag als „günstigster Termin" wäre schlicht falsch.
+- ✅ 4 neue Tests (letzter beobachteter Preis statt erstem, keine Dopplung mit noch gelieferten Terminen, leer ohne Historie, kein Verlust wenn TUI gar nichts mehr liefert) plus ein Durchlauf im echten Browser über drei Monate.
+
 ## 0.113.19
 
 - 🗄️ **Die Datenbank läuft jetzt im WAL-Modus.** SQLite arbeitete bisher im Standard-Journal: Dort sperrt jeder Schreibvorgang die komplette Datei, ein laufender Preis-Check konnte die Weboberfläche also ausbremsen und bei langen Schreib-Schüben zu „database is locked" führen. Mit WAL (Write-Ahead Logging) lesen Oberfläche und Hintergrundprüfungen weiter, während geschrieben wird. Der Modus wird beim Start einmalig gesetzt und steht danach dauerhaft in der Datei — bestehende Datenbanken werden beim nächsten Start automatisch umgestellt.
