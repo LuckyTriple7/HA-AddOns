@@ -5,6 +5,7 @@ den aktiven), der Fehlerzähler pausiert erst nach mehreren Fehlschlägen IN FOL
 ein Erfolg setzt ihn zurück.
 """
 import importlib
+import itertools
 import time
 from datetime import date, timedelta
 
@@ -32,14 +33,22 @@ def pc(m):
     return importlib.import_module("price_calendar")
 
 
+_hotel_ids = itertools.count(100000)
+
+
 def _offer(m, *, archived=0, cal_age_days=10, paused=0):
-    """Angebot mit vorhandenem Kalender-Snapshot anlegen; Rückgabe: offer_id."""
+    """Angebot mit vorhandenem Kalender-Snapshot anlegen; Rückgabe: offer_id.
+
+    Die Hotelnummer kam frueher aus der Uhrzeit in Millisekunden — zwei Angebote im
+    selben Test landeten dann gelegentlich auf derselben URL und der Test brach mit
+    `UNIQUE constraint failed: offers.url` ab. Ein Zaehler kann das nicht.
+    """
     ts = int(time.time()) - cal_age_days * 86400
     with m.db() as con:
         cur = con.execute(
             "INSERT INTO offers (url, label, created, archived, calendar_paused) "
             "VALUES (?,?,?,?,?)",
-            (f"https://www.tui.com/pauschalreisen/angebote/h/{int(time.time()*1000)%10**6}/"
+            (f"https://www.tui.com/pauschalreisen/angebote/h/{next(_hotel_ids)}/"
              f"?duration=7", "Testhotel", int(time.time()), archived, paused))
         oid = cur.lastrowid
         con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",

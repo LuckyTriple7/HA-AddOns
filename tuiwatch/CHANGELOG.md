@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.19
+
+- 🗄️ **Die Datenbank läuft jetzt im WAL-Modus.** SQLite arbeitete bisher im Standard-Journal: Dort sperrt jeder Schreibvorgang die komplette Datei, ein laufender Preis-Check konnte die Weboberfläche also ausbremsen und bei langen Schreib-Schüben zu „database is locked" führen. Mit WAL (Write-Ahead Logging) lesen Oberfläche und Hintergrundprüfungen weiter, während geschrieben wird. Der Modus wird beim Start einmalig gesetzt und steht danach dauerhaft in der Datei — bestehende Datenbanken werden beim nächsten Start automatisch umgestellt.
+- ⚡ Dazu `synchronous=NORMAL` je Verbindung: unter WAL der empfohlene Wert, gegen einen Absturz des Add-ons weiterhin sicher, spart aber einen Festplatten-Sync pro Schreibvorgang. Scheitert die Umstellung (etwa weil die Daten je auf einem Netzlaufwerk lägen), startet TUIWatch wie bisher weiter und schreibt nur eine Warnung ins Log.
+- ✅ Testlauf mit frischer Datenbank (`journal_mode=wal`, `synchronous=1`) plus die volle Test-Suite; nebenbei einen sporadisch fehlschlagenden Kalender-Test repariert, dessen Hotelnummer aus der Uhrzeit in Millisekunden stammte und deshalb gelegentlich doppelt vergeben wurde.
+
 ## 0.113.18
 
 - 📧 **Versand-Mails bekommen jetzt eine ordentliche Message-ID und ein Datum.** `send_email()` setzte bisher nur `Subject`/`From`/`To` — ohne `Message-ID` und `Date` sind Mails für Spamfilter und Threading (Antwort-Zuordnung im Postfach) unvollständig. Neu: `Message-ID` (`email.utils.make_msgid`, mit SMTP-Host als Domain) und `Date` (`formatdate(localtime=True)`) werden bei jedem Versand gesetzt.

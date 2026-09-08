@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.18"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.19"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -589,11 +589,32 @@ def db() -> sqlite3.Connection:
     # das Netz für Pfade, die eine Tabelle vergessen, und gegen Waisen bei einem
     # abgebrochenen Löschvorgang.
     con.execute('PRAGMA foreign_keys=ON')
+    # WAL (einmalig in init_db dauerhaft in der Datei gesetzt) trennt Leser und
+    # Schreiber; synchronous ist dagegen eine Verbindungs-Eigenschaft und muss hier
+    # stehen. NORMAL ist unter WAL der empfohlene Wert: gegen einen Absturz der
+    # Anwendung weiterhin sicher, nur ein Stromausfall im falschen Moment kann die
+    # letzten Transaktionen kosten — dafuer entfaellt ein fsync pro Commit, was bei
+    # den Schreib-Schueben eines Scraper-Laufs deutlich spuerbar ist.
+    con.execute('PRAGMA synchronous=NORMAL')
     return con
 
 
 def init_db() -> None:
     with db() as con:
+        # Ohne WAL laeuft SQLite im Rollback-Journal: jeder Schreibvorgang sperrt die
+        # ganze Datei, ein Scraper-Lauf blockiert also die Weboberflaeche ("database is
+        # locked", sobald die 15 s Timeout aus db() nicht reichen). WAL laesst Leser
+        # waehrend eines Schreibvorgangs weiterlesen. Der Modus steht im Datei-Header,
+        # gilt also fuer alle spaeteren Verbindungen; das Setzen hier ist idempotent.
+        # Faellt die Datenbank je auf ein Netzlaufwerk (Locking ueber SMB/NFS kann kein
+        # gemeinsames Shared Memory), scheitert der Wechsel — dann bleibt es beim
+        # bisherigen Journal, statt den Start zu verhindern.
+        try:
+            mode = con.execute('PRAGMA journal_mode=WAL').fetchone()[0]
+            if str(mode).lower() != 'wal':
+                log.warning("SQLite-WAL nicht aktiv (Journal-Modus: %s)", mode)
+        except sqlite3.Error as e:
+            log.warning("SQLite-WAL konnte nicht gesetzt werden: %s", type(e).__name__)
         con.execute('''CREATE TABLE IF NOT EXISTS offers (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             url         TEXT UNIQUE NOT NULL,
