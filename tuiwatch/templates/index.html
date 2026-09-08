@@ -1235,7 +1235,7 @@
       <div class="foot-status">
         <span>TUIWatch v{{ app_version }}</span>
         <span>Prüfintervall <span id="iv"></span></span>
-        <span>DB <span id="db-size">…</span></span>
+        <span class="hc-foot" title="Datenbank: Umfang und Wartung" onclick="openDbDialog()">DB <span id="db-size">…</span></span>
         <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">TUI-Aufrufe heute <span id="tui-calls">…</span></span>
         <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API <span id="hc-dot">…</span></span>
       </div>
@@ -1721,6 +1721,17 @@
     </div>
   </div>
   <!-- API-Status -->
+  <div class="modal-bg" id="db-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="$('#db-bg').classList.remove('show')">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+      <h2>Datenbank</h2>
+      <div class="sub">Belegter Platz, Umfang des Verlaufs und die beiden Wartungsschritte.</div>
+      <div id="db-body"></div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="hc-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="$('#hc-bg').classList.remove('show')">

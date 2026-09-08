@@ -18,41 +18,6 @@ Index 14 Tage in `meta`, das Problem trifft also nur Neuinstallationen und Resto
   Aufrufe obendrauf.
 - _Besprochen am 31.08.2026, bewusst zurückgestellt._
 
-## 18. Retention: alte Verlaufsdaten verdichten
-`price_history`, `calendar_history`, `offer_events` und `calendar_month_moves`
-wachsen unbegrenzt — aufgeraeumt wird heute nur `notify_log` (letzte 500),
-`market_basket` (`_prune`) und die KI-Jobs. Treiber ist mit Abstand
-`calendar_history`: im Messaufbau (20 Angebote, 500 Reisetage, ~25 Aenderungen je
-Tag) waren das 250.000 Zeilen = rund 15 von 16,6 MB.
-
-Bei den heutigen Groessenordnungen (Nutzer-DB ~25 MB, September 2026) ist das
-unkritisch — SQLite stoert das nicht, und die Historie ist der eigentliche Wert
-des Add-ons. Nur ist der Pfad eben unbegrenzt.
-
-- **Verdichten statt loeschen:** aelter als X Monate auf einen Wert je Reisetag
-  und Woche ausduennen. Die Trend-Aussage bleibt, das Volumen faellt deutlich.
-- Als abschaltbare Option mit sicherem Standard (aus), nicht hart verdrahtet.
-- Vorher messen, ab welcher Zeilenzahl die Abfragen wirklich weh tun — mit der
-  gepflegten Spalte `offers.calendar_last_move_ts` (v0.113.22) faellt der
-  groesste Dauerverbraucher ohnehin weg.
-- _Aufgenommen am 08.09.2026._
-
-## 19. VACUUM / Speicherplatz zurueckgeben
-SQLite gibt geloeschten Platz nicht ans Dateisystem zurueck: nach dem Loeschen
-eines Angebots (mitsamt `price_history`/`calendar_history` per CASCADE) bleibt die
-Datei gross, die freien Seiten werden nur intern wiederverwendet. Ein `VACUUM`
-gibt es im Add-on nirgends.
-
-- Entweder `PRAGMA auto_vacuum=INCREMENTAL` (muss VOR der ersten Tabelle gesetzt
-  werden, bei einer bestehenden Datei also nur ueber ein einmaliges `VACUUM`)
-  plus gelegentliches `incremental_vacuum`,
-- oder schlicht ein Wartungsknopf „Datenbank verdichten" neben der schon
-  vorhandenen DB-Groessenanzeige — ehrlicher, weil der Nutzer den kurzen
-  Schreibstopp dann bewusst ausloest.
-- Achtung: `VACUUM` schreibt die Datei komplett neu und braucht waehrenddessen
-  Platz in Hoehe der DB-Groesse.
-- _Aufgenommen am 08.09.2026._
-
 ## 11. Aktionscodes mit den getrackten Angeboten verrechnen
 Die öffentlichen Aktionscodes (seit 0.26.1 erkannt/gemeldet) auf die Angebote anwenden:
 
@@ -119,6 +84,19 @@ dass wir Modellnamen nachziehen müssen. Offen zu klären, bevor sich das lohnt:
 ---
 
 ## Erledigt
+
+- **#18 Retention + #19 VACUUM → v0.113.25.** Beides im neuen `maintenance.py`,
+  erreichbar ueber den Datenbank-Dialog (Klick auf „DB" in der Fusszeile).
+  Verdichten dueennt aus, statt zu loeschen: je Angebot und Tag bleiben erste,
+  letzte, guenstigste und teuerste Preismessung, je Reisetag und Woche der letzte
+  Kalenderpreis plus Baseline und juengste Zeile — die sichtbaren Kennzahlen
+  aendern sich dadurch nicht. Automatisch nur ueber die Einstellung
+  `history_compact_months` (Standard 0 = aus, Minimum 3 Monate), sonst auf
+  Knopfdruck mit Vorschau und Rueckfrage. `VACUUM` gibt es als eigenen Knopf, mit
+  vorheriger Anzeige des rueckholbaren Platzes; automatisch laeuft es nie, weil es
+  waehrenddessen den doppelten Platz braucht und Schreibzugriffe blockiert.
+  `offer_events` und `calendar_month_moves` bleiben bewusst unangetastet: beide
+  sind schon aggregiert bzw. klein, das Verdichten haette dort nichts zu holen.
 
 - **#12 Wartbarkeit: app.py / index.html aufteilen → v0.48.7.** In vier Tranchen,
   ohne Verhaltensänderung, Tests durchgehend grün:

@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.24"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.25"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3515,16 +3515,25 @@ def health():
     return 'OK', 200
 
 
+def db_file_size() -> int:
+    """Groesse der Datenbankdatei in Bytes, inklusive WAL: die noch nicht
+    eingecheckten Seiten liegen daneben in `-wal` und gehoeren zum belegten Platz
+    dazu — ohne sie schwankte die Anzeige je nach Checkpoint-Zeitpunkt."""
+    gesamt = 0
+    for suffix in ('', '-wal'):
+        try:
+            gesamt += os.path.getsize(DB_PATH + suffix)
+        except OSError:
+            pass
+    return gesamt
+
+
 @app.route('/api/dbsize', methods=['GET'])
 def api_dbsize():
     """Größe der SQLite-Datei für die Footer-Anzeige."""
     if (err := _require_api()):
         return err
-    try:
-        size = os.path.getsize(DB_PATH)
-    except OSError:
-        size = 0
-    return jsonify({'bytes': size})
+    return jsonify({'bytes': db_file_size()})
 
 
 @app.route('/api/settings', methods=['GET'])
@@ -4860,11 +4869,13 @@ import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
 import issues  # noqa: E402
+import maintenance  # noqa: E402
 app.register_blueprint(issues.bp)
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
+app.register_blueprint(maintenance.bp)
 app.register_blueprint(str_flights_routes.bp)
 app.register_blueprint(fra_flights_routes.bp)
 app.register_blueprint(muc_flights_routes.bp)
@@ -5116,6 +5127,7 @@ def main() -> None:
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     threading.Thread(target=_memory_janitor, daemon=True).start()
     threading.Thread(target=_db_optimize_worker, daemon=True).start()
+    threading.Thread(target=maintenance.compact_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     threading.Thread(target=_muc_flights_worker, daemon=True).start()
     threading.Thread(target=_str_flights_worker, daemon=True).start()

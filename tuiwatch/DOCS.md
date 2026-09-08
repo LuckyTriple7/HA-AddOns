@@ -1458,6 +1458,52 @@ Es werden die letzten `auto_backup_keep` (Standard 5) Dateien behalten. Anders a
 `/data` bleibt dieser Ordner auch bei einer **Neuinstallation** des Add-ons bestehen;
 Wiederherstellen wie gehabt über „⬆ Wiederherstellen" im Web-UI.
 
+## Datenbank: Umfang, Verdichten, Speicher freigeben
+
+Ein Klick auf **DB …** in der Fußzeile öffnet den Datenbank-Dialog: belegter Platz,
+davon ungenutzt, und wie viele Preismessungen, Kalender-Beobachtungen,
+Kalender-Monatswerte und Ereignisse gespeichert sind.
+
+Vorweg die Einordnung: **eine Datenbank von 25 MB ist für SQLite völlig unkritisch**
+(das Format geht bis 281 TB, mehrere Gigabyte laufen problemlos), und die Historie ist
+der eigentliche Wert des Add-ons. Beide Wartungsschritte sind deshalb *aus* bzw. nur
+auf Knopfdruck — sie sind für den Fall gedacht, dass über Jahre sehr viele Angebote
+zusammenkommen.
+
+### Verdichten (Verlauf ausdünnen)
+
+Dünnt Verlaufszeilen aus, die älter sind als eine wählbare Zahl Monate (Minimum 3).
+Leitlinie ist **ausdünnen, nicht wegwerfen** — behalten wird:
+
+* aus dem Preisverlauf je Angebot und Kalendertag die **erste**, **letzte**,
+  **günstigste** und **teuerste** Messung. „Niedrigster Preis", „höchster Preis",
+  Preisdiagramm und Trend bleiben damit unverändert; nur der Tagesdurchschnitt kann
+  sich minimal verschieben. Fehlgeschlagene Abrufe werden gar nicht angefasst — die
+  Störungsliste liest genau sie.
+* aus der Kalenderhistorie je Reisetag und Kalenderwoche die **letzte** Beobachtung,
+  dazu immer die **älteste** (Baseline — ohne sie zählte ein Reisetag nicht mehr als
+  bewegt) und die **jüngste** (sie speist Vorjahresvergleich und abgereiste Termine).
+
+Der Dialog zeigt vor dem Löschen immer erst eine **Vorschau** mit der genauen Zahl
+betroffener Zeilen und fragt anschließend nach. Rückgängig machen lässt sich das nur
+über ein Backup.
+
+Automatisch läuft das nur, wenn unter **Einstellungen → Backup** die Option
+*„Alten Verlauf verdichten (Monate)"* auf einen Wert ≥ 3 gesetzt ist; Standard ist
+**0 = aus**. Dann wird einmal täglich im Hintergrund verdichtet.
+
+### Speicher freigeben (`VACUUM`)
+
+SQLite gibt gelöschten Platz nie von selbst ans Dateisystem zurück: die Seiten bleiben
+in der Datei und werden nur intern wiederverwendet. Erst `VACUUM` schreibt die Datei
+neu und gibt den Rest frei — deshalb wird die Datei nach dem Löschen eines Angebots
+(oder nach dem Verdichten) nicht kleiner, bis dieser Knopf gedrückt wird.
+
+Die Zeile *„Davon ungenutzt"* im Dialog sagt vorher, wie viel dabei herauskommt.
+Während des Vorgangs braucht die Datenbank kurz **doppelt so viel Platz**, und
+Schreibzugriffe warten so lange — deshalb passiert das nur auf Knopfdruck, nie
+automatisch.
+
 ## Technik / Wartung
 
 Der Preis wird primär direkt aus den offenen TUI-JSON-APIs gelesen; nur bei Störungen

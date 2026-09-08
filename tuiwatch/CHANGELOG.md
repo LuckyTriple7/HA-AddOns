@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.113.25
+
+- 🗄️ **Neuer Datenbank-Dialog:** ein Klick auf „DB …" in der Fußzeile zeigt jetzt den belegten Platz, den davon ungenutzten Anteil und den Umfang des Verlaufs (Preismessungen, Kalender-Beobachtungen, Monatswerte, Ereignisse) — und bietet die beiden Wartungsschritte an.
+- ✂️ **Verdichten:** dünnt Verlaufszeilen aus, die älter sind als eine wählbare Zahl Monate. Behalten werden je Angebot und Tag die **erste, letzte, günstigste und teuerste** Preismessung und je Reisetag und Woche der **letzte** Kalenderpreis, dazu immer die älteste (Baseline) und die jüngste Beobachtung. Preisverlauf, Höchst- und Tiefstpreis, Kalender-Trend, abgereiste Termine und der Vorjahresvergleich bleiben damit unverändert — nur die zeitliche Auflösung alter Daten sinkt. Fehlgeschlagene Abrufe werden gar nicht angefasst, die Störungsliste lebt von ihnen.
+- 👀 Vor dem Löschen kommt **immer erst eine Vorschau** mit der genauen Zeilenzahl und danach eine Rückfrage. Automatisch passiert nur etwas, wenn unter Einstellungen → Backup die neue Option **„Alten Verlauf verdichten (Monate)"** gesetzt ist; Standard ist **0 = aus**, Minimum 3 Monate. Verlaufsdaten sind der eigentliche Wert des Add-ons — das wirft niemand ungefragt weg.
+- 💾 **Speicher freigeben (`VACUUM`):** SQLite gibt gelöschten Platz nie von selbst ans Dateisystem zurück; deshalb wird die Datei auch nach dem Löschen eines Angebots nicht kleiner. Der neue Knopf holt ihn zurück, und der Dialog sagt vorher, wie viel dabei herauskommt. Nur auf Knopfdruck: währenddessen braucht die Datenbank kurz doppelt so viel Platz.
+- ℹ️ Zur Einordnung, unverändert: eine 25-MB-Datenbank ist für SQLite unkritisch. Beide Schritte sind für den Fall gedacht, dass über Jahre sehr viele Angebote zusammenkommen.
+- ✅ 11 neue Tests (Kennzahlen vor/nach dem Verdichten identisch, junge Daten unangetastet, Fehlversuche unangetastet, Kalender-Baseline bleibt, Vorschau löscht nichts, Routen und Einstellungsgrenzen, `VACUUM` gibt wirklich Platz frei) plus ein vollständiger Durchlauf im Browser: Vorschau 5.772 Zeilen, verdichtet, freigegeben, Fußzeile aktualisiert.
+
 ## 0.113.24
 
 - 📅 **Neue Kalender-Ansicht „Vorjahr": kostet dieser Reisetermin mehr als vor einem Jahr?** Der Knopf über dem Raster schaltet jetzt reihum durch **Preis → Trend → Vorjahr**. In der Vorjahr-Ansicht zeigt jede Zelle die Differenz zum gleichen Termin 52 Wochen früher — rot teurer, grün günstiger, die Farbtiefe nach Größe der Abweichung. Der Tooltip nennt Vergleichstermin, damaligen Preis und die Abweichung in Prozent.

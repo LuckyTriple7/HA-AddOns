@@ -2883,6 +2883,7 @@
       ['regcmp-bg', closeRegionCompare],
       ['reiseb-bg', closeAdvisor],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
+      ['db-bg', () => $('#db-bg').classList.remove('show')],
       ['settings-bg', closeSettings],
       ['promptcfg-bg', closePromptCfg],
       ['aktion-bg', closeAktion],
@@ -8293,6 +8294,85 @@
       if(n < 1024*1024) return (n/1024).toFixed(1)+' KB';
       return (n/1024/1024).toFixed(1)+' MB';
     }
+    // ── Datenbank-Dialog: Umfang, Verdichten, Speicher freigeben ───────────────
+    let dbStats = null;
+    async function openDbDialog(){
+      $('#db-bg').classList.add('show');
+      $('#db-body').innerHTML = '<div class="cmp-load">Datenbank wird gelesen…</div>';
+      await loadDbStats();
+    }
+    async function loadDbStats(){
+      try { dbStats = await fetch(api('/api/db/stats')).then(r=>r.json()); }
+      catch(e){ $('#db-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">Datenbank-Angaben nicht abrufbar.</div>'; return; }
+      renderDbBody();
+    }
+    function renderDbBody(){
+      const d = dbStats || {};
+      const r = d.rows || {};
+      const zeile = (k,v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+      const n = x => (x||0).toLocaleString('de-DE');
+      // "Verdichten" ist der Vorschlagswert des Dialogs, nicht die Einstellung:
+      // wer nichts eingestellt hat, soll trotzdem einmalig aufräumen können.
+      const monate = d.compact_months || 12;
+      $('#db-body').innerHTML = `
+        <table class="split-table" style="margin-bottom:12px">
+          ${zeile('Belegter Platz', fmtBytes(d.bytes||0))}
+          ${zeile('Davon ungenutzt (per „Speicher freigeben" rückholbar)', fmtBytes(d.reclaimable||0))}
+          ${zeile('Preismessungen', n(r.price_history))}
+          ${zeile('Kalender-Beobachtungen', n(r.calendar_history))}
+          ${zeile('Kalender-Monatswerte', n(r.calendar_month_moves))}
+          ${zeile('Ereignisse', n(r.offer_events))}
+        </table>
+        <div class="hint" style="margin-bottom:8px">
+          <b>Verdichten</b> dünnt Verlaufszeilen aus, die älter sind als
+          <input id="db-months" type="number" min="3" max="120" value="${monate}" style="width:64px"> Monate.
+          Behalten werden je Tag die erste, letzte, günstigste und teuerste Preismessung
+          und je Reisetag und Woche der letzte Kalenderpreis — Preisverlauf, Höchst-/Tiefstpreis,
+          Kalender-Trend und Vorjahresvergleich bleiben erhalten.
+          ${d.compact_months ? 'Läuft bei dir automatisch (Einstellung: ' + d.compact_months + ' Monate).'
+                             : 'Automatisch passiert nichts — das steht in den Einstellungen unter „Backup".'}
+        </div>
+        <div id="db-preview" class="hint" style="margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn sec" onclick="dbCompact(false)">Vorschau</button>
+          <button class="btn sec" onclick="dbCompact(true)">Jetzt verdichten</button>
+          <button class="btn" onclick="dbVacuum()">Speicher freigeben</button>
+        </div>`;
+    }
+    async function dbCompact(apply){
+      const months = parseInt($('#db-months').value, 10) || 12;
+      if(months < 3){ toast('Mindestens 3 Monate'); return; }
+      // Vor dem Löschen wird immer erst gezeigt, was wegfällt — und nur die
+      // Bestätigung dieser konkreten Zahl löst es aus.
+      const vor = await fetch(api('/api/db/compact'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({months})})
+        .then(r=>r.json()).catch(()=>null);
+      if(!vor || vor.error){ toast('Vorschau fehlgeschlagen'); return; }
+      $('#db-preview').innerHTML = vor.total
+        ? `Vorschau: <b>${vor.total.toLocaleString('de-DE')}</b> Zeilen würden entfallen `
+          + `(${vor.price_history.toLocaleString('de-DE')} Preismessungen, `
+          + `${vor.calendar_history.toLocaleString('de-DE')} Kalender-Beobachtungen).`
+        : 'Vorschau: nichts zu verdichten — es gibt keine Daten, die älter sind.';
+      if(!apply || !vor.total) return;
+      if(!confirm(`${vor.total.toLocaleString('de-DE')} Verlaufszeilen entfernen, die älter als `
+                  + `${months} Monate sind?\n\nDas lässt sich nur aus einem Backup rückgängig machen.`)) return;
+      const res = await fetch(api('/api/db/compact'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({months, apply:true})})
+        .then(r=>r.json()).catch(()=>null);
+      if(!res || res.error){ toast('Verdichten fehlgeschlagen'); return; }
+      toast(`${res.total.toLocaleString('de-DE')} Zeilen entfernt`);
+      await loadDbStats(); loadDbSize();
+    }
+    async function dbVacuum(){
+      if(!confirm('Die Datenbank wird dabei neu geschrieben. Das dauert bei großen Dateien '
+                  + 'einen Moment, und währenddessen braucht sie kurz doppelt so viel Platz.\n\nFortfahren?')) return;
+      $('#db-body').innerHTML = progBar('Speicher wird freigegeben…');
+      const res = await fetch(api('/api/db/vacuum'), {method:'POST'}).then(r=>r.json()).catch(()=>null);
+      if(!res || res.error){ toast('Freigeben fehlgeschlagen'); await loadDbStats(); return; }
+      toast(res.freed > 0 ? fmtBytes(res.freed) + ' freigegeben' : 'Nichts freizugeben');
+      await loadDbStats(); loadDbSize();
+    }
+
     async function loadDbSize(){
       try { const d = await fetch(api('/api/dbsize')).then(r=>r.json()); $('#db-size').textContent = fmtBytes(d.bytes||0); }
       catch(e){}
