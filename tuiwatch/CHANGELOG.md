@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.23
+
+- 🔁 **Die Angebotsliste wird nur noch übertragen, wenn sie sich geändert hat.** Bisher schickte jeder offene Tab alle 5 Sekunden die komplette Liste über die Leitung, obwohl sich zwischen zwei Preisprüfungen — also stundenlang — nichts daran ändert. Jetzt hängt an der Antwort eine Kennung (ETag); kennt der Browser den Stand schon, kommt ein leeres „unverändert" zurück. Spürbar vor allem über einen Cloudflare-Tunnel und mobil.
+- 😴 **Kein Poll mehr im Hintergrund-Tab.** Solange die Seite nicht sichtbar ist, fragt sie nichts mehr ab; beim Zurückwechseln lädt sie sofort neu (das gab es schon). Wer TUIWatch dauerhaft in einem Tab liegen hat, erzeugt damit gar keine Last mehr, statt rund um die Uhr alle 5 Sekunden.
+- ✅ 3 neue Tests plus ein Durchlauf im echten Browser: erste Abfrage 200, danach nur noch 304, im Hintergrund-Tab überhaupt keine Anfragen mehr.
+
 ## 0.113.22
 
 - ⚡ **Die Angebotsliste ist rund 20× schneller.** `/api/offers` holt jeder offene Browser alle 5 Sekunden; auf einer Testdatenbank mit 20 Angeboten, 58.000 Preis- und 250.000 Kalenderzeilen (16,6 MB) brauchte der Aufbau **68 ms — jetzt 3 ms**. Merklich ist das vor allem auf schwacher Hardware und bei mehreren offenen Tabs; spürbar wird es dort, wo die Liste bisher beim Scrollen kurz hakte.

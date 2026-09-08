@@ -417,13 +417,20 @@
     }
     window.openSchedule = openSchedule;
 
+    // Stand der zuletzt geholten Angebotsliste. Schickt der Browser ihn mit und der
+    // Server hat nichts Neues, kommt ein 304 ohne Rumpf zurueck — dann ist hier
+    // sofort Schluss, ohne JSON zu parsen und ohne die Signatur zu vergleichen.
+    let offersEtag = '';
     async function loadOffers(){
       try {
-        const r = await fetch(api('/api/offers'));
+        const r = await fetch(api('/api/offers'),
+          offersEtag ? {headers:{'If-None-Match': offersEtag}} : undefined);
         // Session abgelaufen (nur bei direktem Zugriff, nie unter Ingress):
         // Reload führt serverseitig zur Login-Seite statt stiller Fehler bei jedem Klick.
         if(r.status===401){ location.reload(); return; }
+        if(r.status===304){ _offlineFails = 0; hideOfflineBanner(); return; }
         if(!r.ok) return;
+        offersEtag = r.headers.get('ETag') || '';
         const d = await r.json();
         _offlineFails = 0; hideOfflineBanner();
         curOffers = d.offers;
@@ -8188,7 +8195,10 @@
 
     loadOffers();
     startBootWatch();
-    setInterval(loadOffers, 5000);
+    // Nicht pollen, solange der Tab im Hintergrund liegt: niemand sieht die Liste,
+    // und beim Zurueckwechseln laedt der visibilitychange-Handler sie ohnehin sofort
+    // neu. Der Timer laeuft weiter, er schickt nur keine Anfragen.
+    setInterval(()=>{ if(!document.hidden) loadOffers(); }, 5000);
     loadHealth();
     updateAktionBtn();
     setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
