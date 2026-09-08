@@ -7532,6 +7532,21 @@
       if(t.dir==='up')   return `<span class="trend up">↗ steigt ${calPct(t.pct)}${days}</span>`;
       return '<span class="trend flat">→ stabil</span>';
     }
+    // Vorjahresmittel eines Reisemonats. Bewusst mit Tageszahl: ein Mittel aus drei
+    // beobachteten Terminen ist etwas anderes als eines aus dreissig, und ohne diese
+    // Angabe sähe beides gleich belastbar aus.
+    function calLastYearCell(m){
+      const ly = m.last_year;
+      if(!ly) return '<span class="hint">–</span>';
+      const pct = ly.pct;
+      const richtung = (pct==null || Math.abs(pct) < CAL_MONTH_DEADBAND) ? 'flat'
+        : (pct > 0 ? 'up' : 'down');
+      const pfeil = richtung==='up' ? '↗ ' : (richtung==='down' ? '↘ ' : '→ ');
+      return `${Math.round(ly.avg).toLocaleString('de-DE')} €`
+        + (pct==null ? '' : ` <span class="trend ${richtung}">${pfeil}${calPct(pct)}</span>`)
+        + `<div class="hint">${ly.days} ${ly.days===1?'Termin':'Termine'} beobachtet</div>`;
+    }
+
     function calIndexLine(i){
       if(!i) return '';
       const cls = i.pct>=CAL_MONTH_DEADBAND ? 'up' : (i.pct<=-CAL_MONTH_DEADBAND ? 'down' : 'flat');
@@ -7549,6 +7564,7 @@
         return `<tr${cur}><td><span class="cal-month-link" onclick="calGo('${m.month}')">${esc(m.label)}</span>`
           + `<div class="hint">${m.dates} Termine · ${eurShort(m.min)}–${eurShort(m.max)}</div></td>`
           + `<td style="white-space:nowrap">${eurShort(m.avg)}</td>`
+          + `<td style="white-space:nowrap">${calLastYearCell(m)}</td>`
           + `<td>${calTrendBadge(m.trend, d.observations)}${calIndexLine(m.index)}</td></tr>`;
       }).join('');
       return `<details class="cal-moves" ${calMonthsOpen?'open':''} ontoggle="calMonthsOpen=this.open">
@@ -7557,9 +7573,33 @@
         <div class="hint" style="margin:4px 0 6px">Ø-Preis ist der aktuelle Stand, der Trend die
         Bewegung dieses Reisemonats über die Zeit — nur dieses Hotel/Zimmer, nicht der Markt.
         Ruhige Tage zählen als 0 %, nicht als fehlender Wert.</div>
-        <table class="hist"><tr><th>Reisemonat</th><th>Ø-Preis</th>
+        <table class="hist"><tr><th>Reisemonat</th><th>Ø-Preis</th><th>Ø Vorjahr</th>
         <th>Trend (${d.window_days} Tage) / Index (gesamt)</th></tr>${rows}</table>
       </details>`;
+    }
+
+    // Kopfzeile über dem Raster: Monatsmittel des angezeigten Monats und, wenn
+    // vorhanden, dasselbe Mittel ein Jahr zuvor.
+    //
+    // Der Tagesvergleich in den Zellen läuft ins Leere, sobald der Vorjahrestermin
+    // gar nicht angeboten wurde — das Monatsmittel trägt trotzdem, weil es über
+    // alle beobachteten Reisetage des Monats geht. Es stammt aus der
+    // Monatsübersicht (/months) und deckt deshalb nur Monate ab heute ab.
+    function calMonthAvgLine(){
+      const m = ((calMonths||{}).months || []).find(x=>x.month===calMonth);
+      if(!m) return '';
+      const ly = m.last_year;
+      let txt = `Ø ${eur(m.avg)} aus ${m.dates} ${m.dates===1?'Termin':'Terminen'}`;
+      if(ly){
+        const pct = ly.pct;
+        const richtung = (pct==null || Math.abs(pct) < CAL_MONTH_DEADBAND) ? 'flat'
+          : (pct > 0 ? 'up' : 'down');
+        txt += ` · Vorjahr Ø ${eur(ly.avg)} (${ly.days} ${ly.days===1?'Termin':'Termine'})`
+          + (pct==null ? '' : ` <span class="trend ${richtung}">${calPct(pct)}</span>`);
+      } else {
+        txt += ' · kein Vorjahresmittel';
+      }
+      return `<div class="hint cal-monthavg">${txt}</div>`;
     }
 
     function drawCalMonth(){
@@ -7709,6 +7749,7 @@
             <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
           </div>
         </div>
+        ${calMonthAvgLine()}
         <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
         <div id="cal-day-chart" class="cal-day-chart"></div>

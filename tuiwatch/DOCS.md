@@ -719,8 +719,37 @@ Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 zusätzlich wird aber mitgeschrieben, für welche Reisedaten sich der Preis seit dem
 letzten Abruf geändert hat (delta-codiert, nur echte Änderungen — kein Datenmüll bei
 unveränderten Tagen). Darauf aufbauend:
-- Umschalter **„📈 Trend“ / „💰 Preis“** im Kalender: die Trend-Ansicht färbt Tage nach
-  Preisänderung statt nach absolutem Preis (rot = gestiegen, grün = gefallen).
+- Umschalter **„💰 Preis" / „📈 Trend" / „📅 Vorjahr"** im Kalender (reihum): die
+  Trend-Ansicht färbt Tage nach Preisänderung statt nach absolutem Preis
+  (rot = gestiegen, grün = gefallen), die Vorjahr-Ansicht nach dem Vergleich mit dem
+  gleichen Termin ein Jahr zuvor. Die Vorjahr-Ansicht erscheint nur, wenn es dafür
+  Daten gibt.
+
+**Abgereiste Termine** bleiben sichtbar: Die TUI-Kalender-API liefert immer nur ab
+heute, ein vergangener Reisetag fällt beim nächsten Abruf also aus dem Snapshot. Aus
+der Historie holt TUIWatch ihn zurück — gestrichelt, mit durchgestrichenem Preis und
+dem Hinweis, wann er zuletzt beobachtet wurde. Er ist nicht mehr anklickbar (auf
+tui.com gibt es ihn nicht mehr) und zählt weder für günstigsten/teuersten Termin noch
+für die Heatmap; der Tagesverlauf bleibt über das 📈-Symbol erreichbar.
+
+**Vorjahresvergleich** — zwei Ebenen, weil die eine allein Lücken hat:
+
+- **Je Reisetag** (Vorjahr-Ansicht): verglichen wird mit dem Termin **364 Tage**
+  früher. 52 Wochen, damit der **Wochentag** stimmt — bei Pauschalreisen hängt der
+  Preis am Anreisetag, ein Samstag gegen Freitag wäre ein systematischer Fehler. Als
+  Vergleichswert dient der **zuletzt vor der Abreise beobachtete** Preis: was der
+  Termin am Ende gekostet hat, nicht was er irgendwann einmal kostete. Die Zelle zeigt
+  die Differenz, der Tooltip Vergleichstermin, damaligen Preis und Prozent.
+- **Je Reisemonat** (Kopfzeile über dem Raster und Spalte *Ø Vorjahr* in der
+  Monatsübersicht): Ø-Preis des Monats gegen den Ø-Preis desselben **Kalendermonats**
+  im Vorjahr, gemittelt über alle beobachteten Reisetage. Das trägt genau dort, wo der
+  Tagesvergleich ins Leere läuft — wurde der 01.05. im Vorjahr gar nicht angeboten,
+  gibt es für diesen Tag keinen Vergleichswert, für den Mai als Ganzes aber schon.
+  Angegeben ist immer, auf **wie vielen Terminen** das Mittel beruht: ein Mittel aus
+  drei beobachteten Tagen ist etwas anderes als eines aus dreißig. Hier ist der
+  Kalendermonat der Bezug (Mai gegen Mai), nicht die 364-Tage-Verschiebung — für ein
+  Monatsmittel zählt die Saison, und ein verschobenes Fenster würde Tage aus dem
+  Nachbarmonat einmischen.
 - Ein Klick auf das **📈-Symbol** einer Zelle zeigt den Preisverlauf genau dieses
   Reisedatums über alle bisherigen Abrufe als Mini-Diagramm.
 - **„Größte Bewegungen seit letztem Abruf“** listet die Tage mit den stärksten

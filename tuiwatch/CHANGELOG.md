@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.113.27
+
+- 📊 **Vorjahresvergleich jetzt auch als Monatsmittel — dort, wo der Tagesvergleich nichts findet.** Wurde der 01.05. im Vorjahr gar nicht angeboten, gibt es für diesen Tag keinen Vergleichswert; der Mai als Ganzes lässt sich trotzdem vergleichen. Über dem Kalenderraster steht deshalb neu eine Zeile: **„Ø 898 € aus 18 Terminen · Vorjahr Ø 770 € (6 Termine) +16,6 %"**.
+- 📋 **In der Monatsübersicht** (aufklappbar über dem Raster) gibt es dafür eine neue Spalte **„Ø Vorjahr"** — mit Pfeil und Prozentabweichung, und darunter, auf wie vielen beobachteten Terminen das Mittel beruht. Ein Mittel aus drei Tagen ist etwas anderes als eines aus dreißig; ohne diese Angabe sähe beides gleich belastbar aus.
+- 🗓️ Beim Monatsmittel ist der Bezug der **Kalendermonat** (Mai gegen Mai), nicht die 364-Tage-Verschiebung des Tagesvergleichs: für ein Monatsmittel zählt die Saison, nicht der Wochentag — und ein verschobenes Fenster würde Tage aus dem Nachbarmonat einmischen.
+- ✅ 4 neue Tests (Mittel über alle beobachteten Tage, zuletzt beobachteter Preis je Tag, keine Vermischung mit dem Nachbarmonat, leer ohne Daten) plus ein Durchlauf im Browser mit absichtlich lückenhaften Vorjahresdaten: nur 6 von 30 Tagen hatten einen Tagesvergleich, das Monatsmittel stand trotzdem.
+
 ## 0.113.26
 
 - 🔧 **Im Preiskalender rutschte das „€" gelegentlich in die nächste Zeile.** Betrag und Währungszeichen der Trend- und Vorjahr-Plaketten stehen jetzt garantiert in einer Zeile (`white-space: nowrap`) — genauso wie die Preisangabe selbst.

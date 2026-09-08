@@ -655,6 +655,48 @@ def month_index(con, offer_id: int, month: str) -> dict | None:
             'since': since, 'n': len(series)}
 
 
+def _last_year_month_avgs(con, offer_id: int, months: list[str]) -> dict:
+    """Durchschnittspreis der Reisemonate ein Jahr zuvor, aus `calendar_history`.
+
+    Ergänzt den tagesgenauen Vorjahresvergleich (`_last_year_prices`) genau dort,
+    wo der nichts liefern kann: ein einzelner Reisetag hat im Vorjahr vielleicht gar
+    kein Angebot gehabt — der Monat als Ganzes aber schon. Über alle Reisetage
+    gemittelt bleibt die Aussage („kostet der Mai dieses Jahr mehr als letztes?")
+    auch dann stehen, wenn einzelne Tage fehlen.
+
+    Verglichen wird hier der KALENDERMONAT (Mai gegen Mai), nicht wie bei den
+    einzelnen Tagen über 364 Tage: für ein Monatsmittel ist der Wochentag egal, die
+    Saison zählt — und ein um zwei Tage verschobenes Fenster würde Tage aus dem
+    Nachbarmonat einmischen.
+
+    Je Reisetag zählt der zuletzt beobachtete Preis (`MAX(id)`, siehe
+    `_expired_days`). Rückgabe: {Monat: {"month": Vorjahresmonat, "avg": …,
+    "days": Anzahl Reisetage}} — nur für Monate mit Daten."""
+    if not months:
+        return {}
+    want = {}
+    for m in months:
+        try:
+            j, mo = m.split('-')
+            want[f'{int(j) - 1:04d}-{mo}'] = m
+        except (ValueError, TypeError):
+            continue
+    if not want:
+        return {}
+    rows = con.execute(
+        'SELECT travel_date, price, MAX(id) FROM calendar_history '
+        'WHERE offer_id=? AND travel_date>=? AND travel_date<=? GROUP BY travel_date',
+        (offer_id, min(want) + '-01', max(want) + '-31')).fetchall()
+    je_monat: dict = defaultdict(list)
+    for r in rows:
+        ziel = want.get(r['travel_date'][:7])
+        if ziel and r['price'] is not None:
+            je_monat[ziel].append(r['price'])
+    return {m: {'month': f'{int(m.split("-")[0]) - 1:04d}-{m.split("-")[1]}',
+                'avg': round(sum(p) / len(p)), 'days': len(p)}
+            for m, p in ((k, v) for k, v in je_monat.items() if v)}
+
+
 def month_payload(offer_id: int) -> dict:
     """Monatsübersicht eines Angebots: je Reisemonat der aktuelle Durchschnittspreis
     aus dem gespeicherten Snapshot plus Trend und Index aus der Bewegungshistorie.
@@ -679,16 +721,26 @@ def month_payload(offer_id: int) -> dict:
         obs = con.execute(
             'SELECT COUNT(DISTINCT day) c FROM calendar_month_moves WHERE offer_id=?',
             (offer_id,)).fetchone()['c']
+        # Vorjahresmittel je Reisemonat — trägt auch dort, wo dem einzelnen Tag
+        # der Vergleichswert fehlt, siehe _last_year_month_avgs().
+        vorjahr = _last_year_month_avgs(con, offer_id, sorted(by_month))
         out = []
         for m in sorted(by_month):
             prices = by_month[m]
-            out.append({
+            avg = round(sum(prices) / len(prices))
+            ly = vorjahr.get(m)
+            eintrag = {
                 'month': m, 'label': _month_name_de(m),
-                'avg': round(sum(prices) / len(prices)), 'min': min(prices),
+                'avg': avg, 'min': min(prices),
                 'max': max(prices), 'dates': len(prices),
                 'trend': month_trend(con, offer_id, m),
                 'index': month_index(con, offer_id, m),
-            })
+            }
+            if ly:
+                eintrag['last_year'] = dict(
+                    ly, pct=(round((avg - ly['avg']) / ly['avg'] * 100, 1)
+                             if ly['avg'] else None))
+            out.append(eintrag)
     return {'offer_id': offer_id, 'months': out, 'observations': obs,
             'ts': row['ts'], 'min_days': CAL_MONTH_MIN_DAYS,
             'window_days': CAL_MONTH_WINDOW}
