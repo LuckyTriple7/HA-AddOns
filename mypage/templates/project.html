@@ -42,6 +42,10 @@
     }
     {{ font_faces|safe }}
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Ein zu breites Bild darf die Seite nicht schieben: ohne diese Bremse
+       wächst der Inhalt über den Bildschirmrand hinaus und das ganze
+       Layout steht schief. Klassenregeln mit festen Maßen gewinnen weiter. */
+    img { max-width: 100%; height: auto; }
     body {
       font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       background: var(--bg); color: var(--text); line-height: 1.65;
