@@ -85,6 +85,19 @@ dass wir Modellnamen nachziehen müssen. Offen zu klären, bevor sich das lohnt:
 
 ## Erledigt
 
+- **#18 Retention + #19 VACUUM → v0.113.25.** Beides im neuen `maintenance.py`,
+  erreichbar ueber den Datenbank-Dialog (Klick auf „DB" in der Fusszeile).
+  Verdichten dueennt aus, statt zu loeschen: je Angebot und Tag bleiben erste,
+  letzte, guenstigste und teuerste Preismessung, je Reisetag und Woche der letzte
+  Kalenderpreis plus Baseline und juengste Zeile — die sichtbaren Kennzahlen
+  aendern sich dadurch nicht. Automatisch nur ueber die Einstellung
+  `history_compact_months` (Standard 0 = aus, Minimum 3 Monate), sonst auf
+  Knopfdruck mit Vorschau und Rueckfrage. `VACUUM` gibt es als eigenen Knopf, mit
+  vorheriger Anzeige des rueckholbaren Platzes; automatisch laeuft es nie, weil es
+  waehrenddessen den doppelten Platz braucht und Schreibzugriffe blockiert.
+  `offer_events` und `calendar_month_moves` bleiben bewusst unangetastet: beide
+  sind schon aggregiert bzw. klein, das Verdichten haette dort nichts zu holen.
+
 - **#12 Wartbarkeit: app.py / index.html aufteilen → v0.48.7.** In vier Tranchen,
   ohne Verhaltensänderung, Tests durchgehend grün:
   - _v0.48.1:_ `trips_routes.py` (Reisen-Blueprint, 984 Z.), `backup_routes.py`

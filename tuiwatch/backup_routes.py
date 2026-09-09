@@ -402,6 +402,11 @@ def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:
         con.execute(
             'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
             (oid, str(c['travel_date']), int(c.get('ts') or 0), c['price']))
+    # Die Historie kommt hier direkt aus dem Backup, an _store_calendar_snapshot()
+    # vorbei — offers.calendar_last_move_ts muss deshalb neu gerechnet werden,
+    # sonst bliebe das Kalender-Signal fuer wiederhergestellte Angebote stumm.
+    A._recalc_last_move_ts(con, oid)
+    A._stats_cache_drop(oid)           # Zeilen kamen am Poller vorbei dazu
     return oid
 
 

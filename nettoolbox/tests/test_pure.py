@@ -21,6 +21,7 @@ import pytest  # noqa: E402
 import blocklists  # noqa: E402
 import geoip  # noqa: E402
 import hasensors  # noqa: E402
+import httpcheck  # noqa: E402
 import mailheader  # noqa: E402
 import monitor  # noqa: E402
 import mailprovider  # noqa: E402
@@ -28,8 +29,10 @@ import netcore  # noqa: E402
 import nettech  # noqa: E402
 import netutils  # noqa: E402
 import portcheck  # noqa: E402
+import probes  # noqa: E402
 import seocheck  # noqa: E402
 import techrules  # noqa: E402
+import subdomains  # noqa: E402
 import wapimport  # noqa: E402
 import smtpcheck  # noqa: E402
 import tlscheck  # noqa: E402
@@ -956,3 +959,439 @@ def test_tech_findings_and_categories_are_translated():
         assert 'tech_cat_' + rule['cat'] in de, rule['cat']
     for extra in ('dns', 'mail'):
         assert 'tech_cat_' + extra in de
+
+
+# ── Statuswächter ────────────────────────────────────────────────────────────
+
+
+class _FakeCtx(netcore.Context):
+    pass
+
+
+def _http_status(monkeypatch, responses):
+    """responses: dict url -> (status, headers) oder eine ProbeError."""
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        answer = responses[url]
+        if isinstance(answer, Exception):
+            raise answer
+        status, headers = answer
+        return {'status': status, 'headers': headers, 'cookies': [],
+                'body': '', 'bytes': 0, 'url': url}
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    return httpcheck.check_http_status(_FakeCtx(), 'example.com')
+
+
+def test_status_watch_reports_final_code_behind_a_redirect(monkeypatch):
+    r = _http_status(monkeypatch, {
+        'https://example.com': (301, {'location': 'https://www.example.com'}),
+        'https://www.example.com': (200, {}),
+    })
+    assert r['status'] == 200
+    assert r['state'] == '200'
+    assert r['level'] == 'ok'
+    assert r['final_url'] == 'https://www.example.com'
+    assert len(r['chain']) == 2
+
+
+def test_status_watch_marks_a_check_that_had_to_use_http(monkeypatch):
+    # Ohne Kennzeichnung im Fingerabdruck bliebe ein kaputtes Zertifikat
+    # unbemerkt: die Seite antwortet über HTTP weiter mit 200.
+    r = _http_status(monkeypatch, {
+        'https://example.com': netcore.ProbeError('tls_error', 'x'),
+        'http://example.com': (200, {})})
+    assert (r['status'], r['state']) == (200, '200@http')
+    assert 'http_https_unreachable' in [f['code'] for f in r['findings']]
+
+
+def test_status_watch_flags_a_server_error(monkeypatch):
+    r = _http_status(monkeypatch, {'https://example.com': (503, {})})
+    assert (r['status'], r['state'], r['level']) == (503, '503', 'fail')
+
+
+def test_status_watch_turns_an_outage_into_a_state_not_an_exception(monkeypatch):
+    # Der Kernpunkt: ein toter Server wirft im Netzstack eine ProbeError. Fliegt
+    # die durch, protokolliert das Monitoring nur einen Laufzeitfehler und
+    # benachrichtigt niemanden -- ausgerechnet beim härtesten Ausfall.
+    r = _http_status(monkeypatch, {
+        'https://example.com': netcore.ProbeError('http_error', 'x'),
+        # Auch der HTTPS-Rückfall auf HTTP muss scheitern, sonst ist der Host
+        # eben nicht tot; gemeldet wird dann der HTTPS-Fehler.
+        'http://example.com': netcore.ProbeError('http_error', 'x')})
+    assert r['level'] == 'fail'
+    assert r['state'] == 'error:http_error'
+    assert r['status'] == 0
+
+
+def test_status_watch_still_rejects_a_bad_target(monkeypatch):
+    with pytest.raises(netcore.ProbeError):
+        _http_status(monkeypatch, {
+            'https://example.com': netcore.ProbeError('private_target', 'x')})
+
+
+def _store(tmp_path):
+    store = monitor.MonitorStore(str(tmp_path / 'm.db'))
+    assert store.open()
+    return store
+
+
+def test_monitor_notifies_when_only_the_status_code_changed(tmp_path, monkeypatch):
+    """500 -> 503 ist zweimal 'fail'. Ohne den Zustandsvergleich wäre das
+    keine Änderung und der Wechsel bliebe unbemerkt."""
+    store = _store(tmp_path)
+    mid = store.create_monitor('Web', 'http_status', 'example.com', 6, False, False)
+    store.record_run(mid, 'fail', 'HTTP 500', False, '500')
+    m = store.get_monitor(mid)
+    assert m['last_state'] == '500'
+
+    sent = []
+    result = {'level': 'fail', 'state': '503', 'status': 503,
+              'final_url': 'https://example.com', 'chain': [{}], 'response_ms': 12}
+
+    class _Probes:
+        @staticmethod
+        def run(name, params, ctx):
+            return result
+
+    monkeypatch.setitem(sys.modules, 'probes', _Probes)
+    monkeypatch.setattr(monitor, 'notify',
+                        lambda cfg, mon, lvl, summ: sent.append(summ) or True)
+    out = monitor.run_monitor(store, m, None, {})
+    assert out['notified'] is True
+    assert len(sent) == 1
+    assert store.get_monitor(mid)['last_state'] == '503'
+
+
+def test_monitor_schema_1_database_gains_the_state_column(tmp_path):
+    """CREATE TABLE IF NOT EXISTS rührt eine vorhandene Tabelle nicht an -- ohne
+    ALTER TABLE liefe jede Bestandsinstallation in einen OperationalError."""
+    import sqlite3
+    path = str(tmp_path / 'old.db')
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE monitors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+            probe TEXT NOT NULL, target TEXT NOT NULL,
+            interval_hours INTEGER NOT NULL DEFAULT 6,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            notify_email INTEGER NOT NULL DEFAULT 1,
+            notify_telegram INTEGER NOT NULL DEFAULT 1,
+            created_ts INTEGER NOT NULL, last_run_ts INTEGER,
+            last_level TEXT NOT NULL DEFAULT '',
+            last_summary TEXT NOT NULL DEFAULT '',
+            last_error TEXT NOT NULL DEFAULT '');
+        INSERT INTO monitors (name, probe, target, created_ts)
+            VALUES ('alt', 'tls', 'example.com', 1);
+    """)
+    con.commit()
+    con.close()
+
+    store = monitor.MonitorStore(path)
+    assert store.open()
+    rows = store.list_monitors()
+    assert rows[0]['last_state'] == ''
+    store.record_run(rows[0]['id'], 'ok', 'noch gut', False, '')
+
+
+def test_every_monitor_probe_is_a_real_probe_with_a_summary_and_a_label():
+    for probe in monitor.MONITOR_PROBES:
+        assert probe in probes.PROBES, probe
+        assert probe in hasensors._PROBE_NAME, probe
+        assert monitor.summarize(probe, {}), probe
+
+
+def test_status_watch_names_the_hop_that_failed_not_the_start(monkeypatch):
+    """http://x -> 301 -> https://x scheitert am Zertifikat: gemeldet gehört
+    die zweite Adresse. Vorher fiel die halbfertige Kette weg und die Meldung
+    zeigte auf die Startadresse, an der gar nichts kaputt war."""
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        if url == 'http://example.com':
+            return {'status': 301, 'headers': {'location': 'https://example.com'},
+                    'cookies': [], 'body': '', 'bytes': 0, 'url': url}
+        raise netcore.ProbeError('tls_error', url)
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    r = httpcheck.check_http_status(_FakeCtx(), 'http://example.com')
+    assert r['state'] == 'error:tls_error'
+    assert r['final_url'] == 'https://example.com'
+    assert len(r['chain']) == 1
+
+
+# ── Flask / Werkzeug / Waitress erkennen ─────────────────────────────────────
+
+
+def _detect(headers, cookies):
+    subject = nettech._Subject(headers, {}, cookies, [], '<html></html>', 'http://x/')
+    rules = list(nettech._builtin_rules())
+    hits = nettech._Hits()
+    nettech._scan(rules, subject, hits, time.monotonic() + 10)
+    nettech._drop_unmet_requirements(rules, hits)
+    nettech._apply_implies(rules, hits)
+    return {e['name']: e['version'] for e in hits.by_name.values()}
+
+
+def test_werkzeug_dev_server_gives_up_framework_and_python_version():
+    found = _detect({'server': 'Werkzeug/3.1.8 Python/3.14.7'}, [])
+    assert found.get('Werkzeug') == '3.1.8'
+    assert found.get('Python') == '3.14.7'
+
+
+def test_waitress_is_recognised_as_a_python_server():
+    assert 'Waitress' in _detect({'server': 'waitress'}, [])
+
+
+def test_flask_is_found_through_its_signed_session_cookie():
+    """Beide Formen: unkomprimiert (eyJ...) und zlib-gepackt (.eJ...)."""
+    for value in ('eyJhIjoxfQ.ap2uIA.RsK7TxLJEgrEefDxgCXPxU4ODCs',
+                  '.eJyrVkpUslKqHAWVgwko1QIA8x6_LA.ap2uIA.suQq_nPIJMAQ'):
+        assert 'Flask' in _detect({}, [('session', value)]), value
+
+
+def test_a_jwt_under_the_name_session_is_not_reported_as_flask():
+    """Ein JWT hat dieselben drei Abschnitte und beginnt ebenfalls mit eyJ --
+    ohne den Ausschluss meldete jeder Express-Dienst faelschlich Flask."""
+    for jwt in ('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig',
+                'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig'):
+        assert 'Flask' not in _detect({}, [('session', jwt)]), jwt
+
+
+def test_an_opaque_random_session_token_reveals_nothing():
+    """secrets.token_hex(32) -- was MyPage und NetToolbox selbst setzen."""
+    assert _detect({}, [('session', 'a3f' + '0' * 61), ('lang', 'de')]) == {}
+
+
+def test_prefilter_ignores_what_a_lookaround_forbids():
+    """Der Vorfilter sucht die laengste Zeichenfolge, die vorkommen *muss*.
+    Aus `eyJ(?!hbGciOi|0eXAi)` zog er frueher "hbgcioi" heraus und drehte die
+    Regel damit um: sie sprang nur noch in dem Fall an, den sie ausschliesst."""
+    assert wapimport._literal_of(r'eyJ(?!hbGciOi|0eXAi)[\w-]+') == ''
+    assert wapimport._literal_of(r'foo(?=barbaz)quux') == 'quux'
+    # Klammern in einer Zeichenklasse sind woertlich, kein Gruppenanfang.
+    assert wapimport._literal_of(r'a[)(?!x]bcdefgh') == 'bcdefgh'
+    # Muster ohne Lookaround bleiben, wie sie waren.
+    assert wapimport._literal_of(r'wp-content/themes') == 'wp-content/themes'
+    assert wapimport._literal_of(r'^Werkzeug(?:/(?P<v>[\d.]+))?') == 'werkzeug'
+
+
+# ── HTTP-Pruefung: Bot-Schutzwand und HTTPS-Rueckfall ────────────────────────
+
+
+def _http_check(monkeypatch, responses, target='example.com'):
+    """responses: dict url -> (status, headers, cookies, body) oder ProbeError."""
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        answer = responses[url]
+        if isinstance(answer, Exception):
+            raise answer
+        status, headers = answer[0], answer[1]
+        cookies = answer[2] if len(answer) > 2 else []
+        body = answer[3] if len(answer) > 3 else ''
+        return {'status': status, 'headers': headers, 'cookies': cookies,
+                'body': body, 'bytes': len(body), 'url': url}
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    return httpcheck.check_http(_FakeCtx(), target)
+
+
+def test_bot_wall_page_is_not_reported_as_missing_headers(monkeypatch):
+    # Anubis (NPMplus) beantwortet die Anfrage selbst. Seine Pruefseite setzt
+    # keine CSP -- das ueber den Server dahinter zu behaupten waere falsch.
+    r = _http_check(monkeypatch, {'https://example.com': (
+        200,
+        {'strict-transport-security': 'max-age=63072000',
+         'referrer-policy': 'strict-origin-when-cross-origin'},
+        ['techaro.lol-anubis-auth-347ddb4a=; Path=/'],
+        '<script id="anubis_challenge" type="application/json">{}</script>')})
+    assert r['bot_wall'] == 'Anubis'
+    codes = [f['code'] for f in r['findings']]
+    assert not [c for c in codes if c.endswith('_missing')]
+    assert 'header_behind_bot_wall' in codes
+    assert 'content-security-policy' in [
+        f for f in r['findings'] if f['code'] == 'header_behind_bot_wall'
+    ][0]['args']['names']
+    # Nichts Gemessenes ist schlecht, also bleibt die Gesamtstufe gruen.
+    assert (r['level'], r['score']) == ('ok', 100)
+
+
+def test_missing_headers_still_count_without_a_bot_wall(monkeypatch):
+    r = _http_check(monkeypatch, {'https://example.com': (200, {})})
+    assert r['bot_wall'] == ''
+    assert 'header_content_security_policy_missing' in [
+        f['code'] for f in r['findings']]
+    assert r['level'] == 'fail'
+
+
+def test_broken_https_falls_back_to_http_when_no_scheme_was_typed(monkeypatch):
+    # fim-hv.de: HTTPS scheitert am Zertifikat, ueber HTTP laeuft die
+    # Weiterleitungskette sauber bis zum eigentlichen Ziel.
+    r = _http_check(monkeypatch, {
+        'https://example.com': netcore.ProbeError('tls_error', 'x'),
+        'http://example.com': (302, {'location': 'https://ziel.example'}),
+        'https://ziel.example': (200, {}),
+    })
+    assert r['final_url'] == 'https://ziel.example'
+    assert [f['code'] for f in r['findings']][0] == 'http_https_unreachable'
+    assert r['start_url'] == 'http://example.com'
+
+
+def test_typed_https_scheme_keeps_the_honest_tls_error(monkeypatch):
+    with pytest.raises(netcore.ProbeError) as excinfo:
+        _http_check(monkeypatch, {
+            'https://example.com': netcore.ProbeError('tls_error', 'x'),
+            'http://example.com': (200, {}),
+        }, target='https://example.com')
+    assert excinfo.value.code == 'tls_error'
+
+
+def test_dead_host_reports_the_https_error_not_the_http_one(monkeypatch):
+    with pytest.raises(netcore.ProbeError) as excinfo:
+        _http_check(monkeypatch, {
+            'https://example.com': netcore.ProbeError('tls_error', 'x'),
+            'http://example.com': netcore.ProbeError('http_error', 'x'),
+        })
+    assert excinfo.value.code == 'tls_error'
+
+
+def test_response_carries_no_page_bodies(monkeypatch):
+    # Der Rumpf dient nur der Waechter-Erkennung; in Antwort und
+    # Schnappschuss hat er nichts verloren.
+    r = _http_check(monkeypatch, {'https://example.com': (
+        200, {}, [], 'x' * 8192)})
+    assert all('body' not in hop for hop in r['chain'])
+
+
+def test_new_http_finding_codes_are_translated():
+    import json
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ('de.json', 'en.json'):
+        with open(os.path.join(here, 'locales', name), encoding='utf-8') as f:
+            texts = json.load(f)
+        for code in ('http_bot_wall', 'header_behind_bot_wall',
+                     'http_https_unreachable'):
+            assert 'f_' + code in texts, (name, code)
+        for key in ('bot_wall_label', 'header_not_measurable'):
+            assert key in texts, (name, key)
+
+
+def test_tech_check_names_the_bot_wall_and_drops_its_hygiene_verdicts(monkeypatch):
+    # Anubis' eigenes Cookie hat kein HttpOnly und sein Server-Header ist
+    # seiner -- als Mangel der geprueften Seite waere beides falsch.
+    page = ('<html><head><title>Making sure you\'re not a bot!</title>'
+            '<script id="anubis_challenge">{}</script></head><body></body></html>')
+
+    def fake_get(ctx, url, max_bytes=0, accept=''):
+        return {'status': 200, 'url': url, 'bytes': len(page), 'body': page,
+                'headers': {'server': 'nginx/1.2.3'},
+                'cookies': ['techaro.lol-anubis-auth-1=x; Path=/']}
+    monkeypatch.setattr(nettech, 'http_get', fake_get)
+    monkeypatch.setattr(httpcheck, 'http_get', fake_get)
+    monkeypatch.setattr(nettech, '_dns_side', lambda *a, **k: {})
+    r = nettech.check_tech(_FakeCtx(), 'example.com')
+    assert r['bot_wall'] == 'Anubis'
+    codes = [f['code'] for f in r['findings']]
+    assert codes[0] == 'tech_bot_wall'
+    assert not [c for c in codes if c.startswith('tech_cookie_')]
+    assert 'tech_server_version' not in codes
+
+
+# ── Subdomain-Suche (CT-Logs) ────────────────────────────────────────────────
+
+
+def _page(hosts, has_next=False, cursor='', days=90):
+    return {'hosts': hosts, 'has_next': has_next, 'next_cursor': cursor,
+            'history_window_days': days}
+
+
+def _host(name, dns='ok', certs=3, a=None):
+    return {'host': name, 'certs': certs, 'dns': dns,
+            'first_seen': '2026-01-02T03:04:05Z',
+            'last_seen': '2026-05-06T07:08:09Z',
+            'last_not_after': '2026-08-09T10:11:12Z',
+            'a': a if a is not None else (['203.0.113.7'] if dns == 'ok' else [])}
+
+
+def _sub(monkeypatch, pages, key=''):
+    """pages: Liste der Antworten, die nacheinander geliefert werden."""
+    seen = []
+
+    def fake_page(domain, cursor, api_key):
+        seen.append((domain, cursor, api_key))
+        return pages[len(seen) - 1]
+    monkeypatch.setattr(subdomains, '_fetch_page', fake_page)
+    monkeypatch.setattr(subdomains.time, 'sleep', lambda _s: None)
+    ctx = _FakeCtx(ctlogs_api_key=key)
+    return subdomains.check_subdomains(ctx, 'Example.COM.'), seen
+
+
+def test_subdomain_search_normalises_the_domain_and_reads_the_rows(monkeypatch):
+    r, seen = _sub(monkeypatch, [_page([
+        _host('example.com'), _host('*.example.com'), _host('alt.example.com', dns='nodata')])])
+    # Punkt am Ende und Großschreibung gehören nicht in die Anfrage.
+    assert seen[0][0] == 'example.com'
+    assert r['count'] == 3 and r['live'] == 2 and r['wildcards'] == 1
+    assert [h['host'] for h in r['hosts']][1] == '*.example.com'
+    assert r['hosts'][1]['wildcard'] is True
+    # Zeitstempel auf den Tag gekürzt -- die Uhrzeit einer Ausstellung sagt nichts.
+    assert r['hosts'][0]['first_seen'] == '2026-01-02'
+
+
+def test_subdomain_search_follows_pages_until_the_service_says_stop(monkeypatch):
+    r, seen = _sub(monkeypatch, [
+        _page([_host('a.example.com')], has_next=True, cursor='C1'),
+        _page([_host('b.example.com')]),
+    ])
+    assert [c for _d, c, _k in seen] == ['', 'C1']
+    assert r['count'] == 2 and r['pages'] == 2 and r['truncated'] is False
+
+
+def test_subdomain_search_stops_after_the_page_budget_and_says_so(monkeypatch):
+    pages = [_page([_host(f'h{i}.example.com')], has_next=True, cursor=f'C{i}')
+             for i in range(subdomains.MAX_PAGES + 2)]
+    r, seen = _sub(monkeypatch, pages)
+    assert len(seen) == subdomains.MAX_PAGES
+    assert r['truncated'] is True
+    assert 'sub_truncated' in [f['code'] for f in r['findings']]
+
+
+def test_unresolved_names_are_a_hint_not_a_verdict(monkeypatch):
+    # Ein Name mit Zertifikat, der nirgendwohin zeigt, kann ein vergessener
+    # Host sein -- oder Split-DNS. Als Mangel gewertet wäre das geraten.
+    r, _seen = _sub(monkeypatch, [_page([
+        _host('example.com'), _host('old.example.com', dns='nxdomain')])])
+    hit = [f for f in r['findings'] if f['code'] == 'sub_unresolved']
+    assert hit and hit[0]['level'] == 'info'
+    # Auf den ganzen Namen prüfen, nicht auf ein Stück der Aufzählung: ein
+    # Teilstring-Test wäre auch für sehr.alt.example.com.fremd.de wahr.
+    assert 'old.example.com' in hit[0]['args']['names'].split(', ')
+    assert r['level'] == 'ok'
+    # Platzhalter zählen hier nicht mit: *.example.com löst nie selbst auf.
+    r2, _s2 = _sub(monkeypatch, [_page([_host('*.example.com', dns='nodata')])])
+    assert 'sub_unresolved' not in [f['code'] for f in r2['findings']]
+
+
+def test_the_history_window_is_named_and_depends_on_the_key(monkeypatch):
+    r, _seen = _sub(monkeypatch, [_page([_host('example.com')], days=90)])
+    assert 'sub_window_anon' in [f['code'] for f in r['findings']]
+    r2, seen2 = _sub(monkeypatch, [_page([_host('example.com')])], key='K')
+    assert seen2[0][2] == 'K'
+    assert 'sub_window' in [f['code'] for f in r2['findings']]
+
+
+def test_empty_result_is_an_answer_not_an_error(monkeypatch):
+    r, _seen = _sub(monkeypatch, [_page([])])
+    assert r['count'] == 0 and r['level'] == 'ok'
+    assert [f['code'] for f in r['findings']] == ['sub_none']
+
+
+def test_subdomain_findings_and_errors_are_translated():
+    import json
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ('de.json', 'en.json'):
+        with open(os.path.join(here, 'locales', name), encoding='utf-8') as f:
+            texts = json.load(f)
+        for code in ('sub_found', 'sub_none', 'sub_wildcards', 'sub_unresolved',
+                     'sub_truncated', 'sub_window', 'sub_window_anon'):
+            assert 'f_' + code in texts, (name, code)
+        for code in ('ctlogs_timeout', 'ctlogs_unreachable', 'ctlogs_rate_limited',
+                     'ctlogs_bad_key', 'ctlogs_busy', 'ctlogs_error',
+                     'ctlogs_bad_response'):
+            assert 'err_' + code in texts, (name, code)
+        for key in ('sub_title', 'sub_hint', 'field_host', 'field_dns_state',
+                    'settings_group_ctlogs', 'field_ctlogs_api_key'):
+            assert key in texts, (name, key)

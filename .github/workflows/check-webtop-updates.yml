@@ -71,6 +71,10 @@ jobs:
             | jq -r '.tag_name' | sed 's/^v//')
           check_version "OpenCode" "$OPENCODE"
 
+          TAILSCALE=$(curl -s "https://pkgs.tailscale.com/stable/?mode=json" \
+            | jq -r '.TarballsVersion')
+          check_version "Tailscale" "$TAILSCALE"
+
           echo "bitwarden=${BW}"              >> $GITHUB_OUTPUT
           echo "ipscan=${IPSCAN}"             >> $GITHUB_OUTPUT
           echo "vscode=${VSCODE}"             >> $GITHUB_OUTPUT
@@ -80,7 +84,8 @@ jobs:
           echo "rclone=${RCLONE}"             >> $GITHUB_OUTPUT
           echo "claude_desktop=${CLAUDE_DESKTOP}" >> $GITHUB_OUTPUT
           echo "opencode=${OPENCODE}"         >> $GITHUB_OUTPUT
-          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD} | rclone: ${RCLONE} | Claude Desktop: ${CLAUDE_DESKTOP} | OpenCode: ${OPENCODE}"
+          echo "tailscale=${TAILSCALE}"       >> $GITHUB_OUTPUT
+          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD} | rclone: ${RCLONE} | Claude Desktop: ${CLAUDE_DESKTOP} | OpenCode: ${OPENCODE} | Tailscale: ${TAILSCALE}"
 
       - name: Getrackte Versionen lesen
         id: tracked
@@ -94,6 +99,7 @@ jobs:
           echo "rclone=$(cat .webtop-rclone-version         2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "claude_desktop=$(cat .webtop-claude-desktop-version 2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "opencode=$(cat .webtop-opencode-version     2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "tailscale=$(cat .webtop-tailscale-version   2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
 
       - name: Änderungen prüfen
         id: check
@@ -109,6 +115,7 @@ jobs:
           if [ "${{ steps.latest.outputs.rclone }}"         != "${{ steps.tracked.outputs.rclone }}" ];         then CHANGED=true; CHANGES="${CHANGES}\n- rclone: ${{ steps.tracked.outputs.rclone }} → ${{ steps.latest.outputs.rclone }}"; fi
           if [ "${{ steps.latest.outputs.claude_desktop }}" != "${{ steps.tracked.outputs.claude_desktop }}" ]; then CHANGED=true; CHANGES="${CHANGES}\n- Claude Desktop: ${{ steps.tracked.outputs.claude_desktop }} → ${{ steps.latest.outputs.claude_desktop }}"; fi
           if [ "${{ steps.latest.outputs.opencode }}"       != "${{ steps.tracked.outputs.opencode }}" ];       then CHANGED=true; CHANGES="${CHANGES}\n- OpenCode: ${{ steps.tracked.outputs.opencode }} → ${{ steps.latest.outputs.opencode }}"; fi
+          if [ "${{ steps.latest.outputs.tailscale }}"      != "${{ steps.tracked.outputs.tailscale }}" ];      then CHANGED=true; CHANGES="${CHANGES}\n- Tailscale: ${{ steps.tracked.outputs.tailscale }} → ${{ steps.latest.outputs.tailscale }}"; fi
           echo "changed=${CHANGED}" >> $GITHUB_OUTPUT
           echo "changes=${CHANGES}" >> $GITHUB_OUTPUT
           if [ "$CHANGED" = "false" ]; then echo "Alle Webtop-Pakete aktuell — nichts zu tun."; fi
@@ -126,6 +133,7 @@ jobs:
           RC_VER:   ${{ steps.latest.outputs.rclone }}
           CD_VER:   ${{ steps.latest.outputs.claude_desktop }}
           OC_VER:   ${{ steps.latest.outputs.opencode }}
+          TS_VER:   ${{ steps.latest.outputs.tailscale }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -151,6 +159,7 @@ jobs:
           sed -i "s/ARG THUNDERBIRD_VERSION=.*/ARG THUNDERBIRD_VERSION=${TB_VER}/" ubuntu-webtop/Dockerfile
           sed -i "s/ARG RCLONE_VERSION=.*/ARG RCLONE_VERSION=${RC_VER}/"         ubuntu-webtop/Dockerfile
           sed -i "s/ARG OPENCODE_VERSION=.*/ARG OPENCODE_VERSION=${OC_VER}/"     ubuntu-webtop/Dockerfile
+          sed -i "s/ARG TAILSCALE_VERSION=.*/ARG TAILSCALE_VERSION=${TS_VER}/"   ubuntu-webtop/Dockerfile
 
           # Tracking-Dateien aktualisieren
           echo "$BW_VER" > .webtop-bitwarden-version
@@ -162,6 +171,7 @@ jobs:
           echo "$RC_VER" > .webtop-rclone-version
           echo "$CD_VER" > .webtop-claude-desktop-version
           echo "$OC_VER" > .webtop-opencode-version
+          echo "$TS_VER" > .webtop-tailscale-version
 
           # Add-on Version bumpen
           ADDON_VER=$(grep '^version:' ubuntu-webtop/config.yaml | sed 's/version: *"\(.*\)"/\1/')
@@ -183,7 +193,8 @@ jobs:
           git add ubuntu-webtop/Dockerfile ubuntu-webtop/config.yaml ubuntu-webtop/CHANGELOG.md \
                   .webtop-bitwarden-version .webtop-ipscan-version .webtop-vscode-version \
                   .webtop-ghcli-version .webtop-firefox-version .webtop-thunderbird-version \
-                  .webtop-rclone-version .webtop-claude-desktop-version .webtop-opencode-version
+                  .webtop-rclone-version .webtop-claude-desktop-version .webtop-opencode-version \
+                  .webtop-tailscale-version
           git commit -m "Webtop v${NEW_ADDON_VER}: Paket-Updates ${DATE}"
           git push origin "$BRANCH"
 

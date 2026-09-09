@@ -14,6 +14,10 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
 
 - **DNS** — alle gängigen Record-Typen (inkl. CNAME und SRV am Apex), alle Standard-Typen in
   einem Rutsch, TXT, SOA mit Nameserver-Sync-Check
+- **Subdomain-Suche** — alle Namen unter einer Domain, die je in einem öffentlichen
+  Zertifikat standen (Certificate Transparency), mit Zertifikatszahl, Zeitraum und
+  Live-Auflösung je Name; findet auch längst abgeschaltete Hosts. Läuft ohne
+  Anmeldung, ein kostenloser API-Schlüssel ist optional eintragbar.
 - **Record-Generatoren** — SPF, DMARC, DKIM, MTA-STS und TLS-RPT direkt aus Eingabefeldern
   bauen, ohne Netzabfrage und ohne Tageskontingent. DKIM erzeugt auf Wunsch ein neues
   2048-Bit-RSA-Schlüsselpaar im Browser-Backend — der private Schlüssel wird nur einmalig
@@ -43,6 +47,11 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   Endungen. Cloudflare-Konto-ID + API-Token in den Einstellungen (nur Leserecht nötig) machen es
   zuverlässiger und ergänzen den Preis
 - **HTTP-Header** — Weiterleitungskette, Security-Header, HTTP/3-Ankündigung (Alt-Svc)
+- **Bot-/Crawler-Schutz-Test** — ruft eine Seite unter wählbarer Kennung ab (Standard, Browser
+  zum Vergleich, Googlebot, Bingbot, GPTBot, ClaudeBot, CCBot, eigener User-Agent) und prüft die
+  Antwort auf bekannte Schutzsysteme: Anubis (Proof-of-Work, live gegen dessen eigene Beispielseite
+  bestätigt), Cloudflares JS-Challenge, plus einige bekannte WAF-Sperrseiten. Ohne Browser, ohne
+  Challenge zu lösen — sieht genau das, was ein echter Crawler auch sähe
 - **SEO-Check** — Titel, Description, Überschriften, Canonical, Open Graph, JSON-LD, Bilder
   ohne Alternativtext, robots.txt, Sitemap, Mixed Content — mit eigenem 0–100-Punktestand
 - **Technik-Erkennung** — womit eine Seite gebaut ist: CMS, Shop, Framework, JavaScript- und
@@ -101,6 +110,10 @@ und ohne die eigenen Daten an einen Drittanbieter zu schicken.
   und/oder Telegram (Einstellungen → *Anmeldung*). Die Meldung nennt die aufgerufene Adresse
   und die IP des Aufrufers. Über Ingress greift nichts davon — dort meldet Home Assistant
   selbst an.
+- **Konsole** (Terminal-Symbol im Kopf, nur für Verwalter) — zeigt live mit, was das
+  Add-on gerade tut: jede Prüfung mit Ziel, Stufe und Dauer, jeden Monitor-Lauf, jeden
+  Fehlschlag. Der Schalter *Details* hängt zusätzlich jede DNS-Abfrage und jeden
+  HTTP-Abruf an — ohne Neustart, für die Fehlersuche am laufenden Add-on.
 - Verlauf, Rate-Limit, Dark/Light · DE/EN · HA Ingress
 
 ## Schnellstart

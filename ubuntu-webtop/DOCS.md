@@ -45,6 +45,7 @@ Bei gesetztem Passwort: Benutzername `abc`, Passwort wie in der Konfiguration.
 - **Geany / gedit** — Text- und Code-Editoren
 - **gThumb** — Bildeditor
 - **PuTTY** — SSH-Client
+- **Tailscale** — VPN-Client für das eigene Tailnet
 - **Claude Desktop** — KI-Assistent (Desktop-App)
 - **rclone** — Cloud-Speicher (OneDrive, Google Drive, …)
 
@@ -66,13 +67,33 @@ Nach dem Neustart des Add-ons werden alle konfigurierten Remotes automatisch als
 
 **LibreOffice** kann Cloud-Dateien direkt über **Datei → Fernzugriff → WebDAV** öffnen (`http://localhost:8800/`).
 
+## Tailscale (VPN zum eigenen Server)
+
+Option **Tailscale aktivieren** einschalten, optional einen Auth-Key (`tskey-auth-…`) eintragen, Add-on starten.
+
+Ohne Auth-Key steht im **Add-on-Log** ein Anmelde-Link, der einmalig im Browser bestätigt wird (auch in `/config/tailscale/login-url.txt`).
+
+Danach sind alle Geräte des Tailnets aus dem Desktop erreichbar — Browser, Remmina, SSH, SMB-Mounts. Tailscale startet vor den SMB-/NFS-Mounts, Freigaben dürfen also auf Tailnet-Adressen zeigen.
+
+| Option | Bedeutung |
+|--------|-----------|
+| `tailscale_enabled` | Client ein-/ausschalten |
+| `tailscale_authkey` | Auth-Key für die erste Anmeldung |
+| `tailscale_hostname` | Name im Tailnet (Standard `ha-webtop`) |
+| `tailscale_login_server` | Eigener Control-Server (Headscale) |
+| `tailscale_accept_routes` | Subnetz-Routen mitbenutzen |
+| `tailscale_accept_dns` | MagicDNS: Geräte per Name statt 100.x-IP |
+| `tailscale_exit_node` | Internetverkehr über einen Exit-Node |
+
+Der State liegt in `/config/tailscale` und überlebt Neustart, Update und "Neu Aufbauen". Im Terminal: `tailscale status`, `tailscale ip -4`, `tailscale ping <host>`.
+
 ## Persistente Daten
 
 Alle Desktop-Einstellungen, Lesezeichen und Passwörter werden in `/addon_configs/ubuntu_webtop/` gespeichert und bleiben über Updates und Neustarts erhalten.
 
 ## Updates
 
-Ein GitHub Actions Workflow prüft täglich auf neue Versionen von Firefox, Thunderbird, VS Code, Bitwarden, GitHub CLI, Angry IP Scanner und Claude Desktop. Bei einem Update wird automatisch ein PR erstellt — nach dem Merge erscheint die neue Version in HA.
+Ein GitHub Actions Workflow prüft täglich auf neue Versionen von Firefox, Thunderbird, VS Code, Bitwarden, GitHub CLI, Angry IP Scanner, Claude Desktop und Tailscale. Bei einem Update wird automatisch ein PR erstellt — nach dem Merge erscheint die neue Version in HA.
 
 ---
 
@@ -123,6 +144,7 @@ If a password is set: username `abc`, password as configured.
 - **Geany / gedit** — text and code editors
 - **gThumb** — image editor
 - **PuTTY** — SSH client
+- **Tailscale** — VPN client for your own tailnet
 - **Claude Desktop** — AI assistant (desktop app)
 - **rclone** — cloud storage (OneDrive, Google Drive, …)
 
@@ -144,10 +166,30 @@ After restarting the add-on, all configured remotes are automatically mounted as
 
 **LibreOffice** can open cloud files directly via **File → Remote Files → WebDAV** (`http://localhost:8800/`).
 
+## Tailscale (VPN to your own server)
+
+Turn on the **Enable Tailscale** option, optionally enter an auth key (`tskey-auth-…`), start the add-on.
+
+Without an auth key the **add-on log** prints a login link that has to be confirmed once in a browser (also stored in `/config/tailscale/login-url.txt`).
+
+Afterwards every device on the tailnet is reachable from the desktop — browser, Remmina, SSH, SMB mounts. Tailscale starts before the SMB/NFS mounts, so shares may point at tailnet addresses.
+
+| Option | Meaning |
+|--------|---------|
+| `tailscale_enabled` | Enable/disable the client |
+| `tailscale_authkey` | Auth key for the initial login |
+| `tailscale_hostname` | Name on the tailnet (default `ha-webtop`) |
+| `tailscale_login_server` | Custom control server (Headscale) |
+| `tailscale_accept_routes` | Use advertised subnet routes |
+| `tailscale_accept_dns` | MagicDNS: devices by name instead of 100.x IP |
+| `tailscale_exit_node` | Route internet traffic through an exit node |
+
+State lives in `/config/tailscale` and survives restart, update and rebuild. In the terminal: `tailscale status`, `tailscale ip -4`, `tailscale ping <host>`.
+
 ## Persistent Data
 
 All desktop settings, bookmarks and passwords are stored in `/addon_configs/ubuntu_webtop/` and persist across updates and restarts.
 
 ## Updates
 
-A GitHub Actions workflow checks daily for new versions of Firefox, Thunderbird, VS Code, Bitwarden, GitHub CLI, Angry IP Scanner and Claude Desktop. When an update is found, a PR is created automatically — after merging, the new version appears in HA.
+A GitHub Actions workflow checks daily for new versions of Firefox, Thunderbird, VS Code, Bitwarden, GitHub CLI, Angry IP Scanner, Claude Desktop and Tailscale. When an update is found, a PR is created automatically — after merging, the new version appears in HA.

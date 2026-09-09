@@ -6,6 +6,7 @@ import io
 import json
 import time
 import zipfile
+from datetime import date, timedelta
 
 import pytest
 
@@ -36,6 +37,14 @@ def _add_offer(m, url, return_date="2027-03-15"):
             "VALUES (?,?,?,?,?,?)",
             (url, "Test-Hotel", "Kanaren", "Spanien", return_date, now))
         return con.execute("SELECT id FROM offers WHERE url=?", (url,)).fetchone()["id"]
+
+
+def _hist(con, offer_id, rows):
+    """rows: [(travel_date, ts, price), …] — direkt in calendar_history, ohne den
+    Umweg ueber einen Snapshot."""
+    con.executemany(
+        "INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)",
+        [(offer_id, d, ts, p) for d, ts, p in rows])
 
 
 def _cal(days, **extra):
@@ -363,3 +372,112 @@ def test_calendar_alert_set_after_move_and_cleared_on_view(m):
 
     offers = m._collect_offers()
     assert next(o for o in offers if o["id"] == oid)["calendar_alert"] is False   # gesehen -> erloschen
+
+
+# ── Abgereiste Termine bleiben sichtbar ────────────────────────────────────────
+
+def test_expired_days_returns_past_dates_missing_from_snapshot(m):
+    """Der Kern des Ganzen: TUI liefert ab heute, ein abgereister Termin faellt
+    beim naechsten Abruf aus `calendar_cache` — die Historie kennt ihn aber weiter
+    und `_calendar_payload` reicht ihn als `expired_days` nach."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/expired?duration=7")
+    past = (date.today() - timedelta(days=40)).isoformat()
+    past2 = (date.today() - timedelta(days=39)).isoformat()
+    future = (date.today() + timedelta(days=60)).isoformat()
+    with m.db() as con:
+        # Erst der alte Stand mit beiden Reisetagen, dann der neue ohne sie.
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 500), (past2, 510), (future, 800)]))
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 540), (future, 820)]))
+        pc._store_calendar_snapshot(con, oid, _cal([(future, 830)]))
+    out = pc._calendar_payload(oid)
+    assert [d["date"] for d in out["days"]] == [future]
+    exp = {d["date"]: d["price"] for d in out["expired_days"]}
+    # Zuletzt beobachteter Preis, nicht der erste.
+    assert exp == {past: 540, past2: 510}
+
+
+def test_expired_days_skips_dates_still_in_snapshot(m):
+    """Ein vergangenes Datum, das der Snapshot noch enthaelt, darf nicht doppelt
+    auftauchen — sonst stuende es im Raster zweimal (buchbar und abgereist)."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/dup?duration=7")
+    past = (date.today() - timedelta(days=5)).isoformat()
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 500)]))
+    out = pc._calendar_payload(oid)
+    assert out["expired_days"] == []
+
+
+def test_expired_days_empty_without_history(m):
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/none?duration=7")
+    future = (date.today() + timedelta(days=30)).isoformat()
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, _cal([(future, 700)]))
+    assert pc._calendar_payload(oid)["expired_days"] == []
+
+
+def test_expired_days_survive_when_tui_returns_nothing(m, monkeypatch):
+    """Liefert TUI gar nichts mehr (`ok=False`), bleibt der letzte Snapshot stehen —
+    und die abgereisten Tage daraus dürfen nicht als `expired_days` doppelt kommen."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/gone?duration=7")
+    past = (date.today() - timedelta(days=10)).isoformat()
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, _cal([(past, 600)]))
+    monkeypatch.setattr(m, "fetch_calendar", lambda *a, **k: {"ok": False, "days": []})
+    pc._run_calendar(oid)
+    out = pc._calendar_payload(oid)
+    assert [d["date"] for d in out["days"]] == [past]     # alter Snapshot unberührt
+    assert out["expired_days"] == []
+
+
+# ── Vorjahresvergleich ─────────────────────────────────────────────────────────
+
+def test_last_year_matches_termin_52_wochen_frueher(m):
+    """364 Tage zurueck, nicht 365: Pauschalreisen haengen am Wochentag, ein
+    Samstag muss mit einem Samstag verglichen werden."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/ly")
+    heute_termin = (date.today() + timedelta(days=30)).isoformat()
+    vorjahr = (date.today() + timedelta(days=30) - timedelta(days=364)).isoformat()
+    assert date.fromisoformat(vorjahr).weekday() == date.fromisoformat(heute_termin).weekday()
+    with m.db() as con:
+        _hist(con, oid, [(vorjahr, 1000, 900), (vorjahr, 2000, 950)])
+        got = pc._last_year_prices(con, oid, [heute_termin])
+    assert got == {heute_termin: {"date": vorjahr, "price": 950}}   # zuletzt gesehen
+
+
+def test_last_year_leer_ohne_vorjahresdaten(m):
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/ly-leer")
+    with m.db() as con:
+        assert pc._last_year_prices(con, oid, [(date.today() + timedelta(days=10)).isoformat()]) == {}
+        assert pc._last_year_prices(con, oid, []) == {}
+
+
+def test_last_year_im_payload(m):
+    """End-to-End: der Kalender liefert den Vergleichswert zum buchbaren Termin mit."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/ly-payload")
+    termin = (date.today() + timedelta(days=60)).isoformat()
+    vorjahr = (date.fromisoformat(termin) - timedelta(days=364)).isoformat()
+    with m.db() as con:
+        _hist(con, oid, [(vorjahr, 1000, 800), (vorjahr, 2000, 820)])
+        pc._store_calendar_snapshot(con, oid, _cal([(termin, 900)]))
+    out = pc._calendar_payload(oid)
+    assert out["last_year"] == {termin: {"date": vorjahr, "price": 820}}
+
+
+def test_last_year_nur_fuer_das_eigene_angebot(m):
+    """Zwei Hotels duerfen sich ihre Vorjahrespreise nicht gegenseitig unterschieben."""
+    import price_calendar as pc
+    a = _add_offer(m, "https://example.invalid/ly-a")
+    b = _add_offer(m, "https://example.invalid/ly-b")
+    termin = (date.today() + timedelta(days=20)).isoformat()
+    vorjahr = (date.fromisoformat(termin) - timedelta(days=364)).isoformat()
+    with m.db() as con:
+        _hist(con, b, [(vorjahr, 1000, 700)])
+        assert pc._last_year_prices(con, a, [termin]) == {}
+        assert pc._last_year_prices(con, b, [termin])[termin]["price"] == 700

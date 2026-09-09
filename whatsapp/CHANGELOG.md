@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.32.1] - 2026-09-09
+
+chore(deps): Bump js-yaml from 4.3.1 to 4.3.2 in /whatsapp
+chore(deps): Bump multer from 2.2.0 to 2.3.0 in /whatsapp
+
+
 ## [1.8.32] - 2026-09-03
 - **Sicherheitsupdate: qs auf 6.16.0.** Schliesst CVE-2026-82562 (GHSA-x5fp-wj9c-mxmx, mittel) — beim Parsen von Bracket-Keys mit Kommagruppen liess sich das `arrayLimit` umgehen
 - qs kommt ueber `express` und `body-parser` herein, beide pinnen `~6.15.1`. Ein `overrides`-Eintrag in der `package.json` erzwingt daher qs `^6.16.0`, ohne express auf 5.x anheben zu muessen

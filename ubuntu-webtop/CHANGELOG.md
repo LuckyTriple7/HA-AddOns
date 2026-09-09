@@ -1,3 +1,43 @@
+## [1.8.70] - 2026-09-09
+
+### Aktualisiert
+
+- VS Code: 1.136.1 → 1.136.2
+- OpenCode: 1.18.29 → 1.18.30
+
+## [1.8.69] - 2026-09-07
+
+### Aktualisiert
+
+- Claude Desktop: 3.2.3+claude1.40609.1 → 3.2.4+claude1.46388.2
+
+## [1.8.68] - 2026-09-06
+
+### Behoben
+
+- `--netfilter-mode` wurde faelschlich an `tailscaled` uebergeben — das Flag gehoert zu `tailscale up`/`tailscale set`. Der Daemon warf bei jedem Start seine Usage-Hilfe aus und beendete sich, der Watchdog startete ihn alle 5 Sekunden neu: keine Verbindung, keine Anmeldung, Tailnet-Adressen nicht anpingbar.
+- `--authkey` durch das aktuelle `--auth-key` ersetzt.
+- Exit-Code des Daemons wurde im Watchdog-Log falsch ausgegeben (`$(date)` ueberschrieb `$?`, daher immer "Code 0").
+- netfilter wird nur noch bei Exit-Node *und* echtem TUN-Geraet eingeschaltet — im Userspace-Modus laesst Tailscale nur `off` zu.
+- Scheitert der Daemon-Start, stehen jetzt 15 Zeilen aus `tailscaled.log` direkt im Add-on-Log statt nur einer Fehlerzeile.
+
+## [1.8.67] - 2026-09-06
+
+### Behoben
+
+- `MKNOD` aus `privileged:` entfernt — Home Assistant erlaubt in `privileged` nur die Capabilities aus der Supervisor-Liste (BPF, CHECKPOINT_RESTORE, DAC_READ_SEARCH, IPC_LOCK, NET_ADMIN, NET_RAW, PERFMON, SYS_ADMIN, SYS_MODULE, SYS_NICE, SYS_PTRACE, SYS_RAWIO, SYS_RESOURCE, SYS_TIME). Durch den ungültigen Wert war das Add-on-Manifest kaputt: der Store zeigte 1.8.66 nicht an und stellte das Add-on ohne Icon dar.
+
+## [1.8.66] - 2026-09-06
+
+### Hinzugefügt
+
+- Tailscale-Client integriert: Rechner im eigenen Tailnet (z.B. der eigene Server) sind direkt aus dem Desktop erreichbar
+- Neue Optionen: `tailscale_enabled`, `tailscale_authkey`, `tailscale_hostname`, `tailscale_login_server`, `tailscale_accept_routes`, `tailscale_accept_dns` (MagicDNS), `tailscale_exit_node`
+- Tailscale-State liegt unter `/config/tailscale` und überlebt Neustart, Update und "Neu Aufbauen" — der Auth-Key wird nur einmalig gebraucht
+- Anmeldung wahlweise per Auth-Key oder per Anmelde-Link aus dem Add-on-Log (zusätzlich in `/config/tailscale/login-url.txt`)
+- Tailscale startet vor den SMB-/NFS-Mounts, damit Freigaben über Tailnet-Adressen gemountet werden können
+- Update-Workflow prüft Tailscale jetzt mit (`.webtop-tailscale-version`)
+
 ## [1.8.65] - 2026-09-05
 
 ### Aktualisiert

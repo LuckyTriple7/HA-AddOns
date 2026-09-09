@@ -119,6 +119,11 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
     # Monatsbewegung mitschreiben, solange beide Preistabellen noch hier vorliegen.
     _store_month_moves(con, offer_id, ts,
                        prev_prices, {d['date']: d['price'] for d in days})
+    if real_changed:
+        # Genau hier ist der Zeitpunkt der letzten ECHTEN Bewegung bekannt — die
+        # Spalte spart `/api/offers` den Scan ueber die ganze Historie, siehe
+        # _calendar_last_move_ts().
+        con.execute('UPDATE offers SET calendar_last_move_ts=? WHERE id=?', (ts, offer_id))
     return real_changed
 
 
@@ -389,26 +394,46 @@ def _calendar_moves(con, offer_id: int) -> dict[str, dict]:
     return moves
 
 
-def _calendar_last_move_ts(con) -> dict[int, int]:
-    """Zeitpunkt der letzten ECHTEN Kalender-Preisbewegung je Angebot — ein
-    einziger Query fuer die ganze Angebotsliste.
+def _recalc_last_move_ts(con, offer_id: int | None = None) -> None:
+    """`offers.calendar_last_move_ts` aus der Historie neu berechnen — fuer den
+    einen oder (ohne `offer_id`) fuer alle.
 
-    `_collect_offers` braucht von `_calendar_moves` nur `max(ts)`, holt dafuer
-    aber alle `calendar_history`-Zeilen jedes Angebots nach Python. Das ist der
-    mit Abstand teuerste Teil von `/api/offers` — und die Liste wird alle 5 s
-    von jedem offenen Browser gepollt, waehrend `calendar_history` als einzige
-    Tabelle wirklich schnell waechst.
+    Der teure Weg, absichtlich: ein Scan ueber die ganze `calendar_history`. Er
+    laeuft nur, wo die Spalte nicht mitgepflegt werden kann — bei der einmaligen
+    Migration, nach einem Restore (der schreibt Historienzeilen direkt) und nach
+    dem Zuruecksetzen eines Angebots.
 
     "Echt" heisst wie in `_calendar_moves`: mindestens zwei bekannte Preise fuer
-    dasselbe Reisedatum (ein Datum mit nur einem Snapshot ist die Baseline aus
-    dem Erstabruf, keine Bewegung). Angebote ohne Bewegung fehlen im Ergebnis.
-    """
+    dasselbe Reisedatum (ein Datum mit nur einem Snapshot ist die Baseline aus dem
+    Erstabruf, keine Bewegung)."""
     rows = con.execute(
         'SELECT offer_id, MAX(mx) mt FROM ('
         ' SELECT offer_id, travel_date, MAX(ts) mx, COUNT(*) c'
-        ' FROM calendar_history GROUP BY offer_id, travel_date'
-        ') WHERE c >= 2 GROUP BY offer_id').fetchall()
-    return {r['offer_id']: r['mt'] for r in rows}
+        ' FROM calendar_history WHERE (? IS NULL OR offer_id=?) GROUP BY offer_id, travel_date'
+        ') WHERE c >= 2 GROUP BY offer_id', (offer_id, offer_id)).fetchall()
+    found = {r['offer_id']: r['mt'] for r in rows}
+    targets = ([offer_id] if offer_id is not None
+               else [r['id'] for r in con.execute('SELECT id FROM offers').fetchall()])
+    con.executemany('UPDATE offers SET calendar_last_move_ts=? WHERE id=?',
+                    [(found.get(oid, 0), oid) for oid in targets])
+
+
+def _calendar_last_move_ts(con) -> dict[int, int]:
+    """Zeitpunkt der letzten ECHTEN Kalender-Preisbewegung je Angebot, aus der
+    mitgepflegten Spalte `offers.calendar_last_move_ts`.
+
+    Frueher wurde das bei jedem Aufruf aus `calendar_history` aggregiert. Das ist
+    ein Scan ueber die am schnellsten wachsende Tabelle — gemessen 43 ms von
+    68 ms, die `/api/offers` insgesamt brauchte, und die Liste holt jeder offene
+    Browser alle 5 s. Den Wert kennt aber schon `_store_calendar_snapshot()`, das
+    die Bewegungen selbst schreibt: seitdem steht er in der Spalte, und hier bleibt
+    ein Lesen der (kleinen) offers-Tabelle uebrig — 0,02 ms statt 43 ms.
+
+    Angebote ohne Bewegung fehlen im Ergebnis, wie gehabt."""
+    rows = con.execute(
+        'SELECT id, calendar_last_move_ts t FROM offers '
+        'WHERE COALESCE(calendar_last_move_ts,0) > 0').fetchall()
+    return {r['id']: r['t'] for r in rows}
 
 
 def _calendar_top_moves(moves: dict, limit: int = 12) -> list[dict]:
@@ -443,6 +468,77 @@ def _calendar_moves_since(con, offer_id: int, since_ts: int) -> list[str]:
     return sorted({r['travel_date'][:7] for r in rows})
 
 
+def _expired_days(con, offer_id: int, known: set[str]) -> list[dict]:
+    """Reisetage, die TUI nicht mehr liefert, aus `calendar_history` nachreichen.
+
+    `fetch_calendar` fragt die API ab HEUTE ab, ein abgereister Termin verschwindet
+    also beim nächsten Abruf aus dem Snapshot in `calendar_cache` — und damit aus dem
+    Kalenderraster, obwohl die Historie seine Preise weiter kennt (sie wird nie
+    beschnitten). Hier kommen genau diese Tage zurück: alles vor heute, was nicht
+    ohnehin schon im Snapshot steht, mit dem ZULETZT beobachteten Preis.
+
+    Bewusst getrennt von `days` zurückgegeben, nicht dort eingemischt: `days` ist die
+    Liste der buchbaren Termine und speist günstigster/teuerster Termin, Heatmap,
+    Buchungsscore und die KI-Prompts. Ein vergangener Tag als "günstigster Termin"
+    wäre dort schlicht falsch.
+
+    Der Zuschlag geht über `MAX(id)`, nicht über `MAX(ts)`: bei einem Aggregat aus
+    min()/max() stammen die übrigen Spalten in SQLite aus genau der Zeile mit dem
+    Extremum — bei gleichem `ts` (zwei Snapshots in derselben Sekunde, etwa beim
+    Wiedereinspielen eines Backups) wäre unter mehreren Zeilen aber unbestimmt,
+    welche gewinnt. Die laufende `id` ist eindeutig und steigt mit jeder Beobachtung,
+    trifft also verlässlich die zuletzt geschriebene."""
+    rows = con.execute(
+        'SELECT travel_date, price, ts, MAX(id) FROM calendar_history '
+        'WHERE offer_id=? AND travel_date<? GROUP BY travel_date ORDER BY travel_date',
+        (offer_id, date.today().isoformat())).fetchall()
+    return [{'date': r['travel_date'], 'price': r['price'], 'ts': r['ts']}
+            for r in rows if r['travel_date'] not in known]
+
+
+# Abstand zum Vorjahrestermin: 364 Tage = genau 52 Wochen. Bewusst nicht "ein
+# Jahr": Pauschalreisen haengen am Wochentag (Anreise Samstag bleibt Samstag), und
+# Preisniveau wie Ferienlage richten sich eher nach der Kalenderwoche als nach dem
+# Datum. 365 Tage wuerden den Wochentag verschieben und Samstag mit Freitag
+# vergleichen — bei Flugpauschalreisen ein systematischer Fehler.
+LAST_YEAR_OFFSET_DAYS = 364
+
+
+def _last_year_prices(con, offer_id: int, travel_dates: list[str]) -> dict:
+    """Zu jedem Reisetag der zuletzt beobachtete Preis des Vorjahrestermins.
+
+    Quelle ist dieselbe `calendar_history`, die auch die abgereisten Termine
+    speist: der letzte vor der Abreise gesehene Preis ist der ehrlichste
+    Vergleichswert — was der Termin am Ende gekostet hat, nicht was er ein Jahr
+    vorher mal kostete.
+
+    Rueckgabe: {Reisetag: {"date": Vorjahrestermin, "price": Preis}} — nur fuer
+    Tage, zu denen es wirklich Vorjahresdaten gibt. Wer TUIWatch noch kein Jahr
+    laufen laesst, bekommt hier schlicht nichts, und die Ansicht sagt das auch."""
+    if not travel_dates:
+        return {}
+    want = {}
+    for d in travel_dates:
+        try:
+            ly = (date.fromisoformat(d) - timedelta(days=LAST_YEAR_OFFSET_DAYS)).isoformat()
+        except ValueError:
+            continue
+        want[ly] = d
+    # Bereichsabfrage statt einer IN-Liste mit mehreren hundert Datumswerten: der
+    # Index (offer_id, travel_date, ts) traegt das direkt, und gefiltert wird
+    # anschliessend in Python gegen `want`.
+    rows = con.execute(
+        'SELECT travel_date, price, MAX(id) FROM calendar_history '
+        'WHERE offer_id=? AND travel_date>=? AND travel_date<=? GROUP BY travel_date',
+        (offer_id, min(want), max(want))).fetchall()
+    out = {}
+    for r in rows:
+        heute = want.get(r['travel_date'])
+        if heute:
+            out[heute] = {'date': r['travel_date'], 'price': r['price']}
+    return out
+
+
 def _calendar_payload(offer_id: int) -> dict:
     with A._calendar_lock:
         st = dict(A._calendar_state.get(offer_id) or {})
@@ -452,6 +548,14 @@ def _calendar_payload(offer_id: int) -> dict:
         row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
         moves = _calendar_moves(con, offer_id) if row else {}
+        snap = A._json_loads_safe(row['data'], {}) if row else {}
+        expired = _expired_days(
+            con, offer_id, {d.get('date') for d in (snap.get('days') or [])}) if row else []
+        # Vorjahresvergleich fuer die buchbaren Tage — abgereiste brauchen ihn nicht,
+        # bei denen steht der eigene Endpreis ja schon in der Zelle.
+        last_year = _last_year_prices(
+            con, offer_id, [d['date'] for d in (snap.get('days') or [])
+                            if d.get('date')]) if row else {}
         # Pausenzustand immer mitliefern, auch ohne Snapshot — sonst könnte die UI
         # bei einem Angebot, dessen allererster Abruf schon scheiterte, nicht sagen,
         # warum nichts mehr passiert.
@@ -461,11 +565,14 @@ def _calendar_payload(offer_id: int) -> dict:
     fails = (st_row['f'] if st_row else 0)
     archived = bool(st_row['a']) if st_row else False
     if row:
-        out = A._json_loads_safe(row['data'], {})
+        out = snap
         out['status'] = 'done'
         out['ts'] = row['ts']
         out['moves'] = moves
         out['top_moves'] = _calendar_top_moves(moves)
+        # Abgereiste Termine: nur zur Anzeige im Raster, siehe _expired_days().
+        out['expired_days'] = expired
+        out['last_year'] = last_year
         # Der teuerste Termin kam erst später dazu (v0.67.0). Für Snapshots, die
         # davor abgerufen wurden, hier aus den Tagesdaten nachrechnen — sonst müsste
         # der Nutzer jeden Kalender neu abrufen, nur um die Spanne zu sehen.
@@ -548,6 +655,48 @@ def month_index(con, offer_id: int, month: str) -> dict | None:
             'since': since, 'n': len(series)}
 
 
+def _last_year_month_avgs(con, offer_id: int, months: list[str]) -> dict:
+    """Durchschnittspreis der Reisemonate ein Jahr zuvor, aus `calendar_history`.
+
+    Ergänzt den tagesgenauen Vorjahresvergleich (`_last_year_prices`) genau dort,
+    wo der nichts liefern kann: ein einzelner Reisetag hat im Vorjahr vielleicht gar
+    kein Angebot gehabt — der Monat als Ganzes aber schon. Über alle Reisetage
+    gemittelt bleibt die Aussage („kostet der Mai dieses Jahr mehr als letztes?")
+    auch dann stehen, wenn einzelne Tage fehlen.
+
+    Verglichen wird hier der KALENDERMONAT (Mai gegen Mai), nicht wie bei den
+    einzelnen Tagen über 364 Tage: für ein Monatsmittel ist der Wochentag egal, die
+    Saison zählt — und ein um zwei Tage verschobenes Fenster würde Tage aus dem
+    Nachbarmonat einmischen.
+
+    Je Reisetag zählt der zuletzt beobachtete Preis (`MAX(id)`, siehe
+    `_expired_days`). Rückgabe: {Monat: {"month": Vorjahresmonat, "avg": …,
+    "days": Anzahl Reisetage}} — nur für Monate mit Daten."""
+    if not months:
+        return {}
+    want = {}
+    for m in months:
+        try:
+            j, mo = m.split('-')
+            want[f'{int(j) - 1:04d}-{mo}'] = m
+        except (ValueError, TypeError):
+            continue
+    if not want:
+        return {}
+    rows = con.execute(
+        'SELECT travel_date, price, MAX(id) FROM calendar_history '
+        'WHERE offer_id=? AND travel_date>=? AND travel_date<=? GROUP BY travel_date',
+        (offer_id, min(want) + '-01', max(want) + '-31')).fetchall()
+    je_monat: dict = defaultdict(list)
+    for r in rows:
+        ziel = want.get(r['travel_date'][:7])
+        if ziel and r['price'] is not None:
+            je_monat[ziel].append(r['price'])
+    return {m: {'month': f'{int(m.split("-")[0]) - 1:04d}-{m.split("-")[1]}',
+                'avg': round(sum(p) / len(p)), 'days': len(p)}
+            for m, p in ((k, v) for k, v in je_monat.items() if v)}
+
+
 def month_payload(offer_id: int) -> dict:
     """Monatsübersicht eines Angebots: je Reisemonat der aktuelle Durchschnittspreis
     aus dem gespeicherten Snapshot plus Trend und Index aus der Bewegungshistorie.
@@ -572,16 +721,26 @@ def month_payload(offer_id: int) -> dict:
         obs = con.execute(
             'SELECT COUNT(DISTINCT day) c FROM calendar_month_moves WHERE offer_id=?',
             (offer_id,)).fetchone()['c']
+        # Vorjahresmittel je Reisemonat — trägt auch dort, wo dem einzelnen Tag
+        # der Vergleichswert fehlt, siehe _last_year_month_avgs().
+        vorjahr = _last_year_month_avgs(con, offer_id, sorted(by_month))
         out = []
         for m in sorted(by_month):
             prices = by_month[m]
-            out.append({
+            avg = round(sum(prices) / len(prices))
+            ly = vorjahr.get(m)
+            eintrag = {
                 'month': m, 'label': _month_name_de(m),
-                'avg': round(sum(prices) / len(prices)), 'min': min(prices),
+                'avg': avg, 'min': min(prices),
                 'max': max(prices), 'dates': len(prices),
                 'trend': month_trend(con, offer_id, m),
                 'index': month_index(con, offer_id, m),
-            })
+            }
+            if ly:
+                eintrag['last_year'] = dict(
+                    ly, pct=(round((avg - ly['avg']) / ly['avg'] * 100, 1)
+                             if ly['avg'] else None))
+            out.append(eintrag)
     return {'offer_id': offer_id, 'months': out, 'observations': obs,
             'ts': row['ts'], 'min_days': CAL_MONTH_MIN_DAYS,
             'window_days': CAL_MONTH_WINDOW}

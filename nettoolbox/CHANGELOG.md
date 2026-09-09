@@ -1,5 +1,270 @@
 # Changelog
 
+## [0.10.0] - 2026-09-07
+
+### Added
+- **Subdomain-Suche** im DNS-Reiter. Listet jeden Namen unter einer Domain, der je in einem
+  öffentlichen Zertifikat stand — Certificate Transparency macht das seit 2013 zwangsläufig
+  öffentlich, auch für Hosts, die längst abgeschaltet sind oder nie in einer erreichbaren
+  Zonendatei standen. Je Name: Anzahl der Zertifikate, erstes und letztes Auftauchen,
+  Ablauf des jüngsten Zertifikats und die Live-Auflösung samt A-Records. *Liste kopieren*
+  legt die nackten Namen in die Zwischenablage.
+  - Namen mit Zertifikat, die gerade nicht auflösen, werden gesondert genannt — aber als
+    Hinweis, nicht als Mangel: das ist oft ein vergessener Host, ebenso oft ein Name, der
+    absichtlich nur intern auflöst (Split-DNS). Platzhalter (`*.beispiel.de`) zählen dabei
+    nicht mit, die lösen nie selbst auf.
+  - Quelle ist api.ctlogs.dev — die CT-Logs selbst sind Merkle-Bäume mit Millionen Einträgen
+    pro Tag, sie ohne fertigen Index zu durchsuchen hieße, sie erst komplett einzulesen.
+  - **Optionaler API-Schlüssel** in den Einstellungen (verschlüsselt wie die übrigen
+    Geheimfelder). Ohne Schlüssel läuft die Suche anonym: eine Abfrage je Sekunde aus einem
+    gemeinsamen Kontingent, das unter Last abweist. Ein kostenloser Schlüssel
+    (account.ctlogs.dev, Anmeldung mit GitHub oder Google, 10.000 Abfragen im Monat,
+    nicht-kommerziell) hebt beides auf. Das Zeitfenster von 90 Tagen bleibt in beiden Fällen
+    und steht als Befund im Ergebnis — was älter ist, hat nur der kostenpflichtige Tarif.
+  - Die Seitenfolge hält den Takt von einer Anfrage je Sekunde selbst ein und fasst bei einer
+    Bremsantwort (429) einmal nach, statt in einen Fehler zu laufen; nach fünf Seiten
+    (500 Namen) bricht sie ab und sagt das auch.
+
+## [0.9.0] - 2026-09-07
+
+### Added
+- **Konsole in der Oberfläche** (Terminal-Symbol im Kopf, nur für Verwalter). Zeigt live mit,
+  was das Add-on gerade tut: jede Prüfung mit Ziel, Ergebnisstufe, Dauer und Backend, jeden
+  Lauf des Monitorings, jeden Schritt eines Gesamtberichts und jeden Fehlschlag mit seinem
+  Fehlercode. Bisher stand all das nur im Add-on-Protokoll von Home Assistant — wer über
+  Ingress arbeitet, musste dafür das Fenster wechseln, und ein Monitor, der sauber mit einem
+  Fehlercode zurückkam, tauchte dort gar nicht auf.
+  - **Details-Schalter** hängt zusätzlich jede einzelne DNS-Abfrage (Typ, Name, Resolver,
+    Trefferzahl, Dauer) und jeden HTTP-Abruf (Adresse, Status, Bytes, Dauer) an. Umschaltbar
+    zur Laufzeit, ohne Neustart; der Dauerzustand bleibt die Add-on-Option
+    *Ausführliches Protokoll*.
+  - Filter je Stufe (ERROR/WARN/INFO/DEBUG), Textsuche, Leeren, verschieb- und
+    vergrößerbares Fenster. Die Auswahl überlebt einen Seitenwechsel.
+  - Der Puffer (1500 Zeilen) liegt nur im Speicher und ist Verwaltern vorbehalten: er
+    enthält die Prüfziele aller Konten, und Domains und IP-Adressen anderer Leute haben
+    weder auf der Platte noch in fremden Sitzungen etwas verloren.
+  - Fremde Bibliotheken bleiben auf WARNING gedämpft (urllib3 & Co. protokollieren auf DEBUG
+    jede Verbindung und jeden Header und verdrängten sonst binnen Sekunden alles Eigene).
+
+## [0.8.2] - 2026-09-07
+
+### Fixed
+- **Die Technik-Erkennung kennzeichnet Bot-Schutzwände jetzt genauso wie die HTTP-Prüfung.**
+  Steht ein Wächter davor (Anubis, Cloudflare-Challenge), untersucht sie dessen Prüfseite:
+  eigenes Markup, eigene Kopfzeilen, eigene Cookies. Sichtbar war das nirgends — das Ergebnis
+  las sich wie eine Aussage über die eigentliche Seite. Neu: Plakette mit dem Namen des
+  Wächters, ein Befund, der es benennt, und die Hygiene-Urteile fallen weg, die sonst dem
+  Falschen angelastet würden (Anubis' eigenes Cookie hat kein `HttpOnly`, weil sein Skript es
+  lesen muss; der `Server`-Header ist der des Wächters). „Keine Technik erkannt“ erscheint dort
+  ebenfalls nicht mehr — das wäre eine Aussage über den Wächter, nicht über die Seite.
+
+## [0.8.1] - 2026-09-07
+
+### Fixed
+- **Bot-Schutzwände melden keine fehlenden Sicherheits-Header mehr.** Steht vor einer Seite
+  ein Wächter wie Anubis (in NPMplus zuschaltbar) oder eine Cloudflare-Challenge, beantwortet
+  der die Anfrage selbst: HTTP 200, ausgeliefert wird aber dessen Prüfseite. Deren Kopfzeilen
+  sind die des Wächters — `Content-Security-Policy`, `X-Frame-Options` und `Permissions-Policy`
+  fehlen dort schlicht, obwohl der Server dahinter sie sehr wohl setzt. Gemeldet wurde das als
+  „fehlt“ samt roter Gesamtwertung, also eine Falschaussage über eine fremde Seite. Die
+  Prüfseite wird jetzt erkannt (Anubis am Cookie `*-anubis-*` bzw. am eingebetteten
+  `anubis_challenge`, Cloudflare an `cf-mitigated: challenge` bzw. `/cdn-cgi/challenge-platform`);
+  die nicht sichtbaren Kopfzeilen erscheinen dann als „nicht messbar“ statt als Mangel, eine
+  Plakette nennt den Wächter, und die Punktzahl zieht sie nicht mehr ab. Tatsächlich gesetzte
+  Kopfzeilen (HSTS, `X-Content-Type-Options`, `Referrer-Policy`) werden weiter normal bewertet.
+- **Ziele ohne funktionierendes HTTPS brechen die Prüfung nicht mehr ab.** Ein ohne Schema
+  eingetipptes Ziel wird zu `https://` ergänzt; Weiterleitungsdienste mancher Registrare
+  antworten aber nur über HTTP (`fim-hv.de` -> `hausfairwaltet.de`). Dort scheiterte der
+  HTTPS-Versuch am Zertifikat, und HTTP-Prüfung, Technik, SEO, WordPress und Bot-Prüfung
+  endeten mit einem Fehler, statt der Kette zu folgen. Jetzt wird nach einem
+  HTTPS-Fehlschlag über HTTP nachgefasst — aber nur, wenn der Benutzer selbst kein Schema
+  angab: wer `https://` eintippt, bekommt weiter den ehrlichen Fehler. Der Rückfall steht als
+  Befund im Ergebnis, und im Statuswächter trägt ihn der Fingerabdruck (`200@http` statt
+  `200`), damit ein frisch kaputtes Zertifikat eine Meldung auslöst statt still zu bleiben.
+
+### Changed
+- Die Weiterleitungskette in der Antwort der HTTP-Prüfung enthält keine Seitenrümpfe mehr.
+  Die dienen nur der Wächter-Erkennung und hätten Antwort und Schnappschuss um bis zu 8 KB
+  je Sprung aufgebläht.
+
+## [0.8.0] - 2026-09-06
+
+### Changed
+- **Waitress statt Flasks eingebautem Server.** Werkzeugs Entwicklungsserver legt pro Anfrage
+  einen neuen Thread an, ohne Obergrenze, und kennt weder Verbindungslimit noch Timeout für
+  hängende Verbindungen — auf dem direkten LAN-Port 17798 ist das angreifbar. Waitress
+  arbeitet mit festem Thread-Pool (8) und Warteschlange. Nebenbei verschwindet die Kopfzeile
+  `Server: Werkzeug/3.1.8 Python/3.14.7`, die Framework *und* exakte Python-Version verriet —
+  genau so eine Kopfzeile meldet die HTTP-Prüfung dieses Add-ons bei fremden Servern als Befund.
+  - `clear_untrusted_proxy_headers=False` ist dabei Pflicht: Waitress löscht `X-Forwarded-*`
+    standardmäßig, bevor die Anwendung sie sieht. Ohne die Einstellung käme hinter dem
+    HA-Ingress für jeden Aufrufer dieselbe Adresse an, und Sperrlisten wie Ratenbegrenzung
+    träfen alle Benutzer gemeinsam. (MyPage ist beim gleichen Wechsel genau darüber
+    gestolpert, v0.8.10.) Im Versuch nachgestellt: mit Waitress-Standard sieht ProxyFix
+    `127.0.0.1`, mit der Einstellung die echte Adresse.
+  - Lange Prüfungen werden nicht abgeschnitten: Waitress schließt einen Kanal nur, solange
+    keine Anfrage darauf läuft (`if (not channel.requests) and channel.last_activity < cutoff`).
+  - `dev_run.py` startet jetzt denselben Server wie der Container statt eines eigenen
+    `app.run()` — sonst prüft der Testlauf einen anderen Stack als den ausgelieferten.
+
+### Added
+- **Technik-Erkennung kennt Flask, Werkzeug und Waitress.** Django, Express, Rails, Gunicorn
+  und Uvicorn waren längst drin, Flask fehlte bei 169 Regeln komplett; ein unverblümtes
+  `Server: Werkzeug/3.1.8` ergab bisher nur „Python".
+  - **Werkzeug** und **Waitress** über den `Server`-Header, mit Version. Werkzeug nennt die
+    Python-Version gleich mit (`Werkzeug/3.1.8 Python/3.14.7`) — die wird jetzt ausgelesen.
+  - **Flask** über sein signiertes Sitzungscookie: Name `session`, Wert
+    `<Nutzlast>.<Zeitstempel>.<Signatur>` aus itsdangerous, beginnend mit `eyJ` oder `.eJ`.
+    Der Server-Header allein taugt dafür nicht — Werkzeug trägt auch eine blanke
+    WSGI-Anwendung.
+  - Ein **JWT** sieht genauso aus (gleiche drei Abschnitte, ebenfalls `eyJ`) und ist
+    ausgenommen: bei Flask ist der erste Abschnitt der Sitzungsinhalt, beim JWT der Kopf mit
+    `alg`/`typ`. Ohne diesen Ausschluss meldete jeder Express-Dienst mit JWT im Cookie
+    `session` fälschlich Flask.
+- Regeln können den **Wert** eines Cookies prüfen (`cookie_value`), nicht nur den Namen —
+  `session` heißt bei Flask genauso wie bei jeder selbstgebauten Anmeldung.
+
+### Fixed
+- **Der Vorfilter drehte Regeln mit negativem Lookaround um.** `_literal_of` sucht die längste
+  Zeichenfolge, die vorkommen *muss*, um Regeln billig zu überspringen — zog sie aber auch aus
+  `(?!...)` heraus. Aus `eyJ(?!hbGciOi|0eXAi)` wurde „hbgcioi" als Vorbedingung, die Regel
+  sprang also nur noch in genau dem Fall an, den sie ausschließen soll. Lookarounds werden
+  jetzt vor der Suche entfernt; Klammern innerhalb einer Zeichenklasse zählen dabei nicht als
+  Gruppenanfang. Betraf auch den importierten Wappalyzer-Datensatz, dort still.
+
+## [0.7.8] - 2026-09-06
+
+### Fixed
+- **Stufen-Plaketten in den Befundzeilen brachen senkrecht um.** In den schmalen Karten der
+  Mail-Gesundheit stand „Kritisch" oder „Hinweis" als ein Buchstabe pro Zeile untereinander.
+  Ursache war eine Regel aus 0.7.6 (`.finding-list li > span { min-width: 0 }`), die lange
+  Befundtexte umbrechen lassen sollte — sie traf aber auch die Plakette daneben, und die
+  schrumpfte im Flex-Container auf 29 px Breite bei 64 px Höhe.
+- **Die Stufe steht in den Befundzeilen jetzt nur noch im farbigen Balken links.** Als
+  Plakette wiederholte sie in jeder einzelnen Zeile, was die Farbe schon sagt, und fraß dabei
+  die halbe Kartenbreite. Der Balken ist dafür von 2 auf 3 px verbreitert; der Klartext
+  („Kritisch", „Achtung", …) bleibt als Titel der Zeile erreichbar, damit die Information
+  nicht rein farblich kodiert ist.
+- **Dieselbe Fehlerklasse für alle Plaketten geschlossen.** `.badge` bekommt `flex: none`,
+  kann also in keiner Flex-Zeile mehr zusammengequetscht werden, und `max-width: 100%` hält
+  eine lange Plakette trotzdem in ihrer Karte — umgebrochen wird dann an Leerzeichen statt
+  zeichenweise. Das betrifft alle Reiter, nicht nur die Mail-Gesundheit.
+- **Statuswächter zeigte bei einem Fehler auf die falsche Adresse.** Scheiterte die Kette erst
+  nach einer Weiterleitung, wurde die halbfertige Kette verworfen und die Startadresse als
+  Fehlerort gemeldet — bei `http://2-ways.de` also `http://2-ways.de`, obwohl dort nichts
+  kaputt ist: der Zertifikatsfehler tritt erst auf `https://2-ways.de` auf. `follow_redirects`
+  sammelt die Sprünge jetzt mit, während sie entstehen, und die Meldung nennt den Sprung, der
+  wirklich fehlschlug.
+
+## [0.7.7] - 2026-09-06
+
+### Added
+- **Neuer Monitor-Typ „HTTP-Statuscode".** Meldet jede Änderung des Statuscodes einer
+  Adresse — auch dann, wenn die Bewertungsstufe gleich bleibt (`500` → `503` ist zweimal
+  „Kritisch", aber sehr wohl eine Änderung). Der bestehende Typ „Erreichbarkeit" konnte das
+  nicht: der bewertet die Sicherheitskopfzeilen mit und steht dadurch auf fast jeder Seite
+  dauerhaft auf „Achtung"/„Kritisch" — ein Ausfall von `200` auf `503` bewegte diese Stufe
+  gar nicht und löste nie eine Benachrichtigung aus.
+  - Weiterleitungen werden verfolgt (bis zu 8 Sprünge), gemeldet wird der Code am **Ende**
+    der Kette. `domain.de` genügt also — ein vorangestelltes `http://` ist nicht nötig und
+    ändert am Ergebnis nichts, weil das `301` von nginx nur ein Zwischenschritt ist.
+  - Antwortet der Server gar nicht mehr (Name nicht auflösbar, Zeitüberschreitung, keine
+    Verbindung, TLS-Fehler, Weiterleitungsschleife), ist das jetzt ein gemeldeter Zustand
+    statt eines stillen Laufzeitfehlers. Ausgerechnet der härteste Ausfall blieb bisher stumm.
+  - Die Antwortzeit in Millisekunden steht mit in der Meldung.
+
+### Fixed
+- **Der HTTP-Statuscode war in „HTTP-Header, Weiterleitungen und HTTP/3" nirgends zu sehen.**
+  Er wurde ermittelt, aber nur innerhalb der Weiterleitungstabelle gezeigt — und die
+  erscheint erst ab zwei Sprüngen. Bei einer Seite, die direkt mit `200` (oder `503`)
+  antwortet, fehlte das eigentliche Ergebnis der Abfrage komplett. Jetzt steht der Code als
+  eigene Plakette neben HTTPS und HTTP/3, farbig nach Bereich (2xx grün, 3xx blau, ab 4xx rot).
+- **Zwei Fehlertexte waren doppelt vergeben und überschrieben still die neuen aus 0.7.5.**
+  `err_unauthorized` und `err_csrf` standen in `locales/de.json` und `locales/en.json`
+  jeweils zweimal; beim Einlesen gewinnt der letzte Eintrag, also erschien weiterhin
+  „Nicht angemeldet." statt „Sitzung abgelaufen — bitte neu anmelden.". Die alten
+  Zweitbelegungen entfernt.
+
+### Changed
+- Die Monitor-Datenbank merkt sich pro Wächter zusätzlich einen Zustands-Fingerabdruck
+  (`last_state`, Schema 2). Bestehende Datenbanken werden beim Start automatisch erweitert;
+  für alle übrigen Monitor-Typen ändert sich nichts.
+
+## [0.7.6] - 2026-09-06
+
+### Fixed
+- **Technik-Erkennung: langer Versionstext lief aus der Karte.** Eine Regel hatte statt der
+  Version einen Cache-Buster eingefangen (`2E477967E482F32E65D4EA9B`), und die Bewertung
+  („sicher") wurde rechts aus der Karte geschoben. Zwei Stellen behoben:
+  - `nettech.py` nimmt einen Versionsfund nur noch an, wenn er wie eine Version aussieht
+    (`3.7.1`, `v2.0.0-beta1`, `20240115`). Hashes und Zufallszeichen werden verworfen —
+    lieber keine Version zeigen als eine erfundene. Der Fund selbst bleibt als Beleg im
+    Tooltip stehen.
+  - Im Layout schrumpft jetzt die Version zuerst und schneidet mit Auslassungspunkten ab,
+    der Name danach; die Bewertung rechts weicht nie.
+- **Gleicher Fehler an drei weiteren Stellen vorbeugend behoben.** Plaketten (`.chip`) mit
+  langer Adresse oder langem Hostnamen umbrechen jetzt innerhalb der Plakette statt die
+  Karte zu sprengen; Befund-Zeilen und Karten-Überschriften mit servergeliefertem Namen
+  (Wächter, Bot-Schutz, Snapshot-Domain) halten ihre Plakette in der Karte.
+
+## [0.7.5] - 2026-09-06
+
+### Fixed
+- **Abgelaufene Sitzung zeigte nur Fehler statt zur Anmeldung zu führen.** Jeder Aufruf
+  kam mit `401` zurück, die Seite blieb stehen und meldete Fehler um Fehler; erst ein
+  Neuladen brachte die Anmeldemaske. Jetzt führt der erste `401` mit einem Hinweis
+  zurück zur Anmeldung.
+- **Nach 12 Stunden scheiterte jedes Absenden auf einer offen gelassenen Seite.** Der
+  CSRF-Merkzettel läuft früher ab als die Sitzung (12 h gegen 24 h) — die Sitzung war
+  noch gültig, aber der Server lehnte jedes `POST` mit `csrf` ab, bis der Benutzer neu
+  lud. Neue Route `GET /api/csrf` holt einen frischen Merkzettel, der fehlgeschlagene
+  Aufruf wird einmal automatisch wiederholt.
+
+## [0.7.4] - 2026-09-05
+
+### Fixed
+- **`SyntaxWarning: invalid escape sequence '\;'`** beim Start (`wapimport.py:210`). Ein
+  unescapetes `\;` in einem normalen (nicht rohen) Docstring — reine Doku, keine Verhaltensänderung.
+
+## [0.7.3] - 2026-09-05
+
+### Added
+- **Leeren-Knopf bei der Domain-Verfügbarkeit.** Setzt Basisname, alle Endungs-Kästchen,
+  Endungs-Suche und Freitextfeld für weitere Endungen sowie das Ergebnis zurück.
+
+## [0.7.2] - 2026-09-05
+
+### Fixed
+- **Bot-/Crawler-Schutz-Test hatte im Verlauf keine Ergebnis-Plakette.** `botcheck.py` lieferte
+  kein `level` zurück, die Spalte blieb leer. Jetzt: `warn`, wenn ein bekanntes Schutzsystem
+  gegriffen hat (auch bei HTTP 200 — Anubis antwortet mit 200, während es die Challenge zeigt)
+  oder der Status selbst schon kein sauberes 2xx war; sonst `ok`. Auch im Einzel-Ergebnis oben
+  jetzt eine Plakette, wie bei den anderen Checks.
+
+## [0.7.1] - 2026-09-05
+
+### Added
+- **Hinweis, wenn eine benannte Suchmaschine/Crawler nachgeahmt wird.** Nachgeahmt wird nur der
+  User-Agent, nie die Herkunfts-IP — eine ernsthafte Positivliste (wie die eigenen Anubis-Regeln
+  in `anubis/policy.search-engines.yaml`, IP-Bereich UND User-Agent zusammen) lässt sich damit
+  nicht täuschen. Ein Treffer beim Googlebot-Test beweist also nicht, dass der echte Googlebot
+  auch blockiert wird — dafür ist Googles eigener Live-Test in der Search Console die
+  verlässlichere Quelle. Gilt jetzt auch für einen frei getippten User-Agent, der einen
+  bekannten Crawler-Namen enthält, nicht nur für die Dropdown-Auswahl.
+
+## [0.7.0] - 2026-09-05
+
+### Added
+- **Bot-/Crawler-Schutz-Test** (neue Karte im Web-Tab, `botcheck.py`). Ruft eine Seite unter
+  einer wählbaren Kennung ab (NetToolbox-Standard, echter Browser zum Vergleich, Googlebot,
+  Bingbot, GPTBot, ClaudeBot, CCBot oder ein selbst getippter User-Agent) und prüft die Antwort
+  auf bekannte Bot-Schutzsysteme: Anubis (Proof-of-Work), Cloudflares JS-Challenge, plus ein paar
+  bekannte WAF-Sperrseiten (Cloudflare, Imperva Incapsula, Sucuri, AWS WAF/CloudFront,
+  ModSecurity). Läuft ohne Browser und ohne die Challenge zu lösen — genau das, was ein echter
+  Crawler ohne Browser dahinter auch sähe. Anubis' eigenes Muster (Titel „Making sure you're not
+  a bot!“, `/.within.website/x/`-Pfad, `anubis-cookie-verification`-Cookie) live gegen Anubis'
+  eigene Beispielseite bestätigt.
+
 ## [0.6.0] - 2026-09-05
 
 ### Changed

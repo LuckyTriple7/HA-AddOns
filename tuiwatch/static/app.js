@@ -417,13 +417,20 @@
     }
     window.openSchedule = openSchedule;
 
+    // Stand der zuletzt geholten Angebotsliste. Schickt der Browser ihn mit und der
+    // Server hat nichts Neues, kommt ein 304 ohne Rumpf zurueck — dann ist hier
+    // sofort Schluss, ohne JSON zu parsen und ohne die Signatur zu vergleichen.
+    let offersEtag = '';
     async function loadOffers(){
       try {
-        const r = await fetch(api('/api/offers'));
+        const r = await fetch(api('/api/offers'),
+          offersEtag ? {headers:{'If-None-Match': offersEtag}} : undefined);
         // Session abgelaufen (nur bei direktem Zugriff, nie unter Ingress):
         // Reload führt serverseitig zur Login-Seite statt stiller Fehler bei jedem Klick.
         if(r.status===401){ location.reload(); return; }
+        if(r.status===304){ _offlineFails = 0; hideOfflineBanner(); return; }
         if(!r.ok) return;
+        offersEtag = r.headers.get('ETag') || '';
         const d = await r.json();
         _offlineFails = 0; hideOfflineBanner();
         curOffers = d.offers;
@@ -2835,8 +2842,8 @@
       // keine weiteren Listener).
       if($('#giata-lightbox-bg').classList.contains('show')) return;
       if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
-      if(!calData || !calData.days) return;
-      const months=[...new Set(calData.days.map(d=>d.date.slice(0,7)))].sort();
+      const months = calMonthList(calData);
+      if(!months.length) return;
       const idx=months.indexOf(calMonth);
       const t = e.key==='ArrowLeft' ? (idx>0?months[idx-1]:'') : (idx<months.length-1?months[idx+1]:'');
       if(t){ calGo(t); e.preventDefault(); }
@@ -2876,6 +2883,7 @@
       ['regcmp-bg', closeRegionCompare],
       ['reiseb-bg', closeAdvisor],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
+      ['db-bg', () => $('#db-bg').classList.remove('show')],
       ['settings-bg', closeSettings],
       ['promptcfg-bg', closePromptCfg],
       ['aktion-bg', closeAktion],
@@ -6030,6 +6038,17 @@
     // geleert wird ausschliesslich ueber den Loeschen-Knopf.
     const SET_CLEAR = new Set();
 
+    // Delegiert und einmalig: der Inhalt wird bei jedem Laden neu aufgebaut, der
+    // Zaehler haengt deshalb am Container statt an den einzelnen Feldern. Das
+    // Skript laeuft am Ende des Body, das Element steht hier also schon.
+    (() => {
+      const body = $('#settings-body');
+      if(!body) return;
+      const zaehl = e => { if(e.target.dataset && e.target.dataset.set) setDirtyCount(); };
+      body.addEventListener('input', zaehl);
+      body.addEventListener('change', zaehl);
+    })();
+
     function openSettings(){
       $('#settings-bg').classList.add('show');
       loadSettings();
@@ -6039,38 +6058,66 @@
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
 
+    // Erklaertext eingeklappt hinter ⓘ: die 67 Hinweise (Ø 234 Zeichen) machten
+    // rund 70 % der Dialoghoehe aus. Der Text bleibt vollstaendig erhalten, steht
+    // im DOM (die Suche findet ihn) und klappt auf Klick auf.
+    function setHintHtml(f){
+      if(!f.hint) return '';
+      const id = 'set-h-' + f.key;
+      return `<div class="hint set-hint" id="${id}" hidden>${esc(f.hint)}`
+        + `${f.restart ? ' <b>Neustart nötig.</b>' : ''}</div>`;
+    }
+    function setInfoBtn(f){
+      if(!f.hint) return '';
+      return `<button type="button" class="set-info" aria-expanded="false" aria-controls="set-h-${f.key}"`
+        + ` title="Erklärung anzeigen" onclick="setToggleHint('${f.key}', this)">ⓘ</button>`;
+    }
+    function setToggleHint(key, btn){
+      const el = $('#set-h-' + key); if(!el) return;
+      el.hidden = !el.hidden;
+      btn.setAttribute('aria-expanded', String(!el.hidden));
+    }
+    // Feldbreite nach Inhalt: eine Zahl braucht keine 420 px, ein Schluessel schon.
+    function setWidth(f){
+      if(f.kind === 'int' || f.kind === 'float') return ' style="max-width:150px"';
+      if(f.kind === 'choice') return ' style="max-width:260px"';
+      return '';
+    }
+
     function setFieldHtml(f){
       const id = 'set-f-' + f.key;
-      const hint = f.hint ? `<div class="hint">${esc(f.hint)}${f.restart ? ' <b>Neustart nötig.</b>' : ''}</div>` : '';
+      const hint = setHintHtml(f), info = setInfoBtn(f);
+      const such = esc(((f.label||'') + ' ' + (f.hint||'') + ' ' + f.key).toLowerCase());
+      const row = (inner, extra='') =>
+        `<div class="set-row${extra}" data-field="${f.key}" data-such="${such}">${inner}${hint}</div>`;
       if(f.secret){
-        return `<div class="set-row">
-          <label class="set-lbl" for="${id}">${esc(f.label)}
-            <span class="set-state" id="set-state-${f.key}">${f.set ? 'gesetzt' : 'nicht gesetzt'}</span></label>
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}
+            <span class="set-state" id="set-state-${f.key}">${f.set ? 'gesetzt' : 'nicht gesetzt'}</span></label>${info}</div>
           <div class="set-secret-row">
             <input type="password" id="${id}" data-set="${f.key}" data-secret autocomplete="new-password"
                    placeholder="${f.set ? 'gesetzt — leer lassen heißt unverändert' : 'nicht gesetzt'}">
             <button class="btn sec" type="button" data-clear="${f.key}">Löschen</button>
-          </div>${hint}</div>`;
+          </div>`);
       }
       if(f.kind === 'bool'){
-        return `<div class="set-row set-bool"><label class="set-lbl" for="${id}">
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">
             <input type="checkbox" id="${id}" data-set="${f.key}" ${f.value ? 'checked' : ''}>
-            ${esc(f.label)}</label>${hint}</div>`;
+            ${esc(f.label)}</label>${info}</div>`, ' set-bool');
       }
       if(f.kind === 'choice'){
         const opts = (f.choices || []).map(c =>
           `<option value="${esc(c)}"${String(f.value) === String(c) ? ' selected' : ''}>${esc(c)}</option>`).join('');
-        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
-          <select id="${id}" data-set="${f.key}">${opts}</select>${hint}</div>`;
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>${info}</div>
+          <select id="${id}" data-set="${f.key}"${setWidth(f)}>${opts}</select>`);
       }
       if(f.kind === 'int' || f.kind === 'float'){
         const step = f.kind === 'float' ? ' step="0.1"' : '';
-        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+        return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>${info}</div>
           <input type="number" id="${id}" data-set="${f.key}" min="${f.min}" max="${f.max}"${step}
-                 value="${esc(f.value)}">${hint}</div>`;
+                 value="${esc(f.value)}"${setWidth(f)}>`);
       }
-      return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
-        <input type="text" id="${id}" data-set="${f.key}" value="${esc(f.value)}" autocomplete="off">${hint}</div>`;
+      return row(`<div class="set-lbl-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>${info}</div>
+        <input type="text" id="${id}" data-set="${f.key}" value="${esc(f.value)}" autocomplete="off">`);
     }
 
     async function loadSettings(){
@@ -6084,10 +6131,126 @@
         d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load">Einstellungen konnten nicht geladen werden.</div>'; return; }
       $('#set-crypto-warn').style.display = d.crypto ? 'none' : '';
-      body.innerHTML = (d.groups || []).map(g =>
-        `<div class="set-group"><h3>${esc(g.title)}</h3>${(g.items || []).map(setFieldHtml).join('')}</div>`).join('');
+      SET_GROUPS = d.groups || [];
+      body.innerHTML = SET_GROUPS.map(g =>
+        `<section class="set-pane" data-cat="${esc(g.group)}" hidden><h3>${esc(g.title)}</h3>`
+        + `<div class="set-group">${(g.items || []).map(setFieldHtml).join('')}</div></section>`).join('')
+        + '<div class="set-empty" id="set-noresult" hidden>Keine Einstellung gefunden.</div>';
+      // Die beiden fest im HTML stehenden Bloecke (KI-Kosten, Schluessel) wandern
+      // per DOM-Umzug in ihre Kategorie — verschoben, nicht kopiert, damit ihre
+      // IDs und Ereignisbehandler unveraendert weiterarbeiten.
+      document.querySelectorAll('#settings-bg [data-cat][id]').forEach(block => {
+        const ziel = body.querySelector(`.set-pane[data-cat="${block.dataset.cat}"]`);
+        if(ziel){ block.hidden = false; ziel.appendChild(block); }
+      });
       body.querySelectorAll('[data-clear]').forEach(b =>
         b.addEventListener('click', () => clearSecret(b.dataset.clear)));
+      setBuildNav();
+      setSelectCat(SET_CAT && SET_GROUPS.some(g => g.group === SET_CAT)
+                   ? SET_CAT : (SET_GROUPS[0] || {}).group);
+      setSnapshot();
+      const suche = $('#set-search');
+      if(suche && suche.value) setSearch(suche.value);
+    }
+
+    // ── Kategorien, Suche, Änderungszähler ────────────────────────────────────
+    let SET_GROUPS = [], SET_CAT = null, SET_BASE = {};
+
+    // Punkt neben einer Kategorie: gefuellt, sobald alle ihre Zugangsdaten
+    // hinterlegt sind. Kategorien ohne Geheimfelder bekommen keinen — dort gibt es
+    // kein "eingerichtet", nur an- und ausgeschaltete Optionen.
+    function setCatDot(g){
+      const secrets = (g.items || []).filter(f => f.secret);
+      // Kategorien ohne Zugangsdaten bekommen einen unsichtbaren Platzhalter statt
+      // gar nichts: sonst ruecken ihre Beschriftungen gegenueber den anderen ein.
+      if(!secrets.length) return '<span class="set-dot" style="visibility:hidden"></span>';
+      const alle = secrets.every(f => f.set);
+      return `<span class="set-dot ${alle ? 'on' : 'off'}" title="${alle
+        ? 'Zugangsdaten hinterlegt' : 'Zugangsdaten fehlen'}"></span>`;
+    }
+    function setBuildNav(){
+      $('#set-nav').innerHTML = SET_GROUPS.map(g =>
+        `<button type="button" data-cat="${esc(g.group)}" onclick="setSelectCat('${esc(g.group)}')">`
+        + `${setCatDot(g)}<span class="set-navname">${esc(g.title)}</span>`
+        + `<span class="set-count">${(g.items || []).length}</span></button>`).join('');
+    }
+    function setSelectCat(cat){
+      if(!cat) return;
+      SET_CAT = cat;
+      const suche = $('#set-search');
+      if(suche && suche.value){ suche.value = ''; setSearch(''); }
+      $('#settings-body').querySelectorAll('.set-pane').forEach(p =>
+        p.hidden = p.dataset.cat !== cat);
+      let aktiv = null;
+      $('#set-nav').querySelectorAll('button').forEach(b => {
+        const an = b.dataset.cat === cat;
+        b.classList.toggle('on', an);
+        if(an) aktiv = b;
+      });
+      // Auf schmalen Bildschirmen ist die Kategorienliste eine waagerechte Leiste —
+      // die aktive Kategorie kann dann ausserhalb des Sichtbereichs liegen.
+      if(aktiv && aktiv.scrollIntoView) aktiv.scrollIntoView({block:'nearest', inline:'nearest'});
+      $('#settings-body').scrollTop = 0;
+    }
+    // Suche ueber Beschriftung, Schluessel UND Erklaertext: bei 67 Optionen ist das
+    // der kuerzeste Weg, und der Erklaertext enthaelt oft das gesuchte Wort
+    // ("Chromium", "Postfach"), das in der Beschriftung gar nicht vorkommt.
+    function setSearch(q){
+      const suche = (q || '').trim().toLowerCase();
+      const body = $('#settings-body');
+      const panes = [...body.querySelectorAll('.set-pane')];
+      if(!suche){
+        body.querySelectorAll('.set-row').forEach(r => r.hidden = false);
+        body.querySelectorAll('.set-group[data-cat]').forEach(b => b.hidden = false);
+        $('#set-noresult').hidden = true;
+        panes.forEach(p => p.hidden = p.dataset.cat !== SET_CAT);
+        $('#set-nav').querySelectorAll('button').forEach(b =>
+          b.classList.toggle('on', b.dataset.cat === SET_CAT));
+        return;
+      }
+      // Die beiden fest im HTML stehenden Bloecke (KI-Kosten, Schluessel) sind
+      // keine Einstellungen, sondern Aktionen — ihre Zeilen tragen kein data-such
+      // und wuerden sonst unter jedem Suchwort stehen bleiben.
+      body.querySelectorAll('.set-group[data-cat]').forEach(b => b.hidden = true);
+      let treffer = 0;
+      panes.forEach(p => {
+        let sichtbar = 0;
+        p.querySelectorAll('.set-row[data-such]').forEach(r => {
+          const passt = r.dataset.such.includes(suche);
+          r.hidden = !passt;
+          if(passt) sichtbar++;
+        });
+        p.hidden = !sichtbar;             // Treffer quer über alle Kategorien
+        treffer += sichtbar;
+      });
+      $('#set-noresult').hidden = treffer > 0;
+      $('#set-nav').querySelectorAll('button').forEach(b => b.classList.remove('on'));
+    }
+
+    // Änderungszähler: der Ausgangsstand wird nach dem Rendern festgehalten, damit
+    // die Leiste unten sagen kann, ob und wie viel offen ist — vorher stand der
+    // Speichern-Knopf am Ende von 7.400 px, ohne Hinweis darauf, dass etwas offen war.
+    function setFieldValue(inp){
+      if(inp.hasAttribute('data-secret')) return inp.value;
+      return inp.type === 'checkbox' ? String(inp.checked) : String(inp.value);
+    }
+    function setSnapshot(){
+      SET_BASE = {};
+      $('#settings-body').querySelectorAll('[data-set]').forEach(inp => {
+        SET_BASE[inp.dataset.set] = setFieldValue(inp);
+      });
+      setDirtyCount();
+    }
+    function setDirtyCount(){
+      let n = SET_CLEAR.size;
+      $('#settings-body').querySelectorAll('[data-set]').forEach(inp => {
+        if(setFieldValue(inp) !== SET_BASE[inp.dataset.set]) n++;
+      });
+      const el = $('#set-dirty');
+      el.textContent = n ? `${n} ${n === 1 ? 'Änderung' : 'Änderungen'} nicht gespeichert`
+                         : 'Keine Änderungen';
+      el.classList.toggle('dirty', n > 0);
+      return n;
     }
 
     function clearSecret(key){
@@ -6097,6 +6260,7 @@
       if(inp) inp.value = '';
       const st = $('#set-state-' + key);
       if(st) st.textContent = 'wird beim Speichern gelöscht';
+      setDirtyCount();
     }
 
     async function saveSettings(btn){
@@ -7194,10 +7358,30 @@
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
-    let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
+    let calTimer = null, calId = null, calData = null, calMonth = null;
+    // Ansicht des Kalenderrasters: Preis (Heatmap), Trend (Bewegung seit dem letzten
+    // Abruf) oder Vorjahr (Vergleich mit dem Termin 52 Wochen frueher).
+    let calView = 'preis';
     let calMovesOpen = false;   // "Größte Bewegungen"-Liste: default eingeklappt, Zustand überlebt Monatswechsel
     let calMonths = null, calMonthsOpen = false;   // Monatsübersicht (Preisniveau + Trend je Reisemonat)
-    function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
+    // Reihum: Preis → Trend → Vorjahr → Preis. Der Vorjahr-Schritt faellt aus, wenn
+    // es fuer dieses Angebot noch keine Vorjahresdaten gibt — ein Modus, der nur
+    // graue Zellen zeigt, ist kein Modus.
+    function calViewCycle(){
+      const hatVorjahr = calData && calData.last_year && Object.keys(calData.last_year).length;
+      const modi = hatVorjahr ? ['preis','trend','vorjahr'] : ['preis','trend'];
+      calView = modi[(modi.indexOf(calView) + 1) % modi.length];
+      drawCalMonth();
+    }
+    function calViewLabel(){
+      const naechst = {preis:'trend', trend:'vorjahr', vorjahr:'preis'};
+      const hatVorjahr = calData && calData.last_year && Object.keys(calData.last_year).length;
+      let z = naechst[calView] || 'preis';
+      if(z === 'vorjahr' && !hatVorjahr) z = 'preis';
+      if(z === 'trend')   return '<svg class="i"><use href="#i-trend"/></svg> Trend';
+      if(z === 'vorjahr') return '<svg class="i"><use href="#i-calendar"/></svg> Vorjahr';
+      return '<svg class="i"><use href="#i-euro"/></svg> Preis';
+    }
     async function openCalDayChart(iso){
       const box = $('#cal-day-chart');
       box.classList.add('show');
@@ -7206,8 +7390,22 @@
       try { d = await fetch(api('/api/calendar/'+calId+'/day/'+iso)).then(r=>r.json()); }
       catch(e){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Preisverlauf konnte nicht geladen werden.</div>'; return; }
       const pts = (d.points||[]).map(p=>({ts:p.ts, price:p.price}));
+      // Vorjahreszeile: der Chart zeigt den Verlauf DIESES Termins — was der
+      // gleiche Termin 52 Wochen frueher zuletzt kostete, ist der Bezugspunkt dazu.
+      const ly = (calData && calData.last_year || {})[iso];
+      const nowP = (calData && (calData.days||[]).find(x=>x.date===iso) || {}).price;
+      let lyLine = '';
+      if(ly){
+        const diff = (nowP!=null) ? nowP - ly.price : null;
+        const pct = (diff!=null && ly.price) ? diff / ly.price * 100 : null;
+        lyLine = `<div class="hint" style="margin-bottom:6px">Vorjahr (${fmtD(ly.date)}): <b>${eur(ly.price)}</b>`
+          + (diff!=null ? ` · heute ${diff>0?'+':'−'}${eur(Math.abs(diff))}`
+             + (pct!=null ? ` (${pct>0?'+':'−'}${Math.abs(pct).toLocaleString('de-DE',{maximumFractionDigits:1})} %)` : '') : '')
+          + '</div>';
+      }
       box.innerHTML = `<div class="cal-day-hd"><b>Preisverlauf: ${fmtD(iso)}</b>
           <button class="btn sec" onclick="closeCalDayChart()">✕</button></div>
+        ${lyLine}
         <canvas id="cal-day-canvas" style="width:100%;height:120px;display:block"></canvas>`;
       if(pts.length<2){
         $('#cal-day-canvas').outerHTML = '<div class="hint">Noch keine Preisänderung für dieses Datum aufgezeichnet.</div>';
@@ -7422,19 +7620,48 @@
       loadOffers();
     }
 
+    // Abgereiste Reisetage (expired_days) kommen aus der Historie, nicht aus dem
+    // Snapshot: TUI liefert ab heute, ein vergangener Termin fällt beim nächsten
+    // Abruf aus job.days heraus. Sie werden nur ins Raster gemischt — nie in
+    // Heatmap-Spanne, günstigster/teuerster Termin oder die tui.com-Links, denn
+    // buchbar sind sie nicht mehr (siehe _expired_days() in price_calendar.py).
+    function calPastMap(job){
+      const m = {};
+      (job && job.expired_days || []).forEach(d=>{ if(d && d.price!=null) m[d.date]=d.price; });
+      return m;
+    }
+
+    // Alle Monate mit Daten — buchbar UND abgereist. Heisst bewusst nicht
+    // calMonths: so heisst schon die Monatsuebersicht-Antwort (let calMonths), und
+    // ein zweiter gleicher Name im globalen Scope ueberschreibt den ersten still.
+    // Eine Funktion fuer beide
+    // Blaetterwege: das Tastatur-Handling baute die Liste frueher selbst aus
+    // calData.days und kam deshalb nur bis zum aktuellen Monat zurueck, waehrend
+    // die Pfeil-Schaltflaechen schon weiter blaetterten.
+    function calMonthList(job){
+      if(!job) return [];
+      return [...new Set([...(job.days||[]).map(d=>d.date.slice(0,7)),
+                          ...Object.keys(calPastMap(job)).map(d=>d.slice(0,7))])].sort();
+    }
+
     function renderCalendar(job){
       calData = job;
-      if(!(job.days && job.days.length)){
+      if(!(job.days && job.days.length) && !Object.keys(calPastMap(job)).length){
         const msg = job.error || job.note || 'Preiskalender nicht verfügbar';
         $('#cal-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+'</div>' + calFooter(job);
         return;
       }
       if(!calMonth){
         // Standard: der Monat des Reisebeginns (window_start) — sofern dafür Daten da sind;
-        // sonst günstigster-im-Zeitraum / günstigster / erster Tag.
+        // sonst günstigster-im-Zeitraum / günstigster / erster Tag. Ist die Reise
+        // vorbei und es gibt nur noch Historie, der letzte abgereiste Termin.
+        const days = job.days || [];
+        const past = Object.keys(calPastMap(job)).sort();
         const wm = (job.window_start||'').slice(0,7);
-        const has = job.days.some(d=>d.date.slice(0,7)===wm);
-        calMonth = (wm && has) ? wm : (job.tracked_date || job.cheapest_date || job.days[0].date).slice(0,7);
+        const has = days.some(d=>d.date.slice(0,7)===wm) || past.some(d=>d.slice(0,7)===wm);
+        const fallback = job.tracked_date || job.cheapest_date
+          || (days.length ? days[0].date : past[past.length-1]);
+        calMonth = (wm && has) ? wm : (fallback||'').slice(0,7);
       }
       drawCalMonth();
     }
@@ -7461,6 +7688,21 @@
       if(t.dir==='up')   return `<span class="trend up">↗ steigt ${calPct(t.pct)}${days}</span>`;
       return '<span class="trend flat">→ stabil</span>';
     }
+    // Vorjahresmittel eines Reisemonats. Bewusst mit Tageszahl: ein Mittel aus drei
+    // beobachteten Terminen ist etwas anderes als eines aus dreissig, und ohne diese
+    // Angabe sähe beides gleich belastbar aus.
+    function calLastYearCell(m){
+      const ly = m.last_year;
+      if(!ly) return '<span class="hint">–</span>';
+      const pct = ly.pct;
+      const richtung = (pct==null || Math.abs(pct) < CAL_MONTH_DEADBAND) ? 'flat'
+        : (pct > 0 ? 'up' : 'down');
+      const pfeil = richtung==='up' ? '↗ ' : (richtung==='down' ? '↘ ' : '→ ');
+      return `${Math.round(ly.avg).toLocaleString('de-DE')} €`
+        + (pct==null ? '' : ` <span class="trend ${richtung}">${pfeil}${calPct(pct)}</span>`)
+        + `<div class="hint">${ly.days} ${ly.days===1?'Termin':'Termine'} beobachtet</div>`;
+    }
+
     function calIndexLine(i){
       if(!i) return '';
       const cls = i.pct>=CAL_MONTH_DEADBAND ? 'up' : (i.pct<=-CAL_MONTH_DEADBAND ? 'down' : 'flat');
@@ -7478,6 +7720,7 @@
         return `<tr${cur}><td><span class="cal-month-link" onclick="calGo('${m.month}')">${esc(m.label)}</span>`
           + `<div class="hint">${m.dates} Termine · ${eurShort(m.min)}–${eurShort(m.max)}</div></td>`
           + `<td style="white-space:nowrap">${eurShort(m.avg)}</td>`
+          + `<td style="white-space:nowrap">${calLastYearCell(m)}</td>`
           + `<td>${calTrendBadge(m.trend, d.observations)}${calIndexLine(m.index)}</td></tr>`;
       }).join('');
       return `<details class="cal-moves" ${calMonthsOpen?'open':''} ontoggle="calMonthsOpen=this.open">
@@ -7486,23 +7729,53 @@
         <div class="hint" style="margin:4px 0 6px">Ø-Preis ist der aktuelle Stand, der Trend die
         Bewegung dieses Reisemonats über die Zeit — nur dieses Hotel/Zimmer, nicht der Markt.
         Ruhige Tage zählen als 0 %, nicht als fehlender Wert.</div>
-        <table class="hist"><tr><th>Reisemonat</th><th>Ø-Preis</th>
+        <table class="hist"><tr><th>Reisemonat</th><th>Ø-Preis</th><th>Ø Vorjahr</th>
         <th>Trend (${d.window_days} Tage) / Index (gesamt)</th></tr>${rows}</table>
       </details>`;
     }
 
+    // Kopfzeile über dem Raster: Monatsmittel des angezeigten Monats und, wenn
+    // vorhanden, dasselbe Mittel ein Jahr zuvor.
+    //
+    // Der Tagesvergleich in den Zellen läuft ins Leere, sobald der Vorjahrestermin
+    // gar nicht angeboten wurde — das Monatsmittel trägt trotzdem, weil es über
+    // alle beobachteten Reisetage des Monats geht. Es stammt aus der
+    // Monatsübersicht (/months) und deckt deshalb nur Monate ab heute ab.
+    function calMonthAvgLine(){
+      const m = ((calMonths||{}).months || []).find(x=>x.month===calMonth);
+      if(!m) return '';
+      const ly = m.last_year;
+      let txt = `Ø ${eur(m.avg)} aus ${m.dates} ${m.dates===1?'Termin':'Terminen'}`;
+      if(ly){
+        const pct = ly.pct;
+        const richtung = (pct==null || Math.abs(pct) < CAL_MONTH_DEADBAND) ? 'flat'
+          : (pct > 0 ? 'up' : 'down');
+        txt += ` · Vorjahr Ø ${eur(ly.avg)} (${ly.days} ${ly.days===1?'Termin':'Termine'})`
+          + (pct==null ? '' : ` <span class="trend ${richtung}">${calPct(pct)}</span>`);
+      } else {
+        txt += ' · kein Vorjahresmittel';
+      }
+      return `<div class="hint cal-monthavg">${txt}</div>`;
+    }
+
     function drawCalMonth(){
       const job = calData; if(!job) return;
-      const pm = {}; job.days.forEach(d=>pm[d.date]=d.price);
+      const pm = {}; (job.days||[]).forEach(d=>pm[d.date]=d.price);
+      const lastYear = job.last_year || {};        // Vorjahrestermin je Reisetag
+      const past = calPastMap(job);                 // abgereist, nur Anzeige
+      const pastSeen = {};                          // Datum → letzter Beobachtungstag
+      (job.expired_days||[]).forEach(d=>{
+        if(d && d.ts) pastSeen[d.date]=new Date(d.ts*1000).toLocaleDateString('de-DE');
+      });
       const moves = job.moves || {};
-      const months = [...new Set(job.days.map(d=>d.date.slice(0,7)))].sort();
+      const months = calMonthList(job);
       if(!months.includes(calMonth)) calMonth = months[0];
       const [Y,M] = calMonth.split('-').map(Number);
       const first = new Date(Y, M-1, 1);
       const startWd = (first.getDay()+6)%7;          // Montag = 0
       const dim = new Date(Y, M, 0).getDate();
       const ws = job.window_start, we = job.window_end;
-      const allP = job.days.map(x=>x.price);
+      const allP = (job.days||[]).map(x=>x.price);
       const pmin = Math.min(...allP), pmax = Math.max(...allP);
       const offer = (curOffers||[]).find(x=>x.id===calId) || {};
       const base = offer.url || '';
@@ -7518,35 +7791,73 @@
       for(let d=1; d<=dim; d++){
         const iso = `${Y}-${String(M).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const price = pm[iso];
+        const pastPrice = price==null ? past[iso] : undefined;   // nur wenn nicht mehr buchbar
+        const shown = price!=null ? price : pastPrice;
         const inWin = (!ws||iso>=ws) && (!we||iso<=we);
         const cls = ['cal-cell'];
         if(!inWin) cls.push('out');
+        if(pastPrice!=null) cls.push('past');
         if(iso===job.cheapest_date) cls.push('cheapest');
         if(iso===job.priciest_date) cls.push('priciest');
         if(iso===job.tracked_date) cls.push('tracked');
         const mv = moves[iso];
+        // Vorjahr: der zuletzt beobachtete Preis des Termins 52 Wochen frueher.
+        const ly = lastYear[iso];
+        const lyDiff = (ly && price!=null) ? price - ly.price : null;
+        const lyPct = (lyDiff!=null && ly.price) ? lyDiff / ly.price * 100 : null;
         let style = '';
-        if(calTrendView){
+        if(calView==='trend'){
           if(mv){  // Trend: rot=gestiegen, grün=gefallen
             const hue = mv.delta>0 ? 4 : 132;
             style = ` style="background:hsla(${hue},65%,45%,.22)"`;
+          }
+        } else if(calView==='vorjahr'){
+          if(lyPct!=null){
+            // Farbtiefe nach Groesse der Abweichung, gedeckelt bei 20 % — sonst
+            // faerbt ein einzelner Ausreisser den ganzen Monat gleich kraeftig.
+            const hue = lyDiff>0 ? 4 : 132;
+            const a = (0.10 + Math.min(Math.abs(lyPct), 20) / 20 * 0.22).toFixed(2);
+            style = ` style="background:hsla(${hue},65%,45%,${a})"`;
           }
         } else if(price!=null){  // Heatmap: günstig=grün → teuer=rot
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
-        const deltaBadge = mv ? `<span class="hist-diff ${mv.delta>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${mv.delta>0?'▲ +':'▼ '}${eur(mv.delta)}</span>` : '';
-        const infoIcon = price!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')"><svg class="i"><use href="#i-trend"/></svg></span>` : '';
+        // Betrag immer OHNE Vorzeichen: die Richtung steht schon im Pfeil, und auf
+        // dem Handy kuerzt calPrice() die Nachkommastellen — beides zusammen haelt
+        // die Plakette schmal genug, dass sie in einer Zeile bleibt (kein Umbruch
+        // zwischen Betrag und „€", siehe .cal-cell .hist-diff im Stylesheet).
+        // Auf dem Handy faellt der Richtungspfeil weg und die Plakette wird enger:
+        // bei ~50 px Zellenbreite passt "▲ 123 €" sonst nicht in eine Zeile, und
+        // umbrechen soll sie nie. Die Richtung steht weiterhin in der Farbe.
+        const badge = (wert, cls) => `<span class="hist-diff ${cls}" style="margin:0;`
+          + (calNarrow ? 'font-size:.60rem;padding:1px 3px">' : 'font-size:.68rem;padding:1px 5px">')
+          + `${calNarrow ? '' : (wert>0?'▲ ':'▼ ')}${calPrice(Math.abs(wert))}</span>`;
+        const deltaBadge = mv ? badge(mv.delta, mv.delta>0?'up':'down') : '';
+        const lyBadge = lyDiff!=null ? badge(lyDiff, lyDiff>0?'up':'down') : '';
+        const infoIcon = shown!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')"><svg class="i"><use href="#i-trend"/></svg></span>` : '';
         const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
-          + (calTrendView && mv ? deltaBadge
-             : price!=null ? `<span class="cal-p">${calPrice(price)}</span>` : '<span class="cal-p na">–</span>');
+          + (calView==='trend' && mv ? deltaBadge
+             : calView==='vorjahr' && lyDiff!=null ? lyBadge
+             : shown!=null ? `<span class="cal-p">${calPrice(shown)}</span>` : '<span class="cal-p na">–</span>');
+        // Im Vorjahr-Modus gehoert der Vergleichswert in den Tooltip — die Zelle
+        // zeigt nur die Differenz, ohne Bezugsgroesse waere die wertlos.
+        const lyTitle = ly ? `Vorjahr (${fmtD(ly.date)}): ${eur(ly.price)}`
+          + (lyPct!=null ? ` · ${lyPct>0?'+':'−'}${Math.abs(lyPct).toLocaleString('de-DE',{maximumFractionDigits:1})} %` : '') : '';
         // data-iso: Ankerpunkt für calJump(), das die Zelle nach dem Monatswechsel
         // kurz hervorhebt — im 30-Tage-Raster wäre sonst nicht erkennbar, welcher
         // Tag gemeint war.
         if(price!=null && base){
           cls.push('clk');
-          cells += `<a class="${cls.join(' ')}" data-iso="${iso}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
+          const tip = (lyTitle ? lyTitle + ' · ' : '')
+            + 'Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken';
+          cells += `<a class="${cls.join(' ')}" data-iso="${iso}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="${esc(tip)}"${style}>${inner}</a>`;
+        } else if(pastPrice!=null){
+          // Kein tui.com-Link: der Termin ist abgereist. Der Tagesverlauf bleibt
+          // über das Trend-Symbol erreichbar, dafür ist die Historie ja da.
+          const ago = pastSeen[iso] ? ' (zuletzt gesehen am ' + pastSeen[iso] + ')' : '';
+          cells += `<div class="${cls.join(' ')}" data-iso="${iso}" title="Abgereist – nicht mehr buchbar. Letzter beobachteter Preis${ago}."${style}>${inner}</div>`;
         } else {
           cells += `<div class="${cls.join(' ')}" data-iso="${iso}"${style}>${inner}</div>`;
         }
@@ -7590,10 +7901,11 @@
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
           <span class="cal-title">${monthName}</span>
           <div style="display:flex;gap:6px;align-items:center">
-            <button class="btn sec" onclick="toggleCalTrend()" title="Preis- oder Trend-Ansicht umschalten">${calTrendView?'<svg class="i"><use href="#i-euro"/></svg> Preis':'<svg class="i"><use href="#i-trend"/></svg> Trend'}</button>
+            <button class="btn sec" onclick="calViewCycle()" title="Ansicht umschalten: Preis, Bewegung seit dem letzten Abruf, Vergleich mit dem Vorjahr">${calViewLabel()}</button>
             <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
           </div>
         </div>
+        ${calMonthAvgLine()}
         <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
         <div id="cal-day-chart" class="cal-day-chart"></div>
@@ -7602,6 +7914,8 @@
           <span><i class="lg-pricey"></i>teuerster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
+          <span><i class="lg-past"></i>abgereist – letzter bekannter Preis</span>
+          ${Object.keys(lastYear).length ? '<span><i class="lg-lastyear"></i>Vorjahr-Ansicht: rot = teurer als vor 52 Wochen, grün = günstiger</span>' : ''}
           <span><span class="ampel g"></span>→<span class="ampel r"></span> günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · <svg class="i"><use href="#i-trend"/></svg>: Preisverlauf dieses Tages</span>
         </div>${calFooter(job)}`;
     }
@@ -8145,7 +8459,10 @@
 
     loadOffers();
     startBootWatch();
-    setInterval(loadOffers, 5000);
+    // Nicht pollen, solange der Tab im Hintergrund liegt: niemand sieht die Liste,
+    // und beim Zurueckwechseln laedt der visibilitychange-Handler sie ohnehin sofort
+    // neu. Der Timer laeuft weiter, er schickt nur keine Anfragen.
+    setInterval(()=>{ if(!document.hidden) loadOffers(); }, 5000);
     loadHealth();
     updateAktionBtn();
     setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
@@ -8184,6 +8501,85 @@
       if(n < 1024*1024) return (n/1024).toFixed(1)+' KB';
       return (n/1024/1024).toFixed(1)+' MB';
     }
+    // ── Datenbank-Dialog: Umfang, Verdichten, Speicher freigeben ───────────────
+    let dbStats = null;
+    async function openDbDialog(){
+      $('#db-bg').classList.add('show');
+      $('#db-body').innerHTML = '<div class="cmp-load">Datenbank wird gelesen…</div>';
+      await loadDbStats();
+    }
+    async function loadDbStats(){
+      try { dbStats = await fetch(api('/api/db/stats')).then(r=>r.json()); }
+      catch(e){ $('#db-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">Datenbank-Angaben nicht abrufbar.</div>'; return; }
+      renderDbBody();
+    }
+    function renderDbBody(){
+      const d = dbStats || {};
+      const r = d.rows || {};
+      const zeile = (k,v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+      const n = x => (x||0).toLocaleString('de-DE');
+      // "Verdichten" ist der Vorschlagswert des Dialogs, nicht die Einstellung:
+      // wer nichts eingestellt hat, soll trotzdem einmalig aufräumen können.
+      const monate = d.compact_months || 12;
+      $('#db-body').innerHTML = `
+        <table class="split-table" style="margin-bottom:12px">
+          ${zeile('Belegter Platz', fmtBytes(d.bytes||0))}
+          ${zeile('Davon ungenutzt (per „Speicher freigeben" rückholbar)', fmtBytes(d.reclaimable||0))}
+          ${zeile('Preismessungen', n(r.price_history))}
+          ${zeile('Kalender-Beobachtungen', n(r.calendar_history))}
+          ${zeile('Kalender-Monatswerte', n(r.calendar_month_moves))}
+          ${zeile('Ereignisse', n(r.offer_events))}
+        </table>
+        <div class="hint" style="margin-bottom:8px">
+          <b>Verdichten</b> dünnt Verlaufszeilen aus, die älter sind als
+          <input id="db-months" type="number" min="3" max="120" value="${monate}" style="width:64px"> Monate.
+          Behalten werden je Tag die erste, letzte, günstigste und teuerste Preismessung
+          und je Reisetag und Woche der letzte Kalenderpreis — Preisverlauf, Höchst-/Tiefstpreis,
+          Kalender-Trend und Vorjahresvergleich bleiben erhalten.
+          ${d.compact_months ? 'Läuft bei dir automatisch (Einstellung: ' + d.compact_months + ' Monate).'
+                             : 'Automatisch passiert nichts — das steht in den Einstellungen unter „Backup".'}
+        </div>
+        <div id="db-preview" class="hint" style="margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn sec" onclick="dbCompact(false)">Vorschau</button>
+          <button class="btn sec" onclick="dbCompact(true)">Jetzt verdichten</button>
+          <button class="btn" onclick="dbVacuum()">Speicher freigeben</button>
+        </div>`;
+    }
+    async function dbCompact(apply){
+      const months = parseInt($('#db-months').value, 10) || 12;
+      if(months < 3){ toast('Mindestens 3 Monate'); return; }
+      // Vor dem Löschen wird immer erst gezeigt, was wegfällt — und nur die
+      // Bestätigung dieser konkreten Zahl löst es aus.
+      const vor = await fetch(api('/api/db/compact'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({months})})
+        .then(r=>r.json()).catch(()=>null);
+      if(!vor || vor.error){ toast('Vorschau fehlgeschlagen'); return; }
+      $('#db-preview').innerHTML = vor.total
+        ? `Vorschau: <b>${vor.total.toLocaleString('de-DE')}</b> Zeilen würden entfallen `
+          + `(${vor.price_history.toLocaleString('de-DE')} Preismessungen, `
+          + `${vor.calendar_history.toLocaleString('de-DE')} Kalender-Beobachtungen).`
+        : 'Vorschau: nichts zu verdichten — es gibt keine Daten, die älter sind.';
+      if(!apply || !vor.total) return;
+      if(!confirm(`${vor.total.toLocaleString('de-DE')} Verlaufszeilen entfernen, die älter als `
+                  + `${months} Monate sind?\n\nDas lässt sich nur aus einem Backup rückgängig machen.`)) return;
+      const res = await fetch(api('/api/db/compact'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({months, apply:true})})
+        .then(r=>r.json()).catch(()=>null);
+      if(!res || res.error){ toast('Verdichten fehlgeschlagen'); return; }
+      toast(`${res.total.toLocaleString('de-DE')} Zeilen entfernt`);
+      await loadDbStats(); loadDbSize();
+    }
+    async function dbVacuum(){
+      if(!confirm('Die Datenbank wird dabei neu geschrieben. Das dauert bei großen Dateien '
+                  + 'einen Moment, und währenddessen braucht sie kurz doppelt so viel Platz.\n\nFortfahren?')) return;
+      $('#db-body').innerHTML = progBar('Speicher wird freigegeben…');
+      const res = await fetch(api('/api/db/vacuum'), {method:'POST'}).then(r=>r.json()).catch(()=>null);
+      if(!res || res.error){ toast('Freigeben fehlgeschlagen'); await loadDbStats(); return; }
+      toast(res.freed > 0 ? fmtBytes(res.freed) + ' freigegeben' : 'Nichts freizugeben');
+      await loadDbStats(); loadDbSize();
+    }
+
     async function loadDbSize(){
       try { const d = await fetch(api('/api/dbsize')).then(r=>r.json()); $('#db-size').textContent = fmtBytes(d.bytes||0); }
       catch(e){}

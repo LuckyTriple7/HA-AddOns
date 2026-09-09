@@ -44,6 +44,7 @@ Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox, Thu
 - **Bitwarden** Passwort-Manager (Desktop-App)
 - **Angry IP Scanner** Netzwerk-Scanner (GUI)
 - **PuTTY** SSH-Client
+- **Tailscale** VPN-Client — Zugriff auf eigene Server im Tailnet, State bleibt über Rebuilds erhalten
 - **Galculator** Taschenrechner
 - **Xarchiver** Archiv-Manager (ZIP, TAR, ...)
 - **nmap** Netzwerkscanner (CLI)
@@ -131,6 +132,46 @@ SMB-Shares können auch ohne Konfiguration direkt in Thunar geöffnet werden:
 4. **„Passwort merken"** auswählen → wird dauerhaft im GNOME Keyring gespeichert
 
 > **Hinweis:** Der manuelle Thunar-Zugriff läuft über GVFS (Userspace). Nur GIO-fähige Apps (Thunar, gedit, Totem) können diese Verbindung nutzen. Für VLC und andere Apps empfiehlt sich das automatische Mounten via Konfiguration.
+
+## Tailscale (VPN zum eigenen Server)
+
+Der Tailscale-Client ist eingebaut. Ist er aktiv, erreicht der Desktop alle Geräte im eigenen Tailnet direkt — per Browser, Remmina, SSH, SMB-Mount oder Thunar.
+
+### Einrichtung
+
+1. In der Add-on-Konfiguration **Tailscale aktivieren** einschalten.
+2. Entweder einen Auth-Key (`tskey-auth-…`) aus der [Tailscale-Admin-Konsole](https://login.tailscale.com/admin/settings/keys) eintragen — oder das Feld leer lassen.
+3. Add-on starten.
+4. Ohne Auth-Key: Im **Add-on-Log** steht ein Anmelde-Link, der im Browser geöffnet und bestätigt wird. Der Link steht auch in `/config/tailscale/login-url.txt`.
+
+Nach der ersten Anmeldung ist der Auth-Key nicht mehr nötig und kann geleert werden.
+
+### Optionen
+
+| Option | Bedeutung |
+|--------|-----------|
+| `tailscale_enabled` | Client ein-/ausschalten (Standard: aus) |
+| `tailscale_authkey` | Auth-Key für die erste Anmeldung, danach entbehrlich |
+| `tailscale_hostname` | Name im Tailnet (Standard `ha-webtop`) |
+| `tailscale_login_server` | Eigener Control-Server, z.B. Headscale |
+| `tailscale_accept_routes` | Subnetz-Routen anderer Knoten mitbenutzen (Standard: an) |
+| `tailscale_accept_dns` | MagicDNS verwenden — Geräte per Name statt 100.x-IP (Standard: aus) |
+| `tailscale_exit_node` | Gesamten Internetverkehr über einen Exit-Node leiten |
+
+### Persistenz
+
+Der komplette Tailscale-State liegt in `/config/tailscale` (Add-on-Konfigurationsordner). Er überlebt Neustart, Add-on-Update und **Neu Aufbauen** — der Knoten behält seine Identität und meldet sich nicht erneut an.
+
+### MagicDNS
+
+Mit `tailscale_accept_dns: true` übernimmt der Container die DNS-Einstellungen des Tailnets, Geräte sind dann als `servername` bzw. `servername.tailnet-name.ts.net` erreichbar. Dabei wird die `/etc/resolv.conf` des Containers umgeschrieben; Anfragen außerhalb des Tailnets gehen weiter an die bisherigen Resolver. Falls die Namensauflösung danach klemmt, Option wieder ausschalten und mit den `100.x.y.z`-Adressen arbeiten.
+
+### Hinweise
+
+- Läuft im Kernel-Modus über `/dev/net/tun` — dadurch transparent für **alle** Programme im Desktop.
+- Fehlt `/dev/net/tun`, weicht das Add-on automatisch auf den Userspace-Modus aus; das Tailnet ist dann nur über den Proxy `127.0.0.1:1055` (SOCKS5/HTTP) erreichbar. Das Log weist darauf hin.
+- Im Terminal funktionieren die üblichen Befehle: `tailscale status`, `tailscale ip -4`, `tailscale ping <host>`.
+- Daemon-Log: `/config/tailscale/tailscaled.log`.
 
 ## Persistente Daten
 

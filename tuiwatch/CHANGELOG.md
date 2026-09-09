@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.113.28
+
+- ⚙️ **Der Einstellungen-Dialog ist neu aufgebaut.** Vorher standen 67 Optionen mit ihren 67 Erklärtexten untereinander: **7.420 Pixel Scrollstrecke**, über acht Bildschirmhöhen am Stück, ohne Suche und ohne Sprungziel — der Speichern-Knopf lag ganz am Ende. Jetzt sind es je Kategorie **rund 600 bis 800 Pixel**.
+- 📑 **Kategorien links, Inhalt rechts.** Ein Klick zeigt genau die Felder einer Kategorie, mit der Zahl der Optionen daneben. Auf schmalen Bildschirmen wird daraus eine waagerechte Leiste über dem Inhalt, die automatisch zur aktiven Kategorie scrollt.
+- 🔍 **Suchfeld** über allem — es filtert Beschriftung **und** Erklärtext quer durch alle Kategorien. „chromium" findet so den Browser-Fallback, ohne dass man wissen muss, wo er einsortiert ist.
+- ⓘ **Erklärtexte klappen auf Klick auf.** Sie machten vorher rund 70 % der Dialoghöhe aus. Der Text ist vollständig erhalten und wird von der Suche weiterhin gefunden — er steht nur nicht mehr permanent im Weg.
+- ● **Statuspunkt je Kategorie**, wo Zugangsdaten nötig sind (Telegram, E-Mail, Nextcloud, KI): gefüllt = hinterlegt, offen = fehlt. Einrichtungslücken sieht man jetzt, ohne hineinzuklicken.
+- 💾 **Die Speichern-Leiste bleibt unten stehen** und zählt mit: „3 Änderungen nicht gespeichert". Änderungen über mehrere Kategorien hinweg werden zusammen gespeichert, und nach dem Speichern bleibt die zuletzt gewählte Kategorie offen.
+- 📏 Eingabefelder sind jetzt so breit wie ihr Inhalt: eine Zahl braucht keine 420 Pixel, ein Schlüssel schon.
+- ✅ Im Browser geprüft (1280 und 420 Pixel): Kategoriewechsel, Suche, aufklappende Hinweise, Änderungszähler über drei Kategorien hinweg und Speichern — Werte kommen korrekt an, der Statuspunkt springt danach um.
+
+## 0.113.27
+
+- 📊 **Vorjahresvergleich jetzt auch als Monatsmittel — dort, wo der Tagesvergleich nichts findet.** Wurde der 01.05. im Vorjahr gar nicht angeboten, gibt es für diesen Tag keinen Vergleichswert; der Mai als Ganzes lässt sich trotzdem vergleichen. Über dem Kalenderraster steht deshalb neu eine Zeile: **„Ø 898 € aus 18 Terminen · Vorjahr Ø 770 € (6 Termine) +16,6 %"**.
+- 📋 **In der Monatsübersicht** (aufklappbar über dem Raster) gibt es dafür eine neue Spalte **„Ø Vorjahr"** — mit Pfeil und Prozentabweichung, und darunter, auf wie vielen beobachteten Terminen das Mittel beruht. Ein Mittel aus drei Tagen ist etwas anderes als eines aus dreißig; ohne diese Angabe sähe beides gleich belastbar aus.
+- 🗓️ Beim Monatsmittel ist der Bezug der **Kalendermonat** (Mai gegen Mai), nicht die 364-Tage-Verschiebung des Tagesvergleichs: für ein Monatsmittel zählt die Saison, nicht der Wochentag — und ein verschobenes Fenster würde Tage aus dem Nachbarmonat einmischen.
+- ✅ 4 neue Tests (Mittel über alle beobachteten Tage, zuletzt beobachteter Preis je Tag, keine Vermischung mit dem Nachbarmonat, leer ohne Daten) plus ein Durchlauf im Browser mit absichtlich lückenhaften Vorjahresdaten: nur 6 von 30 Tagen hatten einen Tagesvergleich, das Monatsmittel stand trotzdem.
+
+## 0.113.26
+
+- 🔧 **Im Preiskalender rutschte das „€" gelegentlich in die nächste Zeile.** Betrag und Währungszeichen der Trend- und Vorjahr-Plaketten stehen jetzt garantiert in einer Zeile (`white-space: nowrap`) — genauso wie die Preisangabe selbst.
+- ↔️ **Das Kalenderfenster ist breiter** (860 statt 680 Pixel). Es ist das einzige Fenster mit einem 7-Spalten-Raster; bei 680 Pixeln blieben je Tag nur rund 85 Pixel, in denen Betrag und Plakette um denselben Platz kämpften. Jetzt sind es 114.
+- 📱 **Auf schmalen Bildschirmen** wird die Plakette enger gesetzt und lässt den Richtungspfeil weg — bei rund 50 Pixeln Zellenbreite passt „▲ 123 €" sonst nicht in eine Zeile. Die Richtung steht dort weiterhin in der Farbe (rot teurer, grün günstiger).
+- ➖ Nebenbei: die Trend-Plakette zeigte den Betrag doppelt negativ („▼ −10,00 €"). Das Vorzeichen steckt im Pfeil, der Betrag steht jetzt ohne.
+- ✅ Im Browser nachgemessen (1280, 420 und 360 Pixel Breite, alle drei Ansichten): kein Umbruch mehr, und keine Plakette ragt über ihre Zelle hinaus.
+
+## 0.113.25
+
+- 🗄️ **Neuer Datenbank-Dialog:** ein Klick auf „DB …" in der Fußzeile zeigt jetzt den belegten Platz, den davon ungenutzten Anteil und den Umfang des Verlaufs (Preismessungen, Kalender-Beobachtungen, Monatswerte, Ereignisse) — und bietet die beiden Wartungsschritte an.
+- ✂️ **Verdichten:** dünnt Verlaufszeilen aus, die älter sind als eine wählbare Zahl Monate. Behalten werden je Angebot und Tag die **erste, letzte, günstigste und teuerste** Preismessung und je Reisetag und Woche der **letzte** Kalenderpreis, dazu immer die älteste (Baseline) und die jüngste Beobachtung. Preisverlauf, Höchst- und Tiefstpreis, Kalender-Trend, abgereiste Termine und der Vorjahresvergleich bleiben damit unverändert — nur die zeitliche Auflösung alter Daten sinkt. Fehlgeschlagene Abrufe werden gar nicht angefasst, die Störungsliste lebt von ihnen.
+- 👀 Vor dem Löschen kommt **immer erst eine Vorschau** mit der genauen Zeilenzahl und danach eine Rückfrage. Automatisch passiert nur etwas, wenn unter Einstellungen → Backup die neue Option **„Alten Verlauf verdichten (Monate)"** gesetzt ist; Standard ist **0 = aus**, Minimum 3 Monate. Verlaufsdaten sind der eigentliche Wert des Add-ons — das wirft niemand ungefragt weg.
+- 💾 **Speicher freigeben (`VACUUM`):** SQLite gibt gelöschten Platz nie von selbst ans Dateisystem zurück; deshalb wird die Datei auch nach dem Löschen eines Angebots nicht kleiner. Der neue Knopf holt ihn zurück, und der Dialog sagt vorher, wie viel dabei herauskommt. Nur auf Knopfdruck: währenddessen braucht die Datenbank kurz doppelt so viel Platz.
+- ℹ️ Zur Einordnung, unverändert: eine 25-MB-Datenbank ist für SQLite unkritisch. Beide Schritte sind für den Fall gedacht, dass über Jahre sehr viele Angebote zusammenkommen.
+- ✅ 11 neue Tests (Kennzahlen vor/nach dem Verdichten identisch, junge Daten unangetastet, Fehlversuche unangetastet, Kalender-Baseline bleibt, Vorschau löscht nichts, Routen und Einstellungsgrenzen, `VACUUM` gibt wirklich Platz frei) plus ein vollständiger Durchlauf im Browser: Vorschau 5.772 Zeilen, verdichtet, freigegeben, Fußzeile aktualisiert.
+
+## 0.113.24
+
+- 📅 **Neue Kalender-Ansicht „Vorjahr": kostet dieser Reisetermin mehr als vor einem Jahr?** Der Knopf über dem Raster schaltet jetzt reihum durch **Preis → Trend → Vorjahr**. In der Vorjahr-Ansicht zeigt jede Zelle die Differenz zum gleichen Termin 52 Wochen früher — rot teurer, grün günstiger, die Farbtiefe nach Größe der Abweichung. Der Tooltip nennt Vergleichstermin, damaligen Preis und die Abweichung in Prozent.
+- 🗓️ **52 Wochen, nicht „ein Jahr":** verglichen wird mit dem Termin 364 Tage früher, damit der **Wochentag** stimmt. Bei Pauschalreisen hängt der Preis am Anreisetag — ein Samstag mit einem Freitag verglichen wäre ein systematischer Fehler.
+- 💶 Als Vergleichswert dient der **zuletzt vor der Abreise beobachtete Preis** des Vorjahrestermins: was er am Ende gekostet hat, nicht was er irgendwann einmal kostete.
+- 📈 Auch im Tagesverlauf (Klick auf das Trend-Symbol einer Zelle) steht die Vorjahreszeile jetzt über dem Diagramm.
+- 🙈 Die Ansicht erscheint nur, wenn es für das Angebot überhaupt Vorjahresdaten gibt — der Knopf überspringt sie sonst. Die Daten stammen aus der eigenen Kalenderhistorie, es wird nichts nachgeladen: Wer TUIWatch noch kein Jahr laufen lässt, sieht den Modus schlicht nicht.
+- ✅ 4 neue Tests (Wochentagstreue der 364 Tage, letzter statt erster Vorjahrespreis, keine Vermischung zwischen Angeboten, Payload) plus ein Durchlauf im Browser über alle drei Ansichten.
+
+## 0.113.23
+
+- 🔁 **Die Angebotsliste wird nur noch übertragen, wenn sie sich geändert hat.** Bisher schickte jeder offene Tab alle 5 Sekunden die komplette Liste über die Leitung, obwohl sich zwischen zwei Preisprüfungen — also stundenlang — nichts daran ändert. Jetzt hängt an der Antwort eine Kennung (ETag); kennt der Browser den Stand schon, kommt ein leeres „unverändert" zurück. Spürbar vor allem über einen Cloudflare-Tunnel und mobil.
+- 😴 **Kein Poll mehr im Hintergrund-Tab.** Solange die Seite nicht sichtbar ist, fragt sie nichts mehr ab; beim Zurückwechseln lädt sie sofort neu (das gab es schon). Wer TUIWatch dauerhaft in einem Tab liegen hat, erzeugt damit gar keine Last mehr, statt rund um die Uhr alle 5 Sekunden.
+- ✅ 3 neue Tests plus ein Durchlauf im echten Browser: erste Abfrage 200, danach nur noch 304, im Hintergrund-Tab überhaupt keine Anfragen mehr.
+
+## 0.113.22
+
+- ⚡ **Die Angebotsliste ist rund 20× schneller.** `/api/offers` holt jeder offene Browser alle 5 Sekunden; auf einer Testdatenbank mit 20 Angeboten, 58.000 Preis- und 250.000 Kalenderzeilen (16,6 MB) brauchte der Aufbau **68 ms — jetzt 3 ms**. Merklich ist das vor allem auf schwacher Hardware und bei mehreren offenen Tabs; spürbar wird es dort, wo die Liste bisher beim Scrollen kurz hakte.
+- 📌 **Die letzte Kalender-Bewegung steht jetzt in der Angebotszeile** statt bei jedem Abruf aus der gesamten Kalenderhistorie zusammengesucht zu werden. Das war mit 43 der 68 ms der größte Einzelposten — und er wuchs mit jeder gespeicherten Preisänderung weiter. Beim ersten Start nach dem Update wird die Spalte einmalig aus der vorhandenen Historie gefüllt; danach schreibt sie der Kalenderabruf selbst mit.
+- 📌 **Die Preisstatistik je Angebot** (niedrigster/höchster/durchschnittlicher Preis) las bisher alle fünf Sekunden den kompletten Verlauf des Angebots. Sie wird jetzt gemerkt und erst dann neu gerechnet, wenn tatsächlich eine neue Messung dazugekommen ist.
+- 📌 **Der 30-Tage-Schnitt** läuft in einer Abfrage für alle Angebote statt in einer je Angebot, und Trend und Preisdelta teilen sich denselben Datenabruf.
+- 🧮 **`PRAGMA optimize`** beim Start und alle sechs Stunden: SQLite hält damit seine Statistiken aktuell und wählt bessere Abfragepläne. Allein das brachte im Test 68 → 56 ms, bevor überhaupt Code angefasst wurde.
+- ✅ 11 neue Tests (Statistik-Cache inkl. Zurücksetzen und fehlgeschlagener Messungen, gepflegte Spalte gegen den alten Vollscan geprüft, Restore und Zurücksetzen) plus Messungen vorher/nachher auf derselben Datenbank.
+
+## 0.113.21
+
+- ⌨️ **Die Pfeiltasten blättern jetzt genauso weit zurück wie die Schaltflächen im Kalender.** Seit 0.113.20 sind abgereiste Termine wieder sichtbar — die Tastatursteuerung stellte ihre Monatsliste aber selbst aus den buchbaren Tagen zusammen und blieb deshalb beim aktuellen Monat stehen, während ‹ und › schon weiter in die Vergangenheit blätterten. Beide Wege nutzen nun dieselbe Monatsliste (buchbar plus abgereist).
+- ✅ Im Browser geprüft: ← bis zum ersten Monat mit Historie, → bis zum letzten Reisemonat, an beiden Enden sauberer Anschlag.
+
+## 0.113.20
+
+- 📅 **Abgereiste Termine bleiben jetzt im Preiskalender sichtbar.** TUI liefert seinen Kalender immer nur ab heute — ein Reisetag, der vorbei ist, verschwand deshalb beim nächsten Abruf aus der Anzeige, obwohl TUIWatch seine Preise weiter kennt (die Historie wird nie gelöscht). Wer im Mai angefangen hat zu beobachten, sah im September nur noch die Zukunft. Neu werden die vergangenen Reisetage aus der Historie ins Raster zurückgeholt: gestrichelter Rahmen, durchgestrichener Preis, dazu der Hinweis „Abgereist – nicht mehr buchbar" samt Datum der letzten Beobachtung. Die zurückliegenden Monate lassen sich wieder anblättern, und das Trend-Symbol öffnet dort weiterhin den Preisverlauf des Tages.
+- 🎯 **Bewusst nur Anzeige:** abgereiste Tage sind nicht anklickbar (auf tui.com gibt es sie nicht mehr) und zählen weder für „günstigster/teuerster Termin" noch für die Farbskala, den Buchungsscore oder die KI-Auswertungen — dort geht es um buchbare Termine, ein vergangener Tag als „günstigster Termin" wäre schlicht falsch.
+- ✅ 4 neue Tests (letzter beobachteter Preis statt erstem, keine Dopplung mit noch gelieferten Terminen, leer ohne Historie, kein Verlust wenn TUI gar nichts mehr liefert) plus ein Durchlauf im echten Browser über drei Monate.
+
+## 0.113.19
+
+- 🗄️ **Die Datenbank läuft jetzt im WAL-Modus.** SQLite arbeitete bisher im Standard-Journal: Dort sperrt jeder Schreibvorgang die komplette Datei, ein laufender Preis-Check konnte die Weboberfläche also ausbremsen und bei langen Schreib-Schüben zu „database is locked" führen. Mit WAL (Write-Ahead Logging) lesen Oberfläche und Hintergrundprüfungen weiter, während geschrieben wird. Der Modus wird beim Start einmalig gesetzt und steht danach dauerhaft in der Datei — bestehende Datenbanken werden beim nächsten Start automatisch umgestellt.
+- ⚡ Dazu `synchronous=NORMAL` je Verbindung: unter WAL der empfohlene Wert, gegen einen Absturz des Add-ons weiterhin sicher, spart aber einen Festplatten-Sync pro Schreibvorgang. Scheitert die Umstellung (etwa weil die Daten je auf einem Netzlaufwerk lägen), startet TUIWatch wie bisher weiter und schreibt nur eine Warnung ins Log.
+- ✅ Testlauf mit frischer Datenbank (`journal_mode=wal`, `synchronous=1`) plus die volle Test-Suite; nebenbei einen sporadisch fehlschlagenden Kalender-Test repariert, dessen Hotelnummer aus der Uhrzeit in Millisekunden stammte und deshalb gelegentlich doppelt vergeben wurde.
+
 ## 0.113.18
 
 - 📧 **Versand-Mails bekommen jetzt eine ordentliche Message-ID und ein Datum.** `send_email()` setzte bisher nur `Subject`/`From`/`To` — ohne `Message-ID` und `Date` sind Mails für Spamfilter und Threading (Antwort-Zuordnung im Postfach) unvollständig. Neu: `Message-ID` (`email.utils.make_msgid`, mit SMTP-Host als Domain) und `Date` (`formatdate(localtime=True)`) werden bei jedem Versand gesetzt.

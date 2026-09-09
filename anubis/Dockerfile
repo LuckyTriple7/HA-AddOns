@@ -11,7 +11,7 @@
 ARG ANUBIS_VERSION=v1.27.0
 FROM ghcr.io/techarohq/anubis:${ANUBIS_VERSION} AS anubis-bin
 
-FROM alpine:3.20
+FROM alpine:3.24
 
 LABEL org.opencontainers.image.title="Anubis for Home Assistant"
 LABEL org.opencontainers.image.description="Anubis proof-of-work bot challenge (techarohq/anubis) as an auth-request backend for NPMplus"
@@ -25,6 +25,10 @@ COPY --from=anubis-bin /ko-app/anubis /usr/local/bin/anubis
 
 COPY policy.default.yaml /policy.default.yaml
 COPY policy.search-engines.yaml /policy.search-engines.yaml
+COPY policy.monitoring.yaml /policy.monitoring.yaml
+COPY policy.ai-aggressive.yaml /policy.ai-aggressive.yaml
+COPY policy.ai-moderate.yaml /policy.ai-moderate.yaml
+COPY policy.ai-permissive.yaml /policy.ai-permissive.yaml
 COPY --chmod=755 run.sh /run.sh
 
 EXPOSE 8923

@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.18"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.28"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -589,11 +589,33 @@ def db() -> sqlite3.Connection:
     # das Netz für Pfade, die eine Tabelle vergessen, und gegen Waisen bei einem
     # abgebrochenen Löschvorgang.
     con.execute('PRAGMA foreign_keys=ON')
+    # WAL (einmalig in init_db dauerhaft in der Datei gesetzt) trennt Leser und
+    # Schreiber; synchronous ist dagegen eine Verbindungs-Eigenschaft und muss hier
+    # stehen. NORMAL ist unter WAL der empfohlene Wert: gegen einen Absturz der
+    # Anwendung weiterhin sicher, nur ein Stromausfall im falschen Moment kann die
+    # letzten Transaktionen kosten — dafuer entfaellt ein fsync pro Commit, was bei
+    # den Schreib-Schueben eines Scraper-Laufs deutlich spuerbar ist.
+    con.execute('PRAGMA synchronous=NORMAL')
     return con
 
 
 def init_db() -> None:
+    backfill_last_move = False
     with db() as con:
+        # Ohne WAL laeuft SQLite im Rollback-Journal: jeder Schreibvorgang sperrt die
+        # ganze Datei, ein Scraper-Lauf blockiert also die Weboberflaeche ("database is
+        # locked", sobald die 15 s Timeout aus db() nicht reichen). WAL laesst Leser
+        # waehrend eines Schreibvorgangs weiterlesen. Der Modus steht im Datei-Header,
+        # gilt also fuer alle spaeteren Verbindungen; das Setzen hier ist idempotent.
+        # Faellt die Datenbank je auf ein Netzlaufwerk (Locking ueber SMB/NFS kann kein
+        # gemeinsames Shared Memory), scheitert der Wechsel — dann bleibt es beim
+        # bisherigen Journal, statt den Start zu verhindern.
+        try:
+            mode = con.execute('PRAGMA journal_mode=WAL').fetchone()[0]
+            if str(mode).lower() != 'wal':
+                log.warning("SQLite-WAL nicht aktiv (Journal-Modus: %s)", mode)
+        except sqlite3.Error as e:
+            log.warning("SQLite-WAL konnte nicht gesetzt werden: %s", type(e).__name__)
         con.execute('''CREATE TABLE IF NOT EXISTS offers (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             url         TEXT UNIQUE NOT NULL,
@@ -886,6 +908,15 @@ def init_db() -> None:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         if 'calendar_seen_ts' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN calendar_seen_ts INTEGER NOT NULL DEFAULT 0")
+        # Zeitpunkt der letzten echten Kalender-Bewegung, mitgeschrieben von
+        # _store_calendar_snapshot(). Ersetzt den Scan ueber die ganze
+        # calendar_history, den /api/offers alle 5 s ausloeste (43 von 68 ms).
+        # Beim Nachruesten einmalig aus der vorhandenen Historie fuellen — danach
+        # laeuft der teure Weg nur noch nach Restore/Zuruecksetzen.
+        if 'calendar_last_move_ts' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_last_move_ts "
+                        "INTEGER NOT NULL DEFAULT 0")
+            backfill_last_move = True
         # Kalender-Fehlerzähler: der Preiskalender läuft auch für archivierte Angebote
         # weiter (Langzeitkurve je Hotel/Zimmer). Fällt ein Hotel aus dem TUI-Inventar,
         # scheitert der Abruf dauerhaft — nach CALENDAR_MAX_FAILS Fehlschlägen in Folge
@@ -1024,8 +1055,43 @@ def init_db() -> None:
         price_calendar.init_month_db(con)
         # Störungsliste (wiederkehrende Leerläufe) — dito, Schema im issues-Modul.
         issues.init_issues_db(con)
+        if backfill_last_move:
+            price_calendar._recalc_last_move_ts(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
+    _db_optimize('Start')
     log.info("Datenbank bereit: %s", DB_PATH)
+
+
+# Wie oft `PRAGMA optimize` laeuft. Sechs Stunden sind bewusst grosszuegig: der
+# Befehl analysiert nur Tabellen, deren Inhalt sich seit der letzten Analyse
+# deutlich veraendert hat, und ist auf einer ruhigen Datenbank ein Nichts.
+DB_OPTIMIZE_INTERVAL = 6 * 3600
+
+
+def _db_optimize(reason: str = '') -> None:
+    """`PRAGMA optimize` — laesst SQLite seine Statistiken auffrischen, wo noetig.
+
+    Ohne Statistiken schaetzt der Planer die Selektivitaet von Indizes, und das
+    kostet messbar: ein einmaliges ANALYZE brachte `/api/offers` auf einer
+    16,6-MB-Testdatenbank von 68 auf 56,5 ms. `analysis_limit` deckelt, wie viele
+    Indexzeilen dabei angefasst werden — ohne den Deckel kann ANALYZE auf grossen
+    Tabellen lange laufen und dabei schreiben."""
+    try:
+        with db() as con:
+            con.execute('PRAGMA analysis_limit=400')
+            con.execute('PRAGMA optimize')
+    except sqlite3.Error as e:
+        log.warning("PRAGMA optimize fehlgeschlagen%s: %s",
+                    f" ({reason})" if reason else '', type(e).__name__)
+
+
+def _db_optimize_worker() -> None:
+    """Haelt die Statistiken frisch, solange das Add-on laeuft: neue Preiszeilen
+    kommen laufend dazu, und der Planer soll nicht mit dem Bild vom Start weiter
+    arbeiten."""
+    while True:
+        time.sleep(DB_OPTIMIZE_INTERVAL)
+        _db_optimize('periodisch')
 
 
 def _last_two_prices(con, offer_id: int) -> list:
@@ -1042,7 +1108,14 @@ def _trend_for(con, offer_id: int) -> dict | None:
     rows = con.execute(
         'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
         'ORDER BY ts DESC LIMIT 12', (offer_id,)).fetchall()
-    prices = [r['price'] for r in rows][::-1]  # ältester → neuester
+    return _trend_from_prices([r['price'] for r in rows])
+
+
+def _trend_from_prices(newest_first: list) -> dict | None:
+    """Dieselbe Rechnung, aber auf einer schon geholten Preisliste (neueste zuerst) —
+    `_collect_offers` holt die letzten Messpunkte aller Angebote in EINEM Query und
+    braucht dafür keinen zweiten Weg in die Datenbank."""
+    prices = list(newest_first)[::-1]           # ältester → neuester
     if len(prices) < 4:
         return None
     half = len(prices) // 2
@@ -3442,16 +3515,25 @@ def health():
     return 'OK', 200
 
 
+def db_file_size() -> int:
+    """Groesse der Datenbankdatei in Bytes, inklusive WAL: die noch nicht
+    eingecheckten Seiten liegen daneben in `-wal` und gehoeren zum belegten Platz
+    dazu — ohne sie schwankte die Anzeige je nach Checkpoint-Zeitpunkt."""
+    gesamt = 0
+    for suffix in ('', '-wal'):
+        try:
+            gesamt += os.path.getsize(DB_PATH + suffix)
+        except OSError:
+            pass
+    return gesamt
+
+
 @app.route('/api/dbsize', methods=['GET'])
 def api_dbsize():
     """Größe der SQLite-Datei für die Footer-Anzeige."""
     if (err := _require_api()):
         return err
-    try:
-        size = os.path.getsize(DB_PATH)
-    except OSError:
-        size = 0
-    return jsonify({'bytes': size})
+    return jsonify({'bytes': db_file_size()})
 
 
 @app.route('/api/settings', methods=['GET'])
@@ -3792,6 +3874,59 @@ def _offer_nights(details: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+# Wie viele Messpunkte je Angebot fuer Delta und Trend geholt werden. 12 ist der
+# Bedarf von `_trend_from_prices`; die zwei Werte fuers Delta stecken darin.
+_RECENT_PRICES = 12
+
+# Gesamtstatistik je Angebot (min/max/Schnitt/Anzahl ueber die GANZE Historie),
+# zwischengespeichert unter dem Zeitstempel der letzten Messzeile.
+#
+# Das ist der einzige Teil von `/api/offers`, dessen Aufwand mit der Historie
+# waechst: die uebrigen Abfragen holen ueber `idx_hist_offer` nur die letzten
+# Zeilen (zusammen 0,8 ms bei 20 Angeboten), die Statistik las jedes Mal alle
+# 58.000 Zeilen (14 ms) — und das alle 5 s, obwohl sich zwischen zwei Pruefrunden
+# nichts daran aendert. Sobald eine neue Zeile dazukommt, aendert sich auch die
+# letzte Messzeile, und der Eintrag wird neu berechnet.
+_stats_cache: dict[int, tuple] = {}
+
+
+def _offer_price_stats(con, offer_id: int, last_ts) -> dict:
+    """Gesamtstatistik eines Angebots, aus dem Cache wenn seit der letzten
+    Messzeile nichts passiert ist."""
+    hit = _stats_cache.get(offer_id)
+    if hit and hit[0] == last_ts:
+        return hit[1]
+    row = con.execute(
+        'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
+        'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
+        (offer_id,)).fetchone()
+    stats = {'mn': row['mn'], 'mx': row['mx'], 'av': row['av'], 'c': row['c']}
+    _stats_cache[offer_id] = (last_ts, stats)
+    return stats
+
+
+def _stats_cache_drop(offer_id: int | None = None) -> None:
+    """Cache-Eintrag verwerfen — nach dem Zuruecksetzen eines Angebots oder einem
+    Restore, wo Zeilen verschwinden bzw. dazukommen, ohne dass sich zwingend die
+    letzte Messzeile aendert."""
+    if offer_id is None:
+        _stats_cache.clear()
+    else:
+        _stats_cache.pop(offer_id, None)
+
+
+def _avg30_all(con, cutoff: int) -> dict:
+    """30-Tage-Schnitt je Angebot in EINER Abfrage: {offer_id: (schnitt, anzahl)}.
+
+    Ueber `ts` eingegrenzt, damit traegt `idx_hist_offer` — der Aufwand haengt
+    weder an der Angebotszahl noch an der Laenge der Historie, sondern nur an den
+    letzten 30 Tagen."""
+    return {r['offer_id']: (r['av'], r['c']) for r in con.execute(
+        'SELECT offer_id, AVG(price) av, COUNT(*) c FROM price_history '
+        'WHERE ok=1 AND price IS NOT NULL AND ts>=? GROUP BY offer_id',
+        (cutoff,)).fetchall()}
+
+
 def _collect_offers() -> list[dict]:
     """Baut die Angebotsliste (mit letztem Preis, Delta, Statistik) — genutzt von
     der API, dem E-Mail-Versand und dem Übersichts-Sensor."""
@@ -3803,30 +3938,33 @@ def _collect_offers() -> list[dict]:
         # je Angebot ein _calendar_moves(), das saemtliche calendar_history-Zeilen
         # nach Python holte, obwohl davon nur max(ts) gebraucht wird.
         cal_last_moves = _calendar_last_move_ts(con)
+        # 30-Tage-Schnitt fuer alle Angebote in einem Query, siehe _avg30_all().
+        s30_all = _avg30_all(con, int(time.time()) - 30 * 86400)
         for o in offers:
             last = con.execute(
                 'SELECT * FROM price_history WHERE offer_id=? ORDER BY ts DESC LIMIT 1',
                 (o['id'],)).fetchone()
-            prices = _last_two_prices(con, o['id'])
+            # Die letzten Messpunkte (neueste zuerst) decken beides ab: die zwei
+            # Werte fuer das Delta und die zwoelf fuer den Trend — frueher zwei
+            # getrennte Abfragen.
+            recent = [r['price'] for r in con.execute(
+                'SELECT price FROM price_history WHERE offer_id=? AND ok=1 '
+                'AND price IS NOT NULL ORDER BY ts DESC LIMIT ?',
+                (o['id'], _RECENT_PRICES)).fetchall()]
+            prices = recent[:2]
             delta = None
             if len(prices) == 2:
                 delta = prices[0] - prices[1]
             last_ok_price = prices[0] if prices else None
-            stats = con.execute(
-                'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
-                'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
-                (o['id'],)).fetchone()
+            stats = _offer_price_stats(con, o['id'], last['ts'] if last else None)
             # 30-Tage-Schnitt: ordnet den aktuellen Preis ein („8 % unter Ø 30 T")
-            s30 = con.execute(
-                'SELECT AVG(price) av, COUNT(*) c FROM price_history '
-                'WHERE offer_id=? AND ok=1 AND price IS NOT NULL AND ts>=?',
-                (o['id'], int(time.time()) - 30 * 86400)).fetchone()
-            avg30 = round(s30['av']) if s30['c'] >= 2 and s30['av'] else None
+            s30_av, s30_c = s30_all.get(o['id'], (None, 0))
+            avg30 = round(s30_av) if s30_c >= 2 and s30_av else None
             cur_price = last['price'] if last else None
             vs_avg30 = None
-            if avg30 and cur_price is not None and s30['av']:
-                vs_avg30 = round((cur_price - s30['av']) / s30['av'] * 100, 1)
-            trend = _trend_for(con, o['id'])
+            if avg30 and cur_price is not None and s30_av:
+                vs_avg30 = round((cur_price - s30_av) / s30_av * 100, 1)
+            trend = _trend_from_prices(recent)
             checking = o['id'] in _checking
             # Nur echte Bewegungen (>=2 bekannte Preise je Reisedatum) zaehlen als
             # Aenderung, nicht der allererste Kalender-Abruf (reine Baseline).
@@ -4468,6 +4606,7 @@ _check_calendar_trend_alert = price_calendar._check_calendar_trend_alert
 _run_calendar = price_calendar._run_calendar
 _calendar_moves = price_calendar._calendar_moves
 _calendar_last_move_ts = price_calendar._calendar_last_move_ts
+_recalc_last_move_ts = price_calendar._recalc_last_move_ts
 _calendar_top_moves = price_calendar._calendar_top_moves
 _calendar_date_history = price_calendar._calendar_date_history
 _calendar_moves_since = price_calendar._calendar_moves_since
@@ -4730,11 +4869,13 @@ import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
 import issues  # noqa: E402
+import maintenance  # noqa: E402
 app.register_blueprint(issues.bp)
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
+app.register_blueprint(maintenance.bp)
 app.register_blueprint(str_flights_routes.bp)
 app.register_blueprint(fra_flights_routes.bp)
 app.register_blueprint(muc_flights_routes.bp)
@@ -4985,6 +5126,8 @@ def main() -> None:
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     threading.Thread(target=_memory_janitor, daemon=True).start()
+    threading.Thread(target=_db_optimize_worker, daemon=True).start()
+    threading.Thread(target=maintenance.compact_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     threading.Thread(target=_muc_flights_worker, daemon=True).start()
     threading.Thread(target=_str_flights_worker, daemon=True).start()

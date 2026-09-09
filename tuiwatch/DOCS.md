@@ -29,7 +29,14 @@ Die übrigen Optionen sind seit **0.104.1** aus dem Schema entfernt und tauchen 
 
 ### Zahnrad → **Einstellungen**
 
-Gespeichert wird in `settings.json` im privaten Datenverzeichnis des Add-ons (`/data`, neben `options.json`), in 13 Gruppen von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
+Gespeichert wird in `settings.json` im privaten Datenverzeichnis des Add-ons (`/data`, neben `options.json`), in 13 Kategorien von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
+
+Der Dialog ist zweispaltig: **links die Kategorien**, rechts die Felder der gewählten Kategorie. Dazu:
+
+* **Suchfeld** oben — filtert über Beschriftung *und* Erklärtext quer durch alle Kategorien. „chromium" findet so den Browser-Fallback, ohne dass man weiß, in welcher Kategorie er steht.
+* **Erklärtexte klappen hinter dem ⓘ auf**, statt dauerhaft zu stehen. Vollständig erhalten, aber nicht mehr im Weg.
+* **Punkt vor der Kategorie** bei allem, was Zugangsdaten braucht (Telegram, E-Mail, Nextcloud, KI): gefüllt = hinterlegt, offen = fehlt. So sieht man Einrichtungslücken, ohne hineinzuklicken.
+* **Speichern-Leiste unten** bleibt stehen und zählt die offenen Änderungen — auch über Kategoriewechsel hinweg, gespeichert wird immer alles zusammen.
 
 * **Geheime Felder** (Telegram-Token, SMTP-Passwort, Nextcloud-App-Passwort, Anthropic-/Gemini-/Perplexity-Key) werden mit `settings.key` verschlüsselt und nie an den Browser zurückgegeben — er sieht nur „gesetzt"/„nicht gesetzt". Ein **leeres Feld heißt „unverändert lassen"**; zum Entfernen den Knopf **Löschen** benutzen.
 * Fast alles greift **sofort**, ohne Neustart. Ausnahme: `enable_public_share` und `public_port` — der zweite Webserver für die öffentlichen Angebots-Links wird einmalig beim Start gebunden. Der Dialog weist darauf hin.
@@ -719,8 +726,37 @@ Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 zusätzlich wird aber mitgeschrieben, für welche Reisedaten sich der Preis seit dem
 letzten Abruf geändert hat (delta-codiert, nur echte Änderungen — kein Datenmüll bei
 unveränderten Tagen). Darauf aufbauend:
-- Umschalter **„📈 Trend“ / „💰 Preis“** im Kalender: die Trend-Ansicht färbt Tage nach
-  Preisänderung statt nach absolutem Preis (rot = gestiegen, grün = gefallen).
+- Umschalter **„💰 Preis" / „📈 Trend" / „📅 Vorjahr"** im Kalender (reihum): die
+  Trend-Ansicht färbt Tage nach Preisänderung statt nach absolutem Preis
+  (rot = gestiegen, grün = gefallen), die Vorjahr-Ansicht nach dem Vergleich mit dem
+  gleichen Termin ein Jahr zuvor. Die Vorjahr-Ansicht erscheint nur, wenn es dafür
+  Daten gibt.
+
+**Abgereiste Termine** bleiben sichtbar: Die TUI-Kalender-API liefert immer nur ab
+heute, ein vergangener Reisetag fällt beim nächsten Abruf also aus dem Snapshot. Aus
+der Historie holt TUIWatch ihn zurück — gestrichelt, mit durchgestrichenem Preis und
+dem Hinweis, wann er zuletzt beobachtet wurde. Er ist nicht mehr anklickbar (auf
+tui.com gibt es ihn nicht mehr) und zählt weder für günstigsten/teuersten Termin noch
+für die Heatmap; der Tagesverlauf bleibt über das 📈-Symbol erreichbar.
+
+**Vorjahresvergleich** — zwei Ebenen, weil die eine allein Lücken hat:
+
+- **Je Reisetag** (Vorjahr-Ansicht): verglichen wird mit dem Termin **364 Tage**
+  früher. 52 Wochen, damit der **Wochentag** stimmt — bei Pauschalreisen hängt der
+  Preis am Anreisetag, ein Samstag gegen Freitag wäre ein systematischer Fehler. Als
+  Vergleichswert dient der **zuletzt vor der Abreise beobachtete** Preis: was der
+  Termin am Ende gekostet hat, nicht was er irgendwann einmal kostete. Die Zelle zeigt
+  die Differenz, der Tooltip Vergleichstermin, damaligen Preis und Prozent.
+- **Je Reisemonat** (Kopfzeile über dem Raster und Spalte *Ø Vorjahr* in der
+  Monatsübersicht): Ø-Preis des Monats gegen den Ø-Preis desselben **Kalendermonats**
+  im Vorjahr, gemittelt über alle beobachteten Reisetage. Das trägt genau dort, wo der
+  Tagesvergleich ins Leere läuft — wurde der 01.05. im Vorjahr gar nicht angeboten,
+  gibt es für diesen Tag keinen Vergleichswert, für den Mai als Ganzes aber schon.
+  Angegeben ist immer, auf **wie vielen Terminen** das Mittel beruht: ein Mittel aus
+  drei beobachteten Tagen ist etwas anderes als eines aus dreißig. Hier ist der
+  Kalendermonat der Bezug (Mai gegen Mai), nicht die 364-Tage-Verschiebung — für ein
+  Monatsmittel zählt die Saison, und ein verschobenes Fenster würde Tage aus dem
+  Nachbarmonat einmischen.
 - Ein Klick auf das **📈-Symbol** einer Zelle zeigt den Preisverlauf genau dieses
   Reisedatums über alle bisherigen Abrufe als Mini-Diagramm.
 - **„Größte Bewegungen seit letztem Abruf“** listet die Tage mit den stärksten
@@ -1457,6 +1493,52 @@ Dateisystem von Home Assistant unter `addon_configs/<slug>_tuiwatch/backups/`.
 Es werden die letzten `auto_backup_keep` (Standard 5) Dateien behalten. Anders als
 `/data` bleibt dieser Ordner auch bei einer **Neuinstallation** des Add-ons bestehen;
 Wiederherstellen wie gehabt über „⬆ Wiederherstellen" im Web-UI.
+
+## Datenbank: Umfang, Verdichten, Speicher freigeben
+
+Ein Klick auf **DB …** in der Fußzeile öffnet den Datenbank-Dialog: belegter Platz,
+davon ungenutzt, und wie viele Preismessungen, Kalender-Beobachtungen,
+Kalender-Monatswerte und Ereignisse gespeichert sind.
+
+Vorweg die Einordnung: **eine Datenbank von 25 MB ist für SQLite völlig unkritisch**
+(das Format geht bis 281 TB, mehrere Gigabyte laufen problemlos), und die Historie ist
+der eigentliche Wert des Add-ons. Beide Wartungsschritte sind deshalb *aus* bzw. nur
+auf Knopfdruck — sie sind für den Fall gedacht, dass über Jahre sehr viele Angebote
+zusammenkommen.
+
+### Verdichten (Verlauf ausdünnen)
+
+Dünnt Verlaufszeilen aus, die älter sind als eine wählbare Zahl Monate (Minimum 3).
+Leitlinie ist **ausdünnen, nicht wegwerfen** — behalten wird:
+
+* aus dem Preisverlauf je Angebot und Kalendertag die **erste**, **letzte**,
+  **günstigste** und **teuerste** Messung. „Niedrigster Preis", „höchster Preis",
+  Preisdiagramm und Trend bleiben damit unverändert; nur der Tagesdurchschnitt kann
+  sich minimal verschieben. Fehlgeschlagene Abrufe werden gar nicht angefasst — die
+  Störungsliste liest genau sie.
+* aus der Kalenderhistorie je Reisetag und Kalenderwoche die **letzte** Beobachtung,
+  dazu immer die **älteste** (Baseline — ohne sie zählte ein Reisetag nicht mehr als
+  bewegt) und die **jüngste** (sie speist Vorjahresvergleich und abgereiste Termine).
+
+Der Dialog zeigt vor dem Löschen immer erst eine **Vorschau** mit der genauen Zahl
+betroffener Zeilen und fragt anschließend nach. Rückgängig machen lässt sich das nur
+über ein Backup.
+
+Automatisch läuft das nur, wenn unter **Einstellungen → Backup** die Option
+*„Alten Verlauf verdichten (Monate)"* auf einen Wert ≥ 3 gesetzt ist; Standard ist
+**0 = aus**. Dann wird einmal täglich im Hintergrund verdichtet.
+
+### Speicher freigeben (`VACUUM`)
+
+SQLite gibt gelöschten Platz nie von selbst ans Dateisystem zurück: die Seiten bleiben
+in der Datei und werden nur intern wiederverwendet. Erst `VACUUM` schreibt die Datei
+neu und gibt den Rest frei — deshalb wird die Datei nach dem Löschen eines Angebots
+(oder nach dem Verdichten) nicht kleiner, bis dieser Knopf gedrückt wird.
+
+Die Zeile *„Davon ungenutzt"* im Dialog sagt vorher, wie viel dabei herauskommt.
+Während des Vorgangs braucht die Datenbank kurz **doppelt so viel Platz**, und
+Schreibzugriffe warten so lange — deshalb passiert das nur auf Knopfdruck, nie
+automatisch.
 
 ## Technik / Wartung
 

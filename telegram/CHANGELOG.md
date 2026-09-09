@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.8.1] - 2026-09-09
+
+chore(deps): Bump multer from 2.2.0 to 2.3.0 in /telegram
+
+
 ## [1.7.8] - 2026-09-03
 - **Sicherheitsupdate: qs auf 6.16.0.** Schliesst CVE-2026-82562 (GHSA-x5fp-wj9c-mxmx, mittel) — beim Parsen von Bracket-Keys mit Kommagruppen liess sich das `arrayLimit` umgehen
 - qs kommt nicht direkt aus der `package.json`, sondern ueber `express` und `body-parser`. Beide pinnen `~6.15.1`, lassen 6.16.0 also nicht zu. Der Dependabot-Vorschlag haette deshalb `express` von 4.22.2 auf 5.2.1 gehoben — ein Major-Wechsel, der das Add-on beim Start zerlegt haette: Express 5 nutzt path-to-regexp v8, und die Catch-all-Route `app.get('*')` wirft dort schon beim Registrieren

@@ -243,3 +243,55 @@ def test_backfill_reconstructs_from_history_and_is_idempotent(m, pc):
     with m.db() as con:
         pc._backfill_month_moves(con)      # Flag steht -> no-op
         assert con.execute("SELECT COUNT(*) c FROM calendar_month_moves").fetchone()["c"] == len(back)
+
+
+# ── Vorjahresmittel je Reisemonat ──────────────────────────────────────────────
+
+def test_last_year_month_avg_mittelt_alle_beobachteten_tage(m, pc):
+    """Der Zweck: fehlt der einzelne Vorjahrestermin, traegt das Monatsmittel
+    trotzdem — es geht ueber alle Reisetage des Vorjahresmonats."""
+    oid = 1
+    monat = (date.today().replace(day=1) + timedelta(days=400)).strftime("%Y-%m")
+    vorjahr = f"{int(monat[:4]) - 1}-{monat[5:]}"
+    with m.db() as con:
+        con.executemany(
+            "INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)",
+            [(oid, f"{vorjahr}-{tag:02d}", 1000, preis)
+             for tag, preis in ((1, 800), (2, 900), (3, 1000))])
+        got = pc._last_year_month_avgs(con, oid, [monat])
+    assert got[monat] == {"month": vorjahr, "avg": 900, "days": 3}
+
+
+def test_last_year_month_avg_nimmt_den_zuletzt_beobachteten_preis(m, pc):
+    oid = 1
+    monat = (date.today().replace(day=1) + timedelta(days=400)).strftime("%Y-%m")
+    vorjahr = f"{int(monat[:4]) - 1}-{monat[5:]}"
+    with m.db() as con:
+        con.executemany(
+            "INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)",
+            [(oid, f"{vorjahr}-01", 1000, 500), (oid, f"{vorjahr}-01", 2000, 700)])
+        got = pc._last_year_month_avgs(con, oid, [monat])
+    assert got[monat]["avg"] == 700 and got[monat]["days"] == 1
+
+
+def test_last_year_month_avg_mischt_keine_nachbarmonate(m, pc):
+    """Verglichen wird der Kalendermonat — ein verschobenes Fenster wuerde Tage aus
+    dem Nachbarmonat einmischen und den Saisonvergleich verfaelschen."""
+    oid = 1
+    monat = (date.today().replace(day=1) + timedelta(days=400)).strftime("%Y-%m")
+    vorjahr = f"{int(monat[:4]) - 1}-{monat[5:]}"
+    nachbar = (date.fromisoformat(vorjahr + "-01") - timedelta(days=1)).isoformat()
+    with m.db() as con:
+        con.executemany(
+            "INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)",
+            [(oid, f"{vorjahr}-01", 1000, 600), (oid, nachbar, 1000, 5000)])
+        got = pc._last_year_month_avgs(con, oid, [monat])
+    assert got[monat] == {"month": vorjahr, "avg": 600, "days": 1}
+
+
+def test_last_year_month_avg_leer_ohne_daten(m, pc):
+    oid = 1
+    monat = (date.today().replace(day=1) + timedelta(days=400)).strftime("%Y-%m")
+    with m.db() as con:
+        assert pc._last_year_month_avgs(con, oid, [monat]) == {}
+        assert pc._last_year_month_avgs(con, oid, []) == {}

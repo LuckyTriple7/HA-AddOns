@@ -38,6 +38,7 @@ _PROBE_NAME = {
     'tls': 'TLS-Zertifikat', 'blacklist': 'Sperrlisten',
     'mail_health': 'Mail-Gesundheit', 'aaaa_guard': 'AAAA-Wächter',
     'whois': 'Domain-Ablauf', 'http': 'Erreichbarkeit', 'seo': 'SEO',
+    'http_status': 'HTTP-Statuscode',
 }
 
 

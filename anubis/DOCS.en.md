@@ -30,7 +30,9 @@ This add-on therefore ships a **self-contained, import-free policy** (`policy.de
 
 The catch-all rule challenges real search engine crawlers too — they don't solve JavaScript proof-of-work. Without an exemption, an activated domain slowly vanishes from search results, because Google & co. can no longer get through on re-crawl.
 
-The `allow_search_engines` option (default **on**) therefore exempts **Googlebot and Bingbot** via an `ALLOW` rule — always checking user agent **and** the respective official IP address together (`remote_addresses`); a bare user-agent string alone could be spoofed by anyone. Turn it off (`false`) if truly every client should be challenged, search engines included — for example for a purely private service that shouldn't show up in any search at all.
+The `allow_search_engines` option (default **on**) therefore exempts real search engine, web archive and citation crawlers via an `ALLOW` rule — always checking user agent **and** the respective official IP address together (`remote_addresses`); a bare user-agent string alone could be spoofed by anyone. Turn it off (`false`) if truly every client should be challenged, search engines included — for example for a purely private service that shouldn't show up in any search at all.
+
+Included: **Google** (including Search Console's "Live Test" / Google-InspectionTool), **Bing**, **DuckDuckGo**, **Qwant**, **Internet Archive**, **Kagi**, **Marginalia**, **Mojeek**, **Common Crawl**, **Wikimedia** (Citoid/Zotero Translation Server) and **Arquivo.pt**. Deliberately **not** included: **Yandex**.
 
 The rules live between two markers in `/data/policy.yaml`:
 
@@ -44,9 +46,49 @@ The add-on rewrites **only this block** on every start, matching the current `al
 
 Deliberately **no** `(data)/crawlers/_allow-good.yaml` import for this exemption: exactly this kind of import once failed in practice with `invalid source file: (data)/common/domain-fronting.yaml`. The Google/Bing rules therefore live literally in `policy.search-engines.yaml` inside the image, copied from Anubis' own official sources.
 
-Other search engines (e.g. DuckDuckGo, Yandex, Kagi) can be added the same way **below** the markers in `/data/policy.yaml` (outside the managed block, otherwise they'd be lost on the next start) — the matching rule is ready-made at `https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/<name>.yaml`.
+Other crawlers (e.g. Yandex) can be added the same way **below** the markers in `/data/policy.yaml` (outside the managed block, otherwise they'd be lost on the next start) — the matching rule is ready-made at `https://github.com/TecharoHQ/anubis/blob/main/data/crawlers/<name>.yaml`.
 
-**Limits:** Google and Bing occasionally republish their crawler IP ranges. If a range changes before the list here is refreshed, that part would briefly get challenged again — no data loss, just a temporarily uncrawled slice.
+**Limits:** Providers occasionally republish their crawler IP ranges. If a range changes before the list here is refreshed, that part would briefly get challenged again — no data loss, just a temporarily uncrawled slice.
+
+## Monitoring services
+
+External HTTP monitors don't solve JavaScript proof-of-work either — without an exemption, a monitor on a protected domain permanently reports "down", even though the service behind it is running fine.
+
+The `allow_monitoring_services` option (default **on**) exempts **UptimeRobot** and **updown.io** via an `ALLOW` rule, again checking user agent **and** the official IP address together. Uses the same mechanism as the search-engine exemption, its own `monitoring` marker block in `/data/policy.yaml`.
+
+**Self-hosted Uptime Kuma is not covered by this** — it has no fixed, published IP address, so a secure verification isn't possible. Point a second, internal monitor straight at the service instead, bypassing Anubis:
+
+```text
+External: https://service.domain.tld       → reverse proxy + Anubis
+Internal: http://<internal-address>:port   → the service itself
+```
+
+## AI bot tier
+
+`ai_bot_policy` controls how Anubis treats known AI/LLM clients — independent of the catch-all rule, which already challenges them anyway. Four tiers, taken over identically from Anubis' own official presets:
+
+| Tier | Effect |
+|---|---|
+| `off` (default) | No dedicated rule — the generic challenge applies to AI bots like any other unknown client |
+| `aggressive` | **DENY** for every known AI/LLM client outright, including documented on-demand fetches (e.g. "ChatGPT, summarize this page" fails too) |
+| `moderate` | **DENY** for training crawlers (GPTBot, ClaudeBot) and the broad catch-all rule for unknown AI bots, **ALLOW** for documented search indexing (OAI-SearchBot, PerplexityBot) and human-triggered on-demand fetches |
+| `permissive` | **ALLOW** for all well-documented AI clients with a published IP list — **including** OpenAI's GPTBot training crawler — only the broad catch-all rule stays `DENY` |
+
+Every `ALLOW` rule checks user agent **and** the official IP address together. `DENY` means an immediate rejection with no challenge page (saves both the bot and the server the proof-of-work round trip) — unlike catch-all, which is `CHALLENGE`.
+
+`off` changes nothing about current behavior: unknown AI bots still fall into catch-all and get challenged (in practice usually equivalent to "doesn't get through", since they don't run JavaScript).
+
+## Trusted IP ranges
+
+`trusted_ip_ranges` (a list of IP addresses or CIDR ranges, e.g. `203.0.113.0/24`) exempts your own, hand-picked addresses from the challenge entirely — **without** a user-agent check. Unlike the search engine/monitoring/AI-bot exemptions above, this isn't third-party verification, it's a plain trust decision by the operator, meant for your own infrastructure (e.g. your own server, your office network, a partner service with a fixed IP).
+
+```yaml
+trusted_ip_ranges:
+  - 203.0.113.0/24
+  - 198.51.100.5/32
+```
+
+Empty (default) = no exemption, no rule gets written.
 
 ## Setting it up with NPMplus
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.11.62
+
+- 🔐 **Abgelaufene Anmeldung führt jetzt zurück zur Anmeldeseite.** War die Sitzung nach 24 Stunden abgelaufen, antwortete das Verwaltungsprogramm auf jeden Aufruf mit `401` — sichtbar wurde davon aber nur „Laden fehlgeschlagen“ oder „Nicht gespeichert“, und man musste selbst darauf kommen, neu zu laden. Nur drei von rund dreissig Aufrufen leiteten weiter. Jetzt fängt eine Schicht um `fetch` jede solche Antwort ab, zeigt einen Hinweis und führt zur Anmeldung. Betrifft nur den direkten Port — über den HA-Ingress meldet Home Assistant an, dort gibt es keine ablaufende Sitzung.
+
+## 0.11.61
+
+- 🏷️ **Frühere Stände: Reihenfolge, Sichtbarkeit und Wasserzeichen standen als roher Schlüssel in der Liste.** Die Spalte „Geändert" übersetzt die Abschnitte von `site.json` über `sec_*`-Schlüssel — für acht davon (`section_order`, `hidden_sections`, `members_sections`, `album_protect`, `watermark_text`, `tips_rotation`, `tips_random`, `indexnow_key`) fehlte die Beschriftung, sie erschienen englisch-technisch. Jetzt in DE und EN benannt.
+
+## 0.11.60
+
+- 📌 **Frühere Stände und automatische Backups lassen sich jetzt festhalten.** Wer eine Website aufbaut, speichert im Minutentakt — die 20 Revisionen sind nach einem Tag durchrotiert, das ZIP vom Ausgangsstand nach einer Woche gelöscht. Ein Klick auf 📌 nimmt einen Stand aus der Rotation: er wird nie automatisch entfernt und zählt nicht gegen die eingestellte Aufbewahrung, sodass die letzten Tage vollständig erhalten bleiben. Der Marker steckt im Dateinamen (`site-…-keep.json`, `mypage-auto-…-keep.zip`), es gibt also keine Indexdatei, die vom Verzeichnis abweichen könnte. Höchstens 10 Revisionen und 3 Backups gleichzeitig, damit die Rotation nicht ins Leere läuft; Löschen geht erst nach dem Freigeben. Ist das Speicherlimit erreicht und liegen nur noch festgehaltene Sicherungen, meldet das die Systemdiagnose, statt still keine Backups mehr anzulegen.
+
+## 0.11.59
+
+- 🚫 **`/p/<projekt>/readme.md` fiel als „eigener Link" durch, obwohl es die Seite nie gab.** Scanner errieten echte Projekt-Slugs von der Startseite und hängten `readme.md`/`changelog.md`/`license` an, in der Hoffnung auf eine rohe Kopie — MyPage rendert das README aber in die Projektseite selbst, nie als eigene Datei daneben. Der mitgeschickte Referer (die eigene Startseite) ließ `record_notfound()` das für einen echten kaputten Verweis halten und „Weiterleitung anlegen" anbieten, für die es nie ein Ziel gab. Solche Pfade zählen jetzt als Sonde: standardmäßig ausgeblendet, kein Weiterleitungs-Knopf mehr.
+
+## 0.11.58
+
+- 🐛 **README wurde beim GitHub-Refresh (0.11.57) nicht mit aktualisiert.** Der Refresh für schon importierte Repos ließ den Long-Text bewusst unangetastet — auch mit angehaktem „README importieren". Jetzt zieht der Refresh das README ebenfalls nach, wenn die Checkbox gesetzt ist; ohne Haken bleibt der Long-Text wie zuvor unberührt.
+
+## 0.11.57
+
+- 🔄 **GitHub-Import: schon importierte Repos ließen sich nie auffrischen.** Änderte sich Beschreibung, Sprache oder Topics eines Repos auf GitHub, blieb das im Add-on für immer beim Stand des ersten Imports — die Checkbox war für bereits importierte Repos ausgegraut und gesperrt, das Backend übersprang sie zusätzlich stillschweigend. Jetzt lässt sich jedes Repo erneut anhaken: Desc, Sprache, Tags, Repo-URL, Sterne und Push-Datum werden nachgezogen. Manuell gepflegte Felder (Titel, Website-URL, Bilder, Video, Galerie, Long-Text) bleiben dabei unangetastet.
+
 ## 0.11.56
 
 - 📧 **Versand-Mails bekommen jetzt eine ordentliche Message-ID und ein Datum.** `send_email()` setzte bisher nur `Subject`/`From`/`To` — ohne `Message-ID` und `Date` sind Mails (Willkommen, Passwort-Reset, Verifizierung, Kommentar-Antworten, …) für Spamfilter und Threading unvollständig. Neu: `Message-ID` (`email.utils.make_msgid`, mit SMTP-Host als Domain) und `Date` (`formatdate(localtime=True)`) werden bei jedem Versand gesetzt.

@@ -311,7 +311,11 @@ VISIT_CSV_COLUMNS = ('datum', 'ip', 'land', 'browser', 'system', 'pfad', 'referr
 BACKUPS_DIR = Path(_DATA) / 'autobackup'
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 AUTO_BACKUP_KEEP_DEFAULT = 7
-_AUTO_BACKUP_RE = re.compile(r'^mypage-auto-\d{4}-\d{2}-\d{2}\.zip$')
+# Festgehaltene Sicherungen (Marker '-keep', siehe PIN_SUFFIX) rotieren nie weg.
+# Deutlich enger begrenzt als bei den Revisionen: ein Backup enthält Bilder und
+# Dokumente und wiegt Megabyte, nicht Kilobyte.
+AUTO_BACKUP_PIN_MAX = 3
+_AUTO_BACKUP_RE = re.compile(r'^mypage-auto-\d{4}-\d{2}-\d{2}(?:-keep)?\.zip$')
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
@@ -1457,7 +1461,15 @@ def load_site() -> dict:
 # Statistik liegen in eigenen Dateien und bleiben von einer Rückkehr unberührt.
 REVISIONS_DIR = Path(_DATA) / 'revisions'
 REVISION_KEEP_DEFAULT = 20
-_REVISION_RE = re.compile(r'^site-(\d{8}-\d{6})\.json$')
+# Festgehaltene Stände tragen '-keep' im Namen und fallen damit aus der
+# Rotation. Der Marker steckt bewusst im Dateinamen und nicht in einer
+# Indexdatei: die Liste kommt aus dem Verzeichnis, also kann sie auch nicht
+# davon abweichen. Gilt genauso für die automatischen Backups weiter unten.
+PIN_SUFFIX = '-keep'
+# Obergrenze, damit die Rotation nicht ins Leere läuft: wer alles festhält,
+# hat am Ende keinen Platz mehr. Revisionen sind winzig (~30 KB), Backups nicht.
+REVISION_PIN_MAX = 10
+_REVISION_RE = re.compile(r'^site-(\d{8}-\d{6})(?:-keep)?\.json$')
 # Ein Admin-Speichern löst je nach Reiter mehrere save_site()-Aufrufe aus, und
 # wer länger an einer Seite arbeitet, speichert im Minutentakt. Ohne
 # Zusammenfassen bestünde die Liste aus Ständen, die Sekunden auseinander
@@ -1470,6 +1482,35 @@ REVISION_COALESCE = 90        # Sekunden
 # Tages. Eine Revision nur dafür wäre Rauschen und würde echte Änderungen
 # aus der Liste drängen.
 REVISION_IGNORE = {'slot_jackpot', 'tips_stats'}
+
+
+def _is_pinned(name: str) -> bool:
+    return name.rpartition('.')[0].endswith(PIN_SUFFIX)
+
+
+def _pinned_name(name: str, pinned: bool) -> str:
+    """Dateiname mit oder ohne '-keep' vor der Endung."""
+    stem, dot, ext = name.rpartition('.')
+    if stem.endswith(PIN_SUFFIX):
+        stem = stem[:-len(PIN_SUFFIX)]
+    return stem + (PIN_SUFFIX if pinned else '') + dot + ext
+
+
+def _pin_file(f: Path, want: bool, cap: int, pinned_now: int) -> str:
+    """Datei fest- oder freigeben. Leerer String = erledigt, sonst Fehlerschlüssel."""
+    if _is_pinned(f.name) == want:
+        return ''
+    if want and pinned_now >= cap:
+        return 'pin limit'
+    target = f.with_name(_pinned_name(f.name, want))
+    if target.exists():
+        return 'exists'
+    try:
+        os.replace(f, target)      # gleicher Ordner, also atomar
+    except OSError as e:
+        log.warning("Stand '%s' konnte nicht umbenannt werden: %s", f.name, e)
+        return 'rename failed'
+    return ''
 
 
 def _revision_keep() -> int:
@@ -1498,14 +1539,18 @@ def list_revisions() -> list:
     out = []
     for f in sorted(files, key=lambda x: x.name, reverse=True):
         try:
-            out.append({'name': f.name, 'size': f.stat().st_size, 'ts': f.name[5:20]})
+            out.append({'name': f.name, 'size': f.stat().st_size, 'ts': f.name[5:20],
+                        'pinned': _is_pinned(f.name)})
         except OSError:
             continue
     return out
 
 
 def _rotate_revisions(keep: int) -> None:
-    for old in list_revisions()[keep:]:
+    # Festgehaltene zählen nicht gegen `keep`: sonst wäre ein festgehaltener Stand
+    # von damals gleichbedeutend mit einem Platz weniger für die letzten Tage.
+    loose = [r for r in list_revisions() if not r['pinned']]
+    for old in loose[keep:]:
         try:
             (REVISIONS_DIR / old['name']).unlink()
         except OSError as e:
@@ -3627,6 +3672,16 @@ _PROBE_NAMES = frozenset((
 ))
 _PROBE_YEAR_RE = re.compile(r'^/(19|20)\d{2}/?$')
 
+# `/p/<slug>` ist eine echte Projektseite — `/p/<slug>/readme.md` daneben nicht,
+# und wird es nie: MyPage rendert das README in die Seite selbst, es liegt nie
+# als eigene Datei daneben. Ein Scanner errät den Slug trotzdem richtig (er
+# steht ja offen auf der Startseite) und haengt einen ueblichen Doku-Dateinamen
+# an, in der Hoffnung auf eine rohe Kopie. Der Referer solcher Treffer zeigt auf
+# genau diese Startseite — ohne diese Ausnahme sieht `record_notfound()` darin
+# einen eigenen kaputten Verweis und bietet eine Weiterleitung an, fuer die es
+# nie ein Ziel gibt.
+_PROBE_PROJECT_FILE_RE = re.compile(r'^/p/[^/]+/(readme|changelog|license)(\.md|\.txt)?$')
+
 
 def _is_probe(path: str) -> bool:
     """Sucht der Aufruf fremde Software statt einer Seite von hier?"""
@@ -3643,6 +3698,8 @@ def _is_probe(path: str) -> bool:
     # `/bak`, `/old-site`, `/staging` — und `/2021`, weil die Jahreszahl
     # derselben Vermutung folgt: hier liege die Seite von damals noch herum.
     if p.strip('/') in _PROBE_NAMES or _PROBE_YEAR_RE.match(p):
+        return True
+    if _PROBE_PROJECT_FILE_RE.match(p):
         return True
     return p.endswith(_PROBE_SUFFIXES) or any(part in p for part in _PROBE_PARTS)
 
@@ -6882,19 +6939,31 @@ def list_auto_backups() -> list:
     for f in sorted(files, key=lambda p: p.name, reverse=True):
         try:
             out.append({'name': f.name, 'size': f.stat().st_size,
-                        'date': f.name[12:22]})
+                        'date': f.name[12:22], 'pinned': _is_pinned(f.name)})
         except OSError:
             continue
     return out
 
 
 def _rotate_auto_backups(keep: int) -> None:
-    for old in list_auto_backups()[keep:]:
+    # Festgehaltene bleiben liegen und zählen nicht gegen `keep`.
+    loose = [b for b in list_auto_backups() if not b['pinned']]
+    for old in loose[keep:]:
         try:
             (BACKUPS_DIR / old['name']).unlink()
             log.info("Altes automatisches Backup entfernt: %s", old['name'])
         except OSError as e:
             log.warning("Altes Backup '%s' konnte nicht entfernt werden: %s", old['name'], e)
+
+
+def _auto_backup_today() -> Path | None:
+    """Das Backup von heute — auch wenn es festgehalten wurde. None = keins."""
+    base = f'mypage-auto-{date.today().isoformat()}'
+    for name in (f'{base}.zip', f'{base}{PIN_SUFFIX}.zip'):
+        f = BACKUPS_DIR / name
+        if f.exists():
+            return f
+    return None
 
 
 def create_auto_backup(keep: int) -> Path | None:
@@ -6939,8 +7008,16 @@ def auto_backup_loop() -> None:
                 _rotate_auto_backups(max(1, keep - 1))
                 log.warning("Speicherlimit erreicht — kein neues automatisches Backup, "
                             "Aufbewahrung vorübergehend auf %d Datei(en) verkürzt", max(1, keep - 1))
+                # Festgehaltene rührt die Rotation nicht an. Wenn nur noch solche
+                # da sind, gibt das Ausdünnen keinen Platz mehr frei — das muss
+                # sichtbar sein, sonst wartet der Betreiber auf Backups, die
+                # nie wieder entstehen.
+                if not any(not b['pinned'] for b in list_auto_backups()):
+                    health_note('backup', 'Speicherlimit erreicht und nur noch '
+                                'festgehaltene Sicherungen vorhanden — es entsteht '
+                                'kein neues Backup mehr, bis Platz frei wird.')
             elif keep > 0:
-                if not (BACKUPS_DIR / f'mypage-auto-{date.today().isoformat()}.zip').exists():
+                if _auto_backup_today() is None:
                     create_auto_backup(keep)
                 else:
                     _rotate_auto_backups(keep)   # geänderte Aufbewahrung sofort anwenden
@@ -6974,7 +7051,8 @@ def api_backups_list():
     if err:
         return err
     keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
-    return jsonify({'backups': list_auto_backups(), 'keep': keep})
+    return jsonify({'backups': list_auto_backups(), 'keep': keep,
+                    'pin_max': AUTO_BACKUP_PIN_MAX})
 
 
 @admin_app.route('/api/backups/run', methods=['POST'])
@@ -7004,6 +7082,24 @@ def api_backups_download(name: str):
                      download_name=p.name)
 
 
+@admin_app.route('/api/backups/<name>/pin', methods=['POST'])
+def api_backups_pin(name: str):
+    """Sicherung festhalten oder wieder freigeben (Marker im Dateinamen)."""
+    err = _api_auth()
+    if err:
+        return err
+    p = _auto_backup_path(name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not found'}), 404
+    want = bool((request.get_json(silent=True) or {}).get('pinned', True))
+    pinned_now = sum(1 for b in list_auto_backups() if b['pinned'])
+    fail = _pin_file(p, want, AUTO_BACKUP_PIN_MAX, pinned_now)
+    if fail:
+        return jsonify({'error': fail}), 409 if fail == 'pin limit' else 500
+    log_audit('backup_auto_pin' if want else 'backup_auto_unpin', p.name)
+    return jsonify({'ok': True, 'name': _pinned_name(p.name, want)})
+
+
 @admin_app.route('/api/backups/<name>', methods=['DELETE'])
 def api_backups_delete(name: str):
     err = _api_auth()
@@ -7012,6 +7108,9 @@ def api_backups_delete(name: str):
     p = _auto_backup_path(name)
     if p is None or not p.is_file():
         return jsonify({'error': 'not found'}), 404
+    # Festgehaltenes wird nicht nebenbei gelöscht — erst freigeben.
+    if _is_pinned(p.name):
+        return jsonify({'error': 'pinned'}), 409
     try:
         p.unlink()
     except OSError:
@@ -7059,7 +7158,7 @@ def api_revisions_list():
         r['changed'] = (_site_changed_keys(older, newer)
                         if older is not None and newer is not None else [])
         newer = older if older is not None else newer
-    return jsonify({'revisions': revs, 'keep': keep})
+    return jsonify({'revisions': revs, 'keep': keep, 'pin_max': REVISION_PIN_MAX})
 
 
 @admin_app.route('/api/revisions/<name>')
@@ -7108,6 +7207,24 @@ def api_revision_restore(name: str):
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/revisions/<name>/pin', methods=['POST'])
+def api_revision_pin(name: str):
+    """Stand festhalten oder wieder freigeben (Marker im Dateinamen)."""
+    err = _api_auth()
+    if err:
+        return err
+    f = _revision_path(name)
+    if f is None or not f.is_file():
+        return jsonify({'error': 'not found'}), 404
+    want = bool((request.get_json(silent=True) or {}).get('pinned', True))
+    pinned_now = sum(1 for r in list_revisions() if r['pinned'])
+    fail = _pin_file(f, want, REVISION_PIN_MAX, pinned_now)
+    if fail:
+        return jsonify({'error': fail}), 409 if fail == 'pin limit' else 500
+    log_audit('revision_pin' if want else 'revision_unpin', f.name)
+    return jsonify({'ok': True, 'name': _pinned_name(f.name, want)})
+
+
 @admin_app.route('/api/revisions/<name>', methods=['DELETE'])
 def api_revision_delete(name: str):
     err = _api_auth()
@@ -7116,6 +7233,8 @@ def api_revision_delete(name: str):
     f = _revision_path(name)
     if f is None or not f.is_file():
         return jsonify({'error': 'not found'}), 404
+    if _is_pinned(f.name):
+        return jsonify({'error': 'pinned'}), 409
     try:
         f.unlink()
     except OSError:
@@ -12478,15 +12597,37 @@ def api_github_import():
     if not isinstance(repos, list):
         return jsonify({'error': 'invalid payload'}), 400
     site = load_site()
-    existing = {p.get('repo_full_name') for p in site['projects'] if p.get('repo_full_name')}
+    by_repo = {p.get('repo_full_name'): p for p in site['projects'] if p.get('repo_full_name')}
     added = 0
+    updated = 0
     for repo in repos[:50]:
         if not isinstance(repo, dict):
             continue
         full_name = _clean_str(repo.get('full_name'), 150)
-        if not full_name or not _GH_REPO_RE.match(full_name) or full_name in existing:
+        if not full_name or not _GH_REPO_RE.match(full_name):
             continue
-        site['projects'].append(_normalize_project({
+        existing_p = by_repo.get(full_name)
+        if existing_p:
+            # Schon importiertes Projekt: nur die GitHub-Metadaten nachziehen.
+            # Titel, Website-URL, Bilder, Video und Galerie sind oft von Hand
+            # nachbearbeitet — die bleiben beim Refresh unangetastet. Der
+            # Long-Text kommt nur bei angehaktem "README importieren" mit —
+            # sonst würde ein unbeabsichtigt gesetzter Haken bei jedem Refresh
+            # eine von Hand geschriebene Projektbeschreibung überschreiben.
+            desc = _clean_str(repo.get('description', ''))
+            existing_p['desc_de']     = desc
+            existing_p['desc_en']     = desc
+            existing_p['language']    = _clean_str(repo.get('language', ''), 50)
+            existing_p['repo_url']    = _clean_str(repo.get('html_url', ''), 500)
+            existing_p['stars']       = max(0, int(repo.get('stars') or 0))
+            existing_p['repo_pushed'] = _clean_str(repo.get('pushed', ''), 10)
+            topics = repo.get('topics') or []
+            existing_p['tags'] = [_clean_str(t, 30) for t in topics if _clean_str(t, 30)][:8]
+            if import_readme:
+                existing_p['long_de'] = _clean_str(fetch_github_readme(full_name), 20000)
+            updated += 1
+            continue
+        new_p = _normalize_project({
             'long_de':        fetch_github_readme(full_name) if import_readme else '',
             'title':          repo.get('name') or full_name.split('/')[-1],
             'desc_de':        repo.get('description', ''),
@@ -12498,11 +12639,13 @@ def api_github_import():
             'stars':          repo.get('stars', 0),
             'repo_pushed':    repo.get('pushed', ''),
             'tags':           repo.get('topics', []),
-        }))
-        existing.add(full_name)
+        })
+        site['projects'].append(new_p)
+        by_repo[full_name] = new_p
         added += 1
-    save_site(site)
-    return jsonify({'ok': True, 'added': added})
+    if added or updated:
+        save_site(site)
+    return jsonify({'ok': True, 'added': added, 'updated': updated})
 
 
 @admin_app.route('/api/stats')

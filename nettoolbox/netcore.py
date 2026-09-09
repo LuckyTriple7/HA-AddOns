@@ -6,6 +6,7 @@ that is the whole point of keeping it separate from app.py.
 """
 
 import ipaddress
+import logging
 import re
 import socket
 import time
@@ -50,6 +51,9 @@ class Context:
     # Cloudflare-Konto des Betreibers, aus den Einstellungen.
     cf_account_id: str = ''
     cf_api_token: str = ''
+    # Subdomain-Suche über die CT-Logs (subdomains.py). Leer heißt anonym:
+    # eine Anfrage je Sekunde aus einem geteilten Pool, 90 Tage Verlauf.
+    ctlogs_api_key: str = ''
 
 
 # ── Validation ────────────────────────────────────────────────────────────────
@@ -170,6 +174,7 @@ def query(ctx: Context, name: str, rrtype: str, servers=None,
     """One DNS question. An empty answer is a result, not an error."""
     res = build_resolver(ctx, servers)
     started = time.monotonic()
+    log.debug("dns %s %s @%s", rrtype, name, ','.join(res.nameservers))
     try:
         answer = res.resolve(name, rrtype, raise_on_no_answer=False)
     except dns.resolver.NXDOMAIN:
@@ -184,6 +189,7 @@ def query(ctx: Context, name: str, rrtype: str, servers=None,
         raise ProbeError('dns_error', type(e).__name__)
     ms = int((time.monotonic() - started) * 1000)
     records = sorted(_render(r) for r in (answer.rrset or []))
+    log.debug("dns %s %s -> %d records (%d ms)", rrtype, name, len(records), ms)
     if raise_on_empty and not records:
         raise ProbeError('no_records', f'{name} {rrtype}')
     return DnsAnswer(
@@ -241,6 +247,9 @@ def resolve_addresses(host: str) -> list:
     return sorted({info[4][0] for info in infos})
 
 
+log = logging.getLogger(__name__)
+
+
 def guard_target(ctx: Context, host: str) -> list:
     """Refuse targets in private space unless the operator allowed it.
 
@@ -283,6 +292,8 @@ def _set_cookies(resp) -> list:
 def http_get(ctx: Context, url: str, max_bytes: int = 128 * 1024,
              accept: str = '*/*') -> dict:
     """A guarded GET. Only http(s), only public targets, size-capped."""
+    started = time.monotonic()
+    log.debug("http GET %s", url)
     if not url.lower().startswith(('https://', 'http://')):
         raise ProbeError('bad_url', url)
     host = url.split('://', 1)[1].split('/', 1)[0].split(':', 1)[0]
@@ -299,6 +310,9 @@ def http_get(ctx: Context, url: str, max_bytes: int = 128 * 1024,
                 if len(body) > max_bytes:
                     body = body[:max_bytes]
                     break
+            log.debug("http GET %s -> %s, %d bytes (%d ms)", url,
+                      resp.status_code, len(body),
+                      int((time.monotonic() - started) * 1000))
             return {'status': resp.status_code,
                     'headers': {k.lower(): v for k, v in resp.headers.items()},
                     'cookies': _set_cookies(resp),

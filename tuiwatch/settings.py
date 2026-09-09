@@ -261,6 +261,9 @@ FIELDS: dict = {
     "auto_backup_keep": ("int", 5, (0, 60), "backup",
         "Auto-Backups behalten (Anzahl)",
         "Wie viele automatische Backups aufbewahrt werden; ältere werden gelöscht. Standard 5."),
+    "history_compact_months": ("int", 0, (0, 120), "backup",
+        "Alten Verlauf verdichten (Monate, 0 = aus)",
+        "Dünnt Verlaufsdaten aus, die älter sind als die angegebene Zahl Monate — täglich im Hintergrund. Behalten werden je Angebot und Tag die erste, letzte, günstigste und teuerste Preismessung; beim Preiskalender je Reisetag und Kalenderwoche der letzte beobachtete Preis, dazu immer die älteste und die jüngste Beobachtung. Preisverlauf, niedrigster/höchster Preis, Kalender-Trend und Vorjahresvergleich bleiben damit erhalten, nur die zeitliche Auflösung alter Daten sinkt; lediglich Tagesdurchschnitte können sich minimal verschieben. Standard 0: aus — Verlaufsdaten sind der eigentliche Wert des Add-ons, und eine 25-MB-Datenbank ist für SQLite völlig unkritisch. Sinnvoll erst bei sehr vielen Angeboten über Jahre. Minimum 3 Monate. Der frei gewordene Platz wird erst durch „Speicher freigeben\" im Datenbank-Dialog an das Dateisystem zurückgegeben."),
     # ── misc ──
     "trippilot_home_location": ("str", "", 400, "misc",
         "TripPilot Heimatort (PLZ/Ort)",

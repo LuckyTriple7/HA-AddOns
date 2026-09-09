@@ -135,18 +135,23 @@ tr:last-child td { border-bottom: none; }
 .diff-block .diff-name { font-size: 0.78rem; color: var(--muted); }
 .diff-removed { color: var(--red); }
 .diff-added { color: var(--green-h); }
-.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600; }
+/* flex: none ist Pflicht, nicht Kosmetik: eine Plakette in einer Flex-Zeile,
+   die daneben min-width:0 und overflow-wrap:anywhere erbt, schrumpft sonst auf
+   Nullbreite und bricht ihren Text zeichenweise senkrecht um. max-width haelt
+   sie trotzdem in der Karte, und umgebrochen wird dann an Leerzeichen. */
+.badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 5px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600;
+         flex: none; max-width: 100%; overflow-wrap: normal; }
 .badge.ok { background: rgba(35,134,54,.15); color: var(--green-h); }
 .badge.info { background: rgba(88,166,255,.15); color: var(--blue); }
 .badge.warn { background: rgba(210,153,34,.15); color: var(--amber); }
 .badge.fail { background: rgba(248,81,73,.15); color: var(--red); }
 .finding-list { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
-.finding-list li { display: flex; gap: 8px; align-items: baseline; font-size: 0.83rem;
-                    border-left: 2px solid var(--border); padding: 2px 0 2px 9px; }
-.finding-list li:has(.badge.ok) { border-left-color: var(--green-h); }
-.finding-list li:has(.badge.warn) { border-left-color: var(--amber); }
-.finding-list li:has(.badge.fail) { border-left-color: var(--red); }
-.finding-list li:has(.badge.info) { border-left-color: var(--blue); }
+.finding-list li { font-size: 0.83rem; border-left: 3px solid var(--border);
+                    padding: 2px 0 2px 9px; min-width: 0; overflow-wrap: anywhere; }
+.finding-list li.lvl-ok { border-left-color: var(--green-h); }
+.finding-list li.lvl-warn { border-left-color: var(--amber); }
+.finding-list li.lvl-fail { border-left-color: var(--red); }
+.finding-list li.lvl-info { border-left-color: var(--blue); }
 .score-ring { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
 .score-donut { position: relative; width: 84px; height: 84px; border-radius: 50%; flex: none;
                background: conic-gradient(var(--ring, var(--accent)) calc(var(--pct, 0) * 3.6deg), var(--border) 0); }
@@ -170,7 +175,11 @@ tr:last-child td { border-bottom: none; }
 .subcard { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; background: var(--surf2);
            transition: border-color .15s; }
 .subcard:hover { border-color: color-mix(in srgb, var(--border) 30%, var(--accent)); }
-.subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.subcard h4 { font-size: 0.82rem; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* Ueberschriften tragen oft einen Namen vom Server (Waechter, Domain,
+   Bot) neben einer Plakette -- der Name bricht um, die Plakette weicht nie. */
+.subcard h4 > span { min-width: 0; overflow-wrap: anywhere; }
+.subcard h4 > .badge, .subcard h4 > .chip { flex: none; overflow-wrap: normal; }
 .subcard textarea { min-height: 56px; font-size: 0.7rem; }
 .subcard label.field { margin-top: 8px; }
 .subcard label.field:first-of-type { margin-top: 0; }
@@ -202,18 +211,58 @@ tr:last-child td { border-bottom: none; }
 .record-code { background: var(--surf2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
                font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-.chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted); }
+.chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; color: var(--muted);
+        max-width: 100%; overflow-wrap: anywhere; }
 .chip.pick { cursor: pointer; background: none; }
 .chip.pick:hover { border-color: var(--accent); color: var(--accent); }
 .tech-list { display: flex; flex-direction: column; gap: 4px; }
-.tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; }
-.tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
-.tech-ver { font-size: 0.72rem; color: var(--muted); }
+/* Die Bewertung rechts weicht nie, die Version zuerst (flex-shrink 100), der
+   Name zuletzt -- und beide schneiden mit Auslassungspunkten ab, statt mitten
+   im Wort zu brechen. Eine Regel, die statt der Version einen Cache-Buster
+   einfaengt, schob sonst das "sicher" aus der Karte heraus. */
+.tech-item { display: flex; align-items: center; gap: 7px; font-size: 0.81rem; min-width: 0; }
+.tech-item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tech-item .tech-conf { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; flex: none; }
+.tech-ver { font-size: 0.72rem; color: var(--muted); flex: 0 100 auto; }
 .tech-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
 .tech-dot.high { background: var(--green-h); }
 .tech-dot.medium { background: var(--amber); }
 .tech-dot.low { background: var(--border); }
 footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size: 0.75rem; }
+/* Konsole: bewusst immer dunkel und in Festbreitenschrift -- sie zeigt
+   Protokollzeilen, keine Oberfläche, und soll auch im hellen Thema als
+   Werkzeugfenster lesbar bleiben. */
+#ntConsole { display: none; position: fixed; bottom: 20px; right: 20px; width: 620px; height: 360px;
+           background: #0d1117; border: 1px solid #30363d; border-radius: 8px; z-index: 60;
+           flex-direction: column; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+           font-size: 0.72rem; box-shadow: 0 8px 32px rgba(0,0,0,.55); resize: both; overflow: hidden;
+           min-width: 320px; min-height: 180px; max-width: 96vw; max-height: 90vh; }
+#ntConsole.open { display: flex; }
+#consoleHead { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: #161b22;
+               border-bottom: 1px solid #30363d; cursor: move; user-select: none; flex-shrink: 0; }
+#consoleHead .title { color: #8b949e; font-size: 0.7rem; font-weight: 600; letter-spacing: .04em; margin-right: auto; }
+#consoleBar { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: #0f1319;
+              border-bottom: 1px solid #30363d; flex-wrap: wrap; flex-shrink: 0; }
+#consoleBar button { background: none; border: 1px solid #30363d; color: #6e7681; font: inherit;
+                     font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; cursor: pointer; }
+#consoleBar button:hover { border-color: #6e7681; }
+#consoleBar button.on[data-lvl="ERROR"] { color: #f85149; border-color: #f85149; }
+#consoleBar button.on[data-lvl="WARNING"] { color: #d29922; border-color: #d29922; }
+#consoleBar button.on[data-lvl="INFO"] { color: #3fb950; border-color: #3fb950; }
+#consoleBar button.on[data-lvl="DEBUG"] { color: #8b949e; border-color: #8b949e; }
+#consoleBar button.on#consoleDetail { color: #58a6ff; border-color: #58a6ff; }
+#consoleSearch { flex: 1; min-width: 80px; background: #161b22; border: 1px solid #30363d; color: #c9d1d9;
+                 font: inherit; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; }
+#consoleSearch:focus { outline: none; border-color: #6e7681; }
+#consoleCount { color: #6e7681; font-size: 0.65rem; white-space: nowrap; }
+#consoleBody { flex: 1; overflow-y: auto; padding: 6px 10px; line-height: 1.55; color: #c9d1d9;
+               white-space: pre-wrap; word-break: break-word; }
+#consoleBody .c-error { color: #ff7b72; }
+#consoleBody .c-warn { color: #e3b341; }
+#consoleBody .c-info { color: #c9d1d9; }
+#consoleBody .c-debug { color: #6e7681; }
+#consoleBody .c-note { color: #6e7681; font-style: italic; }
+@media (max-width: 767px) { #ntConsole { display: none !important; } }
 </style>
 </head>
 <body>
@@ -237,6 +286,9 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   {% endif %}
   {% if is_admin %}<button class="theme-btn" onclick="openUsers()" type="button" aria-label="users" title="{{ t.settings_group_users }}">
     <svg viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg>
+  </button>
+  <button class="theme-btn" onclick="consoleToggle()" type="button" aria-label="console" title="{{ t.console_tooltip }}">
+    <svg viewBox="0 0 24 24"><path d="M20,19V7H4V19H20M20,3A2,2 0 0,1 22,5V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V5A2,2 0 0,1 4,3H20M13,17V15H18V17H13M9.58,13L5.57,9H8.4L11.7,12.3C12.09,12.69 12.09,13.33 11.7,13.72L8.42,17H5.59L9.58,13Z"/></svg>
   </button>
   <button class="theme-btn" onclick="openSettings()" type="button" aria-label="settings" title="{{ t.settings_title }}">
     <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
@@ -307,6 +359,21 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       <button class="btn" id="dnsRunSoa">SOA / {{ t.field_nameservers }}</button>
     </div>
     <div id="dnsResult"></div>
+  </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M17,3H7A2,2 0 0,0 5,5V21L12,18L19,21V5A2,2 0 0,0 17,3M17,18L12,15.82L7,18V5H17V18Z"/></svg>{{ t.sub_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="subDomain">{{ t.field_domain }}</label>
+        <input type="text" id="subDomain" placeholder="{{ t.ph_domain }}" autocomplete="off">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="subRun">{{ t.action_search }}</button>
+        <button class="btn" id="subCopy" style="display:none">{{ t.action_copy_hosts }}</button>
+      </div>
+    </div>
+    <p class="hint">{{ t.sub_hint }}</p>
+    <div id="subResult"></div>
   </div>
   <div class="card">
     <h2><svg viewBox="0 0 24 24"><path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/></svg>{{ t.dnssec_title }}</h2>
@@ -709,6 +776,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       </div>
       <div style="align-self:flex-end">
         <button class="btn primary" id="dcRun">{{ t.action_check }}</button>
+        <button class="btn" id="dcReset" type="button">{{ t.action_reset_field }}</button>
       </div>
     </div>
     <div class="row" style="margin-top:10px" id="dcTlds">
@@ -795,6 +863,39 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
     <p class="hint">{{ t.wp_hint }}</p>
     <div id="wpResult"></div>
   </div>
+  <div class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z"/></svg>{{ t.bot_title }}</h2>
+    <div class="row">
+      <div class="grow">
+        <label class="field" for="botTarget">{{ t.field_url }}</label>
+        <input type="text" id="botTarget" placeholder="{{ t.ph_url }}" autocomplete="off">
+      </div>
+      <div style="width:170px">
+        <label class="field" for="botIdentity">{{ t.field_bot_identity }}</label>
+        <select id="botIdentity">
+          <option value="default">{{ t.bot_identity_default }}</option>
+          <option value="browser">{{ t.bot_identity_browser }}</option>
+          <option value="googlebot">Googlebot</option>
+          <option value="bingbot">Bingbot</option>
+          <option value="gptbot">GPTBot</option>
+          <option value="claudebot">ClaudeBot</option>
+          <option value="ccbot">CCBot</option>
+          <option value="custom">{{ t.bot_identity_custom }}</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn primary" id="botRun">{{ t.action_check }}</button>
+      </div>
+    </div>
+    <div class="row" id="botCustomRow" hidden style="margin-top:8px">
+      <div class="grow">
+        <label class="field" for="botCustomUa">{{ t.field_bot_custom_ua }}</label>
+        <input type="text" id="botCustomUa" placeholder="MeinCrawler/1.0" autocomplete="off">
+      </div>
+    </div>
+    <p class="hint">{{ t.bot_hint }}</p>
+    <div id="botResult"></div>
+  </div>
 </section>
 
 <section id="tab-monitor">
@@ -816,6 +917,7 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
           <option value="aaaa_guard">{{ t.monitor_probe_aaaa }}</option>
           <option value="whois">{{ t.monitor_probe_whois }}</option>
           <option value="http">{{ t.monitor_probe_http }}</option>
+          <option value="http_status">{{ t.monitor_probe_http_status }}</option>
           <option value="seo">{{ t.monitor_probe_seo }}</option>
         </select>
       </div>
@@ -992,6 +1094,16 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
       </div>
     </div>
 
+    <div class="set-group">
+      <h3>{{ t.settings_group_ctlogs }}</h3>
+      <p class="hint" style="margin-top:0">{{ t.ctlogs_settings_hint }}</p>
+      <div class="set-row">
+        <label class="field" for="setCtlogsApiKey">{{ t.field_ctlogs_api_key }}</label>
+        <input type="password" id="setCtlogsApiKey" autocomplete="new-password">
+        <div class="hint" id="setCtlogsApiKeyState"></div>
+      </div>
+    </div>
+
     <div class="row" style="margin-top:18px; justify-content:flex-end">
       <button class="btn" onclick="loadSettings()" type="button">{{ t.action_reload }}</button>
       <button class="btn primary" id="setSave" onclick="saveSettings()" type="button">{{ t.action_save }}</button>
@@ -1036,6 +1148,26 @@ footer.foot { text-align: center; padding: 20px; color: var(--muted); font-size:
   </div>
 </div>
 
+
+{% if is_admin %}
+<div id="ntConsole">
+  <div id="consoleHead">
+    <span class="title">{{ t.console_title }}</span>
+    <button class="theme-btn" onclick="consoleToggle()" type="button" aria-label="close">✕</button>
+  </div>
+  <div id="consoleBar">
+    <button data-lvl="ERROR" class="on">ERROR</button>
+    <button data-lvl="WARNING" class="on">WARN</button>
+    <button data-lvl="INFO" class="on">INFO</button>
+    <button data-lvl="DEBUG" class="on">DEBUG</button>
+    <button id="consoleDetail" type="button" title="{{ t.console_detail_hint }}">{{ t.console_detail }}</button>
+    <button id="consoleClear" type="button">{{ t.console_clear }}</button>
+    <input id="consoleSearch" type="text" placeholder="{{ t.console_search }}">
+    <span id="consoleCount"></span>
+  </div>
+  <div id="consoleBody"></div>
+</div>
+{% endif %}
 
 <div class="toast-wrap" id="toasts"></div>
 
@@ -1096,6 +1228,35 @@ function errText(code){
   return T[key] || T.err_generic || code;
 }
 
+// Eine abgelaufene Sitzung meldet sich nur noch mit 401 auf jeden Aufruf.
+// Ohne diesen Weg zurück bleibt die Seite stehen und wirft Fehler-Meldung um
+// Fehler-Meldung, obwohl niemand mehr angemeldet ist.
+let sessionEnded = false;
+function sessionGone(){
+  if (sessionEnded) return;
+  sessionEnded = true;
+  toast(T.session_expired || 'Session expired', true);
+  setTimeout(() => { location.href = (G.base || '') + '/'; }, 1500);
+}
+
+// Der CSRF-Merkzettel läuft früher ab als die Sitzung (12 h gegen 24 h).
+// Dann ist man noch angemeldet, aber jedes Absenden scheitert -- bis heute
+// half nur neu laden. Einmal frisch holen reicht.
+async function refreshCsrf(){
+  try {
+    const res = await fetch((G.base || '') + '/api/csrf', {
+      credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) {
+      if (res.status === 401) sessionGone();
+      return false;
+    }
+    const data = await res.json();
+    if (data && data.csrf) { G.csrf = data.csrf; return true; }
+  } catch (e) { /* offline: der nächste Aufruf meldet es ohnehin */ }
+  return false;
+}
+
 async function api(path, opts){
   opts = opts || {};
   let res;
@@ -1115,8 +1276,16 @@ async function api(path, opts){
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
   if (!res.ok) {
+    const code = (data && data.error) || 'internal';
+    if (res.status === 401) sessionGone();
+    if (res.status === 403 && code === 'csrf' && !opts.retried) {
+      if (await refreshCsrf()) {
+        const again = Object.assign({}, opts, { retried: true });
+        return api(path, again);
+      }
+    }
     const e = new Error('api');
-    e.code = (data && data.error) || 'internal';
+    e.code = code;
     throw e;
   }
   return data || {};
@@ -1194,6 +1363,8 @@ async function loadSettings(){
     $('setCfAccountId').value = v.cf_account_id || '';
     $('setCfApiToken').value = '';
     $('setCfApiTokenState').textContent = v.cf_api_token_set ? T.settings_secret_set : T.settings_secret_unset;
+    $('setCtlogsApiKey').value = '';
+    $('setCtlogsApiKeyState').textContent = v.ctlogs_api_key_set ? T.settings_secret_set : T.settings_secret_unset;
   } catch (e) { toast(errText(e.code), true); }
   loadTechRules(true);
 }
@@ -1560,6 +1731,7 @@ function settingsFormValues(){
     tech_rules_auto_update: $('setTechAuto').checked,
     cf_account_id: $('setCfAccountId').value.trim(),
     cf_api_token: $('setCfApiToken').value,
+    ctlogs_api_key: $('setCtlogsApiKey').value,
   };
 }
 
@@ -1719,9 +1891,14 @@ function fmtStr(template, args){
 function renderFindings(findings){
   const ul = el('ul', 'finding-list');
   (findings || []).forEach(f => {
-    const li = el('li');
-    li.appendChild(levelBadge(f.level));
-    li.appendChild(el('span', '', findingText(f)));
+    // Die Stufe trägt jetzt allein der farbige Balken links. Als Plakette
+    // stand sie in jeder einzelnen Zeile und wiederholte damit nur, was die
+    // Farbe schon sagt -- in einer schmalen Karte fraß sie zusätzlich die
+    // halbe Breite. Als Titel bleibt der Klartext erreichbar, damit die
+    // Information nicht rein farblich kodiert ist.
+    const level = f.level || 'info';
+    const li = el('li', 'lvl-' + level, findingText(f));
+    li.title = T['level_' + level] || level;
     ul.appendChild(li);
   });
   return ul;
@@ -3395,7 +3572,25 @@ async function dcCheck(){
 $('dcRun').addEventListener('click', dcCheck);
 $('dcBase').addEventListener('keydown', e => { if (e.key === 'Enter') dcCheck(); });
 
+function dcReset(){
+  $('dcBase').value = '';
+  document.querySelectorAll('.dc-tld').forEach(cb => { cb.checked = false; });
+  $('dcTldSearch').value = '';
+  $('dcTldResults').innerHTML = '';
+  $('dcExtraTlds').value = '';
+  $('dcResult').innerHTML = '';
+}
+$('dcReset').addEventListener('click', dcReset);
+
 // ── HTTP header tab ───────────────────────────────────────────────────────
+
+const statusClass = code => {
+  const n = Number(code) || 0;
+  if (n >= 200 && n < 300) return 'ok';
+  if (n >= 300 && n < 400) return 'info';
+  if (n >= 400) return 'fail';
+  return 'warn';
+};
 
 async function httpCheck(){
   const target = $('httpTarget').value.trim();
@@ -3421,9 +3616,18 @@ async function httpCheck(){
     wrap.appendChild(score);
 
     const badges = el('div', 'row');
+    // Der Statuscode stand bisher nur in der Weiterleitungstabelle -- und die
+    // erscheint erst ab zwei Sprüngen. Bei einer Seite, die direkt mit 200
+    // (oder 503) antwortet, war das Ergebnis der Abfrage nirgends zu sehen.
+    badges.appendChild(el('span', 'badge ' + statusClass(r.final_status),
+      'HTTP ' + r.final_status));
     badges.appendChild(el('span', 'badge ' + (r.https ? 'ok' : 'warn'), r.https ? 'HTTPS' : 'HTTP'));
     badges.appendChild(el('span', 'badge ' + (r.http3_advertised ? 'ok' : 'info'),
       'HTTP/3: ' + (r.http3_advertised ? T.http3_yes : T.http3_no)));
+    // Hat ein Bot-Schutz geantwortet, gehoert das ganz nach oben: alles
+    // Folgende beschreibt dann dessen Pruefseite, nicht die eigentliche Seite.
+    if (r.bot_wall) badges.appendChild(el('span', 'badge info',
+      T.bot_wall_label + ': ' + r.bot_wall));
     wrap.appendChild(badges);
 
     wrap.appendChild(renderFindings(r.findings));
@@ -3455,7 +3659,13 @@ async function httpCheck(){
       const c = el('div', 'subcard');
       const hd = el('h4');
       hd.appendChild(el('span', '', name));
-      hd.appendChild(el('span', 'badge ' + (value ? 'ok' : 'warn'), value ? T.level_ok : T.level_warn));
+      // Fehlt die Kopfzeile hinter einer Bot-Pruefseite, ist sie nicht
+      // gemessen, sondern unmessbar -- "Achtung" waere eine Falschaussage
+      // ueber den Server dahinter.
+      const missingLabel = r.bot_wall ? T.header_not_measurable : T.level_warn;
+      const missingClass = r.bot_wall ? 'info' : 'warn';
+      hd.appendChild(el('span', 'badge ' + (value ? 'ok' : missingClass),
+        value ? T.level_ok : missingLabel));
       c.appendChild(hd);
       if (value) c.appendChild(el('div', 'mono', value));
       grid.appendChild(c);
@@ -3641,6 +3851,10 @@ async function techCheck(){
     badges.appendChild(el('span', 'chip', Math.round(r.bytes / 1024) + ' KB'));
     if (r.redirects) badges.appendChild(el('span', 'chip',
       fmtStr(T.seo_redirects, { count: r.redirects })));
+    // Waechter-Plakette wie in der HTTP-Pruefung: alles Weitere beschreibt
+    // sonst unbemerkt die Pruefseite statt der eigentlichen Seite.
+    if (r.bot_wall) badges.appendChild(el('span', 'badge info',
+      T.bot_wall_label + ': ' + r.bot_wall));
     const used = r.rules_used || {};
     badges.appendChild(el('span', 'chip', used.extra
       ? fmtStr(T.tech_rules_chip_both, { builtin: used.builtin, extra: used.extra })
@@ -3782,6 +3996,56 @@ async function wpCheck(){
 $('wpRun').addEventListener('click', wpCheck);
 $('wpTarget').addEventListener('keydown', e => { if (e.key === 'Enter') wpCheck(); });
 
+// ── Bot-/Crawler-Schutz-Test ─────────────────────────────────────────────────
+
+$('botIdentity').addEventListener('change', () => {
+  $('botCustomRow').hidden = $('botIdentity').value !== 'custom';
+});
+
+async function botCheck(){
+  const target = $('botTarget').value.trim();
+  if (!target) { toast(T.err_empty_target, true); return; }
+  let identity = $('botIdentity').value;
+  if (identity === 'custom') {
+    const ua = $('botCustomUa').value.trim();
+    if (!ua) { toast(T.bot_err_no_custom_ua, true); return; }
+    identity = ua;
+  }
+  const box = $('botResult'); showLoading(box);
+  try {
+    const data = await runProbe('botcheck', { target: target, identity: identity }, target, $('botRun'));
+    box.innerHTML = '';
+    const r = data.result;
+
+    const badges = el('div', 'row');
+    badges.appendChild(levelBadge(r.level));
+    badges.appendChild(el('span', 'chip', String(r.status)));
+    badges.appendChild(el('span', 'chip', r.final_url));
+    if (r.redirects) badges.appendChild(el('span', 'chip',
+      fmtStr(T.seo_redirects, { count: r.redirects })));
+    box.appendChild(badges);
+
+    if (r.title) box.appendChild(el('p', 'mono', r.title));
+    if (r.claims_named_crawler) box.appendChild(el('p', 'hint', T.bot_ip_caveat));
+
+    if (r.detected.length) {
+      r.detected.forEach(d => {
+        const card = el('div', 'subcard');
+        const h = el('h4');
+        h.appendChild(el('span', '', d.name));
+        h.appendChild(el('span', 'badge info', T['bot_cat_' + d.category] || d.category));
+        card.appendChild(h);
+        card.appendChild(el('p', 'hint', fmtStr(T.bot_markers, { markers: d.markers.join(', ') })));
+        box.appendChild(card);
+      });
+    } else {
+      box.appendChild(el('p', 'result-empty', T.bot_none_detected));
+    }
+  } catch (e) { box.innerHTML = ''; box.appendChild(el('p', 'result-empty', errText(e.code))); }
+}
+$('botRun').addEventListener('click', botCheck);
+$('botTarget').addEventListener('keydown', e => { if (e.key === 'Enter') botCheck(); });
+
 // ── SMTP tab ──────────────────────────────────────────────────────────────
 
 async function smtpCheck(){
@@ -3888,7 +4152,8 @@ function updateMonTargetHint(){
   // die Domainliste beim AAAA-Waechter und die Endungen, die gar kein
   // Ablaufdatum veroeffentlichen.
   const probe = $('monProbe').value;
-  const hints = { aaaa_guard: T.monitor_aaaa_hint, whois: T.monitor_whois_hint };
+  const hints = { aaaa_guard: T.monitor_aaaa_hint, whois: T.monitor_whois_hint,
+                  http_status: T.monitor_http_status_hint };
   const hint = hints[probe] || '';
   $('monTargetHint').textContent = hint;
   $('monTargetHint').hidden = !hint;
@@ -3923,7 +4188,8 @@ function cancelEditMonitor(){
 }
 const _monProbeLabel = () => ({ tls: 'SSL/TLS', blacklist: T.nav_blacklist,
   mail_health: T.nav_mail, aaaa_guard: T.monitor_probe_aaaa,
-  whois: T.monitor_probe_whois, http: T.monitor_probe_http, seo: T.monitor_probe_seo });
+  whois: T.monitor_probe_whois, http: T.monitor_probe_http,
+  http_status: T.monitor_probe_http_status, seo: T.monitor_probe_seo });
 
 async function loadMonitors(){
   const box = $('monitorList');
@@ -4068,6 +4334,85 @@ async function secCheck(){
 $('secRun').addEventListener('click', secCheck);
 $('secName').addEventListener('keydown', e => { if (e.key === 'Enter') secCheck(); });
 
+// ── Subdomain-Suche ───────────────────────────────────────────────────────
+// Quelle sind die Certificate-Transparency-Logs: jedes ausgestellte
+// Zertifikat legt seine Namen dort oeffentlich ab. Das findet Hosts, die in
+// keiner Zonendatei mehr auftauchen -- aber eben nur solche, fuer die je ein
+// oeffentliches Zertifikat ausgestellt wurde.
+let subHosts = [];
+
+function subDnsBadge(row){
+  // 'ok' heisst: der Name zeigt gerade irgendwohin. Alles andere wird als
+  // Hinweis eingefaerbt, nicht als Fehler -- ein Name kann absichtlich nur
+  // intern aufloesen (Split-DNS), und darueber sagt die Suche nichts.
+  const state = row.dns || '—';
+  const cls = state === 'ok' ? 'ok' : (state === '—' ? 'info' : 'warn');
+  return el('span', 'badge ' + cls, state);
+}
+
+async function subCheck(){
+  const domain = $('subDomain').value.trim();
+  if (!domain) { toast(T.err_empty_target, true); return; }
+  const box = $('subResult'); showLoading(box);
+  $('subCopy').style.display = 'none';
+  try {
+    const data = await runProbe('subdomains', { domain: domain }, domain, $('subRun'));
+    box.innerHTML = '';
+    const r = data.result;
+    subHosts = (r.hosts || []).map(h => h.host);
+
+    const badges = el('div', 'row');
+    badges.appendChild(el('span', 'badge info', fmtStr(T.sub_badge_hosts, { count: r.count })));
+    badges.appendChild(el('span', 'badge ' + (r.live ? 'ok' : 'info'),
+      fmtStr(T.sub_badge_live, { count: r.live })));
+    if (r.wildcards) badges.appendChild(el('span', 'badge info',
+      fmtStr(T.sub_badge_wildcards, { count: r.wildcards })));
+    badges.appendChild(el('span', 'chip', fmtStr(T.sub_badge_window, { days: r.window_days })));
+    box.appendChild(badges);
+
+    box.appendChild(renderFindings(r.findings));
+
+    if (!r.count) { $('subCopy').style.display = 'none'; return; }
+    const table = el('table');
+    const thead = el('thead');
+    const trh = el('tr');
+    [T.field_host, T.field_certs, T.field_first_seen, T.field_last_seen,
+     T.field_cert_until, T.field_dns_state].forEach(h => trh.appendChild(el('th', '', h)));
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = el('tbody');
+    (r.hosts || []).forEach(row => {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'mono', row.host));
+      tr.appendChild(el('td', '', String(row.certs)));
+      tr.appendChild(el('td', '', row.first_seen || '—'));
+      tr.appendChild(el('td', '', row.last_seen || '—'));
+      tr.appendChild(el('td', '', row.last_not_after || '—'));
+      const td = el('td');
+      td.appendChild(subDnsBadge(row));
+      if (row.a && row.a.length) td.appendChild(el('div', 'mono', row.a.join(', ')));
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    box.appendChild(table);
+    $('subCopy').style.display = '';
+  } catch (e) {
+    box.innerHTML = '';
+    box.appendChild(el('p', 'result-empty', errText(e.code)));
+  }
+}
+
+$('subRun').addEventListener('click', subCheck);
+$('subDomain').addEventListener('keydown', e => { if (e.key === 'Enter') subCheck(); });
+$('subCopy').addEventListener('click', async () => {
+  // Die nackte Namensliste ist das, was man weiterverarbeitet -- in eine
+  // Zonendatei, ein Skript, den naechsten Scan.
+  try {
+    await navigator.clipboard.writeText(subHosts.join('\n'));
+    toast(T.sub_copied);
+  } catch (e) { toast(T.err_generic, true); }
+});
+
 // ── History tab ───────────────────────────────────────────────────────────
 
 async function loadHistory(){
@@ -4101,6 +4446,120 @@ $('historyClear').addEventListener('click', async () => {
   try { await api('/api/history/clear', { method: 'POST' }); loadHistory(); }
   catch (e) { toast(errText(e.code), true); }
 });
+
+// ── Konsole ───────────────────────────────────────────────────────────────
+// Ein Mitschnitt dessen, was das Add-on gerade tut: jede Prüfung mit Ziel,
+// Stufe und Dauer, jeder Monitor-Lauf, jeder Fehlschlag. Mit „Details" auch
+// jede einzelne DNS-Abfrage und jeden HTTP-Abruf -- damit steht in der
+// Oberfläche, wofür man sonst ins Add-on-Protokoll wechseln müsste.
+// Nur für Verwalter, denn der Puffer zeigt die Ziele aller Benutzer.
+(function () {
+  const panel = $('ntConsole');
+  if (!panel) { window.consoleToggle = function () {}; return; }
+  const body = $('consoleBody'), search = $('consoleSearch'), count = $('consoleCount');
+  let open = false, timer = null, lines = [], older = 0, seen = '', term = '';
+  let levels = { ERROR: true, WARNING: true, INFO: true, DEBUG: true };
+  try {
+    const saved = JSON.parse(localStorage.getItem('nt-console-levels') || 'null');
+    if (saved) Object.keys(levels).forEach(l => { if (l in saved) levels[l] = !!saved[l]; });
+  } catch (e) {}
+
+  // Fenster verschieben: der Kopf ist der Griff, gezogen wird auf feste
+  // Koordinaten -- deshalb müssen right/bottom weichen, sonst zerrt die
+  // Ausgangsverankerung dagegen.
+  let drag = false, dx = 0, dy = 0;
+  $('consoleHead').addEventListener('mousedown', ev => {
+    if (ev.target.closest('button')) return;
+    drag = true; dx = ev.clientX - panel.offsetLeft; dy = ev.clientY - panel.offsetTop;
+    ev.preventDefault();
+  });
+  document.addEventListener('mousemove', ev => {
+    if (!drag) return;
+    panel.style.left = Math.max(0, Math.min(ev.clientX - dx, window.innerWidth - panel.offsetWidth)) + 'px';
+    panel.style.top = Math.max(0, Math.min(ev.clientY - dy, window.innerHeight - panel.offsetHeight)) + 'px';
+    panel.style.right = 'auto'; panel.style.bottom = 'auto';
+  });
+  document.addEventListener('mouseup', () => { drag = false; });
+
+  // Die Stufen des Python-Loggings auf die vier Knöpfe abbilden: CRITICAL
+  // läuft unter ERROR mit, alles Unbekannte unter INFO -- sonst verschwände
+  // eine Zeile still, nur weil ihre Stufe keinen eigenen Knopf hat.
+  function group(l) {
+    if (l === 'CRITICAL' || l === 'ERROR') return 'ERROR';
+    if (l === 'WARNING' || l === 'WARN') return 'WARNING';
+    return l === 'DEBUG' ? 'DEBUG' : 'INFO';
+  }
+  function cls(l) {
+    const g = group(l);
+    return g === 'ERROR' ? 'c-error' : g === 'WARNING' ? 'c-warn' : g === 'DEBUG' ? 'c-debug' : 'c-info';
+  }
+  function matches(e) {
+    if (!levels[group(e.level)]) return false;
+    return !term || (e.msg || '').toLowerCase().indexOf(term) >= 0;
+  }
+  function render() {
+    const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+    body.innerHTML = '';
+    if (older > 0) body.appendChild(el('div', 'c-note', fmtStr(T.console_older, { count: older })));
+    let shown = 0;
+    lines.forEach(e => {
+      if (!matches(e)) return;
+      shown++;
+      body.appendChild(el('div', cls(e.level), e.msg));
+    });
+    if (!shown) body.appendChild(el('div', 'c-note', T.console_empty));
+    count.textContent = shown + '/' + lines.length;
+    if (atBottom) body.scrollTop = body.scrollHeight;
+  }
+  async function poll() {
+    try {
+      const d = await api('/api/console?limit=300');
+      const rows = d.lines || [];
+      // Ohne Vergleich baute das Panel den Inhalt alle zwei Sekunden neu auf
+      // und risse dabei Auswahl und Bildlauf mit.
+      const sig = rows.length + ':' + (rows.length ? rows[rows.length - 1].ts : 0);
+      $('consoleDetail').classList.toggle('on', !!d.debug);
+      if (sig === seen) return;
+      seen = sig;
+      lines = rows;
+      older = Math.max(0, (d.total || 0) - rows.length);
+      render();
+    } catch (e) { /* Konsole darf nie die Oberfläche stören */ }
+  }
+  function setOpen(v) {
+    open = v;
+    panel.classList.toggle('open', open);
+    try { localStorage.setItem('nt-console-open', open ? '1' : '0'); } catch (e) {}
+    if (open) { poll(); timer = setInterval(poll, 2000); }
+    else { clearInterval(timer); timer = null; }
+  }
+  window.consoleToggle = function () { setOpen(!open); };
+  try { if (localStorage.getItem('nt-console-open') === '1') setOpen(true); } catch (e) {}
+
+  document.querySelectorAll('#consoleBar button[data-lvl]').forEach(btn => {
+    const lvl = btn.dataset.lvl;
+    btn.classList.toggle('on', !!levels[lvl]);
+    btn.addEventListener('click', () => {
+      levels[lvl] = !levels[lvl];
+      btn.classList.toggle('on', levels[lvl]);
+      try { localStorage.setItem('nt-console-levels', JSON.stringify(levels)); } catch (e) {}
+      render();
+    });
+  });
+  search.addEventListener('input', () => { term = search.value.trim().toLowerCase(); render(); });
+  $('consoleDetail').addEventListener('click', async () => {
+    const want = !$('consoleDetail').classList.contains('on');
+    try {
+      const d = await api('/api/console/level', { method: 'POST', body: { debug: want } });
+      $('consoleDetail').classList.toggle('on', !!d.debug);
+      seen = ''; poll();
+    } catch (e) { toast(errText(e.code), true); }
+  });
+  $('consoleClear').addEventListener('click', async () => {
+    try { await api('/api/console/clear', { method: 'POST' }); seen = ''; poll(); }
+    catch (e) { toast(errText(e.code), true); }
+  });
+})();
 
 loadStatus();
 setInterval(loadStatus, 30000);

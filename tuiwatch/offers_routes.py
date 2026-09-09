@@ -4,6 +4,7 @@ ausgelagert aus app.py
 spätem Attribut-Zugriff (monkeypatch-sicher, zyklenfrei).
 """
 import csv
+import hashlib
 import io
 import json
 import os
@@ -32,11 +33,27 @@ def api_offers():
     # `busy`: Klartext-Labels laufender Hintergrund-Aufgaben — das UI färbt damit das
     # Logo. Bewusst hier angehängt statt als eigener Endpunkt: die Liste wird ohnehin
     # alle 5 s geholt, das spart einen zweiten Poll-Timer.
-    return jsonify({'offers': A._collect_offers(), 'busy': A.busy_labels(),
-                    # `issues`: Zahl + Dringlichkeit der offenen Stoerungen fuer das
-                    # Ausrufezeichen neben dem Logo -- aus demselben Grund hier
-                    # angehaengt wie `busy`.
-                    'issues': issues.summary()})
+    payload = {'offers': A._collect_offers(), 'busy': A.busy_labels(),
+               # `issues`: Zahl + Dringlichkeit der offenen Stoerungen fuer das
+               # Ausrufezeichen neben dem Logo -- aus demselben Grund hier
+               # angehaengt wie `busy`.
+               'issues': issues.summary()}
+    # ETag: die Liste wird alle 5 s geholt, aendert sich aber nur, wenn eine
+    # Pruefrunde etwas Neues gefunden hat — im Normalfall also selten. Kennt der
+    # Browser den Stand schon, geht ein 304 ohne Rumpf zurueck: kein Uebertragen,
+    # kein Parsen. Ueber einen Tunnel oder mobil ist das der spuerbare Teil.
+    body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
+    etag = '"%s"' % hashlib.sha256(body.encode('utf-8')).hexdigest()[:32]
+    if request.headers.get('If-None-Match') == etag:
+        resp = make_response('', 304)
+    else:
+        resp = make_response(body, 200)
+        resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+    resp.headers['ETag'] = etag
+    # no-cache heisst nicht "nicht speichern", sondern "vor dem Ausliefern immer
+    # rueckfragen" — genau das, was der ETag-Vergleich braucht.
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
 
 
 def _normalize_tags(raw) -> list[str]:
@@ -472,6 +489,10 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
+        # Historie weg -> es gibt keine letzte Kalender-Bewegung mehr (Spalte, siehe
+        # _calendar_last_move_ts); sonst blinkte der Kalender-Knopf weiter.
+        con.execute('UPDATE offers SET calendar_last_move_ts=0 WHERE id=?', (offer_id,))
+    A._stats_cache_drop(offer_id)      # Preisverlauf ist weg, Statistik ungueltig
     A._log_event(offer_id, 'reset', 'Tracking zurückgesetzt')
     with A._compare_lock:
         A._compare_state.pop(offer_id, None)

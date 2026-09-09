@@ -1,0 +1,40 @@
+  # KI-Bot-Stufe "aggressiv": blockt (DENY, kein Challenge-Versuch nötig)
+  # jeden bekannten KI/LLM-Client vollständig — auch dokumentierte
+  # On-Demand-Abrufe, bei denen ein Mensch z.B. ChatGPT bittet "fass die
+  # Seite zusammen" (der Abruf schlägt dann ebenfalls fehl).
+  # Quelle: https://github.com/TecharoHQ/anubis/blob/main/data/meta/ai-block-aggressive.yaml
+  # Extensive list of AI-affiliated agents based on https://github.com/ai-robots-txt/ai.robots.txt
+  # Add new/undocumented agents here. Where documentation exists, consider moving to dedicated policy files.
+  # Notes on various agents:
+  #  - Amazonbot: Well documented, but they refuse to state which agent collects training data.
+  #  - anthropic-ai/Claude-Web: Undocumented by Anthropic. Possibly deprecated or hallucinations?
+  #  - Perplexity*: Well documented, but they refuse to state which agent collects training data.
+  # Warning: May contain user agents that _must_ be blocked in robots.txt, or the opt-out will have no effect.
+  - name: "ai-catchall"
+    user_agent_regex: >-
+      AI2Bot|Ai2Bot-Dolma|aiHitBot|Amazonbot|anthropic-ai|Brightbot 1.0|Bytespider|Claude-Web|cohere-ai|cohere-training-data-crawler|Cotoyogi|Crawlspace|Diffbot|DuckAssistBot|FacebookBot|Factset_spyderbot|FirecrawlAgent|FriendlyCrawler|Google-CloudVertexBot|GoogleOther|GoogleOther-Image|GoogleOther-Video|iaskspider/2.0|ICC-Crawler|ImagesiftBot|img2dataset|imgproxy|ISSCyberRiskCrawler|Kangaroo Bot|meta-externalagent|Meta-ExternalAgent|meta-externalfetcher|Meta-ExternalFetcher|NovaAct|omgili|omgilibot|Operator|PanguBot|Perplexity-User|PerplexityBot|PetalBot|QualifiedBot|Scrapy|SemrushBot-OCOB|SemrushBot-SWA|Sidetrade indexer bot|TikTokSpider|Timpibot|VelenPublicWebCrawler|Webzio-Extended|wpbot|YouBot
+    action: DENY
+  # User agents that act on behalf of humans in AI tools, e.g. searching the web.
+  # Each entry should have a positive/ALLOW entry created as well, with further documentation.
+  # Exceptions:
+  #  - Claude-User: No published IP allowlist
+  - name: "ai-clients"
+    user_agent_regex: >-
+      ChatGPT-User|Claude-User|MistralAI-User|Perplexity-User
+    action: DENY
+  # User agents that index exclusively for search in for AI systems.
+  # Each entry should have a positive/ALLOW entry created as well, with further documentation.
+  # Exceptions:
+  #  - Claude-SearchBot: No published IP allowlist
+  - name: "ai-crawlers-search"
+    user_agent_regex: >-
+      OAI-SearchBot|Claude-SearchBot|PerplexityBot|meta-webindexer
+    action: DENY
+  # User agents that crawl for training AI/LLM systems
+  # Each entry should have a positive/ALLOW entry created as well, with further documentation.
+  # Exceptions:
+  #  - ClaudeBot: No published IP allowlist
+  - name: "ai-crawlers-training"
+    user_agent_regex: >-
+      GPTBot|ClaudeBot
+    action: DENY

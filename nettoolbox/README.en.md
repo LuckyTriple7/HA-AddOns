@@ -14,6 +14,10 @@ about your domains leaves your own infrastructure.
 
 - **DNS** — every common record type (including CNAME and SRV at the apex), all standard types
   in one pass, TXT, SOA with a name-server sync check
+- **Subdomain search** — every name under a domain that ever appeared in a public
+  certificate (Certificate Transparency), with certificate count, time range and live
+  resolution per name; finds hosts switched off long ago. Works without signing up, an
+  optional free API key can be stored.
 - **Record generators** — build SPF, DMARC, DKIM, MTA-STS and TLS-RPT records straight from
   input fields, no network lookup and no daily quota. DKIM can generate a fresh 2048-bit RSA key
   pair in the browser's backend on request — the private key is shown once and never stored.
@@ -44,6 +48,11 @@ about your domains leaves your own infrastructure.
   Account ID + API token in Settings (read-only permission is enough) make it more reliable and
   add the price
 - **HTTP headers** — redirect chain, security headers, HTTP/3 advertisement (Alt-Svc)
+- **Bot/crawler protection test** — fetches a page under a chosen identity (default, browser for
+  comparison, Googlebot, Bingbot, GPTBot, ClaudeBot, CCBot, custom User-Agent) and checks the
+  response against known protection systems: Anubis (proof-of-work, confirmed live against its
+  own reference deployment), Cloudflare's JS challenge, plus a few well-known WAF block pages. No
+  browser, no solving the challenge — sees exactly what a real crawler would too
 - **SEO check** — title, description, headings, canonical, Open Graph, JSON-LD, images
   without alt text, robots.txt, sitemap, mixed content — with its own 0–100 score
 - **Technology detection** — what a site is built with: CMS, shop, framework, JavaScript and
@@ -101,6 +110,10 @@ about your domains leaves your own infrastructure.
   every block and/or every successful login, each event choosing email and/or Telegram
   (Settings → *Login*). The message names the address that was used and the caller's IP.
   None of this applies behind Ingress — Home Assistant authenticates there itself.
+- **Console** (terminal icon in the header, admins only) — a live view of what the
+  add-on is doing: every check with its target, level and duration, every monitor run,
+  every failure. The *Details* switch adds every DNS query and every HTTP fetch on top —
+  no restart needed, for debugging a running add-on.
 - History, rate limiting, dark/light · DE/EN · HA Ingress
 
 ## Quick start

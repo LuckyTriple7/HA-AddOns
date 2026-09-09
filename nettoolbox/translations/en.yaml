@@ -58,7 +58,10 @@ configuration:
     description: How many past probes are kept in the history. 0 disables history.
   verbose_log:
     name: Verbose logging
-    description: Writes extra lines to the add-on log. For troubleshooting only.
+    description: >-
+      Writes extra lines (every DNS query, every HTTP fetch) to the add-on log and to the
+      console in the web interface. For troubleshooting only. The console can switch this
+      on without a restart, in which case it lasts until the next start.
   monitoring_enabled:
     name: Monitoring active
     description: >-

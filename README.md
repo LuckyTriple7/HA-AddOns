@@ -108,6 +108,7 @@ Vollständiger XFCE-Desktop im Webbrowser, direkt in Home Assistant integriert.
 - KasmVNC-Streaming (CPU-effizient, delta-basiert)
 - Systemsprache Deutsch (de_DE.UTF-8)
 - Firefox, Thunderbird, Geany, VLC, Thunar mit SMB-Netzwerkzugriff und mehr
+- Tailscale-VPN-Client für den Zugriff auf eigene Server im Tailnet
 - Persistente Konfiguration über Updates hinweg
 
 | | |
@@ -341,6 +342,8 @@ Proof-of-Work-Bot-Challenge — vorgeschaltet vor einen Reverse Proxy, um automa
 
 - Reine Engine ohne eigene Oberfläche, ohne Ingress, ohne veröffentlichten Port
 - Mitgelieferte, eigenständige Policy ohne externe Importe — challenged jeden Client ohne gültiges Auth-Cookie
+- Google, Bing, DuckDuckGo & weitere Suchmaschinen sowie UptimeRobot/updown.io standardmäßig ausgenommen (per IP+User-Agent verifiziert)
+- KI-Bot-Stufe `ai_bot_policy` (aus/aggressiv/moderat/permissiv) und eigene vertrauenswürdige IP-Bereiche als Optionen
 - Fertig verdrahtet mit dem NPMplus-Add-on dieses Repos über `AUTH_REQUEST_ANUBIS_UPSTREAM`
 - Policy frei editierbar unter `/data/policy.yaml`
 
@@ -464,6 +467,7 @@ Full XFCE desktop in the browser, directly integrated into Home Assistant.
 - KasmVNC streaming (CPU-efficient, delta-based)
 - System language German (de_DE.UTF-8)
 - Firefox, Thunderbird, Geany, VLC, Thunar with SMB network access and more
+- Tailscale VPN client for reaching your own servers on the tailnet
 - Persistent configuration across updates
 
 | | |
@@ -697,6 +701,8 @@ Proof-of-work bot challenge — placed in front of a reverse proxy to slow down 
 
 - A bare engine with no UI of its own, no Ingress, no published port
 - Ships a self-contained policy with no external imports — challenges any client without a valid auth cookie
+- Google, Bing, DuckDuckGo & other search engines, plus UptimeRobot/updown.io, exempted by default (verified via IP+user agent)
+- AI bot tier `ai_bot_policy` (off/aggressive/moderate/permissive) and your own trusted IP ranges as options
 - Pre-wired for this repo's NPMplus add-on via `AUTH_REQUEST_ANUBIS_UPSTREAM`
 - Policy freely editable at `/data/policy.yaml`
 

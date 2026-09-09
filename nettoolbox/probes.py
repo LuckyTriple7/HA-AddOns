@@ -17,10 +17,12 @@ import netutils
 import nettech
 import portcheck
 import quiccheck
+import botcheck
 import domaincheck
 import ianatlds
 import seocheck
 import smtpcheck
+import subdomains
 import tlscheck
 import tlsextra
 import wpcheck
@@ -301,8 +303,17 @@ def p_whois(ctx: Context, params: dict) -> dict:
     return domaininfo.check_domain(ctx, _str(params, 'domain'))
 
 
+def p_subdomains(ctx: Context, params: dict) -> dict:
+    """Namen unter einer Domain aus den Certificate-Transparency-Logs."""
+    return subdomains.check_subdomains(ctx, clean_domain(_str(params, 'domain')))
+
+
 def p_http(ctx: Context, params: dict) -> dict:
     return httpcheck.check_http(ctx, _str(params, 'target'))
+
+
+def p_http_status(ctx: Context, params: dict) -> dict:
+    return httpcheck.check_http_status(ctx, _str(params, 'target'))
 
 
 def p_smtp(ctx: Context, params: dict) -> dict:
@@ -332,6 +343,11 @@ def p_tech(ctx: Context, params: dict) -> dict:
 
 def p_wordpress(ctx: Context, params: dict) -> dict:
     return wpcheck.check_wordpress(ctx, _str(params, 'target'))
+
+
+def p_botcheck(ctx: Context, params: dict) -> dict:
+    identity = _str(params, 'identity') or 'default'
+    return botcheck.check_bot_protection(ctx, _str(params, 'target'), identity)
 
 
 def p_domain_check(ctx: Context, params: dict) -> dict:
@@ -406,6 +422,7 @@ PROBES = {
     'aaaa_guard': p_aaaa_guard,
     'propagation': p_propagation,
     'dnssec': p_dnssec,
+    'subdomains': p_subdomains,
     'txt': p_txt,
     'soa': p_soa,
     'mx': p_mx,
@@ -414,11 +431,13 @@ PROBES = {
     'dane': p_dane,
     'whois': p_whois,
     'http': p_http,
+    'http_status': p_http_status,
     'smtp': p_smtp,
     'quic': p_quic,
     'seo': p_seo,
     'tech': p_tech,
     'wordpress': p_wordpress,
+    'botcheck': p_botcheck,
     'domain_check': p_domain_check,
     'mailheader': p_mailheader,
     'ping': p_ping,
@@ -440,8 +459,9 @@ TARGET_KIND = {
     'dns': 'name', 'dns_all': 'name', 'propagation': 'name', 'dnssec': 'name',
     'txt': 'name', 'soa': 'name', 'reverse': 'ip', 'aaaa_guard': 'domains', 'mx': 'domain',
     'blacklist': 'ip', 'tls': 'target', 'dane': 'domain', 'whois': 'domain',
-    'http': 'target', 'smtp': 'target', 'quic': 'target',
-    'seo': 'target', 'tech': 'target', 'wordpress': 'target',
+    'subdomains': 'domain',
+    'http': 'target', 'http_status': 'target', 'smtp': 'target', 'quic': 'target',
+    'seo': 'target', 'tech': 'target', 'wordpress': 'target', 'botcheck': 'target',
     'domain_check': 'domains', 'mailheader': 'text',
     'ping': 'ip', 'traceroute': 'ip', 'ipinfo': 'ip',
     'ports': 'target', 'dualstack': 'target',

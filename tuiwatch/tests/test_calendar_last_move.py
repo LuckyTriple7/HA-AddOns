@@ -1,10 +1,14 @@
-"""Tests für `_calendar_last_move_ts`: ein Query für ALLE Angebote statt eines
-`_calendar_moves()` je Angebot in `_collect_offers`.
+"""Tests für `_calendar_last_move_ts`: der Zeitpunkt der letzten echten
+Kalender-Bewegung kommt aus der mitgepflegten Spalte `offers.calendar_last_move_ts`.
 
-`/api/offers` wird von jedem offenen Browser alle 5 s geholt und brauchte davon
-nur `max(ts)` — holte dafür aber sämtliche `calendar_history`-Zeilen jedes
-Angebots nach Python. Die Tests halten fest, dass die neue Abfrage exakt dasselbe
-Ergebnis liefert und das `calendar_alert`-Flag unverändert funktioniert.
+`/api/offers` wird von jedem offenen Browser alle 5 s geholt und aggregierte den
+Wert früher aus der kompletten `calendar_history` — ein Scan über die am
+schnellsten wachsende Tabelle (gemessen 43 von 68 ms). Geschrieben wird die Spalte
+in `_store_calendar_snapshot()`, neu gerechnet nur dort, wo Historienzeilen an ihm
+vorbei entstehen: Migration, Restore, Zurücksetzen (`_recalc_last_move_ts`).
+
+Die Tests halten fest, dass das Ergebnis dem alten Vollscan entspricht und das
+`calendar_alert`-Flag unverändert funktioniert.
 """
 import importlib
 import time
@@ -12,6 +16,8 @@ import time
 import pytest
 
 pytest.importorskip("flask")
+
+ING = {"X-Ingress-Path": "/test"}
 
 
 @pytest.fixture
@@ -56,6 +62,7 @@ def test_gleiches_ergebnis_wie_calendar_moves(m):
                        ("2027-05-02", 1100, 520), ("2027-05-02", 1500, 511),
                        ("2027-05-03", 1900, 400)])     # nur Baseline -> zählt nicht
         _hist(con, b, [("2027-06-01", 900, 700)])      # nur Baseline
+        m._recalc_last_move_ts(con)                    # Zeilen kamen direkt rein
     with m.db() as con:
         neu = m._calendar_last_move_ts(con)
         for oid in (a, b, c):
@@ -65,12 +72,15 @@ def test_gleiches_ergebnis_wie_calendar_moves(m):
     assert b not in neu and c not in neu
 
 
-def test_ein_query_fuer_alle_angebote(m):
-    """Der eigentliche Punkt: die Kosten hängen nicht mehr an der Angebotszahl."""
+def test_ein_query_ohne_historien_scan(m):
+    """Der eigentliche Punkt: gelesen wird die offers-Tabelle, nicht die Historie —
+    ein Query, und seine Kosten hängen weder an der Angebotszahl noch an der
+    Größe von `calendar_history`."""
     ids = [_add_offer(m, f"https://example.invalid/{i}") for i in range(5)]
     with m.db() as con:
         for n, oid in enumerate(ids):
             _hist(con, oid, [("2027-05-01", 1000, 500), ("2027-05-01", 2000 + n, 480)])
+        m._recalc_last_move_ts(con)
     with m.db() as con:
         calls = []
         orig = con.execute
@@ -81,7 +91,46 @@ def test_ein_query_fuer_alle_angebote(m):
                 return orig(sql, *a)
         neu = m._calendar_last_move_ts(Counting())
     assert len(calls) == 1
+    assert "calendar_history" not in calls[0]
     assert neu == {oid: 2000 + n for n, oid in enumerate(ids)}
+
+
+def test_snapshot_pflegt_spalte_ohne_recalc(m):
+    """Im Normalbetrieb schreibt `_store_calendar_snapshot()` die Spalte selbst —
+    ohne dass irgendwo neu gerechnet werden muss."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/pflege")
+
+    def cal(preis):
+        return {"ok": True, "days": [{"date": "2027-05-01", "price": preis}]}
+
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, cal(500))       # Baseline
+        assert m._calendar_last_move_ts(con) == {}            # noch keine Bewegung
+        pc._store_calendar_snapshot(con, oid, cal(540))       # echte Änderung
+        gepflegt = m._calendar_last_move_ts(con)
+        assert oid in gepflegt
+        # …und deckt sich mit dem, was der teure Weg errechnen würde.
+        m._recalc_last_move_ts(con)
+        assert m._calendar_last_move_ts(con) == gepflegt
+
+
+def test_zuruecksetzen_loescht_die_spalte(m):
+    """Nach dem Zurücksetzen ist die Historie weg — dann darf auch kein
+    Kalender-Signal mehr anstehen."""
+    import price_calendar as pc
+    oid = _add_offer(m, "https://example.invalid/reset")
+
+    def cal(preis):
+        return {"ok": True, "days": [{"date": "2027-05-01", "price": preis}]}
+
+    with m.db() as con:
+        pc._store_calendar_snapshot(con, oid, cal(500))
+        pc._store_calendar_snapshot(con, oid, cal(560))
+    r = m.app.test_client().post(f"/api/reset/{oid}", headers=ING)
+    assert r.status_code == 200
+    with m.db() as con:
+        assert m._calendar_last_move_ts(con) == {}
 
 
 def test_calendar_alert_in_collect_offers(m):
@@ -90,6 +139,7 @@ def test_calendar_alert_in_collect_offers(m):
     oid = _add_offer(m, "https://example.invalid/alert")
     with m.db() as con:
         _hist(con, oid, [("2027-05-01", 1000, 500), ("2027-05-01", 2000, 480)])
+        m._recalc_last_move_ts(con)          # Zeilen kamen direkt in die Historie
         con.execute("UPDATE offers SET calendar_seen_ts=? WHERE id=?", (1500, oid))
     assert next(o for o in m._collect_offers() if o["id"] == oid)["calendar_alert"] is True
 
