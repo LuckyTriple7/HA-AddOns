@@ -913,6 +913,15 @@
     .aktion-code { font-family:monospace; font-size:var(--fs-md); color:var(--text); margin-top:2px; }
     .aktion-kind { font-size:var(--fs-xs); color:var(--muted); margin-top:2px; }
     .aktion-ctx { font-size:var(--fs-sm); color:var(--muted); margin-bottom:10px; }
+    .aktion-hist-h { font-size:var(--fs-sm); font-weight:700; color:var(--text); margin:16px 0 6px; }
+    .aktion-hist { display:flex; flex-direction:column; gap:4px; }
+    .aktion-hrow { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+      padding:6px 10px; border:1px solid var(--border); border-radius:var(--r-card);
+      background:var(--surf); font-size:var(--fs-sm); }
+    .aktion-hrow.is-running { border-left:3px solid var(--green); }
+    .aktion-hval { font-weight:700; color:var(--text); min-width:64px; }
+    .aktion-hcode { font-family:monospace; color:var(--muted); }
+    .aktion-hspan { color:var(--muted); margin-left:auto; white-space:nowrap; }
     .trips-stats .tstat .v { font-size:var(--fs-lg); font-weight:700; color:var(--text); }
     .trips-stats .tstat .l { font-size:var(--fs-xs); color:var(--muted); }
     .trips-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--border); border-radius:var(--r-card); padding:12px; margin-bottom:14px; background:var(--bg); transition:border-color .15s,background .15s; }
@@ -1947,7 +1956,8 @@
         <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>TUI-Aktionscodes</h2>
-      <div class="sub">Aktuelle öffentliche Aktionscodes von tui.com — ohne Login. Bei neuen Codes wirst du benachrichtigt.</div>
+      <div class="sub">Aktuelle öffentliche Aktionscodes von tui.com — ohne Login. Bei neuen Codes wirst du benachrichtigt.
+        Darunter der Verlauf: welche Aktion wann lief (z.&nbsp;B. 300&nbsp;€ vom 10.08. bis 17.08.).</div>
       <div id="aktion-body"></div>
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" id="aktion-when" style="flex:1;min-width:180px"></span>

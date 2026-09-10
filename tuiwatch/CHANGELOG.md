@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.113.29
+
+- 🎟 **Aktionscodes haben jetzt eine Historie.** Bisher zeigte das Fenster nur, was gerade läuft — war eine Aktion vorbei, war sie spurlos weg. Neu steht unter den aktuellen Codes der **Verlauf**: je Aktionszeitraum eine Zeile mit Wert, Code und Laufzeit, z. B. „300 € · ACMYTUI30020260810 · 10.08. bis 17.08. · 8 Tg.". Laufende Aktionen stehen mit „seit 10.09. — läuft" und grüner Kante obenauf.
+- 🗓️ **Beginn und Ende sind beobachtete Werte**, keine von TUI verkündeten: Beginn = erste Sichtung, Ende = letzte Sichtung vor dem Verschwinden (nicht der Zeitpunkt, an dem TUIWatch das Fehlen bemerkt hat — sonst würde jede Aktion um bis zu ein Prüfintervall zu lang erscheinen). Das Jahr wird nur angezeigt, wenn es nicht das laufende ist.
+- 🔁 **Wiederkehrende Aktionen bekommen eine neue Zeile** statt die alte zu überschreiben. „300 €" im August und „300 €" im November stehen damit getrennt da — vorher hielt die Datenbank je Wert nur den letzten Zeitraum.
+- 📦 **Der bisherige Stand wird übernommen:** die bereits gespeicherten Erst-/Letzt-Sichtungen aus `aktionscode_state` wandern beim ersten Start in die neue Tabelle `aktionscode_history`. Für jeden Code ist also der zuletzt beobachtete Zeitraum sofort da, nicht erst ab heute.
+- 💾 **Die Historie wandert ins Backup** (Formatversion **9**, Feld `aktionscodes`): sie entsteht nur durch monatelanges Zusehen und ist nirgends nachträglich abrufbar — ein Backup ohne sie wäre nach einer Neuinstallation ein Verlust. Restore fügt nur fehlende Zeiträume ein (Abgleich über Code-Schlüssel + Beginn), ältere Backups ohne das Feld gehen weiterhin.
+- 🔌 `GET /api/aktionscodes` liefert die Historie als Feld `history` mit (`start_ts`, `last_seen`, `end_ts`, `running`) — bis zu 60 Zeiträume, neueste zuerst.
+- ✅ 2 neue Tests (Zeitraum öffnen/verlängern/schließen samt Wiederkehr, Übernahme aus der alten Tabelle) plus ein Durchlauf im Browser mit einer laufenden, einer im August beendeten und einer 2025er Aktion.
+
 ## 0.113.28
 
 - ⚙️ **Der Einstellungen-Dialog ist neu aufgebaut.** Vorher standen 67 Optionen mit ihren 67 Erklärtexten untereinander: **7.420 Pixel Scrollstrecke**, über acht Bildschirmhöhen am Stück, ohne Suche und ohne Sprungziel — der Speichern-Knopf lag ganz am Ende. Jetzt sind es je Kategorie **rund 600 bis 800 Pixel**.

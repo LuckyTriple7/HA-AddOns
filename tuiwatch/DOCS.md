@@ -824,6 +824,11 @@ tui.com (`/aktionscode/`) — **ohne Login** — und benachrichtigt dich bei **n
   prüfen"** im Aktionscode-Fenster.
 - **Alarm:** nur bei **neu erschienenen** Codes (Dedup nach Wert, damit der tägliche
   Datumswechsel im Code kein Spam auslöst; eine später wiederkehrende Aktion meldet erneut).
+- **Verlauf:** unter den aktuellen Codes steht die **Historie** — je Aktionszeitraum eine
+  Zeile mit Wert, Code und Laufzeit („300 € · 10.08. bis 17.08. · 8 Tg."), laufende Aktionen
+  mit „seit …". Grundlage ist die eigene Beobachtung: Beginn = erste Sichtung, Ende = letzte
+  Sichtung. Läuft das Add-on zwischendurch nicht, ist der Zeitraum entsprechend ungenau.
+  Kommt dieselbe Aktion später wieder, entsteht eine **neue** Zeile; alte bleiben erhalten.
 - **Optionen:** `notify_aktionscodes` (Alarm an/aus), `aktionscode_min` (nur ab diesem
   Wert melden, Standard 0 = alle), `aktionscode_interval` (Prüfintervall in Sekunden).
 
@@ -1211,7 +1216,7 @@ landen dauerhaft im **KI-Verlauf**.
   öffnet den KI-Verlauf. Gedacht für die gründlichen Perplexity-Stufen, die
   minutenlang recherchieren — man sieht so auch dann, dass noch etwas läuft, wenn
   man das KI-Fenster zwischenzeitlich geschlossen hat.
-- **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP** (Formatversion 8).
+- **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP** (Formatversion 9).
   Enthalten ist alles, was du selbst angelegt oder was TUIWatch dauerhaft erhoben hat:
 
   - alle getrackten **Angebote inkl. Preisverlauf** (mit **Preis-Split** Hotel/Hin-/
@@ -1231,6 +1236,8 @@ landen dauerhaft im **KI-Verlauf**.
   - die **Markttrend-Datenpunkte** samt der **Barometer-Tagesbewegungen** (überleben so
     einen Umzug auf ein anderes Add-on, auch wenn die ursprünglichen Angebote dort nicht
     mehr existieren).
+  - die **Aktionscode-Historie** (welche Aktion wann lief) — sie entsteht nur durch
+    die eigene Beobachtung über Monate und lässt sich nirgends nachträglich abrufen.
 
   **Bewusst nicht gesichert** — alles, was sich beim nächsten Abruf von selbst wieder
   füllt: Vergleichs-, Kalender- und Nächte-Cache, die Roh-Snapshots der

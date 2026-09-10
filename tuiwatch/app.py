@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.28"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.29"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -781,6 +781,35 @@ def init_db() -> None:
             first_seen INTEGER NOT NULL,
             last_seen  INTEGER NOT NULL
         )''')
+        # Historie der Aktionen: je Zeitraum eine Zeile ("300 € vom 10.08. bis 17.08.").
+        # start_ts = erstmals gesehen, last_seen = zuletzt gesehen, end_ts = gesetzt,
+        # sobald der Code weg ist (NULL = laeuft noch). Ein wiederkehrender Code
+        # bekommt eine neue Zeile, damit vergangene Aktionen erhalten bleiben.
+        con.execute('''CREATE TABLE IF NOT EXISTS aktionscode_history (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            ckey          TEXT NOT NULL,
+            code          TEXT NOT NULL DEFAULT '',
+            value         INTEGER,
+            kind          TEXT NOT NULL DEFAULT '',
+            start_ts      INTEGER NOT NULL,
+            last_seen     INTEGER NOT NULL,
+            end_ts        INTEGER,
+            booking_until TEXT NOT NULL DEFAULT '',
+            travel_period TEXT NOT NULL DEFAULT ''
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_akhist_ckey '
+                    'ON aktionscode_history(ckey, end_ts)')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_akhist_start '
+                    'ON aktionscode_history(start_ts)')
+        # Einmalige Uebernahme aus aktionscode_state: bis 0.113.29 gab es nur den
+        # letzten Zeitraum je Code. Der geht so wenigstens nicht verloren.
+        if not con.execute('SELECT 1 FROM aktionscode_history LIMIT 1').fetchone():
+            con.execute("""INSERT INTO aktionscode_history
+                    (ckey, code, value, kind, start_ts, last_seen, end_ts)
+                 SELECT ckey, COALESCE(code, ''), value, COALESCE(kind, ''),
+                        first_seen, last_seen,
+                        CASE WHEN active=1 THEN NULL ELSE last_seen END
+                   FROM aktionscode_state""")
         # Gespeicherte Suchen (Favoriten) — in der DB statt im Browser, damit sie
         # geräteübergreifend verfügbar sind. payload = JSON der Sucheingaben.
         con.execute('''CREATE TABLE IF NOT EXISTS saved_searches (
@@ -2613,10 +2642,15 @@ def _check24_payload(offer_id: int) -> dict:
 
 # ── TUI-Aktionscodes (öffentlich, ohne Login) ───────────────────────────────────
 
-def _store_aktionscodes(codes: list, ts: int) -> list:
+def _store_aktionscodes(codes: list, ts: int, info: dict | None = None) -> list:
     """Codes (nach Wert+Art) in aktionscode_state ablegen und die **neu erschienenen**
     zurückgeben. „Neu" = vorher nicht aktiv — deckt den täglichen Datumswechsel im Code ab
-    und meldet erneut, wenn eine beendete Aktion später wiederkommt. Ohne Netz testbar."""
+    und meldet erneut, wenn eine beendete Aktion später wiederkommt. Ohne Netz testbar.
+
+    Parallel wächst `aktionscode_history`: je Aktionszeitraum eine Zeile mit Beginn,
+    letztem Sichtungszeitpunkt und Ende — so bleibt „300 € vom 10.08. bis 17.08."
+    erhalten, auch wenn dieselbe Aktion später mit neuem Datum wiederkommt."""
+    info = info or {}
     keys_now, new = set(), []
     with db() as con:
         for c in codes:
@@ -2636,11 +2670,47 @@ def _store_aktionscodes(codes: list, ts: int) -> list:
             else:
                 con.execute('UPDATE aktionscode_state SET code=?, last_seen=? WHERE ckey=?',
                             (c.get('code') or '', ts, key))
+            # Historie: laufenden Zeitraum verlängern oder einen neuen beginnen
+            open_row = con.execute('SELECT id FROM aktionscode_history WHERE ckey=? '
+                                   'AND end_ts IS NULL ORDER BY start_ts DESC LIMIT 1',
+                                   (key,)).fetchone()
+            if open_row is None:
+                con.execute('INSERT INTO aktionscode_history (ckey, code, value, kind, '
+                            'start_ts, last_seen, booking_until, travel_period) '
+                            'VALUES (?,?,?,?,?,?,?,?)',
+                            (key, c.get('code') or '', c.get('value'), c.get('kind') or '',
+                             ts, ts, info.get('booking_until') or '',
+                             info.get('travel_period') or ''))
+            else:
+                con.execute('UPDATE aktionscode_history SET code=?, last_seen=?, '
+                            'booking_until=COALESCE(NULLIF(?, \'\'), booking_until), '
+                            'travel_period=COALESCE(NULLIF(?, \'\'), travel_period) '
+                            'WHERE id=?',
+                            (c.get('code') or '', ts, info.get('booking_until') or '',
+                             info.get('travel_period') or '', open_row['id']))
         # nicht mehr vorhandene Aktionen inaktiv setzen → später erneut meldbar
         for r in con.execute('SELECT ckey FROM aktionscode_state WHERE active=1').fetchall():
             if r['ckey'] not in keys_now:
                 con.execute('UPDATE aktionscode_state SET active=0 WHERE ckey=?', (r['ckey'],))
+        # ... und den zugehörigen Zeitraum in der Historie abschließen
+        con.execute('UPDATE aktionscode_history SET end_ts=last_seen WHERE end_ts IS NULL '
+                    'AND ckey NOT IN (SELECT ckey FROM aktionscode_state WHERE active=1)')
     return new
+
+
+def _aktionscodes_history(limit: int = 60) -> list:
+    """Vergangene und laufende Aktionszeiträume, neueste zuerst.
+    running=True, solange der Code aktuell noch angezeigt wird."""
+    with db() as con:
+        rows = con.execute('SELECT code, value, kind, start_ts, last_seen, end_ts, '
+                           'booking_until, travel_period FROM aktionscode_history '
+                           'ORDER BY start_ts DESC, id DESC LIMIT ?',
+                           (max(1, min(500, int(limit or 60))),)).fetchall()
+    return [{'code': r['code'], 'value': r['value'], 'kind': r['kind'],
+             'start_ts': r['start_ts'], 'last_seen': r['last_seen'],
+             'end_ts': r['end_ts'], 'running': r['end_ts'] is None,
+             'booking_until': r['booking_until'], 'travel_period': r['travel_period']}
+            for r in rows]
 
 
 def _push_aktionscodes_sensor(codes: list, info: dict) -> None:
@@ -2710,7 +2780,7 @@ def _run_aktionscodes() -> None:
             'travel_period': res.get('travel_period', '')}
     _meta_set('aktion_last', json.dumps({'ts': ts, 'codes': codes, **info}, ensure_ascii=False))
     _push_aktionscodes_sensor(codes, info)
-    new = _store_aktionscodes(codes, ts)
+    new = _store_aktionscodes(codes, ts, info)
     if new and cfg.get('notify_aktionscodes', True):
         try:
             _notify_aktionscodes(new, info)
@@ -2769,6 +2839,7 @@ def _aktionscodes_payload() -> dict:
         'codes': last.get('codes') or [],
         'booking_until': last.get('booking_until', ''),
         'travel_period': last.get('travel_period', ''),
+        'history': _aktionscodes_history(),
     }
 
 
