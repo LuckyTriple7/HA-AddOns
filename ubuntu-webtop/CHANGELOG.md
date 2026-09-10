@@ -1,3 +1,14 @@
+## [1.8.72] - 2026-09-10
+
+### Behoben
+
+- NFS-Mounts scheiterten mit `access denied by server`, wenn ein Subnetz-Router im Tailnet das eigene LAN anbietet: Tailscales Routing-Tabelle wird vor der normalen ausgewertet, der NFS-Server sah dadurch die `100.x`-Tailnet-Adresse als Absender und wies den IP-gefilterten Export ab. SMB war nicht betroffen, weil es per Benutzer authentifiziert.
+
+### Neu
+
+- Option **Netze am Tailnet vorbeirouten** (`tailscale_exclude_routes`): CIDR-Liste von Netzen, die immer direkt über das lokale Netz laufen, auch wenn das Tailnet sie anbietet. Mehrere durch Komma trennen. Übrige Tailnet-Routen bleiben unangetastet.
+- Schlägt ein NFS-Mount fehl und läuft das Ziel über `tailscale0`, nennt das Add-on-Log jetzt Ursache und einzutragendes Netz, statt nur die Fehlermeldung zu zeigen.
+
 ## [1.8.71] - 2026-09-10
 
 ### Aktualisiert

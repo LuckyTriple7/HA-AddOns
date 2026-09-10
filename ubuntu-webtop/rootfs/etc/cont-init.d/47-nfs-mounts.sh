@@ -1,6 +1,26 @@
 #!/usr/bin/with-contenv bash
 OPTIONS=/data/options.json
 
+# Laeuft das Ziel ueber Tailscale, sieht der NFS-Server die 100.x-Tailnet-IP
+# als Absender und weist IP-gefilterte Exporte mit "access denied by server"
+# ab. Das steht sonst nirgends im Log — hier den konkreten Fix ausgeben.
+diag_route() {
+    SRV=$1
+    case "$SRV" in
+        *[!0-9.]*) return ;;   # Hostname statt IP — Routing-Check nicht moeglich
+        100.*)                 # 100.64.0.0/10 ist Tailscales eigener Bereich —
+            O2=${SRV#100.}     # dort ist der Weg über tailscale0 richtig so.
+            O2=${O2%%.*}
+            [ "$O2" -ge 64 ] 2>/dev/null && [ "$O2" -le 127 ] 2>/dev/null && return
+            ;;
+    esac
+    DEV=$(ip route get "$SRV" 2>/dev/null | sed -n 's/.*[[:space:]]dev[[:space:]]\([^[:space:]]*\).*/\1/p' | head -1)
+    [ "$DEV" = "tailscale0" ] || return
+    NET=$(echo "$SRV" | cut -d. -f1-3)
+    echo "[nfs] Grund: ${SRV} wird über Tailscale geroutet (dev tailscale0) — der Server sieht die 100.x-Tailnet-IP als Absender."
+    echo "[nfs] Fix: \"${NET}.0/24\" in die Add-on-Option \"tailscale_exclude_routes\" eintragen und Add-on neu starten."
+}
+
 do_mount() {
     SERVER=$1
     SHARE=$2
@@ -28,6 +48,7 @@ do_mount() {
         fi
     else
         echo "[nfs] FAIL: ${SERVER}:${SHARE} — $(cat /tmp/nfs_err 2>/dev/null)"
+        diag_route "$SERVER"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
     fi
 }

@@ -172,3 +172,33 @@ if [ "$BACKEND" = "Running" ]; then
 else
     log "Status: ${BACKEND} (noch nicht verbunden) — Details in ${LOGFILE}"
 fi
+
+# --- Lokale Netze am Tailnet vorbeirouten -------------------------------
+# Bietet ein Subnetz-Router im Tailnet ein Netz an, das dieser Container
+# ueber eth0 ohnehin direkt erreicht, gewinnt trotzdem Tailscale: seine
+# Routing-Tabelle 52 haengt an ip-rule-Prioritaet 5270 und wird vor "main"
+# (32766) ausgewertet. Der Verkehr traegt dann die 100.x-Tailnet-IP als
+# Absender. Dienste, die nach Client-IP filtern — allen voran NFS-Exporte —
+# antworten darauf mit "access denied by server".
+#
+# Fuer jedes hier genannte Netz setzen wir eine Regel mit Prioritaet 5200,
+# also vor allen Tailscale-Regeln, die wieder in "main" nachschlaegt.
+EXCLUDE_ROUTES=$(jq -r '.tailscale_exclude_routes // empty' "$OPTIONS" 2>/dev/null)
+if [ -n "$EXCLUDE_ROUTES" ]; then
+    for CIDR in $(echo "$EXCLUDE_ROUTES" | tr ',;' '  '); do
+        if ! [[ "$CIDR" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ ]]; then
+            log "WARNUNG: Route-Ausnahme '${CIDR}' ist kein gueltiges IPv4-Netz - uebersprungen."
+            continue
+        fi
+        # Altlasten aus einem frueheren Lauf entfernen (begrenzt, damit die
+        # Schleife nicht haengt, falls "ip rule del" wider Erwarten 0 liefert).
+        for _ in 1 2 3; do
+            ip rule del to "$CIDR" priority 5200 lookup main 2>/dev/null || break
+        done
+        if ip rule add to "$CIDR" priority 5200 lookup main 2>/dev/null; then
+            log "Route-Ausnahme aktiv: ${CIDR} laeuft direkt ueber das lokale Netz, nicht ueber Tailscale."
+        else
+            log "WARNUNG: Route-Ausnahme fuer ${CIDR} konnte nicht gesetzt werden (fehlt NET_ADMIN?)."
+        fi
+    done
+fi

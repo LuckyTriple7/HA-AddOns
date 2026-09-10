@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox, Thunderbird und vielen weiteren Programmen vorinstalliert
-version: "1.8.71"
+version: "1.8.72"
 slug: ubuntu_webtop
 init: false
 
@@ -95,6 +95,7 @@ options:
   tailscale_accept_routes: true
   tailscale_accept_dns: false
   tailscale_exit_node: ""
+  tailscale_exclude_routes: ""
 
 schema:
   PUID: int
@@ -138,6 +139,7 @@ schema:
   tailscale_accept_routes: bool
   tailscale_accept_dns: bool
   tailscale_exit_node: str?
+  tailscale_exclude_routes: str?
 
 panel_icon: mdi:monitor
 panel_admin: false

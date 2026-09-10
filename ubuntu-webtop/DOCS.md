@@ -84,8 +84,27 @@ Danach sind alle Geräte des Tailnets aus dem Desktop erreichbar — Browser, Re
 | `tailscale_accept_routes` | Subnetz-Routen mitbenutzen |
 | `tailscale_accept_dns` | MagicDNS: Geräte per Name statt 100.x-IP |
 | `tailscale_exit_node` | Internetverkehr über einen Exit-Node |
+| `tailscale_exclude_routes` | Netze, die immer lokal statt über das Tailnet laufen |
 
 Der State liegt in `/config/tailscale` und überlebt Neustart, Update und "Neu Aufbauen". Im Terminal: `tailscale status`, `tailscale ip -4`, `tailscale ping <host>`.
+
+### Eigenes LAN läuft plötzlich über Tailscale
+
+Bietet ein Subnetz-Router im Tailnet dasselbe Netz an, in dem auch Home Assistant steht, gewinnt Tailscale: seine Routing-Tabelle wird vor der normalen ausgewertet. Der Verkehr trägt dann die `100.x`-Tailnet-Adresse als Absender.
+
+SMB merkt davon nichts (Anmeldung per Benutzer), **NFS schon** — IP-gefilterte Exporte antworten mit:
+
+```
+mount.nfs: access denied by server while mounting 192.168.178.199:/mnt/backup_ssd/haos_backup
+```
+
+Prüfen (Containername aus `docker ps --format '{{.Names}}' | grep webtop`):
+
+```sh
+docker exec <container> ip route get 192.168.178.199
+```
+
+Steht dort `dev tailscale0`, ist es dieser Fall. Fix: das eigene Netz in **`tailscale_exclude_routes`** eintragen, z. B. `192.168.178.0/24`, dann Add-on neu starten. Mehrere Netze mit Komma trennen. Das Add-on legt dafür eine Routing-Regel mit höherer Priorität als Tailscale an; die übrigen Tailnet-Routen bleiben unangetastet.
 
 ## Persistente Daten
 
@@ -183,8 +202,27 @@ Afterwards every device on the tailnet is reachable from the desktop — browser
 | `tailscale_accept_routes` | Use advertised subnet routes |
 | `tailscale_accept_dns` | MagicDNS: devices by name instead of 100.x IP |
 | `tailscale_exit_node` | Route internet traffic through an exit node |
+| `tailscale_exclude_routes` | Networks that always stay local instead of using the tailnet |
 
 State lives in `/config/tailscale` and survives restart, update and rebuild. In the terminal: `tailscale status`, `tailscale ip -4`, `tailscale ping <host>`.
+
+### Your own LAN suddenly routes through Tailscale
+
+When a subnet router on the tailnet advertises the very network Home Assistant sits in, Tailscale wins: its routing table is consulted before the normal one. Traffic then carries the `100.x` tailnet address as its sender.
+
+SMB does not care (it authenticates by user), **NFS does** — IP-filtered exports answer with:
+
+```
+mount.nfs: access denied by server while mounting 192.168.178.199:/mnt/backup_ssd/haos_backup
+```
+
+Check (container name from `docker ps --format '{{.Names}}' | grep webtop`):
+
+```sh
+docker exec <container> ip route get 192.168.178.199
+```
+
+If it says `dev tailscale0`, this is the case. Fix: put your own network into **`tailscale_exclude_routes`**, e.g. `192.168.178.0/24`, then restart the add-on. Separate several networks with commas. The add-on installs a routing rule with a higher priority than Tailscale's; all other tailnet routes stay untouched.
 
 ## Persistent Data
 

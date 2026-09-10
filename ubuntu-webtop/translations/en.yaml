@@ -116,3 +116,6 @@ configuration:
   tailscale_exit_node:
     name: Exit Node
     description: Name or tailnet IP of an exit node that all of the desktop's internet traffic should go through. Leave empty for direct internet access.
+  tailscale_exclude_routes:
+    name: Keep Networks off the Tailnet
+    description: Networks in CIDR notation (e.g. 192.168.178.0/24) that should always go straight over the local network, even when a subnet router on the tailnet advertises them. Separate several with commas. Needed when your own LAN is reachable twice — otherwise Tailscale wins, the sender becomes the 100.x address and IP-filtered NFS exports answer with "access denied by server". Only applies while Tailscale is enabled.
