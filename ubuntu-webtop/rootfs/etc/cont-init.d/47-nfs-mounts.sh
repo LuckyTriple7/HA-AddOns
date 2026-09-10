@@ -5,9 +5,15 @@ OPTIONS=/data/options.json
 # als Absender und weist IP-gefilterte Exporte mit "access denied by server"
 # ab. Das steht sonst nirgends im Log — hier den konkreten Fix ausgeben.
 diag_route() {
-    SRV=$1
+    ORIG=$1
+    SRV=$ORIG
     case "$SRV" in
-        *[!0-9.]*) return ;;   # Hostname statt IP — Routing-Check nicht moeglich
+        *[!0-9.]*)             # Hostname — erst aufloesen, ip route get will eine IP
+            SRV=$(getent ahostsv4 "$ORIG" 2>/dev/null | awk '{print $1; exit}')
+            [ -n "$SRV" ] || return
+            ;;
+    esac
+    case "$SRV" in
         100.*)                 # 100.64.0.0/10 ist Tailscales eigener Bereich —
             O2=${SRV#100.}     # dort ist der Weg über tailscale0 richtig so.
             O2=${O2%%.*}
@@ -17,7 +23,9 @@ diag_route() {
     DEV=$(ip route get "$SRV" 2>/dev/null | sed -n 's/.*[[:space:]]dev[[:space:]]\([^[:space:]]*\).*/\1/p' | head -1)
     [ "$DEV" = "tailscale0" ] || return
     NET=$(echo "$SRV" | cut -d. -f1-3)
-    echo "[nfs] Grund: ${SRV} wird über Tailscale geroutet (dev tailscale0) — der Server sieht die 100.x-Tailnet-IP als Absender."
+    WHO=$ORIG
+    [ "$ORIG" = "$SRV" ] || WHO="${ORIG} (${SRV})"
+    echo "[nfs] Grund: ${WHO} wird über Tailscale geroutet (dev tailscale0) — der Server sieht die 100.x-Tailnet-IP als Absender."
     echo "[nfs] Fix: \"${NET}.0/24\" in die Add-on-Option \"tailscale_exclude_routes\" eintragen und Add-on neu starten."
 }
 

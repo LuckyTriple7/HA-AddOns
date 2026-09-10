@@ -1,3 +1,9 @@
+## [1.8.73] - 2026-09-10
+
+### Behoben
+
+- Der Tailscale-Hinweis bei fehlgeschlagenem NFS-Mount blieb stumm, wenn der Server als **Hostname** statt als IP eingetragen ist. Der Name wird jetzt aufgelöst und im Log mit ausgegeben (`nas.local (192.168.178.199)`). Auf den Mount selbst hatte das keinen Einfluss — Namen funktionierten schon vorher.
+
 ## [1.8.72] - 2026-09-10
 
 ### Behoben
