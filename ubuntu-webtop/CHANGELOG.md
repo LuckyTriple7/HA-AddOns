@@ -1,3 +1,11 @@
+## [1.8.71] - 2026-09-10
+
+### Aktualisiert
+
+- VS Code: 1.136.2 → 1.137.0
+- Thunderbird: 155.0 → 155.0.1
+- Claude Desktop: 3.2.4+claude1.46388.2 → 3.2.4+claude1.49585.0
+
 ## [1.8.70] - 2026-09-09
 
 ### Aktualisiert
