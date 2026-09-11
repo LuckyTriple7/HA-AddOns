@@ -1,0 +1,21 @@
+{
+  "id": "bwr_fukushima",
+  "reactor": "bwr",
+  "difficulty": 3,
+  "title_key": "scn_bwr_fukushima_title",
+  "brief_key": "scn_bwr_fukushima_brief",
+  "duration_s": 21600,
+  "seed": 110311,
+  "demand": [
+    { "t": 0, "mw": 1344 },
+    { "t": 21600, "mw": 1344 }
+  ],
+  "grid": { "tolerance_mw": 80 },
+  "events": [
+    { "t": 300, "id": "earthquake_scram" },
+    { "t": 3000, "id": "station_blackout" }
+  ],
+  "fail": [
+    { "type": "fuel_damage" }
+  ]
+}

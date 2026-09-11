@@ -176,9 +176,11 @@ export function buildPanels(engine, render) {
   const mounts = {
     core: $('#rs-rod-ctl'), primary: $('#rs-pumps'),
     secondary: $('#rs-sec-ctl'), grid: $('#rs-grid-ctl'), chem: $('#rs-chem-ctl'),
+    safety: $('#rs-safety-ctl'),
   };
   $('#rs-sec-ctl').replaceChildren(govStation.node, fwStation.node);
   $('#rs-chem-ctl').replaceChildren();
+  $('#rs-safety-ctl').replaceChildren();
   for (const x of extras) {
     const target = mounts[x.mount] || mounts.secondary;
     target.append(x.node);
@@ -247,6 +249,7 @@ export function buildPanels(engine, render) {
       pzr_p: s.pzr_p, pzr_l: s.pzr_L,
       boron: sp.feedbacks.includes('boron') ? s.C_B : undefined,
       dnbr: d0.dnbr,
+      ic_water: s.icWater, cont_press: s.pCont, h2_mass: s.h2Mass,
     };
     for (const [key, value] of Object.entries(optional)) {
       if (value !== undefined) continue;
@@ -361,6 +364,15 @@ export function buildPanels(engine, render) {
         d.voidCoeff === undefined ? undefined : (d.voidCoeff > 45 ? 3 : (d.voidCoeff > 30 ? 1 : undefined)));
     put('axial', d.axialOffset === undefined ? t('state_none') : num(d.axialOffset * 100, 0) + U('unit_percent'));
     put('t_graphite', d.T_gr === undefined ? t('state_none') : num(d.T_gr - 273.15, 0) + U('unit_celsius'));
+    // Notkondensator-Vorrat, Sicherheitsbehälterdruck, Wasserstoff -- nur
+    // beim Siedewasserreaktor gesetzt, sonst bleiben es Striche (siehe
+    // optional-Ausblendung oben).
+    put('ic_water', s.icWater === undefined ? t('state_none') : num(s.icWater * 100, 0) + U('unit_percent'));
+    put('cont_press', s.pCont === undefined ? t('state_none') : num(s.pCont, 2) + U('unit_bar'),
+        s.pCont === undefined ? undefined : (s.pCont > sp.containment.designLimit * 0.9 ? 3
+          : (s.pCont > sp.containment.designLimit * 0.7 ? 1 : undefined)));
+    put('h2_mass', s.h2Mass === undefined ? t('state_none') : num(s.h2Mass, 1) + U('unit_kg'),
+        s.h2Mass === undefined ? undefined : (s.h2Mass > 40 ? 3 : (s.h2Mass > 15 ? 1 : undefined)));
 
     rho.set(d.breakdown, d.rho);
     pumps.set(d.pumpStates || []);

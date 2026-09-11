@@ -104,6 +104,18 @@ export const spec = {
     // steigt der Druck mit rund 2,5 bar/s, das sind gut 4 Prozentpunkte
     // Blasenanteil und damit rund 400 pcm positive Reaktivitaet.
     voidCollapse: 0.017,
+    // Kernfreilegung, siehe coreCoolant(). mUncoverStart liegt bewusst weit
+    // unter der Anzeige-Untergrenze (L_rpv erreicht 0 schon bei 160 000 kg) --
+    // der Bediener hat also Vorwarnzeit, bevor die Dampfkuehlung tatsaechlich
+    // einsetzt. mUncoverFloor liegt knapp ueber dem Boden von M_rpv (20 000 kg).
+    mUncoverStart: 90000,
+    mUncoverFloor: 25000,
+    // Temperaturhub über die Sättigung, den die reine Dampfkühlung bei
+    // vollständig freiliegendem Kern erreicht -- deutlich über der
+    // Hüllrohrgrenze (1204 °C), damit Nachzerfallswärme ohne Bedeckung
+    // tatsächlich zum Hüllrohrversagen führt und nicht in einem Gleich-
+    // gewicht knapp darunter steckenbleibt.
+    dryOverheatK: 3200,
     T_fw: T_FW,
     W_steam0: 2059,
     subcool0: 12,
@@ -120,6 +132,34 @@ export const spec = {
   },
 
   condenser: { T_cw: toK(15), pinch: 6, rise: 12, p0: 0.05 },
+
+  // Notkondensator (Isolation Condenser). Reiner Naturumlauf-Wärmetauscher:
+  // Dampf aus dem Dom kondensiert in einem Vorratsbehälter oberhalb des
+  // Kerns, das Kondensat läuft von selbst zurück -- keine Pumpe nötig. Er
+  // schaltet sich bei Isolierung (SCRAM + geschlossene Frischdampf-
+  // Absperrung) automatisch zu und schluckt die Nachzerfallswärme, solange
+  // Vorrat und Gleichstrom für die Ventile reichen. W0 ist Dampf-Äquivalent
+  // in kg/s, deutlich über der anfänglichen Nachzerfallswärme (~7 % P0_th)
+  // ausgelegt -- genau deshalb hätte er im Original gereicht.
+  ic: { W0: 130, enduranceS: 7200 },
+
+  // Löschwassereinspeisung als letzter Handgriff: kein Motor, keine
+  // Elektronik, funktioniert auch im vollständigen Stromausfall -- dafür
+  // viel weniger Durchsatz als die reguläre Speisewasseranlage.
+  fireInj: { W0: 35 },
+
+  // Sicherheitsbehälter (Druckkammer + Kondensationskammer). Baut sich aus
+  // dem Sicherheitsventil-Dampf auf, der in die Kondensationskammer bläst --
+  // genau der Pfad, über den bei einer Isolierung Wärme den Reaktor
+  // überhaupt noch verlässt. capacity ist die Dampfmasse (kg-äquivalent),
+  // die den Druck von p0 auf designLimit hebt.
+  containment: { p0: 1.05, capacity: 2600, designLimit: 4.3, ventCv: 9 },
+
+  // Wasserstoff aus der Zirkon-Wasser-Reaktion. Setzt oberhalb von 1200 °C
+  // Hüllrohrtemperatur ein, lange bevor der Brennstoff selbst schmilzt --
+  // historisch genau der Punkt, an dem Fukushima-1 die Hülle verlor, ohne
+  // dass der Kern schon "zerstört" im Sinne der Enthalpie-Grenze war.
+  h2: { onsetK: toK(1200), rate: 0.012 },
 
   // Instabilitaet: Kennzahl S = Leistung / relativer Durchsatz.
     // Ansprechwert der Schwingungsueberwachung. Bewusst bei 22 % und nicht bei
@@ -148,6 +188,7 @@ export const spec = {
     dome_press_high: 'rpv', level_low: 'rpv', level_high: 'rpv', srv_open: 'rpv', clad_temp: 'rpv',
     recirc_low: 'rcp',
     turbine_trip: 'gen',
+    cont_press_high: 'rpv', h2_critical: 'rpv',
   },
 
   mimic: 'mimic-bwr',
@@ -184,6 +225,10 @@ export const spec = {
       test: (s) => s.turbineTripped, delay_s: 0 },
     { id: 'clad_temp', key: 'trip_clad_temp', severity: SEVERITY.TRIP,
       test: (s) => s.T_cl > 1477, delay_s: 0, action: 'scram' },
+    { id: 'cont_press_high', key: 'alarm_cont_press_high', severity: SEVERITY.WARN,
+      test: (s, d) => d.pCont !== undefined && d.pCont > 3.5, delay_s: 2.0 },
+    { id: 'h2_critical', key: 'alarm_h2_critical', severity: SEVERITY.WARN,
+      test: (s, d) => d.h2Mass !== undefined && d.h2Mass > 40, delay_s: 2.0 },
   ],
 };
 
@@ -212,6 +257,33 @@ export const hooks = {
     // Schwingungszustand der Dichtewelle.
     s.osc = 0;
     s.oscV = 0;
+
+    // Stromversorgung -- im Normalbetrieb immer da. Eine Störung (Station-
+    // Blackout) setzt beides auf false; ohne Gleichstrom fallen die
+    // Notkondensator-Ventile in ihre sichere Stellung: ZU, unbemerkt, weil
+    // dieselbe Störung auch die Anzeigen mitreißt.
+    s.acPower = true;
+    s.dcPower = true;
+
+    // Notkondensator. icDemand ist die Bedienerabsicht (Automatik/Auf per
+    // Default), icOpen die tatsächliche Ventilstellung -- die beiden fallen
+    // auseinander, sobald der Gleichstrom fehlt.
+    s.icDemand = 1;
+    s.icOpen = false;
+    s.icWater = 1.0;
+
+    // Löschwassereinspeisung: von Hand, ohne jede Elektronik.
+    s.fireInjOn = false;
+
+    // Sicherheitsbehälter.
+    s.contMass = 0;
+    s.pCont = sp.containment.p0;
+    s.contVentOpen = false;
+    s.contFailed = false;
+
+    // Wasserstoff aus der Hüllrohrreaktion, in kg (grobe Näherung).
+    s.h2Mass = 0;
+    s.h2Exploded = false;
 
     ctx.recircPump = new Pump({
       W0: sp.recirc.W0, coastTau: sp.recirc.coastTau, rampTau: sp.recirc.tau,
@@ -308,14 +380,53 @@ export const hooks = {
    */
   coreCoolant(s, sp, ctx, qCoolKW, h) {
     const Tsat = tsat(s.p_dome);
-    s.T_co = Tsat;
+
+    // Kernfreilegung: solange genug Wasser im Behaelter steht, siedet der
+    // Kern und haelt seine Austrittstemperatur an der Saettigung fest, ganz
+    // gleich wie klein der Durchsatz ist -- Sieden ist ein sehr guter
+    // Waermeuebergang. Faellt der Fuellstand unter die obere Kernkante,
+    // kuehlt dort nur noch vorbeistroemender Dampf, und der Waermeuebergang
+    // bricht auf einen Bruchteil ein. covered nutzt die RAW-Masse (M_rpv),
+    // nicht die auf 0..1 gestauchte Anzeigegroesse L_rpv -- die ist am
+    // unteren Ende laengst bei 0, waehrend physisch noch Wasser im
+    // Ringraum steht.
+    const covered = clamp((s.M_rpv - sp.vessel.mUncoverFloor) /
+      (sp.vessel.mUncoverStart - sp.vessel.mUncoverFloor), 0, 1);
+    // Bewusst KEIN Ziel aus qCoolKW hergeleitet: qCoolKW ist bereits das
+    // Ergebnis von UA_cc·(T_cl−T_cool) aus dem VORIGEN Schritt -- ein Ziel,
+    // das davon selbst wieder abhaengt, pendelt sich zirkulaer irgendwo
+    // unterhalb der Grenztemperatur ein, sobald T_cl an T_cool heranrueckt,
+    // und die Nachzerfallswaerme "findet" scheinbar von selbst ein
+    // Gleichgewicht, das keins ist. dryOverheatK ist stattdessen ein fester
+    // Wert: voll frei liegend strebt die Kuehlmitteltemperatur so weit über
+    // die Saettigung, dass sie über die Huellrohrgrenze hinaustreibt --
+    // genau das Szenario, das Fukushima-1 zeigt: kein Leistungsausflug,
+    // reiner Kuehlungsverlust.
+    const dryTarget = Tsat + sp.vessel.dryOverheatK;
+    const coolTarget = Tsat + (1 - covered) * (dryTarget - Tsat);
+    // Bedeckt reagiert die Saettigungstemperatur sofort (Sieden ist traege-
+    // frei), unbedeckt braucht die Dampfkuehlung ein paar Minuten, um sich
+    // einzustellen -- beides ueber dieselbe relax()-Zeitkonstante, nur nach
+    // covered gewichtet.
+    s.T_co = relax(s.T_co, coolTarget, h, 3.0 + (1 - covered) * 180);
     s.T_mod = Tsat;
     // Eintritt: die Unterkuehlung folgt der Mischung aus Umwaelzwasser und
-    // Speisewasser, aber traege -- der Weg durch den Fallraum dauert.
-    s.T_ci = relax(s.T_ci, Tsat - s.dTsub, h, 3.0);
+    // Speisewasser, aber traege -- der Weg durch den Fallraum dauert. Sobald
+    // der Kern ueberwiegend frei liegt, verliert "Eintritt" seinen Sinn --
+    // dieselbe Dampfkuehlung erfasst dann den ganzen Kanal, Ein- und Austritt
+    // gleichermassen. Ohne das hier wuerde die generische T_cool =
+    // 0,5·(T_ci+T_co) der Motorengine die Kernfreilegung zur Haelfte wieder
+    // wegmitteln, weil T_ci stur an der Saettigung haengen bliebe.
+    s.T_ci = relax(s.T_ci, covered > 0.5 ? (Tsat - s.dTsub) : coolTarget, h, 3.0 + (1 - covered) * 180);
 
     const W = Math.max(s.W_core, 1);
     const qSub = W * sp.coolant.cp * Math.max(Tsat - s.T_ci, 0);
+    // Bewusst NICHT mit covered multipliziert: der noch bedeckte Teil des
+    // Kerns siedet unabhaengig davon weiter, wieviel oben schon frei liegt --
+    // sonst wuerde ein einsetzender Kernfreilegung den Massenverlust
+    // druckseitig wieder ABBREMSEN, statt ihn (wie in Wirklichkeit) unbeirrt
+    // weiterlaufen zu lassen, waehrend zusaetzlich die Huellrohrtemperatur
+    // ueber T_co/dryTarget hochlaeuft.
     const qBoil = Math.max(qCoolKW - qSub, 0);
     s.x_e = clamp(qBoil / (W * hfg(s.p_dome)), 0, 1);
 
@@ -380,17 +491,76 @@ export const hooks = {
 
     s.W_steam = W_t + W_bp + W_srv;
 
+    // ── Notkondensator ──────────────────────────────────────────────────────
+    // Automatik will ihn offen, sobald isoliert wurde (SCRAM + Frischdampf
+    // zu) und noch Vorrat da ist -- der Bediener kann das mit icDemand
+    // uebersteuern. Die tatsaechliche Ventilstellung braucht zusaetzlich
+    // Gleichstrom: fehlt er, faellt das Ventil in seine sichere Stellung
+    // (ZU) und bleibt dort, ganz gleich was die Automatik will. Das ist die
+    // Kernstoerung von Fukushima-1 -- unbemerkt, weil dieselbe Stoerung auch
+    // die Anzeige mitreisst (siehe uiControls()).
+    const icWanted = !!s.icDemand && s.scram.active && s.msiv < 0.5 && s.icWater > 0;
+    s.icOpen = icWanted && s.dcPower;
+    // Nie mehr, als der Kern gerade tatsaechlich an Dampf erzeugt -- sonst
+    // entzieht die feste Nennleistung dem Dom mehr Waerme, als ueberhaupt da
+    // ist, und der Druck stuerzt auf den unteren Anschlag statt sich auf
+    // einen Gleichgewichtswert nahe der Saettigung einzupendeln.
+    const W_ic = s.icOpen ? Math.min(sp.ic.W0, Math.max(s.x_e * s.W_core, 0)) : 0;
+    if (W_ic > 0) {
+      // Kondensat laeuft von selbst in den Behaelter zurueck -- der
+      // Notkondensator entzieht dem Dom Waerme (und damit Druck), aber
+      // keine Masse. Der Vorrat schwindet trotzdem, weil sein EIGENER
+      // Behaelter dabei verdampft.
+      s.icWater = Math.max(s.icWater - (W_ic / sp.ic.W0) * (dt / sp.ic.enduranceS), 0);
+    }
+
     // ── Druck ───────────────────────────────────────────────────────────────
-    // Erzeugt wird, was im Kern verdampft; abgefuehrt, was die Ventile lassen.
+    // Erzeugt wird, was im Kern verdampft; abgefuehrt, was die Ventile UND
+    // der Notkondensator lassen. Der IC zaehlt nur hier, nicht im
+    // Fuellstand weiter unten -- sein Kondensat bleibt im eigenen Kreislauf.
     const W_gen = s.x_e * s.W_core;
+    const W_out = s.W_steam + W_ic;
     const C_p = (sp.vessel.mass * sp.vessel.cp) / Math.max(dpdT(s.p_dome), 1e-6);
     const dh = Math.max(hg(s.p_dome) - H_FW, 1);
-    const pNew = clamp(s.p_dome + (((W_gen - s.W_steam) * dh) * dt) / C_p, 1, 110);
+    const pNew = clamp(s.p_dome + (((W_gen - W_out) * dh) * dt) / C_p, 1, 110);
     // Die geglaettete Aenderungsrate treibt den Blasenkollaps im Kern.
     ctx.dpLag.step((pNew - ctx.pPrev) / dt, dt);
     ctx.pPrev = pNew;
     s.p_dome = pNew;
     s.p_prim = s.p_dome;
+
+    // ── Sicherheitsbehälter ─────────────────────────────────────────────────
+    // Der Sicherheitsventil-Dampf blaest in die Kondensationskammer und
+    // haelt den Behaelterdruck hoch -- der einzige Weg, ueber den bei
+    // Isolierung ueberhaupt Masse aus dem Dom in den Sicherheitsbehaelter
+    // gelangt. Venten laesst kontrolliert wieder ab (dafuer verlaesst
+    // radioaktives Gas die Anlage), sonst steigt der Druck weiter, bis der
+    // Behaelter selbst versagt.
+    s.contMass = Math.max(0, s.contMass + W_srv * dt
+      - (s.contVentOpen ? sp.containment.ventCv : 0) * dt);
+    s.pCont = sp.containment.p0 + (s.contMass / sp.containment.capacity)
+      * (sp.containment.designLimit - sp.containment.p0);
+    if (!s.contFailed && s.pCont > sp.containment.designLimit) {
+      s.contFailed = true;
+      ctx.log.push({ t: s.t_sim, key: 'event_cont_failure', severity: 3 });
+      // Ein geborstener Sicherheitsbehaelter haelt nichts mehr zurueck --
+      // von hier an wirkt er wie ein offenes Ventil.
+    }
+    if (s.contFailed) s.contMass = Math.max(0, s.contMass - sp.containment.ventCv * 2 * dt);
+
+    // ── Wasserstoff ─────────────────────────────────────────────────────────
+    // Zirkon-Wasser-Reaktion oberhalb von 1200 °C Huellrohrtemperatur --
+    // lange vor der eigentlichen Kernzerstoerung ueber die Enthalpie.
+    if (s.T_cl > sp.h2.onsetK) {
+      s.h2Mass += sp.h2.rate * (s.T_cl - sp.h2.onsetK) * dt;
+    }
+    if (!s.h2Exploded && s.contVentOpen && s.h2Mass > 25) {
+      // Der Wasserstoff geht beim Fukushima-Unfall nicht kontrolliert durch
+      // den Kamin ab, sondern sucht sich seinen Weg zurueck ins
+      // Reaktorgebaeude -- genau beim Venten wird er dorthin gedrueckt.
+      s.h2Exploded = true;
+      ctx.log.push({ t: s.t_sim, key: 'event_h2_explosion', severity: 3 });
+    }
 
     // ── Fuellstand ──────────────────────────────────────────────────────────
     s.M_rpv = Math.max(s.M_rpv + (s.W_fw - s.W_steam) * dt, 20000);
@@ -414,7 +584,11 @@ export const hooks = {
     if (!s.scram.active && ctx.rodCtl.auto) {
       s.rodDmd[0] = clamp(s.rodDmd[0] + ctx.rodCtl.step(s.T_mod, 1, dt), 0, 1);
     }
-    s.W_fw = ctx.fwCtl.step(s.L_rpv, s.W_steam, dt);
+    // Ohne Wechselstrom laufen weder Speisewasserpumpen noch ihre Regelung --
+    // was dann noch Wasser bringt, ist ausschliesslich die Loeschwasser-
+    // einspeisung, motorlos und ohne jede Elektronik.
+    s.W_fw = s.acPower ? ctx.fwCtl.step(s.L_rpv, s.W_steam, dt)
+      : (s.fireInjOn ? sp.fireInj.W0 : 0);
     // Das Regelventil haelt den Druck, nicht die Leistung.
     s.gov = ctx.govCtl.step(s.P_e, s.P_demand, s.p_dome, dt);
     s.bypass = s.p_dome > sp.vessel.p0 + 4
@@ -447,9 +621,45 @@ export const hooks = {
       { key: 'state_open', value: '1' },
       { key: 'state_closed', value: '0' },
     ], '1', (v) => { s.msiv = Number(v); });
+
+    // Notkondensator: der Bediener stellt nur die ABSICHT (icDemand), die
+    // tatsächliche Ventilstellung braucht zusätzlich Gleichstrom. Genau
+    // deshalb wird die Anzeige unten bewusst NICHT mehr nachgeführt, sobald
+    // der Gleichstrom fehlt -- sie zeigt dann die letzte Stellung, die noch
+    // gemeldet wurde, nicht die echte. Das ist die Meldung, die es 2011 nie
+    // gab, absichtlich als Leerstelle nachgebildet statt als Alarmkachel.
+    const ic = kit.buttonGroup('ctl_ic', [
+      { key: 'state_open', value: '1' },
+      { key: 'state_closed', value: '0' },
+    ], '1', (v) => { s.icDemand = Number(v); });
+
+    // Löschwassereinspeisung: einzige Wasserquelle, die auch ohne jeden
+    // Strom funktioniert.
+    const fireInj = kit.buttonGroup('ctl_fire_inj', [
+      { key: 'state_open', value: '1' },
+      { key: 'state_closed', value: '0' },
+    ], '0', (v) => { s.fireInjOn = !!Number(v); });
+
+    // Sicherheitsbehälter-Venten: kontrollierte Freisetzung, um einen
+    // unkontrollierten Bruch zu verhindern.
+    const contVent = kit.buttonGroup('ctl_cont_vent', [
+      { key: 'state_open', value: '1' },
+      { key: 'state_closed', value: '0' },
+    ], '0', (v) => { s.contVentOpen = !!Number(v); });
+
     return [
       { mount: 'primary', node: recirc.node, set: (st) => recirc.set(Math.round(st.recircDmd * 100)) },
       { mount: 'secondary', node: msiv.node, set: (st) => msiv.set(String(st.msiv)) },
+      {
+        mount: 'safety',
+        node: ic.node,
+        // Kein Update, solange kein Gleichstrom da ist -- die Anzeige friert
+        // auf dem letzten bekannten Stand ein, statt die wahre (geschlossene)
+        // Stellung zu verraten.
+        set: (st) => { if (st.dcPower) ic.set(String(st.icDemand)); },
+      },
+      { mount: 'safety', node: fireInj.node, set: (st) => fireInj.set(st.fireInjOn ? '1' : '0') },
+      { mount: 'safety', node: contVent.node, set: (st) => contVent.set(st.contVentOpen ? '1' : '0') },
     ];
   },
 
@@ -476,6 +686,8 @@ export const hooks = {
       dnbr: _cpr(s, sp, base),
       shutdownMargin: sp.rodBanks.reduce((a, b, i) => a + b.worth * (1 - s.rod[i]), 0),
       pumpStates: [ctx.recircPump.state],
+      pCont: s.pCont,
+      h2Mass: s.h2Mass,
     };
   },
 };

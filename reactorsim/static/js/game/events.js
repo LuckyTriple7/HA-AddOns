@@ -95,6 +95,30 @@ const EVENTS = {
     },
   },
 
+  earthquake_scram: {
+    key: 'ev_earthquake_scram',
+    severity: 3,
+    apply(e) {
+      // Seismischer Trip: Schnellabschaltung UND Isolierung im selben
+      // Augenblick -- beides zusammen ist die Bedingung, unter der sich der
+      // Notkondensator automatisch zuschaltet (siehe bwr.js stepLoop()).
+      e.scram('earthquake');
+      if (e.state.msiv !== undefined) e.state.msiv = 0;
+    },
+  },
+
+  station_blackout: {
+    key: 'ev_station_blackout',
+    severity: 3,
+    apply(e) {
+      // Wechsel- UND Gleichstrom weg. Die Umwaelzpumpe faellt mit --
+      // niemand fährt sie wieder hoch, dafür fehlt der Motorstrom.
+      e.state.acPower = false;
+      e.state.dcPower = false;
+      if (e.ctx.recircPump) e.ctx.recircPump.trip();
+    },
+  },
+
   // ── RBMK ─────────────────────────────────────────────────────────────────
   mcp_trip: {
     key: 'ev_mcp_trip',

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.29
+
+- ☢️ **Fukushima-1-Szenario, mit echter neuer Physik statt reiner Datendatei.** Bisher konnte kein Reaktortyp durch reinen Kühlungsverlust nach der Abschaltung schmelzen — Zerstörung ging immer nur über einen Leistungsausflug. Für den Siedewasserreaktor jetzt vier neue, dauerhafte Systeme:
+  - **Notkondensator (Isolation Condenser).** Reiner Naturumlauf-Wärmetauscher, schaltet sich bei Isolierung (SCRAM + geschlossene Frischdampf-Absperrung) automatisch zu. Die Ventile sind fail-safe ZU ausgelegt — fehlt der Gleichstrom, fallen sie in ihre sichere Stellung, unbemerkt, weil dieselbe Störung auch die Anzeige einfrieren lässt. Genau die Fehlerkette von Fukushima-1, 2011.
+  - **Kernfreilegung.** Sinkt der Füllstand unter die obere Kernkante, bricht die Kühlung ein — reine Nachzerfallswärme reicht jetzt aus, um die Hüllrohrgrenze und danach die Brennstoff-Zerstörungsgrenze zu reißen, ganz ohne Reaktivitätsausflug. Per Kopfsimulation geprüft: unbedient Kernschaden nach rund drei Stunden, Löschwassereinspeisung bis ~100 Minuten nach Stromausfall rettet den Kern noch, ab ~150 Minuten ist es zu spät.
+  - **Löschwassereinspeisung.** Einziges Wasser, das auch im vollständigen Stromausfall noch fließt — kein Motor, keine Elektronik.
+  - **Sicherheitsbehälter mit Venten und Wasserstoff.** Sicherheitsventil-Dampf baut Behälterdruck auf; kontrolliertes Venten verhindert ein Versagen, setzt aber radioaktives Gas frei. Oberhalb 1200 °C Hüllrohrtemperatur entsteht Wasserstoff aus der Zirkon-Wasser-Reaktion — spätes Venten bei hohem Wasserstoffstand kann zur Explosion im Reaktorgebäude führen, wie 2011.
+  - `sanitize()`-Grenzen für Kühlmitteltemperatur von 1000 K auf 4000 K angehoben — die alte Grenze klemmte die neue Dampfkühlung bei Kernfreilegung fälschlich als „Rechenfehler".
+  - Neues Panel „Sicherheitssysteme" mit drei neuen Reglern, drei neuen Anzeigewerten, zwei neuen Meldungen.
+
 ## 0.0.28
 
 - 📖 **Meldetafel-Hilfe komplett neu geschrieben, alle 28 Meldungen.** Die Kurzfassung aus 0.0.17 sagte nur, was passiert — nicht mehr, was konkret zu tun ist. Jeder Text hat jetzt die genaue Auslösebedingung mit Zahlen, dann eine Schritt-für-Schritt-Liste mit den tatsächlichen Reglernamen aus dem Leitstand ("Hauptumwälzpumpen", "Druckhalter-Sprühen", "Frischdampf-Absperrung" usw.) statt allgemeiner Stichworte. Modal zeigt jetzt mehrzeilig mit Aufzählungspunkten (`white-space: pre-line`), etwas breiter für den längeren Text.

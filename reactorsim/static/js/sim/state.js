@@ -24,9 +24,14 @@ export const RANGES = {
   n: [0, 1e6],
   T_f: [250, 6000],
   T_cl: [250, 4000],
-  T_ci: [250, 1000],
-  T_co: [250, 1000],
-  T_mod: [250, 1000],
+  // Bis 1000 K reichte, solange kein Typ die Kuehlmitteltemperatur ueber
+  // normale Transienten hinaus brauchte. Der Siedewasserreaktor tut das jetzt
+  // bei Kernfreilegung: die Dampfkuehlung dort erreicht huellrohraehnliche
+  // Temperaturen (siehe bwr.js coreCoolant()), und 1000 K haette genau diesen
+  // Fall als "Rechenfehler" geklemmt statt ihn zuzulassen.
+  T_ci: [250, 4000],
+  T_co: [250, 4000],
+  T_mod: [250, 4000],
   T_gr: [250, 2000],
   W_core: [0, 1e6],
   p_prim: [0.01, 300],
