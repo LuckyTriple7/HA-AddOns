@@ -231,3 +231,29 @@
   letter-spacing: .1em;
   animation: rs-blink-fast .5s steps(2, jump-none) infinite;
 }
+
+/* Zweifeld-Umschalter: das geltende Feld ist hervorgehoben, das andere ist
+   das Angebot. Ein einzelner Knopf mit der Aufschrift des Ist-Zustands liest
+   sich falsch herum. */
+.rs-segs {
+  display: flex;
+  border: 1px solid var(--rs-line);
+  border-radius: 4px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.rs-seg {
+  border: 0;
+  border-right: 1px solid var(--rs-line-soft);
+  background: var(--rs-panel-2);
+  color: var(--rs-fg-mute);
+  font-size: 11px;
+  padding: 7px 10px;
+  min-height: 32px;
+  white-space: nowrap;
+}
+.rs-seg:last-child { border-right: 0; }
+.rs-seg:hover { color: var(--rs-fg); }
+.rs-seg.rs-on { background: #14402c; color: #bff3d6; font-weight: 600; }
+/* Hand ist kein Fehler, aber ein Zustand, den man sehen soll. */
+.rs-seg:last-child.rs-on { background: #4a3a05; color: #ffe6a8; }

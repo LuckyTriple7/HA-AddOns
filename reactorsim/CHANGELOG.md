@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.14
+
+- 🎚️ **Automatik/Hand als Zweifeld-Umschalter statt als Einzelknopf.** Vorher trug ein Knopf seinen eigenen Zustand als Aufschrift — „Turbinenregler [Hand]" liest sich aber wie ein Angebot, auf Hand zu schalten, und nicht wie die Feststellung, dass er längst darauf steht. Jetzt stehen beide Felder nebeneinander, das geltende ist hervorgehoben: Automatik grün, Hand bernstein. In einer Leitwarte muss auf einen Blick sichtbar sein, was gilt — nicht, was passieren würde.
+
 ## 0.0.13
 
 - 🔐 **Anmeldung.** Die Seite stand bisher offen — wer die Adresse kannte, war drin. Jetzt ein Konto, Benutzername und Passwort aus `REACTORSIM_USER` und `REACTORSIM_PASSWORD`, also aus der Dockge-Konfiguration. Mehrbenutzerbetrieb folgt später.

@@ -7,18 +7,42 @@
 import { el, setText, setAttr } from './dom.js';
 import { t, num } from './i18n.js';
 
-/** Umschalter Automatik / Hand. */
+/**
+ * Umschalter Automatik / Hand.
+ *
+ * Zwei Felder nebeneinander, das geltende hervorgehoben -- wie der
+ * Zeitraffer-Wähler. Der erste Entwurf war EIN Knopf, der seinen Zustand als
+ * Aufschrift trug. Das liest sich falsch herum: „Turbinenregler [Hand]" sieht
+ * aus wie ein Angebot, auf Hand zu schalten, und nicht wie die Feststellung,
+ * dass er längst auf Hand steht. In einer Leitwarte muss auf einen Blick
+ * sichtbar sein, was gilt -- nicht, was passieren würde.
+ */
 export function autoSwitch(labelKey, initial, onChange) {
-  const btn = el('button.rs-switch', { type: 'button' });
   let value = initial;
-  const paint = () => {
-    setText(btn, value ? t('state_auto') : t('state_manual'));
-    setAttr(btn, 'data-on', value ? '1' : '0');
+  const mk = (key, target) => {
+    const b = el('button.rs-seg', { type: 'button' }, [t(key)]);
+    b.addEventListener('click', () => {
+      if (value === target) return;
+      value = target;
+      paint();
+      onChange(value);
+    });
+    return b;
   };
-  btn.addEventListener('click', () => { value = !value; paint(); onChange(value); });
+  const autoBtn = mk('state_auto', true);
+  const manBtn = mk('state_manual', false);
+  const paint = () => {
+    autoBtn.classList.toggle('rs-on', value);
+    manBtn.classList.toggle('rs-on', !value);
+    autoBtn.setAttribute('aria-pressed', String(value));
+    manBtn.setAttribute('aria-pressed', String(!value));
+  };
   paint();
   return {
-    node: el('div.rs-ctl-row', null, [el('span.rs-ctl-k', { text: t(labelKey) }), btn]),
+    node: el('div.rs-ctl-row', null, [
+      el('span.rs-ctl-k', { text: t(labelKey) }),
+      el('div.rs-segs', null, [autoBtn, manBtn]),
+    ]),
     set(v) { if (v !== value) { value = v; paint(); } },
   };
 }
