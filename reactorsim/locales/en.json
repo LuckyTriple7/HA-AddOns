@@ -303,5 +303,9 @@
   "save_ok": "Saved",
   "save_failed": "Save failed",
   "save_slot": "Saved {n}",
-  "load_failed": "Save does not match this reactor"
+  "load_failed": "Save does not match this reactor",
+  "btn_scram_resa": "SCRAM",
+  "btn_scram_resa_title": "Reactor trip — all control rods insert",
+  "btn_scram_az5": "AZ-5",
+  "btn_scram_az5_title": "Emergency protection, category 5 — all rods insert over 18 seconds, graphite tips first"
 }

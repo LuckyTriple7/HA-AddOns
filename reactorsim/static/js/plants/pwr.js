@@ -82,7 +82,9 @@ export const spec = {
     { id: 'ctrl', worth: 1500, speed: 0.0125, initial: 0.18 },
     { id: 'sd', worth: 5500, speed: 0.0125, initial: 0.0 },
   ],
-  scram: { timeS: 2.2 },   // Schwerkraftfall, 90 % in gut zwei Sekunden
+  // Schwerkraftfall, 90 % in gut zwei Sekunden. Beschriftet wird der Knopf
+  // nach Leitstand-Sprache: RESA im deutschen, SCRAM im englischen.
+  scram: { timeS: 2.2, labelKey: 'btn_scram_resa', titleKey: 'btn_scram_resa_title' },
 
   primary: {
     volume_m3: 320,

@@ -82,7 +82,8 @@ export const spec = {
     { id: 'ctrl', worth: 2600, speed: 0.008, initial: 0.35 },
     { id: 'sd', worth: 5200, speed: 0.008, initial: 0.0 },
   ],
-  scram: { timeS: 2.7 },   // hydraulisch eingeschossen, gegen den Kerndruck
+  // Hydraulisch eingeschossen, gegen den Kerndruck.
+  scram: { timeS: 2.7, labelKey: 'btn_scram_resa', titleKey: 'btn_scram_resa_title' },
 
   recirc: {
     W0: 13000,

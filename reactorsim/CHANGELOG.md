@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.10
+
+- 🔴 **Die Schnellabschaltung heißt jetzt, wie sie im jeweiligen Leitstand heißt.** Im deutschen **RESA**, im englischen **SCRAM**, beim RBMK in beiden Sprachen **AZ-5** — Notschutz fünfter Kategorie. „SCRAM" pauschal über alle drei Typen zu schreiben war amerikanisch für zwei Anlagen, die es nie so genannt hätten, und schlicht falsch für die dritte. Der Name gehört zum Reaktortyp, nicht zum Knopf: er steht in der Typdatei und wird von dort gezogen.
+- 💬 Dazu ein Hinweistext beim Überfahren, der sagt, was passiert — inklusive der achtzehn Sekunden und der Graphitspitzen beim RBMK.
+
 ## 0.0.9
 
 - 💾 **Speichern und Fortsetzen.** Ein Knopf in der Statuszeile legt den Stand ab, der Startbildschirm bietet ihn beim nächsten Mal zum Fortsetzen an. Der Stand wird erst angewandt, wenn die Anlage steht — Regler und Pumpen schwingen sich dann aus dem geladenen Zustand von selbst ein, statt mit fremden Integralständen weiterzulaufen.

@@ -125,7 +125,10 @@ export const spec = {
     { id: 'sd', worth: 3200, speed: 0.0056, initial: 0.22, rods: 91 },
   ],
   // Motorantrieb, 0,4 m/s über sieben Meter Kern plus Wassersäulen.
-  scram: { timeS: 18 },
+  // Der Knopf heißt hier nicht SCRAM und auch nicht RESA, sondern AZ-5 --
+  // Notschutz fünfter Kategorie. Der Name gehört zur Anlage wie die
+  // Graphitspitzen, die ihn in den ersten Sekunden zum Gegenteil machen.
+  scram: { timeS: 18, labelKey: 'btn_scram_az5', titleKey: 'btn_scram_az5_title' },
 
   orm: { total: 211, nominal: 46, min: 30, alarm: 15 },
 

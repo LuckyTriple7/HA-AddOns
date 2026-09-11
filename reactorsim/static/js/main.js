@@ -189,7 +189,7 @@ function initControls() {
     if (armed) window.clearTimeout(armed);
     armed = 0;
     scram.dataset.armed = '0';
-    setText(scram, t('btn_scram'));
+    setText(scram, scramLabel());
   };
   scram.addEventListener('click', () => {
     if (app.horn) app.horn.unlock();
@@ -244,6 +244,13 @@ function flash(node, text) {
   const before = node.textContent;
   setText(node, text);
   window.setTimeout(() => setText(node, before), 2000);
+}
+
+/** Beschriftung der Schnellabschaltung -- sie gehört dem Reaktortyp.
+ *  RESA im deutschen Leitstand, SCRAM im englischen, AZ-5 beim RBMK. */
+function scramLabel() {
+  const sp = app.engine && app.engine.spec;
+  return t((sp && sp.scram && sp.scram.labelKey) || 'btn_scram');
 }
 
 function setSpeed(v) {
@@ -380,6 +387,9 @@ function boot(reactorId, scenarioDef, loadSlot) {
   };
 
   initControls();
+  const scramBtn = $('#rs-scram');
+  setText(scramBtn, scramLabel());
+  setAttr(scramBtn, 'title', t((plant.spec.scram && plant.spec.scram.titleKey) || 'btn_scram'));
   setSpeed(1);
   app.loop.start();
 

@@ -303,5 +303,9 @@
   "save_ok": "Gespeichert",
   "save_failed": "Speichern fehlgeschlagen",
   "save_slot": "Stand vom {n}",
-  "load_failed": "Spielstand passt nicht zu diesem Reaktor"
+  "load_failed": "Spielstand passt nicht zu diesem Reaktor",
+  "btn_scram_resa": "RESA",
+  "btn_scram_resa_title": "Reaktorschnellabschaltung — alle Steuerstäbe fahren ein",
+  "btn_scram_az5": "AZ-5",
+  "btn_scram_az5_title": "Notschutz 5. Kategorie — alle Stäbe fahren in 18 Sekunden ein, Graphitspitzen voran"
 }
