@@ -5,7 +5,7 @@
 // neuer Reaktortyp die Anzeige erweitern kann, ohne dass main.js wächst.
 
 import { $, el, setText, setAttr } from './dom.js';
-import { t, num, clock } from './i18n.js';
+import { t, num, clock, has } from './i18n.js';
 import { gauge, bar, reactivityBars } from './gauges.js';
 import { TrendRecorder } from './trend.js';
 import { Annunciator, Horn } from './annunciator.js';
@@ -93,6 +93,18 @@ export function buildPanels(engine, render) {
         bands: [[0, sp.P0_e, 'ok'], [sp.P0_e, sp.P0_e * 1.15, 'warn']] }),
       get: (d, st) => st.P_e },
   ];
+  // Sicherheitsbehälterdruck stand bisher nur als Zeile unter "Sicherheits-
+  // systeme" -- kein Rundinstrument wie jeder andere überwachte Druck. Nur
+  // beim Siedewasserreaktor: sp.containment existiert ausschließlich dort.
+  if (sp.containment) {
+    const cont = sp.containment;
+    gSec.push({
+      g: gauge({ label: t('val_cont_press'), min: 0, max: cont.designLimit * 1.15, digits: 2, unitKey: 'unit_bar',
+        bands: [[0, cont.designLimit * 0.7, 'ok'], [cont.designLimit * 0.7, cont.designLimit * 0.9, 'warn'],
+          [cont.designLimit * 0.9, cont.designLimit * 1.15, 'danger']] }),
+      get: (d, st) => st.pCont,
+    });
+  }
   const secBox = $('#rs-sec-gauges');
   secBox.replaceChildren();
   for (const x of gSec) secBox.append(x.g.node);
@@ -279,9 +291,16 @@ export function buildPanels(engine, render) {
   // plus "_help" in den Sprachdateien, damit jede neue Meldung ihre Hilfe
   // gleich mitbringt statt sie an einer zweiten Stelle nachzutragen.
   const alarmHelp = $('#rs-alarm-help');
+  // Dieselbe Funktion bedient Meldetafel-Kacheln UND Protokolleinträge --
+  // beide reichen nur {key} herein. Nicht jeder Eintrag hat eine eigene
+  // "_help": Ereignisse wie "SCRAM ausgelöst" oder "Frischdampf abgesperrt"
+  // erklären sich schon über ihren Text selbst, has() unterscheidet das von
+  // einer wirklich fehlenden Übersetzung (die t() sonst als Schlüsselnamen
+  // ausgibt -- unlesbar im Fenster).
   const showAlarmHelp = (def) => {
+    const helpKey = def.key + '_help';
     setText($('#rs-alarm-help-title'), t(def.key));
-    setText($('#rs-alarm-help-text'), t(def.key + '_help'));
+    setText($('#rs-alarm-help-text'), has(helpKey) ? t(helpKey) : t('alarm_help_none'));
     alarmHelp.hidden = false;
   };
   $('#rs-alarm-help-close').addEventListener('click', () => { alarmHelp.hidden = true; });

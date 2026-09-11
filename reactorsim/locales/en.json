@@ -47,6 +47,7 @@
   "btn_ack": "Acknowledge",
   "btn_reset": "Reset",
   "btn_close": "Close",
+  "alarm_help_none": "No further explanation on file — the entry already speaks for itself.",
   "btn_cancel": "Cancel",
   "btn_restart": "Restart",
   "btn_glossary": "Basics",

@@ -16,6 +16,11 @@ export function t(key, vars) {
   return s;
 }
 
+/** Ob ein Schlüssel wirklich in der Tabelle steht -- t() allein lässt sich
+ *  von einem fehlenden Schlüssel nicht unterscheiden, der zufällig genauso
+ *  aussieht wie sein eigener Name. */
+export function has(key) { return TABLE[key] !== undefined; }
+
 const _fmt = new Map();
 
 /** Zahl mit fester Nachkommastelle in der Sprache des Spielers. */

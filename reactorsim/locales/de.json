@@ -47,6 +47,7 @@
   "btn_ack": "Quittieren",
   "btn_reset": "Rückstellen",
   "btn_close": "Schließen",
+  "alarm_help_none": "Keine weitere Erklärung hinterlegt — der Eintrag beschreibt sich schon selbst.",
   "btn_cancel": "Abbrechen",
   "btn_restart": "Neustart",
   "btn_glossary": "Grundlagen",

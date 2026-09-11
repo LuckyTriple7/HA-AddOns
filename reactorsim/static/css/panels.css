@@ -111,6 +111,9 @@
 .rs-log [data-sev="1"] { color: var(--rs-warn); }
 .rs-log [data-sev="2"] { color: var(--rs-hot); }
 .rs-log [data-sev="3"] { color: var(--rs-alarm); }
+.rs-log li[role="button"] { cursor: pointer; }
+.rs-log li[role="button"]:hover,
+.rs-log li[role="button"]:focus-visible { background: #131e2a; outline: none; }
 
 /* ── Bedienelemente ───────────────────────────────────────────────────────── */
 

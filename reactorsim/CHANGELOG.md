@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.31
+
+- 📊 **Sicherheitsbehälterdruck bekommt ein Rundinstrument.** Stand bisher nur als kleine Textzeile unter "Sicherheitssysteme" — jetzt ein Instrument im Sekundärkreis-Panel wie jeder andere überwachte Druck, nur beim Siedewasserreaktor (`sp.containment` existiert ausschließlich dort).
+- 💡 **Ereignisprotokoll ist jetzt klickbar**, genau wie die Meldetafel-Kacheln: ein Eintrag öffnet dieselbe Erklärung, wenn eine existiert (Meldungen teilen sich die `_help`-Texte mit der Meldetafel). Für Ereignisse ohne eigene Erklärung (SCRAM ausgelöst, Frischdampf abgesperrt, …) ein Hinweistext statt eines nackten, unübersetzten Schlüsselnamens im Fenster.
+
 ## 0.0.30
 
 - 🐛 **Rundinstrumente verdoppelten sich nach einem Neustart.** Kern-, Primär- und Sekundärkreis-Panel hängten ihre Instrumente bei jedem `buildPanels()`-Aufruf nur an, ohne den Behälter vorher zu leeren — anders als überall sonst im Leitstand. Nach "Neustart" (0.0.20) oder einer neuen Partie blieben die alten Instrumente als Leichen im DOM stehen, für immer auf "—" eingefroren, während die neuen daneben live liefen. Jetzt wird jeder der drei Behälter vor dem Befüllen geleert.

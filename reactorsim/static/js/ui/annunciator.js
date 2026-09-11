@@ -10,6 +10,7 @@ export class Annunciator {
   constructor(container, logNode, defs, onSelect) {
     this.container = container;
     this.logNode = logNode;
+    this.onSelect = onSelect;
     this.tiles = new Map();
     container.replaceChildren();
     for (const d of defs) {
@@ -45,13 +46,25 @@ export class Annunciator {
   /** Protokolleinträge anhängen. Neueste oben, Länge begrenzt. */
   log(entries) {
     for (const e of entries) {
-      const li = el('li', { 'data-sev': e.severity || 1 }, [
+      const li = el('li', {
+        'data-sev': e.severity || 1,
+        role: this.onSelect ? 'button' : null,
+        tabindex: this.onSelect ? '0' : null,
+      }, [
         el('time', { text: clock(e.t) }),
         el('span', {
           text: t(e.key) + (e.kind ? ' — ' + t('event_' + e.kind) : '')
                 + (e.cause ? ' (' + t(e.cause === 'manual' ? 'state_manual' : e.cause) + ')' : ''),
         }),
       ]);
+      // Derselbe Klick-für-Erklärung wie bei den Meldetafel-Kacheln -- ein
+      // Protokolleintrag ist nur eine Zeitleiste, kein Nachschlagewerk.
+      if (this.onSelect) {
+        li.addEventListener('click', () => this.onSelect(e));
+        li.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); this.onSelect(e); }
+        });
+      }
       this.logNode.prepend(li);
       this.logCount++;
     }
