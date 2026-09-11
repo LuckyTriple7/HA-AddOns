@@ -37,6 +37,10 @@ services:
       - ./data:/data
 
     environment:
+      # Zugang. Ohne gesetztes Passwort erzeugt ReactorSim beim ersten Start
+      # eines und schreibt es ins Protokoll — offen steht die Seite nie.
+      - REACTORSIM_USER=admin
+      - REACTORSIM_PASSWORD=bitte-aendern
       # Nur für die Zeitstempel in den Protokollzeilen.
       - TZ=Europe/Berlin
 
@@ -57,6 +61,35 @@ services:
 ```
 
 Danach `http://<server>:17779`.
+
+---
+
+## Zugang
+
+Ein Konto, Zugangsdaten aus der Konfiguration:
+
+| Variable | Vorgabe | Bedeutung |
+|---|---|---|
+| `REACTORSIM_USER` | `admin` | Benutzername |
+| `REACTORSIM_PASSWORD` | — | Passwort. Fehlt es, wird eines erzeugt |
+
+Ist kein Passwort gesetzt, erzeugt ReactorSim beim ersten Start ein zufälliges,
+schreibt es **einmal** ins Protokoll und legt nur den Hash in `./data/auth.json`
+ab:
+
+```bash
+docker compose logs reactorsim | grep -A 3 "Passwort"
+```
+
+Ein gesetztes `REACTORSIM_PASSWORD` gewinnt immer gegen die gespeicherte
+Fassung — ändern heißt also: Wert in Dockge ändern, Stack neu starten, fertig.
+
+Die Anmeldung hält 30 Tage in einem HttpOnly-Cookie. Abmelden über den Link
+unten auf dem Startbildschirm. Gegen Durchprobieren sind zehn Versuche je
+Minute und Absenderadresse erlaubt.
+
+Mehrbenutzerbetrieb kommt später; im Moment ist es ein Konto für alle, die den
+Zugang kennen.
 
 ---
 
@@ -118,7 +151,7 @@ neu, der Name bleibt.
 lieber selbst bestimmst, wann sich etwas ändert:
 
 ```yaml
-    image: ghcr.io/luckytriple7/reactorsim:0.0.10
+    image: ghcr.io/luckytriple7/reactorsim:0.0.13
 ```
 
 Verfügbare Marken siehst du unter
@@ -141,18 +174,24 @@ Unter `./data` liegen:
 
 ```
 data/
+├── auth.json             Hash des erzeugten Passworts (0600)
+├── secret.key            Signierschlüssel der Sitzungen (0600)
 ├── highscores.json       Bestenliste
 └── players/<token>/      Spielstände je Gerät
 ```
+
+`auth.json` und `secret.key` gehören in die Sicherung, sonst muss nach dem
+Zurückspielen jeder neu anmelden — und ohne `auth.json` gilt ein erzeugtes
+Passwort nicht mehr. Wer `REACTORSIM_PASSWORD` setzt, ist davon unabhängig.
 
 Sichern heißt: den Ordner `data` kopieren. Es gibt keine Datenbank, die vorher
 angehalten werden müsste — geschrieben wird atomar (erst daneben, dann
 umbenannt), ein Kopiervorgang im laufenden Betrieb erwischt nie eine halbe
 Datei.
 
-Es gibt **keine Anmeldung und keine personenbezogenen Daten**. Ein Spieler wird
-über ein zufälliges Token im Cookie wiedererkannt; gespeichert wird nur, was er
-selbst in die Bestenliste einträgt.
+Personenbezogene Daten entstehen keine: ein Spieler wird über ein zufälliges
+Token im Cookie wiedererkannt, gespeichert wird nur, was er selbst in die
+Bestenliste einträgt.
 
 ---
 

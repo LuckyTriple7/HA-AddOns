@@ -15,6 +15,13 @@ async function request(method, path, body) {
                     : { Accept: 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
     });
+    if (res.status === 401) {
+      // Sitzung abgelaufen. Ohne diesen Zweig laufen alle weiteren Aufrufe
+      // still ins Leere, und der Spieler sieht nur, dass nichts mehr
+      // gespeichert wird -- ohne zu erfahren warum.
+      window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+      return { ok: false, status: 401, data: null };
+    }
     const data = await res.json().catch(() => null);
     if (!res.ok) return { ok: false, status: res.status, data };
     return { ok: true, status: res.status, data };

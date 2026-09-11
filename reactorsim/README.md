@@ -26,9 +26,14 @@ Danach `http://<server>:17779` öffnen. Der Dienst hört im Container fest auf
 17779; willst du einen anderen Port, ändere nur die linke Seite der
 Portzuordnung in der `docker-compose.yml`.
 
-Unter `./data` landen Spielstände und Bestenliste. Es gibt keine Anmeldung und
-keine personenbezogenen Daten — der Spieler wird über ein zufälliges Token im
-Cookie wiedererkannt.
+Der Zugang ist durch ein Konto geschützt — Benutzer und Passwort kommen aus
+`REACTORSIM_USER` und `REACTORSIM_PASSWORD`. Ohne gesetztes Passwort erzeugt
+ReactorSim beim ersten Start eines und schreibt es ins Protokoll; offen steht
+die Seite nie.
+
+Unter `./data` landen Spielstände, Bestenliste und die Zugangsdaten (nur als
+Hash). Personenbezogene Daten entstehen keine — der Spieler wird über ein
+zufälliges Token im Cookie wiedererkannt.
 
 ## Szenarien
 
@@ -54,7 +59,8 @@ Szenarios aufgelöst — derselbe Startwert ergibt dieselbe Schicht.
 
 | Methode | Pfad | Zweck |
 |---|---|---|
-| GET | `/health` | Healthcheck |
+| GET | `/health` | Healthcheck — als einziger Pfad ohne Anmeldung |
+| GET/POST | `/login`, `/logout` | Anmeldung |
 | GET | `/api/meta` | Version und Szenarienliste |
 | GET/PUT/DELETE | `/api/saves[/<slot>]` | Spielstände |
 | GET/POST | `/api/highscores` | Bestenliste |

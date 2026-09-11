@@ -307,5 +307,13 @@
   "btn_scram_resa": "SCRAM",
   "btn_scram_resa_title": "Reactor trip — all control rods insert",
   "btn_scram_az5": "AZ-5",
-  "btn_scram_az5_title": "Emergency protection, category 5 — all rods insert over 18 seconds, graphite tips first"
+  "btn_scram_az5_title": "Emergency protection, category 5 — all rods insert over 18 seconds, graphite tips first",
+  "login_title": "Sign in",
+  "login_user": "User",
+  "login_password": "Password",
+  "login_submit": "Sign in",
+  "login_failed": "Wrong user or password.",
+  "login_rate_limited": "Too many attempts. Please wait a minute.",
+  "login_expired": "Your session expired. Please sign in again.",
+  "btn_logout": "Sign out"
 }

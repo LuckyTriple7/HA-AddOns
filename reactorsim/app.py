@@ -15,11 +15,14 @@ import logging
 import os
 import signal
 
+from urllib.parse import quote
+
 from flask import (Flask, g, jsonify, make_response, redirect, render_template,
                    request, send_from_directory)
 from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import auth as authmod
 import persist
 import scoring
 
@@ -41,6 +44,12 @@ SCENARIO_PATH = STATIC_PATH + '/data/scenarios'
 VERSION_PATH = _BASE + '/VERSION'
 
 PORT = int(os.environ.get('REACTORSIM_PORT', '17779'))
+
+# Zugangsdaten aus der Umgebung, also aus der Dockge-Konfiguration. Ist kein
+# Passwort gesetzt, erzeugt auth.Auth beim ersten Start eines und schreibt es
+# ins Protokoll -- offen steht die Seite nie.
+REACTORSIM_USER = os.environ.get('REACTORSIM_USER', 'admin')
+REACTORSIM_PASSWORD = os.environ.get('REACTORSIM_PASSWORD', '')
 
 # Eine einzige Versionsquelle: die Datei VERSION. Sie ist zugleich der Ausloeser
 # des Build-Workflows, deshalb kann sie hier nicht auseinanderlaufen. Der
@@ -72,8 +81,67 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 STORE = persist.Store(_DATA)
 LIMITS = persist.RateLimit()
+AUTH = authmod.Auth(_DATA, REACTORSIM_USER, REACTORSIM_PASSWORD)
 
 PLAYER_COOKIE = 'rs_player'
+
+# Was ohne Anmeldung erreichbar bleibt. /health muss offen sein, sonst meldet
+# der Healthcheck den Container als krank; die Anmeldeseite selbst kann nicht
+# hinter der Anmeldung liegen; /set-lang stellt nur ein Cookie und existiert
+# auch auf der Anmeldeseite.
+_PUBLIC_ENDPOINTS = frozenset({'health', 'login', 'set_lang'})
+
+
+@app.before_request
+def _require_login():
+    if request.endpoint in _PUBLIC_ENDPOINTS:
+        return None
+    if AUTH.valid(request.cookies.get(authmod.SESSION_COOKIE)):
+        return None
+    # Anfragen aus dem Spiel heraus bekommen eine Zahl, keine Anmeldeseite --
+    # sonst landete HTML im JSON-Parser und der Fehler waere unlesbar.
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'unauthorized'}), 401
+    return redirect('/login?next=' + quote(authmod.safe_next(request.full_path.rstrip('?')), safe=''))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    lang = detect_language(request)
+    t = load_translations(lang)
+    nxt = authmod.safe_next(request.values.get('next'))
+    error = None
+
+    if request.method == 'POST':
+        # Gegen Durchprobieren: zehn Versuche je Minute und Absenderadresse.
+        addr = request.remote_addr or '-'
+        if not LIMITS.hit(f'login:{addr}', 10, 60):
+            error = 'login_rate_limited'
+        elif not AUTH.csrf_ok(request.form.get('csrf')):
+            # Abgelaufenes Formular -- kein Angriff, nur eine alte Seite.
+            error = 'login_expired'
+        elif AUTH.check(request.form.get('user', ''), request.form.get('password', '')):
+            resp = make_response(redirect(nxt))
+            resp.set_cookie(authmod.SESSION_COOKIE, AUTH.issue(),
+                            max_age=authmod.SESSION_MAX_AGE, httponly=True,
+                            samesite='Lax', secure=request.is_secure)
+            return resp
+        else:
+            error = 'login_failed'
+
+    resp = make_response(render_template(
+        'login.html', t=t, lang=lang, app_version=APP_VERSION,
+        csrf=AUTH.csrf_token(), next_url=nxt, error=error,
+        prefill=request.form.get('user', '') if request.method == 'POST' else ''))
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp, (401 if error else 200)
+
+
+@app.route('/logout', methods=['GET', 'POST'])
+def logout():
+    resp = make_response(redirect('/login'))
+    resp.delete_cookie(authmod.SESSION_COOKIE)
+    return resp
 
 
 # ── i18n ──────────────────────────────────────────────────────────────────────

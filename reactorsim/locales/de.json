@@ -307,5 +307,13 @@
   "btn_scram_resa": "RESA",
   "btn_scram_resa_title": "Reaktorschnellabschaltung — alle Steuerstäbe fahren ein",
   "btn_scram_az5": "AZ-5",
-  "btn_scram_az5_title": "Notschutz 5. Kategorie — alle Stäbe fahren in 18 Sekunden ein, Graphitspitzen voran"
+  "btn_scram_az5_title": "Notschutz 5. Kategorie — alle Stäbe fahren in 18 Sekunden ein, Graphitspitzen voran",
+  "login_title": "Anmeldung",
+  "login_user": "Benutzer",
+  "login_password": "Passwort",
+  "login_submit": "Anmelden",
+  "login_failed": "Benutzer oder Passwort falsch.",
+  "login_rate_limited": "Zu viele Versuche. Bitte eine Minute warten.",
+  "login_expired": "Die Anmeldung ist abgelaufen. Bitte erneut anmelden.",
+  "btn_logout": "Abmelden"
 }

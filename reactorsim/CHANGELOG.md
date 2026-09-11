@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.13
+
+- 🔐 **Anmeldung.** Die Seite stand bisher offen — wer die Adresse kannte, war drin. Jetzt ein Konto, Benutzername und Passwort aus `REACTORSIM_USER` und `REACTORSIM_PASSWORD`, also aus der Dockge-Konfiguration. Mehrbenutzerbetrieb folgt später.
+- 🛡️ **Ohne gesetztes Passwort steht die Seite trotzdem nicht offen.** Fehlt `REACTORSIM_PASSWORD`, erzeugt ReactorSim beim ersten Start ein zufälliges, schreibt es **einmal** ins Protokoll und legt nur den scrypt-Hash in `./data/auth.json` ab (Rechte 0600). Ein Dienst im Internet, der auf ein gesetztes Passwort hofft, ist ein Dienst ohne Passwort.
+- 🚪 **Geschützt ist alles außer zwei Pfaden.** `/health` bleibt offen, sonst meldet Docker den Container dauerhaft als krank; `/login` kann nicht hinter der Anmeldung liegen. Alles andere — Seite, Statics, gesamte JSON-Schnittstelle — braucht eine Sitzung. Ein Test geht die Liste durch, damit kein neuer Pfad versehentlich offen bleibt.
+- 🍪 **Sitzung als signiertes Token** (itsdangerous) in einem HttpOnly-Cookie mit SameSite=Lax, 30 Tage gültig, `secure` sobald über HTTPS aufgerufen. Der Signierschlüssel liegt in `./data/secret.key` — dadurch überlebt die Anmeldung einen Neustart des Containers.
+- 🚧 **Gegen Durchprobieren** zehn Versuche je Minute und Absenderadresse. Das Passwort wird auch bei falschem Benutzernamen geprüft, sonst verrät die Antwortzeit, welcher Name existiert. Das Anmeldeformular trägt ein CSRF-Token, und `?next=` akzeptiert nur anwendungseigene Pfade — eine Anmeldeseite, die Besucher auf fremde Seiten weiterleitet, wäre eine offene Weiterleitung.
+- 🔁 **Abgelaufene Sitzung wird sichtbar.** Antwortet die Schnittstelle mit 401, springt der Browser auf die Anmeldeseite, statt still nichts mehr zu speichern.
+- ✅ **88 Tests** — 74 unter `node --test`, 54 unter `pytest` (davon 14 neu für den Zugang).
+
 ## 0.0.12
 
 - 🔤 **Beschriftung der Rundinstrumente steht jetzt über dem Zifferblatt statt darauf.** Vorher lief der Schriftzug mitten durch den oberen Bogen, und lange Bezeichnungen wurden abgeschnitten — „Unterkühlungsspanne" passt bei 108 Pixeln Instrumentenbreite in keine Zeile. Sie darf nun zweizeilig umbrechen, und alle Instrumente einer Reihe beginnen trotzdem auf gleicher Höhe.

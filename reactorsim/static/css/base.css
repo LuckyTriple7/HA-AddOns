@@ -324,3 +324,5 @@ button {
 }
 .rs-score-name { color: var(--rs-fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rs-score-v { color: var(--rs-value); font-weight: 600; }
+
+.rs-start-logout { text-decoration: none; }

@@ -16,15 +16,34 @@ _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, _ROOT)
 
 
+TEST_USER = 'tester'
+TEST_PASSWORD = 'test-passwort-123'
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
+    """Angemeldeter Client.
+
+    Seit 0.0.13 liegt alles ausser /health und /login hinter der Anmeldung.
+    Diese Tests pruefen die Schnittstelle selbst, nicht den Zugang -- der hat
+    seine eigene Datei (test_auth.py). Also hier einmal anmelden und fertig.
+    """
+    import re
     monkeypatch.setenv('REACTORSIM_BASE', _ROOT)
     monkeypatch.setenv('REACTORSIM_DATA', str(tmp_path))
-    for mod in ('app', 'persist', 'scoring', 'atomic_io'):
+    monkeypatch.setenv('REACTORSIM_USER', TEST_USER)
+    monkeypatch.setenv('REACTORSIM_PASSWORD', TEST_PASSWORD)
+    for mod in ('app', 'auth', 'persist', 'scoring', 'atomic_io'):
         sys.modules.pop(mod, None)
     import app as appmod
     appmod.app.config['TESTING'] = True
-    return appmod.app.test_client()
+    c = appmod.app.test_client()
+    html = c.get('/login').get_data(as_text=True)
+    csrf = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+    r = c.post('/login', data={'user': TEST_USER, 'password': TEST_PASSWORD,
+                               'csrf': csrf, 'next': '/'})
+    assert r.status_code == 302, 'Anmeldung im Test fehlgeschlagen'
+    return c
 
 
 def _summary(**over):
