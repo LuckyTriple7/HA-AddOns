@@ -215,6 +215,7 @@ function initControls() {
       return;
     }
     disarm();
+    if (app.horn) app.horn.scram();
     app.engine.scram('manual');
     setSpeed(1);
   });
@@ -300,6 +301,7 @@ function showFault(detail) {
 function showDestroyed() {
   app.endShown = true;
   app.loop.setSpeed(0);
+  if (app.horn) app.horn.meltdown();
   const s = app.engine.state;
   setText($('#rs-destroyed-detail'),
     `${t('val_fuel_temp')}: ${Math.round(s.T_f - 273.15)} °C · `

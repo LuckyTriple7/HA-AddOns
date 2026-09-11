@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.23
+
+- 🔊 **Anlagengeräusche statt Gepiepse.** Die Meldehupe war ein einzelner Rechteck-Ton auf einer Frequenz — jetzt zwei leicht verstimmte Sägezahn-Oszillatoren durchs Tiefpassfilter, die gegeneinander schweben, wie eine echte elektromagnetische Hupe. TRIP-Meldungen bekommen die höhere, dringlichere Stimme.
+- 💥 **SCRAM hat jetzt ein Geräusch:** tiefer Schlag (Relais/Magnetventil), ein kurzer metallischer Klack, danach abklingendes Zischen (Dampf/Druckluft) — alles aus Oszillator und gefiltertem Rauschen, keine Datei.
+- ☢️ **Kernzerstörung hat jetzt ein Geräusch:** ein Knall aus breitbandigem Rauschen, darunter mehrere Sekunden tiefes Grollen. Vorher stumm.
+- Weiterhin keine Audiodatei im Spiel — alles synthetisiert über die Web Audio API, wie schon die alte Hupe.
+
 ## 0.0.22
 
 - 🐛 **Neustart zeigte sofort wieder "Kernzerstörung".** Der Knopf aus 0.0.20 stoppte die alte Spielschleife nie -- sie lief pausiert weiter, sah beim nächsten Bild noch `destroyed` vom alten Lauf zusammen mit dem eben erst zurückgesetzten `endShown` und zeigte den Dialog erneut, jetzt mit den Werten der frischen Anlage. `boot()` stoppt jetzt zuerst jede laufende Schleife, bevor eine neue entsteht.

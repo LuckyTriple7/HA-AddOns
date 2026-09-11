@@ -377,7 +377,7 @@ export function buildPanels(engine, render) {
     // Hupe im Takt der blinkenden Kachel.
     if (engine.trips.horn) {
       const now = performance.now();
-      if (now > hornNext) { horn.beep(worst >= 3 ? 880 : 620, 110); hornNext = now + 1000; }
+      if (now > hornNext) { horn.alarm(worst); hornNext = now + 1000; }
     }
   });
 
