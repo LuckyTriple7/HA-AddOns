@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.12
+
+- 🔤 **Beschriftung der Rundinstrumente steht jetzt über dem Zifferblatt statt darauf.** Vorher lief der Schriftzug mitten durch den oberen Bogen, und lange Bezeichnungen wurden abgeschnitten — „Unterkühlungsspanne" passt bei 108 Pixeln Instrumentenbreite in keine Zeile. Sie darf nun zweizeilig umbrechen, und alle Instrumente einer Reihe beginnen trotzdem auf gleicher Höhe.
+- 🧹 **Jeder Reaktortyp zeigt nur noch seine eigenen Messwerte.** Die Panels tragen die Zeilen aller drei Typen, weil sie fest im Template stehen — ein Druckwasserreaktor zeigte deshalb Abschaltreserve, Void-Koeffizient und Graphittemperatur als Striche. Sieben leere Zeilen sehen nach kaputter Anzeige aus, nicht nach „gibt es hier nicht".
+- 📏 **CPR statt DNBR bei den siedenden Kernen.** Der Abstand zur Siedekrise heißt beim Druckwasserreaktor DNBR, bei Siedewasserreaktor und RBMK aber CPR — im Kern siedet es dort ohnehin überall, gefragt ist, wie viel Leistung bis zur Austrocknung fehlt. Wie schon bei RESA/SCRAM/AZ-5 steht der Name in der Typdatei.
+
 ## 0.0.11
 
 - 🐛 **Siedewasserreaktor und RBMK sahen aus wie Vorschau, obwohl sie fertig sind.** Die Klasse zum Ausgrauen stand fest im Template — aus der Zeit, als nur der Druckwasserreaktor gebaut war. Beide waren tatsächlich anklickbar und voll spielbar, sie sahen nur nicht so aus. Das Ausgrauen entscheidet jetzt dieselbe Stelle, die auch prüft, ob ein Typ überhaupt spielbar ist.

@@ -129,6 +129,11 @@ export const spec = {
   // bei knapp 30 % Ausschlag. Darauf zu setzen waere kein Sicherheitskonzept.
   stability: { sThreshold: 1.2, drSlope: 1.2, drBase: 0.2, freqHz: 0.5, oprm: 0.22 },
 
+  // Bei siedenden Kernen heisst die Kennzahl nicht DNBR, sondern CPR --
+  // kritisches Leistungsverhaeltnis. Im Kern siedet es ohnehin ueberall;
+  // gefragt ist, wieviel Leistung bis zur Austrocknung fehlt.
+  marginKey: 'val_cpr',
+
   mimic: 'mimic-bwr',
 
   trips: [

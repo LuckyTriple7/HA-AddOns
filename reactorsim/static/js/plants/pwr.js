@@ -138,6 +138,10 @@ export const spec = {
   // bei Volllast 33 °C Kondensationstemperatur und damit 0,05 bar.
   condenser: { T_cw: toK(15), pinch: 6, rise: 12, p0: 0.05 },
 
+  // Abstand zur Siedekrise: beim Druckwasserreaktor das Verhaeltnis zum
+  // Beginn des Filmsiedens (DNBR).
+  marginKey: 'val_dnbr',
+
   mimic: 'mimic-pwr',
 
   trips: [

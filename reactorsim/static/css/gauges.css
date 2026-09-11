@@ -11,14 +11,37 @@
 }
 
 .rs-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rs-gauge-label {
+  /* Zwei Zeilen Platz, damit alle Instrumente einer Reihe gleich hoch
+     beginnen -- auch wenn nur eins davon "Dampferzeugerfuellstand" heisst. */
+  min-height: 2.2em;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  text-align: center;
+  font-size: 9px;
+  line-height: 1.1;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--rs-fg-mute);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.rs-gauge-dial {
   position: relative;
   aspect-ratio: 1 / 0.82;
-  background: radial-gradient(circle at 50% 42%, #16202b 0%, #0b1118 70%);
+  background: radial-gradient(circle at 50% 46%, #16202b 0%, #0b1118 72%);
   border: 1px solid var(--rs-line);
   border-radius: 6px;
   overflow: hidden;
 }
-.rs-gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rs-gauge-dial svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 .rs-gauge-face   { fill: none; stroke: #1e2b39; stroke-width: 7; }
 .rs-gauge-ok     { fill: none; stroke: #1c5c3a; stroke-width: 7; }
@@ -37,29 +60,14 @@
 }
 .rs-gauge-hub { fill: #24313e; stroke: #3a4c5e; }
 
-.rs-gauge-label {
-  position: absolute;
-  left: 0; right: 0; top: 4px;
-  padding: 0 4px;
-  text-align: center;
-  font-size: 9px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--rs-fg-mute);
-  /* Lange Bezeichnungen wie „Dampferzeugerfuellstand" passen nie in ein
-     Instrument von 110 Pixeln. Abschneiden mit Auslassungspunkten, den
-     vollen Text traegt das title-Attribut. */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .rs-gauge-read {
   position: absolute;
-  left: 0; right: 0; bottom: 5px;
+  left: 0; right: 0; bottom: 4px;
   text-align: center;
   font: 600 13px/1 var(--rs-font-num);
   font-variant-numeric: tabular-nums;
   color: var(--rs-fg);
+  text-shadow: 0 0 4px #0b1118, 0 0 4px #0b1118;
 }
 .rs-gauge-read .rs-u { font-size: 9px; font-weight: 400; color: var(--rs-fg-mute); }
 

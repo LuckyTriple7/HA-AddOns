@@ -60,7 +60,7 @@ export function buildPanels(engine, render) {
     { g: gauge({ label: t('val_subcooling'), min: 0, max: 40, digits: 1, unitKey: 'unit_kelvin',
         bands: [[0, 8, 'danger'], [8, 15, 'warn'], [15, 40, 'ok']] }),
       get: (d) => d.subcooling },
-    { g: gauge({ label: t('val_dnbr'), min: 1, max: 4, digits: 2,
+    { g: gauge({ label: t(sp.marginKey || 'val_dnbr'), min: 1, max: 4, digits: 2,
         bands: [[1, 1.3, 'danger'], [1.3, 1.8, 'warn'], [1.8, 4, 'ok']] }),
       get: (d) => d.dnbr },
   ];
@@ -173,6 +173,43 @@ export function buildPanels(engine, render) {
   });
   rangeBtns[0].classList.add('rs-on');
   $('#rs-trend-range').replaceChildren(...rangeBtns);
+
+  // Der Abstand zur Siedekrise heisst je nach Kern anders -- DNBR beim
+  // Druckwasserreaktor, CPR bei den beiden siedenden. Die Zeile steht fest im
+  // Template, die Beschriftung kommt vom Typ.
+  if (sp.marginKey) {
+    for (const node of document.querySelectorAll('[data-v="dnbr"]')) {
+      const row = node.closest('.rs-row');
+      const label = row && row.querySelector('span');
+      if (label) setText(label, t(sp.marginKey));
+    }
+  }
+
+  // ── Zeilen ausblenden, die dieser Typ nicht kennt ──────────────────────────
+  //
+  // Die Panels tragen die Zeilen aller drei Reaktortypen, weil sie fest im
+  // Template stehen. Ein Druckwasserreaktor hat aber weder Abschaltreserve
+  // noch Graphittemperatur, ein RBMK keinen Druckhalter. Bleiben die Zeilen
+  // stehen, zeigt jedes Panel eine Handvoll Striche -- das sieht nach kaputter
+  // Anzeige aus, nicht nach "gibt es hier nicht".
+  {
+    const d0 = engine.derive();
+    const optional = {
+      voidfrac: d0.voidFrac, recirc: d0.recirc, quality: d0.quality,
+      decay_ratio: d0.decayRatio, orm: d0.orm, void_coeff: d0.voidCoeff,
+      axial: d0.axialOffset, t_graphite: d0.T_gr,
+      pzr_p: s.pzr_p, pzr_l: s.pzr_L,
+      boron: sp.feedbacks.includes('boron') ? s.C_B : undefined,
+      dnbr: d0.dnbr,
+    };
+    for (const [key, value] of Object.entries(optional)) {
+      if (value !== undefined) continue;
+      for (const node of binds.get(key) || []) {
+        const row = node.closest('.rs-row');
+        if (row) row.hidden = true;
+      }
+    }
+  }
 
   // ── Fließbild ──────────────────────────────────────────────────────────────
   const buildMimic = MIMICS[sp.mimic];

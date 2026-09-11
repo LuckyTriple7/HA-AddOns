@@ -190,6 +190,9 @@ export const spec = {
   turbine: { Cv: 44, strokeS: 3, workFactor: 0.2467, bypassCv: 22, bypassStrokeS: 1.0 },
   condenser: { T_cw: toK(15), pinch: 6, rise: 12, p0: 0.05 },
 
+  // Wie beim Siedewasserreaktor: CPR, nicht DNBR.
+  marginKey: 'val_cpr',
+
   mimic: 'mimic-rbmk',
 
   trips: [

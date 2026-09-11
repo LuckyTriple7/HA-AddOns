@@ -53,11 +53,18 @@ export function gauge({ label, min, max, digits = 1, unitKey = null, bands = [] 
   const needle = svg('line', { class: 'rs-gauge-needle', x1: 50, y1: 50, x2: 50, y2: 18 });
   children.push(needle, svg('circle', { class: 'rs-gauge-hub', cx: 50, cy: 50, r: 4 }));
 
+  // Die Beschriftung steht UEBER dem Zifferblatt, nicht darauf. Lag sie im
+  // Instrument, lief der Schriftzug mitten durch den oberen Bogen und lange
+  // Bezeichnungen wurden abgeschnitten -- bei 108 Pixeln Instrumentenbreite
+  // passt "Unterkuehlungsspanne" in keine Zeile.
   const read = el('div.rs-gauge-read');
-  const node = el('div.rs-gauge', null, [
+  const dial = el('div.rs-gauge-dial', null, [
     svg('svg', { viewBox: '0 0 100 86', 'aria-hidden': 'true' }, children),
-    el('div.rs-gauge-label', { text: label, title: label }),
     read,
+  ]);
+  const node = el('div.rs-gauge', null, [
+    el('div.rs-gauge-label', { text: label, title: label }),
+    dial,
   ]);
 
   const unit = unitKey ? el('span.rs-u', { text: ' ' + t(unitKey) }) : null;
