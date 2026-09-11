@@ -9,6 +9,7 @@ import { createEngine } from './sim/engine.js';
 import { getPlant, isAvailable } from './plants/index.js';
 import { Session, PHASE } from './game/session.js';
 import { api } from './net/api.js';
+import { save as saveGame, load as loadGame } from './net/persist.js';
 
 const app = {
   engine: null,
@@ -86,6 +87,22 @@ function initStart() {
   $('#rs-debrief-close').addEventListener('click', () => {
     $('#rs-debrief').hidden = true;
     toMenu();
+  });
+
+  // Gibt es einen Spielstand, laesst er sich von hier fortsetzen.
+  api.listSaves().then((r) => {
+    const auto = r.ok && r.data && (r.data.saves || []).find((x) => x.slot === 'auto');
+    if (!auto) return;
+    app.savedGame = auto;
+    const resume = $('#rs-resume');
+    resume.hidden = false;
+    resume.title = t('save_slot', { n: new Date(auto.saved_at * 1000).toLocaleString() });
+  });
+
+  $('#rs-resume').addEventListener('click', () => {
+    const saved = app.savedGame;
+    if (!saved || !isAvailable(saved.reactor)) return;
+    boot(saved.reactor, null, saved.slot);
   });
 
   // Szenarienliste holen. Geht das schief, bleibt das freie Spiel -- das Spiel
@@ -197,6 +214,13 @@ function initControls() {
 
   $('#rs-fault-reload').addEventListener('click', () => window.location.reload());
 
+  $('#rs-save').addEventListener('click', () => {
+    const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
+    saveGame(app.engine, scnId, 'auto').then((ok) => {
+      flash($('#rs-save'), t(ok ? 'save_ok' : 'save_failed'));
+    });
+  });
+
   $('#rs-destroyed-close').addEventListener('click', () => {
     $('#rs-destroyed').hidden = true;
     app.loop.stop();
@@ -213,6 +237,13 @@ function initControls() {
     else if (ev.key === '3') setSpeed(16);
     else if (ev.key === '4') setSpeed(60);
   });
+}
+
+/** Kurze Rueckmeldung auf einem Knopf, ohne Dialog. */
+function flash(node, text) {
+  const before = node.textContent;
+  setText(node, text);
+  window.setTimeout(() => setText(node, before), 2000);
 }
 
 function setSpeed(v) {
@@ -311,7 +342,7 @@ function loadScores(reactor, scenario) {
   });
 }
 
-function boot(reactorId, scenarioDef) {
+function boot(reactorId, scenarioDef, loadSlot) {
   const plant = getPlant(reactorId);
   if (!plant) return;
 
@@ -351,6 +382,14 @@ function boot(reactorId, scenarioDef) {
   initControls();
   setSpeed(1);
   app.loop.start();
+
+  // Einen Spielstand erst anwenden, wenn die Anlage steht: die Regler und
+  // Pumpen schwingen sich dann aus dem geladenen Zustand von selbst ein.
+  if (loadSlot) {
+    loadGame(app.engine, loadSlot).then((err) => {
+      if (err) flash($('#rs-save'), t('load_failed'));
+    });
+  }
 }
 
 // ── Start ────────────────────────────────────────────────────────────────────

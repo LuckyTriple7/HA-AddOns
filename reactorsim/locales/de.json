@@ -297,5 +297,11 @@
   "debrief_send_failed": "Nicht eingetragen — {n}",
   "debrief_scores": "Bestenliste",
   "debrief_rate_limited": "zu schnell hintereinander",
-  "debrief_offline": "kein Server erreichbar"
+  "debrief_offline": "kein Server erreichbar",
+  "btn_save": "Speichern",
+  "btn_resume_save": "Fortsetzen",
+  "save_ok": "Gespeichert",
+  "save_failed": "Speichern fehlgeschlagen",
+  "save_slot": "Stand vom {n}",
+  "load_failed": "Spielstand passt nicht zu diesem Reaktor"
 }

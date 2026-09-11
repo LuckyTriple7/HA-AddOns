@@ -297,5 +297,11 @@
   "debrief_send_failed": "Not submitted — {n}",
   "debrief_scores": "Leaderboard",
   "debrief_rate_limited": "too soon after the last one",
-  "debrief_offline": "no server reachable"
+  "debrief_offline": "no server reachable",
+  "btn_save": "Save",
+  "btn_resume_save": "Resume",
+  "save_ok": "Saved",
+  "save_failed": "Save failed",
+  "save_slot": "Saved {n}",
+  "load_failed": "Save does not match this reactor"
 }
