@@ -13,7 +13,8 @@
 //   4. Kreislauf des Typs (Dampferzeuger, Druckhalter, Turbine, Netz)
 //   5. Regler, im Untertakt von 0,2 s
 //   6. Vergiftung
-//   7. Grenzwerte, Meldungen, Schnellabschaltung
+//   7. Grenzwerte, Meldungen -- ausschließlich Meldungen, keine Auslösung. Die
+//      Schnellabschaltung kommt allein vom Bedienerknopf, siehe scram() unten.
 //   8. sanitize()
 
 import { PROMPT_FRACTION, relax, clamp, toC } from './constants.js';
@@ -244,11 +245,12 @@ export function createEngine(plant, opts = {}) {
     // 6: Vergiftung.
     stepPoisons(s, s.n, dt);
 
-    // 7: Grenzwerte und Meldungen.
+    // 7: Grenzwerte und Meldungen. Eine Meldung schaltet nichts ab -- sie
+    // meldet nur. Die Schnellabschaltung bleibt Sache des Bedieners, der auf
+    // den SCRAM/RESA/AZ-5-Knopf drückt; ohne ihn läuft die Anlage weiter,
+    // auch über den Rand hinaus.
     const d = derive();
     trips.step(s, d, dt);
-    const req = trips.takeScramRequest();
-    if (req) scram(req);
 
     s.t_sim += dt;
 

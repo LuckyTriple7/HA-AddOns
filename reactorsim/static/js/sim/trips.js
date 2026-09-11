@@ -10,6 +10,12 @@
 // geht. Zwei getrennte Zeiten statt einer Hysterese auf dem Messwert: das
 // funktioniert für jede Größe gleich, auch für zusammengesetzte Bedingungen.
 //
+// `action: 'scram'` löst NICHTS von selbst aus -- das System meldet nur, es
+// greift nicht ein. Die Schnellabschaltung bleibt allein Sache des Bedieners
+// am SCRAM/RESA/AZ-5-Knopf. Das Feld markiert lediglich, welche Meldungen
+// schutzwürdig sind: engine.resetScram() lässt sich erst zurücksetzen, wenn
+// keine davon mehr ansteht.
+//
 // Die Kachelzustände folgen der Ringback-Folge nach ISA-18.2:
 //
 //   normal → new (schnelles Blinken, Hupe) → ack (Dauerlicht)
@@ -38,7 +44,6 @@ export class TripSystem {
       });
     }
     this.events = [];
-    this.scramRequest = null;
     this.horn = false;
   }
 
@@ -69,7 +74,6 @@ export class TripSystem {
         st.tile = 'new';
         st.since = s.t_sim;
         this.events.push({ t: s.t_sim, id: def.id, key: def.key, severity: def.severity, kind: 'on' });
-        if (def.action === 'scram' && !this.scramRequest) this.scramRequest = def.id;
       } else if (st.latched && !cond && st.tOff >= hold) {
         st.latched = false;
         st.active = false;
@@ -120,12 +124,6 @@ export class TripSystem {
     let sum = 0;
     for (const st of this.states.values()) sum += st.unackS;
     return sum;
-  }
-
-  takeScramRequest() {
-    const r = this.scramRequest;
-    this.scramRequest = null;
-    return r;
   }
 
   /** Protokolleinträge abholen und Puffer leeren. */

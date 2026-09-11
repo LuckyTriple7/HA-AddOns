@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.19
+
+- ⚠️ **Schnellabschaltung löst nicht mehr von selbst aus.** Bisher schaltete jede Meldung mit `action: 'scram'` (Leistung hoch, DNBR niedrig, Kühlmittelverlust, …) den Reaktor automatisch ab — der Bediener bekam davon oft nur die Meldetafel zu sehen. Jetzt meldet das System weiterhin zuverlässig (Kachel, Hupe, Protokoll), greift aber nicht mehr ein: die Schnellabschaltung ist allein Sache des Bedieners am SCRAM/RESA/AZ-5-Knopf. Wer nicht reagiert, riskiert jetzt echten Brennstoffschaden — bei allen drei Reaktortypen.
+
 ## 0.0.18
 
 - 🐛 **Reaktorschutz saß nach einer Schnellabschaltung für immer fest.** Einmal ausgelöst — auch automatisch, etwa durch „Leistung hoch" — fuhr die Engine die Stäbe für den Rest des Laufs zwangsweise auf „ganz eingefahren", ganz gleich was der Bediener einstellte: kein Zurück in den Normalbetrieb, alle drei Reaktortypen betroffen. „Rückstellen" gibt den Reaktorschutz jetzt frei — aber erst, wenn die auslösende Ursache tatsächlich weg ist, sonst bleibt er stehen, genau wie die Meldetafel selbst.

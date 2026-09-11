@@ -100,7 +100,14 @@ test('Frischdampf-Absperrung gibt POSITIVE Reaktivitaet', () => {
   assert.ok(s.alphaBar < a0, `Blasen fielen nicht zusammen: ${s.alphaBar.toFixed(3)} vs ${a0.toFixed(3)}`);
 
   run(e, 300);
-  assert.ok(s.scram.active, 'keine Abschaltung nach Absperrung');
+  // Die Schnellabschaltung loest nichts mehr von selbst aus -- die Meldung
+  // muss stehen, die tatsaechliche Abschaltung kommt erst vom Bediener.
+  assert.ok(e.trips.states.get('dome_press_high').latched
+    || e.trips.states.get('power_high').latched, 'keine Meldung nach Absperrung');
+  assert.ok(!s.scram.active, 'SCRAM loeste von selbst aus');
+
+  e.scram('manual');
+  run(e, 300);
   assert.ok(!s.destroyed, 'Brennstoffschaden');
   assert.ok(s.p_dome < 95, `Domdruck ${s.p_dome.toFixed(1)} bar`);
 });
@@ -113,7 +120,7 @@ test('Instabilitaetszone: Schwingung waechst, Ueberwachung loest aus', () => {
   // Leistung mit den Staeben wieder hochziehen -- damit wandert der
   // Betriebspunkt in die gesperrte Ecke des Kennfelds.
   let steps = 0;
-  while (s.n < 0.88 && steps < 600 && !s.scram.active && s.rodDmd[0] > 0.001) {
+  while (s.n < 0.88 && steps < 600 && !e.trips.states.get('oprm').latched && s.rodDmd[0] > 0.001) {
     s.rodDmd[0] = Math.max(0, s.rodDmd[0] - 0.002);
     run(e, 8);
     steps++;
@@ -124,8 +131,13 @@ test('Instabilitaetszone: Schwingung waechst, Ueberwachung loest aus', () => {
   let amp = 0;
   for (let i = 0, n = Math.round(400 / DT); i < n; i++) { e.step(DT); amp = Math.max(amp, Math.abs(s.osc)); }
   assert.ok(amp > 0.15, `Schwingung wuchs nur auf ${amp.toFixed(3)}`);
-  assert.ok(s.scram.active, 'Schwingungsueberwachung hat nicht ausgeloest');
-  assert.equal(s.scram.cause, 'oprm', `Ausloesung durch ${s.scram.cause}`);
+  // Die Meldung muss kommen -- die Schnellabschaltung selbst ist Sache des
+  // Bedieners und loest nicht mehr von selbst aus.
+  assert.ok(e.trips.states.get('oprm').latched, 'Schwingungsueberwachung hat nicht ausgeloest');
+  assert.ok(!s.scram.active, 'SCRAM loeste von selbst aus');
+
+  e.scram('oprm');
+  run(e, 60);
   assert.ok(!s.destroyed, 'Brennstoffschaden durch Schwingung');
 });
 

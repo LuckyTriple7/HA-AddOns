@@ -72,15 +72,23 @@ test('Turbinenschnellschluss: Druecke bleiben unter den Sicherheitsventilen', ()
   assert.ok(!s.destroyed, 'Brennstoffschaden beim Lastabwurf');
 });
 
-test('Ausfall aller Hauptkuehlmittelpumpen loest aus', () => {
+test('Ausfall aller Hauptkuehlmittelpumpen meldet -- und wer scrammt, uebersteht es', () => {
+  // Die Schnellabschaltung loest nichts mehr von selbst aus (das ist Sache
+  // des Bedieners) -- geprueft wird deshalb erst, dass die Meldung wirklich
+  // kommt, und danach, dass eine Schnellabschaltung von Hand den Kern
+  // tatsaechlich rettet.
   const e = boot();
   const s = e.state;
   for (const p of e.ctx.pumps) p.trip();
   run(e, 60);
-  assert.ok(s.scram.active, 'keine Abschaltung nach Pumpenausfall');
+  assert.ok(e.trips.states.get('rcp_lost').latched, 'keine Meldung nach Pumpenausfall');
+  assert.ok(!s.scram.active, 'SCRAM loeste von selbst aus');
+
+  e.scram('manual');
+  run(e, 60);
   assert.ok(s.W_core < 0.2 * e.spec.coolant.W0, `Durchsatz ${s.W_core.toFixed(0)} kg/s`);
   // Der Auslauf haelt den Kern in den ersten Sekunden kuehl.
-  assert.ok(!s.destroyed, 'Brennstoffschaden trotz Abschaltung');
+  assert.ok(!s.destroyed, 'Brennstoffschaden trotz Abschaltung von Hand');
 });
 
 test('Rueckkopplungen fangen eine Reaktivitaetszugabe von selbst ab', () => {

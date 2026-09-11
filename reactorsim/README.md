@@ -84,6 +84,7 @@ halten diese Tür offen.
   der Zeitraffer verändert die Genauigkeit also nicht. Bei einer Schnell-
   abschaltung schaltet das Spiel selbst auf 1× zurück.
 - **SCRAM** braucht zwei Tipper: der erste scharf, der zweite löst aus.
+- **Kein automatischer Schutz.** Die Meldetafel warnt zuverlässig, greift aber nie selbst ein — die Schnellabschaltung ist allein Sache des Bedieners. Wer eine Meldung ignoriert, riskiert echten Brennstoffschaden.
 - **Hochformat** zeigt die Panels als Reiter, breite Bildschirme als Raster mit
   dem Fließbild in der Mitte.
 - **Sprache** DE/EN über den Startbildschirm.
