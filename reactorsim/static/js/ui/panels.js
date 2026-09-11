@@ -296,8 +296,14 @@ export function buildPanels(engine, render) {
   render.add('text', () => {
     const d = engine.derive();
 
-    put('power_th_pct', num(d.power_th_pct, 1) + U('unit_percent'));
-    put('power_e', num(s.P_e, 0) + U('unit_mwe'));
+    // Auch die groß gedruckten Leitwerte in der Statuszeile bekommen eine
+    // Zustandsfarbe statt fest verdrahtetem Blau -- sonst sieht eine Anlage,
+    // die bei 111 % steht oder deren Turbine gerade abgeworfen hat, in der
+    // einzigen immer sichtbaren Zeile genauso ruhig aus wie im Normalbetrieb.
+    put('power_th_pct', num(d.power_th_pct, 1) + U('unit_percent'),
+        d.power_th_pct >= 110 ? 3 : (d.power_th_pct >= 100 ? 1 : undefined));
+    put('power_e', num(s.P_e, 0) + U('unit_mwe'),
+        s.turbineTripped ? 2 : (!s.breaker && s.P_demand > 0 ? 1 : undefined));
     put('demand', num(s.P_demand, 0) + U('unit_mwe'));
     put('deviation', (d.deviation >= 0 ? '+' : '') + num(d.deviation, 0) + U('unit_mwe'));
     put('t_avg', num(d.T_avg - 273.15, 1) + U('unit_celsius'));

@@ -1,0 +1,20 @@
+{
+  "id": "bwr_instability",
+  "reactor": "bwr",
+  "difficulty": 3,
+  "title_key": "scn_bwr_instab_title",
+  "brief_key": "scn_bwr_instab_brief",
+  "duration_s": 3600,
+  "seed": 1988,
+  "demand": [
+    { "t": 0, "mw": 1344 },
+    { "t": 3600, "mw": 1344 }
+  ],
+  "grid": { "tolerance_mw": 60 },
+  "events": [
+    { "t": "rand(600,1200)", "id": "recirc_runback", "args": { "to": 0.4 } }
+  ],
+  "fail": [
+    { "type": "fuel_damage" }
+  ]
+}

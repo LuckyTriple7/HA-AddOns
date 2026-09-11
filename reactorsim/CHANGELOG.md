@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.22
+
+- 🐛 **Neustart zeigte sofort wieder "Kernzerstörung".** Der Knopf aus 0.0.20 stoppte die alte Spielschleife nie -- sie lief pausiert weiter, sah beim nächsten Bild noch `destroyed` vom alten Lauf zusammen mit dem eben erst zurückgesetzten `endShown` und zeigte den Dialog erneut, jetzt mit den Werten der frischen Anlage. `boot()` stoppt jetzt zuerst jede laufende Schleife, bevor eine neue entsteht.
+- 📊 **Statuszeile: Marge und Brennstofftemperatur** sind jetzt immer sichtbar, nicht nur im jeweiligen Tab -- die zwei Werte, die tatsächlich über einen Kernschaden entscheiden, standen bisher nur im Panel des laufenden Reiters.
+- 🎨 **Therm. Leistung und Generator färben sich jetzt nach Zustand** statt fest verdrahtet Blau zu bleiben: Leistung ab 100 % gelb, ab 110 % rot; Generator gelb ohne Netzschalter bei anstehender Anforderung, rot bei abgeworfener Turbine.
+- 🎯 **Zwei neue Extremszenarien.** *Klemmendes Abblaseventil* (DWR, Seed 1979 — Three Mile Island): Druck und Füllstand fallen langsam, die Meldetafel warnt früh, wer sie überhört verliert DNBR. *Dichtewellen-Instabilität* (SWR, Seed 1988 — LaSalle): Umwälzstrom bricht ein, wer die Leistung trotzdem mit den Stäben nachzieht statt zuerst den Durchsatz wiederherzustellen, treibt den Kern in die gesperrte Ecke des Kennfelds. Beide per Kopfsimulation geprüft: unbedient gefährlich, rechtzeitiges Eingreifen rettet den Kern.
+
 ## 0.0.21
 
 - 🖼️ **Logo und Icons.** ReactorSim war bisher komplett unbebrandet — kein Favicon, kein Icon, ein leerer Tab. Jetzt Favicon (ICO + PNG), Apple-Touch-Icon, ein Icon-Badge auf dem Startbildschirm und ein Web-Manifest für "Zum Startbildschirm hinzufügen". Die Anmeldeseite bekommt bewusst kein Favicon — sie darf laut eigenem Kommentar keine Datei nachladen, die hinter derselben Anmeldung liegt.

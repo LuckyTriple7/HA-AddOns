@@ -393,6 +393,14 @@ function boot(reactorId, scenarioDef, loadSlot) {
   app.lastReactor = reactorId;
   app.lastScenarioDef = loadSlot ? null : (scenarioDef || null);
 
+  // Eine laufende Schleife MUSS stehen, bevor eine neue entsteht. app.loop
+  // zeigt danach auf ein neues Objekt, aber die alte Schleife lief bis dahin
+  // mit setSpeed(0) weiter (Kernzerstörung pausiert nur, sie stoppt nicht) --
+  // ihr rAF-Takt hätte sonst beim nächsten Bild noch einmal
+  // state.destroyed && !app.endShown gesehen und die eben erst zurückgesetzte
+  // Anzeige sofort wieder auf "Kernzerstörung" gestellt, mit dem neuen Motor.
+  if (app.loop) app.loop.stop();
+
   $('#rs-start').hidden = true;
   $('#rs-app').hidden = false;
 
