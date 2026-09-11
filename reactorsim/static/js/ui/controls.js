@@ -47,6 +47,96 @@ export function autoSwitch(labelKey, initial, onChange) {
   };
 }
 
+/**
+ * Regelstation: Umschalter Automatik/Hand plus Stellschieber.
+ *
+ * So sieht jede Regelstation in einer echten Leitwarte aus, und aus gutem
+ * Grund. Der Schieber ist IMMER da und zeigt IMMER den geltenden Stellwert --
+ * in Automatik führt ihn der Regler und der Schieber läuft mit, in Hand führt
+ * ihn der Bediener.
+ *
+ * Daraus folgt die stoßfreie Übernahme: wer auf Hand schaltet, übernimmt genau
+ * den Wert, der gerade steht. Nichts springt. Ein Regler, bei dem das Umschalten
+ * selbst eine Störung auslöst, wird nie benutzt -- und dann ist die
+ * Handbedienung wertlos, obwohl sie da ist.
+ *
+ * @param {object} o
+ * @param {string} o.labelKey    Bezeichnung der Station
+ * @param {string} o.unitKey     Einheit des Stellwerts
+ * @param {()=>number} o.read    aktueller Stellwert (in Anzeigeeinheiten)
+ * @param {(v:number)=>void} o.write  Handsollwert setzen
+ * @param {()=>boolean} o.isAuto aktueller Betriebsartenzustand
+ * @param {(v:boolean)=>void} o.setAuto  umschalten; bekommt den Ist-Wert schon übernommen
+ */
+export function station({ labelKey, min = 0, max = 100, step = 1, digits = 0,
+                          unitKey, read, write, isAuto, setAuto, hint }) {
+  let auto = isAuto();
+  const input = el('input.rs-slider', { type: 'range', min, max, step, value: read() });
+  const readout = el('span.rs-ctl-v');
+
+  const paint = (v) => {
+    setText(readout, num(Number(v), digits) + (unitKey ? '\u2009' + t(unitKey) : ''));
+  };
+
+  const mk = (key, target) => {
+    const b = el('button.rs-seg', { type: 'button' }, [t(key)]);
+    b.addEventListener('click', () => {
+      if (auto === target) return;
+      // Stoßfreie Übernahme: erst den Ist-Wert als Sollwert setzen, dann
+      // umschalten. Andersherum regelt die Station eine Sekunde lang gegen
+      // den alten Handwert, und genau das ist der Stoß.
+      if (!target) write(Number(input.value));
+      auto = target;
+      setAuto(auto);
+      sync();
+    });
+    return b;
+  };
+  const autoBtn = mk('state_auto', true);
+  const manBtn = mk('state_manual', false);
+
+  const sync = () => {
+    autoBtn.classList.toggle('rs-on', auto);
+    manBtn.classList.toggle('rs-on', !auto);
+    autoBtn.setAttribute('aria-pressed', String(auto));
+    manBtn.setAttribute('aria-pressed', String(!auto));
+    input.disabled = auto;
+    input.classList.toggle('rs-slider-auto', auto);
+  };
+
+  input.addEventListener('input', () => {
+    paint(input.value);
+    if (!auto) write(Number(input.value));
+  });
+
+  paint(read());
+  sync();
+
+  const node = el('div.rs-ctl-block', null, [
+    el('div.rs-ctl-row', null, [
+      el('span.rs-ctl-k', { text: t(labelKey) }),
+      el('div.rs-segs', null, [autoBtn, manBtn]),
+    ]),
+    el('div.rs-ctl-row', null, [input, readout]),
+    hint ? el('p.rs-ctl-hint', { text: t(hint) }) : null,
+  ]);
+
+  return {
+    node,
+    /** Nachführung im Renderlauf. In Automatik läuft der Schieber mit. */
+    set() {
+      const a = isAuto();
+      if (a !== auto) { auto = a; sync(); }
+      if (auto || document.activeElement !== input) {
+        const v = read();
+        const sv = String(Math.round(v / step) * step);
+        if (input.value !== sv) { input.value = sv; }
+        paint(v);
+      }
+    },
+  };
+}
+
 /** Schieber mit Zahlenanzeige. */
 export function slider({ labelKey, min, max, step, value, digits = 0, unitKey, onInput }) {
   const input = el('input.rs-slider', {

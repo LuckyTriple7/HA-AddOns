@@ -10,7 +10,7 @@ import { gauge, bar, reactivityBars } from './gauges.js';
 import { TrendRecorder } from './trend.js';
 import { Annunciator, Horn } from './annunciator.js';
 import {
-  autoSwitch, slider, buttonGroup, jogButtons, pumpRow,
+  autoSwitch, station, slider, buttonGroup, jogButtons, pumpRow,
 } from './controls.js';
 import { MIMICS } from './mimic.js';
 
@@ -92,13 +92,26 @@ export function buildPanels(engine, render) {
   $('#rs-rho').replaceChildren(rho.node);
 
   // ── Bedienung ──────────────────────────────────────────────────────────────
-  const rodAuto = autoSwitch('ctl_rod_auto', true, (v) => { ctx.rodCtl.auto = v; });
+  // Welcher Regler die Stäbe führt, ist typabhängig: beim Druckwasserreaktor
+  // die Temperaturregelung, beim RBMK der Leistungsregler, beim
+  // Siedewasserreaktor gar keiner -- dort ist der Umwälzstrom das Stellglied.
+  // Deshalb zeigt der Schalter auf ctx.rodAutoCtl und nicht fest auf ctx.rodCtl.
+  const rodCtl = ctx.rodAutoCtl;
+  const rodAuto = rodCtl
+    ? autoSwitch(sp.rodAutoKey || 'ctl_rod_auto', rodCtl.auto, (v) => { rodCtl.auto = v; })
+    : null;
   const rodJog = jogButtons('ctl_rods', (dir) => {
-    ctx.rodCtl.auto = false;
-    rodAuto.set(false);
+    if (rodCtl && rodCtl.auto) { rodCtl.auto = false; rodAuto.set(false); }
     s.rodDmd[0] = Math.max(0, Math.min(1, s.rodDmd[0] + dir * 0.005));
+    if (sp.rodBanksMoveTogether) {
+      for (let i = 1; i < s.rodDmd.length; i++) {
+        s.rodDmd[i] = Math.max(0, Math.min(1, s.rodDmd[i] + dir * 0.005));
+      }
+    }
   });
-  $('#rs-rod-ctl').replaceChildren(rodAuto.node, rodJog.node);
+  $('#rs-rod-ctl').replaceChildren(
+    ...(rodAuto ? [rodAuto.node] : []), rodJog.node,
+    el('p.rs-ctl-hint', { text: t('hint_rods') }));
 
   // Wie viele Pumpen es gibt, sagt der Typ ueber seine Anzeigewerte -- ein
   // Druckwasserreaktor hat vier Hauptkuehlmittelpumpen, ein Siedewasserreaktor
@@ -110,8 +123,27 @@ export function buildPanels(engine, render) {
   });
   $('#rs-pumps').replaceChildren(pumps.node);
 
-  const govAuto = autoSwitch('ctl_turbine', true, (v) => { ctx.govCtl.auto = v; });
-  const fwAuto = autoSwitch('ctl_feedwater', true, (v) => { ctx.fwCtl.auto = v; });
+  // Turbinenventil und Speisewasser als Regelstationen: Umschalter plus
+  // Stellschieber, der in Automatik mitläuft. Vorher gab es nur den
+  // Umschalter -- "Hand" hieß dann: der Regler hört auf, und der Spieler hat
+  // trotzdem keinen Hebel. Beim Speisewasser war es sogar schädlich, weil der
+  // Handwert auf Volllast stand.
+  const govStation = station({
+    labelKey: 'ctl_gov_valve', min: 0, max: 100, step: 1, unitKey: 'unit_percent',
+    hint: 'hint_gov',
+    read: () => ctxPos(ctx.govValve) * 100,
+    write: (v) => { ctx.govCtl.manual = v / 100; },
+    isAuto: () => ctx.govCtl.auto,
+    setAuto: (v) => { ctx.govCtl.auto = v; },
+  });
+  const fwStation = station({
+    labelKey: 'ctl_fw_flow', min: 0, max: 130, step: 1, unitKey: 'unit_percent',
+    hint: 'hint_fw',
+    read: () => (s.W_fw / fwNominal(sp)) * 100,
+    write: (v) => { ctx.fwCtl.manual = v / 100; },
+    isAuto: () => ctx.fwCtl.auto,
+    setAuto: (v) => { ctx.fwCtl.auto = v; },
+  });
 
   const demand = slider({
     labelKey: 'ctl_demand', min: 0, max: Math.round(sp.P0_e), step: 5,
@@ -125,13 +157,13 @@ export function buildPanels(engine, render) {
   // Frischdampf-Absperrung -- beides hier fest zu verdrahten hiesse, die
   // Oberflaeche bei jedem neuen Typ aufzuschneiden.
   const extras = (hooks.uiControls ? hooks.uiControls(s, sp, ctx, {
-    autoSwitch, slider, buttonGroup,
+    autoSwitch, station, slider, buttonGroup,
   }) : []) || [];
   const mounts = {
     core: $('#rs-rod-ctl'), primary: $('#rs-pumps'),
     secondary: $('#rs-sec-ctl'), grid: $('#rs-grid-ctl'), chem: $('#rs-chem-ctl'),
   };
-  $('#rs-sec-ctl').replaceChildren(govAuto.node, fwAuto.node);
+  $('#rs-sec-ctl').replaceChildren(govStation.node, fwStation.node);
   $('#rs-chem-ctl').replaceChildren();
   for (const x of extras) {
     const target = mounts[x.mount] || mounts.secondary;
@@ -288,9 +320,9 @@ export function buildPanels(engine, render) {
     rho.set(d.breakdown, d.rho);
     pumps.set(d.pumpStates || []);
     demand.set(Math.round(s.P_demand));
-    rodAuto.set(ctx.rodCtl.auto);
-    govAuto.set(ctx.govCtl.auto);
-    fwAuto.set(ctx.fwCtl.auto);
+    if (rodAuto && rodCtl) rodAuto.set(rodCtl.auto);
+    govStation.set();
+    fwStation.set();
     for (const x of extras) if (x.set) x.set(s, d);
 
     promptNode.hidden = !s.promptCritical;
@@ -331,6 +363,14 @@ export function buildPanels(engine, render) {
 }
 
 function ctxPos(valve) { return valve ? valve.pos : 0; }
+
+/** Nenndampfstrom -- er heißt je nach Typ anders, weil die Behälter es tun. */
+function fwNominal(sp) {
+  if (sp.sg) return sp.sg.W_steam0;
+  if (sp.vessel) return sp.vessel.W_steam0;
+  if (sp.drum) return sp.drum.W_steam0;
+  return 1;
+}
 
 function fmtPeriod(seconds) {
   if (!Number.isFinite(seconds)) return t('period_infinite');

@@ -315,5 +315,14 @@
   "login_failed": "Benutzer oder Passwort falsch.",
   "login_rate_limited": "Zu viele Versuche. Bitte eine Minute warten.",
   "login_expired": "Die Anmeldung ist abgelaufen. Bitte erneut anmelden.",
-  "btn_logout": "Abmelden"
+  "btn_logout": "Abmelden",
+  "ctl_gov_valve": "Regelventil",
+  "ctl_fw_flow": "Speisewasser",
+  "ctl_pzr_heater": "Druckhalter-Heizung",
+  "ctl_pzr_spray": "Druckhalter-Sprühen",
+  "ctl_power_ctl": "Leistungsregler",
+  "hint_gov": "In Hand hältst du die Ventilstellung selbst — die Leistung folgt.",
+  "hint_fw": "In Hand füllst oder entleerst du den Dampferzeuger selbst.",
+  "hint_pzr": "Heizen hebt den Druck, Sprühen senkt ihn.",
+  "hint_rods": "In Hand fährst du die Stäbe mit Ziehen und Einfahren."
 }

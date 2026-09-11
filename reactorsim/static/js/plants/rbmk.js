@@ -193,6 +193,12 @@ export const spec = {
   // Wie beim Siedewasserreaktor: CPR, nicht DNBR.
   marginKey: 'val_cpr',
 
+  // Der Schalter im Kern-Panel heisst hier nach dem, was er wirklich regelt.
+  rodAutoKey: 'ctl_power_ctl',
+  // Beide Gruppen fahren gemeinsam -- so bleibt die Abschaltreserve ein
+  // sinnvoller Mittelwert und kein Zufallsprodukt zweier Einzelstellungen.
+  rodBanksMoveTogether: true,
+
   mimic: 'mimic-rbmk',
 
   trips: [
@@ -284,6 +290,10 @@ export const hooks = {
     ctx.powerCtl = new PowerController({
       setpoint: s.n, deadband: 0.004, speed: sp.rodBanks[0].speed,
     });
+    // Diesen Regler meint der Schalter im Kern-Panel -- nicht ctx.rodCtl, der
+    // hier gar nichts tut. Ihn abzuschalten ist der erste Schritt in die
+    // Nachtschicht vom 26. April.
+    ctx.rodAutoCtl = ctx.powerCtl;
 
     ctx.fwCtl = new FeedwaterController({
       levelSet: sp.drum.level0, W0: sp.drum.W_steam0, kp: 2.0, ki: 0.04,

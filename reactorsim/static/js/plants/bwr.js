@@ -214,6 +214,9 @@ export const hooks = {
     // Mitteltemperatur -- die ist durch den Druck festgenagelt. Die Automatik
     // ist deshalb aus; geregelt wird ueber den Umwaelzstrom.
     ctx.rodCtl.auto = false;
+    // Kein Regler fuehrt hier die Staebe -- deshalb zeigt das Kern-Panel auch
+    // keinen Automatik-Schalter dafuer. Das Stellglied ist der Umwaelzstrom.
+    ctx.rodAutoCtl = null;
 
     ctx.fwCtl = new FeedwaterController({
       levelSet: sp.vessel.level0, W0: sp.vessel.W_steam0, kp: 2.0, ki: 0.04,

@@ -257,3 +257,8 @@
 .rs-seg.rs-on { background: #14402c; color: #bff3d6; font-weight: 600; }
 /* Hand ist kein Fehler, aber ein Zustand, den man sehen soll. */
 .rs-seg:last-child.rs-on { background: #4a3a05; color: #ffe6a8; }
+
+/* In Automatik läuft der Schieber nur mit -- er ist Anzeige, nicht Bedienung. */
+.rs-slider-auto { opacity: .45; cursor: default; }
+.rs-ctl-block .rs-ctl-row .rs-slider { flex: 1 1 auto; }
+.rs-ctl-block .rs-ctl-row .rs-ctl-v { flex: 0 0 auto; min-width: 5.5em; text-align: right; }

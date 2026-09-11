@@ -226,6 +226,9 @@ export const hooks = {
     ctx.rodCtl = new RodController({
       tAvgLow: sp.coolant.T_in, tAvgHigh: tAvgFull, deadbandK: 0.8, speed: 0.0125, bank: 0,
     });
+    // Diesen Regler meint der Schalter "Stabregelung" im Kern-Panel.
+    ctx.rodAutoCtl = ctx.rodCtl;
+
     ctx.pzrCtl = new PressurizerController({
       pSet: sp.pressurizer.p0, heaterMaxKW: sp.pressurizer.heaterMaxKW,
     });
@@ -445,11 +448,32 @@ export const hooks = {
       { key: 'ctl_boron_dilute', value: '-1' },
       { key: 'ctl_boron_stop', value: '0' },
       { key: 'ctl_boron_add', value: '1' },
-    ], '0', (v) => { s.boronFlow = Number(v); });
-    const pzr = kit.autoSwitch('ctl_pressurizer', true, (v) => { ctx.pzrCtl.auto = v; });
+    ], '0', (s0) => { s.boronFlow = Number(s0); });
+
+    // Der Druckhalter ist EINE Betriebsart, aber ZWEI Stellglieder. Heizen
+    // hebt den Druck, Sprühen senkt ihn -- beide gleichzeitig laufen zu
+    // lassen ist der schnellste Weg, ihn kaputtzuregeln, deshalb sieht man in
+    // Hand beide Schieber nebeneinander.
+    const heater = kit.station({
+      labelKey: 'ctl_pzr_heater', min: 0, max: 100, step: 1, unitKey: 'unit_percent',
+      hint: 'hint_pzr',
+      read: () => (s.pzr_htr / sp.pressurizer.heaterMaxKW) * 100,
+      write: (v) => { ctx.pzrCtl.heaterManual = v / 100; },
+      isAuto: () => ctx.pzrCtl.auto,
+      setAuto: (v) => { ctx.pzrCtl.auto = v; },
+    });
+    const spray = kit.station({
+      labelKey: 'ctl_pzr_spray', min: 0, max: 100, step: 1, unitKey: 'unit_percent',
+      read: () => s.pzr_spray * 100,
+      write: (v) => { ctx.pzrCtl.sprayManual = v / 100; },
+      isAuto: () => ctx.pzrCtl.auto,
+      setAuto: (v) => { ctx.pzrCtl.auto = v; },
+    });
+
     return [
       { mount: 'chem', node: boron.node, set: (st) => boron.set(String(st.boronFlow)) },
-      { mount: 'secondary', node: pzr.node, set: () => pzr.set(ctx.pzrCtl.auto) },
+      { mount: 'secondary', node: heater.node, set: () => heater.set() },
+      { mount: 'secondary', node: spray.node, set: () => spray.set() },
     ];
   },
 
