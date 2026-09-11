@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.30
+
+- 🐛 **Rundinstrumente verdoppelten sich nach einem Neustart.** Kern-, Primär- und Sekundärkreis-Panel hängten ihre Instrumente bei jedem `buildPanels()`-Aufruf nur an, ohne den Behälter vorher zu leeren — anders als überall sonst im Leitstand. Nach "Neustart" (0.0.20) oder einer neuen Partie blieben die alten Instrumente als Leichen im DOM stehen, für immer auf "—" eingefroren, während die neuen daneben live liefen. Jetzt wird jeder der drei Behälter vor dem Befüllen geleert.
+
 ## 0.0.29
 
 - ☢️ **Fukushima-1-Szenario, mit echter neuer Physik statt reiner Datendatei.** Bisher konnte kein Reaktortyp durch reinen Kühlungsverlust nach der Abschaltung schmelzen — Zerstörung ging immer nur über einen Leistungsausflug. Für den Siedewasserreaktor jetzt vier neue, dauerhafte Systeme:

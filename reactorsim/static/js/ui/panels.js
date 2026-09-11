@@ -50,7 +50,14 @@ export function buildPanels(engine, render) {
         bands: [[-500, -200, 'warn'], [-200, 200, 'ok'], [200, 500, 'danger']] }),
       get: (d) => d.rho_pcm },
   ];
+  // Leeren, bevor angehaengt wird: buildPanels() laeuft bei jedem Neustart
+  // erneut (siehe boot()), und ohne das hier blieben die Instrumente der
+  // vorigen Partie als Leichen im DOM stehen -- render.clear() nimmt ihnen
+  // zwar den Renderlauf, der sie fuellt, aber nicht sich selbst weg. Genau
+  // deshalb zeigten manche Instrumente nach einem Neustart doppelt, die
+  // Haelfte davon fuer immer nur "—".
   const coreBox = $('#rs-core-gauges');
+  coreBox.replaceChildren();
   for (const x of gCore) coreBox.append(x.g.node);
 
   // Primaerdruck faehrt bei den drei Typen auf vollkommen verschiedenen
@@ -72,6 +79,7 @@ export function buildPanels(engine, render) {
       get: (d) => d.dnbr },
   ];
   const primBox = $('#rs-prim-gauges');
+  primBox.replaceChildren();
   for (const x of gPrim) primBox.append(x.g.node);
 
   const gSec = [
@@ -86,6 +94,7 @@ export function buildPanels(engine, render) {
       get: (d, st) => st.P_e },
   ];
   const secBox = $('#rs-sec-gauges');
+  secBox.replaceChildren();
   for (const x of gSec) secBox.append(x.g.node);
 
   // ── Stabstellungen ─────────────────────────────────────────────────────────
