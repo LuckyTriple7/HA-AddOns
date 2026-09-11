@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.11
+
+- 🐛 **Siedewasserreaktor und RBMK sahen aus wie Vorschau, obwohl sie fertig sind.** Die Klasse zum Ausgrauen stand fest im Template — aus der Zeit, als nur der Druckwasserreaktor gebaut war. Beide waren tatsächlich anklickbar und voll spielbar, sie sahen nur nicht so aus. Das Ausgrauen entscheidet jetzt dieselbe Stelle, die auch prüft, ob ein Typ überhaupt spielbar ist.
+
 ## 0.0.10
 
 - 🔴 **Die Schnellabschaltung heißt jetzt, wie sie im jeweiligen Leitstand heißt.** Im deutschen **RESA**, im englischen **SCRAM**, beim RBMK in beiden Sprachen **AZ-5** — Notschutz fünfter Kategorie. „SCRAM" pauschal über alle drei Typen zu schreiben war amerikanisch für zwei Anlagen, die es nie so genannt hätten, und schlicht falsch für die dritte. Der Name gehört zum Reaktortyp, nicht zum Knopf: er steht in der Typdatei und wird von dort gezogen.

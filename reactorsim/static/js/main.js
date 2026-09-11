@@ -33,7 +33,11 @@ function initStart() {
     const id = card.dataset.reactor;
     card.setAttribute('aria-pressed', 'false');
     if (!isAvailable(id)) {
+      // Ausgrauen NUR hier, nie fest im Template: dort blieb die Klasse nach
+      // dem Bau von SWR und RBMK stehen, und zwei fertige Reaktortypen sahen
+      // monatelang aus wie Vorschau.
       card.disabled = true;
+      card.classList.add('rs-card-soon');
       card.title = t('reactor_soon_hint');
       const badge = card.querySelector('.rs-card-badge');
       const soon = document.createElement('span');
