@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.26
+
+- 🐛 **Druck-Rundinstrument stand bei Siedewasserreaktor und RBMK dauerhaft im Roten.** Die Skala war fest auf den Druckwasserreaktor zugeschnitten (100-180 bar, Normalbereich 140-168) — Siedewasserreaktor (Domdruck, Nennwert 70,7 bar) und RBMK (Trommeldruck, 69 bar) liegen mit ihrem gesamten Normalbetrieb unterhalb der Skala, die Nadel klebte deshalb immer am unteren Anschlag im roten Bereich, selbst bei sauberstem Volllastbetrieb. Skala kommt jetzt aus der Typdatei (`pressureGauge`): DWR unverändert, SWR 40-90 bar (Normalbereich 58-76), RBMK 40-85 bar (Normalbereich 55-73) — beide mit Auslösewert als Randbedingung der roten Zone.
+
 ## 0.0.25
 
 - 🐛 **"Generator"-Beschriftung im Fließbild lief über den Bildrand.** Der Text stand seit jeher linksbündig ab x=470 in einer 520 breit angelegten Zeichenfläche — bei "Generator" reicht das bis etwa x=525, fünf Einheiten über den Rand. Solange der Anzeigebereich breiter als das Fließbild-Seitenverhältnis war, blieb das durch den Leerraum links/rechts der Zeichnung unsichtbar; passte die Fläche genau in der Breite (schmalerer Bildschirm, schmaleres Panel), schnitt die SVG selbst den Überstand ab. Jetzt rechtsbündig mit Rand vor dem Zeichenflächenrand, bei allen drei Reaktortypen — verschwindet bei keiner Fenstergröße mehr, weil nichts mehr über die deklarierte Fläche hinaus gezeichnet wird.

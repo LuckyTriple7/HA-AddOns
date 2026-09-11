@@ -134,6 +134,11 @@ export const spec = {
   // gefragt ist, wieviel Leistung bis zur Austrocknung fehlt.
   marginKey: 'val_cpr',
 
+  // Domdruck-Rundinstrument. Nennwert 70,7 bar, Auslösung bei 78,5 -- eigene
+  // Skala statt der DWR-Vorgabe (100-180 bar), sonst stünde die Nadel im
+  // sauberen Volllastbetrieb dauerhaft unten im roten Bereich.
+  pressureGauge: { min: 40, max: 90, bands: [[40, 58, 'warn'], [58, 76, 'ok'], [76, 90, 'danger']] },
+
   mimic: 'mimic-bwr',
 
   trips: [

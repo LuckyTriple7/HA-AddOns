@@ -193,6 +193,11 @@ export const spec = {
   // Wie beim Siedewasserreaktor: CPR, nicht DNBR.
   marginKey: 'val_cpr',
 
+  // Trommeldruck-Rundinstrument. Nennwert 69 bar, Auslösung bei 76 -- eigene
+  // Skala statt der DWR-Vorgabe (100-180 bar), sonst stünde die Nadel im
+  // sauberen Volllastbetrieb dauerhaft unten im roten Bereich.
+  pressureGauge: { min: 40, max: 85, bands: [[40, 55, 'warn'], [55, 73, 'ok'], [73, 85, 'danger']] },
+
   // Der Schalter im Kern-Panel heisst hier nach dem, was er wirklich regelt.
   rodAutoKey: 'ctl_power_ctl',
   // Beide Gruppen fahren gemeinsam -- so bleibt die Abschaltreserve ein

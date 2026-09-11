@@ -53,9 +53,16 @@ export function buildPanels(engine, render) {
   const coreBox = $('#rs-core-gauges');
   for (const x of gCore) coreBox.append(x.g.node);
 
+  // Primaerdruck faehrt bei den drei Typen auf vollkommen verschiedenen
+  // Skalen -- 158 bar Druckhalter gegen 69-71 bar Dom-/Trommeldruck. Die
+  // Bandgrenzen kommen deshalb aus der Typdatei (sp.pressureGauge), nicht aus
+  // einer festen Zahl hier: sonst zeigt die Nadel bei den beiden siedenden
+  // Typen im sauberen Volllastbetrieb dauerhaft in den roten Bereich.
+  const pg = sp.pressureGauge || { min: 100, max: 180,
+    bands: [[100, 140, 'danger'], [140, 168, 'ok'], [168, 180, 'danger']] };
   const gPrim = [
-    { g: gauge({ label: t('status_pressure'), min: 100, max: 180, digits: 1, unitKey: 'unit_bar',
-        bands: [[100, 140, 'danger'], [140, 168, 'ok'], [168, 180, 'danger']] }),
+    { g: gauge({ label: t('status_pressure'), min: pg.min, max: pg.max, digits: 1, unitKey: 'unit_bar',
+        bands: pg.bands }),
       get: (d, st) => st.p_prim },
     { g: gauge({ label: t('val_subcooling'), min: 0, max: 40, digits: 1, unitKey: 'unit_kelvin',
         bands: [[0, 8, 'danger'], [8, 15, 'warn'], [15, 40, 'ok']] }),

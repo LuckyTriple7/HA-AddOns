@@ -142,6 +142,12 @@ export const spec = {
   // Beginn des Filmsiedens (DNBR).
   marginKey: 'val_dnbr',
 
+  // Primaerdruck-Rundinstrument. Nennwert 158 bar -- eigens je Typ, weil
+  // Siedewasserreaktor und RBMK bei 69-71 bar Domdruck fahren: dieselbe Skala
+  // fuer alle drei haette die Nadel bei den beiden siedenden Typen dauerhaft
+  // unten im roten Bereich stehen lassen, auch im sauberen Volllastbetrieb.
+  pressureGauge: { min: 100, max: 180, bands: [[100, 140, 'danger'], [140, 168, 'ok'], [168, 180, 'danger']] },
+
   mimic: 'mimic-pwr',
 
   trips: [
