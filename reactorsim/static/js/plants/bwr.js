@@ -139,6 +139,17 @@ export const spec = {
   // sauberen Volllastbetrieb dauerhaft unten im roten Bereich.
   pressureGauge: { min: 40, max: 90, bands: [[40, 58, 'warn'], [58, 76, 'ok'], [76, 90, 'danger']] },
 
+  // Welches Fließbild-Bauteil zu welcher Meldung gehört. Der Siedewasser-
+  // reaktor zeichnet Kern, Fallraum und Dampfraum als EIN Bauteil (rpv) --
+  // anders als beim Druckwasserreaktor gibt es hier keinen eigenen Druck-
+  // halter oder Dampferzeuger, die das trennen würden.
+  alarmComponents: {
+    power_high: 'rpv', period_short: 'rpv', oprm: 'rpv', instability: 'rpv',
+    dome_press_high: 'rpv', level_low: 'rpv', level_high: 'rpv', srv_open: 'rpv', clad_temp: 'rpv',
+    recirc_low: 'rcp',
+    turbine_trip: 'gen',
+  },
+
   mimic: 'mimic-bwr',
 
   trips: [

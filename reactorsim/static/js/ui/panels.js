@@ -402,7 +402,21 @@ export function buildPanels(engine, render) {
   });
 
   if (mimic) {
-    render.add('mimic', () => mimic.update(s, engine.derive(), sp));
+    // Welches Bauteil gerade eine anstehende Meldung trägt -- dieselbe
+    // Zuordnung wie die Meldetafel, nur am Bild statt in der Liste. "clear"
+    // zählt mit: die Ursache ist zwar weg, aber noch nicht quittiert, und
+    // genau das soll am Bauteil noch sichtbar sein.
+    const alarmComponents = sp.alarmComponents || {};
+    render.add('mimic', () => {
+      const alarms = new Map();
+      for (const tile of engine.trips.tiles()) {
+        if (tile.tile === 'normal') continue;
+        const key = alarmComponents[tile.id];
+        if (!key) continue;
+        if (!alarms.has(key) || alarms.get(key) < tile.severity) alarms.set(key, tile.severity);
+      }
+      mimic.update(s, engine.derive(), sp, alarms);
+    });
   }
 
   return { horn };

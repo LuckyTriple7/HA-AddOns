@@ -148,6 +148,17 @@ export const spec = {
   // unten im roten Bereich stehen lassen, auch im sauberen Volllastbetrieb.
   pressureGauge: { min: 100, max: 180, bands: [[100, 140, 'danger'], [140, 168, 'ok'], [168, 180, 'danger']] },
 
+  // Welches Fließbild-Bauteil zu welcher Meldung gehört -- damit blinkt am
+  // Bild dasselbe, was auf der Meldetafel steht, statt dass man es dort erst
+  // suchen muss.
+  alarmComponents: {
+    power_high: 'core', period_short: 'core', dnbr_low: 'core', subcool_low: 'core', clad_temp: 'core',
+    pzr_press_low: 'pzr', pzr_press_high: 'pzr', pzr_level_low: 'pzr', porv_open: 'pzr',
+    sg_level_low: 'sg', sg_level_high: 'sg', sg_press_high: 'sg',
+    rcp_lost: 'rcp',
+    turbine_trip: 'gen',
+  },
+
   mimic: 'mimic-pwr',
 
   trips: [

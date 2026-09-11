@@ -198,6 +198,15 @@ export const spec = {
   // sauberen Volllastbetrieb dauerhaft unten im roten Bereich.
   pressureGauge: { min: 40, max: 85, bands: [[40, 55, 'warn'], [55, 73, 'ok'], [73, 85, 'danger']] },
 
+  // Welches Fließbild-Bauteil zu welcher Meldung gehört.
+  alarmComponents: {
+    power_high: 'core', period_short: 'core', orm_low: 'core', orm_critical: 'core',
+    void_positive: 'core', graphite_hot: 'core', axial_tilt: 'core', clad_temp: 'core',
+    drum_press_high: 'drum', drum_level_low: 'drum', drum_level_high: 'drum',
+    mcp_cavitation: 'rcp',
+    turbine_trip: 'gen',
+  },
+
   // Der Schalter im Kern-Panel heisst hier nach dem, was er wirklich regelt.
   rodAutoKey: 'ctl_power_ctl',
   // Beide Gruppen fahren gemeinsam -- so bleibt die Abschaltreserve ein

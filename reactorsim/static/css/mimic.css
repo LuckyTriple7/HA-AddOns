@@ -66,6 +66,22 @@
 .rs-read[data-sev="1"] { fill: var(--rs-warn); }
 .rs-read[data-sev="3"] { fill: var(--rs-alarm); }
 
+/* Welches Bauteil eine anstehende Meldung trägt -- dieselbe Zuordnung wie die
+   Meldetafel, nur am Bild statt in der Liste. Schwere 1 Hinweis, 2 Warnung,
+   3 Auslösung, gleiche Farben wie überall sonst; die Auslösung blinkt
+   zusätzlich, damit sie sich nicht in der Fläche verliert. */
+[data-alarm="1"] { stroke: var(--rs-warn) !important; stroke-width: 3; }
+[data-alarm="2"] { stroke: var(--rs-hot) !important; stroke-width: 3; }
+[data-alarm="3"] {
+  stroke: var(--rs-alarm) !important;
+  stroke-width: 3;
+  animation: rs-mimic-blink .5s steps(2, jump-none) infinite;
+}
+@keyframes rs-mimic-blink { 50% { stroke-opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  [data-alarm="3"] { animation: none; }
+}
+
 /* Pumpen und Ventile: Zustand als Datenattribut, Farbe daraus. */
 .rs-comp { fill: #16222e; stroke: #3a5064; stroke-width: 1.5; }
 .rs-comp[data-state="run"]     { fill: #14402c; stroke: var(--rs-ok); }

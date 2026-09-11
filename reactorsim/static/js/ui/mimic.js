@@ -90,14 +90,14 @@ export function buildPwrMimic(container) {
   g.push(pipe('M 372 232 L 268 232 L 268 168', 'feed', 'feed'));
 
   // Reaktordruckbehälter.
-  g.push(svg('rect', { class: 'rs-vessel', x: 64, y: 92, width: 56, height: 96, rx: 22 }));
+  g.push(svg('rect', { class: 'rs-vessel', 'data-mimic': 'core', x: 64, y: 92, width: 56, height: 96, rx: 22 }));
   g.push(svg('rect', { class: 'rs-core', x: 76, y: 112, width: 32, height: 56, rx: 4 }));
   g.push(svg('text', { class: 'rs-label', x: 92, y: 252, 'text-anchor': 'middle' },
     [t('mimic_core')]));
   g.push(readout(92, 106, 'power', 'middle'));
 
   // Druckhalter.
-  g.push(svg('rect', { class: 'rs-vessel', x: 136, y: 8, width: 28, height: 34, rx: 12 }));
+  g.push(svg('rect', { class: 'rs-vessel', 'data-mimic': 'pzr', x: 136, y: 8, width: 28, height: 34, rx: 12 }));
   g.push(svg('rect', { class: 'rs-pzr-level', x: 138, y: 10, width: 24, height: 30, rx: 10 }));
   g.push(svg('text', { class: 'rs-label', x: 180, y: 14, 'text-anchor': 'start' },
     [t('mimic_pzr')]));
@@ -107,7 +107,7 @@ export function buildPwrMimic(container) {
   g.push(pump(172, 208, 'rcp', t('mimic_rcp')));
 
   // Dampferzeuger.
-  g.push(svg('rect', { class: 'rs-vessel', x: 218, y: 46, width: 56, height: 130, rx: 22 }));
+  g.push(svg('rect', { class: 'rs-vessel', 'data-mimic': 'sg', x: 218, y: 46, width: 56, height: 130, rx: 22 }));
   g.push(svg('text', { class: 'rs-label', x: 246, y: 192, 'text-anchor': 'middle' },
     [t('mimic_sg')]));
   g.push(readout(246, 120, 'sg', 'middle'));
@@ -159,12 +159,16 @@ export function buildPwrMimic(container) {
 
   return {
     root,
-    update(s, d, sp) {
+    update(s, d, sp, alarms) {
       // Farben: kalt 250 °C, heiß 340 °C.
       setVar(root, '--rs-t-hot', norm(s.T_co - 273.15, 250, 340).toFixed(3));
       setVar(root, '--rs-t-cold', norm(s.T_ci - 273.15, 250, 340).toFixed(3));
       setVar(root, '--rs-n', Math.max(0, Math.min(1, s.n)).toFixed(3));
       setVar(root, '--rs-steam-l', norm(s.p_sg, 20, 80).toFixed(3));
+      // Welches Bauteil eine anstehende Meldung betrifft, steht in der
+      // Meldetafel schon -- hier nur noch dasselbe am Bild zeigen, damit man
+      // es nicht erst im Alarme-Reiter suchen muss.
+      if (alarms) for (const [key, node] of comps) setAttr(node, 'data-alarm', alarms.get(key) || 0);
 
       const fPrim = Math.max(0, Math.min(1.1, s.W_core / sp.coolant.W0));
       for (const n of flows.get('prim') || []) setVar(n, '--rs-w', fPrim.toFixed(3));
@@ -240,8 +244,10 @@ export function buildBwrMimic(container) {
   // Umwälzschleife außen am Behälter entlang.
   g.push(pipe('M 118 150 L 74 150 L 74 206 L 150 206', 'cold', 'prim'));
 
-  // Druckbehälter mit Abscheider oben und Kern unten.
-  g.push(svg('rect', { class: 'rs-vessel', x: 106, y: 40, width: 76, height: 180, rx: 34 }));
+  // Druckbehälter mit Abscheider oben und Kern unten. Ein Bauteil im Bild,
+  // deshalb auch eine gemeinsame Kennung -- der Siedewasserreaktor zeichnet
+  // Kern, Fallraum und Dampfraum nicht getrennt wie der Druckwasserreaktor.
+  g.push(svg('rect', { class: 'rs-vessel', 'data-mimic': 'rpv', x: 106, y: 40, width: 76, height: 180, rx: 34 }));
   g.push(svg('rect', { class: 'rs-sg-level', x: 110, y: 96, width: 68, height: 120, rx: 30 }));
   g.push(svg('rect', { class: 'rs-core', x: 124, y: 150, width: 40, height: 56, rx: 4 }));
   g.push(svg('path', {
@@ -292,11 +298,12 @@ export function buildBwrMimic(container) {
 
   return {
     root,
-    update(s, d, sp) {
+    update(s, d, sp, alarms) {
       setVar(root, '--rs-t-hot', norm(s.T_co - 273.15, 250, 340).toFixed(3));
       setVar(root, '--rs-t-cold', norm(s.T_ci - 273.15, 250, 340).toFixed(3));
       setVar(root, '--rs-n', Math.max(0, Math.min(1, s.n)).toFixed(3));
       setVar(root, '--rs-steam-l', norm(s.p_dome, 20, 85).toFixed(3));
+      if (alarms) for (const [key, node] of comps) setAttr(node, 'data-alarm', alarms.get(key) || 0);
 
       const fRec = Math.max(0, Math.min(1.2, s.W_core / sp.recirc.W0));
       for (const n of flows.get('prim') || []) setVar(n, '--rs-w', fRec.toFixed(3));
@@ -363,7 +370,7 @@ export function buildRbmkMimic(container) {
   g.push(pipe('M 372 232 L 216 232 L 216 104', 'feed', 'feed'));
 
   // Graphitblock mit Druckröhren.
-  g.push(svg('rect', { class: 'rs-vessel', x: 72, y: 78, width: 92, height: 136, rx: 6 }));
+  g.push(svg('rect', { class: 'rs-vessel', 'data-mimic': 'core', x: 72, y: 78, width: 92, height: 136, rx: 6 }));
   g.push(svg('rect', { class: 'rs-core', x: 80, y: 92, width: 76, height: 108, rx: 3 }));
   for (let i = 0; i < 7; i++) {
     const x = 86 + i * 11;
@@ -385,7 +392,7 @@ export function buildRbmkMimic(container) {
   g.push(readout(60, 246, 'orm'));
 
   // Trommelabscheider.
-  g.push(svg('rect', { class: 'rs-vessel', x: 186, y: 30, width: 60, height: 76, rx: 28 }));
+  g.push(svg('rect', { class: 'rs-vessel', 'data-mimic': 'drum', x: 186, y: 30, width: 60, height: 76, rx: 28 }));
   g.push(svg('rect', { class: 'rs-sg-level', x: 190, y: 62, width: 52, height: 40, rx: 20 }));
   g.push(svg('text', { class: 'rs-label', x: 252, y: 36, 'text-anchor': 'start' },
     [t('mimic_drum')]));
@@ -430,7 +437,7 @@ export function buildRbmkMimic(container) {
 
   return {
     root,
-    update(s, d, sp) {
+    update(s, d, sp, alarms) {
       setVar(root, '--rs-t-hot', norm(s.T_co - 273.15, 250, 340).toFixed(3));
       setVar(root, '--rs-t-cold', norm(s.T_ci - 273.15, 250, 340).toFixed(3));
       setVar(root, '--rs-n', Math.max(0, Math.min(1, s.n)).toFixed(3));
@@ -438,6 +445,7 @@ export function buildRbmkMimic(container) {
       // Der Graphitblock glüht eigenständig -- er hängt an seiner eigenen,
       // sehr langen Zeitkonstante und nicht an der Leistung von eben.
       setVar(root, '--rs-gr', norm(s.T_gr - 273.15, 300, 800).toFixed(3));
+      if (alarms) for (const [key, node] of comps) setAttr(node, 'data-alarm', alarms.get(key) || 0);
 
       const fPrim = Math.max(0, Math.min(1.2, s.W_core / sp.mcp.W0));
       for (const n of flows.get('prim') || []) setVar(n, '--rs-w', fPrim.toFixed(3));
