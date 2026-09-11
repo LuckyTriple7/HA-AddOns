@@ -203,6 +203,124 @@ export function buildPwrMimic(container) {
   };
 }
 
+
+/**
+ * Fließbild eines Siedewasserreaktors.
+ *
+ * Ein Kreislauf statt zwei: der Dampf entsteht im Druckbehälter, wird oben
+ * abgeschieden und geht direkt zur Turbine. Deshalb fehlt der Dampferzeuger,
+ * und deshalb steht die Umwälzpumpe INNEN, im Ringraum zwischen Kernmantel
+ * und Behälterwand -- sie treibt nicht den Weg zur Turbine an, sondern den
+ * Weg durch den Kern.
+ */
+export function buildBwrMimic(container) {
+  const root = svg('svg', {
+    viewBox: '0 0 520 268',
+    preserveAspectRatio: 'xMidYMid meet',
+    role: 'img',
+    'aria-label': t('panel_mimic'),
+  });
+  const g = [];
+
+  // Frischdampf vom Behälterkopf zum Regelventil und zur Turbine.
+  g.push(pipe('M 150 46 L 330 46 L 330 76', 'steam', 'steam'));
+  g.push(pipe('M 330 100 L 330 118 L 372 118', 'steam', 'steam'));
+  // Umleitung direkt in den Kondensator.
+  g.push(pipe('M 296 46 L 296 214 L 372 214', 'steam', 'bypass'));
+  // Abdampf.
+  g.push(pipe('M 432 140 L 452 140 L 452 196 L 432 196', 'steam', 'steam'));
+  // Speisewasser zurück in den Behälter.
+  g.push(pipe('M 372 232 L 212 232 L 212 150 L 180 150', 'feed', 'feed'));
+  // Umwälzschleife außen am Behälter entlang.
+  g.push(pipe('M 118 150 L 74 150 L 74 206 L 150 206', 'cold', 'prim'));
+
+  // Druckbehälter mit Abscheider oben und Kern unten.
+  g.push(svg('rect', { class: 'rs-vessel', x: 106, y: 40, width: 76, height: 180, rx: 34 }));
+  g.push(svg('rect', { class: 'rs-sg-level', x: 110, y: 96, width: 68, height: 120, rx: 30 }));
+  g.push(svg('rect', { class: 'rs-core', x: 124, y: 150, width: 40, height: 56, rx: 4 }));
+  g.push(svg('path', {
+    class: 'rs-comp', 'data-mimic': 'sep',
+    d: 'M 122 64 L 166 64 L 158 86 L 130 86 Z',
+  }));
+  g.push(svg('text', { class: 'rs-label', x: 144, y: 236, 'text-anchor': 'middle' },
+    [t('mimic_rpv')]));
+  g.push(readout(144, 140, 'power', 'middle'));
+  g.push(readout(190, 60, 'dome'));
+
+  // Umwälzpumpe in der äußeren Schleife.
+  g.push(pump(74, 178, 'rcp', t('mimic_recirc')));
+
+  // Regelventil, Umleitung, Turbine, Generator, Kondensator.
+  g.push(valve(330, 88, 'gov', t('mimic_gov'), 'left'));
+  g.push(valve(296, 140, 'bypass', t('mimic_bypass')));
+  g.push(svg('path', { class: 'rs-vessel', d: 'M 372 100 L 432 84 L 432 156 L 372 136 Z' }));
+  g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
+  g.push(svg('text', { class: 'rs-label', x: 452, y: 96, 'text-anchor': 'middle' },
+    [t('mimic_gen')]));
+  g.push(readout(452, 142, 'gen', 'middle'));
+  g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
+  g.push(svg('text', { class: 'rs-label', x: 402, y: 248, 'text-anchor': 'middle' },
+    [t('mimic_cond')]));
+  g.push(readout(402, 218, 'cond', 'middle'));
+
+  for (const node of g) root.append(node);
+  container.replaceChildren(root);
+
+  const reads = new Map();
+  for (const n of root.querySelectorAll('[data-read]')) reads.set(n.dataset.read, n);
+  const comps = new Map();
+  for (const n of root.querySelectorAll('[data-mimic]')) comps.set(n.dataset.mimic, n);
+  const flows = new Map();
+  for (const n of root.querySelectorAll('[data-flow]')) {
+    const id = n.dataset.flow;
+    const list = flows.get(id);
+    if (list) list.push(n); else flows.set(id, [n]);
+  }
+  const level = root.querySelector('.rs-sg-level');
+
+  return {
+    root,
+    update(s, d, sp) {
+      setVar(root, '--rs-t-hot', norm(s.T_co - 273.15, 250, 340).toFixed(3));
+      setVar(root, '--rs-t-cold', norm(s.T_ci - 273.15, 250, 340).toFixed(3));
+      setVar(root, '--rs-n', Math.max(0, Math.min(1, s.n)).toFixed(3));
+      setVar(root, '--rs-steam-l', norm(s.p_dome, 20, 85).toFixed(3));
+
+      const fRec = Math.max(0, Math.min(1.2, s.W_core / sp.recirc.W0));
+      for (const n of flows.get('prim') || []) setVar(n, '--rs-w', fRec.toFixed(3));
+      const fSteam = Math.max(0, Math.min(1.2, s.W_steam / sp.vessel.W_steam0));
+      for (const n of flows.get('steam') || []) setVar(n, '--rs-w', fSteam.toFixed(3));
+      for (const n of flows.get('feed') || []) {
+        setVar(n, '--rs-w', Math.max(0, Math.min(1.2, s.W_fw / sp.vessel.W_steam0)).toFixed(3));
+      }
+      for (const n of flows.get('bypass') || []) setVar(n, '--rs-w', (s.bypass || 0).toFixed(3));
+
+      const rcp = comps.get('rcp');
+      if (rcp) {
+        setAttr(rcp, 'data-state', (d.pumpStates && d.pumpStates[0]) || 'stopped');
+        setVar(rcp.parentNode, '--rs-w', fRec.toFixed(3));
+      }
+      setAttr(comps.get('gov'), 'data-state', s.gov > 0.02 && s.msiv > 0.5 ? 'run' : 'stopped');
+      setAttr(comps.get('bypass'), 'data-state', s.bypass > 0.02 ? 'run' : 'stopped');
+      setAttr(comps.get('sep'), 'data-state', s.x_e > 0.01 ? 'run' : 'stopped');
+      setAttr(comps.get('gen'), 'data-state',
+        s.turbineTripped ? 'tripped' : (s.breaker ? 'run' : 'stopped'));
+
+      if (level) {
+        const h = Math.max(2, 120 * Math.max(0, Math.min(1, s.L_rpv)));
+        setAttr(level, 'y', String(96 + 120 - h));
+        setAttr(level, 'height', String(h));
+      }
+
+      setText(reads.get('power'), num(d.power_th_pct, 0) + ' %');
+      setText(reads.get('dome'), num(s.p_dome, 1) + ' bar');
+      setText(reads.get('gen'), num(s.P_e, 0) + ' MW');
+      setText(reads.get('cond'), num(s.p_cond, 3) + ' bar');
+    },
+  };
+}
+
 export const MIMICS = {
   'mimic-pwr': buildPwrMimic,
+  'mimic-bwr': buildBwrMimic,
 };

@@ -20,6 +20,7 @@ export function buildPanels(engine, render) {
   const s = engine.state;
   const sp = engine.spec;
   const ctx = engine.ctx;
+  const hooks = engine.hooks || {};
 
   // ── Wertebindungen einsammeln ──────────────────────────────────────────────
   const binds = new Map();
@@ -99,16 +100,18 @@ export function buildPanels(engine, render) {
   });
   $('#rs-rod-ctl').replaceChildren(rodAuto.node, rodJog.node);
 
-  const pumps = pumpRow(ctx.pumps.length, (i) => {
-    const p = ctx.pumps[i];
-    if (p.state === 'run') p.trip(); else p.start();
+  // Wie viele Pumpen es gibt, sagt der Typ ueber seine Anzeigewerte -- ein
+  // Druckwasserreaktor hat vier Hauptkuehlmittelpumpen, ein Siedewasserreaktor
+  // eine Umwaelzpumpe. Frueher stand hier ctx.pumps.length, und der
+  // Siedewasserreaktor stuerzte beim Aufbau der Oberflaeche ab.
+  const pumpStates0 = engine.derive().pumpStates || [];
+  const pumps = pumpRow(pumpStates0.length, (i) => {
+    if (hooks.togglePump) hooks.togglePump(s, sp, ctx, i);
   });
   $('#rs-pumps').replaceChildren(pumps.node);
 
   const govAuto = autoSwitch('ctl_turbine', true, (v) => { ctx.govCtl.auto = v; });
   const fwAuto = autoSwitch('ctl_feedwater', true, (v) => { ctx.fwCtl.auto = v; });
-  const pzrAuto = autoSwitch('ctl_pressurizer', true, (v) => { ctx.pzrCtl.auto = v; });
-  $('#rs-sec-ctl').replaceChildren(govAuto.node, fwAuto.node, pzrAuto.node);
 
   const demand = slider({
     labelKey: 'ctl_demand', min: 0, max: Math.round(sp.P0_e), step: 5,
@@ -117,12 +120,23 @@ export function buildPanels(engine, render) {
   });
   $('#rs-grid-ctl').replaceChildren(demand.node);
 
-  const boron = buttonGroup('ctl_boron', [
-    { key: 'ctl_boron_dilute', value: '-1' },
-    { key: 'ctl_boron_stop', value: '0' },
-    { key: 'ctl_boron_add', value: '1' },
-  ], '0', (v) => { s.boronFlow = Number(v); });
-  $('#rs-chem-ctl').replaceChildren(boron.node);
+  // Typspezifische Bedienung. Ein Druckwasserreaktor braucht Bor und einen
+  // Druckhalter, ein Siedewasserreaktor den Umwaelzstrom und die
+  // Frischdampf-Absperrung -- beides hier fest zu verdrahten hiesse, die
+  // Oberflaeche bei jedem neuen Typ aufzuschneiden.
+  const extras = (hooks.uiControls ? hooks.uiControls(s, sp, ctx, {
+    autoSwitch, slider, buttonGroup,
+  }) : []) || [];
+  const mounts = {
+    core: $('#rs-rod-ctl'), primary: $('#rs-pumps'),
+    secondary: $('#rs-sec-ctl'), grid: $('#rs-grid-ctl'), chem: $('#rs-chem-ctl'),
+  };
+  $('#rs-sec-ctl').replaceChildren(govAuto.node, fwAuto.node);
+  $('#rs-chem-ctl').replaceChildren();
+  for (const x of extras) {
+    const target = mounts[x.mount] || mounts.secondary;
+    target.append(x.node);
+  }
 
   // ── Trendschreiber ─────────────────────────────────────────────────────────
   const trends = [
@@ -200,6 +214,8 @@ export function buildPanels(engine, render) {
     put('t_clad', num(s.T_cl - 273.15, 0) + U('unit_celsius'),
         s.T_cl > 1477 ? 3 : (s.T_cl > 1100 ? 1 : undefined));
     put('p_prim', num(s.p_prim, 1) + U('unit_bar'));
+    put('pzr_p', s.pzr_p === undefined ? t('state_none') : num(s.pzr_p, 1) + U('unit_bar'));
+    put('pzr_l', s.pzr_L === undefined ? t('state_none') : num(s.pzr_L * 100, 0) + U('unit_percent'));
     put('w_core', num(s.W_core, 0) + U('unit_kgs'));
     put('n_pct', num(d.n_pct, 2) + U('unit_percent'));
     put('decay_pct', num(d.decay_pct, 2) + U('unit_percent'));
@@ -218,18 +234,21 @@ export function buildPanels(engine, render) {
     put('xenon', num(s.X * 100, 1) + U('unit_percent'));
     put('iodine', num(s.I * 100, 1) + U('unit_percent'));
     put('samarium', num(s.Sm * 100, 1) + U('unit_percent'));
-    put('boron', num(s.C_B, 0) + U('unit_ppm'));
+    put('boron', s.C_B === undefined ? t('state_none') : num(s.C_B, 0) + U('unit_ppm'));
     put('burnup', num(s.burnup, 0) + U('unit_efpd'));
     put('sdm', num(d.shutdownMargin, 0) + U('unit_pcm'));
+    put('voidfrac', d.voidFrac === undefined ? t('state_none') : num(d.voidFrac * 100, 1) + U('unit_percent'));
+    put('recirc', d.recirc === undefined ? t('state_none') : num(d.recirc * 100, 0) + U('unit_percent'));
+    put('quality', d.quality === undefined ? t('state_none') : num(d.quality * 100, 1) + U('unit_percent'));
+    put('decay_ratio', d.decayRatio === undefined ? t('state_none') : num(d.decayRatio, 2));
 
     rho.set(d.breakdown, d.rho);
-    pumps.set(d.pumpStates);
+    pumps.set(d.pumpStates || []);
     demand.set(Math.round(s.P_demand));
     rodAuto.set(ctx.rodCtl.auto);
     govAuto.set(ctx.govCtl.auto);
     fwAuto.set(ctx.fwCtl.auto);
-    pzrAuto.set(ctx.pzrCtl.auto);
-    boron.set(String(s.boronFlow));
+    for (const x of extras) if (x.set) x.set(s, d);
 
     promptNode.hidden = !s.promptCritical;
 

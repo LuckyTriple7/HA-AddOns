@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.5
+
+- ⚛️ **Der Siedewasserreaktor ist spielbar.** 3840 MWth / 1344 MWe, ein Kreislauf, Dampf direkt zur Turbine. Das Regelventil hält den Domdruck, die Leistung macht der Kern — über den Umwälzstrom. Zwischen 100 und 80 % Durchsatz liegen 11 % Leistung, ohne dass ein Stab sich bewegt.
+- 🌀 **Dichtewelleninstabilität.** Bei viel Leistung und wenig Durchsatz koppeln Dampfgehalt, Druckverlust und Durchsatz zu einer Schwingung, die sich aufschaukelt statt abzuklingen. Der Grenzzyklus begrenzt sich zwar selbst, aber erst bei knapp 30 % Ausschlag — die Schwingungsüberwachung löst vorher aus.
+- 💨 **Frischdampf-Absperrung mit dem richtigen Vorzeichen.** Druck steigt, Dampfblasen fallen zusammen, mehr Moderator, **positive** Reaktivität, Leistungsspitze. Die erste Fassung ließ die Leistung dabei zurückgehen: die quasistationäre Dampfbilanz sieht nur das Gleichgewicht und kann nicht sehen, dass ein schneller Druckanstieg den vorhandenen Dampf zusammendrückt. Ohne diesen Term hätte sich der Reaktor genau bei der Störung falsch herum verhalten, für die dieser Typ bekannt ist.
+- 🔬 **Ein Fehler im Blasenmodell, der das Regelorgan lahmgelegt hätte.** Der Anteil der siedenden Kanalhöhe hing zuerst nur an der Unterkühlung. Damit hob sich bei sinkendem Durchsatz der steigende Dampfgehalt gegen die schrumpfende Siedezone auf — der Blasenanteil bewegte sich um 0,4 Prozentpunkte und die Leistung um 1,9 % statt um 11 %. Richtig ist das Verhältnis der Enthalpien: was zum Aufheizen bis zur Sättigung draufgeht, siedet nicht.
+- 🧩 **Die Abstraktion hat gehalten.** Der zweite Reaktortyp brauchte genau eine Erweiterung der Engine: einen Haken für den siedenden Kern, weil dort die Austrittstemperatur festliegt und die Wärme in den Dampfgehalt geht. Alles Weitere — Kinetik, Rückkopplungen, Vergiftung, Nachzerfallswärme, Meldetafel — lief unverändert. Ein Test hält das fest: der Rechenkern darf keinen Reaktortyp beim Namen nennen.
+- 🎛️ **Die Oberfläche fragt den Typ nach seiner Bedienung.** Bor und Druckhalter beim Druckwasserreaktor, Umwälzstrom und Frischdampf-Absperrung beim Siedewasserreaktor. Dazu ein eigenes Fließbild mit Druckbehälter, Abscheider und innerer Umwälzschleife.
+- ✅ **56 Tests,** darunter ein Nachweis, dass zwei Reaktoren gleichzeitig laufen können, ohne sich über gemeinsam genutzte Typdaten zu stören.
+
 ## 0.0.4
 
 - 🖼️ **Anlagenfließbild.** Reaktor, Druckhalter, Hauptkühlmittelpumpe, Dampferzeuger, Regelventil, Umleitstation, Turbine, Generator und Kondensator als Schema, mit fließendem Medium in den Leitungen, Rohrfarbe nach Temperatur, glühendem Kern nach Leistung, mitlaufenden Füllständen in Dampferzeuger und Druckhalter sowie Zustandsfarbe an Pumpe, Ventilen und Generator.

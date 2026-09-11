@@ -4,9 +4,11 @@
 // nicht. Kommt ein Typ dazu, steht er hier und sonst nirgends im Rechenpfad.
 
 import * as pwr from './pwr.js';
+import * as bwr from './bwr.js';
 
 export const PLANTS = {
   pwr,
+  bwr,
 };
 
 export const PLANT_IDS = Object.keys(PLANTS);

@@ -429,6 +429,30 @@ export const hooks = {
     s.breaker = false;
   },
 
+  /**
+   * Bedienung, die nur dieser Typ hat: Borsaeure und Druckhalter.
+   * Die Bauteile kommen als Werkzeugkasten herein, damit die Typdatei nichts
+   * ueber das DOM wissen muss.
+   */
+  uiControls(s, sp, ctx, kit) {
+    const boron = kit.buttonGroup('ctl_boron', [
+      { key: 'ctl_boron_dilute', value: '-1' },
+      { key: 'ctl_boron_stop', value: '0' },
+      { key: 'ctl_boron_add', value: '1' },
+    ], '0', (v) => { s.boronFlow = Number(v); });
+    const pzr = kit.autoSwitch('ctl_pressurizer', true, (v) => { ctx.pzrCtl.auto = v; });
+    return [
+      { mount: 'chem', node: boron.node, set: (st) => boron.set(String(st.boronFlow)) },
+      { mount: 'secondary', node: pzr.node, set: () => pzr.set(ctx.pzrCtl.auto) },
+    ];
+  },
+
+  togglePump(s, sp, ctx, i) {
+    const p = ctx.pumps[i];
+    if (!p) return;
+    if (p.state === 'run') p.trip(); else p.start();
+  },
+
   /** Anzeigewerte, die nur dieser Typ kennt. */
   derived(s, sp, ctx, base) {
     return {

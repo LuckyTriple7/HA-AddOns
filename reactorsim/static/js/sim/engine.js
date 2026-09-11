@@ -24,6 +24,7 @@ import { stepDecay, decaySum } from './decayheat.js';
 import { stepPoisons } from './poisons.js';
 import { TripSystem } from './trips.js';
 import { tsat } from './steam.js';
+import { Rng } from '../rng.js';
 
 /** Regler laufen nicht in jedem Rechenschritt, sondern alle 0,2 s. */
 const CONTROL_PERIOD = 0.2;
@@ -61,6 +62,10 @@ export function createEngine(plant, opts = {}) {
   const ctx = {
     spec, hooks, kin, rx, trips,
     betaEff,
+    // Gesaeter Zufall fuer alles, was in der Anlage rauscht (Messwerte,
+    // Anregung der Dichtewelle). Nie Math.random: sonst waere kein Lauf
+    // wiederholbar und kein Regressionstest moeglich.
+    rng: new Rng(opts.seed || 1),
     C_f, UA_fc, C_cl, UA_cc, C_cool, mFuel,
     controlAcc: 0,
     decayFrac: decaySum(s.D),
@@ -104,12 +109,25 @@ export function createEngine(plant, opts = {}) {
     // um die Turbine trotzdem zu bedienen.
     const qDirect = P_th * 1000 * (1 - (spec.fuel.depositFraction || 0.974));
     const qCool = UA_cc * (s.T_cl - T_cool) + qDirect;
-    // Der Faktor 2 unten kommt daher, dass der Knoten die MITTLERE Temperatur
-    // führt, der Durchsatz aber die Differenz zwischen Ein- und Austritt abführt.
-    const UA_flow = 2 * Math.max(s.W_core, 1) * spec.coolant.cp;
-    const Tc = relax(T_cool, s.T_ci + qCool / UA_flow, h, C_cool / UA_flow);
-    s.T_co = 2 * Tc - s.T_ci;
-    s.T_mod = hooks.moderatorTemp ? hooks.moderatorTemp(s, spec, Tc) : Tc;
+
+    if (hooks.coreCoolant) {
+      // Siedende Kerne rechnen hier anders: die Austrittstemperatur ist die
+      // Sättigungstemperatur, und die Wärme geht in den Dampfgehalt statt in
+      // eine Temperaturerhöhung. Der Haken sitzt bewusst INNERHALB der
+      // Kinetik-Untertakte -- beim RBMK entscheidet die Rückwirkung des
+      // Dampfblasenanteils auf die Reaktivität im Sekundenbereich über den
+      // Ausgang, und ein erst im Hauptschritt nachgezogener Blasenanteil käme
+      // dafür zu spät.
+      hooks.coreCoolant(s, spec, ctx, qCool, h);
+    } else {
+      // Der Faktor 2 kommt daher, dass der Knoten die MITTLERE Temperatur
+      // führt, der Durchsatz aber die Differenz zwischen Ein- und Austritt
+      // abführt.
+      const UA_flow = 2 * Math.max(s.W_core, 1) * spec.coolant.cp;
+      const Tc = relax(T_cool, s.T_ci + qCool / UA_flow, h, C_cool / UA_flow);
+      s.T_co = 2 * Tc - s.T_ci;
+      s.T_mod = hooks.moderatorTemp ? hooks.moderatorTemp(s, spec, Tc) : Tc;
+    }
 
     // Brennstoffenthalpie als Zerstörungskriterium.
     s.enthalpy = ((spec.fuel.cp || 300) * (s.T_f - 273.15)) / 1000;
@@ -232,6 +250,7 @@ export function createEngine(plant, opts = {}) {
   return {
     state: s,
     spec,
+    hooks,
     ctx,
     kin,
     reactivity: rx,
