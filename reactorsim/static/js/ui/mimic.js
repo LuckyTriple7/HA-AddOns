@@ -366,7 +366,15 @@ export function buildRbmkMimic(container) {
   g.push(svg('text', { class: 'rs-label', x: 118, y: 230, 'text-anchor': 'middle' },
     [t('mimic_channels')]));
   g.push(readout(118, 86, 'power', 'middle'));
-  g.push(readout(60, 246, 'graphite'));
+  // Graphittemperatur stand hier früher als bloße Zahl -- bei 35 Minuten
+  // Zeitkonstante sieht sie über eine ganze Schicht praktisch unbewegt aus
+  // und dazu direkt unter der Beschriftung "Druckröhren", als gehörte sie
+  // dazu. Die Abschaltreserve ist am selben Fleck die Zahl, die wirklich
+  // Auskunft gibt -- sie bewegt sich mit jedem Stabzug und ist bei diesem Typ
+  // die eigentliche Sicherheitsgröße (siehe ORM im Grundlagen-Glossar). Der
+  // Text ist bewusst selbst beschriftet ("ORM …"), damit die Nähe zur
+  // "Druckröhren"-Beschriftung keine falsche Zuordnung mehr nahelegt.
+  g.push(readout(60, 246, 'orm'));
 
   // Trommelabscheider.
   g.push(svg('rect', { class: 'rs-vessel', x: 186, y: 30, width: 60, height: 76, rx: 28 }));
@@ -449,7 +457,8 @@ export function buildRbmkMimic(container) {
 
       setText(reads.get('power'), num(d.power_th_pct, 0) + ' %');
       setText(reads.get('drum'), num(s.p_drum, 1) + ' bar');
-      setText(reads.get('graphite'), num(s.T_gr - 273.15, 0) + ' °C');
+      setText(reads.get('orm'), t('val_orm') + ' ' + num(d.orm, 0));
+      setAttr(reads.get('orm'), 'data-sev', d.orm < 15 ? '3' : (d.orm < 30 ? '1' : '0'));
       setText(reads.get('gen'), num(s.P_e, 0) + ' MW');
       setText(reads.get('cond'), num(s.p_cond, 3) + ' bar');
     },

@@ -63,6 +63,8 @@
   fill: var(--rs-fg);
   font: 600 10px var(--rs-font-num);
 }
+.rs-read[data-sev="1"] { fill: var(--rs-warn); }
+.rs-read[data-sev="3"] { fill: var(--rs-alarm); }
 
 /* Pumpen und Ventile: Zustand als Datenattribut, Farbe daraus. */
 .rs-comp { fill: #16222e; stroke: #3a5064; stroke-width: 1.5; }

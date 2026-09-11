@@ -112,6 +112,8 @@
         <button type="button" class="rs-speed-b" data-speed="16">16×</button>
         <button type="button" class="rs-speed-b" data-speed="60">60×</button>
       </div>
+      <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-glossary"
+              aria-label="{{ t.btn_glossary }}" title="{{ t.btn_glossary }}">?</button>
       <button type="button" class="rs-btn rs-btn-ghost" id="rs-save">{{ t.btn_save }}</button>
       <button type="button" class="rs-btn rs-btn-ghost" id="rs-menu">{{ t.btn_menu }}</button>
       <button type="button" class="rs-scram" id="rs-scram">{{ t.btn_scram }}</button>
@@ -316,7 +318,10 @@
     </div>
     <p class="rs-ctl-hint" id="rs-debrief-msg"></p>
     <ol class="rs-scores" id="rs-debrief-scores"></ol>
-    <button type="button" class="rs-btn rs-btn-primary" id="rs-debrief-close">{{ t.btn_menu }}</button>
+    <div class="rs-modal-actions">
+      <button type="button" class="rs-btn rs-btn-primary" id="rs-debrief-restart">{{ t.btn_restart }}</button>
+      <button type="button" class="rs-btn" id="rs-debrief-close">{{ t.btn_menu }}</button>
+    </div>
   </div>
 </div>
 
@@ -327,7 +332,20 @@
     <p>{{ t.end_destroyed_body }}</p>
     <p class="rs-modal-detail" id="rs-destroyed-detail"></p>
     <ol class="rs-log" id="rs-destroyed-log"></ol>
-    <button type="button" class="rs-btn rs-btn-primary" id="rs-destroyed-close">{{ t.btn_menu }}</button>
+    <div class="rs-modal-actions">
+      <button type="button" class="rs-btn rs-btn-primary" id="rs-destroyed-restart">{{ t.btn_restart }}</button>
+      <button type="button" class="rs-btn" id="rs-destroyed-close">{{ t.btn_menu }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Grundlagen ───────────────────────────────────────────────────────── -->
+<div class="rs-modal" id="rs-glossary-modal" hidden>
+  <div class="rs-modal-box rs-modal-wide">
+    <h2>{{ t.glossary_title }}</h2>
+    <p class="rs-ctl-hint">{{ t.glossary_intro }}</p>
+    <dl class="rs-glossary" id="rs-glossary-list"></dl>
+    <button type="button" class="rs-btn rs-btn-primary" id="rs-glossary-close">{{ t.btn_close }}</button>
   </div>
 </div>
 

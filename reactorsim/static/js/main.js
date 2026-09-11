@@ -10,6 +10,7 @@ import { getPlant, isAvailable } from './plants/index.js';
 import { Session, PHASE } from './game/session.js';
 import { api } from './net/api.js';
 import { save as saveGame, load as loadGame } from './net/persist.js';
+import { GLOSSARY } from './ui/glossary.js';
 
 const app = {
   engine: null,
@@ -91,6 +92,16 @@ function initStart() {
   $('#rs-debrief-close').addEventListener('click', () => {
     $('#rs-debrief').hidden = true;
     toMenu();
+  });
+
+  $('#rs-debrief-restart').addEventListener('click', () => {
+    $('#rs-debrief').hidden = true;
+    restart();
+  });
+
+  $('#rs-destroyed-restart').addEventListener('click', () => {
+    $('#rs-destroyed').hidden = true;
+    restart();
   });
 
   // Gibt es einen Spielstand, laesst er sich von hier fortsetzen.
@@ -218,6 +229,19 @@ function initControls() {
 
   $('#rs-fault-reload').addEventListener('click', () => window.location.reload());
 
+  // Grundlagen-Glossar: einmal aus GLOSSARY gebaut, danach nur ein-/
+  // ausgeblendet. Kein Tutorial mit Pflichtschritten -- ein Nachschlagewerk,
+  // das jederzeit erreichbar ist, für wen die Meldetafel-Hilfe allein nicht
+  // reicht.
+  const glossaryModal = $('#rs-glossary-modal');
+  $('#rs-glossary-list').replaceChildren(...GLOSSARY.flatMap((e) => [
+    el('dt', { text: t(e.term) }),
+    el('dd', { text: t(e.def) }),
+  ]));
+  $('#rs-glossary').addEventListener('click', () => { glossaryModal.hidden = false; });
+  $('#rs-glossary-close').addEventListener('click', () => { glossaryModal.hidden = true; });
+  glossaryModal.addEventListener('click', (ev) => { if (ev.target === glossaryModal) glossaryModal.hidden = true; });
+
   $('#rs-save').addEventListener('click', () => {
     const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
     saveGame(app.engine, scnId, 'auto').then((ok) => {
@@ -290,6 +314,13 @@ function showDestroyed() {
   $('#rs-destroyed').hidden = false;
 }
 
+/** Gleicher Reaktortyp, gleiches Szenario (oder freies Spiel), sofort von
+ *  vorn -- ohne den Umweg über Menü, Typwahl und Einweisung. */
+function restart() {
+  if (!app.lastReactor) { toMenu(); return; }
+  boot(app.lastReactor, app.lastScenarioDef);
+}
+
 function toMenu() {
   if (app.loop) app.loop.stop();
   $('#rs-app').hidden = true;
@@ -356,6 +387,11 @@ function loadScores(reactor, scenario) {
 function boot(reactorId, scenarioDef, loadSlot) {
   const plant = getPlant(reactorId);
   if (!plant) return;
+
+  // Für den Neustart-Knopf in Auswertung und Kernzerstörung gemerkt -- ein
+  // Spielstand zählt dabei nicht als Szenario, "Neustart" fängt dann frei an.
+  app.lastReactor = reactorId;
+  app.lastScenarioDef = loadSlot ? null : (scenarioDef || null);
 
   $('#rs-start').hidden = true;
   $('#rs-app').hidden = false;

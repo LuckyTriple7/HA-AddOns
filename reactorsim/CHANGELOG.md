@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.20
+
+- ✏️ **Meldetafel-Hilfe an das manuelle SCRAM angepasst.** Alle Hilfetexte von 0.0.17 gingen noch von automatischer Abschaltung aus ("SCRAM ist bereits ausgelöst"). Seit 0.0.19 stimmt das nicht mehr — jeder betroffene Text sagt jetzt "SCRAM auslösen" statt eine bereits erledigte Sache zu behaupten.
+- 🔺 **Meldetafel-Schwere jetzt auch als Form, nicht nur als Farbe.** ● Hinweis, ▲ Warnung, ■ Auslösung — für Rot-Grün-Schwäche war Warnung gegen Auslösung bisher nicht zu unterscheiden.
+- ⌨️ **Steuerstäbe fahren jetzt auch über die Tastatur.** Die Halteknöpfe reagierten bisher nur auf Maus/Touch (`pointerdown`/`up`), Tab+Enter/Leertaste tat nichts. Dazu Pointer Capture, damit ein Loslassen neben dem Knopf den Fahrbefehl nicht unbemerkt weiterlaufen lässt.
+- 🔁 **Neustart-Knopf** in Auswertung und Kernzerstörung — gleicher Typ, gleiches Szenario, sofort von vorn, ohne den Umweg über Menü und Einweisung.
+- 📖 **Grundlagen-Glossar** über den neuen „?"-Knopf im Leitstand: 13 Begriffe kurz erklärt (Reaktivität, DNBR/CPR, Xenon, ORM, Void-Koeffizient, SCRAM/RESA/AZ-5, Meldetafel-Zustände, …) — kein Lehrgang, nur zum Nachschlagen.
+- 🧹 Zwei tote Übersetzungsschlüssel entfernt (`start_scenarios_soon`, `start_difficulty`) — Reste eines nie gebauten Reglers, nirgends mehr referenziert.
+- 🖼️ **RBMK-Fließbild: Abschaltreserve statt Graphittemperatur am Kern.** Die Graphittemperatur hat eine Zeitkonstante von 35 Minuten — über eine Schicht sieht sie praktisch unbewegt aus, und stand dazu direkt unter der Beschriftung "Druckröhren", als gehörte sie dazu. Am selben Fleck steht jetzt die ORM, selbst beschriftet ("ORM …") und rot/gelb bei Unterschreitung — die Zahl, die bei diesem Typ tatsächlich in Echtzeit über Gefahr entscheidet.
+
 ## 0.0.19
 
 - ⚠️ **Schnellabschaltung löst nicht mehr von selbst aus.** Bisher schaltete jede Meldung mit `action: 'scram'` (Leistung hoch, DNBR niedrig, Kühlmittelverlust, …) den Reaktor automatisch ab — der Bediener bekam davon oft nur die Meldetafel zu sehen. Jetzt meldet das System weiterhin zuverlässig (Kachel, Hupe, Protokoll), greift aber nicht mehr ein: die Schnellabschaltung ist allein Sache des Bedieners am SCRAM/RESA/AZ-5-Knopf. Wer nicht reagiert, riskiert jetzt echten Brennstoffschaden — bei allen drei Reaktortypen.

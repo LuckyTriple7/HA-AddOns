@@ -89,6 +89,7 @@ button {
 .rs-btn:disabled { opacity: .4; cursor: not-allowed; }
 .rs-btn-sm { padding: 4px 9px; min-height: 28px; font-size: 12px; }
 .rs-btn-ghost { background: transparent; }
+.rs-btn-icon { padding: 8px; min-width: 38px; font-weight: 700; }
 .rs-btn-primary {
   background: #12405f;
   border-color: #1d6c9c;
@@ -235,6 +236,26 @@ button {
   font-size: 12px;
   color: var(--rs-fg-mute);
   word-break: break-word;
+}
+.rs-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.rs-modal-actions .rs-btn { flex: 1; }
+
+.rs-modal-wide { max-width: 640px; max-height: 82vh; overflow-y: auto; }
+
+/* ── Grundlagen-Glossar ───────────────────────────────────────────────────── */
+
+.rs-glossary { display: grid; gap: 2px 0; margin: 0; }
+.rs-glossary dt {
+  font-weight: 700;
+  color: var(--rs-fg);
+  margin-top: 10px;
+}
+.rs-glossary dt:first-child { margin-top: 0; }
+.rs-glossary dd {
+  margin: 2px 0 0;
+  color: var(--rs-fg-mute);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 @media (prefers-reduced-motion: reduce) {

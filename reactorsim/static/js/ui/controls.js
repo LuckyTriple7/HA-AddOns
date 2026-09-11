@@ -188,6 +188,10 @@ export function jogButtons(labelKey, onJog) {
     let timer = 0;
     const start = (ev) => {
       ev.preventDefault();
+      // Capture: sonst bekommt der Knopf kein pointerup, wenn der Zeiger beim
+      // Loslassen schon daneben steht -- der Timer liefe sonst unbemerkt
+      // weiter und führe, egal was der nächste Klick will.
+      if (b.setPointerCapture) { try { b.setPointerCapture(ev.pointerId); } catch { /* egal */ } }
       onJog(dir);
       // Wiederholung: der Stabantrieb faehrt, solange die Taste gehalten wird.
       timer = window.setInterval(() => onJog(dir), 100);
@@ -202,6 +206,20 @@ export function jogButtons(labelKey, onJog) {
     b.addEventListener('pointerup', stop);
     b.addEventListener('pointerleave', stop);
     b.addEventListener('pointercancel', stop);
+    // Tastatur: ein <button> nimmt Fokus von selbst, aber pointerdown/up
+    // bleibt für Enter/Leertaste stumm -- ohne das hier war der Knopf nur per
+    // Maus/Touch fahrbar. Der Browser wiederholt keydown von selbst, solange
+    // die Taste unten bleibt, also reicht das ohne eigenen Timer.
+    b.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      onJog(dir);
+      b.classList.add('rs-on');
+    });
+    b.addEventListener('keyup', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      b.classList.remove('rs-on');
+    });
     return b;
   };
   return {
