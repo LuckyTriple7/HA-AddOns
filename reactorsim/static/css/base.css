@@ -300,3 +300,27 @@ button {
   font-variant-numeric: tabular-nums;
   color: var(--rs-value);
 }
+
+.rs-debrief-submit { display: flex; gap: 8px; }
+.rs-debrief-submit input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--rs-bg-2);
+  border: 1px solid var(--rs-line);
+  border-radius: 4px;
+  color: var(--rs-fg);
+  padding: 8px 10px;
+  font: inherit;
+  min-height: 38px;
+}
+.rs-scores { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow-y: auto; }
+.rs-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px dotted #1c2733;
+  font: 12px/1.4 var(--rs-font-num);
+}
+.rs-score-name { color: var(--rs-fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-score-v { color: var(--rs-value); font-weight: 600; }

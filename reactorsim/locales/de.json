@@ -290,5 +290,12 @@
   "fail_grid_deviation": "Netzanforderung zu lange verfehlt",
   "fail_scram": "Reaktor abgeschaltet",
   "aborted": "Abgebrochen",
-  "unit_mwh": "MWh"
+  "unit_mwh": "MWh",
+  "debrief_name": "Name für die Bestenliste",
+  "debrief_send": "Eintragen",
+  "debrief_sent": "Eingetragen.",
+  "debrief_send_failed": "Nicht eingetragen — {n}",
+  "debrief_scores": "Bestenliste",
+  "debrief_rate_limited": "zu schnell hintereinander",
+  "debrief_offline": "kein Server erreichbar"
 }

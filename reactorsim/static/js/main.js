@@ -8,6 +8,7 @@ import { Loop } from './loop.js';
 import { createEngine } from './sim/engine.js';
 import { getPlant, isAvailable } from './plants/index.js';
 import { Session, PHASE } from './game/session.js';
+import { api } from './net/api.js';
 
 const app = {
   engine: null,
@@ -57,6 +58,29 @@ function initStart() {
   $('#rs-brief-go').addEventListener('click', () => {
     $('#rs-brief').hidden = true;
     boot(app.reactor, app.briefDef);
+  });
+
+  $('#rs-debrief-send').addEventListener('click', () => {
+    const result = app.pendingResult;
+    if (!result) return;
+    const nameNode = $('#rs-debrief-name');
+    const name = nameNode.value.trim();
+    if (!name) { nameNode.focus(); return; }
+    try { window.localStorage.setItem('rs-name', name); } catch { /* privates Fenster */ }
+    const msg = $('#rs-debrief-msg');
+    // Der Punktestand wird bewusst NICHT mitgeschickt -- der Server rechnet ihn
+    // aus denselben Kennzahlen selbst nach.
+    api.submitScore(name, result.summary).then((r) => {
+      if (r.ok) {
+        setText(msg, t('debrief_sent'));
+        $('#rs-debrief-submit').hidden = true;
+        loadScores(result.summary.reactor, result.summary.scenario);
+      } else {
+        const why = r.status === 429 ? t('debrief_rate_limited')
+          : (r.status === 0 ? t('debrief_offline') : ((r.data && r.data.error) || String(r.status)));
+        setText(msg, t('debrief_send_failed', { n: why }));
+      }
+    });
   });
 
   $('#rs-debrief-close').addEventListener('click', () => {
@@ -256,7 +280,35 @@ function showDebrief(result, failed) {
       ]));
     }
   }
+  // Eintragen nur, wenn es eine Wertung gibt und es ein Szenario war.
+  const submit = $('#rs-debrief-submit');
+  const msg = $('#rs-debrief-msg');
+  setText(msg, '');
+  $('#rs-debrief-scores').replaceChildren();
+  submit.hidden = !result;
+  if (result) {
+    app.pendingResult = result;
+    const name = $('#rs-debrief-name');
+    try { name.value = window.localStorage.getItem('rs-name') || ''; } catch { /* privates Fenster */ }
+    loadScores(result.summary.reactor, result.summary.scenario);
+  }
   $('#rs-debrief').hidden = false;
+}
+
+/** Bestenliste zum gerade gespielten Szenario nachladen. */
+function loadScores(reactor, scenario) {
+  api.listScores(reactor, scenario, 10).then((r) => {
+    const list = $('#rs-debrief-scores');
+    list.replaceChildren();
+    if (!r.ok || !r.data || !r.data.scores) return;
+    for (const e of r.data.scores) {
+      list.append(el('li', null, [
+        // textContent, nie innerHTML: der Name kommt von einem anderen Spieler.
+        el('span.rs-score-name', { text: e.name }),
+        el('span.rs-score-v', { text: String(e.score) }),
+      ]));
+    }
+  });
 }
 
 function boot(reactorId, scenarioDef) {

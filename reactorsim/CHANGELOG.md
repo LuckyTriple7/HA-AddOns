@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.8
+
+- 💾 **Spielstände und Bestenliste.** Ablage unter `./data`, ohne Anmeldung: ein zufälliges Token im Cookie erkennt das Gerät wieder, mehr wird nicht gespeichert. Nach jeder Schicht lässt sich das Ergebnis mit einem Namen eintragen; die Bestenliste zum Szenario steht direkt darunter.
+- 🔒 **Der Server glaubt dem Browser den Punktestand nicht.** Der Client meldet Kennzahlen, der Server rechnet daraus mit derselben Formel neu. Ein mitgeschicktes `score`-Feld wird gar nicht gelesen. Die Formel steht deshalb zweimal — in JavaScript und in Python — und eine gemeinsame Fixture-Datei hält beide Seiten zusammen.
+- 🧱 **Plausibilitätsprüfung statt blindem Vertrauen.** Mehr Energie, als die Anlage in der Zeit liefern kann, eine längere Schicht als das Szenario dauert, negative Abweichungen, Überschreitungszeiten länger als der Lauf — alles abgewiesen. Reaktortyp und Szenario müssen zueinander passen und beide aus der serverseitigen Liste stammen.
+- 🚧 **Ratenbegrenzung in zwei Stufen.** Oben eine weite Grenze gegen das bloße Fluten, die enge Grenze (ein Eintrag je Minute) erst kurz vor dem Schreiben. Stünde sie oben, würde eine einzige fehlerhafte Anfrage den nächsten gültigen Eintrag für eine Minute blockieren. Gezählt wird je Spieler **und** je Absenderadresse — ProxyFix ist aktiv, sonst teilen sich hinter einem Reverse Proxy alle dieselbe Grenze.
+- 📦 **Der Spielstand ist für den Server undurchsichtig.** Er speichert ihn und gibt ihn zurück, ohne hineinzusehen: die Struktur gehört der Simulation, und eine Prüfung im Server wäre eine zweite, stets veraltete Kopie davon. Geprüft wird beim Laden im Browser — ein kaputter Stand wird verweigert, statt NaN in die Engine zu füttern.
+- 🧪 **Struktur- und Sprachtests.** Ein Test läuft den ES-Modul-Importgraph ab `main.js` ab und prüft jede erreichte Datei gegen die COPY-Zeilen des Dockerfiles: ein vergessenes Modul stürzt nicht ab, es liefert still 404 und eine halbtote Oberfläche. Ein zweiter prüft Schlüsselgleichheit und Platzhalter beider Sprachdateien und sucht nach fest verdrahtetem deutschem Text außerhalb von Kommentaren.
+- ✅ **104 Tests** — 74 unter `node --test`, 30 unter `pytest`.
+
 ## 0.0.7
 
 - 📋 **Szenarien statt nur freiem Spiel.** Fünf Schichten zur Auswahl: Lastfolge und Turbinenschnellschluss am Druckwasserreaktor, Lastfolge über den Umwälzstrom und Frischdampf-Absperrung am Siedewasserreaktor, Nachtschicht am RBMK. Jedes Szenario bringt eine Bedarfskurve, geplante Störungen, Ziele und Fehlbedingungen mit — als Datendatei, nicht als Code.

@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Root-Dateien einzeln, damit dev_run.py und dev_data/ nicht ins Image wandern.
 COPY app.py .
+COPY persist.py .
+COPY scoring.py .
+COPY atomic_io.py .
 COPY VERSION .
 
 # Verzeichnisse als Ganzes: unter static/js liegen dutzende ES-Module, eine

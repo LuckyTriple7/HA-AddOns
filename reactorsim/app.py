@@ -15,9 +15,13 @@ import logging
 import os
 import signal
 
-from flask import (Flask, jsonify, make_response, redirect, render_template,
+from flask import (Flask, g, jsonify, make_response, redirect, render_template,
                    request, send_from_directory)
 from waitress import serve
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+import persist
+import scoring
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -58,6 +62,19 @@ APP_VERSION = _read_version()
 app = Flask(__name__, template_folder=_BASE + '/templates',
             static_folder=STATIC_PATH)
 app.config['MAX_CONTENT_LENGTH'] = 256 * 1024
+
+# Hinter einem Reverse Proxy traegt jede Anfrage dieselbe Absenderadresse,
+# naemlich die des Proxys. Ohne ProxyFix teilen sich dann alle Spieler
+# dieselbe Ratenbegrenzung. Wer den Port direkt erreicht, kann
+# X-Forwarded-For faelschen -- das ist der Preis und aendert nichts daran,
+# dass der Punktestand ohnehin serverseitig gerechnet wird.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
+STORE = persist.Store(_DATA)
+LIMITS = persist.RateLimit()
+
+PLAYER_COOKIE = 'rs_player'
+
 
 # ── i18n ──────────────────────────────────────────────────────────────────────
 
@@ -125,6 +142,12 @@ def _load_scenarios() -> list:
 
 SCENARIOS = _load_scenarios()
 SCENARIO_IDS = frozenset(s['id'] for s in SCENARIOS)
+SCENARIO_BY_ID = {s['id']: s for s in SCENARIOS}
+
+# Nennleistung je Reaktortyp. Sie begrenzt, wie viel Energie ein Lauf
+# ueberhaupt geliefert haben kann -- ohne diese Obergrenze waere die
+# Plausibilitaetspruefung der Bestenliste zahnlos.
+REACTOR_P0 = {'pwr': 1400.0, 'bwr': 1344.0, 'rbmk': 1000.0}
 
 
 @app.route('/api/meta')
@@ -133,6 +156,152 @@ def meta():
         'version': APP_VERSION,
         'scenarios': SCENARIOS,
     })
+
+
+# ── Spielerkennung ────────────────────────────────────────────────────────────
+
+
+def _player_id() -> str:
+    """Token aus dem Cookie, oder ein neues. Keine Anmeldung, keine Daten zur
+    Person -- das Token erkennt ein Geraet wieder und sonst nichts."""
+    if 'player' in g:
+        return g.player
+    raw = request.cookies.get(PLAYER_COOKIE)
+    if STORE.valid_player(raw):
+        g.player = raw
+        g.player_is_new = False
+    else:
+        g.player = STORE.new_player_id()
+        g.player_is_new = True
+    return g.player
+
+
+@app.after_request
+def _set_player_cookie(resp):
+    if g.get('player_is_new') and g.get('player'):
+        resp.set_cookie(PLAYER_COOKIE, g.player, max_age=365 * 24 * 3600,
+                        httponly=True, samesite='Lax')
+    return resp
+
+
+def _limited(bucket: str, limit: int, window_s: float) -> bool:
+    """Ratenbegrenzung je Spieler UND je Absenderadresse."""
+    pid = _player_id()
+    addr = request.remote_addr or '-'
+    return not (LIMITS.hit(f'{bucket}:p:{pid}', limit, window_s)
+                and LIMITS.hit(f'{bucket}:a:{addr}', limit * 4, window_s))
+
+
+# ── Spielstaende ──────────────────────────────────────────────────────────────
+
+
+@app.route('/api/saves')
+def saves_list():
+    return jsonify({'saves': STORE.list_saves(_player_id())})
+
+
+@app.route('/api/saves/<slot>', methods=['GET'])
+def save_read(slot: str):
+    blob = STORE.read_save(_player_id(), slot)
+    if blob is None:
+        return jsonify({'error': 'not_found'}), 404
+    return jsonify(blob)
+
+
+@app.route('/api/saves/<slot>', methods=['PUT'])
+def save_write(slot: str):
+    if _limited('save', 30, 60):
+        return jsonify({'error': 'rate_limited'}), 429
+    if not persist.SLOT_RE.match(slot):
+        return jsonify({'error': 'bad_slot'}), 400
+    blob = request.get_json(silent=True)
+    if not isinstance(blob, dict):
+        return jsonify({'error': 'bad_body'}), 400
+    reactor = blob.get('reactor')
+    if reactor is not None and not isinstance(reactor, str):
+        return jsonify({'error': 'bad_reactor'}), 400
+    err = STORE.write_save(_player_id(), slot, blob)
+    if err:
+        return jsonify({'error': err}), 413 if err == 'too_large' else 400
+    return jsonify({'ok': True})
+
+
+@app.route('/api/saves/<slot>', methods=['DELETE'])
+def save_delete(slot: str):
+    if not persist.SLOT_RE.match(slot):
+        return jsonify({'error': 'bad_slot'}), 400
+    return jsonify({'ok': STORE.delete_save(_player_id(), slot)})
+
+
+# ── Bestenliste ───────────────────────────────────────────────────────────────
+
+
+@app.route('/api/highscores', methods=['GET'])
+def scores_list():
+    reactor = request.args.get('reactor')
+    scenario = request.args.get('scenario')
+    if reactor is not None and reactor not in REACTOR_P0:
+        return jsonify({'error': 'bad_reactor'}), 400
+    if scenario is not None and scenario not in SCENARIO_IDS:
+        return jsonify({'error': 'bad_scenario'}), 400
+    try:
+        limit = int(request.args.get('limit', 20))
+    except ValueError:
+        limit = 20
+    return jsonify({'scores': STORE.list_scores(reactor, scenario, limit)})
+
+
+@app.route('/api/highscores', methods=['POST'])
+def scores_add():
+    """Der Client schickt Kennzahlen, NIE einen Punktestand.
+
+    Gepruefte Reihenfolge: Ratenbegrenzung, Kennungen gegen die Whitelist,
+    Plausibilitaet der Kennzahlen, dann erst rechnen. Ein mitgeschicktes
+    Feld "score" wird nicht gelesen -- es kommt gar nicht vor.
+    """
+    # Zwei Stufen. Oben eine weite Grenze gegen das blosse Fluten; die enge
+    # Grenze steht weiter unten, kurz vor dem Schreiben. Stuende sie hier,
+    # wuerde eine einzige fehlerhafte Anfrage den naechsten gueltigen Eintrag
+    # fuer eine Minute blockieren -- und wer haendisch herumprobiert, sperrt
+    # sich damit selbst aus.
+    if _limited('score_burst', 60, 60):
+        return jsonify({'error': 'rate_limited'}), 429
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({'error': 'bad_body'}), 400
+
+    summary = body.get('summary')
+    if not isinstance(summary, dict):
+        return jsonify({'error': 'bad_summary'}), 400
+
+    reactor = summary.get('reactor') or body.get('reactor')
+    scenario = summary.get('scenario') or body.get('scenario')
+    if reactor not in REACTOR_P0:
+        return jsonify({'error': 'bad_reactor'}), 400
+    if scenario not in SCENARIO_IDS:
+        return jsonify({'error': 'bad_scenario'}), 400
+
+    scn = SCENARIO_BY_ID[scenario]
+    if scn.get('reactor') != reactor:
+        return jsonify({'error': 'reactor_mismatch'}), 400
+
+    why = scoring.validate_summary(summary, scn, REACTOR_P0[reactor])
+    if why:
+        return jsonify({'error': 'implausible', 'detail': why}), 400
+
+    name = STORE.clean_name(body.get('name'))
+    if not name:
+        return jsonify({'error': 'bad_name'}), 400
+
+    # Jetzt erst die enge Grenze: ein Eintrag je Minute, zweihundert am Tag.
+    if _limited('score', 1, 60) or _limited('score_day', 200, 86400):
+        return jsonify({'error': 'rate_limited'}), 429
+
+    result = scoring.score(summary)
+    entry = STORE.add_score(reactor, scenario, name, result['score'], summary)
+    return jsonify({'ok': True, 'entry': entry, 'score': result['score'],
+                    'parts': result['parts']})
 
 
 # ── Seiten ────────────────────────────────────────────────────────────────────

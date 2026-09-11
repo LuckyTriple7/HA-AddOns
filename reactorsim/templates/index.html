@@ -305,6 +305,13 @@
     <p class="rs-debrief-verdict" id="rs-debrief-verdict"></p>
     <div class="rs-debrief-score" id="rs-debrief-score"></div>
     <div id="rs-debrief-parts"></div>
+    <div class="rs-debrief-submit" id="rs-debrief-submit" hidden>
+      <input type="text" id="rs-debrief-name" maxlength="24" placeholder="{{ t.debrief_name }}"
+             autocomplete="off" spellcheck="false">
+      <button type="button" class="rs-btn" id="rs-debrief-send">{{ t.debrief_send }}</button>
+    </div>
+    <p class="rs-ctl-hint" id="rs-debrief-msg"></p>
+    <ol class="rs-scores" id="rs-debrief-scores"></ol>
     <button type="button" class="rs-btn rs-btn-primary" id="rs-debrief-close">{{ t.btn_menu }}</button>
   </div>
 </div>

@@ -30,6 +30,48 @@ Unter `./data` landen Spielstände und Bestenliste. Es gibt keine Anmeldung und
 keine personenbezogenen Daten — der Spieler wird über ein zufälliges Token im
 Cookie wiedererkannt.
 
+## Szenarien
+
+Neben dem freien Spiel gibt es Schichten mit Auftrag: eine Bedarfskurve, die du
+einhalten sollst, geplante Störungen und eine Wertung am Ende. Gewertet werden
+gelieferte Energie, Abweichung vom Bedarf, unquittierte Alarmsekunden,
+Grenzwertüberschreitungen nach Schwere, Schnellabschaltungen und
+Brennstoffschaden.
+
+| Szenario | Typ | Dauer |
+|---|---|---|
+| Lastfolge über vier Stunden | DWR | 240 min |
+| Turbinenschnellschluss | DWR | 60 min |
+| Lastfolge über den Umwälzstrom | SWR | 180 min |
+| Frischdampf-Absperrung | SWR | 45 min |
+| Nachtschicht | RBMK | 180 min |
+
+Ein Szenario ist eine Datendatei unter `static/data/scenarios/`. Störungs-
+zeitpunkte dürfen `"rand(6000,8400)"` sein und werden über den Startwert des
+Szenarios aufgelöst — derselbe Startwert ergibt dieselbe Schicht.
+
+## Schnittstelle
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| GET | `/health` | Healthcheck |
+| GET | `/api/meta` | Version und Szenarienliste |
+| GET/PUT/DELETE | `/api/saves[/<slot>]` | Spielstände |
+| GET/POST | `/api/highscores` | Bestenliste |
+
+Der Server rechnet den Punktestand aus den gemeldeten Kennzahlen **selbst** —
+ein mitgeschicktes `score`-Feld wird nicht gelesen. Die Kennzahlen werden auf
+Plausibilität geprüft (mehr Energie, als die Anlage in der Zeit liefern kann,
+längere Schicht als das Szenario dauert, negative Abweichungen). Der Spielstand
+selbst ist für den Server undurchsichtig: er speichert ihn und gibt ihn zurück,
+ohne hineinzusehen — geprüft wird er beim Laden im Browser.
+
+Ehrliche Einordnung: solange die Simulation im Browser läuft, sind Bestenlisten
+nicht fälschungssicher. Die Prüfung verschiebt die Angriffsfläche von „eine
+beliebige Zahl" auf „ein Satz physikalisch begrenzter Größen". Der saubere Weg
+wäre Replay-Verifikation; der gesäte Zufall und die DOM-freien `sim/`-Module
+halten diese Tür offen.
+
 ## Bedienung
 
 - **Zeitraffer** 1× / 4× / 16× / 60×. Der Rechenschritt bleibt dabei konstant,
@@ -44,7 +86,8 @@ Cookie wiedererkannt.
 
 ```bash
 python3 dev_run.py          # http://127.0.0.1:17779, Daten in dev_data/
-node --test tests/          # Physik- und Strukturtests
+node --test tests/          # Physik, Spielschicht, Determinismus
+python3 -m pytest tests/    # Schnittstelle, Wertung, Struktur, Sprachdateien
 ```
 
 Die gesamte Simulation läuft im Browser in reinen ES-Modulen — kein npm, kein

@@ -290,5 +290,12 @@
   "fail_grid_deviation": "Grid demand missed for too long",
   "fail_scram": "Reactor tripped",
   "aborted": "Aborted",
-  "unit_mwh": "MWh"
+  "unit_mwh": "MWh",
+  "debrief_name": "Name for the leaderboard",
+  "debrief_send": "Submit",
+  "debrief_sent": "Submitted.",
+  "debrief_send_failed": "Not submitted — {n}",
+  "debrief_scores": "Leaderboard",
+  "debrief_rate_limited": "too soon after the last one",
+  "debrief_offline": "no server reachable"
 }
