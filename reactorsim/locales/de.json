@@ -198,5 +198,14 @@
   "event_off": "gegangen",
   "end_destroyed_title": "Kernzerstörung",
   "end_destroyed_body": "Die Brennstoffenthalpie hat 963 J/g überschritten. Der Brennstoff ist zerlegt, die Anlage verloren.",
-  "prompt_critical": "PROMPT KRITISCH"
+  "prompt_critical": "PROMPT KRITISCH",
+  "mimic_core": "Reaktor",
+  "mimic_pzr": "Druckhalter",
+  "mimic_rcp": "Pumpe",
+  "mimic_sg": "Dampferzeuger",
+  "mimic_turbine": "Turbine",
+  "mimic_gen": "Generator",
+  "mimic_cond": "Kondensator",
+  "mimic_gov": "Regelventil",
+  "mimic_bypass": "Umleitung"
 }

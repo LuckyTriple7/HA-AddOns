@@ -12,6 +12,7 @@ import { Annunciator, Horn } from './annunciator.js';
 import {
   autoSwitch, slider, buttonGroup, jogButtons, pumpRow,
 } from './controls.js';
+import { MIMICS } from './mimic.js';
 
 const U = (key) => ' ' + t(key);
 
@@ -159,6 +160,10 @@ export function buildPanels(engine, render) {
   rangeBtns[0].classList.add('rs-on');
   $('#rs-trend-range').replaceChildren(...rangeBtns);
 
+  // ── Fließbild ──────────────────────────────────────────────────────────────
+  const buildMimic = MIMICS[sp.mimic];
+  const mimic = buildMimic ? buildMimic($('#rs-mimic')) : null;
+
   // ── Meldetafel ─────────────────────────────────────────────────────────────
   const annun = new Annunciator($('#rs-annun'), $('#rs-log'), sp.trips || []);
   const horn = new Horn();
@@ -255,6 +260,10 @@ export function buildPanels(engine, render) {
     const d = engine.derive();
     for (const r of trends) { r.sample(s, d); r.draw(); }
   });
+
+  if (mimic) {
+    render.add('mimic', () => mimic.update(s, engine.derive(), sp));
+  }
 
   return { horn };
 }

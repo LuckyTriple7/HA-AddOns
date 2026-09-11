@@ -48,8 +48,10 @@
   stroke: #3a5064;
   stroke-width: 2;
 }
+/* Der Kern glueht mit der Leistung. Der Deckel bei 72 % haelt das Bild
+   lesbar: bei voller Saettigung frisst das Orange jede Kontur. */
 .rs-core {
-  fill: color-mix(in oklab, var(--rs-hot) calc(var(--rs-n, 0) * 100%), #142230);
+  fill: color-mix(in oklab, var(--rs-hot) calc(var(--rs-n, 0) * 72%), #142230);
 }
 .rs-label {
   fill: var(--rs-fg-mute);
@@ -80,3 +82,7 @@
   .rs-flow { animation: none; stroke-dasharray: none; opacity: calc(var(--rs-w, 0) * 0.5); }
   .rs-spin { animation: none; }
 }
+
+/* Fuellstandsbalken in Dampferzeuger und Druckhalter. */
+.rs-sg-level  { fill: #1f5e8c; opacity: .55; }
+.rs-pzr-level { fill: #2a6f4e; opacity: .6; }

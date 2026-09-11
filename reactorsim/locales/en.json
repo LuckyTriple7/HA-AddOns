@@ -198,5 +198,14 @@
   "event_off": "cleared",
   "end_destroyed_title": "Core destroyed",
   "end_destroyed_body": "Fuel enthalpy exceeded 963 J/g. The fuel is dispersed, the plant is lost.",
-  "prompt_critical": "PROMPT CRITICAL"
+  "prompt_critical": "PROMPT CRITICAL",
+  "mimic_core": "Reactor",
+  "mimic_pzr": "Pressuriser",
+  "mimic_rcp": "Pump",
+  "mimic_sg": "Steam generator",
+  "mimic_turbine": "Turbine",
+  "mimic_gen": "Generator",
+  "mimic_cond": "Condenser",
+  "mimic_gov": "Governor",
+  "mimic_bypass": "Dump"
 }
