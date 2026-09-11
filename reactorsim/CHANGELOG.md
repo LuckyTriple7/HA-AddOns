@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.28
+
+- 📖 **Meldetafel-Hilfe komplett neu geschrieben, alle 28 Meldungen.** Die Kurzfassung aus 0.0.17 sagte nur, was passiert — nicht mehr, was konkret zu tun ist. Jeder Text hat jetzt die genaue Auslösebedingung mit Zahlen, dann eine Schritt-für-Schritt-Liste mit den tatsächlichen Reglernamen aus dem Leitstand ("Hauptumwälzpumpen", "Druckhalter-Sprühen", "Frischdampf-Absperrung" usw.) statt allgemeiner Stichworte. Modal zeigt jetzt mehrzeilig mit Aufzählungspunkten (`white-space: pre-line`), etwas breiter für den längeren Text.
+
 ## 0.0.27
 
 - 💡 **Fließbild zeigt jetzt, welches Bauteil eine anstehende Meldung betrifft.** Bisher stand das nur auf der Meldetafel — jetzt bekommt das betroffene Bauteil (Kern, Druckhalter/Dampferzeuger/Trommel, Hauptkühlmittelpumpe, Generator, je nach Typ) einen farbigen Rand in derselben Schwere-Farbe wie die Meldetafel, bei Auslösung zusätzlich blinkend. Neues Feld `alarmComponents` je Typdatei ordnet jede Meldung ihrem Bauteil zu.

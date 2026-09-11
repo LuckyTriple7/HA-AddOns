@@ -239,6 +239,10 @@ button {
   color: var(--rs-fg-mute);
   word-break: break-word;
 }
+/* Die Meldetafel-Hilfe kommt als ein String mit \n -- eigene Zeilen für
+   Bedingung, "Konkret tun:" und die Aufzählung, ohne dafür DOM-Knoten zu
+   bauen. */
+#rs-alarm-help-text { white-space: pre-line; }
 .rs-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .rs-modal-actions .rs-btn { flex: 1; }
 
