@@ -1,0 +1,113 @@
+/* Innenleben der Panels: Kopfzeile, Gruppen, Messwertzeilen, Protokoll. */
+
+.rs-panel-h {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--rs-fg-mute);
+  background: var(--rs-panel-2);
+  border-bottom: 1px solid var(--rs-line);
+}
+.rs-panel-h-actions { margin-left: auto; display: flex; gap: 6px; }
+
+.rs-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--rs-line-soft);
+}
+.rs-panel-flush .rs-panel-body { padding: 0; gap: 0; }
+
+.rs-group {
+  /* Nicht schrumpfen lassen: im Flex-Container würde sonst jede Gruppe
+     zusammengedrückt, statt dass das Panel scrollt. */
+  flex: 0 0 auto;
+  background: var(--rs-panel);
+  padding: 8px 10px 10px;
+}
+.rs-group-grow { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+.rs-group > h3 {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--rs-fg-mute);
+  margin-bottom: 6px;
+}
+
+/* Messwertzeile: Bezeichnung links, Wert rechts, feste Ziffernbreite. */
+.rs-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px dotted #1c2733;
+}
+.rs-row:last-child { border-bottom: 0; }
+.rs-row > span { color: var(--rs-fg-dim); font-size: 13px; }
+.rs-row > b {
+  font: 600 14px/1.3 var(--rs-font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--rs-value);
+  white-space: nowrap;
+}
+.rs-row > b[data-sev="1"] { color: var(--rs-warn); }
+.rs-row > b[data-sev="2"] { color: var(--rs-hot); }
+.rs-row > b[data-sev="3"] { color: var(--rs-alarm); }
+.rs-row > b .rs-u {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--rs-fg-mute);
+  margin-left: 3px;
+}
+
+.rs-stage {
+  background: var(--rs-bg-2);
+  border: 1px solid var(--rs-line-soft);
+  border-radius: 4px;
+  min-height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+.rs-stage-grow { flex: 1 1 auto; min-height: 140px; }
+
+.rs-empty {
+  margin: 0;
+  color: var(--rs-fg-mute);
+  font-size: 12px;
+  text-align: center;
+  max-width: 34ch;
+}
+
+/* Ereignisprotokoll */
+.rs-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  font: 12px/1.5 var(--rs-font-num);
+}
+.rs-log li {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px dotted #1c2733;
+}
+.rs-log time { color: var(--rs-fg-mute); flex: 0 0 auto; }
+.rs-log [data-sev="1"] { color: var(--rs-warn); }
+.rs-log [data-sev="2"] { color: var(--rs-hot); }
+.rs-log [data-sev="3"] { color: var(--rs-alarm); }

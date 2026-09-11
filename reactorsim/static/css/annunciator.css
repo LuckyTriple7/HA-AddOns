@@ -1,0 +1,77 @@
+/* Meldetafel nach ISA-18.2-Ringback:
+
+   normal            dunkel
+   neu (unquittiert) schnelles Blinken + Hupe
+   quittiert         Dauerlicht
+   gegangen, unquitt. langsames Blinken
+   zurückgestellt    dunkel
+
+   Die Zustände stehen als data-st am Kachelknoten; der Renderlauf setzt nur
+   dieses Attribut, alles Weitere macht CSS. */
+
+.rs-annun {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 4px;
+  padding: 8px;
+  background: var(--rs-panel);
+}
+
+.rs-tile {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5px 6px;
+  border: 1px solid #24323f;
+  border-radius: 3px;
+  background: #0c1219;
+  color: #46596b;
+  font-size: 10px;
+  line-height: 1.25;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* Schwere 1 = Hinweis, 2 = Warnung, 3 = Auslösung. */
+.rs-tile[data-st="new"],
+.rs-tile[data-st="ack"],
+.rs-tile[data-st="clear"] { color: #080c10; font-weight: 700; }
+
+.rs-tile[data-sev="1"][data-st="new"],
+.rs-tile[data-sev="1"][data-st="ack"],
+.rs-tile[data-sev="1"][data-st="clear"] { background: var(--rs-warn); border-color: #ffd27a; }
+.rs-tile[data-sev="2"][data-st="new"],
+.rs-tile[data-sev="2"][data-st="ack"],
+.rs-tile[data-sev="2"][data-st="clear"] { background: var(--rs-hot); border-color: #ffb289; }
+.rs-tile[data-sev="3"][data-st="new"],
+.rs-tile[data-sev="3"][data-st="ack"],
+.rs-tile[data-sev="3"][data-st="clear"] { background: var(--rs-alarm); border-color: #ff9aa3; }
+
+.rs-tile[data-st="new"]   { animation: rs-blink-fast .5s steps(2, jump-none) infinite; }
+.rs-tile[data-st="clear"] { animation: rs-blink-slow 1.6s steps(2, jump-none) infinite; }
+
+@keyframes rs-blink-fast { 50% { filter: brightness(.28); } }
+@keyframes rs-blink-slow { 50% { filter: brightness(.35); } }
+
+/* Der Reiter „Alarme" zeigt anstehende Meldungen auch, wenn er nicht offen ist. */
+.rs-tab-alarm[data-sev="1"] { color: var(--rs-warn); }
+.rs-tab-alarm[data-sev="2"] { color: var(--rs-hot); }
+.rs-tab-alarm[data-sev="3"] { color: var(--rs-alarm); }
+.rs-tab-alarm[data-unack="1"]::after {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: rs-blink-fast .5s steps(2, jump-none) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rs-tile[data-st="new"],
+  .rs-tile[data-st="clear"],
+  .rs-tab-alarm[data-unack="1"]::after { animation: none; }
+}

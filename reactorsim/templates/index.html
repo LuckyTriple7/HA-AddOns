@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0e13">
+<title>{{ t.app_title }} — {{ t.app_subtitle }}</title>
+<link rel="stylesheet" href="/s/{{ app_version }}/css/base.css">
+<link rel="stylesheet" href="/s/{{ app_version }}/css/layout.css">
+<link rel="stylesheet" href="/s/{{ app_version }}/css/panels.css">
+<link rel="stylesheet" href="/s/{{ app_version }}/css/gauges.css">
+<link rel="stylesheet" href="/s/{{ app_version }}/css/mimic.css">
+<link rel="stylesheet" href="/s/{{ app_version }}/css/annunciator.css">
+</head>
+<body>
+
+<!-- ── Startbildschirm ──────────────────────────────────────────────────── -->
+<div class="rs-start" id="rs-start">
+  <div class="rs-start-inner">
+    <h1 class="rs-start-title">{{ t.app_title }}<span>{{ t.app_subtitle }}</span></h1>
+    <p class="rs-start-intro">{{ t.start_intro }}</p>
+
+    <h2 class="rs-start-headline">{{ t.start_headline }}</h2>
+    <div class="rs-start-cards">
+      <button class="rs-card" data-reactor="pwr" type="button">
+        <span class="rs-card-badge rs-card-badge-pwr">{{ t.reactor_pwr_short }}</span>
+        <span class="rs-card-name">{{ t.reactor_pwr }}</span>
+        <span class="rs-card-tag">{{ t.reactor_pwr_tag }}</span>
+        <span class="rs-card-desc">{{ t.reactor_pwr_desc }}</span>
+      </button>
+      <button class="rs-card" data-reactor="bwr" type="button">
+        <span class="rs-card-badge rs-card-badge-bwr">{{ t.reactor_bwr_short }}</span>
+        <span class="rs-card-name">{{ t.reactor_bwr }}</span>
+        <span class="rs-card-tag">{{ t.reactor_bwr_tag }}</span>
+        <span class="rs-card-desc">{{ t.reactor_bwr_desc }}</span>
+      </button>
+      <button class="rs-card" data-reactor="rbmk" type="button">
+        <span class="rs-card-badge rs-card-badge-rbmk">{{ t.reactor_rbmk_short }}</span>
+        <span class="rs-card-name">{{ t.reactor_rbmk }}</span>
+        <span class="rs-card-tag">{{ t.reactor_rbmk_tag }}</span>
+        <span class="rs-card-desc">{{ t.reactor_rbmk_desc }}</span>
+      </button>
+    </div>
+
+    <div class="rs-start-actions">
+      <button class="rs-btn rs-btn-primary" id="rs-start-go" type="button" disabled>{{ t.start_free_play }}</button>
+      <span class="rs-start-hint">{{ t.start_scenarios_soon }}</span>
+    </div>
+
+    <div class="rs-start-foot">
+      <span class="rs-start-lang">{{ t.start_language }}:
+        <a href="/set-lang/de"{% if lang == 'de' %} class="rs-lang-on"{% endif %}>DE</a>
+        <a href="/set-lang/en"{% if lang == 'en' %} class="rs-lang-on"{% endif %}>EN</a>
+      </span>
+      <span class="rs-start-note">{{ t.footer_note }}</span>
+      <span class="rs-start-ver">v{{ app_version }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Leitstand ────────────────────────────────────────────────────────── -->
+<div class="rs-app" id="rs-app" hidden>
+
+  <header class="rs-status" id="rs-status">
+    <div class="rs-status-scroll">
+      <div class="rs-stat rs-stat-lead">
+        <span class="rs-stat-k">{{ t.status_power_th }}</span>
+        <span class="rs-stat-v" data-v="power_th_pct">—</span>
+      </div>
+      <div class="rs-stat rs-stat-lead">
+        <span class="rs-stat-k">{{ t.status_power_e }}</span>
+        <span class="rs-stat-v" data-v="power_e">—</span>
+      </div>
+      <div class="rs-stat">
+        <span class="rs-stat-k">{{ t.status_demand }}</span>
+        <span class="rs-stat-v" data-v="demand">—</span>
+      </div>
+      <div class="rs-stat">
+        <span class="rs-stat-k">{{ t.status_tavg }}</span>
+        <span class="rs-stat-v" data-v="t_avg">—</span>
+      </div>
+      <div class="rs-stat">
+        <span class="rs-stat-k">{{ t.status_pressure }}</span>
+        <span class="rs-stat-v" data-v="p_prim">—</span>
+      </div>
+      <div class="rs-stat">
+        <span class="rs-stat-k">{{ t.status_period }}</span>
+        <span class="rs-stat-v" data-v="period">—</span>
+      </div>
+      <div class="rs-stat">
+        <span class="rs-stat-k">{{ t.status_clock }}</span>
+        <span class="rs-stat-v" data-v="clock">00:00:00</span>
+      </div>
+    </div>
+
+    <div class="rs-status-bar" id="rs-status-alarm" data-sev="0">
+      <span class="rs-status-alarm-text" data-v="worst_alarm">{{ t.status_alarm_none }}</span>
+      <span class="rs-status-slip" id="rs-slip" hidden>{{ t.status_slip }}</span>
+    </div>
+
+    <div class="rs-status-controls">
+      <div class="rs-speed" role="group" aria-label="{{ t.status_speed }}">
+        <button type="button" class="rs-speed-b" data-speed="0">II</button>
+        <button type="button" class="rs-speed-b rs-on" data-speed="1">1×</button>
+        <button type="button" class="rs-speed-b" data-speed="4">4×</button>
+        <button type="button" class="rs-speed-b" data-speed="16">16×</button>
+        <button type="button" class="rs-speed-b" data-speed="60">60×</button>
+      </div>
+      <button type="button" class="rs-btn rs-btn-ghost" id="rs-menu">{{ t.btn_menu }}</button>
+      <button type="button" class="rs-scram" id="rs-scram">{{ t.btn_scram }}</button>
+    </div>
+  </header>
+
+  <div class="rs-workspace">
+    <input type="radio" name="rs-tab" id="rs-tab-core" class="rs-tabinput" checked>
+    <input type="radio" name="rs-tab" id="rs-tab-prim" class="rs-tabinput">
+    <input type="radio" name="rs-tab" id="rs-tab-sec" class="rs-tabinput">
+    <input type="radio" name="rs-tab" id="rs-tab-grid" class="rs-tabinput">
+    <input type="radio" name="rs-tab" id="rs-tab-mimic" class="rs-tabinput">
+    <input type="radio" name="rs-tab" id="rs-tab-trend" class="rs-tabinput">
+    <input type="radio" name="rs-tab" id="rs-tab-alarm" class="rs-tabinput">
+    <input type="radio" name="rs-tab" id="rs-tab-chem" class="rs-tabinput">
+
+    <nav class="rs-tabbar">
+      <label for="rs-tab-core">{{ t.tab_core }}</label>
+      <label for="rs-tab-prim">{{ t.tab_primary }}</label>
+      <label for="rs-tab-sec">{{ t.tab_secondary }}</label>
+      <label for="rs-tab-grid">{{ t.tab_grid }}</label>
+      <label for="rs-tab-mimic">{{ t.tab_mimic }}</label>
+      <label for="rs-tab-trend">{{ t.tab_trends }}</label>
+      <label for="rs-tab-alarm" class="rs-tab-alarm" id="rs-tab-alarm-label">{{ t.tab_alarms }}</label>
+      <label for="rs-tab-chem">{{ t.tab_chemistry }}</label>
+    </nav>
+
+    <div class="rs-panels">
+
+      <section class="rs-panel" id="rs-p-core">
+        <h2 class="rs-panel-h">{{ t.panel_core }}</h2>
+        <div class="rs-panel-body">
+          <div class="rs-group">
+            <h3>{{ t.panel_core_flux }}</h3>
+            <div class="rs-row"><span>{{ t.val_power_neutronic }}</span><b data-v="n_pct">—</b></div>
+            <div class="rs-row"><span>{{ t.val_power_decay }}</span><b data-v="decay_pct">—</b></div>
+            <div class="rs-row"><span>{{ t.status_period }}</span><b data-v="period">—</b></div>
+            <div class="rs-row"><span>{{ t.val_fuel_temp }}</span><b data-v="t_fuel">—</b></div>
+            <div class="rs-row"><span>{{ t.val_clad_temp }}</span><b data-v="t_clad">—</b></div>
+          </div>
+          <div class="rs-group">
+            <h3>{{ t.panel_core_rods }}</h3>
+            <div class="rs-stage" id="rs-rods"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+          </div>
+          <div class="rs-group">
+            <h3>{{ t.panel_core_reactivity }}</h3>
+            <div class="rs-stage" id="rs-rho"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rs-panel" id="rs-p-prim">
+        <h2 class="rs-panel-h">{{ t.panel_primary }}</h2>
+        <div class="rs-panel-body">
+          <div class="rs-group">
+            <h3>{{ t.panel_primary_temps }}</h3>
+            <div class="rs-row"><span>{{ t.val_t_hot }}</span><b data-v="t_hot">—</b></div>
+            <div class="rs-row"><span>{{ t.val_t_cold }}</span><b data-v="t_cold">—</b></div>
+            <div class="rs-row"><span>{{ t.status_pressure }}</span><b data-v="p_prim">—</b></div>
+            <div class="rs-row"><span>{{ t.val_flow_core }}</span><b data-v="w_core">—</b></div>
+            <div class="rs-row"><span>{{ t.val_subcooling }}</span><b data-v="subcool">—</b></div>
+            <div class="rs-row"><span>{{ t.val_dnbr }}</span><b data-v="dnbr">—</b></div>
+          </div>
+          <div class="rs-group">
+            <h3>{{ t.panel_primary_pumps }}</h3>
+            <div class="rs-stage" id="rs-pumps"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rs-panel" id="rs-p-sec">
+        <h2 class="rs-panel-h">{{ t.panel_secondary }}</h2>
+        <div class="rs-panel-body">
+          <div class="rs-group">
+            <h3>{{ t.panel_secondary_steam }}</h3>
+            <div class="rs-row"><span>{{ t.val_sg_press }}</span><b data-v="p_sg">—</b></div>
+            <div class="rs-row"><span>{{ t.val_steam_flow }}</span><b data-v="w_steam">—</b></div>
+            <div class="rs-row"><span>{{ t.val_gov }}</span><b data-v="gov">—</b></div>
+            <div class="rs-row"><span>{{ t.val_cond_press }}</span><b data-v="p_cond">—</b></div>
+          </div>
+          <div class="rs-group">
+            <h3>{{ t.panel_secondary_feed }}</h3>
+            <div class="rs-row"><span>{{ t.val_sg_level }}</span><b data-v="l_sg">—</b></div>
+            <div class="rs-row"><span>{{ t.val_feed_flow }}</span><b data-v="w_fw">—</b></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rs-panel" id="rs-p-grid">
+        <h2 class="rs-panel-h">{{ t.panel_grid }}</h2>
+        <div class="rs-panel-body">
+          <div class="rs-group">
+            <div class="rs-row"><span>{{ t.val_generator }}</span><b data-v="power_e">—</b></div>
+            <div class="rs-row"><span>{{ t.status_demand }}</span><b data-v="demand">—</b></div>
+            <div class="rs-row"><span>{{ t.val_deviation }}</span><b data-v="deviation">—</b></div>
+            <div class="rs-row"><span>{{ t.val_frequency }}</span><b data-v="freq">—</b></div>
+            <div class="rs-row"><span>{{ t.val_breaker }}</span><b data-v="breaker">—</b></div>
+          </div>
+          <div class="rs-group rs-group-grow">
+            <div class="rs-stage" id="rs-demand-curve"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rs-panel rs-panel-flush" id="rs-p-mimic">
+        <h2 class="rs-panel-h">{{ t.panel_mimic }}</h2>
+        <div class="rs-panel-body">
+          <div class="rs-mimic" id="rs-mimic"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+        </div>
+      </section>
+
+      <section class="rs-panel" id="rs-p-trend">
+        <h2 class="rs-panel-h">{{ t.panel_trends }}</h2>
+        <div class="rs-panel-body">
+          <div class="rs-stage rs-stage-grow" id="rs-trends"><p class="rs-empty">{{ t.trends_empty }}</p></div>
+        </div>
+      </section>
+
+      <section class="rs-panel" id="rs-p-alarm">
+        <h2 class="rs-panel-h">{{ t.panel_alarms }}
+          <span class="rs-panel-h-actions">
+            <button type="button" class="rs-btn rs-btn-ghost rs-btn-sm" id="rs-ack">{{ t.btn_ack }}</button>
+            <button type="button" class="rs-btn rs-btn-ghost rs-btn-sm" id="rs-alarm-reset">{{ t.btn_reset }}</button>
+          </span>
+        </h2>
+        <div class="rs-panel-body">
+          <div class="rs-annun" id="rs-annun"><p class="rs-empty">{{ t.alarms_empty }}</p></div>
+          <div class="rs-group rs-group-grow">
+            <h3>{{ t.panel_alarms_log }}</h3>
+            <ol class="rs-log" id="rs-log"></ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="rs-panel" id="rs-p-chem">
+        <h2 class="rs-panel-h">{{ t.panel_chemistry }}</h2>
+        <div class="rs-panel-body">
+          <div class="rs-group">
+            <div class="rs-row"><span>{{ t.val_xenon }}</span><b data-v="xenon">—</b></div>
+            <div class="rs-row"><span>{{ t.val_iodine }}</span><b data-v="iodine">—</b></div>
+            <div class="rs-row"><span>{{ t.val_samarium }}</span><b data-v="samarium">—</b></div>
+            <div class="rs-row"><span>{{ t.val_boron }}</span><b data-v="boron">—</b></div>
+            <div class="rs-row"><span>{{ t.val_burnup }}</span><b data-v="burnup">—</b></div>
+            <div class="rs-row"><span>{{ t.val_shutdown_margin }}</span><b data-v="sdm">—</b></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Simulationsfehler ────────────────────────────────────────────────── -->
+<div class="rs-modal" id="rs-fault" hidden>
+  <div class="rs-modal-box">
+    <h2>{{ t.fault_title }}</h2>
+    <p>{{ t.fault_body }}</p>
+    <p class="rs-modal-detail" id="rs-fault-detail"></p>
+    <button type="button" class="rs-btn rs-btn-primary" id="rs-fault-reload">{{ t.fault_reload }}</button>
+  </div>
+</div>
+
+<script>
+  // Die gesamte Uebersetzungstabelle auf einmal -- bei mehreren hundert
+  // Schluesseln ist eine Liste einzelner const-Zuweisungen unwartbar und laeuft
+  // garantiert auseinander. Bewusst window.* und kein top-level const: sobald
+  // die Simulation in einen Web Worker wandert, ist der lexikalische
+  // Modul-Zugriff weg, die Eigenschaft am globalen Objekt bleibt.
+  window.RS_I18N = {{ t|tojson }};
+  window.RS_CFG  = { lang: {{ lang|tojson }}, version: {{ app_version|tojson }} };
+</script>
+<script type="module" src="/s/{{ app_version }}/js/main.js"></script>
+</body>
+</html>

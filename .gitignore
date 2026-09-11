@@ -6,6 +6,9 @@ tuiwatch/.venv/
 nettoolbox/.venv/
 tuiwatch/dev_data/
 tuiwatch/_*
+reactorsim/dev_data/
+reactorsim/data/
+reactorsim/.venv/
 __pycache__/
 *.pyc
 .env
