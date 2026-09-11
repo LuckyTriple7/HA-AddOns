@@ -126,6 +126,8 @@ button {
 }
 .rs-start-inner { max-width: 1100px; margin: 0 auto; }
 
+.rs-start-brand { display: flex; align-items: center; gap: 16px; }
+.rs-start-logo { width: 56px; height: 56px; flex: none; border-radius: 50%; }
 .rs-start-title {
   font-size: 30px;
   letter-spacing: .04em;

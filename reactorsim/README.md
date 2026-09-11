@@ -1,3 +1,5 @@
+<p align="center"><img src="static/img/logo.png" alt="ReactorSim" width="360"></p>
+
 # ReactorSim
 
 Kernkraftwerks-Leitstand als Browser-Spiel. Du bist Reaktorfahrer: Anlage im

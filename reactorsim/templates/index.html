@@ -6,6 +6,10 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0a0e13">
 <title>{{ t.app_title }} — {{ t.app_subtitle }}</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/s/{{ app_version }}/img/favicon-32.png">
+<link rel="icon" href="/s/{{ app_version }}/img/favicon.ico">
+<link rel="apple-touch-icon" href="/s/{{ app_version }}/img/apple-touch-icon.png">
+<link rel="manifest" href="/s/{{ app_version }}/manifest.json">
 <link rel="stylesheet" href="/s/{{ app_version }}/css/base.css">
 <link rel="stylesheet" href="/s/{{ app_version }}/css/layout.css">
 <link rel="stylesheet" href="/s/{{ app_version }}/css/panels.css">
@@ -18,7 +22,10 @@
 <!-- ── Startbildschirm ──────────────────────────────────────────────────── -->
 <div class="rs-start" id="rs-start">
   <div class="rs-start-inner">
-    <h1 class="rs-start-title">{{ t.app_title }}<span>{{ t.app_subtitle }}</span></h1>
+    <div class="rs-start-brand">
+      <img class="rs-start-logo" src="/s/{{ app_version }}/img/icon.png" alt="" width="56" height="56">
+      <h1 class="rs-start-title">{{ t.app_title }}<span>{{ t.app_subtitle }}</span></h1>
+    </div>
     <p class="rs-start-intro">{{ t.start_intro }}</p>
 
     <h2 class="rs-start-headline">{{ t.start_headline }}</h2>
