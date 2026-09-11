@@ -1,0 +1,6 @@
+{
+  "name": "reactorsim-sim",
+  "private": true,
+  "type": "module",
+  "description": "Markiert die .js-Dateien unter static/js als ES-Module, damit node --test sie direkt importieren kann. Kein npm-Paket: es gibt keine Abhaengigkeiten und nichts zu installieren. Der Browser liest die Datei nie."
+}
