@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.18
+
+- 🐛 **Reaktorschutz saß nach einer Schnellabschaltung für immer fest.** Einmal ausgelöst — auch automatisch, etwa durch „Leistung hoch" — fuhr die Engine die Stäbe für den Rest des Laufs zwangsweise auf „ganz eingefahren", ganz gleich was der Bediener einstellte: kein Zurück in den Normalbetrieb, alle drei Reaktortypen betroffen. „Rückstellen" gibt den Reaktorschutz jetzt frei — aber erst, wenn die auslösende Ursache tatsächlich weg ist, sonst bleibt er stehen, genau wie die Meldetafel selbst.
+
 ## 0.0.17
 
 - 💡 **Meldetafel erklärt sich jetzt.** Eine Kachel sagte bisher nur, dass etwas ansteht — nicht, was es bedeutet oder was zu tun ist. Klick (oder Enter/Leertaste) auf eine Meldung öffnet eine kurze Erklärung mit der empfohlenen Handlung, auf Deutsch und Englisch.

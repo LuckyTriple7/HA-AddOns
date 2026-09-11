@@ -206,6 +206,7 @@
   "trip_clad_temp": "Clad temperature",
   "trip_clad_temp_help": "Cladding temperature too high – fuel at risk, SCRAM. Keep power well below the design limit and make sure coolant flow is available.",
   "event_scram": "Reactor trip",
+  "event_scram_reset": "Reactor protection reset",
   "event_fuel_dispersal": "Fuel destroyed",
   "event_sim_fault": "Simulation fault",
   "event_on": "on",

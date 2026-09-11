@@ -188,6 +188,28 @@ export function createEngine(plant, opts = {}) {
     if (hooks.onScram) hooks.onScram(s, spec, ctx);
   }
 
+  /**
+   * Reaktorschutz zurücksetzen: erst danach gehorchen die Stäbe wieder dem
+   * Sollwert des Bedieners -- solange scram.active steht, überschreibt
+   * stepRods() jeden Sollwert mit "ganz rein". Ohne diese Funktion blieb das
+   * für den Rest des Laufs so: einmal ausgelöst, für immer verriegelt.
+   *
+   * Genau wie die Meldetafel (trips.reset()) lässt sich eine noch anstehende
+   * Ursache nicht wegdrücken -- ein Schutzsystem, das sich während der
+   * Störung selbst freigibt, wäre keins.
+   *
+   * @returns {boolean} true, wenn zurückgesetzt wurde
+   */
+  function resetScram() {
+    if (!s.scram.active) return false;
+    for (const st of trips.states.values()) {
+      if (st.def.action === 'scram' && st.latched) return false;
+    }
+    s.scram = { active: false, t: 0, cause: null };
+    ctx.log.push({ t: s.t_sim, key: 'event_scram_reset', severity: 1 });
+    return true;
+  }
+
   function step(dt) {
     if (s.fault) return;
 
@@ -283,6 +305,7 @@ export function createEngine(plant, opts = {}) {
     step,
     derive,
     scram,
+    resetScram,
     /** Protokolleinträge abholen und Puffer leeren. */
     drainLog() { const l = ctx.log.concat(trips.drainEvents()); ctx.log = []; return l; },
     toC,

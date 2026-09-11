@@ -269,7 +269,16 @@ export function buildPanels(engine, render) {
   let hornNext = 0;
 
   $('#rs-ack').addEventListener('click', () => { horn.unlock(); engine.trips.ack(); });
-  $('#rs-alarm-reset').addEventListener('click', () => engine.trips.reset());
+  // "Rückstellen" räumt nicht nur die Meldetafel auf, sondern gibt bei
+  // stehendem SCRAM auch den Reaktorschutz frei -- sonst blieben die Stäbe
+  // nach einer Schnellabschaltung für den Rest des Laufs auf "ganz rein"
+  // verriegelt, ganz gleich was der Bediener an den Stäben einstellt. Wie bei
+  // der Meldetafel gilt: eine noch anstehende Ursache lässt sich nicht
+  // wegdrücken, resetScram() gibt in dem Fall nur false zurück.
+  $('#rs-alarm-reset').addEventListener('click', () => {
+    engine.trips.reset();
+    engine.resetScram();
+  });
 
   // ── Nachführung ────────────────────────────────────────────────────────────
   const statusBar = $('#rs-status-alarm');

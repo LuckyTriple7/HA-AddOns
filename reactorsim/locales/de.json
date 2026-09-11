@@ -206,6 +206,7 @@
   "trip_clad_temp": "Hüllrohrtemperatur",
   "trip_clad_temp_help": "Hüllrohrtemperatur zu hoch – Gefahr für den Brennstoff, SCRAM. Leistung deutlich unter dem Auslegungswert fahren und den Kühlmitteldurchsatz sicherstellen.",
   "event_scram": "Reaktorschnellabschaltung",
+  "event_scram_reset": "Reaktorschutz zurückgesetzt",
   "event_fuel_dispersal": "Brennstoff zerstört",
   "event_sim_fault": "Simulationsfehler",
   "event_on": "gekommen",
