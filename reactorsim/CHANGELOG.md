@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.24
+
+- 🐛 **Turbine blieb nach einem Schnellschluss für immer vom Netz.** `s.turbineTripped` und der Turbinenregler (`govCtl.trip()`) wurden nirgends zurückgesetzt — weder nach einem Turbinenschnellschluss durch SCRAM noch nach der eigenständigen Störung `turbine_trip`/`loss_of_load`. Der Generator blieb für den Rest des Laufs bei 0 MW, ganz gleich wie stabil der Reaktor stand. Neuer Knopf **"Turbine zuschalten"** im Netz-Panel (nur aktiv, wenn wirklich etwas zu tun ist) — gesperrt, solange der Reaktorschutz noch steht, genau wie beim Reaktorschutz selbst (0.0.18).
+
 ## 0.0.23
 
 - 🔊 **Anlagengeräusche statt Gepiepse.** Die Meldehupe war ein einzelner Rechteck-Ton auf einer Frequenz — jetzt zwei leicht verstimmte Sägezahn-Oszillatoren durchs Tiefpassfilter, die gegeneinander schweben, wie eine echte elektromagnetische Hupe. TRIP-Meldungen bekommen die höhere, dringlichere Stimme.

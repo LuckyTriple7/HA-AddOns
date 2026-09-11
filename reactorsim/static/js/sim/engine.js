@@ -211,6 +211,31 @@ export function createEngine(plant, opts = {}) {
     return true;
   }
 
+  /**
+   * Turbine/Generator wieder ans Netz -- genau wie beim Reaktorschutz eine
+   * eigene, bewusste Handlung des Bedieners: ein Turbinenschnellschluss geht
+   * nicht von selbst wieder weg, weder s.turbineTripped noch der Regler
+   * (govCtl.trip() sperrt das Ventil dauerhaft). Ohne diese Funktion blieb
+   * der Generator für den Rest des Laufs bei null, ganz gleich was am
+   * Reaktor lag -- egal ob der Trip von einem SCRAM kam oder als eigene
+   * Störung (turbine_trip/loss_of_load) aus einem Szenario.
+   *
+   * Gesperrt, solange der Reaktorschutz noch steht: eine Turbine an einen
+   * gerade abgeschalteten Reaktor zu koppeln, hat keinen Sinn und keinen
+   * Dampf dafür.
+   *
+   * @returns {boolean} true, wenn wieder zugeschaltet wurde
+   */
+  function resumeTurbine() {
+    if (!s.turbineTripped) return false;
+    if (s.scram.active) return false;
+    s.turbineTripped = false;
+    s.breaker = true;
+    if (ctx.govCtl) ctx.govCtl.resume();
+    ctx.log.push({ t: s.t_sim, key: 'event_turbine_resume', severity: 1 });
+    return true;
+  }
+
   function step(dt) {
     if (s.fault) return;
 
@@ -308,6 +333,7 @@ export function createEngine(plant, opts = {}) {
     derive,
     scram,
     resetScram,
+    resumeTurbine,
     /** Protokolleinträge abholen und Puffer leeren. */
     drainLog() { const l = ctx.log.concat(trips.drainEvents()); ctx.log = []; return l; },
     toC,

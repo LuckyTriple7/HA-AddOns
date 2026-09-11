@@ -150,7 +150,14 @@ export function buildPanels(engine, render) {
     value: Math.round(s.P_demand), digits: 0, unitKey: 'unit_mwe',
     onInput: (v) => { s.P_demand = v; },
   });
-  $('#rs-grid-ctl').replaceChildren(demand.node);
+  // Nach einem Turbinenschnellschluss bleibt der Generator sonst für den
+  // Rest des Laufs bei null -- weder s.turbineTripped noch der Regler geben
+  // sich von selbst frei (siehe engine.resumeTurbine()). Der Knopf ist
+  // immer da, aber erst nach einem Trip wirklich etwas zu drücken.
+  const turbineResume = el('button.rs-btn.rs-btn-primary', { type: 'button', disabled: true },
+    [t('btn_turbine_resume')]);
+  turbineResume.addEventListener('click', () => engine.resumeTurbine());
+  $('#rs-grid-ctl').replaceChildren(demand.node, turbineResume);
 
   // Typspezifische Bedienung. Ein Druckwasserreaktor braucht Bor und einen
   // Druckhalter, ein Siedewasserreaktor den Umwaelzstrom und die
@@ -351,6 +358,7 @@ export function buildPanels(engine, render) {
     rho.set(d.breakdown, d.rho);
     pumps.set(d.pumpStates || []);
     demand.set(Math.round(s.P_demand));
+    turbineResume.disabled = !s.turbineTripped || s.scram.active;
     if (rodAuto && rodCtl) rodAuto.set(rodCtl.auto);
     govStation.set();
     fwStation.set();

@@ -172,6 +172,11 @@ export class GovernorController {
   }
 
   trip() { this.tripped = true; this.pi.preset(0); }
+
+  /** Turbine wieder zuschalten. Der PI beginnt wieder bei null, nicht bei dem
+   *  Wert von vor dem Trip -- sonst würde das Ventil im selben Augenblick auf
+   *  eine Stellung springen, die mit der jetzigen Lage nichts zu tun hat. */
+  resume() { this.tripped = false; this.pi.preset(0); }
 }
 
 /**
