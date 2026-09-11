@@ -29,13 +29,13 @@
         <span class="rs-card-tag">{{ t.reactor_pwr_tag }}</span>
         <span class="rs-card-desc">{{ t.reactor_pwr_desc }}</span>
       </button>
-      <button class="rs-card" data-reactor="bwr" type="button">
+      <button class="rs-card rs-card-soon" data-reactor="bwr" type="button">
         <span class="rs-card-badge rs-card-badge-bwr">{{ t.reactor_bwr_short }}</span>
         <span class="rs-card-name">{{ t.reactor_bwr }}</span>
         <span class="rs-card-tag">{{ t.reactor_bwr_tag }}</span>
         <span class="rs-card-desc">{{ t.reactor_bwr_desc }}</span>
       </button>
-      <button class="rs-card" data-reactor="rbmk" type="button">
+      <button class="rs-card rs-card-soon" data-reactor="rbmk" type="button">
         <span class="rs-card-badge rs-card-badge-rbmk">{{ t.reactor_rbmk_short }}</span>
         <span class="rs-card-name">{{ t.reactor_rbmk }}</span>
         <span class="rs-card-tag">{{ t.reactor_rbmk_tag }}</span>
@@ -97,6 +97,7 @@
     <div class="rs-status-bar" id="rs-status-alarm" data-sev="0">
       <span class="rs-status-alarm-text" data-v="worst_alarm">{{ t.status_alarm_none }}</span>
       <span class="rs-status-slip" id="rs-slip" hidden>{{ t.status_slip }}</span>
+      <span class="rs-prompt-crit" id="rs-prompt" hidden>{{ t.prompt_critical }}</span>
     </div>
 
     <div class="rs-status-controls">
@@ -139,6 +140,9 @@
         <h2 class="rs-panel-h">{{ t.panel_core }}</h2>
         <div class="rs-panel-body">
           <div class="rs-group">
+            <div class="rs-gauges" id="rs-core-gauges"></div>
+          </div>
+          <div class="rs-group">
             <h3>{{ t.panel_core_flux }}</h3>
             <div class="rs-row"><span>{{ t.val_power_neutronic }}</span><b data-v="n_pct">—</b></div>
             <div class="rs-row"><span>{{ t.val_power_decay }}</span><b data-v="decay_pct">—</b></div>
@@ -148,11 +152,12 @@
           </div>
           <div class="rs-group">
             <h3>{{ t.panel_core_rods }}</h3>
-            <div class="rs-stage" id="rs-rods"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+            <div class="rs-stage" id="rs-rods"></div>
+            <div id="rs-rod-ctl"></div>
           </div>
           <div class="rs-group">
             <h3>{{ t.panel_core_reactivity }}</h3>
-            <div class="rs-stage" id="rs-rho"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+            <div class="rs-stage" id="rs-rho"></div>
           </div>
         </div>
       </section>
@@ -160,6 +165,9 @@
       <section class="rs-panel" id="rs-p-prim">
         <h2 class="rs-panel-h">{{ t.panel_primary }}</h2>
         <div class="rs-panel-body">
+          <div class="rs-group">
+            <div class="rs-gauges" id="rs-prim-gauges"></div>
+          </div>
           <div class="rs-group">
             <h3>{{ t.panel_primary_temps }}</h3>
             <div class="rs-row"><span>{{ t.val_t_hot }}</span><b data-v="t_hot">—</b></div>
@@ -171,7 +179,7 @@
           </div>
           <div class="rs-group">
             <h3>{{ t.panel_primary_pumps }}</h3>
-            <div class="rs-stage" id="rs-pumps"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+            <div id="rs-pumps"></div>
           </div>
         </div>
       </section>
@@ -179,6 +187,9 @@
       <section class="rs-panel" id="rs-p-sec">
         <h2 class="rs-panel-h">{{ t.panel_secondary }}</h2>
         <div class="rs-panel-body">
+          <div class="rs-group">
+            <div class="rs-gauges" id="rs-sec-gauges"></div>
+          </div>
           <div class="rs-group">
             <h3>{{ t.panel_secondary_steam }}</h3>
             <div class="rs-row"><span>{{ t.val_sg_press }}</span><b data-v="p_sg">—</b></div>
@@ -190,6 +201,7 @@
             <h3>{{ t.panel_secondary_feed }}</h3>
             <div class="rs-row"><span>{{ t.val_sg_level }}</span><b data-v="l_sg">—</b></div>
             <div class="rs-row"><span>{{ t.val_feed_flow }}</span><b data-v="w_fw">—</b></div>
+            <div id="rs-sec-ctl"></div>
           </div>
         </div>
       </section>
@@ -204,8 +216,8 @@
             <div class="rs-row"><span>{{ t.val_frequency }}</span><b data-v="freq">—</b></div>
             <div class="rs-row"><span>{{ t.val_breaker }}</span><b data-v="breaker">—</b></div>
           </div>
-          <div class="rs-group rs-group-grow">
-            <div class="rs-stage" id="rs-demand-curve"><p class="rs-empty">{{ t.empty_stage }}</p></div>
+          <div class="rs-group">
+            <div id="rs-grid-ctl"></div>
           </div>
         </div>
       </section>
@@ -220,7 +232,8 @@
       <section class="rs-panel" id="rs-p-trend">
         <h2 class="rs-panel-h">{{ t.panel_trends }}</h2>
         <div class="rs-panel-body">
-          <div class="rs-stage rs-stage-grow" id="rs-trends"><p class="rs-empty">{{ t.trends_empty }}</p></div>
+          <div class="rs-trend-range" id="rs-trend-range"></div>
+          <div class="rs-trends" id="rs-trends"></div>
         </div>
       </section>
 
@@ -232,7 +245,7 @@
           </span>
         </h2>
         <div class="rs-panel-body">
-          <div class="rs-annun" id="rs-annun"><p class="rs-empty">{{ t.alarms_empty }}</p></div>
+          <div class="rs-annun" id="rs-annun"></div>
           <div class="rs-group rs-group-grow">
             <h3>{{ t.panel_alarms_log }}</h3>
             <ol class="rs-log" id="rs-log"></ol>
@@ -250,6 +263,11 @@
             <div class="rs-row"><span>{{ t.val_boron }}</span><b data-v="boron">—</b></div>
             <div class="rs-row"><span>{{ t.val_burnup }}</span><b data-v="burnup">—</b></div>
             <div class="rs-row"><span>{{ t.val_shutdown_margin }}</span><b data-v="sdm">—</b></div>
+          </div>
+          <div class="rs-group">
+            <h3>{{ t.ctl_boron }}</h3>
+            <div id="rs-chem-ctl"></div>
+            <p class="rs-ctl-hint">{{ t.ctl_boron_hint }}</p>
           </div>
         </div>
       </section>

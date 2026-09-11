@@ -40,11 +40,18 @@
 .rs-gauge-label {
   position: absolute;
   left: 0; right: 0; top: 4px;
+  padding: 0 4px;
   text-align: center;
   font-size: 9px;
-  letter-spacing: .1em;
+  letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--rs-fg-mute);
+  /* Lange Bezeichnungen wie „Dampferzeugerfuellstand" passen nie in ein
+     Instrument von 110 Pixeln. Abschneiden mit Auslassungspunkten, den
+     vollen Text traegt das title-Attribut. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .rs-gauge-read {
   position: absolute;

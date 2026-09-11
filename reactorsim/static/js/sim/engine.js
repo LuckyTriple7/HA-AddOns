@@ -1,83 +1,246 @@
-// PLATZHALTER-ENGINE (P0).
+// Die Engine: Reihenfolge eines Zeitschritts, gemeinsame Kernthermik,
+// Schnellabschaltung, abgeleitete Anzeigewerte.
 //
-// Diese Datei wird in P1/P2 durch die echte Simulation ersetzt: Punktkinetik
-// mit sechs Gruppen verzögerter Neutronen, Rückkopplungen, Xenon, Thermo-
-// hydraulik. Bis dahin liefert sie einen groben, aber in sich stimmigen
-// Betriebszustand, damit Anordnung, Taktbremse und Statuszeile schon jetzt an
-// bewegten Zahlen geprüft werden können.
+// Was hier steht, gilt für alle Reaktortypen. Alles Typspezifische kommt aus
+// einem Datenobjekt (spec) und ein paar Haken (hooks). Die Engine verzweigt an
+// keiner Stelle nach Reaktortyp -- muss sie es doch, ist die Schnittstelle
+// falsch geschnitten und gehört erweitert, nicht umgangen.
 //
-// Die Schnittstelle ist bereits die endgültige: `state` als einfaches Objekt,
-// `step(dt)` mit festem dt, kein Zugriff auf das DOM. Dadurch bleibt das Modul
-// unter node --test lauffähig und kann später in einen Web Worker wandern.
+// Reihenfolge eines Schritts:
+//   1. Reaktivität aus der Beitragsregistry
+//   2. Kinetik, mit der Kernthermik INNERHALB der Untertakte
+//   3. Nachzerfallswärme
+//   4. Kreislauf des Typs (Dampferzeuger, Druckhalter, Turbine, Netz)
+//   5. Regler, im Untertakt von 0,2 s
+//   6. Vergiftung
+//   7. Grenzwerte, Meldungen, Schnellabschaltung
+//   8. sanitize()
 
-const SPECS = {
-  pwr:  { P0_th: 3850, P0_e: 1400, p_prim: 158.0, t_in: 291, t_out: 326, w_core: 20000 },
-  bwr:  { P0_th: 3840, P0_e: 1344, p_prim: 70.7,  t_in: 278, t_out: 286, w_core: 13000 },
-  rbmk: { P0_th: 3200, P0_e: 1000, p_prim: 69.0,  t_in: 270, t_out: 284, w_core: 10500 },
-};
+import { PROMPT_FRACTION, relax, clamp, toC } from './constants.js';
+import { makeKinetics, stepKinetics, measuredPeriod } from './kinetics.js';
+import { createState, sanitize } from './state.js';
+import { makeReactivity } from './reactivity.js';
+import { stepDecay, decaySum } from './decayheat.js';
+import { stepPoisons } from './poisons.js';
+import { TripSystem } from './trips.js';
+import { tsat } from './steam.js';
 
-export function createEngine(reactorId = 'pwr') {
-  const spec = SPECS[reactorId] || SPECS.pwr;
+/** Regler laufen nicht in jedem Rechenschritt, sondern alle 0,2 s. */
+const CONTROL_PERIOD = 0.2;
 
-  const state = {
-    reactor: reactorId,
-    spec,
-    t_sim: 0,
-    n: 1.0,            // neutronische Leistung, 1,0 = Nennleistung
-    decay: 0.07,       // Nachzerfallswärme als Anteil von P0
-    demand_e: spec.P0_e,
+/** Abbruch bei Brennstoff-Enthalpie über 963 J/g (230 cal/g). Das ist das
+ *  übliche Kriterium für Brennstoffzerlegung, und es begrenzt nebenbei die
+ *  Rechnung: eine Exkursion endet hier, statt ins Unendliche zu laufen. */
+const ENTHALPY_LIMIT_JPG = 963;
+
+export function createEngine(plant, opts = {}) {
+  const spec = plant.spec;
+  const hooks = plant.hooks || {};
+
+  // β_eff wandert mit dem Abbrand: ein frischer Kern spaltet fast nur U-235,
+  // ein abgebrannter zu einem guten Teil Pu-239, das weniger verzögerte
+  // Neutronen liefert. Aus 650 pcm werden über den Zyklus 550.
+  const burnup = opts.burnup !== undefined ? opts.burnup : 0;
+  const f = clamp(burnup / (spec.cycleEFPD || 450), 0, 1);
+  const betaEff = spec.beta.boc + (spec.beta.eoc - spec.beta.boc) * f;
+
+  const kin = makeKinetics(betaEff, spec.Lambda);
+  const s = createState(spec, { ...opts, kin, burnup });
+  const rx = makeReactivity(spec, hooks);
+  const trips = new TripSystem(spec.trips || []);
+
+  // Wärmekapazitäten und Durchgänge aus den Zeitkonstanten zurückgerechnet --
+  // die Literatur nennt Zeitkonstanten, nicht kW/K.
+  const mFuel = (spec.fuel.mass_t || 100) * 1000;                 // kg
+  const C_f = (mFuel * (spec.fuel.cp || 300)) / 1000;             // kJ/K
+  const UA_fc = C_f / (spec.fuel.tau || 5.5);                     // kW/K
+  const C_cl = C_f * (spec.clad ? spec.clad.C_frac : 0.12);
+  const UA_cc = C_cl / (spec.clad ? spec.clad.tau : 1.0);
+  const C_cool = (spec.coolant.mass || 30000) * spec.coolant.cp;  // kJ/K
+
+  const ctx = {
+    spec, hooks, kin, rx, trips,
+    betaEff,
+    C_f, UA_fc, C_cl, UA_cc, C_cool, mFuel,
+    controlAcc: 0,
+    decayFrac: decaySum(s.D),
+    nPrev: s.n,
     period: Infinity,
-    scram: false,
-    placeholder: true,
+    substeps: 1,
+    log: [],
   };
 
-  // Der Bedarf pendelt langsam, damit die Anzeige nicht totsteht.
-  let phase = 0;
+  // Startwerte des Typs: Bor, Druckhalter, Dampferzeuger, Turbine ...
+  if (hooks.extraState) hooks.extraState(s, spec, ctx);
 
-  function step(dt) {
-    state.t_sim += dt;
-    phase += dt;
+  // Auf den stationären Punkt einschwingen, damit der Spieler nicht in einem
+  // driftenden Kern anfängt.
+  if (hooks.trim) hooks.trim(s, spec, ctx, rx);
 
-    // Netzanforderung: sehr langsame Schwingung um 85 % der Nennleistung.
-    state.demand_e = spec.P0_e * (0.85 + 0.12 * Math.sin(phase / 240));
+  /**
+   * Kernthermik. Wird aus der Kinetik heraus je Untertakt gerufen -- niemals
+   * zusätzlich im Hauptschritt, sonst wird die Wärme doppelt gezählt.
+   */
+  function stepCore(h, n) {
+    // ACHTUNG: prompter Anteil plus Nachzerfallswärme. Nicht n + ΣD_j, sonst
+    // stünden im stationären Volllastbetrieb 107 % im Kern.
+    const P_th = spec.P0_th * (PROMPT_FRACTION * n + ctx.decayFrac);
+    s.P_th = P_th;
 
-    // Leistung folgt der Anforderung träge (erster Ordnung, tau = 40 s).
-    const target = state.scram ? 0 : state.demand_e / spec.P0_e;
-    const tau = 40;
-    const prev = state.n;
-    state.n += (target - state.n) * (1 - Math.exp(-dt / tau));
+    const T_cool = 0.5 * (s.T_ci + s.T_co);
 
-    // Reaktorperiode aus der relativen Änderungsrate.
-    const rate = (state.n - prev) / dt / Math.max(state.n, 1e-9);
-    state.period = Math.abs(rate) < 1e-6 ? Infinity : 1 / rate;
+    // Brennstoff: Quelle ist die Spaltleistung, Senke das Hüllrohr.
+    const qFuel = P_th * 1000 * (spec.fuel.depositFraction || 0.974);
+    s.T_f = relax(s.T_f, s.T_cl + qFuel / UA_fc, h, C_f / UA_fc);
+
+    // Hüllrohr zwischen Brennstoff und Kühlmittel.
+    const qClad = UA_fc * (s.T_f - s.T_cl);
+    s.T_cl = relax(s.T_cl, T_cool + qClad / UA_cc, h, C_cl / UA_cc);
+
+    // Kühlmittel: Wärme vom Hüllrohr, plus der Teil der Spaltenergie, der gar
+    // nicht erst im Brennstoff landet -- Gammastrahlung und Neutronen geben
+    // rund 2,6 % direkt an Moderator und Einbauten ab. Ohne diesen Anteil
+    // verschwänden 100 MW aus der Bilanz, und der Kern liefe auf 104,6 %,
+    // um die Turbine trotzdem zu bedienen.
+    const qDirect = P_th * 1000 * (1 - (spec.fuel.depositFraction || 0.974));
+    const qCool = UA_cc * (s.T_cl - T_cool) + qDirect;
+    // Der Faktor 2 unten kommt daher, dass der Knoten die MITTLERE Temperatur
+    // führt, der Durchsatz aber die Differenz zwischen Ein- und Austritt abführt.
+    const UA_flow = 2 * Math.max(s.W_core, 1) * spec.coolant.cp;
+    const Tc = relax(T_cool, s.T_ci + qCool / UA_flow, h, C_cool / UA_flow);
+    s.T_co = 2 * Tc - s.T_ci;
+    s.T_mod = hooks.moderatorTemp ? hooks.moderatorTemp(s, spec, Tc) : Tc;
+
+    // Brennstoffenthalpie als Zerstörungskriterium.
+    s.enthalpy = ((spec.fuel.cp || 300) * (s.T_f - 273.15)) / 1000;
+    if (s.enthalpy > ENTHALPY_LIMIT_JPG && !s.destroyed) {
+      s.destroyed = true;
+      ctx.log.push({ t: s.t_sim, key: 'event_fuel_dispersal', severity: 3 });
+    }
   }
 
-  return { state, step };
-}
+  /** Stäbe fahren: im Normalbetrieb zum Sollwert, bei Schnellabschaltung ein. */
+  function stepRods(dt) {
+    const banks = spec.rodBanks;
+    if (s.scram.active) {
+      const rate = 1 / (spec.scram.timeS || 2.5);
+      for (let i = 0; i < banks.length; i++) {
+        s.rodDmd[i] = 1;
+        s.rod[i] = Math.min(1, s.rod[i] + rate * dt);
+      }
+      return;
+    }
+    for (let i = 0; i < banks.length; i++) {
+      const v = (banks[i].speed || 0.0125) * dt;
+      const d = s.rodDmd[i] - s.rod[i];
+      s.rod[i] += clamp(d, -v, v);
+      s.rod[i] = clamp(s.rod[i], 0, 1);
+    }
+  }
 
-/** Aus dem Zustand abgeleitete Anzeigewerte -- nie gespeichert, immer gerechnet. */
-export function derive(s) {
-  const spec = s.spec;
-  const p_th = spec.P0_th * (0.93 * s.n + s.decay);
-  const load = p_th / spec.P0_th;
-  const t_cold = spec.t_in + 4 * load;
-  const t_hot = t_cold + (spec.t_out - spec.t_in) * load;
+  function scram(cause) {
+    if (s.scram.active) return;
+    s.scram = { active: true, t: s.t_sim, cause };
+    ctx.log.push({ t: s.t_sim, key: 'event_scram', severity: 3, cause });
+    if (hooks.onScram) hooks.onScram(s, spec, ctx);
+  }
+
+  function step(dt) {
+    if (s.fault) return;
+
+    // 1 + 2: Reaktivität und Kinetik, Kernthermik in den Untertakten.
+    const rho0 = rx.compute(s, spec);
+    ctx.nPrev = s.n;
+    const kres = stepKinetics(s, kin, rho0, dt, (h, n) => {
+      stepCore(h, n);
+      return rx.compute(s, spec);
+    });
+    ctx.substeps = kres.substeps;
+    s.promptCritical = kres.promptCritical;
+    ctx.period = measuredPeriod(ctx.nPrev, s.n, dt);
+
+    // 3: Nachzerfallswärme. Bewusst nach der Kinetik -- die Untertakte rechnen
+    // mit dem Wert des letzten Schritts, was bei Zeitkonstanten ab 5 s
+    // bedeutungslos ist.
+    ctx.decayFrac = stepDecay(s.D, s.n, dt);
+
+    // 4: Kreislauf des Typs.
+    stepRods(dt);
+    if (hooks.stepLoop) hooks.stepLoop(s, spec, ctx, dt);
+
+    // 5: Regler im eigenen Takt.
+    ctx.controlAcc += dt;
+    if (ctx.controlAcc >= CONTROL_PERIOD) {
+      const cdt = ctx.controlAcc;
+      ctx.controlAcc = 0;
+      if (hooks.stepControls && !s.destroyed) hooks.stepControls(s, spec, ctx, cdt);
+    }
+
+    // 6: Vergiftung.
+    stepPoisons(s, s.n, dt);
+
+    // 7: Grenzwerte und Meldungen.
+    const d = derive();
+    trips.step(s, d, dt);
+    const req = trips.takeScramRequest();
+    if (req) scram(req);
+
+    s.t_sim += dt;
+
+    // 8: Grenzen prüfen. Findet sanitize() etwas Unmögliches, hält die Engine
+    // an -- lieber ein ehrlicher Fehlerdialog als NaN auf jedem Instrument.
+    if (!sanitize(s)) {
+      ctx.log.push({ t: s.t_sim, key: 'event_sim_fault', severity: 3, detail: s.fault });
+    }
+  }
+
+  /** Alles, was die Anzeige braucht und nicht im Zustand steht. */
+  function derive() {
+    const P_th = s.P_th;
+    const load = P_th / spec.P0_th;
+    const T_avg = 0.5 * (s.T_ci + s.T_co);
+    const Tsat = tsat(s.p_prim);
+    const base = {
+      P_th,
+      load,
+      power_th_pct: 100 * load,
+      n_pct: 100 * s.n,
+      decay_pct: 100 * ctx.decayFrac,
+      T_avg,
+      T_hot: s.T_co,
+      T_cold: s.T_ci,
+      T_sat: Tsat,
+      subcooling: Tsat - s.T_co,
+      period: ctx.period,
+      rho: rx.total,
+      rho_pcm: rx.total * 1e5,
+      rho_dollar: rx.total / betaEff,
+      breakdown: rx.breakdown,
+      beta: betaEff,
+      substeps: ctx.substeps,
+      P_e: s.P_e,
+      P_demand: s.P_demand,
+      deviation: s.P_e - s.P_demand,
+      f_grid: s.f_grid,
+      W_core: s.W_core,
+      scram: s.scram.active,
+      destroyed: s.destroyed,
+    };
+    return hooks.derived ? Object.assign(base, hooks.derived(s, spec, ctx, base)) : base;
+  }
+
   return {
-    p_th,
-    power_th_pct: 100 * p_th / spec.P0_th,
-    n_pct: 100 * s.n,
-    decay_pct: 100 * s.decay,
-    power_e: spec.P0_e * s.n * 0.995,
-    demand_e: s.demand_e,
-    deviation: spec.P0_e * s.n * 0.995 - s.demand_e,
-    t_cold,
-    t_hot,
-    t_avg: 0.5 * (t_hot + t_cold),
-    t_fuel: 300 + 1200 * load,
-    t_clad: t_hot + 30 * load,
-    p_prim: spec.p_prim,
-    w_core: spec.w_core,
-    period: s.period,
-    freq: 50.0,
+    state: s,
+    spec,
+    ctx,
+    kin,
+    reactivity: rx,
+    trips,
+    step,
+    derive,
+    scram,
+    /** Protokolleinträge abholen und Puffer leeren. */
+    drainLog() { const l = ctx.log.concat(trips.drainEvents()); ctx.log = []; return l; },
+    toC,
   };
 }

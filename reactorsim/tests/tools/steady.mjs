@@ -1,0 +1,33 @@
+import { createEngine } from '../../static/js/sim/engine.js';
+import * as pwr from '../../static/js/plants/pwr.js';
+
+const e = createEngine(pwr, { n: 1.0 });
+const s = e.state;
+console.log('Start:');
+const d0 = e.derive();
+console.log('  C_B      ', s.C_B.toFixed(1), 'ppm');
+console.log('  rho      ', (d0.rho_pcm).toFixed(2), 'pcm');
+console.log('  T_f      ', (s.T_f-273.15).toFixed(1), 'C');
+console.log('  T_hot    ', (s.T_co-273.15).toFixed(1), 'C  T_cold', (s.T_ci-273.15).toFixed(1));
+console.log('  P_th     ', s.P_th.toFixed(0), 'MW   P_e', s.P_e.toFixed(0), 'MWe');
+console.log('  p_sg     ', s.p_sg.toFixed(2), 'bar  W_steam', s.W_steam.toFixed(0));
+console.log('  DNBR     ', d0.dnbr.toFixed(2), ' subcool', d0.subcooling.toFixed(1), 'K');
+
+const dt = 0.05;
+for (let t = 0; t < 3600; t += dt) e.step(dt);
+const d = e.derive();
+console.log('\nNach 3600 s:');
+console.log('  n        ', (s.n*100).toFixed(2), '%');
+console.log('  P_th     ', s.P_th.toFixed(1), 'MW   P_e', s.P_e.toFixed(1), 'MWe');
+console.log('  rho      ', d.rho_pcm.toFixed(2), 'pcm');
+console.log('  T_avg    ', (d.T_avg-273.15).toFixed(2), 'C');
+console.log('  T_hot    ', (d.T_hot-273.15).toFixed(2), 'C  T_cold', (d.T_cold-273.15).toFixed(2));
+console.log('  T_f      ', (s.T_f-273.15).toFixed(1), 'C');
+console.log('  pzr_p    ', s.pzr_p.toFixed(2), 'bar  L', s.pzr_L.toFixed(3));
+console.log('  p_sg     ', s.p_sg.toFixed(2), 'bar  L_sg', s.L_sg.toFixed(3));
+console.log('  W_steam  ', s.W_steam.toFixed(0), ' W_fw', s.W_fw.toFixed(0));
+console.log('  C_B      ', s.C_B.toFixed(1), 'ppm  X', s.X.toFixed(4));
+console.log('  DNBR     ', d.dnbr.toFixed(2), ' subcool', d.subcooling.toFixed(1), 'K');
+console.log('  scram    ', s.scram.active, s.scram.cause || '');
+console.log('  fault    ', s.fault || 'keiner');
+console.log('  Meldungen', e.trips.tiles().filter(t=>t.tile!=='normal').map(t=>t.id).join(', ') || 'keine');

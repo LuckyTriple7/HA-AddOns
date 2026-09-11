@@ -1,10 +1,12 @@
 // Einstieg: Startbildschirm, Aufbau des Leitstands, Verdrahtung der Bedienung.
 
 import { $, $$, setText, setAttr } from './ui/dom.js';
-import { t, num, clock } from './ui/i18n.js';
+import { t } from './ui/i18n.js';
 import { Render } from './ui/render.js';
+import { buildPanels } from './ui/panels.js';
 import { Loop } from './loop.js';
-import { createEngine, derive } from './sim/engine.js';
+import { createEngine } from './sim/engine.js';
+import { getPlant, isAvailable } from './plants/index.js';
 
 const app = {
   engine: null,
@@ -12,7 +14,7 @@ const app = {
   render: new Render(),
   reactor: null,
   controlsReady: false,
-  binds: new Map(),   // data-v -> Knotenliste
+  horn: null,
 };
 
 // ── Startbildschirm ──────────────────────────────────────────────────────────
@@ -20,13 +22,28 @@ const app = {
 function initStart() {
   const cards = $$('.rs-card');
   const go = $('#rs-start-go');
+  const hint = $('.rs-start-hint');
 
   for (const card of cards) {
+    const id = card.dataset.reactor;
     card.setAttribute('aria-pressed', 'false');
+    if (!isAvailable(id)) {
+      // Noch nicht gebaute Typen bleiben sichtbar -- sie sind die Ansage, wohin
+      // das Spiel geht -- aber nicht wählbar.
+      card.disabled = true;
+      card.title = t('reactor_soon_hint');
+      const badge = card.querySelector('.rs-card-badge');
+      const soon = document.createElement('span');
+      soon.className = 'rs-card-soon-tag';
+      soon.textContent = t('reactor_soon');
+      if (badge) badge.after(soon); else card.prepend(soon);
+    }
     card.addEventListener('click', () => {
+      if (!isAvailable(id)) return;
       for (const c of cards) c.setAttribute('aria-pressed', String(c === card));
-      app.reactor = card.dataset.reactor;
+      app.reactor = id;
       go.disabled = false;
+      if (hint) setText(hint, '');
     });
   }
 
@@ -37,51 +54,6 @@ function initStart() {
 
 // ── Leitstand ────────────────────────────────────────────────────────────────
 
-function collectBinds() {
-  app.binds.clear();
-  for (const node of $$('[data-v]')) {
-    const key = node.dataset.v;
-    const list = app.binds.get(key);
-    if (list) list.push(node);
-    else app.binds.set(key, [node]);
-  }
-}
-
-function put(key, text) {
-  const list = app.binds.get(key);
-  if (!list) return;
-  for (const node of list) setText(node, text);
-}
-
-const U = (unitKey) => ' ' + t(unitKey);
-
-function fmtPeriod(seconds) {
-  if (!Number.isFinite(seconds)) return t('period_infinite');
-  const a = Math.abs(seconds);
-  if (a > 9999) return t('period_infinite');
-  return (seconds > 0 ? '+' : '') + num(seconds, 0) + U('unit_seconds');
-}
-
-function paintText(s) {
-  const d = derive(s);
-  put('power_th_pct', num(d.power_th_pct, 1) + U('unit_percent'));
-  put('power_e', num(d.power_e, 0) + U('unit_mwe'));
-  put('demand', num(d.demand_e, 0) + U('unit_mwe'));
-  put('deviation', (d.deviation >= 0 ? '+' : '') + num(d.deviation, 0) + U('unit_mwe'));
-  put('t_avg', num(d.t_avg, 1) + U('unit_celsius'));
-  put('t_hot', num(d.t_hot, 1) + U('unit_celsius'));
-  put('t_cold', num(d.t_cold, 1) + U('unit_celsius'));
-  put('t_fuel', num(d.t_fuel, 0) + U('unit_celsius'));
-  put('t_clad', num(d.t_clad, 0) + U('unit_celsius'));
-  put('p_prim', num(d.p_prim, 1) + U('unit_bar'));
-  put('w_core', num(d.w_core, 0) + U('unit_kgs'));
-  put('n_pct', num(d.n_pct, 1) + U('unit_percent'));
-  put('decay_pct', num(d.decay_pct, 2) + U('unit_percent'));
-  put('period', fmtPeriod(d.period));
-  put('freq', num(d.freq, 2) + U('unit_hz'));
-  put('clock', clock(s.t_sim));
-}
-
 function initControls() {
   // Nur einmal verdrahten: über „Menü" kommt man zurück auf den Startbildschirm
   // und von dort erneut hierher -- ein zweiter Satz Zuhörer würde jeden Klick
@@ -89,33 +61,33 @@ function initControls() {
   if (app.controlsReady) return;
   app.controlsReady = true;
 
-  // Zeitraffer
   for (const btn of $$('.rs-speed-b')) {
     btn.addEventListener('click', () => {
-      const v = Number(btn.dataset.speed);
-      app.loop.setSpeed(v);
-      for (const b of $$('.rs-speed-b')) b.classList.toggle('rs-on', b === btn);
+      setSpeed(Number(btn.dataset.speed));
     });
   }
 
-  // Schnellabschaltung: zwei Schritte. Ein versehentlicher Fingertipper auf
+  // Schnellabschaltung in zwei Schritten. Ein versehentlicher Fingertipper auf
   // dem Handy darf keine Anlage abwerfen.
   const scram = $('#rs-scram');
   let armed = 0;
-  scram.addEventListener('click', () => {
-    if (!armed) {
-      armed = window.setTimeout(() => { armed = 0; scram.dataset.armed = '0'; scram.textContent = t('btn_scram'); }, 4000);
-      scram.dataset.armed = '1';
-      scram.textContent = t('btn_confirm');
-      return;
-    }
-    window.clearTimeout(armed);
+  const disarm = () => {
+    if (armed) window.clearTimeout(armed);
     armed = 0;
     scram.dataset.armed = '0';
-    scram.textContent = t('btn_scram');
-    app.engine.state.scram = true;
-    app.loop.setSpeed(1);
-    for (const b of $$('.rs-speed-b')) b.classList.toggle('rs-on', b.dataset.speed === '1');
+    setText(scram, t('btn_scram'));
+  };
+  scram.addEventListener('click', () => {
+    if (app.horn) app.horn.unlock();
+    if (!armed) {
+      armed = window.setTimeout(disarm, 4000);
+      scram.dataset.armed = '1';
+      setText(scram, t('btn_confirm'));
+      return;
+    }
+    disarm();
+    app.engine.scram('manual');
+    setSpeed(1);
   });
 
   $('#rs-menu').addEventListener('click', () => {
@@ -125,6 +97,21 @@ function initControls() {
   });
 
   $('#rs-fault-reload').addEventListener('click', () => window.location.reload());
+
+  // Tastatur am Rechner: Leertaste hält an, Zahlen wählen den Zeitraffer.
+  document.addEventListener('keydown', (ev) => {
+    if (ev.target instanceof HTMLInputElement) return;
+    if (ev.code === 'Space') { ev.preventDefault(); setSpeed(app.loop.speed > 0 ? 0 : 1); }
+    else if (ev.key === '1') setSpeed(1);
+    else if (ev.key === '2') setSpeed(4);
+    else if (ev.key === '3') setSpeed(16);
+    else if (ev.key === '4') setSpeed(60);
+  });
+}
+
+function setSpeed(v) {
+  app.loop.setSpeed(v);
+  for (const b of $$('.rs-speed-b')) b.classList.toggle('rs-on', Number(b.dataset.speed) === v);
 }
 
 function showFault(detail) {
@@ -134,14 +121,16 @@ function showFault(detail) {
 }
 
 function boot(reactorId) {
+  const plant = getPlant(reactorId);
+  if (!plant) return;
+
   $('#rs-start').hidden = true;
   $('#rs-app').hidden = false;
 
-  collectBinds();
-
-  app.engine = createEngine(reactorId);
+  app.engine = createEngine(plant, { n: 1.0 });
   app.render.clear();
-  app.render.add('text', paintText);
+  const built = buildPanels(app.engine, app.render);
+  app.horn = built.horn;
 
   app.loop = new Loop(app.engine, (state, now) => {
     try {
@@ -149,11 +138,14 @@ function boot(reactorId) {
     } catch (err) {
       showFault(String(err && err.message ? err.message : err));
     }
+    // Die Engine hält bei einem unmöglichen Zustand von selbst an und legt den
+    // Grund ab; hier wird er nur sichtbar gemacht.
+    if (state.fault) showFault(state.fault);
   });
   app.loop.onSlip = (slipping) => { $('#rs-slip').hidden = !slipping; };
 
   initControls();
-  app.loop.setSpeed(1);
+  setSpeed(1);
   app.loop.start();
 }
 

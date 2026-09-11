@@ -240,3 +240,17 @@ button {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* Noch nicht gebaute Reaktortypen: sichtbar als Ansage, aber nicht waehlbar. */
+.rs-card-soon { opacity: .58; cursor: not-allowed; }
+.rs-card-soon:hover { border-color: var(--rs-line); }
+.rs-card-soon-tag {
+  justify-self: start;
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--rs-fg-mute);
+  border: 1px dashed var(--rs-line);
+  border-radius: 3px;
+  padding: 2px 6px;
+}

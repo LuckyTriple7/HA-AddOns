@@ -110,6 +110,22 @@ export function makeReactivity(spec, hooks) {
     parts.push({ id: 'graphite', fn: (s) => a * ((s.T_gr || Tref) - Tref) });
   }
 
+  // ── Überschussreaktivität des Brennstoffs ──────────────────────────────────
+  // Ein frisch beladener Kern ist weit überkritisch -- sonst könnte er nicht
+  // ein Jahr lang laufen, während Spaltprodukte und Abbrand ihn Stück für Stück
+  // vergiften. Dieser Überschuss wird niedergehalten: beim Druckwasserreaktor
+  // durch Bor, bei den anderen Typen durch die Stäbe. Ohne diesen Beitrag wäre
+  // die Bilanz um Xenon und Samarium zu negativ und der Kern nicht kritisch
+  // zu bekommen.
+  if (has('excess')) {
+    const e0 = (spec.feedback.excess_pcm || 0) * PCM;
+    const cycle = spec.cycleEFPD || 450;
+    parts.push({
+      id: 'excess',
+      fn: (s) => e0 * (1 - Math.min((s.burnup || 0) / cycle, 1)),
+    });
+  }
+
   // ── Störungen und Szenarien ────────────────────────────────────────────────
   parts.push({ id: 'external', fn: (s) => s.rho_ext || 0 });
 
