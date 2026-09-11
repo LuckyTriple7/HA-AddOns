@@ -9,7 +9,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/s/{{ app_version }}/img/favicon-32.png">
 <link rel="icon" href="/s/{{ app_version }}/img/favicon.ico">
 <link rel="apple-touch-icon" href="/s/{{ app_version }}/img/apple-touch-icon.png">
-<link rel="manifest" href="/s/{{ app_version }}/manifest.json">
+<!-- Ohne crossorigin holt der Browser das Manifest standardmäßig OHNE
+     Cookies -- landet dann auf der Anmeldeseite (HTML statt JSON) und meldet
+     "Syntax error" beim Parsen. Alles unter /s/... braucht eine Sitzung. -->
+<link rel="manifest" href="/s/{{ app_version }}/manifest.json" crossorigin="use-credentials">
 <link rel="stylesheet" href="/s/{{ app_version }}/css/base.css">
 <link rel="stylesheet" href="/s/{{ app_version }}/css/layout.css">
 <link rel="stylesheet" href="/s/{{ app_version }}/css/panels.css">

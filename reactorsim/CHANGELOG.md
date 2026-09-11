@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.32
+
+- 🐛 **`manifest.json`: "Syntax error" in der Konsole.** Der Browser holt eine Web-App-Manifest-Datei standardmäßig ohne Cookies — landete auf der Anmeldeseite (`/s/...` braucht eine Sitzung wie alles andere), bekam HTML statt JSON zurück und meldete einen Parsefehler beim ersten Zeichen. Rein kosmetisch (betraf nur "Zum Startbildschirm hinzufügen", nicht das Spiel selbst), aber seit 0.0.21 in der Konsole. `crossorigin="use-credentials"` am Manifest-Link behoben.
+
 ## 0.0.31
 
 - 📊 **Sicherheitsbehälterdruck bekommt ein Rundinstrument.** Stand bisher nur als kleine Textzeile unter "Sicherheitssysteme" — jetzt ein Instrument im Sekundärkreis-Panel wie jeder andere überwachte Druck, nur beim Siedewasserreaktor (`sp.containment` existiert ausschließlich dort).
