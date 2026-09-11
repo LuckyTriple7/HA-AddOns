@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.30
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 34.0.4 (34.0.4-ls450)
+
 ## [1.0.29] - 2026-08-19
 
 - Doku: Die Optionen `PUID` und `PGID` versprachen, den Benutzer festzulegen,
