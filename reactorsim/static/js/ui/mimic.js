@@ -121,9 +121,11 @@ export function buildPwrMimic(container) {
   // Turbine und Generator.
   g.push(svg('path', { class: 'rs-vessel', d: 'M 372 100 L 432 84 L 432 156 L 372 136 Z' }));
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
-  g.push(svg('text', { class: 'rs-label', x: 452, y: 96, 'text-anchor': 'middle' },
+  // Beschriftung seitlich am Generator, nicht darüber/darunter: dort liegen
+  // Turbinenkontur (bis x=432) und das Abdampfrohr (senkrecht bei x=452).
+  g.push(svg('text', { class: 'rs-label', x: 470, y: 96, 'text-anchor': 'start' },
     [t('mimic_gen')]));
-  g.push(readout(452, 142, 'gen', 'middle'));
+  g.push(readout(470, 142, 'gen'));
 
   // Kondensator.
   g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
@@ -255,9 +257,11 @@ export function buildBwrMimic(container) {
   g.push(valve(296, 140, 'bypass', t('mimic_bypass')));
   g.push(svg('path', { class: 'rs-vessel', d: 'M 372 100 L 432 84 L 432 156 L 372 136 Z' }));
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
-  g.push(svg('text', { class: 'rs-label', x: 452, y: 96, 'text-anchor': 'middle' },
+  // Beschriftung seitlich am Generator, nicht darüber/darunter: dort liegen
+  // Turbinenkontur (bis x=432) und das Abdampfrohr (senkrecht bei x=452).
+  g.push(svg('text', { class: 'rs-label', x: 470, y: 96, 'text-anchor': 'start' },
     [t('mimic_gen')]));
-  g.push(readout(452, 142, 'gen', 'middle'));
+  g.push(readout(470, 142, 'gen'));
   g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
   g.push(svg('text', { class: 'rs-label', x: 402, y: 248, 'text-anchor': 'middle' },
     [t('mimic_cond')]));
@@ -379,9 +383,11 @@ export function buildRbmkMimic(container) {
   g.push(valve(298, 140, 'bypass', t('mimic_bypass')));
   g.push(svg('path', { class: 'rs-vessel', d: 'M 372 100 L 432 84 L 432 156 L 372 136 Z' }));
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
-  g.push(svg('text', { class: 'rs-label', x: 452, y: 96, 'text-anchor': 'middle' },
+  // Beschriftung seitlich am Generator, nicht darüber/darunter: dort liegen
+  // Turbinenkontur (bis x=432) und das Abdampfrohr (senkrecht bei x=452).
+  g.push(svg('text', { class: 'rs-label', x: 470, y: 96, 'text-anchor': 'start' },
     [t('mimic_gen')]));
-  g.push(readout(452, 142, 'gen', 'middle'));
+  g.push(readout(470, 142, 'gen'));
   g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
   g.push(svg('text', { class: 'rs-label', x: 402, y: 248, 'text-anchor': 'middle' },
     [t('mimic_cond')]));

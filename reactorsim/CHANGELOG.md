@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.16
+
+- 🔧 **Generator-Beschriftung lag auf der Turbine und dem Abdampfrohr.** Text und Messwert standen zentriert über/unter dem Generatorkreis — geometrisch genau in der Spalte, in der die Turbinenkontur endet und das Abdampfrohr senkrecht nach unten läuft. Jetzt steht beides seitlich rechts vom Generator, frei von beiden.
+
 ## 0.0.15
 
 - 🎛️ **„Hand" hat jetzt auch einen Hebel.** Bisher gab es nur den Umschalter: der Regler hörte auf zu regeln, und der Spieler hatte trotzdem nichts, womit er stellen konnte. Beim Speisewasser war es sogar schädlich — der Handwert stand auf Volllast, beim Druckhalter auf „Heizung aus". Jetzt ist jede Betriebsart eine **Regelstation**: Umschalter plus Stellschieber, der in Automatik mitläuft und in Hand dem Bediener gehört.
