@@ -86,3 +86,9 @@
 /* Fuellstandsbalken in Dampferzeuger und Druckhalter. */
 .rs-sg-level  { fill: #1f5e8c; opacity: .55; }
 .rs-pzr-level { fill: #2a6f4e; opacity: .6; }
+
+/* Druckroehren im Graphitblock. Der Block glueht mit der Graphittemperatur --
+   traeger als der Kern, weil 1700 Tonnen Graphit eine eigene Zeitkonstante
+   von gut einer halben Stunde haben. */
+.rs-tube { stroke: #4a6377; stroke-width: 2; }
+.rs-vessel { fill: color-mix(in oklab, #6b4a2a calc(var(--rs-gr, 0) * 45%), #101a24); }

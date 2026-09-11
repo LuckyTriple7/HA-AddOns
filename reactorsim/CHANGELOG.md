@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.6
+
+- ☢️ **Der RBMK-1000 ist spielbar.** Graphitmoderiert, Druckröhren, Trommelabscheider, acht Hauptumwälzpumpen. Alle drei Reaktortypen sind damit verfügbar.
+- ➕ **Positiver Dampfblasenkoeffizient, abhängig von der Abschaltreserve.** Bei nominal 46 eingefahrenen Stäben sind es +20 pcm je Prozentpunkt Blasenanteil, bei leerem Kern über +60. Die Abschaltreserve ist damit kein Anzeigewert, sondern der Parameter, der den gefährlichsten Kennwert der Anlage einstellt.
+- 🔻 **Die Vorgeschichte fährt sich von selbst.** Leistung absenken, warten: Xenon baut auf, der Leistungsregler zieht die Stäbe, die Abschaltreserve schmilzt von 58 auf unter 15 — in gut vierzig Minuten. Nichts daran ist gescriptet; es fällt aus denselben Gleichungen wie der Normalbetrieb.
+- 💥 **AZ-5 mit Graphitspitzen, in beide Richtungen.** Bei niedriger Abschaltreserve fügt die Schnellabschaltung **positive** Reaktivität ein: die Einfuhr erreicht 1,7 β, die Leistung steigt in zweieinhalb Sekunden auf das Achthundertfache, der Brennstoff zerlegt sich. Aus dem Nennbetrieb dagegen ist dieselbe Schnellabschaltung durchweg negativ und schaltet sauber ab. Beides muss stimmen — sonst wäre es ein Zwischenfilm mit Physik-Anstrich, und ein Test hält genau das fest.
+- 🧮 **Der Absorber wird während des Verdrängerwegs herausgerechnet.** Der allgemeine Stabbeitrag zählt ihn vom ersten Zentimeter an mit, weil er nichts von Graphitverdrängern weiß. Ohne diese Verrechnung standen +350 pcm Graphit gegen −830 pcm Absorber, und die Eigenheit, um die es bei diesem Reaktortyp geht, hätte es im Spiel nicht gegeben.
+- 🔁 **Axiale Xenon-Schwingung** aus zwei Zonen mit eigener Vergiftung. Sie wandert über gut einen Tag hin und her, statt wegzulaufen — die erste Auslegung der Steifigkeit hatte eine Schleifenverstärkung über eins, und das Flussprofil kippte binnen zwei Stunden ganz nach unten.
+- ⚙️ **Leistungsregler auf die Stäbe.** Wo der Kern selbst die Leistung macht, braucht es einen Regler, der direkt darauf geht. Ohne ihn trieb allein der Xenon-Abbrand die Anlage in drei Stunden über die Leistungsauslösung — ein Reaktor mit schwachem Leistungskoeffizienten hat keinen Grund, von selbst auf seinem Arbeitspunkt zu bleiben.
+- 🔧 **Ein Fehler, der alle drei Typen betraf:** der Druckregler des Turbinenventils konnte nie unter 30 % schließen, weil er sich dieselbe schmale Stellgrenze mit dem Lastregler teilte. Bei kleiner Leistung lief die Anlage dadurch leer — der Trommeldruck fiel von 69 auf 12 bar, und der Blasenanteil im Kern stieg, obwohl die Leistung sank.
+- 🩹 **Zweites Versagenskriterium für den Brennstoff.** 963 J/g gilt für die heißeste Tablette; unser Modell führt einen Knoten für den ganzen Kern. Dazu kommt deshalb der Enthalpie-Zuwachs gegenüber dem Betriebszustand — das Kriterium, das bei einer schnellen Exkursion tatsächlich zuerst greift.
+- 🖼️ **Eigenes Fließbild** mit Graphitblock, Druckröhren, Trommelabscheider und innerer Umwälzschleife. Der Block glüht mit der Graphittemperatur, die ihrer eigenen halben Stunde Zeitkonstante folgt.
+- ✅ **65 Tests.**
+
 ## 0.0.5
 
 - ⚛️ **Der Siedewasserreaktor ist spielbar.** 3840 MWth / 1344 MWe, ein Kreislauf, Dampf direkt zur Turbine. Das Regelventil hält den Domdruck, die Leistung macht der Kern — über den Umwälzstrom. Zwischen 100 und 80 % Durchsatz liegen 11 % Leistung, ohne dass ein Stab sich bewegt.

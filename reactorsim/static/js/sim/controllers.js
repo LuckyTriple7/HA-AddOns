@@ -141,7 +141,15 @@ export class GovernorController {
     this.pSet = pSet;
     this.P0 = P0;
     this.posNominal = posNominal;
-    this.pi = new PI({ kp, ki, min: -trim, max: trim, out: 0 });
+    // Im Lastbetrieb trimmt der Regler nur die Vorsteuerung, im Druckbetrieb
+    // stellt er das Ventil allein. Mit derselben schmalen Stellgrenze fuer
+    // beide konnte das Ventil im Druckbetrieb nie unter 0,3 schliessen -- bei
+    // kleiner Leistung lief die Anlage dann leer, der Trommeldruck fiel von
+    // 69 auf 12 bar, und der Dampfblasenanteil im Kern stieg, obwohl die
+    // Leistung sank.
+    this.pi = mode === 'pressure'
+      ? new PI({ kp, ki, min: 0, max: 1, out: posNominal })
+      : new PI({ kp, ki, min: -trim, max: trim, out: 0 });
     this.auto = true;
     this.manual = posNominal;
     this.tripped = false;
@@ -154,7 +162,7 @@ export class GovernorController {
     if (this.mode === 'pressure') {
       // Druckbetrieb: das Ventil hält den Frischdampfdruck, die Leistung folgt
       // dem Kern. So fährt ein Siedewasserreaktor.
-      return clamp(this.posNominal + this.pi.step((pSteam - this.pSet) * 0.05, dt), 0, 1);
+      return clamp(this.pi.step((pSteam - this.pSet) * 0.05, dt), 0, 1);
     }
     const ff = this.posNominal * clamp(P_demand / this.P0, 0, 1.1);
     // Fehler auf die Nennleistung normiert, nicht auf die Anforderung: sonst
@@ -164,4 +172,37 @@ export class GovernorController {
   }
 
   trip() { this.tripped = true; this.pi.preset(0); }
+}
+
+/**
+ * Leistungsregler auf die Stäbe.
+ *
+ * Der Druckwasserreaktor regelt die Stäbe auf eine Temperatur, weil die
+ * Turbine dort die Leistung bestimmt. Wo der Kern selbst die Leistung macht --
+ * beim RBMK -- muss ein Regler direkt auf die Leistung gehen. Das Original
+ * hatte dafür eigene Regelstäbe.
+ *
+ * Ohne ihn treibt allein der Xenon-Abbrand die Anlage weg: ein Reaktor mit
+ * schwachem Leistungskoeffizienten hat keinen Grund, von selbst auf seinem
+ * Arbeitspunkt zu bleiben. Genau deshalb ist das Abschalten dieses Reglers im
+ * Spiel eine Handlung mit Folgen und kein Schalter unter vielen.
+ */
+export class PowerController {
+  constructor({ setpoint = 1, deadband = 0.004, speed = 0.005 }) {
+    this.setpoint = setpoint;
+    this.deadband = deadband;
+    this.speed = speed;
+    this.auto = true;
+    this.manual = 0;
+  }
+
+  /** @returns {number} gewünschte Änderung der Stabstellung in diesem Takt */
+  step(n, dt) {
+    if (!this.auto) return this.manual * this.speed * dt;
+    const err = n - this.setpoint;
+    if (Math.abs(err) < this.deadband) return 0;
+    const dir = err > 0 ? 1 : -1;
+    const fast = Math.abs(err) > 4 * this.deadband;
+    return dir * this.speed * (fast ? 1 : 0.3) * dt;
+  }
 }

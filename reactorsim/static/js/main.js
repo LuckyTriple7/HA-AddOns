@@ -1,7 +1,7 @@
 // Einstieg: Startbildschirm, Aufbau des Leitstands, Verdrahtung der Bedienung.
 
 import { $, $$, setText, setAttr } from './ui/dom.js';
-import { t } from './ui/i18n.js';
+import { t, clock } from './ui/i18n.js';
 import { Render } from './ui/render.js';
 import { buildPanels } from './ui/panels.js';
 import { Loop } from './loop.js';
@@ -98,6 +98,13 @@ function initControls() {
 
   $('#rs-fault-reload').addEventListener('click', () => window.location.reload());
 
+  $('#rs-destroyed-close').addEventListener('click', () => {
+    $('#rs-destroyed').hidden = true;
+    app.loop.stop();
+    $('#rs-app').hidden = true;
+    $('#rs-start').hidden = false;
+  });
+
   // Tastatur am Rechner: Leertaste hält an, Zahlen wählen den Zeitraffer.
   document.addEventListener('keydown', (ev) => {
     if (ev.target instanceof HTMLInputElement) return;
@@ -120,6 +127,28 @@ function showFault(detail) {
   $('#rs-fault').hidden = false;
 }
 
+/**
+ * Schwerer Störfall. Der Lauf endet hier -- mit der Zeitleiste der Meldungen,
+ * die dorthin geführt haben. Das ist der Punkt des Spiels: nicht das Ende zu
+ * zeigen, sondern den Weg.
+ */
+function showDestroyed() {
+  app.endShown = true;
+  app.loop.setSpeed(0);
+  const s = app.engine.state;
+  setText($('#rs-destroyed-detail'),
+    `${t('val_fuel_temp')}: ${Math.round(s.T_f - 273.15)} °C · `
+    + `${Math.round(s.enthalpy)} J/g · ${clock(s.t_sim)}`);
+  const list = $('#rs-destroyed-log');
+  list.replaceChildren();
+  // Die letzten Einträge der Meldetafel, neueste zuerst.
+  const log = $('#rs-log');
+  for (let i = 0; i < Math.min(log.children.length, 8); i++) {
+    list.append(log.children[i].cloneNode(true));
+  }
+  $('#rs-destroyed').hidden = false;
+}
+
 function boot(reactorId) {
   const plant = getPlant(reactorId);
   if (!plant) return;
@@ -127,6 +156,7 @@ function boot(reactorId) {
   $('#rs-start').hidden = true;
   $('#rs-app').hidden = false;
 
+  app.endShown = false;
   app.engine = createEngine(plant, { n: 1.0 });
   app.render.clear();
   const built = buildPanels(app.engine, app.render);
@@ -141,6 +171,7 @@ function boot(reactorId) {
     // Die Engine hält bei einem unmöglichen Zustand von selbst an und legt den
     // Grund ab; hier wird er nur sichtbar gemacht.
     if (state.fault) showFault(state.fault);
+    if (state.destroyed && !app.endShown) showDestroyed();
   });
   app.loop.onSlip = (slipping) => { $('#rs-slip').hidden = !slipping; };
 

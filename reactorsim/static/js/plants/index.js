@@ -5,10 +5,12 @@
 
 import * as pwr from './pwr.js';
 import * as bwr from './bwr.js';
+import * as rbmk from './rbmk.js';
 
 export const PLANTS = {
   pwr,
   bwr,
+  rbmk,
 };
 
 export const PLANT_IDS = Object.keys(PLANTS);

@@ -241,6 +241,12 @@ export function buildPanels(engine, render) {
     put('recirc', d.recirc === undefined ? t('state_none') : num(d.recirc * 100, 0) + U('unit_percent'));
     put('quality', d.quality === undefined ? t('state_none') : num(d.quality * 100, 1) + U('unit_percent'));
     put('decay_ratio', d.decayRatio === undefined ? t('state_none') : num(d.decayRatio, 2));
+    put('orm', d.orm === undefined ? t('state_none') : num(d.orm, 1),
+        d.orm === undefined ? undefined : (d.orm < 15 ? 3 : (d.orm < 30 ? 1 : undefined)));
+    put('void_coeff', d.voidCoeff === undefined ? t('state_none') : '+' + num(d.voidCoeff, 0) + U('unit_pcm'),
+        d.voidCoeff === undefined ? undefined : (d.voidCoeff > 45 ? 3 : (d.voidCoeff > 30 ? 1 : undefined)));
+    put('axial', d.axialOffset === undefined ? t('state_none') : num(d.axialOffset * 100, 0) + U('unit_percent'));
+    put('t_graphite', d.T_gr === undefined ? t('state_none') : num(d.T_gr - 273.15, 0) + U('unit_celsius'));
 
     rho.set(d.breakdown, d.rho);
     pumps.set(d.pumpStates || []);

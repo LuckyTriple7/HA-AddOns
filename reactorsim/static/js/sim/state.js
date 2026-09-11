@@ -98,7 +98,9 @@ export function createState(spec, opts = {}) {
     rho_ext: 0,
     scram: { active: false, t: 0, cause: null },
     promptCritical: false,
-    enthalpy: 0,     // kumulierter Brennstoff-Enthalpiezuwachs in J/g
+    enthalpy: 0,        // Brennstoffenthalpie in J/g
+    enthalpyBase: 0,    // langsam nachgeführte Bezugslinie
+    enthalpyRise: 0,    // Zuwachs gegenüber dem Betriebszustand
     destroyed: false,
     fault: null,     // gesetzt, wenn sanitize() etwas Unmögliches findet
   };
@@ -143,7 +145,7 @@ export function numbers(s) {
   out.push(s.T_f, s.T_cl, s.T_ci, s.T_co, s.T_mod, s.T_gr,
            s.W_core, s.p_prim, s.alphaBar,
            s.I, s.X, s.Pm, s.Sm, s.C_B, s.burnup,
-           s.P_th, s.P_e, s.P_demand, s.f_grid, s.rho_ext, s.enthalpy);
+           s.P_th, s.P_e, s.P_demand, s.f_grid, s.rho_ext, s.enthalpy, s.enthalpyBase);
   for (let i = 0; i < s.rod.length; i++) out.push(s.rod[i]);
   for (let i = 0; i < s.rodDmd.length; i++) out.push(s.rodDmd[i]);
   return out;

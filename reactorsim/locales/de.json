@@ -227,5 +227,22 @@
   "val_cpr": "CPR",
   "mimic_rpv": "Druckbehälter",
   "mimic_sep": "Abscheider",
-  "mimic_recirc": "Umwälzpumpe"
+  "mimic_recirc": "Umwälzpumpe",
+  "alarm_orm_low": "Abschaltreserve gering",
+  "alarm_orm_critical": "Abschaltreserve kritisch",
+  "alarm_void_positive": "Void-Koeffizient hoch",
+  "alarm_mcp_cavitation": "Pumpen-Kavitation",
+  "alarm_graphite_hot": "Graphit heiß",
+  "alarm_axial_tilt": "Axiale Schieflage",
+  "ctl_mcp": "Hauptumwälzpumpen",
+  "ctl_power_auto": "Leistungsregler",
+  "val_axial": "Axiale Verteilung",
+  "val_tip": "Stabspitzen",
+  "val_void_coeff": "Void-Koeffizient",
+  "val_drum_press": "Trommeldruck",
+  "val_drum_level": "Trommelfüllstand",
+  "mimic_drum": "Trommelabscheider",
+  "mimic_channels": "Druckröhren",
+  "mimic_graphite": "Graphit",
+  "az5_hint": "AZ-5 fährt alle Stäbe in 18 Sekunden ein — mit Graphitspitzen voran."
 }

@@ -320,7 +320,138 @@ export function buildBwrMimic(container) {
   };
 }
 
+
+/**
+ * Fließbild eines RBMK.
+ *
+ * Kein Druckbehälter: 1661 einzelne Druckröhren stecken in einem Graphitblock,
+ * das Dampf-Wasser-Gemisch geht in die Trommelabscheider, der Dampf von dort zu
+ * den Turbinen, das Wasser über die Hauptumwälzpumpen zurück in die Röhren.
+ * Gezeichnet ist eine Hälfte -- die zweite ist spiegelbildlich und zeigt
+ * dasselbe.
+ */
+export function buildRbmkMimic(container) {
+  const root = svg('svg', {
+    viewBox: '0 0 520 268',
+    preserveAspectRatio: 'xMidYMid meet',
+    role: 'img',
+    'aria-label': t('panel_mimic'),
+  });
+  const g = [];
+
+  // Steigleitungen vom Kern in die Trommel, Fallleitungen zurück.
+  g.push(pipe('M 118 78 L 118 52 L 196 52', 'hot', 'prim'));
+  g.push(pipe('M 190 102 L 182 102 L 182 214 L 118 214', 'cold', 'prim'));
+  // Frischdampf aus der Trommel.
+  g.push(pipe('M 236 48 L 330 48 L 330 76', 'steam', 'steam'));
+  g.push(pipe('M 330 100 L 330 118 L 372 118', 'steam', 'steam'));
+  g.push(pipe('M 298 48 L 298 214 L 372 214', 'steam', 'bypass'));
+  g.push(pipe('M 432 140 L 452 140 L 452 196 L 432 196', 'steam', 'steam'));
+  // Speisewasser in die Trommel.
+  g.push(pipe('M 372 232 L 216 232 L 216 104', 'feed', 'feed'));
+
+  // Graphitblock mit Druckröhren.
+  g.push(svg('rect', { class: 'rs-vessel', x: 72, y: 78, width: 92, height: 136, rx: 6 }));
+  g.push(svg('rect', { class: 'rs-core', x: 80, y: 92, width: 76, height: 108, rx: 3 }));
+  for (let i = 0; i < 7; i++) {
+    const x = 86 + i * 11;
+    g.push(svg('line', {
+      class: 'rs-tube', x1: x, y1: 92, x2: x, y2: 200,
+    }));
+  }
+  g.push(svg('text', { class: 'rs-label', x: 118, y: 230, 'text-anchor': 'middle' },
+    [t('mimic_channels')]));
+  g.push(readout(118, 86, 'power', 'middle'));
+  g.push(readout(60, 246, 'graphite'));
+
+  // Trommelabscheider.
+  g.push(svg('rect', { class: 'rs-vessel', x: 186, y: 30, width: 60, height: 76, rx: 28 }));
+  g.push(svg('rect', { class: 'rs-sg-level', x: 190, y: 62, width: 52, height: 40, rx: 20 }));
+  g.push(svg('text', { class: 'rs-label', x: 252, y: 36, 'text-anchor': 'start' },
+    [t('mimic_drum')]));
+  g.push(readout(216, 74, 'drum', 'middle'));
+
+  // Hauptumwälzpumpen.
+  g.push(pump(182, 176, 'rcp', t('mimic_recirc')));
+
+  // Turbine, Generator, Kondensator.
+  g.push(valve(330, 88, 'gov', t('mimic_gov'), 'left'));
+  g.push(valve(298, 140, 'bypass', t('mimic_bypass')));
+  g.push(svg('path', { class: 'rs-vessel', d: 'M 372 100 L 432 84 L 432 156 L 372 136 Z' }));
+  g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
+  g.push(svg('text', { class: 'rs-label', x: 452, y: 96, 'text-anchor': 'middle' },
+    [t('mimic_gen')]));
+  g.push(readout(452, 142, 'gen', 'middle'));
+  g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
+  g.push(svg('text', { class: 'rs-label', x: 402, y: 248, 'text-anchor': 'middle' },
+    [t('mimic_cond')]));
+  g.push(readout(402, 218, 'cond', 'middle'));
+
+  for (const node of g) root.append(node);
+  container.replaceChildren(root);
+
+  const reads = new Map();
+  for (const n of root.querySelectorAll('[data-read]')) reads.set(n.dataset.read, n);
+  const comps = new Map();
+  for (const n of root.querySelectorAll('[data-mimic]')) comps.set(n.dataset.mimic, n);
+  const flows = new Map();
+  for (const n of root.querySelectorAll('[data-flow]')) {
+    const id = n.dataset.flow;
+    const list = flows.get(id);
+    if (list) list.push(n); else flows.set(id, [n]);
+  }
+  const level = root.querySelector('.rs-sg-level');
+
+  return {
+    root,
+    update(s, d, sp) {
+      setVar(root, '--rs-t-hot', norm(s.T_co - 273.15, 250, 340).toFixed(3));
+      setVar(root, '--rs-t-cold', norm(s.T_ci - 273.15, 250, 340).toFixed(3));
+      setVar(root, '--rs-n', Math.max(0, Math.min(1, s.n)).toFixed(3));
+      setVar(root, '--rs-steam-l', norm(s.p_drum, 20, 85).toFixed(3));
+      // Der Graphitblock glüht eigenständig -- er hängt an seiner eigenen,
+      // sehr langen Zeitkonstante und nicht an der Leistung von eben.
+      setVar(root, '--rs-gr', norm(s.T_gr - 273.15, 300, 800).toFixed(3));
+
+      const fPrim = Math.max(0, Math.min(1.2, s.W_core / sp.mcp.W0));
+      for (const n of flows.get('prim') || []) setVar(n, '--rs-w', fPrim.toFixed(3));
+      const fSteam = Math.max(0, Math.min(1.2, s.W_steam / sp.drum.W_steam0));
+      for (const n of flows.get('steam') || []) setVar(n, '--rs-w', fSteam.toFixed(3));
+      for (const n of flows.get('feed') || []) {
+        setVar(n, '--rs-w', Math.max(0, Math.min(1.2, s.W_fw / sp.drum.W_steam0)).toFixed(3));
+      }
+      for (const n of flows.get('bypass') || []) setVar(n, '--rs-w', (s.bypass || 0).toFixed(3));
+
+      const rcp = comps.get('rcp');
+      if (rcp) {
+        const states = d.pumpStates || [];
+        const running = states.filter((x) => x === 'run').length;
+        setAttr(rcp, 'data-state',
+          running > 0 ? 'run' : (states.some((x) => x === 'tripped') ? 'tripped' : 'stopped'));
+        setVar(rcp.parentNode, '--rs-w', fPrim.toFixed(3));
+      }
+      setAttr(comps.get('gov'), 'data-state', s.gov > 0.02 ? 'run' : 'stopped');
+      setAttr(comps.get('bypass'), 'data-state', s.bypass > 0.02 ? 'run' : 'stopped');
+      setAttr(comps.get('gen'), 'data-state',
+        s.turbineTripped ? 'tripped' : (s.breaker ? 'run' : 'stopped'));
+
+      if (level) {
+        const h = Math.max(2, 40 * Math.max(0, Math.min(1, s.L_drum)) * 2);
+        setAttr(level, 'y', String(62 + 40 - Math.min(h, 40)));
+        setAttr(level, 'height', String(Math.min(h, 40)));
+      }
+
+      setText(reads.get('power'), num(d.power_th_pct, 0) + ' %');
+      setText(reads.get('drum'), num(s.p_drum, 1) + ' bar');
+      setText(reads.get('graphite'), num(s.T_gr - 273.15, 0) + ' °C');
+      setText(reads.get('gen'), num(s.P_e, 0) + ' MW');
+      setText(reads.get('cond'), num(s.p_cond, 3) + ' bar');
+    },
+  };
+}
+
 export const MIMICS = {
   'mimic-pwr': buildPwrMimic,
   'mimic-bwr': buildBwrMimic,
+  'mimic-rbmk': buildRbmkMimic,
 };

@@ -248,7 +248,14 @@ export const hooks = {
     // treffen. Der Bezugswert steht fest in der Typdatei, der kleine
     // Restbeitrag wird von der Stabstellung aufgenommen.
 
-    s.T_cl = Tsat + (P * 1000 * sp.fuel.depositFraction) / ctx.UA_cc;
+    // Bezugstemperatur der Brennstoffkette ist die MITTLERE Kuehlmittel-
+    // temperatur, so wie die Engine sie im Rechenschritt bildet -- nicht die
+    // Saettigungstemperatur. Der Unterschied betraegt nur die halbe
+    // Unterkuehlung, aber er landet unverduennt in der Doppler-Rueckkopplung,
+    // und beim RBMK mit seinem fast neutralen Leistungskoeffizienten wurden
+    // daraus fuenf Prozent Leistungssprung in der ersten Minute.
+    const Tbase = Tsat - 0.5 * s.dTsub;
+    s.T_cl = Tbase + (P * 1000 * sp.fuel.depositFraction) / ctx.UA_cc;
     s.T_f = s.T_cl + (P * 1000 * sp.fuel.depositFraction) / ctx.UA_fc;
 
     // Kritisch wird hier ueber die Stabstellung, nicht ueber Bor. Die

@@ -254,3 +254,9 @@ button {
   border-radius: 3px;
   padding: 2px 6px;
 }
+
+/* Der schwere Stoerfall bekommt eine eigene Farbe -- er ist kein Fehler des
+   Spiels, sondern sein Ende. */
+.rs-modal-bad { border-color: #7a1020; box-shadow: 0 0 40px #ff4d4d22; }
+.rs-modal-bad h2 { color: var(--rs-alarm); }
+.rs-modal-bad .rs-log { max-height: 180px; font-size: 11px; }

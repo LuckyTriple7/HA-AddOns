@@ -29,10 +29,23 @@ import { Rng } from '../rng.js';
 /** Regler laufen nicht in jedem Rechenschritt, sondern alle 0,2 s. */
 const CONTROL_PERIOD = 0.2;
 
-/** Abbruch bei Brennstoff-Enthalpie über 963 J/g (230 cal/g). Das ist das
- *  übliche Kriterium für Brennstoffzerlegung, und es begrenzt nebenbei die
- *  Rechnung: eine Exkursion endet hier, statt ins Unendliche zu laufen. */
+/**
+ * Zwei Abbruchkriterien für den Brennstoff.
+ *
+ * 963 J/g (230 cal/g) ist der klassische Wert für Brennstoffzerlegung. Er gilt
+ * für die radial gemittelte Enthalpie der heissesten Tablette -- unser Modell
+ * führt dagegen EINEN Knoten für den ganzen Kern. Die Spitze liegt in einem
+ * echten Kern beim Zwei- bis Dreifachen des Kernmittels, weil Fluss und
+ * Abbrand nicht gleichmässig sind.
+ *
+ * Deshalb zusätzlich das Kriterium, das bei einer schnellen Leistungsexkursion
+ * tatsächlich zuerst greift: der Enthalpie-ZUWACHS gegenüber dem
+ * Betriebszustand. Hüllrohrversagen setzt in Versuchen bei etwa 250 J/g
+ * Zuwachs ein (60 cal/g). Auf das Kernmittel umgerechnet sind das rund 96 J/g.
+ */
 const ENTHALPY_LIMIT_JPG = 963;
+const ENTHALPY_RISE_LIMIT_JPG = 250;
+const PEAK_FACTOR = 2.6;
 
 export function createEngine(plant, opts = {}) {
   const spec = plant.spec;
@@ -82,6 +95,12 @@ export function createEngine(plant, opts = {}) {
   // driftenden Kern anfängt.
   if (hooks.trim) hooks.trim(s, spec, ctx, rx);
 
+  // Bezugslinie der Brennstoffenthalpie auf den Betriebszustand setzen. Bliebe
+  // sie auf null, wäre der Zuwachs im ersten Rechenschritt so groß wie die
+  // ganze Betriebsenthalpie -- und der Kern im selben Augenblick zerstört.
+  s.enthalpy = ((spec.fuel.cp || 300) * (s.T_f - 273.15)) / 1000;
+  s.enthalpyBase = s.enthalpy;
+
   /**
    * Kernthermik. Wird aus der Kinetik heraus je Untertakt gerufen -- niemals
    * zusätzlich im Hauptschritt, sonst wird die Wärme doppelt gezählt.
@@ -129,9 +148,15 @@ export function createEngine(plant, opts = {}) {
       s.T_mod = hooks.moderatorTemp ? hooks.moderatorTemp(s, spec, Tc) : Tc;
     }
 
-    // Brennstoffenthalpie als Zerstörungskriterium.
+    // Brennstoffenthalpie als Zerstörungskriterium. Die Bezugslinie folgt dem
+    // Betriebszustand mit zwei Minuten Zeitkonstante -- langsam genug, dass
+    // eine Exkursion von Sekunden voll als Zuwachs zählt, schnell genug, dass
+    // ein normaler Lastwechsel ihn nicht auslöst.
     s.enthalpy = ((spec.fuel.cp || 300) * (s.T_f - 273.15)) / 1000;
-    if (s.enthalpy > ENTHALPY_LIMIT_JPG && !s.destroyed) {
+    s.enthalpyBase = relax(s.enthalpyBase, s.enthalpy, h, 120);
+    s.enthalpyRise = s.enthalpy - s.enthalpyBase;
+    const peakRise = PEAK_FACTOR * s.enthalpyRise;
+    if (!s.destroyed && (s.enthalpy > ENTHALPY_LIMIT_JPG || peakRise > ENTHALPY_RISE_LIMIT_JPG)) {
       s.destroyed = true;
       ctx.log.push({ t: s.t_sim, key: 'event_fuel_dispersal', severity: 3 });
     }

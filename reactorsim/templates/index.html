@@ -179,6 +179,10 @@
             <div class="rs-row"><span>{{ t.val_void }}</span><b data-v="voidfrac">—</b></div>
             <div class="rs-row"><span>{{ t.val_recirc }}</span><b data-v="recirc">—</b></div>
             <div class="rs-row"><span>{{ t.val_decay_ratio }}</span><b data-v="decay_ratio">—</b></div>
+            <div class="rs-row"><span>{{ t.val_orm }}</span><b data-v="orm">—</b></div>
+            <div class="rs-row"><span>{{ t.val_void_coeff }}</span><b data-v="void_coeff">—</b></div>
+            <div class="rs-row"><span>{{ t.val_axial }}</span><b data-v="axial">—</b></div>
+            <div class="rs-row"><span>{{ t.val_graphite_temp }}</span><b data-v="t_graphite">—</b></div>
             <div class="rs-row"><span>{{ t.val_pzr_press }}</span><b data-v="pzr_p">—</b></div>
             <div class="rs-row"><span>{{ t.val_pzr_level }}</span><b data-v="pzr_l">—</b></div>
           </div>
@@ -279,6 +283,17 @@
       </section>
 
     </div>
+  </div>
+</div>
+
+<!-- ── Kernzerstörung ───────────────────────────────────────────────────── -->
+<div class="rs-modal" id="rs-destroyed" hidden>
+  <div class="rs-modal-box rs-modal-bad">
+    <h2>{{ t.end_destroyed_title }}</h2>
+    <p>{{ t.end_destroyed_body }}</p>
+    <p class="rs-modal-detail" id="rs-destroyed-detail"></p>
+    <ol class="rs-log" id="rs-destroyed-log"></ol>
+    <button type="button" class="rs-btn rs-btn-primary" id="rs-destroyed-close">{{ t.btn_menu }}</button>
   </div>
 </div>
 

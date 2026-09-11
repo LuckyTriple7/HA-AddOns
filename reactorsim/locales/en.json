@@ -227,5 +227,22 @@
   "val_cpr": "CPR",
   "mimic_rpv": "Vessel",
   "mimic_sep": "Separator",
-  "mimic_recirc": "Recirc pump"
+  "mimic_recirc": "Recirc pump",
+  "alarm_orm_low": "Reactivity margin low",
+  "alarm_orm_critical": "Reactivity margin critical",
+  "alarm_void_positive": "Void coefficient high",
+  "alarm_mcp_cavitation": "Pump cavitation",
+  "alarm_graphite_hot": "Graphite hot",
+  "alarm_axial_tilt": "Axial tilt",
+  "ctl_mcp": "Main circulation pumps",
+  "ctl_power_auto": "Power controller",
+  "val_axial": "Axial distribution",
+  "val_tip": "Rod tips",
+  "val_void_coeff": "Void coefficient",
+  "val_drum_press": "Drum pressure",
+  "val_drum_level": "Drum level",
+  "mimic_drum": "Steam drum",
+  "mimic_channels": "Pressure tubes",
+  "mimic_graphite": "Graphite",
+  "az5_hint": "AZ-5 drives every rod in over 18 seconds — graphite tips first."
 }
