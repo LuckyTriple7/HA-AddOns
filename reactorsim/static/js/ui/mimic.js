@@ -123,9 +123,13 @@ export function buildPwrMimic(container) {
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
   // Beschriftung seitlich am Generator, nicht darüber/darunter: dort liegen
   // Turbinenkontur (bis x=432) und das Abdampfrohr (senkrecht bei x=452).
-  g.push(svg('text', { class: 'rs-label', x: 470, y: 96, 'text-anchor': 'start' },
+  // Rechtsbündig und mit Rand vor dem viewBox-Rand bei 520: "Generator" reicht
+  // linksbündig ab x=470 sonst über den Rand hinaus -- unsichtbar, solange der
+  // Container breiter als das Seitenverhältnis war und die SVG links/rechts
+  // Rand ließ, sichtbar abgeschnitten, sobald sie exakt in der Breite sitzt.
+  g.push(svg('text', { class: 'rs-label', x: 516, y: 96, 'text-anchor': 'end' },
     [t('mimic_gen')]));
-  g.push(readout(470, 142, 'gen'));
+  g.push(readout(516, 142, 'gen', 'end'));
 
   // Kondensator.
   g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
@@ -259,9 +263,13 @@ export function buildBwrMimic(container) {
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
   // Beschriftung seitlich am Generator, nicht darüber/darunter: dort liegen
   // Turbinenkontur (bis x=432) und das Abdampfrohr (senkrecht bei x=452).
-  g.push(svg('text', { class: 'rs-label', x: 470, y: 96, 'text-anchor': 'start' },
+  // Rechtsbündig und mit Rand vor dem viewBox-Rand bei 520: "Generator" reicht
+  // linksbündig ab x=470 sonst über den Rand hinaus -- unsichtbar, solange der
+  // Container breiter als das Seitenverhältnis war und die SVG links/rechts
+  // Rand ließ, sichtbar abgeschnitten, sobald sie exakt in der Breite sitzt.
+  g.push(svg('text', { class: 'rs-label', x: 516, y: 96, 'text-anchor': 'end' },
     [t('mimic_gen')]));
-  g.push(readout(470, 142, 'gen'));
+  g.push(readout(516, 142, 'gen', 'end'));
   g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
   g.push(svg('text', { class: 'rs-label', x: 402, y: 248, 'text-anchor': 'middle' },
     [t('mimic_cond')]));
@@ -393,9 +401,13 @@ export function buildRbmkMimic(container) {
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
   // Beschriftung seitlich am Generator, nicht darüber/darunter: dort liegen
   // Turbinenkontur (bis x=432) und das Abdampfrohr (senkrecht bei x=452).
-  g.push(svg('text', { class: 'rs-label', x: 470, y: 96, 'text-anchor': 'start' },
+  // Rechtsbündig und mit Rand vor dem viewBox-Rand bei 520: "Generator" reicht
+  // linksbündig ab x=470 sonst über den Rand hinaus -- unsichtbar, solange der
+  // Container breiter als das Seitenverhältnis war und die SVG links/rechts
+  // Rand ließ, sichtbar abgeschnitten, sobald sie exakt in der Breite sitzt.
+  g.push(svg('text', { class: 'rs-label', x: 516, y: 96, 'text-anchor': 'end' },
     [t('mimic_gen')]));
-  g.push(readout(470, 142, 'gen'));
+  g.push(readout(516, 142, 'gen', 'end'));
   g.push(svg('rect', { class: 'rs-vessel', x: 372, y: 196, width: 60, height: 36, rx: 8 }));
   g.push(svg('text', { class: 'rs-label', x: 402, y: 248, 'text-anchor': 'middle' },
     [t('mimic_cond')]));
