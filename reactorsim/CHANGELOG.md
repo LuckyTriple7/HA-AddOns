@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.7
+
+- 📋 **Szenarien statt nur freiem Spiel.** Fünf Schichten zur Auswahl: Lastfolge und Turbinenschnellschluss am Druckwasserreaktor, Lastfolge über den Umwälzstrom und Frischdampf-Absperrung am Siedewasserreaktor, Nachtschicht am RBMK. Jedes Szenario bringt eine Bedarfskurve, geplante Störungen, Ziele und Fehlbedingungen mit — als Datendatei, nicht als Code.
+- 🎲 **Störungszeitpunkte sind gesät, nicht zufällig.** `"rand(6000,8400)"` wird über den Startwert des Szenarios aufgelöst. Derselbe Startwert ergibt dieselbe Schicht — sonst gäbe es keine Wiederholbarkeit und keinen Regressionstest.
+- 💣 **Störungsbibliothek.** Eine Störung fasst den Zustand an und sonst nichts: eine ausgefallene Pumpe ist eine ausgefallene Pumpe, der Rest folgt aus der Physik. Klemmende Stabgruppe, klemmendes Abblaseventil, Dampferzeuger-Rohrleck, Speisewasserausfall, unkontrollierte Bor-Verdünnung, Frischdampf-Absperrung, Pumpenausfälle, abgeschalteter Leistungsregler, Turbinenschnellschluss, Netzabwurf.
+- 🏁 **Einweisung und Auswertung.** Vor der Schicht steht, worum es geht; danach die Punkte mit ihrer Aufschlüsselung. Gewertet werden gelieferte Energie, Abweichung vom Bedarf, unquittierte Alarmsekunden, Grenzwertüberschreitungen nach Schwere, Schnellabschaltungen und Brennstoffschaden.
+- ⏱️ **Die Spielschicht sieht jeden Rechenschritt, nicht jedes Bild.** Eine Störung, die auf Sekunde 1200 fällt, darf bei 60-fachem Zeitraffer nicht zwischen zwei Bildern verschwinden.
+- ✅ **74 Tests.** Darunter: jedes Szenario läuft unbedient bis zum Ende durch, ohne Ausnahme und ohne ungültigen Zustand; jeder Szenariotext existiert in beiden Sprachen; die Wertungsformel liegt als Fixture-Datei fest, die später auch die Python-Seite prüft.
+
 ## 0.0.6
 
 - ☢️ **Der RBMK-1000 ist spielbar.** Graphitmoderiert, Druckröhren, Trommelabscheider, acht Hauptumwälzpumpen. Alle drei Reaktortypen sind damit verfügbar.

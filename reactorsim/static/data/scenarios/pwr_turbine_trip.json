@@ -1,0 +1,21 @@
+{
+  "id": "pwr_turbine_trip",
+  "reactor": "pwr",
+  "difficulty": 2,
+  "title_key": "scn_pwr_turbine_trip_title",
+  "brief_key": "scn_pwr_turbine_trip_brief",
+  "duration_s": 3600,
+  "seed": 1986,
+  "demand": [
+    { "t": 0, "mw": 1400 },
+    { "t": 3600, "mw": 1400 }
+  ],
+  "grid": { "tolerance_mw": 60 },
+  "events": [
+    { "t": 600, "id": "turbine_trip" },
+    { "t": "rand(900,1500)", "id": "feedwater_loss" }
+  ],
+  "fail": [
+    { "type": "fuel_damage" }
+  ]
+}

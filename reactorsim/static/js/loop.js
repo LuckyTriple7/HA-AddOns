@@ -27,6 +27,11 @@ export class Loop {
     this.slip = false;
     this.running = false;
     this.onSlip = null;
+    /** Wird nach JEDEM Simulationsschritt gerufen, nicht je Bild. Die
+     *  Spielschicht muss jeden Schritt sehen: eine Stoerung, die auf Sekunde
+     *  1200 faellt, darf bei 60-fachem Zeitraffer nicht zwischen zwei Bildern
+     *  verschwinden. */
+    this.afterStep = null;
     this._frame = this._frame.bind(this);
     this._onVisibility = this._onVisibility.bind(this);
   }
@@ -73,6 +78,7 @@ export class Loop {
       let steps = 0;
       while (this.acc >= DT && steps < MAX_STEPS_PER_FRAME) {
         this.engine.step(DT);
+        if (this.afterStep) this.afterStep(DT);
         this.acc -= DT;
         steps++;
       }

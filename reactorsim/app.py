@@ -33,6 +33,7 @@ _DATA = os.environ.get('REACTORSIM_DATA', '/data')
 
 LOCALES_PATH = _BASE + '/locales'
 STATIC_PATH = _BASE + '/static'
+SCENARIO_PATH = STATIC_PATH + '/data/scenarios'
 VERSION_PATH = _BASE + '/VERSION'
 
 PORT = int(os.environ.get('REACTORSIM_PORT', '17779'))
@@ -86,6 +87,52 @@ def detect_language(req) -> str:
         return lang
     accept = (req.headers.get('Accept-Language') or '').lower()
     return 'de' if accept.startswith('de') else 'en'
+
+
+# ── Szenarien ─────────────────────────────────────────────────────────────────
+# Die Dateien liegen fest im Image. Einmal beim Start einlesen -- das ergibt
+# zugleich die Whitelist gueltiger Szenariokennungen fuer die spaetere
+# Bestenliste: nur was hier steht, darf ein Client als Szenario nennen.
+
+def _load_scenarios() -> list:
+    out = []
+    try:
+        names = sorted(os.listdir(SCENARIO_PATH))
+    except OSError:
+        return out
+    for name in names:
+        if not name.endswith('.json'):
+            continue
+        try:
+            with open(os.path.join(SCENARIO_PATH, name), 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (OSError, ValueError) as exc:
+            log.error("Szenario %s nicht lesbar: %s", name, exc.__class__.__name__)
+            continue
+        if not isinstance(data, dict) or not data.get('id'):
+            continue
+        out.append({
+            'id': data['id'],
+            'file': name,
+            'reactor': data.get('reactor'),
+            'difficulty': data.get('difficulty', 1),
+            'title_key': data.get('title_key'),
+            'brief_key': data.get('brief_key'),
+            'duration_s': data.get('duration_s', 0),
+        })
+    return out
+
+
+SCENARIOS = _load_scenarios()
+SCENARIO_IDS = frozenset(s['id'] for s in SCENARIOS)
+
+
+@app.route('/api/meta')
+def meta():
+    return jsonify({
+        'version': APP_VERSION,
+        'scenarios': SCENARIOS,
+    })
 
 
 # ── Seiten ────────────────────────────────────────────────────────────────────

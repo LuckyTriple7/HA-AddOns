@@ -1,0 +1,25 @@
+{
+  "id": "bwr_flow_control",
+  "reactor": "bwr",
+  "difficulty": 2,
+  "title_key": "scn_bwr_flow_title",
+  "brief_key": "scn_bwr_flow_brief",
+  "duration_s": 10800,
+  "seed": 1975,
+  "demand": [
+    { "t": 0, "mw": 1344 },
+    { "t": 1800, "mw": 1344 },
+    { "t": 4500, "mw": 800, "ramp": "linear" },
+    { "t": 7200, "mw": 800 },
+    { "t": 10200, "mw": 1344, "ramp": "linear" },
+    { "t": 10800, "mw": 1344 }
+  ],
+  "grid": { "tolerance_mw": 50 },
+  "events": [
+    { "t": "rand(5000,6800)", "id": "recirc_runback", "args": { "to": 0.5 } }
+  ],
+  "fail": [
+    { "type": "fuel_damage" },
+    { "type": "grid_deviation", "mw": 300, "for_s": 150 }
+  ]
+}

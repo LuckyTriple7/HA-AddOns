@@ -1,0 +1,78 @@
+[
+  {
+    "name": "perfekte Schicht",
+    "summary": {
+      "energy_mwh_delivered": 5600,
+      "energy_mwh_demanded": 5600,
+      "deviation_mwh": 0,
+      "alarm_seconds_unacked": 0,
+      "violation_seconds": {
+        "1": 0,
+        "2": 0,
+        "3": 0
+      },
+      "scram_count": 0,
+      "fuel_damage": false,
+      "completed": true,
+      "difficulty": 1
+    },
+    "score": 1250
+  },
+  {
+    "name": "durchwachsen",
+    "summary": {
+      "energy_mwh_delivered": 4800,
+      "energy_mwh_demanded": 5600,
+      "deviation_mwh": 42.5,
+      "alarm_seconds_unacked": 310,
+      "violation_seconds": {
+        "1": 120,
+        "2": 45,
+        "3": 0
+      },
+      "scram_count": 0,
+      "fuel_damage": false,
+      "completed": true,
+      "difficulty": 2
+    },
+    "score": 1188
+  },
+  {
+    "name": "Schnellabschaltung",
+    "summary": {
+      "energy_mwh_delivered": 1200,
+      "energy_mwh_demanded": 5600,
+      "deviation_mwh": 900,
+      "alarm_seconds_unacked": 1800,
+      "violation_seconds": {
+        "1": 600,
+        "2": 300,
+        "3": 120
+      },
+      "scram_count": 1,
+      "fuel_damage": false,
+      "completed": false,
+      "difficulty": 2
+    },
+    "score": -3076
+  },
+  {
+    "name": "Kernzerstoerung",
+    "summary": {
+      "energy_mwh_delivered": 300,
+      "energy_mwh_demanded": 3000,
+      "deviation_mwh": 250,
+      "alarm_seconds_unacked": 900,
+      "violation_seconds": {
+        "1": 200,
+        "2": 200,
+        "3": 200
+      },
+      "scram_count": 1,
+      "fuel_damage": true,
+      "completed": false,
+      "difficulty": 3
+    },
+    "score": -6985
+  }
+]

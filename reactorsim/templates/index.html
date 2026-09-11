@@ -43,9 +43,11 @@
       </button>
     </div>
 
+    <h2 class="rs-start-headline" id="rs-scn-headline" hidden>{{ t.start_scenarios }}</h2>
+    <div class="rs-scn-list" id="rs-scn-list"></div>
+
     <div class="rs-start-actions">
       <button class="rs-btn rs-btn-primary" id="rs-start-go" type="button" disabled>{{ t.start_free_play }}</button>
-      <span class="rs-start-hint">{{ t.start_scenarios_soon }}</span>
     </div>
 
     <div class="rs-start-foot">
@@ -283,6 +285,27 @@
       </section>
 
     </div>
+  </div>
+</div>
+
+<!-- ── Einweisung ───────────────────────────────────────────────────────── -->
+<div class="rs-modal" id="rs-brief" hidden>
+  <div class="rs-modal-box">
+    <h2 id="rs-brief-title">{{ t.brief_title }}</h2>
+    <p id="rs-brief-text"></p>
+    <div class="rs-brief-meta" id="rs-brief-meta"></div>
+    <button type="button" class="rs-btn rs-btn-primary" id="rs-brief-go">{{ t.brief_start }}</button>
+  </div>
+</div>
+
+<!-- ── Auswertung ───────────────────────────────────────────────────────── -->
+<div class="rs-modal" id="rs-debrief" hidden>
+  <div class="rs-modal-box">
+    <h2>{{ t.debrief_title }}</h2>
+    <p class="rs-debrief-verdict" id="rs-debrief-verdict"></p>
+    <div class="rs-debrief-score" id="rs-debrief-score"></div>
+    <div id="rs-debrief-parts"></div>
+    <button type="button" class="rs-btn rs-btn-primary" id="rs-debrief-close">{{ t.btn_menu }}</button>
   </div>
 </div>
 
