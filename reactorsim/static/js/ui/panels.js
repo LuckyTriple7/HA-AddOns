@@ -248,7 +248,23 @@ export function buildPanels(engine, render) {
   const mimic = buildMimic ? buildMimic($('#rs-mimic')) : null;
 
   // ── Meldetafel ─────────────────────────────────────────────────────────────
-  const annun = new Annunciator($('#rs-annun'), $('#rs-log'), sp.trips || []);
+  // Eine Kachel allein sagt nur "was ansteht", nicht "was tun". Ein Klick holt
+  // die Erklärung dazu -- Titel und Text stehen unter dem Meldungsschlüssel
+  // plus "_help" in den Sprachdateien, damit jede neue Meldung ihre Hilfe
+  // gleich mitbringt statt sie an einer zweiten Stelle nachzutragen.
+  const alarmHelp = $('#rs-alarm-help');
+  const showAlarmHelp = (def) => {
+    setText($('#rs-alarm-help-title'), t(def.key));
+    setText($('#rs-alarm-help-text'), t(def.key + '_help'));
+    alarmHelp.hidden = false;
+  };
+  $('#rs-alarm-help-close').addEventListener('click', () => { alarmHelp.hidden = true; });
+  alarmHelp.addEventListener('click', (ev) => { if (ev.target === alarmHelp) alarmHelp.hidden = true; });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !alarmHelp.hidden) alarmHelp.hidden = true;
+  });
+
+  const annun = new Annunciator($('#rs-annun'), $('#rs-log'), sp.trips || [], showAlarmHelp);
   const horn = new Horn();
   let hornNext = 0;
 

@@ -260,6 +260,7 @@
           </span>
         </h2>
         <div class="rs-panel-body">
+          <p class="rs-ctl-hint">{{ t.hint_annun }}</p>
           <div class="rs-annun" id="rs-annun"></div>
           <div class="rs-group rs-group-grow">
             <h3>{{ t.panel_alarms_log }}</h3>
@@ -327,6 +328,15 @@
     <p class="rs-modal-detail" id="rs-destroyed-detail"></p>
     <ol class="rs-log" id="rs-destroyed-log"></ol>
     <button type="button" class="rs-btn rs-btn-primary" id="rs-destroyed-close">{{ t.btn_menu }}</button>
+  </div>
+</div>
+
+<!-- ── Alarmhilfe ───────────────────────────────────────────────────────── -->
+<div class="rs-modal" id="rs-alarm-help" hidden>
+  <div class="rs-modal-box">
+    <h2 id="rs-alarm-help-title"></h2>
+    <p id="rs-alarm-help-text"></p>
+    <button type="button" class="rs-btn rs-btn-primary" id="rs-alarm-help-close">{{ t.btn_close }}</button>
   </div>
 </div>
 

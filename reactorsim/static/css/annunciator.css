@@ -35,6 +35,10 @@
   user-select: none;
 }
 
+.rs-tile[role="button"] { cursor: pointer; }
+.rs-tile[role="button"]:hover,
+.rs-tile[role="button"]:focus-visible { border-color: var(--rs-fg-mute); outline: none; }
+
 /* Schwere 1 = Hinweis, 2 = Warnung, 3 = Auslösung. */
 .rs-tile[data-st="new"],
 .rs-tile[data-st="ack"],

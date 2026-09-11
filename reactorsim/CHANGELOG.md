@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.17
+
+- 💡 **Meldetafel erklärt sich jetzt.** Eine Kachel sagte bisher nur, dass etwas ansteht — nicht, was es bedeutet oder was zu tun ist. Klick (oder Enter/Leertaste) auf eine Meldung öffnet eine kurze Erklärung mit der empfohlenen Handlung, auf Deutsch und Englisch.
+
 ## 0.0.16
 
 - 🔧 **Generator-Beschriftung lag auf der Turbine und dem Abdampfrohr.** Text und Messwert standen zentriert über/unter dem Generatorkreis — geometrisch genau in der Spalte, in der die Turbinenkontur endet und das Abdampfrohr senkrecht nach unten läuft. Jetzt steht beides seitlich rechts vom Generator, frei von beiden.

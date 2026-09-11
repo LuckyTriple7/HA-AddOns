@@ -7,7 +7,7 @@ import { el, setAttr, setText } from './dom.js';
 import { t, clock } from './i18n.js';
 
 export class Annunciator {
-  constructor(container, logNode, defs) {
+  constructor(container, logNode, defs, onSelect) {
     this.container = container;
     this.logNode = logNode;
     this.tiles = new Map();
@@ -17,7 +17,17 @@ export class Annunciator {
         'data-sev': d.severity,
         'data-st': 'normal',
         title: t(d.key),
+        role: onSelect ? 'button' : null,
+        tabindex: onSelect ? '0' : null,
       }, [t(d.key)]);
+      // Eine Meldung erklärt sich nicht selbst -- Klick (oder Enter/Leertaste
+      // an der Tastatur) zeigt, was sie bedeutet und was zu tun ist.
+      if (onSelect) {
+        node.addEventListener('click', () => onSelect(d));
+        node.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onSelect(d); }
+        });
+      }
       this.tiles.set(d.id, node);
       container.append(node);
     }
