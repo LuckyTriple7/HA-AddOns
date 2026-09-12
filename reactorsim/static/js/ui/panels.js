@@ -85,10 +85,10 @@ export function buildPanels(engine, render) {
   const gSec = [
     { g: gauge({ label: t('val_sg_press'), min: 40, max: 100, digits: 1, unitKey: 'unit_bar',
         bands: [[40, 55, 'warn'], [55, 76, 'ok'], [76, 100, 'danger']] }),
-      get: (d, st) => st.p_sg },
+      get: (d) => d.p_sg },
     { g: gauge({ label: t('val_sg_level'), min: 0, max: 100, digits: 0, unitKey: 'unit_percent',
         bands: [[0, 25, 'danger'], [25, 40, 'warn'], [40, 70, 'ok'], [70, 100, 'warn']] }),
-      get: (d, st) => st.L_sg * 100 },
+      get: (d) => d.L_sg * 100 },
     { g: gauge({ label: t('val_generator'), min: 0, max: sp.P0_e * 1.15, digits: 0, unitKey: 'unit_mwe',
         bands: [[0, sp.P0_e, 'ok'], [sp.P0_e, sp.P0_e * 1.15, 'warn']] }),
       get: (d, st) => st.P_e },
@@ -221,7 +221,7 @@ export function buildPanels(engine, render) {
     ], { titleKey: 'trend_temp', fmt: 1 }),
     new TrendRecorder([
       { id: 'pprim', key: 'trend_ch_pprim', color: '#64d8ff', get: (st) => st.p_prim },
-      { id: 'psg', key: 'trend_ch_psg', color: '#cfd9e2', get: (st) => st.p_sg },
+      { id: 'psg', key: 'trend_ch_psg', color: '#cfd9e2', get: (st, d) => d.p_sg },
     ], { titleKey: 'trend_pressure', fmt: 1 }),
     new TrendRecorder([
       { id: 'rho', key: 'trend_ch_rho', color: '#ff4d4d', get: (st, d) => d.rho_pcm },
@@ -369,11 +369,16 @@ export function buildPanels(engine, render) {
     put('clock', clock(s.t_sim));
     put('subcool', num(d.subcooling, 1) + U('unit_kelvin'), d.subcooling < 8 ? 3 : (d.subcooling < 15 ? 1 : undefined));
     put('dnbr', num(d.dnbr, 2), d.dnbr < 1.3 ? 3 : (d.dnbr < 1.8 ? 1 : undefined));
-    put('p_sg', num(s.p_sg, 1) + U('unit_bar'));
+    // p_sg/L_sg heissen je nach Typ intern anders (Dampferzeuger, Kernbehaelter-
+    // Dom, Trommelabscheider) -- der Typ legt sie deshalb unter diesen festen
+    // Namen im abgeleiteten Zustand ab (siehe derived() je Typ), nicht im
+    // rohen Zustand. Wer hier s.p_sg/s.L_sg liest, bekommt bei SWR und RBMK
+    // dauerhaft undefined und die Anzeige bleibt fuer immer auf "—" stehen.
+    put('p_sg', num(d.p_sg, 1) + U('unit_bar'));
     put('w_steam', num(s.W_steam, 0) + U('unit_kgs'));
     put('gov', num(ctxPos(ctx.govValve) * 100, 0) + U('unit_percent'));
     put('p_cond', num(s.p_cond, 3) + U('unit_bar'));
-    put('l_sg', num(s.L_sg * 100, 0) + U('unit_percent'), s.L_sg < 0.3 || s.L_sg > 0.75 ? 1 : undefined);
+    put('l_sg', num(d.L_sg * 100, 0) + U('unit_percent'), d.L_sg < 0.3 || d.L_sg > 0.75 ? 1 : undefined);
     put('w_fw', num(s.W_fw, 0) + U('unit_kgs'));
     put('breaker', t(s.breaker ? 'state_on' : 'state_off'));
     put('xenon', num(s.X * 100, 1) + U('unit_percent'));

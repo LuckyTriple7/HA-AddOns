@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.35
+
+- 🐛 **SWR und RBMK: Dampferzeugerdruck/-füllstand zeigten dauerhaft "—".** Jeder Reaktortyp legt diese Werte intern unter eigenem Namen ab (SWR: `p_dome`/`L_rpv`, RBMK: `p_drum`/`L_drum`) und stellt sie im abgeleiteten Zustand unter dem gemeinsamen Namen `p_sg`/`L_sg` bereit — genau dafür gibt es diese Ebene. Die Anzeige (Rundinstrumente, Textzeile, Trendschreiber) griff aber direkt auf den rohen Zustand zu, wo dieser Name bei SWR und RBMK nie existiert. Nur beim DWR ging es zufällig gut, weil er selbst so heißt. Gefunden per Playwright-Livetest.
+
 ## 0.0.34
 
 - ☢️ **Notkondensator jetzt im Fließbild.** Seit 0.0.29 real simuliert (Naturumlauf, Fukushima-Physik), stand aber nur als Textzeile im Sekundärkreis-Panel — im Anlagenfließbild fehlte er ganz. Jetzt eigene Schleife am Behälterkopf mit Isolierventil (auf/zu per Zustand) und Vorratsanzeige.
