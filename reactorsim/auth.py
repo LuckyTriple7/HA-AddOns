@@ -26,6 +26,7 @@ import os
 import secrets
 import string
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -158,12 +159,15 @@ def safe_next(raw: str | None) -> str:
 
     Ohne diese Pruefung waere ?next=https://fremde.seite eine offene
     Weiterleitung: die Anmeldeseite der eigenen Anlage wuerde Besucher auf eine
-    fremde schicken.
+    fremde schicken. Das Ergebnis wird aus den geparsten Bestandteilen per
+    `urlunsplit` neu zusammengesetzt statt den Rohwert durchzureichen -- erst
+    das unterbricht die Taint-Kette (CodeQL erkennt sonst auch nach den
+    Pruefungen noch eine offene Weiterleitung).
     """
-    value = (raw or '/').replace('\\', '')
-    if not value.startswith('/') or value.startswith('//'):
+    value = (raw or '/').replace('\\', '/')
+    if any(ord(c) < 32 for c in value):
         return '/'
-    # Kein Schema, kein Host, keine Steuerzeichen.
-    if ':' in value.split('/')[0] or any(ord(c) < 32 for c in value):
+    parts = urlsplit(value)
+    if parts.scheme or parts.netloc or not parts.path.startswith('/') or parts.path.startswith('//'):
         return '/'
-    return value
+    return urlunsplit(('', '', parts.path, parts.query, parts.fragment))

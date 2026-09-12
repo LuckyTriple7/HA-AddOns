@@ -24,6 +24,8 @@ import threading
 import time
 import unicodedata
 
+from werkzeug.utils import safe_join
+
 import atomic_io
 
 SLOT_RE = re.compile(r'^[a-z0-9_-]{1,32}$')
@@ -59,16 +61,23 @@ class Store:
     def _player_dir(self, pid: str) -> str:
         if not self.valid_player(pid):
             raise ValueError('player')
-        return os.path.join(self.players, pid)
+        # safe_join statt os.path.join: das Muster oben laesst zwar keinen
+        # Trenner und kein ".." zu, aber CodeQL erkennt nur `safe_join` als
+        # Sanitizer fuer die Taint-Kette -- ohne den bleibt der Alert stehen.
+        path = safe_join(self.players, pid)
+        if path is None:
+            raise ValueError('player')
+        return path
 
     # ── Spielstaende ──────────────────────────────────────────────────────────
 
     def _slot_path(self, pid: str, slot: str) -> str:
         if not SLOT_RE.match(str(slot)):
             raise ValueError('slot')
-        # os.path.join mit geprueftem Muster: der Name kann keinen Trenner und
-        # kein ".." enthalten, weil das Muster sie nicht zulaesst.
-        return os.path.join(self._player_dir(pid), f'{slot}.json')
+        path = safe_join(self._player_dir(pid), f'{slot}.json')
+        if path is None:
+            raise ValueError('slot')
+        return path
 
     def list_saves(self, pid: str) -> list:
         try:

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.52
+
+- 🔒 **CodeQL-Alerts gefixt:** Pfad-Aufbau bei Spielstaenden/Bestenliste
+  (`persist.py`) lief bisher ueber `os.path.join` nach Regex-Pruefung --
+  CodeQL erkennt `re.match` nicht als Sanitizer, deshalb zusaetzlich durch
+  `werkzeug.safe_join` geschickt. Uebersetzungsdatei (`app.py`) kommt jetzt
+  aus einer festen `{sprache: dateiname}`-Zuordnung statt aus einem
+  f-String mit der Sprachkennung. Offene Weiterleitung nach dem Login
+  (`auth.safe_next`) setzt das Ziel jetzt aus den per `urlsplit` geparsten
+  Bestandteilen neu zusammen (`urlunsplit`), statt den prüften Rohwert
+  durchzureichen -- rein Haerten, keine Funktionsaenderung.
+
 ## 0.0.51
 
 - 🖼️ **Sicherheitsventil-Label saß auf dem Notkondensator-Label** (SWR-

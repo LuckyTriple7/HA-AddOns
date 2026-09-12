@@ -150,14 +150,21 @@ _LANGS = ('de', 'en')
 _translations: dict[str, dict] = {}
 
 
+_LOCALE_FILES = {'de': 'de.json', 'en': 'en.json'}
+
+
 def load_translations(lang: str) -> dict:
-    """Uebersetzungen liegen fest im Image, also einmal lesen und behalten."""
+    """Uebersetzungen liegen fest im Image, also einmal lesen und behalten.
+
+    Der Dateiname kommt aus `_LOCALE_FILES`, einem festen Literal je Sprache --
+    `lang` selbst geht nie in den Pfad ein, egal was hereinkommt."""
     lang = lang if lang in _LANGS else 'en'
     cached = _translations.get(lang)
     if cached is not None:
         return cached
+    filename = _LOCALE_FILES.get(lang, 'en.json')
     try:
-        with open(f'{LOCALES_PATH}/{lang}.json', 'r', encoding='utf-8') as f:
+        with open(os.path.join(LOCALES_PATH, filename), 'r', encoding='utf-8') as f:
             data = json.load(f)
     except (OSError, ValueError) as exc:
         log.error("Sprachdatei %s.json nicht lesbar: %s", lang, exc.__class__.__name__)
