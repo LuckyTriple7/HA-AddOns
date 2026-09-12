@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.44
+
+- 💡 **Hinweis: thermische Leistung sagt bei Kritikalitätsannäherung nichts.** Real UND in dieser Sim bleibt sie bei 0,0 % stehen, lange bevor beim Stäbeziehen etwas ansteht -- Periode und Reaktivitätsbilanz reagieren viel früher. Neuer Hinweistext im Kern-Panel, direkt unter der Leistungsanzeige.
+
 ## 0.0.43
 
 - 🔧 **Kaltstart: jetzt auch die Pumpen aus.** Hauptkühlmittel-/Umwälz-/Umwälzpumpen standen bisher trotz "Reaktor aus" auf voller Drehzahl -- der Kaltstart deckte nur Stäbe (und beim DWR Bor) ab. Jetzt stehen sie zu Beginn (Anzeige "stopped", nicht "tripped" -- kein Störungsauslauf, einfach nie gestartet), Naturumlauf hält den Kern trotzdem sicher. Der Spieler schaltet sie über denselben Knopf zu, mit dem er sonst eine ausgefallene Pumpe neu startet. Betrifft alle drei Typen.

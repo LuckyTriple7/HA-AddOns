@@ -425,6 +425,7 @@
   "hint_fw": "In Hand füllst oder entleerst du den Dampferzeuger selbst.",
   "hint_pzr": "Heizen hebt den Druck, Sprühen senkt ihn.",
   "hint_rods": "In Hand fährst du die Stäbe mit Ziehen und Einfahren.",
+  "hint_low_power": "Bei sehr niedriger Leistung sagt die thermische Leistung kaum etwas -- sie bleibt bei 0,0 %, lange bevor überhaupt etwas passiert. Periode und Reaktivitätsbilanz reagieren viel früher und zeigen den Fortschritt schon beim Stabziehen.",
   "hint_annun": "Klicke auf eine Meldung für Hilfe, was zu tun ist.",
   "hint_panel_window": "Als Fenster öffnen"
 }
