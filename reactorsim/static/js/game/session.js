@@ -106,7 +106,7 @@ export class Session {
     this.run.accumulate(s, d, worstSeverity, dt);
     this.unacked = unackedSeconds;
 
-    const failed = this.run.checkFail(s, d);
+    const failed = this.run.checkFail(s, d, dt);
     if (failed) { this._finish(false, failed); return; }
     if (s.t_sim >= this.scenario.duration) { this._finish(true, null); }
   }

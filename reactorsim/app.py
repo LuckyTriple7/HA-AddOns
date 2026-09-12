@@ -13,6 +13,7 @@ JSON-Schnittstelle fuer Spielstaende und Bestenliste.
 import json
 import logging
 import os
+import secrets
 import signal
 
 from urllib.parse import quote
@@ -259,6 +260,66 @@ def _set_player_cookie(resp):
     return resp
 
 
+# ── Sicherheits-Kopfzeilen ────────────────────────────────────────────────────
+#
+# Die Seite laedt ausschliesslich eigene Dateien: kein fremdes CDN, keine
+# eingebettete Schrift, kein Zaehlpixel. Die Richtlinie darf deshalb streng
+# sein -- 'self' und sonst nichts.
+#
+# Zwei Inline-Bloecke gibt es trotzdem, beide aus gutem Grund: die
+# Uebersetzungstabelle in index.html (als Datei waere sie ein zweiter
+# Rundlauf fuer etwas, das ohnehin zur Seite gehoert) und das vollstaendige
+# CSS in login.html (die Anmeldeseite darf keine Datei nachladen, die hinter
+# derselben Anmeldung liegt). Beide bekommen eine Nonce je Antwort statt
+# 'unsafe-inline' -- sonst waere jedes eingeschleuste <script> mit erlaubt,
+# und die Richtlinie haette gegen genau den Fall nichts mehr zu sagen.
+#
+# `frame-ancestors 'none'` ist der Grund fuer den ganzen Block: ohne ihn
+# laesst sich das Anmeldeformular in einen fremden Rahmen setzen, und der
+# Dienst haengt auf einem offenen LAN-Port.
+
+_STATIC_HEADERS = {
+    # Aelteren Browsern, die frame-ancestors noch nicht kennen, dasselbe sagen.
+    'X-Frame-Options': 'DENY',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    # Nichts davon braucht das Spiel, und was nicht gebraucht wird, bleibt zu.
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+}
+
+
+def _csp_nonce() -> str:
+    """Eine Nonce je Antwort. Wiederverwendung ueber Antworten hinweg waere
+    dasselbe wie keine."""
+    if 'csp_nonce' not in g:
+        g.csp_nonce = secrets.token_urlsafe(16)
+    return g.csp_nonce
+
+
+@app.context_processor
+def _inject_nonce():
+    """`csp_nonce` steht damit in jedem Template, ohne dass jeder
+    render_template()-Aufruf sie durchreichen muss."""
+    return {'csp_nonce': _csp_nonce}
+
+
+@app.after_request
+def _security_headers(resp):
+    for key, value in _STATIC_HEADERS.items():
+        resp.headers.setdefault(key, value)
+    # Nur bauen, wenn die Antwort ueberhaupt eine Nonce gezogen hat -- fuer
+    # eine JSON-Antwort oder eine Datei aus static/ gibt es nichts inline,
+    # und eine Nonce ohne Traeger ist nur Rauschen im Kopf.
+    nonce = f" 'nonce-{g.csp_nonce}'" if 'csp_nonce' in g else ''
+    resp.headers.setdefault('Content-Security-Policy', (
+        "default-src 'self'; img-src 'self' data:; media-src 'self'; "
+        f"style-src 'self'{nonce}; script-src 'self'{nonce}; "
+        "connect-src 'self'; base-uri 'none'; form-action 'self'; "
+        "frame-ancestors 'none'"
+    ))
+    return resp
+
+
 def _limited(bucket: str, limit: int, window_s: float) -> bool:
     """Ratenbegrenzung je Spieler UND je Absenderadresse."""
     pid = _player_id()
@@ -389,6 +450,16 @@ def scores_add():
     why = scoring.validate_summary(summary, scn, REACTOR_P0[reactor])
     if why:
         return jsonify({'error': 'implausible', 'detail': why}), 400
+
+    # Der Schwierigkeitsgrad kommt AUS DER SZENARIODATEI, nie aus der Anfrage.
+    # Er geht als Faktor in den Abschlussbonus ein, und zwar ungedeckelt: mit
+    # dem mitgeschickten Wert liess sich der Punktestand beliebig hoch
+    # schrauben (difficulty=1e6, completed=true ergab 250 Mio Punkte, und
+    # validate_summary sah nichts Unplausibles -- es prueft jede andere
+    # Kennzahl, nur diese nicht). Ueberschreiben statt pruefen: so kann das
+    # Feld gar nicht erst falsch sein.
+    summary = dict(summary)
+    summary['difficulty'] = scn.get('difficulty', 1)
 
     name = STORE.clean_name(body.get('name'))
     if not name:

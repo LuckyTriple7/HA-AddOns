@@ -16,7 +16,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Erst prüfen, dann bauen. Vorher ging jeder VERSION-Bump ungeprüft als
+  # Image nach GHCR -- die 68 Tests im Ordner liefen ausschließlich von Hand,
+  # und ein rot gewordener Test wäre erst in der laufenden Anlage aufgefallen.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Abhängigkeiten
+        run: |
+          pip install --no-cache-dir -r reactorsim/requirements.txt pytest
+
+      - name: Python-Tests
+        working-directory: reactorsim
+        run: pytest tests/ -q
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Die Simulation selbst ist JavaScript -- ohne diesen Schritt prüft die
+      # CI ausgerechnet den Teil nicht, um den es in diesem Projekt geht.
+      #
+      # Das Muster steht in Anführungszeichen, damit node es selbst auflöst,
+      # und es ist bewusst enger als `tests/`: daneben liegt tests/tools/ mit
+      # Untersuchungsskripten, die keine Zusicherungen enthalten und beim
+      # Einsammeln über das ganze Verzeichnis als leerer Fehlschlag zählen.
+      - name: Simulationstests
+        working-directory: reactorsim
+        run: node --test "tests/test-*.mjs"
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

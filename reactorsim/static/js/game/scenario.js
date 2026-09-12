@@ -130,8 +130,18 @@ export class RunState {
     if (s.destroyed) this.destroyed = true;
   }
 
-  /** Prüft die Fehlbedingungen des Szenarios. @returns {string|null} */
-  checkFail(s, d) {
+  /**
+   * Prüft die Fehlbedingungen des Szenarios.
+   *
+   * `dt` muss herein, weil grid_deviation eine Zeit AUFSUMMIERT. Vorher stand
+   * hier die Schrittweite als Zahl (0,05) fest im Code -- richtig, solange
+   * loop.js mit genau diesem DT rechnet, und still falsch in dem Augenblick,
+   * in dem irgendwo anders ein anderer Schritt benutzt wird. Eine Zeit, die
+   * sich ihre eigene Schrittweite ausdenkt, ist keine Zeit.
+   *
+   * @returns {string|null}
+   */
+  checkFail(s, d, dt) {
     if (this.failed) return this.failed;
     for (const f of this.scenario.def.fail || []) {
       if (f.if === 'difficulty>=3' && this.scenario.difficulty < 3) continue;
@@ -140,7 +150,7 @@ export class RunState {
       if (f.type === 'grid_deviation') {
         const dev = Math.abs(s.P_e - this.scenario.demandAt(s.t_sim));
         if (dev > f.mw) {
-          this._devFor = (this._devFor || 0) + 0.05;
+          this._devFor = (this._devFor || 0) + dt;
           if (this._devFor > (f.for_s || 60)) return (this.failed = 'fail_grid_deviation');
         } else this._devFor = 0;
       }

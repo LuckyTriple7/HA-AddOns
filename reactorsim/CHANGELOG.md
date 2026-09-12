@@ -1,5 +1,80 @@
 # Changelog
 
+## 0.0.54
+
+Durchsicht auf Fehler und Optimierungen -- nichts davon fiel im Spiel auf,
+zwei davon hätten es früher oder später getan.
+
+- 🔒 **Bestenliste war beliebig manipulierbar.** Der Schwierigkeitsgrad ging
+  als Faktor in den Abschlussbonus ein, und zwar ohne Deckel -- aber er kam
+  aus der Anfrage. `validate_summary()` prüft jede andere Kennzahl auf
+  Plausibilität, diese nicht: `difficulty: 1000000` mit `completed: true`
+  ergab **250 001 000 Punkte** und ging glatt durch. Der Wert kommt jetzt aus
+  der Szenariodatei und wird überschrieben statt geprüft -- so kann er gar
+  nicht erst falsch sein, und ein Lauf ohne das Feld bekommt trotzdem den
+  richtigen Bonus.
+- 🔒 **Sicherheits-Kopfzeilen ergänzt.** Es gab keine. Der Dienst hängt auf
+  einem offenen LAN-Port, und ohne `frame-ancestors` ließ sich die
+  Anmeldeseite in einen fremden Rahmen setzen. Jetzt CSP (streng, `'self'`
+  und sonst nichts), `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy`, `Permissions-Policy`. Die zwei bewusst eingebetteten
+  Blöcke -- Übersetzungstabelle in `index.html`, vollständiges CSS in
+  `login.html` -- bekommen eine Nonce je Antwort statt `'unsafe-inline'`:
+  mit `unsafe-inline` wäre jedes eingeschleuste `<script>` mit erlaubt, und
+  die Richtlinie hätte gegen genau den Fall nichts mehr zu sagen.
+- 🐛 **Vorspulen nach Kernzerstörung setzte die Anlage wieder in Gang.** Die
+  Xenon-Vorausschau (`fastForwardXenon`) prüfte am Ende auf
+  `destroyed && !endShown`. Die Bildschleife läuft während ihrer Pausen aber
+  weiter und kann den Kernzerstörungs-Dialog selbst öffnen -- dann stand
+  `endShown` schon, der Zweig fiel durch, und der Zweig für den Normalfall
+  schrieb "Zeitsprung" ins Protokoll und stellte den Zeitraffer auf 1×, mit
+  offenem Kernzerstörungs-Dialog davor.
+- 🐛 **Netzabweichung wurde in Schritten gezählt, nicht in Sekunden.**
+  `RunState.checkFail()` summierte die Dauer mit einer fest im Code stehenden
+  `0.05` statt mit dem übergebenen `dt`. Heute zufällig richtig, weil
+  `loop.js` mit genau dieser Schrittweite rechnet -- und in dem Augenblick
+  lautlos falsch, in dem irgendwo eine andere benutzt wird. `dt` kommt jetzt
+  aus dem Aufruf, ein Test hält zwei Schrittweiten gegeneinander.
+- 🐛 **Ratenbegrenzung wuchs unbegrenzt.** Aufgeräumt wurden nur Einträge mit
+  leerer Trefferliste. Ein Spieler-Token, das einmal getroffen und nie wieder
+  gesehen wurde, blieb für immer stehen -- bei einem Cookie je Gerät wuchs die
+  Tabelle über die Laufzeit des Containers monoton mit. Jetzt fliegt raus, was
+  außerhalb seines Zeitfensters liegt.
+- ✅ **CI baut nicht mehr ungeprüft.** Der Workflow schob bei jedem
+  VERSION-Bump ein Image nach GHCR, ohne einen einzigen Test zu starten -- die
+  75 Tests im Ordner liefen ausschließlich von Hand, darunter die komplette
+  Simulationsprüfung. Jetzt laufen `pytest` und `node --test` vor dem Bau, und
+  der Bau hängt am Ergebnis.
+- ✅ **Die zwei dauerhaft roten Tests sind repariert**, statt weiter im Backlog
+  zu stehen. `test_dockerfile.py` verglich Windows-Backslash-Pfade gegen die
+  Schrägstrich-Ziele des Dockerfiles und scheiterte dort an *jedem* Modul in
+  einem Unterordner -- also genau an denen, die er prüfen soll. `test_auth.py`
+  prüfte POSIX-Rechtebits auf NTFS. Ein roter Test, den man zu ignorieren
+  lernt, prüft nichts mehr; der Dockerfile-Test ist ausgerechnet der, der ein
+  vergessenes `COPY` fangen soll. Nebenbei: `auth.py` fehlte in seiner Liste.
+- ⚡ **`sanitize()` baut keine Wegwerf-Arrays mehr.** Es lief über
+  `Object.entries(RANGES)` und legte damit in jedem Rechenschritt vierzehn
+  frische Paar-Arrays an -- bis zu 1200-mal je Sekunde im 60-fachen
+  Zeitraffer, für eine konstante Tabelle.
+- ⚡ **`write_save()` zählt nur noch.** Für die Slot-Obergrenze öffnete und
+  parste es über `list_saves()` bis zu zwanzig Spielstände, um nichts davon
+  zu benutzen.
+- 🧹 `.dockerignore` ergänzt. Ändert nichts am Image -- die Wurzeldateien
+  werden ohnehin einzeln kopiert --, hält aber `dev_data/` mit `auth.json`
+  und `secret.key` aus dem Build-Kontext.
+- 📋 Backlog neu geschrieben: die beiden erledigten Test-Punkte raus, dafür
+  die zurückgestellten Erweiterungen mit Begründung drin (serverseitige
+  Nachrechnung, Wiedergabe, Web Worker, vierter Reaktortyp, CSV-Export,
+  Mehrbenutzerbetrieb).
+
+Nicht übernommen: ein Puffer für `engine.derive()`. Der Wert wird je Bild
+sechsmal gebraucht und jedes Mal neu gerechnet, das sah nach einem leichten
+Gewinn aus. Gemessen sind es ein paar Mikrosekunden von sechzehn
+Millisekunden je Bild -- und der Puffer kostete genau die Eigenschaft, um die
+es im Kopf von `sim/state.js` geht: wer den Zustand von außen anfasst und
+danach `derive()` liest, bekam den Wert von vorher. Ein Test fiel sofort
+darauf herein. Rückgängig gemacht, Begründung steht jetzt an `derive()`.
+
 ## 0.0.53
 
 - 🖼️ **Beschriftungen und Messwerte lagen auf Rohrleitungen** -- über alle

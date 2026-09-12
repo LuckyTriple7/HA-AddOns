@@ -443,7 +443,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
   // Die gesamte Uebersetzungstabelle auf einmal -- bei mehreren hundert
   // Schluesseln ist eine Liste einzelner const-Zuweisungen unwartbar und laeuft
   // garantiert auseinander. Bewusst window.* und kein top-level const: sobald

@@ -560,10 +560,17 @@ async function fastForwardXenon() {
   // Genau einer der drei Ausgaenge -- ein Stoerfall waehrend des Vorspulens
   // darf nie zugleich als "Xenon abgeklungen, weiter geht's" im Protokoll
   // landen.
+  //
+  // Der zweite Zweig fragt NUR nach s.destroyed, nicht zusaetzlich nach
+  // !app.endShown: die rAF-Schleife laeuft waehrend der await-Pausen dieser
+  // Funktion weiter und kann showDestroyed() selbst ausloesen. Dann stand
+  // endShown schon, der Zweig fiel durch, und der else-Zweig setzte nach der
+  // Kernzerstoerung "Zeitsprung" ins Protokoll und die Anlage wieder auf 1x --
+  // mit offenem Kernzerstoerungs-Dialog davor.
   if (s.fault) {
     showFault(s.fault);
-  } else if (s.destroyed && !app.endShown) {
-    showDestroyed();
+  } else if (s.destroyed) {
+    if (!app.endShown) showDestroyed();
   } else {
     app.engine.ctx.log.push({ t: s.t_sim, key: 'event_time_skip', severity: 1 });
     setSpeed(1);

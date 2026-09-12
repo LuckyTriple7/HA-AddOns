@@ -166,8 +166,13 @@ def test_generated_password_when_none_configured(tmp_path, caplog):
     stored = (tmp_path / 'auth.json').read_text(encoding='utf-8')
     assert generated not in stored, 'Klartextpasswort auf der Platte'
     assert 'password_hash' in stored
-    assert oct(os.stat(tmp_path / 'auth.json').st_mode)[-3:] == '600'
-    assert oct(os.stat(tmp_path / 'secret.key').st_mode)[-3:] == '600'
+    # NTFS kennt keine POSIX-Rechtebits: os.stat().st_mode liefert unter
+    # Windows immer 666, ganz gleich was chmod() gerufen hat. Der Schutz gilt
+    # dort ueber die Dateisystem-ACL des Benutzerprofils. Geprueft wird die
+    # Zusicherung deshalb da, wo sie etwas bedeutet -- im Image und in der CI.
+    if os.name == 'posix':
+        assert oct(os.stat(tmp_path / 'auth.json').st_mode)[-3:] == '600'
+        assert oct(os.stat(tmp_path / 'secret.key').st_mode)[-3:] == '600'
 
     # Neustart ohne gesetztes Passwort: der gespeicherte Hash gilt weiter,
     # es wird kein zweites erzeugt.

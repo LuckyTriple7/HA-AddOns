@@ -35,6 +35,11 @@ def _copy_targets():
 
 
 def _covered(rel_path, targets):
+    # Die COPY-Ziele stehen mit Schraegstrich im Dockerfile, os.path.relpath()
+    # liefert unter Windows aber Backslashes. Ohne die Normalisierung schlug
+    # der Test dort bei JEDEM Modul in einem Unterordner fehl -- also genau bei
+    # denen, die er pruefen soll, und das ganz ohne echten Befund.
+    rel_path = rel_path.replace(os.sep, '/')
     for t in targets:
         if rel_path == t or rel_path.startswith(t + '/'):
             return True
@@ -71,7 +76,7 @@ def test_every_reachable_module_is_copied():
 
 def test_python_modules_are_copied():
     targets = _copy_targets()
-    for name in ('app.py', 'persist.py', 'scoring.py', 'atomic_io.py', 'VERSION'):
+    for name in ('app.py', 'auth.py', 'persist.py', 'scoring.py', 'atomic_io.py', 'VERSION'):
         assert _covered(name, targets), f'{name} fehlt im Dockerfile'
 
 

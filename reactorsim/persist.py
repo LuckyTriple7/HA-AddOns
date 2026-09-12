@@ -79,20 +79,33 @@ class Store:
             raise ValueError('slot')
         return path
 
+    @staticmethod
+    def _is_save_name(name: str) -> bool:
+        """".prefs.json" liegt im selben Ordner (siehe unten), ist aber kein
+        Spielstand -- ein Punkt am Anfang kann nie aus einem Slot-Namen
+        entstehen (SLOT_RE laesst keinen Punkt zu), also ist der Name
+        eindeutig reserviert."""
+        return name.endswith('.json') and not name.startswith('.')
+
+    def count_saves(self, pid: str) -> int:
+        """Nur zaehlen, nicht lesen -- siehe write_save()."""
+        try:
+            return sum(1 for name in os.listdir(self._player_dir(pid))
+                       if self._is_save_name(name))
+        except (OSError, ValueError):
+            return 0
+
     def list_saves(self, pid: str) -> list:
         try:
-            names = sorted(os.listdir(self._player_dir(pid)))
+            player_dir = self._player_dir(pid)
+            names = sorted(os.listdir(player_dir))
         except (OSError, ValueError):
             return []
         out = []
         for name in names:
-            # ".prefs.json" liegt im selben Ordner (siehe unten), ist aber kein
-            # Spielstand -- ein Punkt am Anfang kann nie aus einem Slot-Namen
-            # entstehen (SLOT_RE laesst keinen Punkt zu), also ist der Name
-            # eindeutig reserviert.
-            if not name.endswith('.json') or name.startswith('.'):
+            if not self._is_save_name(name):
                 continue
-            path = os.path.join(self._player_dir(pid), name)
+            path = os.path.join(player_dir, name)
             try:
                 stat = os.stat(path)
                 with open(path, 'r', encoding='utf-8') as f:
@@ -122,8 +135,11 @@ class Store:
         if len(raw.encode('utf-8')) > MAX_SAVE_BYTES:
             return 'too_large'
         path = self._slot_path(pid, slot)
-        existing = self.list_saves(pid)
-        if len(existing) >= MAX_SLOTS and not os.path.exists(path):
+        # Zaehlen, nicht lesen: list_saves() oeffnet und parst jeden Slot, um
+        # Reaktortyp und Zeitpunkt herauszuholen -- fuer eine reine
+        # Obergrenzenpruefung sind das bis zu zwanzig json.load() je
+        # Speichervorgang, und keines davon wird hier gebraucht.
+        if self.count_saves(pid) >= MAX_SLOTS and not os.path.exists(path):
             return 'too_many_slots'
         os.makedirs(self._player_dir(pid), exist_ok=True)
         atomic_io.write_text(path, raw)
@@ -230,22 +246,46 @@ class RateLimit:
     teilen. (MyPage ist beim gleichen Wechsel ueber genau das gestolpert.)
     """
 
+    # Ab so vielen Schluesseln wird aufgeraeumt. Der Aufwand faellt dann einmal
+    # an und nicht bei jeder Anfrage.
+    _SWEEP_AT = 4096
+
     def __init__(self):
-        self._hits: dict[str, list] = {}
+        # key -> (window_s, [Zeitpunkte]). Das Fenster gehoert mit in den
+        # Eintrag: ohne es kann das Aufraeumen nicht entscheiden, ob ein
+        # Schluessel abgelaufen ist -- die Fenster reichen von 60 s (Anmeldung)
+        # bis 86400 s (Tagesgrenze der Bestenliste).
+        self._hits: dict[str, tuple[float, list]] = {}
         self._lock = threading.Lock()
+
+    def _sweep(self, now: float) -> None:
+        """Abgelaufene Schluessel wegwerfen.
+
+        Vorher wurden nur Schluessel mit LEERER Liste entfernt -- ein
+        Spieler-Token, das einmal getroffen und nie wieder gesehen wurde,
+        behielt seinen Eintrag fuer immer. Bei einem Cookie je Geraet und
+        einem Schluessel je Eimer wuchs die Tabelle damit ueber die Laufzeit
+        des Containers monoton mit.
+        """
+        dead = [k for k, (window, times) in self._hits.items()
+                if not times or times[-1] <= now - window]
+        for k in dead:
+            self._hits.pop(k, None)
 
     def hit(self, key: str, limit: int, window_s: float) -> bool:
         """@return True, wenn die Anfrage durchgelassen wird."""
         now = time.monotonic()
         with self._lock:
-            times = self._hits.setdefault(key, [])
+            _, times = self._hits.get(key) or (window_s, [])
             cutoff = now - window_s
-            times[:] = [t for t in times if t > cutoff]
+            times = [t for t in times if t > cutoff]
+            # Fenster mitschreiben: derselbe Schluessel wird immer mit
+            # derselben Grenze gerufen, aber verlassen muss man sich nicht
+            # darauf -- der zuletzt benutzte Wert ist der richtige.
+            self._hits[key] = (window_s, times)
             if len(times) >= limit:
                 return False
             times.append(now)
-            # Verwaiste Schluessel aufraeumen, damit der Speicher nicht waechst.
-            if len(self._hits) > 4096:
-                for k in [k for k, v in self._hits.items() if not v]:
-                    self._hits.pop(k, None)
+            if len(self._hits) > self._SWEEP_AT:
+                self._sweep(now)
             return True

@@ -43,6 +43,13 @@ export const RANGES = {
   alphaBar: [0, 1],
 };
 
+/** Dieselben Grenzen als flache Liste. sanitize() laeuft in jedem
+ *  Rechenschritt, also bis zu 1200-mal je Sekunde im 60-fachen Zeitraffer;
+ *  `Object.entries(RANGES)` hat dabei jedes Mal vierzehn frische Paar-Arrays
+ *  gebaut, nur um sie sofort wieder wegzuwerfen. Der Inhalt ist konstant --
+ *  einmal beim Laden reicht. */
+const RANGE_LIST = Object.entries(RANGES).map(([key, [lo, hi]]) => ({ key, lo, hi }));
+
 export function createState(spec, opts = {}) {
   const n = opts.n !== undefined ? opts.n : 1.0;
   const kin = opts.kin;
@@ -118,7 +125,8 @@ export function createState(spec, opts = {}) {
  * @returns {boolean} true, wenn der Zustand brauchbar ist
  */
 export function sanitize(s) {
-  for (const [key, [lo, hi]] of Object.entries(RANGES)) {
+  for (let i = 0; i < RANGE_LIST.length; i++) {
+    const { key, lo, hi } = RANGE_LIST[i];
     const v = s[key];
     if (v === undefined) continue;
     if (!Number.isFinite(v)) {

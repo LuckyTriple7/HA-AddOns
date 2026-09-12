@@ -290,7 +290,17 @@ export function createEngine(plant, opts = {}) {
     }
   }
 
-  /** Alles, was die Anzeige braucht und nicht im Zustand steht. */
+  /**
+   * Alles, was die Anzeige braucht und nicht im Zustand steht.
+   *
+   * Wird je Bild mehrfach gerufen (Meldetafel, Spielschicht, fuenf Stellen in
+   * ui/panels.js) und rechnet jedes Mal neu. Ein Puffer dafuer war da und ist
+   * wieder raus: er brachte im Messbereich nichts -- drei gesparte Aufrufe je
+   * Bild sind ein paar Mikrosekunden von sechzehn Millisekunden -- und kostete
+   * genau die Eigenschaft, um die es in sim/state.js im Kopf geht. Wer den
+   * Zustand von aussen anfasst (ein Test, eine Bedienung im angehaltenen
+   * Zustand) und danach derive() liest, bekam den Wert von vorher.
+   */
   function derive() {
     const P_th = s.P_th;
     const load = P_th / spec.P0_th;

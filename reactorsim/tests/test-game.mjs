@@ -6,7 +6,7 @@ import { readFile, readdir } from 'node:fs/promises';
 
 import { createEngine } from '../static/js/sim/engine.js';
 import { getPlant } from '../static/js/plants/index.js';
-import { Scenario, demandAt } from '../static/js/game/scenario.js';
+import { Scenario, RunState, demandAt } from '../static/js/game/scenario.js';
 import { score } from '../static/js/game/scoring.js';
 import { Session, PHASE } from '../static/js/game/session.js';
 
@@ -172,4 +172,38 @@ test('Wertung des Clients und des Servers stimmen überein', async () => {
     assert.equal(score(f.summary).score, f.score,
       `Fixture ${f.name}: ${score(f.summary).score} statt ${f.score}`);
   }
+});
+
+test('Netzabweichung wird in Sekunden gezählt, nicht in Schritten', () => {
+  // Die Bedingung zaehlt, WIE LANGE die Abweichung ansteht. Vorher stand die
+  // Schrittweite als Zahl (0,05) fest im Code statt aus dem Aufruf zu kommen:
+  // mit jedem anderen dt lief die Uhr um genau dieses Verhaeltnis falsch, und
+  // zwar lautlos. Also zweimal dieselbe Sim-Zeit, einmal in feinen und einmal
+  // in groben Schritten -- beide Laeufe muessen im selben Augenblick scheitern.
+  const def = {
+    id: 'test', reactor: 'pwr', duration_s: 600, difficulty: 1,
+    demand: [{ t: 0, mw: 1400 }],
+    grid: { tolerance_mw: 50 },
+    fail: [{ type: 'grid_deviation', mw: 100, for_s: 30 }],
+  };
+  const spec = { P0_e: 1400 };
+
+  const runUntilFail = (dt) => {
+    const run = new RunState(new Scenario(def), spec);
+    // Generator aus, Anforderung steht: die Abweichung ist von der ersten
+    // Sekunde an groesser als die erlaubten 100 MW.
+    const s = { t_sim: 0, P_e: 0, destroyed: false, scram: { active: false } };
+    for (let i = 0; i < Math.round(120 / dt); i++) {
+      s.t_sim += dt;
+      if (run.checkFail(s, {}, dt)) return s.t_sim;
+    }
+    return null;
+  };
+
+  const fine = runUntilFail(0.05);
+  const coarse = runUntilFail(0.5);
+  assert.ok(fine !== null && coarse !== null, `kein Fehlschlag: ${fine} / ${coarse}`);
+  assert.ok(Math.abs(fine - 30) < 1, `feine Schritte scheiterten bei ${fine} s statt 30 s`);
+  assert.ok(Math.abs(coarse - fine) < 1,
+    `grobe Schritte scheiterten bei ${coarse} s, feine bei ${fine} s`);
 });

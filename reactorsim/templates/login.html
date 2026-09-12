@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <meta name="robots" content="noindex, nofollow">
 <title>{{ t.app_title }} — {{ t.login_title }}</title>
-<style>
+<style nonce="{{ csp_nonce() }}">
   /* Bewusst alles hier drin: die Anmeldeseite darf keine Datei nachladen, die
      hinter derselben Anmeldung liegt. */
   :root { color-scheme: dark; }

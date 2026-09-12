@@ -116,6 +116,67 @@ def test_score_is_recomputed_not_trusted(client):
     assert data['score'] == scoring.score(_summary())['score']
 
 
+def test_difficulty_comes_from_the_scenario_not_the_request(client):
+    """Der Schwierigkeitsgrad ist ein Faktor im Abschlussbonus, und zwar ohne
+    Deckel. Kam er aus der Anfrage, liess sich der Punktestand beliebig hoch
+    schrauben -- validate_summary prueft jede andere Kennzahl, diese nicht:
+    difficulty=1e6 mit completed=true ergab 250 Mio Punkte und ging glatt
+    durch. Jetzt gewinnt die Szenariodatei."""
+    import scoring
+    r = client.post('/api/highscores',
+                    json={'name': 'Schummler',
+                          'summary': _summary(difficulty=1_000_000)})
+    assert r.status_code == 200
+    # pwr_load_follow steht in der Datei auf difficulty 1 -- genau der Wert,
+    # den die ehrliche Rechnung benutzt.
+    assert r.get_json()['score'] == scoring.score(_summary(difficulty=1))['score']
+
+
+def test_difficulty_is_filled_in_when_missing(client):
+    """Ueberschreiben statt pruefen heisst auch: ein Lauf ohne das Feld
+    bekommt trotzdem den richtigen Bonus, statt still auf 1 zurueckzufallen."""
+    import scoring
+    # pwr_turbine_trip steht in der Datei auf difficulty 2 und dauert eine
+    # Stunde -- die Kennzahlen muessen dazu passen, sonst greift vorher die
+    # Plausibilitaetspruefung.
+    summary = _summary(scenario='pwr_turbine_trip', duration_s=3600.0,
+                       energy_mwh_delivered=1350.0, energy_mwh_demanded=1400.0,
+                       violation_seconds={'1': 30, '2': 0, '3': 0})
+    summary.pop('difficulty')
+    r = client.post('/api/highscores', json={'name': 'X', 'summary': summary})
+    assert r.status_code == 200
+    assert r.get_json()['score'] == scoring.score({**summary, 'difficulty': 2})['score']
+
+
+def test_security_headers_are_set(client):
+    """Der Dienst haengt auf einem offenen LAN-Port. Ohne frame-ancestors
+    laesst sich das Anmeldeformular in einen fremden Rahmen setzen."""
+    for path in ('/', '/login'):
+        h = client.get(path).headers
+        csp = h['Content-Security-Policy']
+        assert "frame-ancestors 'none'" in csp, path
+        assert "default-src 'self'" in csp, path
+        assert "unsafe-inline" not in csp, path
+        assert h['X-Content-Type-Options'] == 'nosniff', path
+        assert h['X-Frame-Options'] == 'DENY', path
+
+
+def test_inline_blocks_carry_a_fresh_nonce(client):
+    """Die Uebersetzungstabelle (index.html) und das Anmelde-CSS (login.html)
+    stehen inline. Ohne passende Nonce im Kopf wuerde die eigene Seite an der
+    eigenen Richtlinie scheitern -- und eine ueber Antworten hinweg gleiche
+    Nonce waere dasselbe wie keine."""
+    import re
+    seen = set()
+    for path in ('/', '/login'):
+        r = client.get(path)
+        html = r.get_data(as_text=True)
+        nonce = re.search(r'nonce="([^"]+)"', html).group(1)
+        assert f"'nonce-{nonce}'" in r.headers['Content-Security-Policy'], path
+        seen.add(nonce)
+    assert len(seen) == 2, 'Nonce war zweimal dieselbe'
+
+
 @pytest.mark.parametrize('over,why', [
     ({'energy_mwh_delivered': 999999}, 'energy_impossible'),
     ({'duration_s': 999999}, 'duration_too_long'),
@@ -166,6 +227,62 @@ def test_scores_are_sorted_and_capped(client, tmp_path):
     assert len(scores) <= persist.MAX_SCORES_PER_LIST
     assert scores == sorted(scores, key=lambda e: e['score'], reverse=True)
     assert scores[0]['score'] == 590
+
+
+def test_rate_limit_forgets_expired_keys(monkeypatch):
+    """Aufgeraeumt wurden vorher nur Schluessel mit LEERER Liste. Ein
+    Spieler-Token, das einmal getroffen und nie wieder gesehen wurde, behielt
+    seinen Eintrag fuer immer -- bei einem Cookie je Geraet wuchs die Tabelle
+    ueber die Laufzeit des Containers monoton mit."""
+    import persist
+    limits = persist.RateLimit()
+    monkeypatch.setattr(limits, '_SWEEP_AT', 4)
+
+    now = [1000.0]
+    monkeypatch.setattr(persist.time, 'monotonic', lambda: now[0])
+
+    for i in range(4):
+        assert limits.hit(f'alt:{i}', 5, 60)
+    assert len(limits._hits) == 4
+
+    # Eine Stunde spaeter ist keiner der alten Schluessel mehr im Fenster.
+    now[0] += 3600
+    limits.hit('neu', 5, 60)
+    assert set(limits._hits) == {'neu'}
+
+
+def test_rate_limit_keeps_live_keys_across_a_sweep(monkeypatch):
+    """Aufraeumen darf nur wegwerfen, was abgelaufen ist -- sonst hebt der
+    Speicherschutz die Grenze auf, die er schuetzen soll."""
+    import persist
+    limits = persist.RateLimit()
+    monkeypatch.setattr(limits, '_SWEEP_AT', 2)
+    assert limits.hit('dauer', 2, 86400)
+    for i in range(5):
+        limits.hit(f'kurz:{i}', 5, 60)
+    assert 'dauer' in limits._hits
+    assert limits.hit('dauer', 2, 86400)      # zweiter von zwei
+    assert not limits.hit('dauer', 2, 86400)  # Grenze steht noch
+
+
+def test_save_slot_limit_without_parsing_every_slot(tmp_path, monkeypatch):
+    """write_save() zaehlt nur noch, statt jeden Slot zu oeffnen und zu
+    parsen. Verhalten an der Obergrenze muss dasselbe bleiben."""
+    import persist
+    store = persist.Store(str(tmp_path))
+    pid = store.new_player_id()
+    for i in range(persist.MAX_SLOTS):
+        assert store.write_save(pid, f'slot{i}', {'v': 1}) is None
+    assert store.count_saves(pid) == persist.MAX_SLOTS
+
+    # Voll: ein NEUER Slot geht nicht mehr, ein vorhandener schon.
+    assert store.write_save(pid, 'noch-einer', {'v': 1}) == 'too_many_slots'
+    assert store.write_save(pid, 'slot0', {'v': 2}) is None
+
+    # Die Einstellungen liegen im selben Ordner, zaehlen aber nicht als Slot.
+    store.write_prefs(pid, {'a': 1})
+    assert store.count_saves(pid) == persist.MAX_SLOTS
+    assert len(store.list_saves(pid)) == persist.MAX_SLOTS
 
 
 def test_atomic_write_survives_partial_failure(tmp_path):
