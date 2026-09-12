@@ -45,4 +45,6 @@ export const api = {
     return request('GET', `/api/highscores?${q}`);
   },
   submitScore: (name, summary) => request('POST', '/api/highscores', { name, summary }),
+  readPrefs: () => request('GET', '/api/prefs'),
+  writePrefs: (blob) => request('PUT', '/api/prefs', blob),
 };

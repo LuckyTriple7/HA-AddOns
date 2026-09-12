@@ -292,6 +292,24 @@ button {
   line-height: 1.45;
 }
 
+/* ── Kopfzeile anpassen ───────────────────────────────────────────────────── */
+
+.rs-stat-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 2px 10px;
+}
+.rs-stat-picker label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: var(--rs-fg-dim);
+  cursor: pointer;
+}
+.rs-stat-picker input { accent-color: var(--rs-value); width: 16px; height: 16px; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }

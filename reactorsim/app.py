@@ -301,6 +301,31 @@ def save_delete(slot: str):
     return jsonify({'ok': STORE.delete_save(_player_id(), slot)})
 
 
+# ── Einstellungen ───────────────────────────────────────────────────────────────
+#
+# Undurchsichtig wie ein Spielstand (siehe persist.py): der Server speichert
+# und gibt zurueck, ohne die Struktur zu kennen. Sie gehoert der Oberflaeche,
+# z.B. welche Werte je Reaktortyp in der Kopfzeile stehen.
+
+
+@app.route('/api/prefs', methods=['GET'])
+def prefs_read():
+    return jsonify(STORE.read_prefs(_player_id()))
+
+
+@app.route('/api/prefs', methods=['PUT'])
+def prefs_write():
+    if _limited('prefs', 30, 60):
+        return jsonify({'error': 'rate_limited'}), 429
+    blob = request.get_json(silent=True)
+    if not isinstance(blob, dict):
+        return jsonify({'error': 'bad_body'}), 400
+    err = STORE.write_prefs(_player_id(), blob)
+    if err:
+        return jsonify({'error': err}), 413 if err == 'too_large' else 400
+    return jsonify({'ok': True})
+
+
 # ── Bestenliste ───────────────────────────────────────────────────────────────
 
 

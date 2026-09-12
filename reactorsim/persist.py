@@ -33,6 +33,7 @@ MAX_SAVE_BYTES = 128 * 1024
 MAX_SLOTS = 20
 MAX_SCORES_PER_LIST = 50
 MAX_NAME_CHARS = 24
+MAX_PREFS_BYTES = 8 * 1024
 
 _lock = threading.Lock()
 
@@ -76,7 +77,11 @@ class Store:
             return []
         out = []
         for name in names:
-            if not name.endswith('.json'):
+            # ".prefs.json" liegt im selben Ordner (siehe unten), ist aber kein
+            # Spielstand -- ein Punkt am Anfang kann nie aus einem Slot-Namen
+            # entstehen (SLOT_RE laesst keinen Punkt zu), also ist der Name
+            # eindeutig reserviert.
+            if not name.endswith('.json') or name.startswith('.'):
                 continue
             path = os.path.join(self._player_dir(pid), name)
             try:
@@ -121,6 +126,32 @@ class Store:
             return True
         except (OSError, ValueError):
             return False
+
+    # ── Einstellungen ─────────────────────────────────────────────────────────
+    #
+    # Kleine, fuer den Server ebenso undurchsichtige Ablage wie ein Spielstand
+    # (siehe Modulkopf), aber eigene Datei statt eigenem Slot: ein Spielstand
+    # namens "prefs" darf diese Datei nie ueberschreiben koennen.
+
+    def _prefs_path(self, pid: str) -> str:
+        return os.path.join(self._player_dir(pid), '.prefs.json')
+
+    def read_prefs(self, pid: str) -> dict:
+        try:
+            with open(self._prefs_path(pid), 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def write_prefs(self, pid: str, blob: dict) -> str | None:
+        """@return Fehlergrund oder None."""
+        raw = json.dumps(blob, separators=(',', ':'))
+        if len(raw.encode('utf-8')) > MAX_PREFS_BYTES:
+            return 'too_large'
+        os.makedirs(self._player_dir(pid), exist_ok=True)
+        atomic_io.write_text(self._prefs_path(pid), raw)
+        return None
 
     # ── Bestenliste ───────────────────────────────────────────────────────────
 

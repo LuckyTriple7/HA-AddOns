@@ -11,6 +11,7 @@ import { Session, PHASE } from './game/session.js';
 import { api } from './net/api.js';
 import { save as saveGame, load as loadGame } from './net/persist.js';
 import { GLOSSARY } from './ui/glossary.js';
+import { STATUS_STATS, sanitizeStatusKeys } from './ui/statusStats.js';
 
 const app = {
   engine: null,
@@ -22,7 +23,18 @@ const app = {
   session: null,
   scenarios: [],
   chosen: null,      // gewaehltes Szenario oder null fuer freies Spiel
+  prefs: {},         // gespeicherte Einstellungen des Spielers, siehe /api/prefs
 };
+
+// Einmal beim Laden geholt, nicht bei jedem Rundenstart neu: boot() wartet
+// darauf, bevor es die Kopfzeile baut, damit die gespeicherte Auswahl schon
+// beim allerersten Spiel dieser Sitzung greift. Schlaegt es fehl (kein
+// Server, Sitzung abgelaufen), bleibt app.prefs leer -- dieselbe Kopfzeile
+// wie eh und je, kein Absturz.
+app.prefsPromise = api.readPrefs().then((r) => {
+  app.prefs = (r.ok && r.data && typeof r.data === 'object') ? r.data : {};
+  return app.prefs;
+}).catch(() => app.prefs);
 
 // ── Startbildschirm ──────────────────────────────────────────────────────────
 
@@ -298,6 +310,35 @@ function initControls() {
     if (ev.key === 'Escape' && !panelWindow.hidden) closePanelWindow();
   });
 
+  // Kopfzeile anpassen: Checkboxen aus dem Katalog, vorbelegt mit der
+  // gespeicherten (oder Standard-) Auswahl fuer den GERADE LAUFENDEN
+  // Reaktortyp. Speichern schreibt nur die Zeile fuer diesen Typ zurueck und
+  // baut die laufende Kopfzeile NICHT live um -- panels.js sammelt seine
+  // Wertebindungen einmal beim Rundenstart, ein Umbau waehrenddessen wuerde
+  // sie nur verwaisen lassen. Wirkt deshalb ab dem naechsten Rundenstart.
+  const statsModal = $('#rs-stats-modal');
+  const statsList = $('#rs-stats-list');
+  statsList.replaceChildren(...STATUS_STATS.map(({ key, labelKey }) => {
+    const box = el('input', { type: 'checkbox', value: key });
+    return el('label', null, [box, t(labelKey)]);
+  }));
+  $('#rs-stats-cfg').addEventListener('click', () => {
+    const reactorId = app.lastReactor;
+    const saved = app.prefs.statusBar ? app.prefs.statusBar[reactorId] : null;
+    const keys = new Set(sanitizeStatusKeys(saved));
+    for (const box of $$('input', statsList)) box.checked = keys.has(box.value);
+    statsModal.hidden = false;
+  });
+  $('#rs-stats-save').addEventListener('click', () => {
+    const reactorId = app.lastReactor;
+    const chosen = $$('input', statsList).filter((b) => b.checked).map((b) => b.value);
+    app.prefs.statusBar = { ...(app.prefs.statusBar || {}), [reactorId]: sanitizeStatusKeys(chosen) };
+    api.writePrefs(app.prefs);
+    flash($('#rs-stats-save'), t('stats_cfg_saved'));
+  });
+  $('#rs-stats-close').addEventListener('click', () => { statsModal.hidden = true; });
+  statsModal.addEventListener('click', (ev) => { if (ev.target === statsModal) statsModal.hidden = true; });
+
   $('#rs-save').addEventListener('click', () => {
     const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
     saveGame(app.engine, scnId, 'auto').then((ok) => {
@@ -441,7 +482,23 @@ function loadScores(reactor, scenario) {
   });
 }
 
-function boot(reactorId, scenarioDef, loadSlot) {
+/** Kopfzeile aus der gespeicherten (oder Standard-) Auswahl fuer diesen
+ *  Reaktortyp bauen. Dieselben Zielknoten wie vorher fest im Template --
+ *  panels.js findet sie ueber data-v, ganz gleich ob HTML oder JS sie baut. */
+function buildStatusBar(reactorId, prefs) {
+  const saved = prefs && prefs.statusBar ? prefs.statusBar[reactorId] : null;
+  const keys = sanitizeStatusKeys(saved);
+  const byKey = new Map(STATUS_STATS.map((x) => [x.key, x]));
+  $('#rs-status-scroll').replaceChildren(...keys.map((key, i) => {
+    const stat = byKey.get(key);
+    return el(`div.rs-stat${i < 2 ? '.rs-stat-lead' : ''}`, null, [
+      el('span.rs-stat-k', { text: t(stat.labelKey) }),
+      el('span.rs-stat-v', { 'data-v': key, text: '—' }),
+    ]);
+  }));
+}
+
+async function boot(reactorId, scenarioDef, loadSlot) {
   const plant = getPlant(reactorId);
   if (!plant) return;
 
@@ -460,6 +517,14 @@ function boot(reactorId, scenarioDef, loadSlot) {
 
   $('#rs-start').hidden = true;
   $('#rs-app').hidden = false;
+
+  // Wartet auf die einmal beim Laden gestartete Abfrage (siehe oben) --
+  // praktisch immer schon fertig, sobald der Spieler bis hierher geklickt
+  // hat. buildStatusBar() MUSS vor buildPanels() laufen: dessen
+  // Wertebindungen sammelt es per querySelectorAll('[data-v]') genau einmal,
+  // aus dem, was zu dem Zeitpunkt im DOM steht.
+  const prefs = await app.prefsPromise;
+  buildStatusBar(reactorId, prefs);
 
   app.endShown = false;
   app.engine = createEngine(plant, { n: 1.0, seed: scenarioDef ? scenarioDef.seed : 1 });

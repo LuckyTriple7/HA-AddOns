@@ -77,44 +77,9 @@
 <div class="rs-app" id="rs-app" hidden>
 
   <header class="rs-status" id="rs-status">
-    <div class="rs-status-scroll">
-      <div class="rs-stat rs-stat-lead">
-        <span class="rs-stat-k">{{ t.status_power_th }}</span>
-        <span class="rs-stat-v" data-v="power_th_pct">—</span>
-      </div>
-      <div class="rs-stat rs-stat-lead">
-        <span class="rs-stat-k">{{ t.status_power_e }}</span>
-        <span class="rs-stat-v" data-v="power_e">—</span>
-      </div>
-      <div class="rs-stat">
-        <span class="rs-stat-k">{{ t.status_demand }}</span>
-        <span class="rs-stat-v" data-v="demand">—</span>
-      </div>
-      <div class="rs-stat">
-        <span class="rs-stat-k">{{ t.status_tavg }}</span>
-        <span class="rs-stat-v" data-v="t_avg">—</span>
-      </div>
-      <div class="rs-stat">
-        <span class="rs-stat-k">{{ t.status_pressure }}</span>
-        <span class="rs-stat-v" data-v="p_prim">—</span>
-      </div>
-      <div class="rs-stat">
-        <span class="rs-stat-k">{{ t.status_fuel }}</span>
-        <span class="rs-stat-v" data-v="t_fuel">—</span>
-      </div>
-      <div class="rs-stat">
-        <span class="rs-stat-k">{{ t.status_margin }}</span>
-        <span class="rs-stat-v" data-v="dnbr">—</span>
-      </div>
-      <div class="rs-stat">
-        <span class="rs-stat-k">{{ t.status_period }}</span>
-        <span class="rs-stat-v" data-v="period">—</span>
-      </div>
-      <div class="rs-stat">
-        <span class="rs-stat-k">{{ t.status_clock }}</span>
-        <span class="rs-stat-v" data-v="clock">00:00:00</span>
-      </div>
-    </div>
+    <!-- Von main.js gefuellt (buildStatusBar): welche Werte hier stehen, waehlt
+         der Spieler je Reaktortyp selbst, siehe #rs-stats-modal. -->
+    <div class="rs-status-scroll" id="rs-status-scroll"></div>
 
     <div class="rs-status-bar" id="rs-status-alarm" data-sev="0">
       <span class="rs-status-alarm-text" data-v="worst_alarm">{{ t.status_alarm_none }}</span>
@@ -132,6 +97,8 @@
       </div>
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-glossary"
               aria-label="{{ t.btn_glossary }}" title="{{ t.btn_glossary }}">?</button>
+      <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-stats-cfg"
+              aria-label="{{ t.btn_stats_cfg }}" title="{{ t.btn_stats_cfg }}">⚙</button>
       <button type="button" class="rs-btn rs-btn-ghost" id="rs-save">{{ t.btn_save }}</button>
       <button type="button" class="rs-btn rs-btn-ghost" id="rs-menu">{{ t.btn_menu }}</button>
       <button type="button" class="rs-scram" id="rs-scram">{{ t.btn_scram }}</button>
@@ -385,6 +352,21 @@
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-sm" id="rs-panel-window-close">{{ t.btn_close }}</button>
     </div>
     <div class="rs-panel-window-slot" id="rs-panel-window-slot"></div>
+  </div>
+</div>
+
+<!-- ── Kopfzeile anpassen ───────────────────────────────────────────────── -->
+<!-- Auswahl gilt je Reaktortyp und bleibt beim Spieler gespeichert (/api/prefs)
+     -- wirkt ab dem naechsten Rundenstart, kein Umbau der laufenden Anzeige. -->
+<div class="rs-modal" id="rs-stats-modal" hidden>
+  <div class="rs-modal-box rs-modal-wide">
+    <h2>{{ t.stats_cfg_title }}</h2>
+    <p class="rs-ctl-hint">{{ t.stats_cfg_hint }}</p>
+    <div class="rs-stat-picker" id="rs-stats-list"></div>
+    <div class="rs-modal-actions">
+      <button type="button" class="rs-btn rs-btn-primary" id="rs-stats-save">{{ t.stats_cfg_save }}</button>
+      <button type="button" class="rs-btn" id="rs-stats-close">{{ t.btn_close }}</button>
+    </div>
   </div>
 </div>
 

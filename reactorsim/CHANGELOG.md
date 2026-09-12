@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.36
+
+- ⚙️ **Kopfzeile frei anpassbar.** Welche Werte oben in der Statuszeile stehen, wählt man jetzt selbst (⚙-Knopf neben dem Fragezeichen) aus einem Katalog von 44 Werten -- alles, was auch in den Panels steht (Xenon, Bor, Abschaltreserve, Void-Koeffizient, …), nicht nur die bisherigen fest verdrahteten neun. Auswahl gilt je Reaktortyp getrennt und bleibt dauerhaft beim Spieler gespeichert (`/api/prefs`, eigene Datei je Spieler unter `/data/players/`), wirkt ab dem nächsten Rundenstart. Per Playwright-Livetest verifiziert: Auswahl übersteht Neustart und Menü-Rückkehr, bleibt zwischen Reaktortypen getrennt, taucht nicht in der Spielstand-Liste auf.
+
 ## 0.0.35
 
 - 🐛 **SWR und RBMK: Dampferzeugerdruck/-füllstand zeigten dauerhaft "—".** Jeder Reaktortyp legt diese Werte intern unter eigenem Namen ab (SWR: `p_dome`/`L_rpv`, RBMK: `p_drum`/`L_drum`) und stellt sie im abgeleiteten Zustand unter dem gemeinsamen Namen `p_sg`/`L_sg` bereit — genau dafür gibt es diese Ebene. Die Anzeige (Rundinstrumente, Textzeile, Trendschreiber) griff aber direkt auf den rohen Zustand zu, wo dieser Name bei SWR und RBMK nie existiert. Nur beim DWR ging es zufällig gut, weil er selbst so heißt. Gefunden per Playwright-Livetest.
