@@ -325,6 +325,24 @@ button {
 }
 .rs-stat-picker input { accent-color: var(--rs-value); width: 16px; height: 16px; }
 
+.rs-modal-box h3 {
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--rs-fg-mute);
+  margin-top: 4px;
+}
+.rs-audio-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  font-size: 13px;
+  color: var(--rs-fg-dim);
+  cursor: pointer;
+}
+.rs-audio-opt input { accent-color: var(--rs-value); width: 16px; height: 16px; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }

@@ -12,6 +12,7 @@ import { api } from './net/api.js';
 import { save as saveGame, load as loadGame } from './net/persist.js';
 import { GLOSSARY } from './ui/glossary.js';
 import { STATUS_STATS, sanitizeStatusKeys } from './ui/statusStats.js';
+import { Geiger } from './ui/geiger.js';
 
 const app = {
   engine: null,
@@ -20,6 +21,11 @@ const app = {
   reactor: null,
   controlsReady: false,
   horn: null,
+  // Anders als Horn (pro Runde neu gebaut, siehe buildPanels()) lebt der
+  // Geigerzaehler ueber die ganze Sitzung: er soll schon auf dem Startbild-
+  // schirm entsperrt werden koennen (erste Kartenwahl ist die erste echte
+  // Nutzergeste), lange bevor eine Runde ueberhaupt eine Engine hat.
+  geiger: new Geiger(),
   session: null,
   scenarios: [],
   chosen: null,      // gewaehltes Szenario oder null fuer freies Spiel
@@ -33,6 +39,7 @@ const app = {
 // wie eh und je, kein Absturz.
 app.prefsPromise = api.readPrefs().then((r) => {
   app.prefs = (r.ok && r.data && typeof r.data === 'object') ? r.data : {};
+  app.geiger.enabled = !app.prefs.audio || app.prefs.audio.geiger !== false;
   return app.prefs;
 }).catch(() => app.prefs);
 
@@ -366,11 +373,15 @@ function initControls() {
     const box = el('input', { type: 'checkbox', value: key });
     return el('label', null, [box, t(labelKey)]);
   }));
+  const audioHornBox = $('#rs-audio-horn');
+  const audioGeigerBox = $('#rs-audio-geiger');
   $('#rs-stats-cfg').addEventListener('click', () => {
     const reactorId = app.lastReactor;
     const saved = app.prefs.statusBar ? app.prefs.statusBar[reactorId] : null;
     const keys = new Set(sanitizeStatusKeys(saved));
     for (const box of $$('input', statsList)) box.checked = keys.has(box.value);
+    audioHornBox.checked = !app.prefs.audio || app.prefs.audio.horn !== false;
+    audioGeigerBox.checked = !app.prefs.audio || app.prefs.audio.geiger !== false;
     statsModal.hidden = false;
   });
   $('#rs-stats-save').addEventListener('click', () => {
@@ -378,8 +389,11 @@ function initControls() {
     const chosen = $$('input', statsList).filter((b) => b.checked).map((b) => b.value);
     const keys = sanitizeStatusKeys(chosen);
     app.prefs.statusBar = { ...(app.prefs.statusBar || {}), [reactorId]: keys };
+    app.prefs.audio = { horn: audioHornBox.checked, geiger: audioGeigerBox.checked };
     api.writePrefs(app.prefs);
     applyStatusSelection(keys);
+    if (app.horn) app.horn.enabled = audioHornBox.checked;
+    app.geiger.enabled = audioGeigerBox.checked;
     flash($('#rs-stats-save'), t('stats_cfg_saved'));
   });
   $('#rs-stats-close').addEventListener('click', () => { statsModal.hidden = true; });
@@ -636,6 +650,12 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   const plant = getPlant(reactorId);
   if (!plant) return;
 
+  // boot() laeuft immer synchron aus einem echten Klick heraus (Los,
+  // Fortsetzen, Einweisung akzeptieren) -- die einzige verlaessliche Stelle
+  // fuer eine Nutzergeste, die der Browser fuer Audio verlangt. Vor dem
+  // ersten await, damit sie noch als "waehrend der Geste" zaehlt.
+  app.geiger.unlock();
+
   // Kaltstart gilt nur fuer ein echtes freies Spiel: ein Szenario bringt
   // seine eigenen Startwerte (start_overrides) mit, ein Spielstand ueber-
   // schreibt den Zustand ohnehin gleich wieder -- trim() liefe in beiden
@@ -676,8 +696,12 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   app.session.onEnd = (result, failed) => showDebrief(result, failed);
   app.session.start();
   app.render.clear();
-  const built = buildPanels(app.engine, app.render);
+  const built = buildPanels(app.engine, app.render, app.geiger);
   app.horn = built.horn;
+  // Anders als der Geigerzaehler wird die Hupe bei jeder Runde neu gebaut
+  // (buildPanels()), die Einstellung muss also jedes Mal neu uebertragen
+  // werden.
+  app.horn.enabled = !prefs.audio || prefs.audio.horn !== false;
 
   const xenonSkipBtn = $('#rs-xenon-skip');
   app.loop = new Loop(app.engine, (state, now) => {

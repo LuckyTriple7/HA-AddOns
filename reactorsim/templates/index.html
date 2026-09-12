@@ -385,6 +385,17 @@
     <h2>{{ t.stats_cfg_title }}</h2>
     <p class="rs-ctl-hint">{{ t.stats_cfg_hint }}</p>
     <div class="rs-stat-picker" id="rs-stats-list"></div>
+
+    <h3>{{ t.opt_audio_title }}</h3>
+    <label class="rs-audio-opt">
+      <input type="checkbox" id="rs-audio-horn">
+      {{ t.opt_audio_horn }}
+    </label>
+    <label class="rs-audio-opt">
+      <input type="checkbox" id="rs-audio-geiger">
+      {{ t.opt_audio_geiger }}
+    </label>
+
     <div class="rs-modal-actions">
       <button type="button" class="rs-btn rs-btn-primary" id="rs-stats-save">{{ t.stats_cfg_save }}</button>
       <button type="button" class="rs-btn" id="rs-stats-close">{{ t.btn_close }}</button>

@@ -16,7 +16,7 @@ import { MIMICS } from './mimic.js';
 
 const U = (key) => ' ' + t(key);
 
-export function buildPanels(engine, render) {
+export function buildPanels(engine, render, geiger) {
   const s = engine.state;
   const sp = engine.spec;
   const ctx = engine.ctx;
@@ -435,10 +435,14 @@ export function buildPanels(engine, render) {
     setAttr(tabAlarm, 'data-unack', engine.trips.horn ? '1' : '0');
 
     // Hupe im Takt der blinkenden Kachel.
+    const nowMs = performance.now();
     if (engine.trips.horn) {
-      const now = performance.now();
-      if (now > hornNext) { horn.alarm(worst); hornNext = now + 1000; }
+      if (nowMs > hornNext) { horn.alarm(worst); hornNext = nowMs + 1000; }
     }
+    // Geigerzähler: tickt immer ein bisschen, schneller mit der schwersten
+    // anstehenden Meldung -- dieselbe worst-Kennzahl wie oben, keine eigene
+    // Berechnung noetig.
+    if (geiger) geiger.step(worst, nowMs);
   });
 
   render.add('trend', () => {

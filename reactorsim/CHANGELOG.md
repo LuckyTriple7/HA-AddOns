@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.42
+
+- ☢️ **Geigerzähler-Ticken.** Tickt gelegentlich im Leerlauf (0,1/s, reine Atmosphäre -- eine Leitwarte hat normalerweise keine spürbare Strahlung), deutlich schneller im Takt einer anstehenden Meldung, gestaffelt nach Schwere. Neue Sound-Sektion im ⚙-Menü ("Einstellungen", vorher "Kopfzeile anpassen") mit zwei Häkchen: Meldehupe und Geigerzähler, beide dauerhaft gespeichert (`/api/prefs`). Anders als die Hupe (pro Runde neu gebaut) lebt der Geigerzähler über die ganze Sitzung -- schon auf dem Startbildschirm entsperrt, tickt ab der ersten Runde, nicht erst nach dem ersten SCRAM. Per Playwright verifiziert: 2 Ticks/20s im Leerlauf (genau die konfigurierten 0,1 Hz), deutlich mehr direkt nach SCRAM, Aus-Schalter bringt es sofort auf null.
+
 ## 0.0.41
 
 - 📱 **Kopfzeilen-Bedienung lief auf schmalen Handys über.** Xenon-Vorspulknopf (Text) plus Zeitraffer, ⚙, ?, Speichern, Menü, SCRAM passten ab 360px Breite nicht mehr in eine Zeile -- SCRAM konnte bis zu 25px hinterm sichtbaren Rand landen. Vorspulknopf jetzt Icon (⏩) statt Text wie die anderen Werkzeugknöpfe, Zeile bekommt zusätzlich `flex-wrap`, damit sie bei Bedarf sauber zweizeilig wird statt zu überlaufen. Per Playwright bei 360px verifiziert: passt jetzt exakt, SCRAM immer voll sichtbar.
