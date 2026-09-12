@@ -68,6 +68,12 @@ export class TransportDelay {
   peek() { return this.buf[this.i]; }
 
   fill(value) { this.buf.fill(value); }
+
+  snapshot() { return { buf: Array.from(this.buf), i: this.i }; }
+  restore(d) {
+    if (Array.isArray(d.buf) && d.buf.length === this.buf.length) this.buf.set(d.buf);
+    if (Number.isInteger(d.i) && d.i >= 0 && d.i < this.n) this.i = d.i;
+  }
 }
 
 /**
@@ -98,6 +104,16 @@ export class Pump {
 
   trip() { this.tripped = true; this.running = false; this.demand = 0; }
   start() { this.tripped = false; this.running = true; this.demand = 1; }
+
+  /** Betriebszustand fuer den Spielstand -- siehe net/persist.js. W0/coastTau/
+   *  rampTau sind Anlagendaten, kein Zustand, und stehen deshalb nicht drin. */
+  snapshot() { return { running: this.running, tripped: this.tripped, speed: this.speed, demand: this.demand }; }
+  restore(d) {
+    this.running = !!d.running;
+    this.tripped = !!d.tripped;
+    this.speed = Number.isFinite(d.speed) ? d.speed : this.speed;
+    this.demand = Number.isFinite(d.demand) ? d.demand : this.demand;
+  }
 
   step(dt) {
     const target = this.running ? this.demand : 0;
@@ -158,6 +174,12 @@ export class Valve {
     if (!(dp > 0)) return 0;
     return Cv * this.pos * Math.sqrt(rho * dp);
   }
+
+  snapshot() { return { pos: this.pos, demand: this.demand }; }
+  restore(d) {
+    if (Number.isFinite(d.pos)) this.pos = clamp(d.pos, 0, 1);
+    if (Number.isFinite(d.demand)) this.demand = d.demand;
+  }
 }
 
 /**
@@ -196,6 +218,12 @@ export class PI {
 
   /** Stoßfreie Übernahme aus dem Handbetrieb. */
   preset(out) { this.i = clamp(out, this.min, this.max); this.out = this.i; }
+
+  snapshot() { return { i: this.i, out: this.out }; }
+  restore(d) {
+    if (Number.isFinite(d.i)) this.i = clamp(d.i, this.min, this.max);
+    if (Number.isFinite(d.out)) this.out = clamp(d.out, this.min, this.max);
+  }
 }
 
 /** Verzögerung erster Ordnung -- für Messwerte, Mischvorgänge, Rückkopplungen,
@@ -204,6 +232,8 @@ export class Lag {
   constructor(tau, value = 0) { this.tau = tau; this.v = value; }
   step(target, dt) { this.v = relax(this.v, target, dt, this.tau); return this.v; }
   set(value) { this.v = value; }
+  snapshot() { return { v: this.v }; }
+  restore(d) { if (Number.isFinite(d.v)) this.v = d.v; }
 }
 
 /** Begrenzt die Änderungsrate eines Sollwerts (Einheiten je Sekunde). */
@@ -214,4 +244,6 @@ export class RateLimiter {
     this.v += clamp(target - this.v, -max, max);
     return this.v;
   }
+  snapshot() { return { v: this.v }; }
+  restore(d) { if (Number.isFinite(d.v)) this.v = d.v; }
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.46
+
+- 💾 **Spielstand speicherte Pumpen, Ventile und Regler bisher gar nicht.** Nur Zahlen/Bool'sche Felder direkt am Zustand wurden mitgesichert -- Pumpen (Kaltstart: an/aus, Drehzahl), Regelventile (Stellung), und Regler (Automatik/Hand, Handwert, PI-Integrator) leben in eigenen Objekten daneben und kamen beim Laden IMMER frisch (= Vollast, Automatik) zurück, ganz gleich was eingestellt war.
+  Jede betroffene Klasse (Pump, Valve, PI, Lag, RateLimiter, TransportDelay, RodController, PressurizerController, FeedwaterController, GovernorController, PowerController) hat jetzt `snapshot()`/`restore()`; jeder Reaktortyp meldet seine Instanzen über `ctx.saveable` (ein Objekt, keine Sonderfälle in persist.js). Alte Spielstände ohne dieses Feld laden weiter -- die Komponenten federn dann wie bisher auf ihre Anfangswerte ein, statt den Ladevorgang scheitern zu lassen.
+  Per Node-Roundtrip (packen → frische Engine → laden) bei allen drei Typen bit-genau bestätigt: Pumpenzustand, Automatik/Hand-Stellung, PI-Integrator, Ventilstellung -- alles exakt wie vorher. Zusätzlich im echten Browser verifiziert: Pumpe gestartet, gespeichert, Seite komplett neu geladen, fortgesetzt -- Pumpe läuft weiter, statt wieder zu stehen.
+
 ## 0.0.45
 
 - 📊 **Gesamtreaktivität jetzt auch als Kopfzeilen-Wert wählbar.** Bisher nur als Zeigerausschlag (Rundinstrument) und als "Gesamt"-Balken in der Reaktivitätsbilanz sichtbar, beides nur im Kern-Panel -- jetzt auch als reine Zahl mit Vorzeichen (z.B. "+120 pcm") im Katalog der Kopfzeilen-Einstellungen, genau wie die anderen 44 Werte.

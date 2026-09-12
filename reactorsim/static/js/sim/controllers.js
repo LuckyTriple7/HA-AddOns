@@ -48,6 +48,12 @@ export class RodController {
     const fast = Math.abs(err) > 2 * this.deadband;
     return dir * this.speed * (fast ? 1 : 0.35) * dt;
   }
+
+  snapshot() { return { auto: this.auto, manual: this.manual }; }
+  restore(d) {
+    this.auto = !!d.auto;
+    if (Number.isFinite(d.manual)) this.manual = d.manual;
+  }
 }
 
 /**
@@ -78,6 +84,13 @@ export class PressurizerController {
     const spray = err < 0 ? clamp(-err / this.sprayBand, 0, 1) : 0;
     return { heater: heater * this.heaterMax, spray };
   }
+
+  snapshot() { return { auto: this.auto, heaterManual: this.heaterManual, sprayManual: this.sprayManual }; }
+  restore(d) {
+    this.auto = !!d.auto;
+    if (Number.isFinite(d.heaterManual)) this.heaterManual = d.heaterManual;
+    if (Number.isFinite(d.sprayManual)) this.sprayManual = d.sprayManual;
+  }
 }
 
 /**
@@ -104,6 +117,14 @@ export class FeedwaterController {
     const trim = this.pi.step(this.levelSet - level, dt);
     const target = clamp(steamFlow / this.W0 + trim, 0, 1.3);
     return this.rate.step(target, dt) * this.W0;
+  }
+
+  snapshot() { return { auto: this.auto, manual: this.manual, pi: this.pi.snapshot(), rate: this.rate.snapshot() }; }
+  restore(d) {
+    this.auto = !!d.auto;
+    if (Number.isFinite(d.manual)) this.manual = d.manual;
+    if (d.pi) this.pi.restore(d.pi);
+    if (d.rate) this.rate.restore(d.rate);
   }
 }
 
@@ -177,6 +198,14 @@ export class GovernorController {
    *  Wert von vor dem Trip -- sonst würde das Ventil im selben Augenblick auf
    *  eine Stellung springen, die mit der jetzigen Lage nichts zu tun hat. */
   resume() { this.tripped = false; this.pi.preset(0); }
+
+  snapshot() { return { auto: this.auto, manual: this.manual, tripped: this.tripped, pi: this.pi.snapshot() }; }
+  restore(d) {
+    this.auto = !!d.auto;
+    this.tripped = !!d.tripped;
+    if (Number.isFinite(d.manual)) this.manual = d.manual;
+    if (d.pi) this.pi.restore(d.pi);
+  }
 }
 
 /**
@@ -209,5 +238,12 @@ export class PowerController {
     const dir = err > 0 ? 1 : -1;
     const fast = Math.abs(err) > 4 * this.deadband;
     return dir * this.speed * (fast ? 1 : 0.3) * dt;
+  }
+
+  snapshot() { return { auto: this.auto, manual: this.manual, setpoint: this.setpoint }; }
+  restore(d) {
+    this.auto = !!d.auto;
+    if (Number.isFinite(d.manual)) this.manual = d.manual;
+    if (Number.isFinite(d.setpoint)) this.setpoint = d.setpoint;
   }
 }

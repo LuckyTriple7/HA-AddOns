@@ -288,6 +288,9 @@ export const hooks = {
         W0: sp.mcp.W0 / sp.mcp.count, coastTau: sp.mcp.coastTau, rampTau: sp.mcp.rampTau,
       }));
     }
+    // Einheitliche Liste fuer typunabhaengigen Code (Spielstand) -- siehe
+    // net/persist.js, das den Betriebszustand jeder Pumpe mitsichert.
+    ctx.pumpList = ctx.mcp;
     // Kaltstart: Hauptumwaelzpumpen stehen, der Spieler schaltet sie selbst
     // zu -- genauso wie er selbst die Staebe zieht. Nur Naturumlauf bis dahin.
     if (ctx.cold) coldStopPumps(ctx.mcp);
@@ -319,6 +322,21 @@ export const hooks = {
       mode: 'pressure', pSet: sp.drum.p0, P0: sp.P0_e, posNominal: 0.8,
       kp: 0.9, ki: 0.35, trim: 0.5,
     });
+
+    // Was net/persist.js in den Spielstand mitpackt und beim Laden
+    // zurueckschreibt. ctx.rodCtl fehlt bewusst -- der ist hier inaktiv
+    // (auto immer false), der Leistungsregler ist ctx.powerCtl.
+    ctx.saveable = {
+      pumps: ctx.pumpList,
+      govValve: ctx.govValve,
+      bypassValve: ctx.bypassValve,
+      voidLag: ctx.voidLag,
+      dpLag: ctx.dpLag,
+      aoLag: ctx.aoLag,
+      powerCtl: ctx.powerCtl,
+      fwCtl: ctx.fwCtl,
+      govCtl: ctx.govCtl,
+    };
   },
 
   /** Der Blasenbeitrag hängt von der Abschaltreserve ab -- deshalb ein Haken. */

@@ -227,6 +227,9 @@ export const hooks = {
 
     // Anlagenteile mit eigenem Gedächtnis.
     ctx.pumps = [0, 1, 2, 3].map(() => new Pump({ W0: sp.coolant.W0 / 4, coastTau: 14 }));
+    // Einheitliche Liste fuer typunabhaengigen Code (Spielstand) -- siehe
+    // net/persist.js, das den Betriebszustand jeder Pumpe mitsichert.
+    ctx.pumpList = ctx.pumps;
     // Kaltstart: Pumpen stehen, der Spieler faehrt sie selbst hoch -- genauso
     // wie er selbst die Staebe zieht. Nur Naturumlauf, bis er zuschaltet.
     if (ctx.cold) coldStopPumps(ctx.pumps);
@@ -256,6 +259,23 @@ export const hooks = {
     ctx.govCtl = new GovernorController({
       mode: 'load', P0: sp.P0_e, posNominal: 0.79,
     });
+
+    // Was net/persist.js in den Spielstand mitpackt und beim Laden
+    // zurueckschreibt -- ohne diese Liste "erinnerte" sich ein geladener
+    // Stand an nichts davon: Pumpen liefen wieder an, Hand-Stellungen fielen
+    // auf Automatik zurueck, egal was der Spieler eingestellt hatte.
+    ctx.saveable = {
+      pumps: ctx.pumpList,
+      govValve: ctx.govValve,
+      bypassValve: ctx.bypassValve,
+      hotLeg: ctx.hotLeg,
+      coldLeg: ctx.coldLeg,
+      boronMix: ctx.boronMix,
+      rodCtl: ctx.rodCtl,
+      pzrCtl: ctx.pzrCtl,
+      fwCtl: ctx.fwCtl,
+      govCtl: ctx.govCtl,
+    };
   },
 
   /**

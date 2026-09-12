@@ -288,6 +288,9 @@ export const hooks = {
     ctx.recircPump = new Pump({
       W0: sp.recirc.W0, coastTau: sp.recirc.coastTau, rampTau: sp.recirc.tau,
     });
+    // Einheitliche Liste fuer typunabhaengigen Code (Spielstand) -- siehe
+    // net/persist.js, das den Betriebszustand jeder Pumpe mitsichert.
+    ctx.pumpList = [ctx.recircPump];
     // Kaltstart: Umwaelzpumpe steht, der Spieler schaltet sie selbst zu --
     // genauso wie er selbst die Staebe zieht. Nur Naturumlauf bis dahin.
     if (ctx.cold) coldStopPumps(ctx.recircPump);
@@ -316,6 +319,20 @@ export const hooks = {
       mode: 'pressure', pSet: sp.vessel.p0, P0: sp.P0_e, posNominal: 0.8,
       kp: 0.9, ki: 0.35, trim: 0.5,
     });
+
+    // Was net/persist.js in den Spielstand mitpackt und beim Laden
+    // zurueckschreibt. ctx.rodCtl fehlt bewusst -- der ist hier inaktiv
+    // (auto immer false, kein Schalter greift ihn ueberhaupt an), das
+    // Stellglied ist der Umwaelzstrom, nicht dieser Regler.
+    ctx.saveable = {
+      pumps: ctx.pumpList,
+      govValve: ctx.govValve,
+      bypassValve: ctx.bypassValve,
+      voidLag: ctx.voidLag,
+      dpLag: ctx.dpLag,
+      fwCtl: ctx.fwCtl,
+      govCtl: ctx.govCtl,
+    };
   },
 
   trim(s, sp, ctx, rx) {
