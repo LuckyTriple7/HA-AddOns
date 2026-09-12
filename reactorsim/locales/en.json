@@ -139,7 +139,7 @@
   "val_pzr_press": "Pressuriser pressure",
   "val_pzr_level": "Pressuriser level",
   "val_sg_press": "Steam generator pressure",
-  "val_sg_level": "Steam generator level",
+  "val_sg_level": "Level",
   "val_steam_flow": "Steam flow",
   "val_feed_flow": "Feedwater flow",
   "val_ic_water": "Isolation condenser reserve",

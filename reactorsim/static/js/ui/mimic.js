@@ -225,7 +225,10 @@ export function buildPwrMimic(container) {
  */
 export function buildBwrMimic(container) {
   const root = svg('svg', {
-    viewBox: '0 0 520 268',
+    // 40px mehr Luft nach oben fuers Sicherheitsventil (siehe unten) -- sonst
+    // sass sein Label direkt auf dem des Notkondensators, beide quetschten
+    // sich in denselben schmalen Streifen ueber dem Frischdampf.
+    viewBox: '0 -40 520 308',
     preserveAspectRatio: 'xMidYMid meet',
     role: 'img',
     'aria-label': t('panel_mimic'),
@@ -243,8 +246,8 @@ export function buildBwrMimic(container) {
   // Sicherheitsventil: zweigt vom Frischdampf ab und blaest nach oben ins
   // Freie (kein Torus im Bild) -- rein automatisch, kein Bedienelement, nur
   // sichtbar wenn es gerade wirklich blaest (siehe update()).
-  g.push(pipe('M 280 46 L 280 8', 'steam', 'srv'));
-  g.push(valve(280, 20, 'srv', t('mimic_srv')));
+  g.push(pipe('M 280 46 L 280 -12', 'steam', 'srv'));
+  g.push(valve(280, -24, 'srv', t('mimic_srv')));
   // Speisewasser zurück in den Behälter.
   g.push(pipe('M 372 232 L 212 232 L 212 150 L 180 150', 'feed', 'feed'));
   // Umwälzschleife außen am Behälter entlang.

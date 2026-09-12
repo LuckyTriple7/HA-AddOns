@@ -139,7 +139,7 @@
   "val_pzr_press": "Druckhalterdruck",
   "val_pzr_level": "Druckhalterfüllstand",
   "val_sg_press": "Dampferzeugerdruck",
-  "val_sg_level": "Dampferzeugerfüllstand",
+  "val_sg_level": "Füllstand",
   "val_steam_flow": "Dampfdurchsatz",
   "val_feed_flow": "Speisewasserdurchsatz",
   "val_ic_water": "Notkondensator-Vorrat",

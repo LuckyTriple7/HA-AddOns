@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.51
+
+- 🖼️ **Sicherheitsventil-Label saß auf dem Notkondensator-Label** (SWR-
+  Fließbild) -- beide quetschten sich in denselben schmalen Streifen über
+  dem Frischdampf. `viewBox` um 40px nach oben erweitert, Sicherheitsventil
+  dorthin verschoben, klare Trennung jetzt.
+- 🏷️ **"Dampferzeugerfüllstand" hieß auch beim SWR/RBMK so**, wo es keinen
+  Dampferzeuger gibt (Kernbehälter/Trommelabscheider). Label auf
+  typneutrales "Füllstand" vereinfacht.
+
 ## 0.0.50
 
 - 🐛 **Sicherheitsbehälter beim Fukushima-Szenario riss praktisch sofort.**
