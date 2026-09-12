@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.39
+
+- ⏩ **Jodgrube durchstehen, ohne 24 echte Minuten zu warten.** Neuer Knopf "Zeit vorspulen, bis Xenon abgeklungen" -- erscheint nur im freien Spiel, nur bei abgeschalteter Anlage (SCRAM) mit noch spürbar erhöhtem Xenon. Läuft dieselben Schritte wie der normale Betrieb (Engine + Sitzung je 0,05 s), nur ohne Bildaufbau dazwischen -- ein echter Störfall währenddessen bricht sofort ab und zeigt sich normal, statt still überfahren zu werden. In Blöcken mit Fortschrittsanzeige, damit der Tab nicht einfriert.
+  Ziel ist die Rückkehr auf den Vollastwert (X* = 1), nicht auf nahe null -- an der echten Engine nachgemessen: Xenon steigt nach dem Abschalten erst noch rund 8h (Jodgrube), fällt dann und ist nach rund 27h wieder auf Vollastniveau. Nahe an den oft für den RBMK genannten "24 Stunden".
+
 ## 0.0.38
 
 - 📈 **Freies Spiel: Netzanforderung wandert jetzt.** Bisher stand `P_demand` im freien Spiel fest auf dem Startwert und änderte sich nie von selbst -- "folge der Netzanforderung" war ohne Szenario nur Kosmetik in der Anleitung, es gab schlicht nichts zu folgen. Jetzt ein Zufallsspaziergang wie ein echter Netzbetreiber: alle 5–15 Minuten ein neues Ziel zwischen 50 % und 100 % Nennleistung, dahin geht es sanft (max. 0,2 %/s Nennleistung), nie sprunghaft. Neu gesät bei jedem Rundenstart -- keine feste Wiederholung wie bei einem Szenario, hier zählt keine Wertung. Die Regler-Zeile "Anforderung" zeigt weiterhin nur an, sie wird jetzt wie in Szenarien vom Spiel geführt statt vom Schieberegler.

@@ -368,6 +368,8 @@ function initControls() {
     });
   });
 
+  $('#rs-xenon-skip').addEventListener('click', fastForwardXenon);
+
   $('#rs-destroyed-close').addEventListener('click', () => {
     $('#rs-destroyed').hidden = true;
     toMenu();
@@ -401,6 +403,71 @@ function scramLabel() {
 function setSpeed(v) {
   app.loop.setSpeed(v);
   for (const b of $$('.rs-speed-b')) b.classList.toggle('rs-on', Number(b.dataset.speed) === v);
+}
+
+// Sekunden Sim-Zeit je Innenschritt -- derselbe Takt wie loop.js (DT), sonst
+// rechnen Trips und Session hier mit anderen Schrittweiten als im normalen
+// Betrieb. In Bloecken statt einem einzigen Riesenschleifendurchlauf, damit
+// der Tab zwischendurch atmen kann (Fortschrittstext, kein "eingefroren").
+const XENON_SKIP_DT = 0.05;
+const XENON_SKIP_CHUNK = 20000;       // ~1000 Sim-s je Block
+const XENON_SKIP_CAP_S = 48 * 3600;   // Notbremse, falls X aus welchem Grund auch immer nicht sinkt
+// Ziel ist NICHT "X gegen null", sondern zurueck auf den Vollastwert (X* = 1,
+// per Definition der Normierung in poisons.js): X steigt nach dem Abschalten
+// erst noch fuer einige Stunden (Jodgrube, das Jod zerfaellt weiter nach),
+// erreicht sein Maximum, faellt dann. Nachgemessen an der echten Engine (DWR,
+// SCRAM aus Vollast): Maximum ~1,9 nach rund 8h, zurueck auf 1,0 nach rund
+// 26h -- nahe an der oft genannten "24 Stunden" fuer den RBMK. Ein Ziel von
+// nahe null braeuchte dagegen ueber 80h.
+const XENON_SKIP_TARGET = 1.0;
+
+/** Zeit im Zeitraffer aller Zeitraffer: fuer die Jodgrube muesste ein Spieler
+ *  sonst 24 echte Minuten bei 60x abwarten. Nur im freien Spiel (siehe
+ *  Sichtbarkeit des Knopfs) -- ein Szenario hat feste Ereigniszeiten und eine
+ *  feste Dauer, die ein Tagessprung sinnlos machen wuerde. Laeuft dieselben
+ *  Schritte wie der normale Betrieb (engine.step + session.step, siehe
+ *  loop.afterStep), nur ohne Bildaufbau dazwischen -- ein echter Stoerfall
+ *  waehrenddessen bricht sofort ab und zeigt sich normal, statt stillschweigend
+ *  ueberfahren zu werden. */
+async function fastForwardXenon() {
+  const s = app.engine.state;
+  const btn = $('#rs-xenon-skip');
+  const before = btn.textContent;
+  app.xenonSkipping = true;
+  app.loop.setSpeed(0);
+  btn.disabled = true;
+  let elapsed = 0;
+  while (elapsed < XENON_SKIP_CAP_S && s.X > XENON_SKIP_TARGET && !s.destroyed && !s.fault) {
+    for (let i = 0; i < XENON_SKIP_CHUNK; i++) {
+      app.engine.step(XENON_SKIP_DT);
+      let worst = 0;
+      for (const tile of app.engine.trips.tiles()) {
+        if ((tile.tile === 'new' || tile.tile === 'ack') && tile.severity > worst) worst = tile.severity;
+      }
+      app.session.step(XENON_SKIP_DT, worst, app.engine.trips.unacknowledgedSeconds());
+      elapsed += XENON_SKIP_DT;
+      if (s.destroyed || s.fault) break;
+    }
+    setText(btn, t('btn_xenon_skip_progress', { h: (elapsed / 3600).toFixed(1) }));
+    // Dem Tab eine Gelegenheit geben, das Bild und Eingaben zu bedienen --
+    // sonst haengt der Browser bei 72h Notbremse mehrere Sekunden am Stueck.
+    await new Promise((resolve) => { window.setTimeout(resolve, 0); });
+  }
+  btn.disabled = false;
+  setText(btn, before);
+  app.xenonSkipping = false;
+  app.render.tick(s, performance.now());
+  // Genau einer der drei Ausgaenge -- ein Stoerfall waehrend des Vorspulens
+  // darf nie zugleich als "Xenon abgeklungen, weiter geht's" im Protokoll
+  // landen.
+  if (s.fault) {
+    showFault(s.fault);
+  } else if (s.destroyed && !app.endShown) {
+    showDestroyed();
+  } else {
+    app.engine.ctx.log.push({ t: s.t_sim, key: 'event_time_skip', severity: 1 });
+    setSpeed(1);
+  }
 }
 
 function showFault(detail) {
@@ -576,6 +643,7 @@ async function boot(reactorId, scenarioDef, loadSlot) {
   const built = buildPanels(app.engine, app.render);
   app.horn = built.horn;
 
+  const xenonSkipBtn = $('#rs-xenon-skip');
   app.loop = new Loop(app.engine, (state, now) => {
     try {
       app.render.tick(state, now);
@@ -586,6 +654,15 @@ async function boot(reactorId, scenarioDef, loadSlot) {
     // Grund ab; hier wird er nur sichtbar gemacht.
     if (state.fault) showFault(state.fault);
     if (state.destroyed && !app.endShown) showDestroyed();
+
+    // Nur im freien Spiel: ein Szenario hat eine feste Dauer und Ereignisse
+    // zu festen Zeiten, ein Tagessprung wuerde beides aushebeln. X > 0,05
+    // heisst noch spuerbar ueber dem Vollastwert, keine willkuerliche Zahl --
+    // dieselbe Grenze, die die Vorspul-Schleife selbst als Ziel nimmt.
+    if (!app.xenonSkipping) {
+      xenonSkipBtn.hidden = !(app.session && app.session.free
+        && state.scram.active && state.X > XENON_SKIP_TARGET);
+    }
   });
   app.loop.onSlip = (slipping) => { $('#rs-slip').hidden = !slipping; };
   // Die Spielschicht sieht jeden Simulationsschritt, nicht jedes Bild.

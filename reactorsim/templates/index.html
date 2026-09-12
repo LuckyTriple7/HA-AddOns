@@ -99,6 +99,10 @@
         <button type="button" class="rs-speed-b" data-speed="16">16×</button>
         <button type="button" class="rs-speed-b" data-speed="60">60×</button>
       </div>
+      <!-- Nur im freien Spiel sichtbar, nur bei abgeschalteter Anlage mit noch
+           spuerbarem Xenon -- main.js schaltet hidden je Bild um. Niemand
+           braucht 24 echte Zeitraffer-Minuten fuer die Jodgrube. -->
+      <button type="button" class="rs-btn rs-btn-ghost" id="rs-xenon-skip" hidden>{{ t.btn_xenon_skip }}</button>
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-glossary"
               aria-label="{{ t.btn_glossary }}" title="{{ t.btn_glossary }}">?</button>
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-stats-cfg"
