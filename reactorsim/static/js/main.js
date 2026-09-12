@@ -594,6 +594,15 @@ function showDestroyed() {
   app.bgMusic.stop();
   if (app.horn) app.horn.meltdown();
   const s = app.engine.state;
+  // Der Grund gehoert auf den Endbildschirm. Es gibt inzwischen vier Wege,
+  // eine Anlage zu verlieren (siehe engine.js checkLoss) -- vorher stand hier
+  // immer "Kernzerstoerung / die Brennstoffenthalpie hat 963 J/g
+  // ueberschritten", auch wenn der Sicherheitsbehaelter geborsten oder der
+  // Kern trockengefallen war. Wer nicht erfaehrt, woran er gescheitert ist,
+  // lernt daraus nichts.
+  const key = s.destroyedKey || 'event_fuel_dispersal';
+  setText($('#rs-destroyed-title'), t('end_lost_title'));
+  setText($('#rs-destroyed-body'), t(key + '_body'));
   setText($('#rs-destroyed-detail'),
     `${t('val_fuel_temp')}: ${Math.round(s.T_f - 273.15)} °C · `
     + `${Math.round(s.enthalpy)} J/g · ${clock(s.t_sim)}`);

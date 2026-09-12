@@ -110,6 +110,14 @@ export const spec = {
     // einsetzt. mUncoverFloor liegt knapp ueber dem Boden von M_rpv (20 000 kg).
     mUncoverStart: 90000,
     mUncoverFloor: 25000,
+    // Obergrenze des Inventars: der Behaelter bis obenhin voll Wasser, ohne
+    // Dampfraum. Mehr passt nicht hinein, ganz gleich wie lange gespeist wird.
+    massMax: 260000,
+    // Groesster Ausschlag, den Schrumpfen/Quellen auf der Anzeige erzeugen
+    // darf. 0,25 entspricht einer Viertelskala -- deutlich sichtbar, wie es
+    // der Effekt sein soll, aber nicht in der Lage, die Anzeige von "voll"
+    // auf "leer" zu ziehen.
+    swellMax: 0.25,
     // Temperaturhub über die Sättigung, den die reine Dampfkühlung bei
     // vollständig freiliegendem Kern erreicht -- deutlich über der
     // Hüllrohrgrenze (1204 °C), damit Nachzerfallswärme ohne Bedeckung
@@ -153,13 +161,27 @@ export const spec = {
   // genau der Pfad, über den bei einer Isolierung Wärme den Reaktor
   // überhaupt noch verlässt. capacity ist die Dampfmasse (kg-äquivalent),
   // die den Druck von p0 auf designLimit hebt.
-  // capacity war mit 2600 kg so klein, dass schon der erste SRV-Stoss direkt
-  // nach der Isolierung (~7500 kg in 30s, siehe BACKLOG-Notiz) den Behaelter
-  // sofort reissen liess -- Jahre vor dem eigentlichen Blackout. Mit 60000
-  // haelt der harmlose Erststoss (~8000 kg, Notkondensator faengt ihn ab)
-  // klar durch; unbehandelt nach dem Blackout reisst er nach ca. 40 Minuten
-  // statt nach 4 Sekunden (per Engine-Simulation nachgerechnet).
-  containment: { p0: 1.05, capacity: 60000, designLimit: 4.3, ventCv: 9 },
+  //
+  // Der Wert ist von der Kondensationskammer her gerechnet und nicht geraten.
+  // Sie fasst rund 3000 m³ Wasser; der Druck steigt nicht, weil sich Masse
+  // ansammelt, sondern weil sich dieses Wasser aufheizt und irgendwann selbst
+  // siedet. Von 30 °C bis zur Saettigung bei 4,3 bar (145 °C) sind das
+  // 3·10⁶ kg · 4,2 kJ/kgK · 115 K = 1,45·10⁹ kJ, und bei rund 2770 kJ je
+  // Kilogramm Dampf entspricht das etwa 520 000 kg.
+  //
+  // Vorher standen hier 60 000. Damit riss der Behaelter bei voll geoeffnetem
+  // Sicherheitsventil (900 kg/s) nach 67 Sekunden -- solange die Verletzung
+  // folgenlos blieb, fiel das niemandem auf; seit sie den Lauf beendet
+  // (lossCriteria), waere es eine Falle statt einer Lektion gewesen. Mit dem
+  // gerechneten Wert bleiben gut zehn Minuten, um zu reagieren.
+  //
+  // ventCv war mit 9 kg/s gegen 900 kg/s Zustrom ein Prozent -- Venten war
+  // wirkungslos, obwohl die Hilfe es als die Rettung nennt. 60 kg/s liegt
+  // ueber der Nachzerfallsverdampfung (rund 25 kg/s bei 1,5 %), also hilft
+  // Venten an einem abgeschalteten Reaktor wirklich, und bleibt zugleich
+  // chancenlos gegen einen Reaktor, der noch auf Leistung laeuft. Genau die
+  // Reihenfolge, die die Hilfe beschreibt: erst abschalten, dann venten.
+  containment: { p0: 1.05, capacity: 520000, designLimit: 4.3, ventCv: 60 },
 
   // Wasserstoff aus der Zirkon-Wasser-Reaktion. Setzt oberhalb von 1200 °C
   // Hüllrohrtemperatur ein, lange bevor der Brennstoff selbst schmilzt --
@@ -225,12 +247,25 @@ export const spec = {
       test: (s, d) => s.W_core < 0.5 * 13000 && s.n > 0.4, delay_s: 1.0 },
     { id: 'msiv', key: 'alarm_msiv_closed', severity: SEVERITY.WARN,
       test: (s) => s.msiv < 0.5, delay_s: 0 },
+    // Die Absperrung KLEMMT -- das ist etwas anderes als "sie ist zu". Der
+    // Knopf "Offen" laesst sich druecken, stepEvents() schreibt die Stellung
+    // im naechsten Rechenschritt zurueck, und der Spieler klickt ins Leere,
+    // ohne dass ihm irgendetwas davon gesagt wird. Genau diese Leerstelle
+    // machte die Hilfe zur Falle: sie nannte das Oeffnen als DIE Handlung.
+    { id: 'msiv_stuck', key: 'alarm_msiv_stuck', severity: SEVERITY.WARN,
+      test: (s, d) => !!d.msivStuck, delay_s: 0, hold_s: 0 },
     { id: 'srv_open', key: 'alarm_srv_open', severity: SEVERITY.INFO,
       test: (s) => s.srv > 0.01, delay_s: 0 },
     { id: 'turbine_trip', key: 'alarm_turbine_trip', severity: SEVERITY.WARN,
       test: (s) => s.turbineTripped, delay_s: 0 },
     { id: 'clad_temp', key: 'trip_clad_temp', severity: SEVERITY.TRIP,
       test: (s) => s.T_cl > 1477, delay_s: 0, action: 'scram' },
+    // Eine klemmende Stabgruppe war vorher nur eine Zeile im Protokoll. Der
+    // Sollwert liess sich weiter verstellen, die Stellung folgte nicht, und
+    // nichts sagte warum -- auch die Schnellabschaltung bekommt sie nicht
+    // herunter. Das gehoert auf die Meldetafel, nicht ins Protokoll.
+    { id: 'rod_stuck', key: 'alarm_rod_stuck', severity: SEVERITY.WARN,
+      test: (s, d) => !!d.rodStuck, delay_s: 0, hold_s: 0 },
     { id: 'cont_press_high', key: 'alarm_cont_press_high', severity: SEVERITY.WARN,
       test: (s, d) => d.pCont !== undefined && d.pCont > 3.5, delay_s: 2.0 },
     { id: 'h2_critical', key: 'alarm_h2_critical', severity: SEVERITY.WARN,
@@ -609,12 +644,34 @@ export const hooks = {
     }
 
     // ── Fuellstand ──────────────────────────────────────────────────────────
-    s.M_rpv = Math.max(s.M_rpv + (s.W_fw - s.W_steam) * dt, 20000);
+    //
+    // Der Behaelter hat eine Obergrenze. Vorher stand hier nur eine UNTERE
+    // (20 000 kg), und das Ergebnis war absurd: bei abgesperrtem Frischdampf
+    // speiste der Regler mit 1724 kg/s nach, waehrend nur noch 900 kg/s ueber
+    // das Sicherheitsventil abgingen -- ueber vierzig Minuten wuchs das
+    // Inventar auf 2 056 144 kg, das Elffache des Nennwerts. Voll ist voll:
+    // was darueber hinaus gefoerdert wird, geht mit dem Dampf weiter, es
+    // staut sich nicht im Behaelter.
+    s.M_rpv = clamp(s.M_rpv + (s.W_fw - s.W_steam) * dt, 20000, sp.vessel.massMax);
+
     const Ltrue = clamp(0.5 + (s.M_rpv - sp.vessel.mass) / sp.vessel.massSpan, 0, 1);
     // Schrumpfen und Quellen ist hier staerker als beim Druckwasserreaktor:
     // der Kern selbst siedet, ein Druckabfall laesst den ganzen Behaelter
     // aufwallen.
-    s.L_rpv = clamp(Ltrue + sp.vessel.shrinkSwell * (sp.vessel.p0 - s.p_dome) / sp.vessel.p0, 0, 1);
+    //
+    // Der Ausschlag ist begrenzt, und das ist kein Schoenheitsfix. Die
+    // Korrektur ist als KLEINE Verfaelschung um den Betriebsdruck herum
+    // gedacht; ungebremst lieferte sie bei 110 bar Domdruck −91
+    // Prozentpunkte. Die Anzeige stand dann auf 11 %, waehrend der Behaelter
+    // physisch randvoll war -- und weil die Speisewasserregelung unten auf
+    // GENAU DIESE ANZEIGE regelt (s.L_rpv, nicht s.M_rpv), sah sie einen fast
+    // leeren Behaelter und speiste noch mehr nach. Das war die
+    // selbstverstaerkende Schleife hinter den 2000 Tonnen, und die Meldung
+    // "Fuellstand hoch" konnte dabei nie kommen, weil die Anzeige unten
+    // klebte.
+    const swell = clamp(sp.vessel.shrinkSwell * (sp.vessel.p0 - s.p_dome) / sp.vessel.p0,
+      -sp.vessel.swellMax, sp.vessel.swellMax);
+    s.L_rpv = clamp(Ltrue + swell, 0, 1);
 
     // ── Unterkuehlung am Kerneintritt ───────────────────────────────────────
     s.dTsub = _subcooling(s, sp);
@@ -639,6 +696,21 @@ export const hooks = {
     s.gov = ctx.govCtl.step(s.P_e, s.P_demand, s.p_dome, dt);
     s.bypass = s.p_dome > sp.vessel.p0 + 4
       ? clamp((s.p_dome - sp.vessel.p0 - 4) / 6, 0, 1) : 0;
+  },
+
+  /**
+   * Verlustbedingungen, die nur dieser Typ hat.
+   *
+   * Ein geborstener Sicherheitsbehaelter ist das Ende der Anlage, auch wenn
+   * der Kern selbst in dem Augenblick noch heil ist -- die letzte Barriere
+   * zwischen Spaltprodukten und Umgebung ist weg, und es gibt keinen Weg
+   * zurueck. Vorher war das folgenlos: im Szenario mit der
+   * Frischdampf-Absperrung barst der Behaelter nach zehn Minuten, der Druck
+   * lief auf das Fuenfundzwanzigfache des Auslegungswerts, und der Lauf
+   * endete nach fuenfundvierzig Minuten mit "geschafft".
+   */
+  lossCriteria(s) {
+    return s.contFailed ? 'event_cont_failure_loss' : null;
   },
 
   onScram(s, sp, ctx) {
@@ -730,6 +802,7 @@ export const hooks = {
       bypass: s.bypass,
       p_cond: s.p_cond,
       voidFrac: s.alphaBar,
+      msivStuck: !!ctx.msivStuck,
       quality: s.x_e,
       recirc: s.W_rec / sp.recirc.W0,
       subcooling: s.dTsub,

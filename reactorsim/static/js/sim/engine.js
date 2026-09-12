@@ -48,6 +48,21 @@ const ENTHALPY_LIMIT_JPG = 963;
 const ENTHALPY_RISE_LIMIT_JPG = 250;
 const PEAK_FACTOR = 2.6;
 
+/**
+ * Wie lange eine Bedingung anstehen muss, bevor die Anlage verloren ist.
+ *
+ * Beide bewusst in Minuten, nicht in Sekunden: der Spieler soll eine Chance
+ * haben, sie zu bemerken und abzustellen. Ein Grenzwert, der im Augenblick des
+ * Ueberschreitens zuschlaegt, waere kein Lernstoff, sondern eine Falle.
+ *
+ * 180 s ueber der Huellrohrgrenze entspricht der Groessenordnung, in der die
+ * Zirkon-Wasser-Reaktion bei 1200 °C von selbst durchgeht; 300 s ohne
+ * Unterkuehlung ist die Zeit, in der ein freigelegter Kern bei
+ * Nachzerfallswaerme trockenfaellt.
+ */
+const CLAD_FAIL_HOLD_S = 180;
+const COOLANT_LOSS_HOLD_S = 300;
+
 export function createEngine(plant, opts = {}) {
   const spec = plant.spec;
   const hooks = plant.hooks || {};
@@ -144,11 +159,44 @@ export function createEngine(plant, opts = {}) {
       // dafür zu spät.
       hooks.coreCoolant(s, spec, ctx, qCool, h);
     } else {
+      // ── Ausdampfen bei Druckverlust ──────────────────────────────────────
+      //
+      // Ein nicht siedender Kern führt seine Wärme über FLÜSSIGES Wasser ab.
+      // Die Bilanz unten setzt das stillschweigend voraus: sie kennt nur
+      // Durchsatz und Wärmekapazität und fragt nie, ob es bei dem Druck, der
+      // gerade herrscht, überhaupt noch Wasser gibt.
+      //
+      // Ohne die Prüfung war das Ergebnis grotesk: im Szenario mit dem
+      // klemmenden Abblaseventil lief der Primärkreis auf 1 bar und 0 %
+      // Druckhalterfüllstand leer -- vollständiger Kühlmittelverlust -- und
+      // die Brennstofftemperatur stand die ganze Zeit unverändert auf
+      // 1027 °C. Das Modell kühlte mit Wasser weiter, das längst verdampft
+      // war, und der Lauf endete mit "geschafft".
+      //
+      // Steigt die mittlere Kühlmitteltemperatur über die Sättigung, ist das
+      // Wasser im Kern Dampf. Dampf hat einen Bruchteil der Dichte und einen
+      // Bruchteil des Wärmeübergangs -- deshalb wird hier der DURCHGANG
+      // selbst abgesenkt und nicht etwa ein zweiter Term danebengestellt.
+      // Ein zusätzlicher Term war der erste Versuch und funktionierte nicht:
+      // die Zeitkonstante der Wasserkühlung liegt bei 0,3 s, die des
+      // Ausdampfens bei Minuten -- die Wasserkühlung zog den Knoten in jedem
+      // Teilschritt rund siebenhundertmal stärker zurück, als das Ausdampfen
+      // ihn anheben konnte, und im Ergebnis passierte nichts.
+      //
+      // Mit abgesenktem Durchgang folgt beides von selbst: das Gleichgewicht
+      // T_ci + q/UA rückt weit nach oben, und die Zeitkonstante C/UA wächst
+      // im selben Maß -- der Kern heizt sich über Minuten auf, nicht in
+      // Sekunden. Genau der Verlauf eines Kühlmittelverlusts.
+      const Tsat = tsat(s.p_prim);
+      const dry = clamp((T_cool - Tsat) / (spec.coolant.flashBandK || 25), 0, 1);
+      const eff = 1 - dry * (1 - (spec.coolant.dryTransferFrac || 0.02));
+
       // Der Faktor 2 kommt daher, dass der Knoten die MITTLERE Temperatur
       // führt, der Durchsatz aber die Differenz zwischen Ein- und Austritt
       // abführt.
-      const UA_flow = 2 * Math.max(s.W_core, 1) * spec.coolant.cp;
+      const UA_flow = 2 * Math.max(s.W_core, 1) * spec.coolant.cp * eff;
       const Tc = relax(T_cool, s.T_ci + qCool / UA_flow, h, C_cool / UA_flow);
+
       s.T_co = 2 * Tc - s.T_ci;
       s.T_mod = hooks.moderatorTemp ? hooks.moderatorTemp(s, spec, Tc) : Tc;
     }
@@ -162,8 +210,62 @@ export function createEngine(plant, opts = {}) {
     s.enthalpyRise = s.enthalpy - s.enthalpyBase;
     const peakRise = PEAK_FACTOR * s.enthalpyRise;
     if (!s.destroyed && (s.enthalpy > ENTHALPY_LIMIT_JPG || peakRise > ENTHALPY_RISE_LIMIT_JPG)) {
-      s.destroyed = true;
-      ctx.log.push({ t: s.t_sim, key: 'event_fuel_dispersal', severity: 3 });
+      lose('event_fuel_dispersal');
+    }
+  }
+
+  /**
+   * Die Anlage ist verloren. Ein Grund, ein Protokolleintrag, ein Ende.
+   *
+   * `destroyed` bleibt das Signal nach aussen (Spielschicht, Oberflaeche),
+   * `destroyedKey` sagt zusaetzlich WARUM -- vorher gab es nur den einen Weg
+   * ueber die Brennstoffenthalpie, und der Endbildschirm konnte deshalb auch
+   * nur "Kernzerstoerung" sagen.
+   */
+  function lose(key) {
+    if (s.destroyed) return;
+    s.destroyed = true;
+    s.destroyedKey = key;
+    ctx.log.push({ t: s.t_sim, key, severity: 3 });
+  }
+
+  /**
+   * Die uebrigen Wege, eine Anlage zu verlieren.
+   *
+   * Die Enthalpiegrenze oben trifft genau EINEN Fall: die schnelle
+   * Leistungsexkursion. Sie war lange der einzige, und das war der Grund,
+   * warum sich sieben von neun Szenarien mit verschraenkten Armen bestehen
+   * liessen -- ein leergelaufener Primaerkreis, ein geborstener
+   * Sicherheitsbehaelter, stundenlang ueberhitzte Huellrohre: alles ohne
+   * Folgen, alles "geschafft". Ein Leitstandsspiel, dessen Anlage nicht
+   * kaputtgehen kann, kann auch nichts beibringen.
+   *
+   * Was hier steht, gilt fuer jeden Typ. Typeigenes kommt ueber
+   * hooks.lossCriteria() dazu -- die Engine verzweigt nicht nach Reaktortyp.
+   */
+  function checkLoss(d, dt) {
+    if (s.destroyed) return;
+
+    // Huellrohrversagen durch Dauerueberhitzung. Die Auslegungsgrenze (1204 °C
+    // = 1477 K) ist keine Klippe, sondern der Punkt, ab dem die
+    // Zirkon-Wasser-Reaktion selbsttragend wird: sie erzeugt eigene Waerme und
+    // Wasserstoff dazu. Wer die Grenze kurz streift, verliert nichts; wer sie
+    // minutenlang haelt, hat den Kern verloren, ganz ohne Leistungsausflug.
+    const T_fail = (spec.clad && spec.clad.T_fail) || 1477;
+    if (s.T_cl > T_fail) s.cladOverS += dt; else s.cladOverS = 0;
+    if (s.cladOverS > CLAD_FAIL_HOLD_S) { lose('event_clad_failure'); return; }
+
+    // Kuehlmittelverlust: der Kern liegt nicht mehr in Wasser, sondern in
+    // Dampf, und das nicht nur fuer einen Augenblick. Gemessen an der
+    // Saettigung, nicht an einer festen Temperatur -- genau so merkt es eine
+    // echte Warte auch, naemlich an der verschwindenden Unterkuehlung.
+    const dry = d.subcooling !== undefined && d.subcooling < 0;
+    if (dry) s.uncoveredS += dt; else s.uncoveredS = 0;
+    if (s.uncoveredS > COOLANT_LOSS_HOLD_S) { lose('event_coolant_loss'); return; }
+
+    if (hooks.lossCriteria) {
+      const key = hooks.lossCriteria(s, spec, ctx, d);
+      if (key) lose(key);
     }
   }
 
@@ -281,6 +383,9 @@ export function createEngine(plant, opts = {}) {
     const d = derive();
     trips.step(s, d, dt);
 
+    // Die uebrigen Verlustwege neben der Enthalpiegrenze -- siehe checkLoss().
+    checkLoss(d, dt);
+
     s.t_sim += dt;
 
     // 8: Grenzen prüfen. Findet sanitize() etwas Unmögliches, hält die Engine
@@ -331,6 +436,12 @@ export function createEngine(plant, opts = {}) {
       W_core: s.W_core,
       scram: s.scram.active,
       destroyed: s.destroyed,
+      // Klemmt eine Stabgruppe? Die Störung setzt ctx.stuckRods, und von da
+      // an schreibt stepEvents() die Stellung in jedem Rechenschritt zurück
+      // -- auch gegen die Schnellabschaltung. Ohne diesen Wert hatte der
+      // Spieler keinerlei Anhaltspunkt: der Sollwert liess sich verstellen,
+      // die Stellung folgte nicht, und nichts sagte warum.
+      rodStuck: !!(ctx.stuckRods && Object.keys(ctx.stuckRods).length),
     };
     return hooks.derived ? Object.assign(base, hooks.derived(s, spec, ctx, base)) : base;
   }

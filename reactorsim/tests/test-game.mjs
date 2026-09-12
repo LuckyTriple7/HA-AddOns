@@ -126,7 +126,13 @@ test('jedes Szenario läuft ohne Ausnahme bis zum Ende', async () => {
   const defs = await loadScenarios();
   for (const def of defs) {
     const plant = getPlant(def.reactor);
-    const e = createEngine(plant, { n: 1.0, seed: def.seed });
+    // cold MUSS mit -- main.js tut das auch (boot() reicht scenarioDef.cold
+    // durch). Ohne das startete ein Kaltstart-Szenario hier mit einem Kern
+    // auf Volllast, waehrend seine Bedarfskurve bei null beginnt: eine Lage,
+    // die es im Spiel nicht gibt. Aufgefallen ist es erst, als die
+    // Netzabweichung zu einer Fehlbedingung wurde und der Lauf deswegen nach
+    // zehn Minuten endete, bevor ueberhaupt Leistung angefordert war.
+    const e = createEngine(plant, { n: def.cold ? 1e-6 : 1.0, cold: !!def.cold, seed: def.seed });
     const session = new Session(e, def);
     let ended = null;
     session.onEnd = (result, failed) => { ended = { result, failed }; };

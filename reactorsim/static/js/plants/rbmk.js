@@ -243,6 +243,12 @@ export const spec = {
       test: (s) => s.turbineTripped, delay_s: 0 },
     { id: 'clad_temp', key: 'trip_clad_temp', severity: SEVERITY.TRIP,
       test: (s) => s.T_cl > 1477, delay_s: 0, action: 'scram' },
+    // Eine klemmende Stabgruppe war vorher nur eine Zeile im Protokoll. Der
+    // Sollwert liess sich weiter verstellen, die Stellung folgte nicht, und
+    // nichts sagte warum -- auch die Schnellabschaltung bekommt sie nicht
+    // herunter. Das gehoert auf die Meldetafel, nicht ins Protokoll.
+    { id: 'rod_stuck', key: 'alarm_rod_stuck', severity: SEVERITY.WARN,
+      test: (s, d) => !!d.rodStuck, delay_s: 0, hold_s: 0 },
   ],
 };
 

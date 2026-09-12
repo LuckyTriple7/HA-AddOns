@@ -7,14 +7,31 @@
   "duration_s": 3600,
   "seed": 1979,
   "demand": [
-    { "t": 0, "mw": 1400 },
-    { "t": 3600, "mw": 1400 }
+    {
+      "t": 0,
+      "mw": 1400
+    },
+    {
+      "t": 3600,
+      "mw": 1400
+    }
   ],
-  "grid": { "tolerance_mw": 60 },
+  "grid": {
+    "tolerance_mw": 60
+  },
   "events": [
-    { "t": "rand(300,900)", "id": "porv_stuck" }
+    {
+      "t": "rand(300,900)",
+      "id": "porv_stuck"
+    }
   ],
   "fail": [
-    { "type": "fuel_damage" }
+    {
+      "type": "fuel_damage"
+    },
+    {
+      "type": "trip_ignored",
+      "for_s": 300
+    }
   ]
 }

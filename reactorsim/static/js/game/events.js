@@ -185,7 +185,11 @@ export function stepEvents(e, dt) {
     s.msiv = 0;
   }
 
-  if (ctx.porvStuck && s.porv !== undefined) {
+  // Das Abblaseventil klemmt offen -- aber das Blockventil davor sperrt es
+  // ab, wenn der Bediener es schliesst. Ohne diese Bedingung lief der
+  // Primaerkreis auch dann weiter leer, wenn er alles richtig gemacht hatte,
+  // und das Szenario war nicht zu gewinnen.
+  if (ctx.porvStuck && s.porv !== undefined && s.porvBlock !== 0) {
     s.porv = 1;
     // Ein offenes Abblaseventil entleert den Druckhalter stetig.
     s.pzr_p = Math.max(s.pzr_p - 0.35 * dt, 1);

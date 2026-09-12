@@ -141,13 +141,39 @@ export class RunState {
    *
    * @returns {string|null}
    */
-  checkFail(s, d, dt) {
+  checkFail(s, d, dt, worstSeverity = 0) {
     if (this.failed) return this.failed;
     for (const f of this.scenario.def.fail || []) {
       if (f.if === 'difficulty>=3' && this.scenario.difficulty < 3) continue;
       if (f.type === 'fuel_damage' && s.destroyed) return (this.failed = 'fail_fuel_damage');
       if (f.type === 'scram' && s.scram.active) return (this.failed = 'fail_scram');
+
+      // Eine Schutzmeldung steht, und der Bediener tut nichts.
+      //
+      // Das ist die Lehre dieses Spiels, in eine Bedingung gefasst: die
+      // Meldetafel schaltet NICHTS ab (siehe sim/trips.js), sie meldet nur.
+      // Wer eine Auslösemeldung minutenlang stehen lässt, ohne abzuschalten,
+      // hat die Anlage aufgegeben -- auch wenn die Physik ihn dafür nicht
+      // sofort bestraft.
+      //
+      // Ohne diese Bedingung liessen sich fünf von neun Szenarien mit
+      // verschränkten Armen bestehen: die Meldungen kamen alle, blieben
+      // stehen, und am Ende stand "geschafft".
+      if (f.type === 'trip_ignored') {
+        const standing = worstSeverity >= 3 && !s.scram.active;
+        if (standing) {
+          this._tripFor = (this._tripFor || 0) + dt;
+          if (this._tripFor > (f.for_s || 300)) return (this.failed = 'fail_trip_ignored');
+        } else this._tripFor = 0;
+      }
       if (f.type === 'grid_deviation') {
+        // Nicht bei abgeschaltetem Reaktor. Ein Bediener, der auf eine
+        // Ausloesemeldung hin richtig abschaltet, kann danach keine Leistung
+        // mehr liefern -- ihn dafuer den Lauf verlieren zu lassen, bestraft
+        // genau die Handlung, zu der jeder Hilfetext auffordert. Die
+        // Schnellabschaltung kostet ohnehin Punkte (500 je Stueck, siehe
+        // game/scoring.js); sie darf Geld kosten, nicht die Anlage.
+        if (s.scram.active) { this._devFor = 0; continue; }
         const dev = Math.abs(s.P_e - this.scenario.demandAt(s.t_sim));
         if (dev > f.mw) {
           this._devFor = (this._devFor || 0) + dt;

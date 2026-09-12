@@ -7,14 +7,31 @@
   "duration_s": 2700,
   "seed": 2011,
   "demand": [
-    { "t": 0, "mw": 1344 },
-    { "t": 2700, "mw": 1344 }
+    {
+      "t": 0,
+      "mw": 1344
+    },
+    {
+      "t": 2700,
+      "mw": 1344
+    }
   ],
-  "grid": { "tolerance_mw": 80 },
+  "grid": {
+    "tolerance_mw": 80
+  },
   "events": [
-    { "t": 420, "id": "msiv_close" }
+    {
+      "t": 420,
+      "id": "msiv_close"
+    }
   ],
   "fail": [
-    { "type": "fuel_damage" }
+    {
+      "type": "fuel_damage"
+    },
+    {
+      "type": "trip_ignored",
+      "for_s": 300
+    }
   ]
 }

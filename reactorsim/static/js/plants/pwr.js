@@ -43,6 +43,20 @@ export const spec = {
     T_out: toK(326),
     p0: 158,            // bar
     mass: 12000,        // kg im Kernknoten
+    // Ausdampfen bei Druckverlust, siehe engine.js stepCore(). flashBandK ist
+    // die Spanne oberhalb der Saettigung, ueber die der Waermeuebergang von
+    // Wasser- auf Dampfkuehlung wechselt; dryTransferFrac ist der Rest, der
+    // davon uebrig bleibt -- das ist der WAERMEUEBERGANG allein.
+    //
+    // Den zweiten, groesseren Teil des Effekts traegt der Durchsatz: eine
+    // kavitierende Pumpe foerdert Dampf statt Wasser, siehe
+    // cavitationFlowFrac und stepLoop(). Beide Faktoren zusammen ergeben die
+    // Kuehlung eines ausgedampften Kerns; getrennt gefuehrt, weil nur der
+    // Durchsatz auch auf dem Instrument steht und die Durchsatz-Ausloesung
+    // bedient.
+    flashBandK: 25,
+    dryTransferFrac: 0.05,
+    cavitationFlowFrac: 0.02,
   },
 
   feedbacks: ['rods', 'doppler', 'mtc', 'xenon', 'samarium', 'boron', 'excess'],
@@ -190,10 +204,23 @@ export const spec = {
       test: (s, d) => d.subcooling < 8, delay_s: 2 },
     { id: 'porv_open', key: 'alarm_porv_open', severity: SEVERITY.INFO,
       test: (s) => s.porv > 0.01, delay_s: 0 },
+    // Das Abblaseventil KLEMMT offen -- nicht dasselbe wie "es blaest gerade
+    // ab". Die Hilfe zu 'porv_open' sagte, es schliesse von selbst, sobald
+    // der Druck faellt; bei dieser Stoerung stimmt das nicht, und der Spieler
+    // wartete auf etwas, das nie kam. Das ist die Stoerung von TMI-2, und sie
+    // verdient eine eigene Kachel.
+    { id: 'porv_stuck', key: 'alarm_porv_stuck', severity: SEVERITY.TRIP,
+      test: (s, d) => !!d.porvStuck, delay_s: 0, hold_s: 0 },
     { id: 'turbine_trip', key: 'alarm_turbine_trip', severity: SEVERITY.WARN,
       test: (s) => s.turbineTripped, delay_s: 0 },
     { id: 'clad_temp', key: 'trip_clad_temp', severity: SEVERITY.TRIP,
       test: (s) => s.T_cl > 1477, delay_s: 0, action: 'scram' },
+    // Eine klemmende Stabgruppe war vorher nur eine Zeile im Protokoll. Der
+    // Sollwert liess sich weiter verstellen, die Stellung folgte nicht, und
+    // nichts sagte warum -- auch die Schnellabschaltung bekommt sie nicht
+    // herunter. Das gehoert auf die Meldetafel, nicht ins Protokoll.
+    { id: 'rod_stuck', key: 'alarm_rod_stuck', severity: SEVERITY.WARN,
+      test: (s, d) => !!d.rodStuck, delay_s: 0, hold_s: 0 },
   ],
 };
 
@@ -209,6 +236,10 @@ export const hooks = {
     s.pzr_htr = 0;
     s.pzr_spray = 0;
     s.porv = 0;
+    // Blockventil vor dem Abblaseventil -- im Betrieb offen, siehe
+    // uiControls(). Es ist die einzige Handhabe gegen ein klemmendes
+    // Abblaseventil.
+    s.porvBlock = 1;
 
     s.T_sgm = 0.5 * (sp.coolant.T_in + sp.coolant.T_out) - 12;
     s.p_sg = sp.sg.p0;
@@ -351,7 +382,25 @@ export const hooks = {
     // ── Pumpen und Kerndurchsatz ─────────────────────────────────────────────
     let W = 0;
     for (const p of ctx.pumps) { p.step(dt); W += p.flow(0.04); }
-    s.W_core = W;
+
+    // Eine Kreiselpumpe foerdert VOLUMEN, nicht Masse. Faellt der Druck unter
+    // die Saettigung, dampft das Kuehlmittel an der Saugseite aus, die Pumpe
+    // kavitiert und foerdert Dampf: bei 1 bar rund ein Sechzehnhundertstel der
+    // Dichte von Wasser, also derselbe Bruchteil an MASSENSTROM bei gleicher
+    // Drehzahl.
+    //
+    // Ohne diesen Term stand im Szenario mit dem klemmenden Abblaseventil der
+    // volle Nenndurchsatz von 20 000 kg/s im Kern, waehrend der Primaerkreis
+    // auf 1 bar leergelaufen war -- die Pumpen foerderten Wasser, das es nicht
+    // mehr gab. Der Kern blieb dadurch kuehl genug, um den Lauf zu ueberleben,
+    // und die Durchsatz-Ausloesung meldete nichts, weil der Messwert stimmte.
+    //
+    // Jetzt faellt der Durchsatz mit dem Ausdampfen, und beides folgt daraus
+    // von selbst: die Meldung "Kuehlmitteldurchsatz" kommt, und die Kuehlung
+    // im Kern bricht ein (siehe engine.js stepCore).
+    const Tavg0 = 0.5 * (s.T_ci + s.T_co);
+    const flash = clamp((Tavg0 - tsat(s.p_prim)) / (sp.coolant.flashBandK || 25), 0, 1);
+    s.W_core = W * (1 - flash * (1 - (sp.coolant.cavitationFlowFrac || 0.02)));
 
     // ── Strangtemperaturen mit Laufzeit ──────────────────────────────────────
     const T_hotSG = ctx.hotLeg.push(s.T_co);
@@ -429,8 +478,11 @@ export const hooks = {
     s.pzr_p += ((qNet * dt) / sp.pressurizer.C_bar)
              + sp.pressurizer.surge_bar_per_m3 * surge * dt;
 
-    // Abblaseventil und Sicherheitsventile.
-    s.porv = s.pzr_p > sp.pressurizer.porv ? 1 : 0;
+    // Abblaseventil und Sicherheitsventile. Das Blockventil davor hat das
+    // letzte Wort: ist es zu, kommt nichts durch, ganz gleich was das
+    // Abblaseventil selbst gerade macht oder ob es klemmt (siehe
+    // game/events.js stepEvents, das den Leckstrom ebenfalls daran bindet).
+    s.porv = (s.porvBlock ? 1 : 0) * (s.pzr_p > sp.pressurizer.porv ? 1 : 0);
     if (s.porv) s.pzr_p -= (s.pzr_p - sp.pressurizer.porv) * 0.6 * dt;
     if (s.pzr_p > sp.pressurizer.safety) {
       s.pzr_p -= (s.pzr_p - sp.pressurizer.safety) * 2.5 * dt;
@@ -498,6 +550,21 @@ export const hooks = {
    * ueber das DOM wissen muss.
    */
   uiControls(s, sp, ctx, kit) {
+    // Blockventil vor dem Abblaseventil. Es sitzt in Reihe davor und ist im
+    // Betrieb offen; es zu schliessen sperrt den Druckhalter gegen das
+    // Abblaseventil ab -- auch und gerade dann, wenn dieses klemmt.
+    //
+    // Ohne dieses Bedienelement war das Szenario mit dem klemmenden
+    // Abblaseventil schlicht nicht zu gewinnen: der Primaerkreis lief leer,
+    // und der Spieler hatte keinen einzigen Handgriff dagegen. Genau dieses
+    // Ventil hat in Three Mile Island das Leck schliesslich gestoppt -- nach
+    // zweieinhalb Stunden, weil niemand verstanden hatte, dass da ueberhaupt
+    // eines offen war.
+    const porvBlock = kit.buttonGroup('ctl_porv_block', [
+      { key: 'state_open', value: '1' },
+      { key: 'state_closed', value: '0' },
+    ], '1', (v) => { s.porvBlock = Number(v); });
+
     const boron = kit.buttonGroup('ctl_boron', [
       { key: 'ctl_boron_dilute', value: '-1' },
       { key: 'ctl_boron_stop', value: '0' },
@@ -525,6 +592,7 @@ export const hooks = {
     });
 
     return [
+      { mount: 'primary', node: porvBlock.node, set: (st) => porvBlock.set(String(st.porvBlock)) },
       { mount: 'chem', node: boron.node, set: (st) => boron.set(String(st.boronFlow)) },
       { mount: 'secondary', node: heater.node, set: () => heater.set() },
       { mount: 'secondary', node: spray.node, set: () => spray.set() },
@@ -549,6 +617,8 @@ export const hooks = {
       bypass: s.bypass,
       p_cond: s.p_cond,
       pzr_p: s.pzr_p,
+      porvStuck: !!ctx.porvStuck,
+      porvBlock: s.porvBlock,
       pzr_L: s.pzr_L,
       C_B: s.C_B,
       C_B_cmd: s.C_B_cmd,

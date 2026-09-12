@@ -1,5 +1,125 @@
 # Changelog
 
+## 0.0.55
+
+Ein Spieler fragte, was bei „Frischdampf abgesperrt" zu tun sei. Die Hilfe
+nannte als einzige Handlung „Absperrung auf Offen stellen". Nachgemessen:
+der Klick wirkt genau einen Rechenschritt lang, dann schreibt die Störung die
+Stellung zurück. Beim Nachgehen stellte sich heraus, dass das Symptom war,
+nicht die Krankheit.
+
+**Sieben von neun Szenarien bestand man, indem man nichts tat.** Nachgemessen
+mit `tests/tools/passive.mjs` (neu), einem Lauf ohne jede Bedienung:
+
+- `pwr_porv_stuck`, das Three-Mile-Island-Szenario: Primärkreis läuft auf
+  1 bar und 0 % Druckhalterfüllstand leer — vollständiger Kühlmittelverlust —
+  und die Brennstofftemperatur steht die ganze Zeit unverändert auf 1027 °C.
+  Ergebnis: „geschafft", 1750 Punkte, der höchste Wert im ganzen Spiel.
+- `bwr_msiv`: Sicherheitsbehälter berstet nach zehn Minuten, Druck läuft auf
+  110 bar — das Fünfundzwanzigfache des Auslegungswerts. Ergebnis: „geschafft".
+
+Ursache war nicht Nachlässigkeit an einer Stelle, sondern eine fehlende
+Kopplung: **der einzige Verlustweg war die Brennstoffenthalpie**, und die
+greift nur bei einer schnellen Leistungsexkursion. Kühlmittelverlust,
+geborstener Sicherheitsbehälter, überhitzte Hüllrohre — alles ohne Folgen.
+Wer nichts falsch machen kann, kann auch nichts lernen.
+
+### Die Anlage kann jetzt kaputtgehen
+
+- ⚛️ **Der Kern dampft bei Druckverlust aus.** Der generische Kernpfad
+  (`engine.js stepCore`) rechnete die Wärmeabfuhr über flüssiges Wasser, ohne
+  je zu fragen, ob es bei dem herrschenden Druck noch welches gibt. Jetzt
+  bricht der Wärmeübergang ein, sobald die Kühlmitteltemperatur die Sättigung
+  übersteigt.
+  Der erste Versuch dafür war falsch und steht als Warnung im Code: ein
+  zusätzlicher Term neben der Wasserkühlung verlor gegen diese im Verhältnis
+  700:1, weil deren Zeitkonstante bei 0,3 s liegt und die des Ausdampfens bei
+  Minuten. Abgesenkt werden muss der Durchgang selbst.
+- ⚛️ **Kavitierende Pumpen fördern Dampf, nicht Wasser.** Eine Kreiselpumpe
+  fördert Volumen; bei 1 bar hat Dampf rund 1/1600 der Dichte von Wasser.
+  Vorher standen im leergelaufenen Primärkreis unverändert 20 000 kg/s im
+  Kern, und die Durchsatz-Auslösung meldete nichts, weil der Messwert stimmte.
+- ⚛️ **Vier Verlustwege statt einem** (`engine.js checkLoss`): Brennstoff-
+  enthalpie wie bisher, dazu Hüllrohrversagen (über 1204 °C für mehr als drei
+  Minuten — ab da trägt sich die Zirkon-Wasser-Reaktion selbst), Kühlmittel-
+  verlust (Unterkühlung über fünf Minuten unter null) und, typeigen über
+  `hooks.lossCriteria`, der geborstene Sicherheitsbehälter. Beide Zeiten
+  bewusst in Minuten: ein Grenzwert, der im Augenblick des Überschreitens
+  zuschlägt, wäre eine Falle und kein Lernstoff.
+- 🖥️ **Der Endbildschirm sagt jetzt, WORAN es lag** — einer von vier Texten
+  statt immer „Kernzerstörung, Brennstoffenthalpie über 963 J/g".
+
+### Der Füllstand des Siedewasserreaktors log
+
+- 🐛 **Das Inventar hatte keine Obergrenze.** Bei abgesperrtem Frischdampf
+  speiste der Regler mit 1724 kg/s nach, während nur 900 kg/s über das
+  Sicherheitsventil abgingen — nach vierzig Minuten standen **2 056 144 kg**
+  im Behälter, das Elffache des Nennwerts.
+- 🐛 **Und die Anzeige zeigte dabei 11 %.** Der Schrumpf-/Quell-Term ist als
+  kleine Verfälschung um den Betriebsdruck gedacht; bei 110 bar lieferte er
+  −91 Prozentpunkte. Da die Speisewasserregelung auf genau diese Anzeige
+  regelt, sah sie einen fast leeren Behälter und speiste noch mehr — die
+  selbstverstärkende Schleife hinter den 2000 Tonnen. „Füllstand hoch" konnte
+  nie ansprechen, weil die Anzeige unten klebte. Beides ist jetzt begrenzt.
+- ⚖️ **Sicherheitsbehälter neu bemessen.** `capacity` stand auf 60 000 kg —
+  bei voll geöffnetem Sicherheitsventil riss er nach 67 Sekunden. Solange das
+  folgenlos blieb, fiel es nicht auf; als Verlustbedingung wäre es eine Falle
+  gewesen. Der neue Wert (520 000 kg) ist von der Kondensationskammer her
+  gerechnet und lässt gut zehn Minuten. `ventCv` war mit 9 kg/s gegen 900 kg/s
+  Zustrom wirkungslos, obwohl die Hilfe Venten als die Rettung nennt; 60 kg/s
+  liegt über der Nachzerfallsverdampfung, also hilft es an einem
+  abgeschalteten Reaktor wirklich — und bleibt chancenlos gegen einen, der
+  noch läuft. Genau die Reihenfolge, die die Hilfe beschreibt.
+
+### Klemmende Stellglieder melden sich
+
+- 🔔 **Drei neue Meldungen:** „Stabgruppe klemmt", „Frischdampf-Absperrung
+  klemmt", „Abblaseventil klemmt offen". Vorher klickte man ins Leere: der
+  Knopf ließ sich drücken, die Stellung sprang zurück, und nichts sagte warum.
+  Jede der drei bringt eine Hilfe mit, die die Handlungen nennt, die
+  stattdessen wirken — mit Reiter, Bedienelement und Reihenfolge.
+
+### `pwr_porv_stuck` war nicht zu gewinnen
+
+- 🎛️ **Blockventil ergänzt** (Reiter Primär). Das Abblaseventil klemmt offen,
+  und es gab kein einziges Bedienelement dagegen — der Primärkreis lief leer,
+  ganz gleich was der Spieler tat. Genau dieses Ventil hat in Three Mile
+  Island das Leck schließlich gestoppt, nach zweieinhalb Stunden.
+
+### Die Szenarien reagieren
+
+- 🎯 **Neue Fehlbedingung `trip_ignored`:** eine Auslösemeldung steht fünf
+  Minuten an, ohne dass abgeschaltet wird. Das ist die Lehre dieses Spiels in
+  eine Regel gefasst — die Meldetafel schaltet nichts ab, der Bediener muss.
+- 🎯 **Netzbedingungen ergänzt**, mit einer Schwelle aus der szenarioeigenen
+  Toleranz (dem Dreifachen) statt geratener Zahlen. Reine Störfall-Szenarien
+  bekommen keine, dort wäre der verlorene Lastabsatz Folge und nicht Fehler.
+- 🐛 **`grid_deviation` feuert nicht mehr bei abgeschaltetem Reaktor.** Wer auf
+  eine Auslösemeldung hin richtig abschaltet, kann danach keine Leistung
+  liefern — ihn dafür den Lauf verlieren zu lassen bestrafte genau die
+  Handlung, zu der jeder Hilfetext auffordert. Die Schnellabschaltung kostet
+  ohnehin 500 Punkte; sie darf Geld kosten, nicht die Anlage.
+
+### Gemessen statt geglaubt
+
+Zwei Sonden, beide dauerhaft im Baum:
+
+- `tests/tools/passive.mjs` — Lauf ohne jede Bedienung. **Vorher 7 von 9
+  bestanden, jetzt 0 von 9.**
+- `tests/tools/competent.mjs` — Gegenprobe mit schlichter, korrekter
+  Betriebsweise. **8 von 9 bestanden.** Die Gegenprobe ist die wichtigere von
+  beiden: Szenarien so scharf zu stellen, dass Nichtstun scheitert, ist leicht
+  — man kann dabei versehentlich jeden richtigen Lauf unmöglich machen und
+  hätte die Fehlerrichtung nur gedreht. (Das neunte, `rbmk_night_shift`,
+  scheitert an der Sonde, nicht am Spiel: sie führt die Last des RBMK nur
+  grob.)
+
+- ✅ **`test-game.mjs` baute Kaltstart-Szenarien mit heißem Kern auf** — das
+  `cold`-Flag wurde nicht durchgereicht, anders als in `main.js boot()`. Der
+  Test prüfte damit eine Lage, die es im Spiel nicht gibt. Aufgefallen ist es
+  erst, als die Netzabweichung zu einer Fehlbedingung wurde.
+
+
 ## 0.0.54
 
 Durchsicht auf Fehler und Optimierungen -- nichts davon fiel im Spiel auf,

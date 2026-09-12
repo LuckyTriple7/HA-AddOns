@@ -114,6 +114,14 @@ export function createState(spec, opts = {}) {
     enthalpyBase: 0,    // langsam nachgeführte Bezugslinie
     enthalpyRise: 0,    // Zuwachs gegenüber dem Betriebszustand
     destroyed: false,
+    // Warum die Anlage verloren ist -- Übersetzungsschlüssel, siehe
+    // engine.js lose(). Solange destroyed false ist, steht hier nichts.
+    destroyedKey: null,
+    // Wie lange Hüllrohrgrenze bzw. Unterkühlung schon verletzt sind.
+    // Gehören in den Zustand und nicht in den Kontext: sie entscheiden über
+    // das Ende des Laufs und müssen deshalb in den Spielstand.
+    cladOverS: 0,
+    uncoveredS: 0,
     fault: null,     // gesetzt, wenn sanitize() etwas Unmögliches findet
   };
 

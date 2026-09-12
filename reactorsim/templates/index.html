@@ -349,8 +349,9 @@
 <!-- ── Kernzerstörung ───────────────────────────────────────────────────── -->
 <div class="rs-modal" id="rs-destroyed" hidden>
   <div class="rs-modal-box rs-modal-bad">
-    <h2>{{ t.end_destroyed_title }}</h2>
-    <p>{{ t.end_destroyed_body }}</p>
+    <h2 id="rs-destroyed-title">{{ t.end_lost_title }}</h2>
+    <!-- Text kommt aus main.js showDestroyed(): einer je Verlustweg. -->
+    <p id="rs-destroyed-body"></p>
     <p class="rs-modal-detail" id="rs-destroyed-detail"></p>
     <ol class="rs-log" id="rs-destroyed-log"></ol>
     <div class="rs-modal-actions">
