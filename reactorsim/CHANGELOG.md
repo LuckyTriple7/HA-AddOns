@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.0.56
+
+Alle 33 Hilfetexte und alle 9 Einweisungen neu geschrieben, in beiden
+Sprachen, jede Aussage gegen den Code geprüft.
+
+Der Anlass war eine einzige Frage: „Was ist hier zu tun?" Die Hilfe zu
+„Frischdampf abgesperrt" nannte als einzige Handlung „Absperrung auf Offen
+stellen" — und dieser Klick wirkt genau einen Rechenschritt lang. Dieselbe
+Frage stellte sich bei der Einweisung zum Lastfolgebetrieb: sie sagt „ab da
+bleibt nur noch Bor" und nirgends, dass das Bedienelement „Borsäure" heißt
+und im Reiter Chemie sitzt.
+
+### Was sich an jedem Text geändert hat
+
+- 📍 **Jedes Bedienelement wird mit Kachel und Namen genannt**, so wie es auf
+  dem Schirm steht. „Bor dosieren" ohne zu sagen wo, ist keine Anleitung.
+- 🔢 **Wo die Reihenfolge zählt, ist nummeriert.** Beim Frischdampf etwa:
+  abschalten, DANN Notkondensator — der arbeitet nur bei abgeschaltetem
+  Reaktor, andersherum passiert nichts.
+- 🚫 **Wo etwas NICHT wirkt, steht das jetzt da.** „Regelventil" und
+  Umleitstation sitzen hinter der Absperrung; sie zu öffnen ändert nichts.
+  Der alte Text zu „Domdruck hoch" empfahl genau das.
+- 🔬 **Jede Zahl gegen den Code geprüft:** Ansprechpunkte der Sicherheits- und
+  Abblaseventile, Umleitstation, Auslegungsdruck des Sicherheitsbehälters,
+  Trommeldruck, Grenzwerte der Meldungen.
+
+### Drei Texte, die vorher falsch waren
+
+- **„Frischdampf abgesperrt"** verwies auf eine unmögliche Handlung und
+  erwähnte weder Schnellabschaltung noch Notkondensator — also genau die
+  beiden Dinge, auf die es ankommt.
+- **„Domdruck hoch"** empfahl Regelventil und Umleitstation. Beide sind
+  wirkungslos, wenn der Druck steigt, WEIL abgesperrt ist — dem häufigsten
+  Fall, in dem diese Meldung kommt.
+- **„Abblaseventil offen"** versprach, das Ventil schließe von selbst wieder.
+  Bei der klemmenden Störung stimmt das nicht, und der Spieler wartete auf
+  etwas, das nie kam.
+
+### Ein Test, der diese Fehlerklasse künftig abfängt
+
+`test_help_texts_only_name_controls_that_exist` prüft jedes in
+Anführungszeichen genannte Bedienelement gegen die tatsächlichen
+Beschriftungen — in Hilfetexten und Einweisungen, in beiden Sprachen, ohne
+Ausnahmeliste. Er fängt nicht jede falsche Aussage (ob eine Handlung in
+DIESER Lage wirkt, weiß nur der Code), aber die häufigste: ein Bedienelement
+nennen, das unter diesem Namen gar nicht existiert.
+
+Beim ersten Lauf fand er drei eigene Fehler in den frisch geschriebenen
+Texten:
+
+- `„-Heizung"` — abgekürzt statt ausgeschrieben, kein Bedienelement.
+- Die englischen Texte schickten den Spieler auf einen Knopf `"closed"`. Der
+  heißt dort **`shut`**.
+- Der englische Text verwies auf `"SCRAM/RESA/AZ-5"`; der Glossareintrag
+  heißt `SCRAM / RESA / AZ-5`, mit Leerzeichen.
+
+Genau die Sorte Abweichung, die einen Spieler vergeblich suchen lässt.
+
+### Die Einweisungen
+
+Die Erzählung bleibt unangetastet — sie stellt die Lage gut dar. Jede bekommt
+einen Block „Darauf kommt es an" mit drei bis fünf Punkten: welches
+Bedienelement, welche Kachel, welche Reihenfolge, und worauf beim Ablesen zu
+achten ist. Beim Lastfolgebetrieb steht jetzt da, dass „Borsäure" in der
+Kachel Reaktorchemie sitzt, dass Verdünnen die Leistung hebt und Aufborieren
+sie senkt — und dass man wegen der drei Minuten Totzeit früh und in kleinen
+Schritten dosieren muss, statt zu warten, bis die Abweichung sichtbar ist.
+
+
 ## 0.0.55
 
 Ein Spieler fragte, was bei „Frischdampf abgesperrt" zu tun sei. Die Hilfe
