@@ -1,0 +1,26 @@
+{
+  "id": "rbmk_cold_start",
+  "reactor": "rbmk",
+  "difficulty": 3,
+  "title_key": "scn_rbmk_cold_title",
+  "brief_key": "scn_rbmk_cold_brief",
+  "duration_s": 9000,
+  "seed": 730,
+  "cold": true,
+  "demand": [
+    { "t": 0, "mw": 0 },
+    { "t": 1800, "mw": 0 },
+    { "t": 3600, "mw": 200, "ramp": "linear" },
+    { "t": 5400, "mw": 200 },
+    { "t": 7800, "mw": 900, "ramp": "linear" },
+    { "t": 9000, "mw": 900 }
+  ],
+  "grid": { "tolerance_mw": 100 },
+  "events": [
+    { "t": "rand(4200,5100)", "id": "rod_stuck", "args": { "bank": 1 } },
+    { "t": "rand(6600,7500)", "id": "mcp_trip", "args": { "count": 1 } }
+  ],
+  "fail": [
+    { "type": "fuel_damage" }
+  ]
+}

@@ -11,6 +11,7 @@ import { Session, PHASE } from './game/session.js';
 import { api } from './net/api.js';
 import { save as saveGame, load as loadGame } from './net/persist.js';
 import { GLOSSARY } from './ui/glossary.js';
+import { SHORTCUTS } from './ui/shortcuts.js';
 import { STATUS_STATS, sanitizeStatusKeys } from './ui/statusStats.js';
 import { Geiger } from './ui/geiger.js';
 
@@ -91,7 +92,10 @@ function initStart() {
 
   $('#rs-brief-go').addEventListener('click', () => {
     $('#rs-brief').hidden = true;
-    boot(app.reactor, app.briefDef);
+    // Waehrend eines laufenden Szenarios ist dieser Knopf ein Schliessen-
+    // Knopf (siehe showBriefing()), kein zweiter Start.
+    if (app.session && app.session.phase === PHASE.RUNNING) return;
+    boot(app.reactor, app.briefDef, null, app.briefDef && app.briefDef.cold);
   });
 
   $('#rs-debrief-send').addEventListener('click', () => {
@@ -224,6 +228,24 @@ function renderScenarios(reactorId) {
   }
 }
 
+/** Einweisung fuellen und zeigen -- vor Rundenstart wie waehrend der Runde. */
+function showBriefing(def) {
+  setText($('#rs-brief-title'), t(def.title_key));
+  setText($('#rs-brief-text'), t(def.brief_key));
+  const meta = $('#rs-brief-meta');
+  const tags = [
+    el('span', { text: `${t('brief_duration')}: ${Math.round(def.duration_s / 60)} min` }),
+    el('span', { text: `${t('brief_difficulty')}: ${'\u2605'.repeat(def.difficulty || 1)}` }),
+  ];
+  if (def.cold) tags.push(el('span', { text: t('brief_cold') }));
+  meta.replaceChildren(...tags);
+  // Waehrend einer laufenden Runde ist der Knopf ein Schliessen-Knopf, kein
+  // zweiter Rundenstart (siehe #rs-brief-go-Handler).
+  const running = app.session && app.session.phase === PHASE.RUNNING;
+  setText($('#rs-brief-go'), running ? t('btn_close') : t('brief_start'));
+  $('#rs-brief').hidden = false;
+}
+
 /** Szenariodatei nachladen und die Einweisung zeigen. */
 function loadScenario(scn) {
   const base = window.RS_CFG ? `/s/${window.RS_CFG.version}` : '';
@@ -231,14 +253,7 @@ function loadScenario(scn) {
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error('scenario'))))
     .then((def) => {
       app.briefDef = def;
-      setText($('#rs-brief-title'), t(def.title_key));
-      setText($('#rs-brief-text'), t(def.brief_key));
-      const meta = $('#rs-brief-meta');
-      meta.replaceChildren(
-        el('span', { text: `${t('brief_duration')}: ${Math.round(def.duration_s / 60)} min` }),
-        el('span', { text: `${t('brief_difficulty')}: ${'\u2605'.repeat(def.difficulty || 1)}` }),
-      );
-      $('#rs-brief').hidden = false;
+      showBriefing(def);
     })
     .catch(() => { boot(app.reactor, null); });
 }
@@ -304,6 +319,35 @@ function initControls() {
   $('#rs-glossary').addEventListener('click', () => { glossaryModal.hidden = false; });
   $('#rs-glossary-close').addEventListener('click', () => { glossaryModal.hidden = true; });
   glossaryModal.addEventListener('click', (ev) => { if (ev.target === glossaryModal) glossaryModal.hidden = true; });
+
+  // Tastenkuerzel-Hilfe: statische Liste, einmal aus SHORTCUTS gebaut, wie
+  // beim Glossar oben.
+  const shortcutsModal = $('#rs-shortcuts-modal');
+  $('#rs-shortcuts-list').replaceChildren(...SHORTCUTS.flatMap((e) => [
+    el('dt', { text: t(e.key) }),
+    el('dd', { text: t(e.def) }),
+  ]));
+  $('#rs-shortcuts').addEventListener('click', () => { shortcutsModal.hidden = false; });
+  $('#rs-shortcuts-close').addEventListener('click', () => { shortcutsModal.hidden = true; });
+  shortcutsModal.addEventListener('click', (ev) => { if (ev.target === shortcutsModal) shortcutsModal.hidden = true; });
+
+  // Einweisung waehrend der Runde erneut ansehen -- Knopf ist nur sichtbar,
+  // wenn eine Einweisung existiert (siehe boot(), #rs-briefing-btn.hidden).
+  // Escape/Klick auf den Hintergrund schliessen sie hier zusaetzlich; vor
+  // Rundenstart (app.session existiert noch nicht) bleibt das Verhalten
+  // unveraendert, keiner der beiden Zuhoerer greift dann.
+  const briefModal = $('#rs-brief');
+  $('#rs-briefing-btn').addEventListener('click', () => {
+    if (app.briefDef) showBriefing(app.briefDef);
+  });
+  briefModal.addEventListener('click', (ev) => {
+    if (ev.target === briefModal && app.session && app.session.phase === PHASE.RUNNING) briefModal.hidden = true;
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !briefModal.hidden && app.session && app.session.phase === PHASE.RUNNING) {
+      briefModal.hidden = true;
+    }
+  });
 
   // Kachel als Fenster: Klick auf die Kopfzeile hebt den echten
   // rs-panel-body-Knoten ins Fenster -- verschoben, nicht geklont, also
@@ -656,11 +700,11 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   // ersten await, damit sie noch als "waehrend der Geste" zaehlt.
   app.geiger.unlock();
 
-  // Kaltstart gilt nur fuer ein echtes freies Spiel: ein Szenario bringt
-  // seine eigenen Startwerte (start_overrides) mit, ein Spielstand ueber-
-  // schreibt den Zustand ohnehin gleich wieder -- trim() liefe in beiden
-  // Faellen nur fuer einen Wimpernschlag unbeobachtet mit.
-  const isColdStart = !!cold && !scenarioDef && !loadSlot;
+  // Kaltstart gilt fuer freies Spiel (Haekchen) und fuer ein Szenario, das
+  // sein eigenes `cold: true` mitbringt -- ein Spielstand ueberschreibt den
+  // Zustand ohnehin gleich wieder, trim() liefe da nur fuer einen
+  // Wimpernschlag unbeobachtet mit.
+  const isColdStart = !!cold && !loadSlot;
 
   // Für den Neustart-Knopf in Auswertung und Kernzerstörung gemerkt -- ein
   // Spielstand zählt dabei nicht als Szenario, "Neustart" fängt dann frei an.
@@ -695,6 +739,9 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   app.session = new Session(app.engine, scenarioDef);
   app.session.onEnd = (result, failed) => showDebrief(result, failed);
   app.session.start();
+  // Nur ein Szenario hat eine Einweisung, die es wert ist, erneut
+  // aufzurufen -- im freien Spiel gibt es keine, der Knopf bleibt weg.
+  $('#rs-briefing-btn').hidden = app.session.free;
   app.render.clear();
   const built = buildPanels(app.engine, app.render, app.geiger);
   app.horn = built.horn;

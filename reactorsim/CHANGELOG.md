@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.47
+
+- ❄️ **Kaltstart jetzt auch in Szenarien.** Bisher erzwang `boot()` immer ein
+  warmes Anfahren, sobald ein Szenario lief -- der `cold`-Modus (alle Stäbe
+  drin, Pumpen aus, `trim()` schwingt bewusst NICHT auf Kritikalität ein) war
+  auf das freie Spiel beschränkt. Ein Szenario kann jetzt `"cold": true`
+  setzen und startet dann wirklich kalt.
+- 🆕 **Neues Szenario: "Kaltstart nach Revision" (RBMK).** Anders als
+  "Nachtschicht" (steht bei Volllast, fährt runter und wieder hoch) beginnt
+  dieses Szenario kalt und steigt von unten durch die 200-Megawatt-
+  Gefahrenzone -- Pumpen anfahren, Stäbe behutsam ziehen, kritisch werden,
+  hochfahren, während eine Stabbank klemmt und später eine Umwälzpumpe
+  ausfällt.
+- 📖 **Alle Einweisungstexte zu echten Kurzgeschichten ausgebaut.** Die
+  bisherigen zwei bis drei Sätze pro Szenario waren zu knapp, um die
+  Situation wirklich zu verstehen. Jetzt: Zeit/Ort, was passiert, warum es
+  gefährlich ist, was zu tun ist -- auf Deutsch und Englisch, für alle neun
+  Szenarien.
+- 🔁 **Einweisung während der Runde erneut aufrufbar.** Neuer Knopf in der
+  Kopfzeile (nur bei Szenarien, nicht im freien Spiel) öffnet dieselbe
+  Einweisung noch einmal, ohne die laufende Runde zu unterbrechen.
+- ⌨️ **Tastenkürzel-Übersicht ergänzt.** Leertaste, Zeitraffer 1-4 und Esc
+  standen bisher nirgends im Spiel selbst -- neues Hilfe-Fenster nach dem
+  Muster des Grundlagen-Glossars.
+
 ## 0.0.46
 
 - 💾 **Spielstand speicherte Pumpen, Ventile und Regler bisher gar nicht.** Nur Zahlen/Bool'sche Felder direkt am Zustand wurden mitgesichert -- Pumpen (Kaltstart: an/aus, Drehzahl), Regelventile (Stellung), und Regler (Automatik/Hand, Handwert, PI-Integrator) leben in eigenen Objekten daneben und kamen beim Laden IMMER frisch (= Vollast, Automatik) zurück, ganz gleich was eingestellt war.

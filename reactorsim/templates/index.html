@@ -119,8 +119,14 @@
               aria-label="{{ t.btn_xenon_skip }}" title="{{ t.btn_xenon_skip }}">⏩</button>
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-glossary"
               aria-label="{{ t.btn_glossary }}" title="{{ t.btn_glossary }}">?</button>
+      <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-shortcuts"
+              aria-label="{{ t.btn_shortcuts }}" title="{{ t.btn_shortcuts }}">⌨</button>
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-stats-cfg"
               aria-label="{{ t.btn_stats_cfg }}" title="{{ t.btn_stats_cfg }}">⚙</button>
+      <!-- Nur sichtbar, wenn die laufende Runde ein Szenario ist (siehe
+           boot() in main.js) -- im freien Spiel gibt es keine Einweisung. -->
+      <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-briefing-btn" hidden
+              aria-label="{{ t.btn_briefing }}" title="{{ t.btn_briefing }}">📋</button>
       <button type="button" class="rs-btn rs-btn-ghost" id="rs-save">{{ t.btn_save }}</button>
       <button type="button" class="rs-btn rs-btn-ghost" id="rs-menu">{{ t.btn_menu }}</button>
       <button type="button" class="rs-scram" id="rs-scram">{{ t.btn_scram }}</button>
@@ -361,6 +367,16 @@
     <p class="rs-ctl-hint">{{ t.glossary_intro }}</p>
     <dl class="rs-glossary" id="rs-glossary-list"></dl>
     <button type="button" class="rs-btn rs-btn-primary" id="rs-glossary-close">{{ t.btn_close }}</button>
+  </div>
+</div>
+
+<!-- ── Tastenkuerzel ────────────────────────────────────────────────────── -->
+<div class="rs-modal" id="rs-shortcuts-modal" hidden>
+  <div class="rs-modal-box rs-modal-wide">
+    <h2>{{ t.shortcuts_title }}</h2>
+    <p class="rs-ctl-hint">{{ t.shortcuts_intro }}</p>
+    <dl class="rs-glossary" id="rs-shortcuts-list"></dl>
+    <button type="button" class="rs-btn rs-btn-primary" id="rs-shortcuts-close">{{ t.btn_close }}</button>
   </div>
 </div>
 

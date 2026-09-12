@@ -54,6 +54,7 @@ export class Scenario {
   get titleKey() { return this.def.title_key; }
   get briefKey() { return this.def.brief_key; }
   get difficulty() { return this.def.difficulty || 1; }
+  get cold() { return !!this.def.cold; }
 
   demandAt(t) { return demandAt(this.demand, t); }
 
