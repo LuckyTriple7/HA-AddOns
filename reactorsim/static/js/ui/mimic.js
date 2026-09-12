@@ -239,6 +239,12 @@ export function buildBwrMimic(container) {
   g.push(pipe('M 296 46 L 296 214 L 372 214', 'steam', 'bypass'));
   // Abdampf.
   g.push(pipe('M 432 140 L 452 140 L 452 196 L 432 196', 'steam', 'steam'));
+
+  // Sicherheitsventil: zweigt vom Frischdampf ab und blaest nach oben ins
+  // Freie (kein Torus im Bild) -- rein automatisch, kein Bedienelement, nur
+  // sichtbar wenn es gerade wirklich blaest (siehe update()).
+  g.push(pipe('M 280 46 L 280 8', 'steam', 'srv'));
+  g.push(valve(280, 20, 'srv', t('mimic_srv')));
   // Speisewasser zurück in den Behälter.
   g.push(pipe('M 372 232 L 212 232 L 212 150 L 180 150', 'feed', 'feed'));
   // Umwälzschleife außen am Behälter entlang.
@@ -328,6 +334,7 @@ export function buildBwrMimic(container) {
       }
       for (const n of flows.get('bypass') || []) setVar(n, '--rs-w', (s.bypass || 0).toFixed(3));
       for (const n of flows.get('ic') || []) setVar(n, '--rs-w', s.icOpen ? '1.000' : '0.000');
+      for (const n of flows.get('srv') || []) setVar(n, '--rs-w', (s.srv || 0).toFixed(3));
 
       const rcp = comps.get('rcp');
       if (rcp) {
@@ -336,13 +343,17 @@ export function buildBwrMimic(container) {
       }
       setAttr(comps.get('gov'), 'data-state', s.gov > 0.02 && s.msiv > 0.5 ? 'run' : 'stopped');
       setAttr(comps.get('bypass'), 'data-state', s.bypass > 0.02 ? 'run' : 'stopped');
+      setAttr(comps.get('srv'), 'data-state', s.srv > 0.02 ? 'run' : 'stopped');
       setAttr(comps.get('sep'), 'data-state', s.x_e > 0.01 ? 'run' : 'stopped');
       setAttr(comps.get('ic'), 'data-state', s.icOpen ? 'run' : 'stopped');
       setAttr(comps.get('gen'), 'data-state',
         s.turbineTripped ? 'tripped' : (s.breaker ? 'run' : 'stopped'));
 
       if (level) {
-        const h = Math.max(2, 120 * Math.max(0, Math.min(1, s.L_rpv)));
+        // d.L_sg statt s.L_rpv: friert wie die Warten-Anzeige ein, sobald der
+        // Gleichstrom fehlt (siehe derived() in bwr.js) -- das Bild soll
+        // genau das zeigen, was die Warte glaubt, nicht die Physik dahinter.
+        const h = Math.max(2, 120 * Math.max(0, Math.min(1, d.L_sg)));
         setAttr(level, 'y', String(96 + 120 - h));
         setAttr(level, 'height', String(h));
       }

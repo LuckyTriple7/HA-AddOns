@@ -294,6 +294,7 @@
   "mimic_cond": "Condenser",
   "mimic_gov": "Governor",
   "mimic_bypass": "Dump",
+  "mimic_srv": "Relief valve",
   "trip_dome_press_high": "Dome pressure high",
   "trip_dome_press_high_help": "Dome/drum pressure above the trip limit — the governor valve isn't taking enough steam.\n\nDo this now:\n• Trip the reactor.\n• Check \"Governor valve\" (automatic/manual), open it further by hand if needed.\n• \"Steam dump\" bleeds the excess to the condenser in the meantime.\n• Usually caused by too fast a power rise — ramp up more slowly afterwards.",
   "trip_level_low": "Level low",

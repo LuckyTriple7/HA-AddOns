@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.50
+
+- 🐛 **Sicherheitsbehälter beim Fukushima-Szenario riss praktisch sofort.**
+  `capacity: 2600` war so klein, dass schon der erste, harmlose
+  Sicherheitsventil-Stoß direkt nach der Isolierung (~7.500 kg in 30
+  Sekunden, Notkondensator fängt das normalerweise ab) den Grenzwert riss —
+  4 Sekunden nach dem Erdbeben, lange vor dem eigentlichen Stromausfall.
+  Per Engine-Simulation nachgerechnet und auf `60000` gesetzt: der harmlose
+  Erststoß bleibt jetzt sicher drunter, ein unbehandelter Blackout reißt den
+  Behälter nach ca. 40 Minuten statt 4 Sekunden.
+- 🌊 **Füllstandsanzeige lügt beim Stromausfall mit, wie der Notkondensator.**
+  2011 zeigte die Warte lange einen stabilen Füllstand, während der Kern in
+  Wirklichkeit bereits freilag — die Anzeige hing an derselben Gleichstrom-
+  versorgung wie der Rest der Instrumentierung. Jetzt friert `d.L_sg`
+  (Kopfzeile und Fließbild) beim Stromausfall auf dem letzten echten Wert
+  ein, während der Kern real weiter leerläuft.
+- 🔧 **Frischdampf-Absperrung (SWR-Störfall-Szenario) blieb nicht zu.**
+  `msiv_close` setzte `s.msiv` bisher nur einmalig auf 0 -- ein Klick auf
+  "offen" machte die ganze Störung rückgängig. Jetzt wie ein klemmender
+  Stab dauerhaft erzwungen (`ctx.msivStuck`).
+- 🖼️ **Sicherheitsventil jetzt im Fließbild sichtbar** (SWR), vorher nur als
+  Meldetafel-Alarm ohne jede Stelle im Bild.
+- 📝 Ereignisprotokoll: "gekommen"/"gegangen" durch klareres
+  "ausgelöst"/"beendet" ersetzt.
+
 ## 0.0.49
 
 - 🟢 **Kopfzeilen-Werte jetzt durchgehend grün/gelb/rot.** Viele der 44

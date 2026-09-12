@@ -153,7 +153,13 @@ export const spec = {
   // genau der Pfad, über den bei einer Isolierung Wärme den Reaktor
   // überhaupt noch verlässt. capacity ist die Dampfmasse (kg-äquivalent),
   // die den Druck von p0 auf designLimit hebt.
-  containment: { p0: 1.05, capacity: 2600, designLimit: 4.3, ventCv: 9 },
+  // capacity war mit 2600 kg so klein, dass schon der erste SRV-Stoss direkt
+  // nach der Isolierung (~7500 kg in 30s, siehe BACKLOG-Notiz) den Behaelter
+  // sofort reissen liess -- Jahre vor dem eigentlichen Blackout. Mit 60000
+  // haelt der harmlose Erststoss (~8000 kg, Notkondensator faengt ihn ab)
+  // klar durch; unbehandelt nach dem Blackout reisst er nach ca. 40 Minuten
+  // statt nach 4 Sekunden (per Engine-Simulation nachgerechnet).
+  containment: { p0: 1.05, capacity: 60000, designLimit: 4.3, ventCv: 9 },
 
   // Wasserstoff aus der Zirkon-Wasser-Reaktion. Setzt oberhalb von 1200 °C
   // Hüllrohrtemperatur ein, lange bevor der Brennstoff selbst schmilzt --
@@ -185,7 +191,7 @@ export const spec = {
   // halter oder Dampferzeuger, die das trennen würden.
   alarmComponents: {
     power_high: 'rpv', period_short: 'rpv', oprm: 'rpv', instability: 'rpv',
-    dome_press_high: 'rpv', level_low: 'rpv', level_high: 'rpv', srv_open: 'rpv', clad_temp: 'rpv',
+    dome_press_high: 'rpv', level_low: 'rpv', level_high: 'rpv', srv_open: 'srv', clad_temp: 'rpv',
     recirc_low: 'rcp',
     turbine_trip: 'gen',
     cont_press_high: 'rpv', h2_critical: 'rpv',
@@ -709,9 +715,15 @@ export const hooks = {
   },
 
   derived(s, sp, ctx, base) {
+    // Fuellstandsanzeige braucht wie der Notkondensator Gleichstrom (Referenz-
+    // leg-Messung) -- ohne ihn friert sie auf dem letzten echten Wert ein,
+    // waehrend der Kern in Wirklichkeit weiter leerlaeuft. Genau das hat 2011
+    // dazu gefuehrt, dass die Warte den Fuellstand fuer laenger stabil hielt,
+    // als er es war.
+    ctx.displayLevel = s.dcPower ? s.L_rpv : (ctx.displayLevel ?? s.L_rpv);
     return {
       p_sg: s.p_dome,
-      L_sg: s.L_rpv,
+      L_sg: ctx.displayLevel,
       W_steam: s.W_steam,
       W_fw: s.W_fw,
       gov: s.gov,

@@ -82,7 +82,13 @@ const EVENTS = {
   msiv_close: {
     key: 'ev_msiv_close',
     severity: 3,
-    apply(e) { if (e.state.msiv !== undefined) e.state.msiv = 0; },
+    // Bleibt zu, wie ein klemmender Stab (ctx.stuckRods) -- sonst waere die
+    // ganze Stoerung ein einziger Klick auf "offen" rueckgaengig zu machen.
+    apply(e) {
+      if (e.state.msiv === undefined) return;
+      e.state.msiv = 0;
+      e.ctx.msivStuck = true;
+    },
   },
 
   recirc_runback: {
@@ -173,6 +179,10 @@ export function stepEvents(e, dt) {
       // Punkt an einem klemmenden Stab.
       s.rod[i] = pos;
     }
+  }
+
+  if (ctx.msivStuck && s.msiv !== undefined) {
+    s.msiv = 0;
   }
 
   if (ctx.porvStuck && s.porv !== undefined) {
