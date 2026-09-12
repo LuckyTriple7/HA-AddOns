@@ -56,6 +56,7 @@
 .rs-stat-lead .rs-stat-v { font-size: 18px; color: var(--rs-value); }
 /* Zustand schlägt Grundfarbe -- auch bei den großen Leitwerten. Gleiche
    Rangfolge wie überall sonst: 1 Hinweis, 2 Warnung, 3 Auslösung. */
+.rs-stat-v[data-sev="0"] { color: var(--rs-ok); }
 .rs-stat-v[data-sev="1"] { color: var(--rs-warn); }
 .rs-stat-v[data-sev="2"] { color: var(--rs-hot); }
 .rs-stat-v[data-sev="3"] { color: var(--rs-alarm); }

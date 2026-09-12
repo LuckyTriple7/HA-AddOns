@@ -16,6 +16,32 @@ import { MIMICS } from './mimic.js';
 
 const U = (key) => ' ' + t(key);
 
+/**
+ * Primaerdruck-Ampel fuer die Statuszeile -- dieselben Zahlen wie die
+ * jeweilige Grenzwertprobe in plants/*.js (pzr_press_low/high, dome_press_high,
+ * drum_press_high), mit einer selbst gewaehlten Vorwarnstufe knapp darunter.
+ * Kein eigener Grenzwert modelliert -- undefined, Anzeige bleibt ungefaerbt.
+ */
+function pressureSeverity(id, p) {
+  if (p === undefined) return undefined;
+  if (id === 'pwr') return (p < 132 || p > 166) ? 3 : ((p < 138 || p > 160) ? 1 : 0);
+  if (id === 'bwr') return p > 78.5 ? 3 : (p > 73 ? 1 : 0);
+  if (id === 'rbmk') return p > 76 ? 3 : (p > 71 ? 1 : 0);
+  return undefined;
+}
+
+/**
+ * Kernstrom-Ampel -- dieselben Zahlen wie rcp_lost (DWR) und recirc_low (SWR).
+ * Beim RBMK ist die entsprechende Grenzwertprobe (mcp_cavitation) an die
+ * Unterkuehlung gekoppelt, nicht sinnvoll auf einen einzelnen Durchsatzwert
+ * zu reduzieren -- dort bleibt die Anzeige deshalb ungefaerbt.
+ */
+function coreFlowSeverity(id, kgs) {
+  if (id === 'pwr') return kgs < 12000 ? 3 : (kgs < 13800 ? 1 : 0);
+  if (id === 'bwr') return kgs < 6500 ? 1 : 0;
+  return undefined;
+}
+
 export function buildPanels(engine, render, geiger) {
   const s = engine.state;
   const sp = engine.spec;
@@ -346,44 +372,58 @@ export function buildPanels(engine, render, geiger) {
     // die bei 111 % steht oder deren Turbine gerade abgeworfen hat, in der
     // einzigen immer sichtbaren Zeile genauso ruhig aus wie im Normalbetrieb.
     put('power_th_pct', num(d.power_th_pct, 1) + U('unit_percent'),
-        d.power_th_pct >= 110 ? 3 : (d.power_th_pct >= 100 ? 1 : undefined));
+        d.power_th_pct >= 110 ? 3 : (d.power_th_pct >= 100 ? 1 : 0));
     put('power_e', num(s.P_e, 0) + U('unit_mwe'),
-        s.turbineTripped ? 2 : (!s.breaker && s.P_demand > 0 ? 1 : undefined));
+        s.turbineTripped ? 2 : (!s.breaker && s.P_demand > 0 ? 1 : 0));
     put('demand', num(s.P_demand, 0) + U('unit_mwe'));
     put('deviation', (d.deviation >= 0 ? '+' : '') + num(d.deviation, 0) + U('unit_mwe'));
     put('t_avg', num(d.T_avg - 273.15, 1) + U('unit_celsius'));
     put('t_hot', num(d.T_hot - 273.15, 1) + U('unit_celsius'));
     put('t_cold', num(d.T_cold - 273.15, 1) + U('unit_celsius'));
     put('t_fuel', num(s.T_f - 273.15, 0) + U('unit_celsius'),
-        s.T_f > 1973 ? 3 : (s.T_f > 1673 ? 1 : undefined));
+        s.T_f > 1973 ? 3 : (s.T_f > 1673 ? 1 : 0));
     put('t_clad', num(s.T_cl - 273.15, 0) + U('unit_celsius'),
-        s.T_cl > 1477 ? 3 : (s.T_cl > 1100 ? 1 : undefined));
-    put('p_prim', num(s.p_prim, 1) + U('unit_bar'));
-    put('pzr_p', s.pzr_p === undefined ? t('state_none') : num(s.pzr_p, 1) + U('unit_bar'));
-    put('pzr_l', s.pzr_L === undefined ? t('state_none') : num(s.pzr_L * 100, 0) + U('unit_percent'));
-    put('w_core', num(s.W_core, 0) + U('unit_kgs'));
+        s.T_cl > 1477 ? 3 : (s.T_cl > 1100 ? 1 : 0));
+    // Primaerdruck-Grenzen sind je Typ verschieden (DWR-Druckhalter ~155 bar,
+    // SWR-Dom/RBMK-Trommel ~65-70 bar) -- dieselben Zahlen wie die jeweiligen
+    // Grenzwertproben in plants/*.js, hier nur zur Anzeige verdoppelt, siehe
+    // die dortigen Kommentare fuer die Herleitung.
+    put('p_prim', num(s.p_prim, 1) + U('unit_bar'), pressureSeverity(sp.id, s.p_prim));
+    put('pzr_p', s.pzr_p === undefined ? t('state_none') : num(s.pzr_p, 1) + U('unit_bar'),
+        s.pzr_p === undefined ? undefined : pressureSeverity('pwr', s.pzr_p));
+    put('pzr_l', s.pzr_L === undefined ? t('state_none') : num(s.pzr_L * 100, 0) + U('unit_percent'),
+        s.pzr_L === undefined ? undefined : (s.pzr_L < 0.17 ? 1 : 0));
+    put('w_core', num(s.W_core, 0) + U('unit_kgs'), coreFlowSeverity(sp.id, s.W_core));
     put('n_pct', num(d.n_pct, 2) + U('unit_percent'));
     put('decay_pct', num(d.decay_pct, 2) + U('unit_percent'));
-    put('period', fmtPeriod(d.period));
+    // Dieselbe 10-Sekunden-Schwelle wie die Periodenauslösung in allen drei
+    // trips-Tabellen -- nur oberhalb der Rauschgrenze des Kerns aussagekräftig
+    // (siehe Kommentar dort), sonst ist eine kurze Periode normal.
+    const periodDanger = s.n > 1e-3 && d.period > 0 && d.period < 10;
+    const periodWarn = s.n > 1e-3 && d.period > 0 && d.period < 20;
+    put('period', fmtPeriod(d.period), periodDanger ? 3 : (periodWarn ? 1 : 0));
     put('freq', num(s.f_grid, 2) + U('unit_hz'));
     put('clock', clock(s.t_sim));
-    put('subcool', num(d.subcooling, 1) + U('unit_kelvin'), d.subcooling < 8 ? 3 : (d.subcooling < 15 ? 1 : undefined));
-    put('dnbr', num(d.dnbr, 2), d.dnbr < 1.3 ? 3 : (d.dnbr < 1.8 ? 1 : undefined));
-    // Gesamtreaktivitaet als reine Zahl -- bisher nur als Zeigerausschlag
-    // (Rundinstrument) und als "Gesamt"-Balken in der Reaktivitaetsbilanz zu
-    // sehen, beides nur im Kern-Panel. Mit Vorzeichen, wie ueberall sonst bei
-    // Reaktivitaetsgroessen (siehe void_coeff).
-    put('rho_pcm', (d.rho_pcm >= 0 ? '+' : '') + num(d.rho_pcm, 0) + U('unit_pcm'));
+    put('subcool', num(d.subcooling, 1) + U('unit_kelvin'), d.subcooling < 8 ? 3 : (d.subcooling < 15 ? 1 : 0));
+    put('dnbr', num(d.dnbr, 2), d.dnbr < 1.3 ? 3 : (d.dnbr < 1.8 ? 1 : 0));
+    // Gesamtreaktivitaet als reine Zahl -- dieselben Baender wie das
+    // Reaktivitaets-Rundinstrument oben (gCore), nur asymmetrisch: zu negativ
+    // ist bloss eine Warnung (Leistung faellt), zu positiv ist gefaehrlich.
+    put('rho_pcm', (d.rho_pcm >= 0 ? '+' : '') + num(d.rho_pcm, 0) + U('unit_pcm'),
+        d.rho_pcm > 200 ? 3 : (d.rho_pcm > 100 || d.rho_pcm < -200 ? 1 : 0));
     // p_sg/L_sg heissen je nach Typ intern anders (Dampferzeuger, Kernbehaelter-
     // Dom, Trommelabscheider) -- der Typ legt sie deshalb unter diesen festen
     // Namen im abgeleiteten Zustand ab (siehe derived() je Typ), nicht im
     // rohen Zustand. Wer hier s.p_sg/s.L_sg liest, bekommt bei SWR und RBMK
     // dauerhaft undefined und die Anzeige bleibt fuer immer auf "—" stehen.
-    put('p_sg', num(d.p_sg, 1) + U('unit_bar'));
+    // Die Grenze (sg_press_high) gilt nur beim DWR -- SWR/RBMK haben keinen
+    // eigenen Dampfdruck-Grenzwert im Modell, deshalb dort ungefaerbt.
+    put('p_sg', num(d.p_sg, 1) + U('unit_bar'), sp.id === 'pwr' ? (d.p_sg > 84 ? 1 : 0) : undefined);
     put('w_steam', num(s.W_steam, 0) + U('unit_kgs'));
     put('gov', num(ctxPos(ctx.govValve) * 100, 0) + U('unit_percent'));
     put('p_cond', num(s.p_cond, 3) + U('unit_bar'));
-    put('l_sg', num(d.L_sg * 100, 0) + U('unit_percent'), d.L_sg < 0.3 || d.L_sg > 0.75 ? 1 : undefined);
+    put('l_sg', num(d.L_sg * 100, 0) + U('unit_percent'),
+        d.L_sg < 0.25 ? 3 : (d.L_sg < 0.32 || d.L_sg > 0.78 ? 1 : 0));
     put('w_fw', num(s.W_fw, 0) + U('unit_kgs'));
     put('breaker', t(s.breaker ? 'state_on' : 'state_off'));
     put('xenon', num(s.X * 100, 1) + U('unit_percent'));
@@ -393,24 +433,34 @@ export function buildPanels(engine, render, geiger) {
     put('burnup', num(s.burnup, 0) + U('unit_efpd'));
     put('sdm', num(d.shutdownMargin, 0) + U('unit_pcm'));
     put('voidfrac', d.voidFrac === undefined ? t('state_none') : num(d.voidFrac * 100, 1) + U('unit_percent'));
-    put('recirc', d.recirc === undefined ? t('state_none') : num(d.recirc * 100, 0) + U('unit_percent'));
+    // Naeherung ueber dieselbe Kernstroemung wie recirc_low (SWR) -- die
+    // Umwaelzpumpe selbst statt des ganzen Kernstroms, aber derselbe Gedanke:
+    // wenig Durchsatz bei viel Leistung ist die gesperrte Ecke des Kennfelds.
+    put('recirc', d.recirc === undefined ? t('state_none') : num(d.recirc * 100, 0) + U('unit_percent'),
+        d.recirc === undefined ? undefined : (d.recirc < 0.5 ? 1 : 0));
     put('quality', d.quality === undefined ? t('state_none') : num(d.quality * 100, 1) + U('unit_percent'));
-    put('decay_ratio', d.decayRatio === undefined ? t('state_none') : num(d.decayRatio, 2));
+    put('decay_ratio', d.decayRatio === undefined ? t('state_none') : num(d.decayRatio, 2),
+        d.decayRatio === undefined ? undefined : (d.decayRatio > 0.8 ? 1 : 0));
     put('orm', d.orm === undefined ? t('state_none') : num(d.orm, 1),
-        d.orm === undefined ? undefined : (d.orm < 15 ? 3 : (d.orm < 30 ? 1 : undefined)));
+        d.orm === undefined ? undefined : (d.orm < 15 ? 3 : (d.orm < 30 ? 1 : 0)));
     put('void_coeff', d.voidCoeff === undefined ? t('state_none') : '+' + num(d.voidCoeff, 0) + U('unit_pcm'),
-        d.voidCoeff === undefined ? undefined : (d.voidCoeff > 45 ? 3 : (d.voidCoeff > 30 ? 1 : undefined)));
-    put('axial', d.axialOffset === undefined ? t('state_none') : num(d.axialOffset * 100, 0) + U('unit_percent'));
-    put('t_graphite', d.T_gr === undefined ? t('state_none') : num(d.T_gr - 273.15, 0) + U('unit_celsius'));
+        d.voidCoeff === undefined ? undefined : (d.voidCoeff > 45 ? 3 : (d.voidCoeff > 30 ? 1 : 0)));
+    put('axial', d.axialOffset === undefined ? t('state_none') : num(d.axialOffset * 100, 0) + U('unit_percent'),
+        d.axialOffset === undefined ? undefined : (Math.abs(d.axialOffset) > 0.35 ? 1 : 0));
+    put('t_graphite', d.T_gr === undefined ? t('state_none') : num(d.T_gr - 273.15, 0) + U('unit_celsius'),
+        d.T_gr === undefined ? undefined : (d.T_gr > 1033.15 ? 1 : 0));
     // Notkondensator-Vorrat, Sicherheitsbehälterdruck, Wasserstoff -- nur
     // beim Siedewasserreaktor gesetzt, sonst bleiben es Striche (siehe
-    // optional-Ausblendung oben).
-    put('ic_water', s.icWater === undefined ? t('state_none') : num(s.icWater * 100, 0) + U('unit_percent'));
+    // optional-Ausblendung oben). Fuer den Vorrat gibt es keine eigene
+    // Grenzwertprobe -- ein leerer Tank ist aber offensichtlich genug, um
+    // trotzdem eine Farbschwelle zu rechtfertigen (Fukushima-Szenario).
+    put('ic_water', s.icWater === undefined ? t('state_none') : num(s.icWater * 100, 0) + U('unit_percent'),
+        s.icWater === undefined ? undefined : (s.icWater < 0.15 ? 3 : (s.icWater < 0.4 ? 1 : 0)));
     put('cont_press', s.pCont === undefined ? t('state_none') : num(s.pCont, 2) + U('unit_bar'),
         s.pCont === undefined ? undefined : (s.pCont > sp.containment.designLimit * 0.9 ? 3
-          : (s.pCont > sp.containment.designLimit * 0.7 ? 1 : undefined)));
+          : (s.pCont > sp.containment.designLimit * 0.7 ? 1 : 0)));
     put('h2_mass', s.h2Mass === undefined ? t('state_none') : num(s.h2Mass, 1) + U('unit_kg'),
-        s.h2Mass === undefined ? undefined : (s.h2Mass > 40 ? 3 : (s.h2Mass > 15 ? 1 : undefined)));
+        s.h2Mass === undefined ? undefined : (s.h2Mass > 40 ? 3 : (s.h2Mass > 15 ? 1 : 0)));
 
     rho.set(d.breakdown, d.rho);
     pumps.set(d.pumpStates || []);

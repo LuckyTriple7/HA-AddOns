@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.49
+
+- 🟢 **Kopfzeilen-Werte jetzt durchgehend grün/gelb/rot.** Viele der 44
+  wählbaren Statuszeilen-Werte (Primärdruck, Kernstrom, Periode,
+  Reaktivität, SG-Füllstand, Achsversatz, Graphittemperatur, Notkondensator-
+  Vorrat, Umwälzstrom, Abklingverhältnis, ...) zeigten bisher nie eine Farbe,
+  selbst wenn die Anlage längst im Warnbereich stand -- nur wenige Werte
+  (Brennstoff, Hülltemperatur, DNBR, ORM, ...) hatten das schon. Neue
+  Schwellen sind dieselben Zahlen wie die echten Grenzwertproben je Typ
+  (`plants/*.js`, `trips`), nicht frei erfunden -- wo es keine gibt (z.B.
+  Anforderung, Xenon, Bor, Abbrand), bleibt der Wert bewusst ungefärbt statt
+  eine Gefahr vorzutäuschen, die das Modell gar nicht kennt. Werte ohne
+  Alarm zeigen jetzt zusätzlich explizit Grün statt nur neutralem Weiß.
+
 ## 0.0.48
 
 - 🎵 **Aufgenommene Klangeffekte statt Synthese, plus Musik.** Meldehupe,
