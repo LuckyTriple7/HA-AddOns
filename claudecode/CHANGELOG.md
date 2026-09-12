@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.24] - 2026-09-12
+
+### Changed
+- Vendored Caveman-Skill (enable_caveman_skill) auf Upstream-Stand gebracht: ASD-STE100-Klarheitsregister, keine künstlichen Grammatik-Verstümmelungen mehr für Token-Ersparnis
+
+
 ## [1.3.23] - 2026-08-31
 
 ### Changed

@@ -25,6 +25,10 @@
       --text:#1f2328; --muted:#636c76;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Ein zu breites Bild darf die Seite nicht schieben: ohne diese Bremse
+       wächst der Inhalt über den Bildschirmrand hinaus und das ganze
+       Layout steht schief. Klassenregeln mit festen Maßen gewinnen weiter. */
+    img { max-width: 100%; height: auto; }
     html { scroll-behavior: smooth; }
     body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; transition: background .2s, color .2s; }
     a { color: var(--accent); text-decoration: none; }

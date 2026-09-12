@@ -150,12 +150,18 @@ def _build_backup_zip(key_passphrase: str = '') -> bytes:
             'ORDER BY created_ts').fetchall()]
         share_comments = [dict(r) for r in con.execute(
             'SELECT token, author, text, ts, ip FROM share_comments ORDER BY id').fetchall()]
-    data = {'tuiwatch_backup': 8, 'created': datetime.now().isoformat(),
+        # Aktionscode-Historie: eigene Beobachtung ueber Monate, laesst sich nicht
+        # nachtraeglich beschaffen — tui.com zeigt nur, was gerade laeuft.
+        aktionscodes = [dict(r) for r in con.execute(
+            'SELECT ckey, code, value, kind, start_ts, last_seen, end_ts, booking_until, '
+            'travel_period FROM aktionscode_history ORDER BY start_ts').fetchall()]
+    data = {'tuiwatch_backup': 9, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
             'trip_attachments': attachments, 'trip_packing_items': packing_items,
             'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves,
             'basket_moves': basket_moves, 'climate': climate, 'guide': guide,
-            'shares': shares, 'share_comments': share_comments}
+            'shares': shares, 'share_comments': share_comments,
+            'aktionscodes': aktionscodes}
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -508,9 +514,10 @@ def api_restore():
     guide = data.get('guide') or []
     shares = data.get('shares') or []
     share_comments = data.get('share_comments') or []
+    aktionscodes = data.get('aktionscodes') or []   # erst ab Backup-Version 9
     added, skipped, new_ids = 0, 0, []
     trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n, moves_n = 0, 0, 0, 0, 0, 0, 0
-    basket_n = shares_n = comments_n = 0
+    basket_n = shares_n = comments_n = aktion_n = 0
     climate_n = {'climate': 0, 'guide': 0}
     with A.db() as con:
         ocols = set(A._table_columns(con, 'offers'))
@@ -808,6 +815,38 @@ def api_restore():
                     (token, cm.get('author') or '', text, key[1], cm.get('ip') or ''))
                 existing_comments.add(key)
                 comments_n += 1
+        # Aktionscode-Zeitraeume: Dedup ueber (ckey, start_ts) — dieselbe Aktion wird
+        # nicht doppelt eingetragen, laufende Zeitraeume hier bleiben unberuehrt.
+        if isinstance(aktionscodes, list) and aktionscodes:
+            known_ak = {(r['ckey'], r['start_ts']) for r in con.execute(
+                'SELECT ckey, start_ts FROM aktionscode_history').fetchall()}
+            for ak in aktionscodes:
+                if not isinstance(ak, dict):
+                    continue
+                ckey = (ak.get('ckey') or '').strip()
+                try:
+                    start_ts = int(ak.get('start_ts') or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not ckey or not start_ts or (ckey, start_ts) in known_ak:
+                    continue
+                try:
+                    last_seen = int(ak.get('last_seen') or start_ts)
+                except (TypeError, ValueError):
+                    last_seen = start_ts
+                end_ts = ak.get('end_ts')
+                try:
+                    end_ts = int(end_ts) if end_ts is not None else None
+                except (TypeError, ValueError):
+                    end_ts = None
+                con.execute('INSERT INTO aktionscode_history (ckey, code, value, kind, '
+                            'start_ts, last_seen, end_ts, booking_until, travel_period) '
+                            'VALUES (?,?,?,?,?,?,?,?,?)',
+                            (ckey, ak.get('code') or '', ak.get('value'), ak.get('kind') or '',
+                             start_ts, last_seen, end_ts, ak.get('booking_until') or '',
+                             ak.get('travel_period') or ''))
+                known_ak.add((ckey, start_ts))
+                aktion_n += 1
         if isinstance(meta, dict):
             # Nicht-destruktiv wie der Rest des Restores: nur setzen, wenn lokal noch
             # nichts hinterlegt ist — laufende Zaehler/Einstellungen werden nie mit
@@ -877,14 +916,16 @@ def api_restore():
     A.log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
              "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen, "
              "%d Markttrend-Datenpunkte, %d Barometer-Tage, %d Klimatabellen, "
-             "%d Reiseführer, %d Share-Links, %d Kommentare",
+             "%d Reiseführer, %d Share-Links, %d Kommentare, %d Aktionscode-Zeiträume",
              added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n,
-             moves_n, basket_n, climate_n['climate'], climate_n['guide'], shares_n, comments_n)
+             moves_n, basket_n, climate_n['climate'], climate_n['guide'], shares_n, comments_n,
+             aktion_n)
     return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,
                     'attachments': attachments_n, 'packing_items': packing_n,
                     'ai_history': ai_n, 'settings': settings_n, 'market_trend': moves_n,
                     'market_basket': basket_n, 'climate': climate_n['climate'],
                     'guide': climate_n['guide'], 'shares': shares_n, 'share_comments': comments_n,
+                    'aktionscodes': aktion_n,
                     'options_restored': settings_restored,
                     'options_skipped': settings_skipped,
                     'key_in_archive': bool(key_raw),

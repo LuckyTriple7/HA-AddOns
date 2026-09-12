@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.17] - 2026-09-12
+
+### Fixed
+- **Branch-Sync-Kacheln stapelten sich untereinander.** Bei mehreren
+  Repo-Gruppen (z.B. „HA-AddOns" + „Dockergames") fehlte dem Container
+  `display:flex` — die Chips lagen dadurch senkrecht statt nebeneinander
+  in der Statistikleiste.
+
 ## [0.4.16] - 2026-08-25
 
 ### Fixed

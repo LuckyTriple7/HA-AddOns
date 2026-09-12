@@ -102,6 +102,13 @@ def _fill(m):
         con.execute(
             "INSERT INTO share_comments (token, author, text, ts, ip) VALUES (?,?,?,?,?)",
             ("tok123", "Oma", "Schön dort!", 750, "1.2.3.4"))
+        # Aktionscode-Historie: ein abgeschlossener und ein laufender Zeitraum
+        con.executemany(
+            "INSERT INTO aktionscode_history (ckey, code, value, kind, start_ts, last_seen, "
+            "end_ts, booking_until, travel_period) VALUES (?,?,?,?,?,?,?,?,?)",
+            [("myTUI|300", "ACMYTUI30020260810", 300, "myTUI", 500, 600, 600,
+              "17.08.2026", "10.08.–20.12.2026"),
+             ("myTUI|150", "ACMYTUI15020260910", 150, "myTUI", 700, 800, None, "", "")])
     # Reise ohne Buchungsnummer (_FAKE_TRIP) + Anhang + Packlisten-Eintrag
     tid = c.post("/api/trips/import", headers=ING,
                  data={"pdf": (io.BytesIO(b"%PDF-1.4 fake"), "reise.pdf")},
@@ -137,6 +144,9 @@ def _snapshot(m):
             "comments_seen_ts, comments_enabled FROM shares ORDER BY token")]
         out['share_comments'] = [dict(r) for r in con.execute(
             "SELECT token, author, text, ts, ip FROM share_comments ORDER BY ts")]
+        out['aktionscode_history'] = [dict(r) for r in con.execute(
+            "SELECT ckey, code, value, kind, start_ts, last_seen, end_ts, booking_until, "
+            "travel_period FROM aktionscode_history ORDER BY start_ts")]
         out['trip_packing_items'] = [dict(r) for r in con.execute(
             "SELECT category, label, checked FROM trip_packing_items ORDER BY label")]
         out['trip_attachments'] = [dict(r) for r in con.execute(
@@ -173,8 +183,8 @@ def test_backup_declares_the_new_schema_version(source):
     sonst kann ein künftiger Restore die Formate nicht auseinanderhalten."""
     blob = source.app.test_client().get("/api/backup", headers=ING).data
     data = json.loads(zipfile.ZipFile(io.BytesIO(blob)).read("data.json"))
-    assert data["tuiwatch_backup"] == 8
-    for key in ("climate", "guide", "shares", "share_comments"):
+    assert data["tuiwatch_backup"] == 9
+    for key in ("climate", "guide", "shares", "share_comments", "aktionscodes"):
         assert key in data, f"{key} fehlt im Backup"
 
 

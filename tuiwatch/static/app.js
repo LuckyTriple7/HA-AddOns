@@ -2457,13 +2457,39 @@
       clearInterval(aktionTimer); aktionTimer=null;
       renderAktion(d);
     }
+    // Kurzdatum: Jahr nur, wenn es nicht das laufende ist (10.08. vs. 10.08.2025)
+    function aktionDay(ts){
+      const dt = new Date(ts*1000);
+      const yr = dt.getFullYear()===new Date().getFullYear() ? '' : String(dt.getFullYear());
+      return dt.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) + yr;
+    }
+    function aktionHistoryHtml(hist){
+      if(!hist || !hist.length) return '';
+      const rows = hist.map(h=>{
+        const from = aktionDay(h.start_ts);
+        const to   = h.running ? '' : aktionDay(h.end_ts||h.last_seen);
+        const days = Math.max(1, Math.round(((h.end_ts||h.last_seen) - h.start_ts)/86400) + 1);
+        const span = h.running ? ('seit '+from+' — läuft') : (from+' bis '+to);
+        return `<div class="aktion-hrow${h.running?' is-running':''}">
+          <span class="aktion-hval">${esc(String(h.value))} €</span>
+          <span class="aktion-hcode">${esc(h.code||'')}</span>
+          ${h.kind?`<span class="aktion-kind">${esc(h.kind)}</span>`:''}
+          <span class="aktion-hspan">${esc(span)}${h.running?'':' · '+days+' Tg.'}</span>
+        </div>`;
+      }).join('');
+      return '<div class="aktion-hist-h">Verlauf der Aktionen</div><div class="aktion-hist">'+rows+'</div>';
+    }
     function renderAktion(d){
       const when = $('#aktion-when');
       when.textContent = d.ts ? ('Abgefragt: '+new Date(d.ts*1000).toLocaleString('de-DE')) : '';
       if(d.error){ $('#aktion-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(d.error)+'</div>'; return; }
       const cs = d.codes||[];
       setAktionGlow(cs.length>0);
-      if(!cs.length){ $('#aktion-body').innerHTML = '<div class="cmp-load">Aktuell keine Aktionscodes gefunden.</div>'; return; }
+      const hist = aktionHistoryHtml(d.history||[]);
+      if(!cs.length){
+        $('#aktion-body').innerHTML = '<div class="cmp-load">Aktuell keine Aktionscodes gefunden.</div>' + hist;
+        return;
+      }
       const ctx = [];
       if(d.booking_until) ctx.push('buchbar bis <b>'+esc(d.booking_until)+'</b>');
       if(d.travel_period) ctx.push('Reisezeitraum '+esc(d.travel_period));
@@ -2473,7 +2499,7 @@
           <div class="aktion-val">${esc(String(c.value))} €</div>
           <div class="aktion-code">${esc(c.code||'')}</div>
           ${c.kind?`<div class="aktion-kind">${esc(c.kind)}</div>`:''}
-        </div>`).join('') + '</div>';
+        </div>`).join('') + '</div>' + hist;
     }
     function setAktionGlow(on){
       const b=document.getElementById('aktion-btn'); if(b) b.classList.toggle('aktion-active', !!on);

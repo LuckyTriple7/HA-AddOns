@@ -116,3 +116,6 @@ configuration:
   tailscale_exit_node:
     name: Exit-Node
     description: Name oder Tailnet-IP eines Exit-Nodes, ueber den der gesamte Internetverkehr des Desktops laufen soll. Leer lassen fuer direkten Internetzugang.
+  tailscale_exclude_routes:
+    name: Netze am Tailnet vorbeirouten
+    description: Netze in CIDR-Schreibweise (z.B. 192.168.178.0/24), die immer direkt ueber das lokale Netz laufen sollen, auch wenn ein Subnetz-Router im Tailnet sie anbietet. Mehrere durch Komma trennen. Noetig, wenn das eigene LAN doppelt erreichbar ist — sonst gewinnt Tailscale, der Absender wird zur 100.x-Adresse und IP-gefilterte NFS-Exporte antworten mit "access denied by server". Wirkt nur bei aktivem Tailscale.

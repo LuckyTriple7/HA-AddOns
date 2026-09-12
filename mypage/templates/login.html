@@ -9,6 +9,10 @@
     :root { --bg:#0d1117; --surf:#161b22; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --green:#238636; --green-h:#2ea043; --red:#f85149; }
     [data-theme="light"] { --bg:#f0f2f5; --surf:#ffffff; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Ein zu breites Bild darf die Seite nicht schieben: ohne diese Bremse
+       wächst der Inhalt über den Bildschirmrand hinaus und das ganze
+       Layout steht schief. Klassenregeln mit festen Maßen gewinnen weiter. */
+    img { max-width: 100%; height: auto; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg); color: var(--text);

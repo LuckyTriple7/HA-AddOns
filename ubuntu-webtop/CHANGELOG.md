@@ -1,3 +1,40 @@
+## [1.8.75] - 2026-09-12
+
+### Aktualisiert
+
+- Claude Desktop: 3.2.4+claude1.49585.0 → 3.2.4+claude1.52386.3
+
+## [1.8.74] - 2026-09-11
+
+### Aktualisiert
+
+- Tailscale: 1.102.3 → 1.102.4
+
+## [1.8.73] - 2026-09-10
+
+### Behoben
+
+- Der Tailscale-Hinweis bei fehlgeschlagenem NFS-Mount blieb stumm, wenn der Server als **Hostname** statt als IP eingetragen ist. Der Name wird jetzt aufgelöst und im Log mit ausgegeben (`nas.local (192.168.178.199)`). Auf den Mount selbst hatte das keinen Einfluss — Namen funktionierten schon vorher.
+
+## [1.8.72] - 2026-09-10
+
+### Behoben
+
+- NFS-Mounts scheiterten mit `access denied by server`, wenn ein Subnetz-Router im Tailnet das eigene LAN anbietet: Tailscales Routing-Tabelle wird vor der normalen ausgewertet, der NFS-Server sah dadurch die `100.x`-Tailnet-Adresse als Absender und wies den IP-gefilterten Export ab. SMB war nicht betroffen, weil es per Benutzer authentifiziert.
+
+### Neu
+
+- Option **Netze am Tailnet vorbeirouten** (`tailscale_exclude_routes`): CIDR-Liste von Netzen, die immer direkt über das lokale Netz laufen, auch wenn das Tailnet sie anbietet. Mehrere durch Komma trennen. Übrige Tailnet-Routen bleiben unangetastet.
+- Schlägt ein NFS-Mount fehl und läuft das Ziel über `tailscale0`, nennt das Add-on-Log jetzt Ursache und einzutragendes Netz, statt nur die Fehlermeldung zu zeigen.
+
+## [1.8.71] - 2026-09-10
+
+### Aktualisiert
+
+- VS Code: 1.136.2 → 1.137.0
+- Thunderbird: 155.0 → 155.0.1
+- Claude Desktop: 3.2.4+claude1.46388.2 → 3.2.4+claude1.49585.0
+
 ## [1.8.70] - 2026-09-09
 
 ### Aktualisiert

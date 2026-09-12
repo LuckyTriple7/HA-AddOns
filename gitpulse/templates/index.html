@@ -1992,7 +1992,7 @@
       <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
-      <div id="chip-branch-sync">${_branchSyncHtml}</div>
+      <div id="chip-branch-sync" style="display:flex;gap:8px">${_branchSyncHtml}</div>
     `;
     refreshBranchSync();
     // Blinken bei Anstieg (nicht beim ersten Render)

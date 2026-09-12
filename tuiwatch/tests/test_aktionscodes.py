@@ -127,3 +127,57 @@ def test_endpoint(app_mod, monkeypatch):
     ing = {"X-Ingress-Path": "/test"}
     assert c.get("/api/aktionscodes", headers=ing).status_code == 200
     assert c.get("/api/aktionscodes").status_code == 401     # ohne Ingress: Auth nötig
+
+
+def test_history_records_periods(app_mod, monkeypatch):
+    """Jede Aktion bekommt eine Zeile mit Beginn/Ende; eine wiederkehrende Aktion
+    bekommt eine zweite, statt die alte zu überschreiben."""
+    m = app_mod
+    codes = {"v": [{"code": "ACMYTUI30020260810", "value": 300, "kind": "myTUI"}]}
+    _mock(m, monkeypatch, codes)
+    day = 86400
+
+    monkeypatch.setattr(m.time, "time", lambda: 1_000_000)
+    m._run_aktionscodes()                                    # Tag 0: Aktion beginnt
+    h = m._aktionscodes_history()
+    assert len(h) == 1 and h[0]["running"] is True and h[0]["end_ts"] is None
+    assert h[0]["start_ts"] == 1_000_000 and h[0]["value"] == 300
+
+    monkeypatch.setattr(m.time, "time", lambda: 1_000_000 + 7 * day)
+    m._run_aktionscodes()                                    # Tag 7: läuft noch
+    h = m._aktionscodes_history()
+    assert len(h) == 1 and h[0]["running"] is True
+    assert h[0]["last_seen"] == 1_000_000 + 7 * day
+
+    codes["v"] = []
+    monkeypatch.setattr(m.time, "time", lambda: 1_000_000 + 9 * day)
+    m._run_aktionscodes()                                    # Tag 9: Aktion vorbei
+    h = m._aktionscodes_history()
+    assert len(h) == 1 and h[0]["running"] is False
+    assert h[0]["end_ts"] == 1_000_000 + 7 * day             # Ende = zuletzt gesehen
+
+    codes["v"] = [{"code": "ACMYTUI30020261101", "value": 300, "kind": "myTUI"}]
+    monkeypatch.setattr(m.time, "time", lambda: 1_000_000 + 40 * day)
+    m._run_aktionscodes()                                    # Wiederkehr → zweite Zeile
+    h = m._aktionscodes_history()
+    assert len(h) == 2
+    assert h[0]["start_ts"] == 1_000_000 + 40 * day and h[0]["running"] is True
+    assert h[1]["end_ts"] == 1_000_000 + 7 * day             # alter Zeitraum unverändert
+    assert h[0]["code"] == "ACMYTUI30020261101"
+
+    # Historie hängt im API-Payload
+    assert m._aktionscodes_payload()["history"][0]["running"] is True
+
+
+def test_history_migrates_from_state(app_mod):
+    """Bestehende aktionscode_state-Zeilen (vor 0.113.29) werden einmalig übernommen."""
+    m = app_mod
+    with m.db() as con:
+        con.execute("DELETE FROM aktionscode_history")
+        con.execute("INSERT INTO aktionscode_state (ckey, code, value, kind, active, "
+                    "first_seen, last_seen) VALUES ('myTUI|200','ACMYTUI200',200,'myTUI',0,"
+                    "1000,2000)")
+    m.init_db()
+    h = m._aktionscodes_history()
+    assert len(h) == 1 and h[0]["value"] == 200
+    assert h[0]["start_ts"] == 1000 and h[0]["end_ts"] == 2000 and h[0]["running"] is False

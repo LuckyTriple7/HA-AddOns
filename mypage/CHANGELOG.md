@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.65] - 2026-09-12
+
+chore(deps): Bump weasyprint from 69.0 to 70.0 in /mypage
+
+
+## 0.11.63
+
+- 🖼️ **Ein zu breites Bild verschob die ganze Seite.** Ein Bild ohne feste Maße — etwa eines, das über Profil → Über mich in den Text gesetzt wird — wurde in Originalbreite dargestellt: bei 3000 Pixeln wuchs die Seite auf 3160 Pixel, Kopfzeile und Inhalt standen versetzt zueinander und man musste seitwärts scrollen. Den Bildern in Beiträgen und Seiten war die Breite längst gedeckelt, im übrigen Layout fehlte die Bremse. Jetzt gilt in allen öffentlichen Vorlagen `img { max-width: 100% }`; Bilder mit festen Maßen (Profilbild, Karten, Teamfotos) bleiben unverändert.
+
 ## 0.11.62
 
 - 🔐 **Abgelaufene Anmeldung führt jetzt zurück zur Anmeldeseite.** War die Sitzung nach 24 Stunden abgelaufen, antwortete das Verwaltungsprogramm auf jeden Aufruf mit `401` — sichtbar wurde davon aber nur „Laden fehlgeschlagen“ oder „Nicht gespeichert“, und man musste selbst darauf kommen, neu zu laden. Nur drei von rund dreissig Aufrufen leiteten weiter. Jetzt fängt eine Schicht um `fetch` jede solche Antwort ab, zeigt einen Hinweis und führt zur Anmeldung. Betrifft nur den direkten Port — über den HA-Ingress meldet Home Assistant an, dort gibt es keine ablaufende Sitzung.
