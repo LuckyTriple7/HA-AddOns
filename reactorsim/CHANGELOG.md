@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.0.53
+
+- 🖼️ **Beschriftungen und Messwerte lagen auf Rohrleitungen** -- über alle
+  drei Fließbilder verteilt (SWR am schlimmsten: "Notkondensator"-Label
+  quer über der Frischdampfleitung, Füllstand direkt drauf). Ursache: die
+  Positionen waren einzeln von Hand gesetzt, ohne die tatsächliche
+  Rohrgeometrie zu prüfen. Mit `getBBox()`/`isPointInStroke()` in einem
+  echten Browser für alle drei Typen automatisiert nachgemessen (nicht nur
+  am Bild geraten) und behoben:
+  - SWR: Notkondensator-Baugruppe hochgesetzt (in den seit v0.0.51
+    reservierten Raum über der viewBox), Ventil-Label jetzt links statt
+    darüber, Füllstand über dem Kästchen statt daneben, Kondensatrücklauf
+    zapft seitlich ab statt mittig durch die neue Beschriftung.
+  - Alle drei Typen: Regelventil-Label jetzt rechts (zur Turbine) statt
+    links -- links verläuft eine parallele Steigleitung zur Umleitung genau
+    durch die Beschriftung. Umwälzpumpe sitzt jetzt an der unteren
+    Schleifenecke statt mittig auf der Rohrleitung (wie beim DWR seit je).
+  - DWR: "Dampferzeuger"-Beschriftung tiefer gesetzt -- das Speisewasserrohr
+    fiel genau durch die alte Position.
+  - RBMK: Leistungsanzeige tiefer im Kanalblock (Steigleitung im Weg),
+    "Druckröhren"-Beschriftung linksbündig statt mittig (kollidierte sonst
+    mit der verschobenen Pumpenbeschriftung).
+
 ## 0.0.52
 
 - 🔒 **CodeQL-Alerts gefixt:** Pfad-Aufbau bei Spielstaenden/Bestenliste

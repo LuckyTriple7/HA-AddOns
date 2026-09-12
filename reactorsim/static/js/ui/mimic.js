@@ -108,14 +108,20 @@ export function buildPwrMimic(container) {
 
   // Dampferzeuger.
   g.push(svg('rect', { class: 'rs-vessel', 'data-mimic': 'sg', x: 218, y: 46, width: 56, height: 130, rx: 22 }));
-  g.push(svg('text', { class: 'rs-label', x: 246, y: 192, 'text-anchor': 'middle' },
+  // Beschriftung tief unter dem Behaelter: das Speisewasserrohr faellt bei
+  // x=268 -- innerhalb der Behälterbreite -- senkrecht bis y=232 zum
+  // Speisewasserkopf durch, jede Position naeher am Behaelter liegt auf
+  // dieser Leitung.
+  g.push(svg('text', { class: 'rs-label', x: 246, y: 246, 'text-anchor': 'middle' },
     [t('mimic_sg')]));
   g.push(readout(246, 120, 'sg', 'middle'));
   // Füllstandsbalken im Dampferzeuger.
   g.push(svg('rect', { class: 'rs-sg-level', x: 222, y: 60, width: 48, height: 112, rx: 16 }));
 
-  // Regelventil und Umleitstation.
-  g.push(valve(330, 88, 'gov', t('mimic_gov'), 'left'));
+  // Regelventil und Umleitstation. Beschriftung des Regelventils rechts (zur
+  // Turbine hin): links davon laeuft die Umleitung auf einer eigenen,
+  // parallelen Steigleitung -- genau da, wo die Beschriftung sonst hinreicht.
+  g.push(valve(330, 88, 'gov', t('mimic_gov')));
   g.push(valve(300, 140, 'bypass', t('mimic_bypass')));
 
   // Turbine und Generator.
@@ -257,9 +263,15 @@ export function buildBwrMimic(container) {
   // vom Frischdampf zur Turbine. Zweigt von derselben Dampfleitung ab wie die
   // Umleitung (Punkt auf der durchgehenden Linie, kein eigener Anschluss),
   // Kondensat läuft eine Etage tiefer per Schwerkraft in den Behälter zurück.
-  g.push(pipe('M 220 46 L 220 40', 'steam', 'ic'));
-  g.push(pipe('M 220 28 L 220 22', 'steam', 'ic'));
-  g.push(pipe('M 196 22 L 196 40 L 130 40', 'feed', 'ic'));
+  // Ventil sitzt bewusst hoch (Kästchen ganz oben im negativen Raum) -- so
+  // bleiben zwischen ihm und dem Frischdampf unten 17px Luft statt der alten
+  // 6px, in die weder Ventilbeschriftung noch "bar"-Anzeige mehr passten.
+  g.push(pipe('M 220 8 L 220 15', 'steam', 'ic'));
+  g.push(pipe('M 220 29 L 220 46', 'steam', 'ic'));
+  // Kondensatrücklauf zapft rechts am Kästchen ab, nicht mittig -- eine
+  // mittige Leitung liefe direkt durch die (jetzt links stehende)
+  // Ventilbeschriftung.
+  g.push(pipe('M 245 8 L 245 40 L 130 40', 'feed', 'ic'));
 
   // Druckbehälter mit Abscheider oben und Kern unten. Ein Bauteil im Bild,
   // deshalb auch eine gemeinsame Kennung -- der Siedewasserreaktor zeichnet
@@ -274,19 +286,32 @@ export function buildBwrMimic(container) {
   g.push(svg('text', { class: 'rs-label', x: 144, y: 236, 'text-anchor': 'middle' },
     [t('mimic_rpv')]));
   g.push(readout(144, 140, 'power', 'middle'));
-  g.push(readout(190, 60, 'dome'));
+  // 6px mehr als frueher: die Anzeige sass sonst auf der Frischdampfleitung
+  // direkt unter ihr.
+  g.push(readout(190, 66, 'dome'));
 
   // Notkondensator-Wärmetauscher: statisches Kästchen wie Kondensator/Turbine,
-  // nur das Isolierventil davor zeigt auf/zu per data-state.
-  g.push(svg('rect', { class: 'rs-vessel', x: 188, y: 4, width: 64, height: 18, rx: 3 }));
-  g.push(valve(220, 34, 'ic', t('mimic_ic')));
-  g.push(readout(256, 13, 'icwater', 'start'));
+  // nur das Isolierventil davor zeigt auf/zu per data-state. Sitzt im
+  // negativen Raum oben (siehe viewBox) -- dort ist Platz, seit das Ventil
+  // hochgerutscht ist.
+  g.push(svg('rect', { class: 'rs-vessel', x: 188, y: -10, width: 64, height: 18, rx: 3 }));
+  // Fuellstand ueber dem Kaestchen statt daneben: daneben laeuft das
+  // Sicherheitsventil-Steigrohr (x=280) mitten durch die Zahl.
+  g.push(readout(220, -16, 'icwater', 'middle'));
+  // Beschriftung links vom Ventil: rechts davon laeuft bis zur Turbine
+  // dieselbe Steigleitung, durch die sonst "Notkondensator" liefe.
+  g.push(valve(220, 22, 'ic', t('mimic_ic'), 'left'));
 
-  // Umwälzpumpe in der äußeren Schleife.
-  g.push(pump(74, 178, 'rcp', t('mimic_recirc')));
+  // Umwälzpumpe in der äußeren Schleife. Sitzt an der unteren Ecke der
+  // Schleife (wie bei PWR/RBMK), nicht mehr mittig auf der geraden Leitung --
+  // sonst lief die Beschriftung darunter auf demselben Rohr weiter.
+  g.push(pump(74, 206, 'rcp', t('mimic_recirc')));
 
-  // Regelventil, Umleitung, Turbine, Generator, Kondensator.
-  g.push(valve(330, 88, 'gov', t('mimic_gov'), 'left'));
+  // Regelventil, Umleitung, Turbine, Generator, Kondensator. Beschriftung
+  // des Regelventils rechts (zur Turbine hin): links davon laeuft die
+  // Umleitung auf einer eigenen, parallelen Steigleitung -- genau da, wo die
+  // Beschriftung sonst hinreicht.
+  g.push(valve(330, 88, 'gov', t('mimic_gov')));
   g.push(valve(296, 140, 'bypass', t('mimic_bypass')));
   g.push(svg('path', { class: 'rs-vessel', d: 'M 372 100 L 432 84 L 432 156 L 372 136 Z' }));
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
@@ -409,9 +434,15 @@ export function buildRbmkMimic(container) {
       class: 'rs-tube', x1: x, y1: 92, x2: x, y2: 200,
     }));
   }
-  g.push(svg('text', { class: 'rs-label', x: 118, y: 230, 'text-anchor': 'middle' },
+  // Linksbuendig an der Kernkante statt mittig: mittig stiess die Beschriftung
+  // mit "Recirc pump" zusammen, seit die Pumpe an die untere Schleifenecke
+  // gerueckt ist (siehe dort).
+  g.push(svg('text', { class: 'rs-label', x: 72, y: 230, 'text-anchor': 'start' },
     [t('mimic_channels')]));
-  g.push(readout(118, 86, 'power', 'middle'));
+  // y=94 statt 86: die Steigleitung faellt bei x=118 -- derselben Mitte --
+  // bis y=78 herunter, 86 sass ihr noch im Weg. Tiefer stehen ein paar
+  // Kanalstriche im Weg statt der Leitung, das stoert beim Lesen nicht.
+  g.push(readout(118, 94, 'power', 'middle'));
   // Graphittemperatur stand hier früher als bloße Zahl -- bei 35 Minuten
   // Zeitkonstante sieht sie über eine ganze Schicht praktisch unbewegt aus
   // und dazu direkt unter der Beschriftung "Druckröhren", als gehörte sie
@@ -429,11 +460,15 @@ export function buildRbmkMimic(container) {
     [t('mimic_drum')]));
   g.push(readout(216, 74, 'drum', 'middle'));
 
-  // Hauptumwälzpumpen.
-  g.push(pump(182, 176, 'rcp', t('mimic_recirc')));
+  // Hauptumwälzpumpen. Sitzt an der unteren Ecke der Schleife (wie bei
+  // PWR/BWR), nicht mehr mittig auf der geraden Leitung -- sonst lief die
+  // Beschriftung darunter auf demselben Rohr weiter.
+  g.push(pump(182, 214, 'rcp', t('mimic_recirc')));
 
-  // Turbine, Generator, Kondensator.
-  g.push(valve(330, 88, 'gov', t('mimic_gov'), 'left'));
+  // Turbine, Generator, Kondensator. Beschriftung des Regelventils rechts
+  // (zur Turbine hin): links davon laeuft die Umleitung auf einer eigenen,
+  // parallelen Steigleitung -- genau da, wo die Beschriftung sonst hinreicht.
+  g.push(valve(330, 88, 'gov', t('mimic_gov')));
   g.push(valve(298, 140, 'bypass', t('mimic_bypass')));
   g.push(svg('path', { class: 'rs-vessel', d: 'M 372 100 L 432 84 L 432 156 L 372 136 Z' }));
   g.push(svg('circle', { class: 'rs-comp', cx: 452, cy: 118, r: 14, 'data-mimic': 'gen' }));
