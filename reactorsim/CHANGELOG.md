@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.60
+
+Drei Funde aus einer echten Spielsitzung.
+
+- 🐛 **Speicherstand-Kollision zwischen Szenario und freiem Spiel.** Der
+  Auto-Slot hing nur am Reaktortyp (`auto-<typ>`), nicht am Szenario. Ein
+  RBMK-Szenario gespeichert, danach RBMK im freien Spiel gespeichert -- beide
+  landeten im selben Slot, der zweite Stand loeschte den ersten wortlos.
+  Slot heisst jetzt `auto-<typ>-<szenario>` bzw. `auto-<typ>-free`, jede
+  Kombination hat ihren eigenen Platz. Alte Staende im frueheren Format
+  bleiben unberuehrt liegen.
+- 🐛 **Fortsetzen eines Szenario-Standes wurde immer zu freiem Spiel.** Die
+  Fortsetzen-Liste zeigte den richtigen Szenarionamen an, bootete beim Klick
+  aber immer mit `scenarioDef = null` -- Bedarfskurve, Ereignisse und
+  Erfolgsbedingung des Szenarios waren nach dem Fortsetzen weg, ohne jede
+  Meldung. Laedt jetzt dieselbe Szenariodefinition nach wie beim
+  Erststart. Bekannte Einschraenkung: die Punktezaehler fuer den Lauf
+  beginnen dabei wieder bei null, nicht beim Stand vor dem Speichern.
+- 🐛 **RBMK-Leistungsregler nicht stossfrei beim Einschalten.** Automatik
+  sprang beim Einschalten auf den Sollwert von Rundenbeginn zurueck, egal wie
+  weit die Ist-Leistung seither gewandert war (Handbetrieb, Xenon-Transiente)
+  -- bei stark abweichender Leistung zog er dann hart in die falsche
+  Richtung. Uebernimmt jetzt beim Einschalten die aktuelle Leistung als
+  neuen Sollwert.
+
 ## 0.0.59
 
 - 🐛 **Sirene lief im Hauptmenü und nach Neustart weiter.** `toMenu()` und

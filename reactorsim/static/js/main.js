@@ -226,7 +226,22 @@ function refreshResumeList() {
         when: new Date(sv.saved_at * 1000).toLocaleString(),
       })]);
       btn.disabled = !isAvailable(sv.reactor);
-      btn.addEventListener('click', () => boot(sv.reactor, null, sv.slot));
+      // Ein Szenario-Stand muss beim Fortsetzen wieder MIT seiner
+      // Szenario-Definition booten (Bedarfskurve, Ereignisse, Wertung) --
+      // vorher stand hier immer "boot(sv.reactor, null, sv.slot)", also
+      // free=true fuer jeden Stand, auch fuer einen, der aus einem Szenario
+      // kam. Derselbe Fetch wie in loadScenario() oben, nur ohne Einweisung
+      // dazwischen: wer fortsetzt, hat sie schon gesehen.
+      btn.addEventListener('click', () => {
+        if (!sv.scenario) { boot(sv.reactor, null, sv.slot); return; }
+        const scn = app.scenarios.find((x) => x.id === sv.scenario);
+        if (!scn) { boot(sv.reactor, null, sv.slot); return; }
+        const base = window.RS_CFG ? `/s/${window.RS_CFG.version}` : '';
+        fetch(`${base}/data/scenarios/${scn.file}`)
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error('scenario'))))
+          .then((def) => boot(sv.reactor, def, sv.slot))
+          .catch(() => boot(sv.reactor, null, sv.slot));
+      });
       return el('div.rs-resume-row', null, [btn, makeDeleteSaveButton(sv.slot)]);
     }));
     list.hidden = !autos.length;
@@ -513,10 +528,14 @@ function initControls() {
 
   $('#rs-save').addEventListener('click', () => {
     const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
-    // Eigener Slot je Reaktortyp -- ein Stand beim SWR darf den beim DWR
-    // nicht mehr ueberschreiben, wie es der eine gemeinsame Slot "auto"
-    // vorher tat.
-    saveGame(app.engine, scnId, 'auto-' + app.lastReactor).then((ok) => {
+    // Eigener Slot je Reaktortyp UND Szenario (bzw. "-free" fuers freie
+    // Spiel) -- vorher haengte der Slot nur am Reaktortyp ("auto-" + Typ), und
+    // zwei Laeufe auf demselben Typ (z.B. ein Szenario UND das freie Spiel,
+    // beide RBMK) teilten sich einen Slot: Speichern im einen ueberschrieb
+    // stillschweigend den Stand des anderen. scnId ist bereits ein Slug aus
+    // Kleinbuchstaben/Unterstrich (siehe scenarios/*.json), passt also direkt
+    // in SLOT_RE (persist.py) hinein.
+    saveGame(app.engine, scnId, 'auto-' + app.lastReactor + '-' + (scnId || 'free')).then((ok) => {
       flash($('#rs-save'), t(ok ? 'save_ok' : 'save_failed'));
     });
   });

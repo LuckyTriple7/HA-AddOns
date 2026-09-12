@@ -152,7 +152,19 @@ export function buildPanels(engine, render, geiger) {
   // Deshalb zeigt der Schalter auf ctx.rodAutoCtl und nicht fest auf ctx.rodCtl.
   const rodCtl = ctx.rodAutoCtl;
   const rodAuto = rodCtl
-    ? autoSwitch(sp.rodAutoKey || 'ctl_rod_auto', rodCtl.auto, (v) => { rodCtl.auto = v; })
+    ? autoSwitch(sp.rodAutoKey || 'ctl_rod_auto', rodCtl.auto, (v) => {
+        // Stossfrei, wie im Dateikopf von controllers.js versprochen: der
+        // RBMK-Leistungsregler (PowerController) traegt sein setpoint als
+        // festes Feld, einmalig bei Rundenbeginn gesetzt (rbmk.js hooks.init)
+        // und seither nie aktualisiert. Ohne diese Zeile sprang er beim
+        // Einschalten auf den Sollwert von Rundenbeginn zurueck, egal wie weit
+        // die Leistung seither manuell oder durch Xenon gewandert war -- bei
+        // niedriger Ist-Leistung zog er dann hart in die falsche Richtung.
+        // RodController (PWR) regelt live auf setpoint(load), hat kein
+        // eingefrorenes Feld und braucht das nicht -- daher der typeof-Test.
+        if (v && typeof rodCtl.setpoint === 'number') rodCtl.setpoint = s.n;
+        rodCtl.auto = v;
+      })
     : null;
   const rodJog = jogButtons('ctl_rods', (dir) => {
     if (rodCtl && rodCtl.auto) { rodCtl.auto = false; rodAuto.set(false); }
