@@ -44,6 +44,13 @@ export class Scenario {
     this.events = (def.events || [])
       .map((e) => ({ ...e, t: resolveTime(e.t, this.rng), fired: false }))
       .sort((a, b) => a.t - b.t);
+    // Akustische Vorwarnung: 2-5 Minuten vor jedem Ereignis, einmalig, aus
+    // demselben Seed wie die Ereignisse selbst -- derselbe Lauf klingt bei
+    // gleichem Seed immer gleich.
+    for (const e of this.events) {
+      e.alertAt = Math.max(0, e.t - this.rng.range(120, 300));
+      e.alertFired = false;
+    }
     this.duration = def.duration_s || 3600;
     this.demand = def.demand || [];
     this.tolerance = (def.grid && def.grid.tolerance_mw) || 50;
@@ -63,6 +70,15 @@ export class Scenario {
     const out = [];
     for (const e of this.events) {
       if (!e.fired && t >= e.t) { e.fired = true; out.push(e); }
+    }
+    return out;
+  }
+
+  /** Fällige akustische Vorwarnungen -- je Ereignis einmal, 2-5 Minuten davor. */
+  dueAlerts(t) {
+    const out = [];
+    for (const e of this.events) {
+      if (!e.alertFired && t >= e.alertAt) { e.alertFired = true; out.push(e); }
     }
     return out;
   }

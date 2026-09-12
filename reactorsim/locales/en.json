@@ -64,6 +64,7 @@
   "opt_audio_title": "Sound",
   "opt_audio_horn": "Alarm horn",
   "opt_audio_geiger": "Geiger counter ticking",
+  "opt_audio_music": "Music (intro + background)",
   "btn_turbine_resume": "Reconnect turbine",
   "glossary_title": "Basics",
   "glossary_intro": "The key terms in short — not a course, just a reference.",

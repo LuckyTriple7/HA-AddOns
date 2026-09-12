@@ -12,6 +12,7 @@ import { api } from './net/api.js';
 import { save as saveGame, load as loadGame } from './net/persist.js';
 import { GLOSSARY } from './ui/glossary.js';
 import { SHORTCUTS } from './ui/shortcuts.js';
+import { MusicLoop, playClip } from './ui/music.js';
 import { STATUS_STATS, sanitizeStatusKeys } from './ui/statusStats.js';
 import { Geiger } from './ui/geiger.js';
 
@@ -27,6 +28,10 @@ const app = {
   // schirm entsperrt werden koennen (erste Kartenwahl ist die erste echte
   // Nutzergeste), lange bevor eine Runde ueberhaupt eine Engine hat.
   geiger: new Geiger(),
+  // Musik: eigene Dauerschleifen fuer Startbildschirm und laufende Runde --
+  // introMusic laeuft nur VOR boot(), bgMusic nur WAEHREND, nie beide.
+  introMusic: new MusicLoop('game_intro.mp3', 0.4),
+  bgMusic: new MusicLoop('game_background_1.mp3', 0.3),
   session: null,
   scenarios: [],
   chosen: null,      // gewaehltes Szenario oder null fuer freies Spiel
@@ -41,6 +46,9 @@ const app = {
 app.prefsPromise = api.readPrefs().then((r) => {
   app.prefs = (r.ok && r.data && typeof r.data === 'object') ? r.data : {};
   app.geiger.enabled = !app.prefs.audio || app.prefs.audio.geiger !== false;
+  const musicOn = !app.prefs.audio || app.prefs.audio.music !== false;
+  app.introMusic.enabled = musicOn;
+  app.bgMusic.enabled = musicOn;
   return app.prefs;
 }).catch(() => app.prefs);
 
@@ -81,6 +89,9 @@ function initStart() {
       app.reactor = id;
       go.disabled = false;
       renderScenarios(id);
+      // Erste echte Nutzergeste auf dem Startbildschirm -- hier darf Musik
+      // ueberhaupt zum ersten Mal loslaufen (start() ist idempotent).
+      app.introMusic.start();
     });
   }
 
@@ -419,6 +430,7 @@ function initControls() {
   }));
   const audioHornBox = $('#rs-audio-horn');
   const audioGeigerBox = $('#rs-audio-geiger');
+  const audioMusicBox = $('#rs-audio-music');
   $('#rs-stats-cfg').addEventListener('click', () => {
     const reactorId = app.lastReactor;
     const saved = app.prefs.statusBar ? app.prefs.statusBar[reactorId] : null;
@@ -426,6 +438,7 @@ function initControls() {
     for (const box of $$('input', statsList)) box.checked = keys.has(box.value);
     audioHornBox.checked = !app.prefs.audio || app.prefs.audio.horn !== false;
     audioGeigerBox.checked = !app.prefs.audio || app.prefs.audio.geiger !== false;
+    audioMusicBox.checked = !app.prefs.audio || app.prefs.audio.music !== false;
     statsModal.hidden = false;
   });
   $('#rs-stats-save').addEventListener('click', () => {
@@ -433,11 +446,13 @@ function initControls() {
     const chosen = $$('input', statsList).filter((b) => b.checked).map((b) => b.value);
     const keys = sanitizeStatusKeys(chosen);
     app.prefs.statusBar = { ...(app.prefs.statusBar || {}), [reactorId]: keys };
-    app.prefs.audio = { horn: audioHornBox.checked, geiger: audioGeigerBox.checked };
+    app.prefs.audio = { horn: audioHornBox.checked, geiger: audioGeigerBox.checked, music: audioMusicBox.checked };
     api.writePrefs(app.prefs);
     applyStatusSelection(keys);
     if (app.horn) app.horn.enabled = audioHornBox.checked;
     app.geiger.enabled = audioGeigerBox.checked;
+    app.introMusic.enabled = audioMusicBox.checked;
+    app.bgMusic.enabled = audioMusicBox.checked;
     flash($('#rs-stats-save'), t('stats_cfg_saved'));
   });
   $('#rs-stats-close').addEventListener('click', () => { statsModal.hidden = true; });
@@ -569,6 +584,7 @@ function showFault(detail) {
 function showDestroyed() {
   app.endShown = true;
   app.loop.setSpeed(0);
+  app.bgMusic.stop();
   if (app.horn) app.horn.meltdown();
   const s = app.engine.state;
   setText($('#rs-destroyed-detail'),
@@ -593,6 +609,8 @@ function restart() {
 
 function toMenu() {
   if (app.loop) app.loop.stop();
+  app.bgMusic.stop();
+  app.introMusic.start();
   $('#rs-app').hidden = true;
   $('#rs-start').hidden = false;
   refreshResumeList();
@@ -601,6 +619,7 @@ function toMenu() {
 /** Auswertung am Ende eines Szenarios. */
 function showDebrief(result, failed) {
   app.loop.setSpeed(0);
+  app.bgMusic.stop();
   const verdict = $('#rs-debrief-verdict');
   const ok = !failed;
   setAttr(verdict, 'data-ok', ok ? '1' : '0');
@@ -699,6 +718,8 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   // fuer eine Nutzergeste, die der Browser fuer Audio verlangt. Vor dem
   // ersten await, damit sie noch als "waehrend der Geste" zaehlt.
   app.geiger.unlock();
+  app.introMusic.stop();
+  app.bgMusic.start();
 
   // Kaltstart gilt fuer freies Spiel (Haekchen) und fuer ein Szenario, das
   // sein eigenes `cold: true` mitbringt -- ein Spielstand ueberschreibt den
@@ -738,6 +759,9 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   });
   app.session = new Session(app.engine, scenarioDef);
   app.session.onEnd = (result, failed) => showDebrief(result, failed);
+  // Geigerzaehler-Vorwarnung, 2-5 Minuten vor einem geplanten Ereignis --
+  // nur bei Szenarien relevant, dueAlerts() bleibt im freien Spiel leer.
+  app.session.onAlert = () => playClip('geiger_game_alert.mp3', 0.6);
   app.session.start();
   // Nur ein Szenario hat eine Einweisung, die es wert ist, erneut
   // aufzurufen -- im freien Spiel gibt es keine, der Knopf bleibt weg.

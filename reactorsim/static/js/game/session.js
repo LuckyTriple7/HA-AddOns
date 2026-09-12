@@ -37,6 +37,7 @@ export class Session {
     this.run = this.scenario ? new RunState(this.scenario, engine.spec) : null;
     this.phase = this.scenario ? PHASE.BRIEFING : PHASE.RUNNING;
     this.onEnd = null;
+    this.onAlert = null;
     this.result = null;
     this.demandRng = this.free ? new Rng(Date.now() >>> 0) : null;
     this.demandTarget = null;
@@ -86,6 +87,10 @@ export class Session {
 
     // Bedarfskurve führt die Lastanforderung.
     s.P_demand = this.scenario.demandAt(s.t_sim);
+
+    // Akustische Vorwarnung, 2-5 Minuten vor dem eigentlichen Ereignis --
+    // main.js entscheidet, welcher Klang das ist.
+    if (this.scenario.dueAlerts(s.t_sim).length && this.onAlert) this.onAlert();
 
     for (const ev of this.scenario.due(s.t_sim)) {
       const def = getEvent(ev.id);

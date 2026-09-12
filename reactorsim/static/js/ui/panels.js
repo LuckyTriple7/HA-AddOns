@@ -439,10 +439,14 @@ export function buildPanels(engine, render, geiger) {
     setAttr(tabAlarm, 'data-sev', worst);
     setAttr(tabAlarm, 'data-unack', engine.trips.horn ? '1' : '0');
 
-    // Hupe im Takt der blinkenden Kachel.
+    // Hupe im Takt der blinkenden Kachel -- laeuft als Dauerschleife, solange
+    // etwas unquittiert ist (siehe Horn.alarm()), und wird sofort abgestellt,
+    // sobald das nicht mehr zutrifft.
     const nowMs = performance.now();
     if (engine.trips.horn) {
       if (nowMs > hornNext) { horn.alarm(worst); hornNext = nowMs + 1000; }
+    } else {
+      horn.silence();
     }
     // Geigerzähler: tickt immer ein bisschen, schneller mit der schwersten
     // anstehenden Meldung -- dieselbe worst-Kennzahl wie oben, keine eigene

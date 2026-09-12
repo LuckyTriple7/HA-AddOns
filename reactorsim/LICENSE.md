@@ -10,6 +10,7 @@ Der Programmcode dieses Projekts steht unter der MIT-Lizenz des Repositorys
 | [Flask](https://flask.palletsprojects.com/) | BSD-3-Clause |
 | [Waitress](https://github.com/Pylons/waitress) | ZPL 2.1 |
 | Basis-Image `python:3.14-alpine` | PSF / diverse (Alpine-Pakete) |
+| Klangeffekte & Musik (`static/audio/*.mp3`) | [Pixabay-Inhaltslizenz](https://pixabay.com/service/license-summary/) — frei nutzbar, keine Herkunftsangabe nötig |
 
 Schriftarten werden nicht mitgeliefert — die Oberfläche nutzt ausschließlich
 die Systemschriften des Geräts.

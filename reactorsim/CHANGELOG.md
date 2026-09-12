@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.48
+
+- 🎵 **Aufgenommene Klangeffekte statt Synthese, plus Musik.** Meldehupe,
+  SCRAM und Kernzerstörung liefen bisher komplett über WebAudio-Oszillatoren
+  (`annunciator.js`); jetzt echte Aufnahmen (`static/audio/*.mp3`, Pixabay-
+  Lizenz). Die Hupe läuft dabei als Dauerschleife, solange eine Meldung
+  unquittiert ist, statt sich jede Sekunde neu anzusetzen.
+- 🆕 **Intro- und Hintergrundmusik.** Startbildschirm bekommt eine eigene
+  Musikschleife (ab dem ersten Klick auf eine Reaktorkarte), eine laufende
+  Runde eine andere -- beide über den neuen "Musik"-Schalter im Ton-Dialog
+  ab-/anschaltbar, unabhängig von Hupe und Geigerzähler.
+- 🆕 **Akustische Vorwarnung vor Szenario-Ereignissen.** 2-5 Minuten bevor
+  ein geplantes Ereignis (Pumpenausfall, klemmender Stab, ...) tatsächlich
+  eintritt, kommt einmalig ein kurzer Warnton -- geseedet wie das Ereignis
+  selbst, reproduzierbar bei gleichem Szenario-Seed.
+
 ## 0.0.47
 
 - ❄️ **Kaltstart jetzt auch in Szenarien.** Bisher erzwang `boot()` immer ein
