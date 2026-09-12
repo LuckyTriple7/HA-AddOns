@@ -535,7 +535,8 @@ function initControls() {
     // stillschweigend den Stand des anderen. scnId ist bereits ein Slug aus
     // Kleinbuchstaben/Unterstrich (siehe scenarios/*.json), passt also direkt
     // in SLOT_RE (persist.py) hinein.
-    saveGame(app.engine, scnId, 'auto-' + app.lastReactor + '-' + (scnId || 'free')).then((ok) => {
+    saveGame(app.engine, scnId, 'auto-' + app.lastReactor + '-' + (scnId || 'free'),
+      app.session && app.session.run).then((ok) => {
       flash($('#rs-save'), t(ok ? 'save_ok' : 'save_failed'));
     });
   });
@@ -917,7 +918,10 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   // Einen Spielstand erst anwenden, wenn die Anlage steht: die Regler und
   // Pumpen schwingen sich dann aus dem geladenen Zustand von selbst ein.
   if (loadSlot) {
-    loadGame(app.engine, loadSlot).then((err) => {
+    // app.session.run ist optional (null im freien Spiel, siehe
+    // Session-Konstruktor) -- persist.js restore() ueberspringt es dann
+    // einfach, wie bei jedem Feld ohne Gegenstueck.
+    loadGame(app.engine, loadSlot, app.session && app.session.run).then((err) => {
       if (err) flash($('#rs-save'), t('load_failed'));
     });
   }

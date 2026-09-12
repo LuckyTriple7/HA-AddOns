@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.61
+
+- 🐛 **Wertung fing nach Fortsetzen eines Szenarios bei null an.** Nachtrag zu
+  0.0.60: das Fortsetzen selbst war repariert, aber `RunState` (Zeit im
+  Toleranzband, Abweichung, SCRAM-Zaehler, ...) hatte kein Gedaechtnis ueber
+  einen Speicherpunkt hinweg -- ein gespeicherter und fortgesetzter Lauf
+  wertete am Ende nur noch die Minuten nach dem Laden, nicht den ganzen Lauf.
+  `RunState` hat jetzt `snapshot()`/`restore()` wie Pumpen und Regler; der
+  Zwischenstand steckt mit im Speicherblock (`run`-Feld, optional -- alte
+  Staende ohne das Feld laden weiter, Wertung faengt dann wie bisher bei null
+  an).
+
 ## 0.0.60
 
 Drei Funde aus einer echten Spielsitzung.

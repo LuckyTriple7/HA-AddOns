@@ -130,6 +130,50 @@ export class RunState {
     if (s.destroyed) this.destroyed = true;
   }
 
+  /** Fuers Speichern: alle Zwischenstaende der Wertung, nicht nur Physik.
+   *  Ohne das begann nach jedem Fortsetzen eines Szenario-Standes die
+   *  Wertung wieder bei null, obwohl die Simulation selbst korrekt weiterlief
+   *  -- ein 20-Minuten-Lauf mit Speicherpunkt dazwischen zaehlte am Ende nur
+   *  noch die Minuten nach dem Laden. minDnbr/minOrm starten bei Infinity,
+   *  das ueberlebt kein JSON.stringify (wird zu null) -- deshalb hier explizit
+   *  auf null abgebildet und beim Restore uebersprungen, nicht auf 0 gesetzt. */
+  snapshot() {
+    return {
+      energyDelivered: this.energyDelivered,
+      energyDemanded: this.energyDemanded,
+      deviationMWh: this.deviationMWh,
+      violationSeconds: { ...this.violationSeconds },
+      scramCount: this.scramCount,
+      maxFuelK: this.maxFuelK,
+      minDnbr: Number.isFinite(this.minDnbr) ? this.minDnbr : null,
+      minOrm: Number.isFinite(this.minOrm) ? this.minOrm : null,
+      destroyed: this.destroyed,
+      scramSeen: this.scramSeen,
+      tripFor: this._tripFor || 0,
+      devFor: this._devFor || 0,
+    };
+  }
+
+  restore(d) {
+    if (!d || typeof d !== 'object') return;
+    if (Number.isFinite(d.energyDelivered)) this.energyDelivered = d.energyDelivered;
+    if (Number.isFinite(d.energyDemanded)) this.energyDemanded = d.energyDemanded;
+    if (Number.isFinite(d.deviationMWh)) this.deviationMWh = d.deviationMWh;
+    if (d.violationSeconds && typeof d.violationSeconds === 'object') {
+      for (const k of [1, 2, 3]) {
+        if (Number.isFinite(d.violationSeconds[k])) this.violationSeconds[k] = d.violationSeconds[k];
+      }
+    }
+    if (Number.isFinite(d.scramCount)) this.scramCount = d.scramCount;
+    if (Number.isFinite(d.maxFuelK)) this.maxFuelK = d.maxFuelK;
+    if (Number.isFinite(d.minDnbr)) this.minDnbr = d.minDnbr;
+    if (Number.isFinite(d.minOrm)) this.minOrm = d.minOrm;
+    if (typeof d.destroyed === 'boolean') this.destroyed = d.destroyed;
+    if (typeof d.scramSeen === 'boolean') this.scramSeen = d.scramSeen;
+    if (Number.isFinite(d.tripFor)) this._tripFor = d.tripFor;
+    if (Number.isFinite(d.devFor)) this._devFor = d.devFor;
+  }
+
   /**
    * Prüft die Fehlbedingungen des Szenarios.
    *

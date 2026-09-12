@@ -27,8 +27,11 @@ function packComponents(ctx) {
   return out;
 }
 
-/** Zustand in einen Block packen, den der Server nur weiterreicht. */
-export function pack(engine, scenarioId) {
+/** Zustand in einen Block packen, den der Server nur weiterreicht.
+ *  `runState` ist optional (nur Szenarien haben eins, siehe game/session.js
+ *  Session.run) -- ohne sie faengt die Wertung nach jedem Fortsetzen wieder
+ *  bei null an, obwohl die Simulation selbst korrekt weiterlaeuft. */
+export function pack(engine, scenarioId, runState) {
   const s = engine.state;
   const out = {};
   // Nur Zahlen und einfache Felder direkt am Zustand.
@@ -49,6 +52,7 @@ export function pack(engine, scenarioId) {
     // jede Pumpe wieder hochgefahren und jede Hand-Stellung sprang auf
     // Automatik zurueck, ganz gleich was der Spieler eingestellt hatte.
     components: packComponents(engine.ctx),
+    run: runState ? runState.snapshot() : undefined,
   };
 }
 
@@ -56,7 +60,7 @@ export function pack(engine, scenarioId) {
  * Block prüfen und anwenden.
  * @returns {string|null} Fehlergrund, oder null bei Erfolg
  */
-export function apply(blob, engine) {
+export function apply(blob, engine, runState) {
   if (!blob || blob.v !== SAVE_VERSION) return 'version';
   if (blob.reactor !== engine.state.reactor) return 'reactor';
   const src = blob.state;
@@ -109,18 +113,23 @@ export function apply(blob, engine) {
 
   // Zum Schluss: der Zustand muss die Grenzwächter überstehen.
   if (numbers(s).some((x) => !Number.isFinite(x))) return 'not_finite';
+
+  // Wertungs-Zwischenstand optional, wie components oben: ein Stand von vor
+  // diesem Fix hat kein run-Feld, dann startet die Wertung wie bisher bei
+  // null statt den Ladevorgang scheitern zu lassen.
+  if (runState && blob.run && typeof blob.run === 'object') runState.restore(blob.run);
   return null;
 }
 
-export async function save(engine, scenarioId, slot = 'auto') {
-  const r = await api.writeSave(slot, pack(engine, scenarioId));
+export async function save(engine, scenarioId, slot = 'auto', runState) {
+  const r = await api.writeSave(slot, pack(engine, scenarioId, runState));
   return r.ok;
 }
 
-export async function load(engine, slot = 'auto') {
+export async function load(engine, slot = 'auto', runState) {
   const r = await api.readSave(slot);
   if (!r.ok || !r.data) return 'not_found';
-  return apply(r.data, engine);
+  return apply(r.data, engine, runState);
 }
 
 export { api };
