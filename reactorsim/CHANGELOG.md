@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.37
+
+- ⚡ **Kopfzeilen-Auswahl wirkt jetzt sofort.** Statt beim Speichern nur den Server zu aktualisieren und auf den nächsten Rundenstart zu warten, wechselt die laufende Kopfzeile sofort um -- ohne die zugrundeliegenden Knoten neu zu bauen (nur `hidden`/Reihenfolge), bleiben die Wertebindungen aus dem laufenden `buildPanels()` gültig.
+- 💾 **Ein Spielstand-Slot je Reaktortyp statt einem gemeinsamen.** Vorher überschrieb "Speichern" beim SWR denselben Stand wie beim DWR (ein einziger Slot `auto`). Jetzt eigener Slot je Typ (`auto-pwr`/`auto-bwr`/`auto-rbmk`) -- ältere Stände im alten Slot `auto` sind darüber nicht mehr erreichbar. Der Startbildschirm zeigt jetzt für jeden gefundenen Stand einen eigenen "Fortsetzen"-Knopf mit Reaktortyp, Szenario (oder "Freies Spiel") und Speicherzeitpunkt im Text, statt nur einen namenlosen Knopf.
+
 ## 0.0.36
 
 - ⚙️ **Kopfzeile frei anpassbar.** Welche Werte oben in der Statuszeile stehen, wählt man jetzt selbst (⚙-Knopf neben dem Fragezeichen) aus einem Katalog von 44 Werten -- alles, was auch in den Panels steht (Xenon, Bor, Abschaltreserve, Void-Koeffizient, …), nicht nur die bisherigen fest verdrahteten neun. Auswahl gilt je Reaktortyp getrennt und bleibt dauerhaft beim Spieler gespeichert (`/api/prefs`, eigene Datei je Spieler unter `/data/players/`), wirkt ab dem nächsten Rundenstart. Per Playwright-Livetest verifiziert: Auswahl übersteht Neustart und Menü-Rückkehr, bleibt zwischen Reaktortypen getrennt, taucht nicht in der Spielstand-Liste auf.

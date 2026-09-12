@@ -58,8 +58,12 @@
 
     <div class="rs-start-actions">
       <button class="rs-btn rs-btn-primary" id="rs-start-go" type="button" disabled>{{ t.start_free_play }}</button>
-      <button class="rs-btn" id="rs-resume" type="button" hidden>{{ t.btn_resume_save }}</button>
     </div>
+
+    <!-- Ein Eintrag je Reaktortyp (Slot "auto-<typ>"), von main.js gefuellt --
+         wer bei DWR und SWR jeweils gespeichert hat, sieht und trifft die
+         Wahl hier, nicht erst nach dem Draufklicken. -->
+    <div class="rs-resume-list" id="rs-resume-list" hidden></div>
 
     <div class="rs-start-foot">
       <span class="rs-start-lang">{{ t.start_language }}:

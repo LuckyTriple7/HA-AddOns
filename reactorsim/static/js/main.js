@@ -116,28 +116,44 @@ function initStart() {
     restart();
   });
 
-  // Gibt es einen Spielstand, laesst er sich von hier fortsetzen.
-  api.listSaves().then((r) => {
-    const auto = r.ok && r.data && (r.data.saves || []).find((x) => x.slot === 'auto');
-    if (!auto) return;
-    app.savedGame = auto;
-    const resume = $('#rs-resume');
-    resume.hidden = false;
-    resume.title = t('save_slot', { n: new Date(auto.saved_at * 1000).toLocaleString() });
-  });
-
-  $('#rs-resume').addEventListener('click', () => {
-    const saved = app.savedGame;
-    if (!saved || !isAvailable(saved.reactor)) return;
-    boot(saved.reactor, null, saved.slot);
-  });
-
-  // Szenarienliste holen. Geht das schief, bleibt das freie Spiel -- das Spiel
-  // muss ohne den Server spielbar sein, er liefert hier nur eine Liste.
-  fetch('/api/meta', { headers: { Accept: 'application/json' } })
+  // Szenarienliste: einmal fuer die ganze Sitzung. Geht sie schief, bleibt
+  // das freie Spiel spielbar -- das Spiel muss ohne den Server auskommen, er
+  // liefert hier nur Listen.
+  app.scenariosPromise = fetch('/api/meta', { headers: { Accept: 'application/json' } })
     .then((r) => (r.ok ? r.json() : null))
     .then((m) => { if (m && m.scenarios) app.scenarios = m.scenarios; })
     .catch(() => {});
+
+  refreshResumeList();
+}
+
+/** Fortsetzen-Liste neu vom Server holen -- nicht nur beim allerersten
+ *  Laden: ein Spielstand von eben (Knopf "Speichern") oder ein geloeschter
+ *  muss beim naechsten Blick auf den Startbildschirm stimmen, siehe
+ *  toMenu(). Der Szenariotitel braucht die einmalig geholte Szenarienliste,
+ *  sonst zeigt der Hinweis nur die rohe ID. */
+function refreshResumeList() {
+  const list = $('#rs-resume-list');
+  Promise.all([app.scenariosPromise, api.listSaves()]).then(([, r]) => {
+    const saves = (r.ok && r.data && r.data.saves) || [];
+    // Ein Slot je Reaktortyp ("auto-<typ>"), nicht mehr der eine gemeinsame
+    // "auto"-Slot von vorher -- ein Stand beim DWR ueberschreibt seither
+    // keinen beim SWR mehr. Aeltere Spielstaende aus der Zeit davor (Slot
+    // "auto") tauchen hier nicht mehr auf.
+    const autos = saves.filter((x) => x.slot && x.slot.startsWith('auto-'));
+    list.replaceChildren(...autos.map((sv) => {
+      const scn = sv.scenario && app.scenarios.find((x) => x.id === sv.scenario);
+      const btn = el('button.rs-btn', { type: 'button' }, [t('btn_resume_named', {
+        reactor: t('reactor_' + sv.reactor),
+        scenario: sv.scenario ? t(scn ? scn.title_key : 'scn_unknown') : t('scn_free'),
+        when: new Date(sv.saved_at * 1000).toLocaleString(),
+      })]);
+      btn.disabled = !isAvailable(sv.reactor);
+      btn.addEventListener('click', () => boot(sv.reactor, null, sv.slot));
+      return btn;
+    }));
+    list.hidden = !autos.length;
+  });
 }
 
 /** Szenarienkarten fuer den gewaehlten Reaktortyp. */
@@ -312,10 +328,11 @@ function initControls() {
 
   // Kopfzeile anpassen: Checkboxen aus dem Katalog, vorbelegt mit der
   // gespeicherten (oder Standard-) Auswahl fuer den GERADE LAUFENDEN
-  // Reaktortyp. Speichern schreibt nur die Zeile fuer diesen Typ zurueck und
-  // baut die laufende Kopfzeile NICHT live um -- panels.js sammelt seine
-  // Wertebindungen einmal beim Rundenstart, ein Umbau waehrenddessen wuerde
-  // sie nur verwaisen lassen. Wirkt deshalb ab dem naechsten Rundenstart.
+  // Reaktortyp. Speichern schreibt die Zeile fuer diesen Typ zurueck UND
+  // knipst sofort die passenden Kacheln sichtbar -- applyStatusSelection()
+  // ersetzt dabei keine Knoten, nur hidden/Reihenfolge, deshalb bleibt
+  // panels.js' Wertebindung gueltig und die Aenderung ist sofort sichtbar,
+  // ganz ohne Rundenneustart.
   const statsModal = $('#rs-stats-modal');
   const statsList = $('#rs-stats-list');
   statsList.replaceChildren(...STATUS_STATS.map(({ key, labelKey }) => {
@@ -332,8 +349,10 @@ function initControls() {
   $('#rs-stats-save').addEventListener('click', () => {
     const reactorId = app.lastReactor;
     const chosen = $$('input', statsList).filter((b) => b.checked).map((b) => b.value);
-    app.prefs.statusBar = { ...(app.prefs.statusBar || {}), [reactorId]: sanitizeStatusKeys(chosen) };
+    const keys = sanitizeStatusKeys(chosen);
+    app.prefs.statusBar = { ...(app.prefs.statusBar || {}), [reactorId]: keys };
     api.writePrefs(app.prefs);
+    applyStatusSelection(keys);
     flash($('#rs-stats-save'), t('stats_cfg_saved'));
   });
   $('#rs-stats-close').addEventListener('click', () => { statsModal.hidden = true; });
@@ -341,16 +360,17 @@ function initControls() {
 
   $('#rs-save').addEventListener('click', () => {
     const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
-    saveGame(app.engine, scnId, 'auto').then((ok) => {
+    // Eigener Slot je Reaktortyp -- ein Stand beim SWR darf den beim DWR
+    // nicht mehr ueberschreiben, wie es der eine gemeinsame Slot "auto"
+    // vorher tat.
+    saveGame(app.engine, scnId, 'auto-' + app.lastReactor).then((ok) => {
       flash($('#rs-save'), t(ok ? 'save_ok' : 'save_failed'));
     });
   });
 
   $('#rs-destroyed-close').addEventListener('click', () => {
     $('#rs-destroyed').hidden = true;
-    app.loop.stop();
-    $('#rs-app').hidden = true;
-    $('#rs-start').hidden = false;
+    toMenu();
   });
 
   // Tastatur am Rechner: Leertaste hält an, Zahlen wählen den Zeitraffer.
@@ -423,6 +443,7 @@ function toMenu() {
   if (app.loop) app.loop.stop();
   $('#rs-app').hidden = true;
   $('#rs-start').hidden = false;
+  refreshResumeList();
 }
 
 /** Auswertung am Ende eines Szenarios. */
@@ -482,20 +503,39 @@ function loadScores(reactor, scenario) {
   });
 }
 
-/** Kopfzeile aus der gespeicherten (oder Standard-) Auswahl fuer diesen
- *  Reaktortyp bauen. Dieselben Zielknoten wie vorher fest im Template --
- *  panels.js findet sie ueber data-v, ganz gleich ob HTML oder JS sie baut. */
-function buildStatusBar(reactorId, prefs) {
-  const saved = prefs && prefs.statusBar ? prefs.statusBar[reactorId] : null;
-  const keys = sanitizeStatusKeys(saved);
-  const byKey = new Map(STATUS_STATS.map((x) => [x.key, x]));
-  $('#rs-status-scroll').replaceChildren(...keys.map((key, i) => {
-    const stat = byKey.get(key);
-    return el(`div.rs-stat${i < 2 ? '.rs-stat-lead' : ''}`, null, [
-      el('span.rs-stat-k', { text: t(stat.labelKey) }),
-      el('span.rs-stat-v', { 'data-v': key, text: '—' }),
-    ]);
-  }));
+// Kachel je Katalogeintrag, ueber Rundenstarts hinweg gemerkt: applyStatus-
+// Selection() knipst nur hidden um, baut aber nichts neu. Das ist der Grund,
+// warum die Einstellungen-Kachel sofort wirkt, ganz ohne Rundenneustart --
+// panels.js sammelt seine data-v-Bindungen einmal beim Rundenstart aus dem
+// DOM und haette bei neu gebauten Knoten nur die alten weiterbeschrieben,
+// unsichtbar, waehrend die neuen fuer immer auf "—" stehen (dieselbe Klasse
+// Fehler wie die doppelten Rundinstrumente aus 0.0.30).
+let statusTiles = null;
+
+/** Alle 44 moeglichen Kacheln einmal bauen (verdeckt) -- einmal je
+ *  Rundenstart, weil buildPanels() gleich danach seine Wertebindungen aus
+ *  genau diesem DOM einsammelt. */
+function buildStatusBar() {
+  statusTiles = new Map(STATUS_STATS.map(({ key, labelKey }) => [key, el('div.rs-stat', { hidden: true }, [
+    el('span.rs-stat-k', { text: t(labelKey) }),
+    el('span.rs-stat-v', { 'data-v': key, text: '—' }),
+  ])]));
+  $('#rs-status-scroll').replaceChildren(...statusTiles.values());
+}
+
+/** Auswahl anzeigen: nur hidden/Reihenfolge aendern, nie Knoten ersetzen --
+ *  wirkt deshalb auch mitten in einer laufenden Runde sofort. */
+function applyStatusSelection(keys) {
+  if (!statusTiles) return;
+  for (const node of statusTiles.values()) node.hidden = true;
+  const scroll = $('#rs-status-scroll');
+  keys.forEach((key, i) => {
+    const node = statusTiles.get(key);
+    if (!node) return;
+    node.hidden = false;
+    node.classList.toggle('rs-stat-lead', i < 2);
+    scroll.append(node); // an den Schluss, in Auswahlreihenfolge
+  });
 }
 
 async function boot(reactorId, scenarioDef, loadSlot) {
@@ -524,7 +564,8 @@ async function boot(reactorId, scenarioDef, loadSlot) {
   // Wertebindungen sammelt es per querySelectorAll('[data-v]') genau einmal,
   // aus dem, was zu dem Zeitpunkt im DOM steht.
   const prefs = await app.prefsPromise;
-  buildStatusBar(reactorId, prefs);
+  buildStatusBar();
+  applyStatusSelection(sanitizeStatusKeys(prefs.statusBar && prefs.statusBar[reactorId]));
 
   app.endShown = false;
   app.engine = createEngine(plant, { n: 1.0, seed: scenarioDef ? scenarioDef.seed : 1 });
