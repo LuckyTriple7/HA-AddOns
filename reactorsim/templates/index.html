@@ -22,6 +22,20 @@
 </head>
 <body>
 
+<!-- ── Startbanner ──────────────────────────────────────────────────────── -->
+<!-- Liegt UEBER dem Startbildschirm (hoeherer z-index in base.css), nicht
+     davor im Ablauf -- der Startbildschirm baut sich im Hintergrund schon
+     auf. Klick/Enter/Leertaste blendet nur das Banner aus und startet die
+     Musik, dieselbe erste-Nutzergeste-Regel wie beim Reaktortyp-Klick
+     danach (siehe app.introMusic.start() in main.js). -->
+<div class="rs-splash" id="rs-splash" role="button" tabindex="0" aria-label="{{ t.splash_hint }}">
+  <div class="rs-splash-inner">
+    <img class="rs-splash-logo" src="/s/{{ app_version }}/img/icon.png" alt="" width="128" height="128">
+    <h1 class="rs-splash-title">{{ t.app_title }}<span>{{ t.app_subtitle }}</span></h1>
+    <p class="rs-splash-hint">{{ t.splash_hint }}</p>
+  </div>
+</div>
+
 <!-- ── Startbildschirm ──────────────────────────────────────────────────── -->
 <div class="rs-start" id="rs-start">
   <div class="rs-start-inner">

@@ -1,6 +1,7 @@
 {
   "app_title": "ReactorSim",
   "app_subtitle": "Control room simulation",
+  "splash_hint": "Click to start",
   "start_headline": "Choose a reactor type",
   "start_intro": "You are the reactor operator. Keep the plant inside its envelope, follow grid demand and master the faults.",
   "start_free_play": "Start free play",

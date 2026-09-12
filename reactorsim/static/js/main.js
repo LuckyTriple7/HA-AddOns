@@ -82,6 +82,20 @@ function applyAudioPrefs() {
 // ── Startbildschirm ──────────────────────────────────────────────────────────
 
 function initStart() {
+  // Startbanner: liegt nur optisch ueber dem Startbildschirm (siehe
+  // rs-splash in base.css), der baut sich im Hintergrund unveraendert auf.
+  // Klick/Enter/Leertaste blenden es aus -- dieselbe erste-Nutzergeste-Regel
+  // wie beim Reaktortyp-Klick gleich danach, deshalb darf hier schon Musik
+  // starten (introMusic.start() ist idempotent).
+  const splash = $('#rs-splash');
+  if (splash) {
+    const dismissSplash = () => { splash.hidden = true; app.introMusic.start(); };
+    splash.addEventListener('click', dismissSplash);
+    splash.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); dismissSplash(); }
+    });
+  }
+
   const cards = $$('.rs-card');
   const go = $('#rs-start-go');
 
@@ -527,16 +541,7 @@ function initControls() {
   statsModal.addEventListener('click', (ev) => { if (ev.target === statsModal) statsModal.hidden = true; });
 
   $('#rs-save').addEventListener('click', () => {
-    const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
-    // Eigener Slot je Reaktortyp UND Szenario (bzw. "-free" fuers freie
-    // Spiel) -- vorher haengte der Slot nur am Reaktortyp ("auto-" + Typ), und
-    // zwei Laeufe auf demselben Typ (z.B. ein Szenario UND das freie Spiel,
-    // beide RBMK) teilten sich einen Slot: Speichern im einen ueberschrieb
-    // stillschweigend den Stand des anderen. scnId ist bereits ein Slug aus
-    // Kleinbuchstaben/Unterstrich (siehe scenarios/*.json), passt also direkt
-    // in SLOT_RE (persist.py) hinein.
-    saveGame(app.engine, scnId, 'auto-' + app.lastReactor + '-' + (scnId || 'free'),
-      app.session && app.session.run).then((ok) => {
+    saveCurrentGame().then((ok) => {
       flash($('#rs-save'), t(ok ? 'save_ok' : 'save_failed'));
     });
   });
@@ -650,6 +655,23 @@ async function fastForwardXenon() {
   }
 }
 
+// Alle 60 echte Sekunden, unabhaengig vom Zeitraffer -- ein Strg+R oder ein
+// Tab-Absturz soll hoechstens eine Minute Spielzeit kosten, nicht den ganzen
+// Lauf. Speichert in denselben Slot wie der Speichern-Knopf (siehe
+// saveCurrentGame()), taucht danach automatisch in der Fortsetzen-Liste auf.
+const AUTOSAVE_INTERVAL_MS = 60000;
+
+/** Aktuellen Lauf in seinen Slot schreiben. Speichern-Knopf und Autosave
+ *  rufen dieselbe Stelle, damit garantiert kein zweiter Slot-Name entsteht. */
+function saveCurrentGame() {
+  const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
+  // Eigener Slot je Reaktortyp UND Szenario (bzw. "-free" fuers freie Spiel)
+  // -- siehe CHANGELOG 0.0.60, vorher teilten sich zwei Laeufe auf demselben
+  // Reaktortyp einen Slot und ueberschrieben sich stillschweigend.
+  return saveGame(app.engine, scnId, 'auto-' + app.lastReactor + '-' + (scnId || 'free'),
+    app.session && app.session.run);
+}
+
 function showFault(detail) {
   if (app.loop) app.loop.stop();
   setText($('#rs-fault-detail'), detail || '');
@@ -698,6 +720,7 @@ function restart() {
 
 function toMenu() {
   if (app.loop) app.loop.stop();
+  if (app.autosaveTimer) { window.clearInterval(app.autosaveTimer); app.autosaveTimer = null; }
   // Die Sirene laeuft als eigene Dauerschleife unabhaengig von loop/bgMusic
   // (siehe Horn in annunciator.js) -- ohne silence() hupt eine unquittierte
   // Meldung im Hauptmenue weiter, obwohl die Runde laengst verlassen ist.
@@ -833,6 +856,7 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   // state.destroyed && !app.endShown gesehen und die eben erst zurückgesetzte
   // Anzeige sofort wieder auf "Kernzerstörung" gestellt, mit dem neuen Motor.
   if (app.loop) app.loop.stop();
+  if (app.autosaveTimer) { window.clearInterval(app.autosaveTimer); app.autosaveTimer = null; }
   // Dieselbe Sirene abstellen wie in toMenu(): buildPanels() erzeugt gleich
   // ein NEUES Horn-Objekt (siehe unten), das alte spielt sonst -- unquittiert
   // aus der verlassenen Runde -- einfach im <audio>-Element weiter.
@@ -914,6 +938,13 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   setAttr(scramBtn, 'title', t((plant.spec.scram && plant.spec.scram.titleKey) || 'btn_scram'));
   setSpeed(1);
   app.loop.start();
+  // Gegen Strg+R/Tab-Absturz: hoechstens eine Minute Fortschritt verloren,
+  // nicht der ganze Lauf. Nur waehrend PHASE.RUNNING -- speichert also nicht
+  // ueber ein Debriefing oder eine Kernzerstoerung hinweg, phase wechselt vor
+  // dem naechsten Tick schon weg.
+  app.autosaveTimer = window.setInterval(() => {
+    if (app.session && app.session.phase === PHASE.RUNNING) saveCurrentGame();
+  }, AUTOSAVE_INTERVAL_MS);
 
   // Einen Spielstand erst anwenden, wenn die Anlage steht: die Regler und
   // Pumpen schwingen sich dann aus dem geladenen Zustand von selbst ein.

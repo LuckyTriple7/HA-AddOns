@@ -1,6 +1,7 @@
 {
   "app_title": "ReactorSim",
   "app_subtitle": "Leitstand-Simulation",
+  "splash_hint": "Zum Start klicken",
   "start_headline": "Reaktortyp wählen",
   "start_intro": "Du bist Reaktorfahrer. Halte die Anlage im Fahrbereich, folge der Netzanforderung und beherrsche die Störungen.",
   "start_free_play": "Freies Spiel starten",

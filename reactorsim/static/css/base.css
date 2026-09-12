@@ -113,6 +113,54 @@ button {
 .rs-scram[data-armed="1"] { animation: rs-scram-arm .5s steps(2) infinite; }
 @keyframes rs-scram-arm { 50% { filter: brightness(1.6); } }
 
+/* ── Startbanner ────────────────────────────────────────────────────────────
+   Liegt per z-index UEBER .rs-start, nicht davor im DOM-Fluss -- siehe
+   Kommentar im Template. */
+
+.rs-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #14263a 0%, transparent 60%),
+    var(--rs-bg);
+  cursor: pointer;
+}
+.rs-splash-inner { text-align: center; }
+.rs-splash-logo {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  box-shadow: 0 0 60px #2f6fb355;
+}
+.rs-splash-title {
+  margin: 20px 0 0;
+  font-size: 34px;
+  letter-spacing: .04em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rs-splash-title span {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--rs-fg-mute);
+}
+.rs-splash-hint {
+  margin-top: 28px;
+  color: var(--rs-fg-mute);
+  font-size: 13px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  animation: rs-splash-pulse 1.8s ease-in-out infinite;
+}
+@keyframes rs-splash-pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+
 /* ── Startbildschirm ──────────────────────────────────────────────────────── */
 
 .rs-start {

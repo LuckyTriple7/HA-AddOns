@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.62
+
+- ✨ **Startbanner vor dem Startbildschirm.** Grosses Logo, Klick/Enter/
+  Leertaste blendet aus und startet die Musik -- der Startbildschirm dahinter
+  baut sich unveraendert auf, das Banner liegt nur optisch drueber
+  (`#rs-splash`, z-index in base.css).
+- ✨ **Autosave gegen Strg+R.** Bisher gab es nur den Speichern-Knopf von
+  Hand -- ein Reload oder Tab-Absturz ohne vorheriges Speichern kostete den
+  ganzen Lauf. Jetzt sichert eine laufende Runde sich alle 60 echte Sekunden
+  automatisch in denselben Slot (siehe 0.0.60/0.0.61), nur waehrend die Runde
+  wirklich laeuft (nicht ueber Debriefing/Kernzerstoerung hinweg). Die
+  Fortsetzen-Liste auf dem Startbildschirm zeigt den Stand danach von selbst
+  an -- eine eigene "Weiterspielen?"-Nachfrage brauchte es dafuer nicht.
+
 ## 0.0.61
 
 - 🐛 **Wertung fing nach Fortsetzen eines Szenarios bei null an.** Nachtrag zu
