@@ -369,6 +369,11 @@ export function buildPanels(engine, render, geiger) {
     put('clock', clock(s.t_sim));
     put('subcool', num(d.subcooling, 1) + U('unit_kelvin'), d.subcooling < 8 ? 3 : (d.subcooling < 15 ? 1 : undefined));
     put('dnbr', num(d.dnbr, 2), d.dnbr < 1.3 ? 3 : (d.dnbr < 1.8 ? 1 : undefined));
+    // Gesamtreaktivitaet als reine Zahl -- bisher nur als Zeigerausschlag
+    // (Rundinstrument) und als "Gesamt"-Balken in der Reaktivitaetsbilanz zu
+    // sehen, beides nur im Kern-Panel. Mit Vorzeichen, wie ueberall sonst bei
+    // Reaktivitaetsgroessen (siehe void_coeff).
+    put('rho_pcm', (d.rho_pcm >= 0 ? '+' : '') + num(d.rho_pcm, 0) + U('unit_pcm'));
     // p_sg/L_sg heissen je nach Typ intern anders (Dampferzeuger, Kernbehaelter-
     // Dom, Trommelabscheider) -- der Typ legt sie deshalb unter diesen festen
     // Namen im abgeleiteten Zustand ab (siehe derived() je Typ), nicht im

@@ -17,6 +17,7 @@ export const STATUS_STATS = [
   { key: 'power_th_pct', labelKey: 'status_power_th' },
   { key: 'power_e', labelKey: 'status_power_e' },
   { key: 'demand', labelKey: 'status_demand' },
+  { key: 'rho_pcm', labelKey: 'val_reactivity' },
   { key: 'deviation', labelKey: 'val_deviation' },
   { key: 't_avg', labelKey: 'status_tavg' },
   { key: 't_hot', labelKey: 'val_t_hot' },

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.45
+
+- 📊 **Gesamtreaktivität jetzt auch als Kopfzeilen-Wert wählbar.** Bisher nur als Zeigerausschlag (Rundinstrument) und als "Gesamt"-Balken in der Reaktivitätsbilanz sichtbar, beides nur im Kern-Panel -- jetzt auch als reine Zahl mit Vorzeichen (z.B. "+120 pcm") im Katalog der Kopfzeilen-Einstellungen, genau wie die anderen 44 Werte.
+
 ## 0.0.44
 
 - 💡 **Hinweis: thermische Leistung sagt bei Kritikalitätsannäherung nichts.** Real UND in dieser Sim bleibt sie bei 0,0 % stehen, lange bevor beim Stäbeziehen etwas ansteht -- Periode und Reaktivitätsbilanz reagieren viel früher. Neuer Hinweistext im Kern-Panel, direkt unter der Leistungsanzeige.
