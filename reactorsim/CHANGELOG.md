@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.33
+
+- 🖥️ **Kachel als Fenster.** Klick auf die Kopfzeile einer Kachel (Reaktorkern, Primärkreis, …) hebt sie als großes Fenster über den ganzen Leitstand — kein Freischrollen oder seitliches Scrollen in engen Spalten mehr nötig, um z.B. alle drei Rundinstrumente im Kern-Panel zu sehen. Verschiebt den echten `rs-panel-body`-Knoten (nicht geklont), daher bleiben alle Anzeigen live und alle Knöpfe bedienbar. Das gewohnte Raster samt Scrollen bleibt unverändert bestehen — das Fenster ist nur zusätzlich obendrauf. Esc, ein Klick daneben oder "Schließen" beenden es wieder. Nur auf dem Desktop-Raster aktiv (ab 1024px); auf dem Handy zeigt der Reiter das Panel schon voll, dort bleibt der Klick wirkungslos.
+
 ## 0.0.32
 
 - 🐛 **`manifest.json`: "Syntax error" in der Konsole.** Der Browser holt eine Web-App-Manifest-Datei standardmäßig ohne Cookies — landete auf der Anmeldeseite (`/s/...` braucht eine Sitzung wie alles andere), bekam HTML statt JSON zurück und meldete einen Parsefehler beim ersten Zeichen. Rein kosmetisch (betraf nur "Zum Startbildschirm hinzufügen", nicht das Spiel selbst), aber seit 0.0.21 in der Konsole. `crossorigin="use-credentials"` am Manifest-Link behoben.

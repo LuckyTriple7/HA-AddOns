@@ -220,6 +220,12 @@
 
   .rs-status-scroll { padding: 8px 12px 0; }
   .rs-status-controls { padding: 8px 12px; }
+
+  /* Kopfzeile hebt die Kachel als Fenster an -- auf dem Handy zeigt der
+     Reiter das Panel ohnehin schon voll, dort bleibt der Klick wirkungslos
+     (main.js prüft dieselbe Breite). */
+  .rs-panel-h { cursor: pointer; }
+  .rs-panel-h:hover, .rs-panel-h:focus-visible { color: var(--rs-fg); }
 }
 
 /* Sehr breite Schirme: das Fließbild darf wachsen, die Zahlenpanels nicht. */

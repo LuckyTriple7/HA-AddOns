@@ -409,5 +409,6 @@
   "hint_fw": "In manual you fill or drain the steam generator yourself.",
   "hint_pzr": "Heating raises pressure, spray lowers it.",
   "hint_rods": "In manual you drive the rods with Withdraw and Insert.",
-  "hint_annun": "Click a tile to see what to do."
+  "hint_annun": "Click a tile to see what to do.",
+  "hint_panel_window": "Open as window"
 }

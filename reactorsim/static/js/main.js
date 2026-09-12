@@ -243,6 +243,61 @@ function initControls() {
   $('#rs-glossary-close').addEventListener('click', () => { glossaryModal.hidden = true; });
   glossaryModal.addEventListener('click', (ev) => { if (ev.target === glossaryModal) glossaryModal.hidden = true; });
 
+  // Kachel als Fenster: Klick auf die Kopfzeile hebt den echten
+  // rs-panel-body-Knoten ins Fenster -- verschoben, nicht geklont, also
+  // bleiben data-v-Ziele, Knöpfe und IDs eindeutig. Das gewohnte Scrollen im
+  // Raster bleibt unverändert, das Fenster ist nur eine zweite Sicht obendrauf.
+  // Auf dem Handy zeigt der Reiter das Panel schon voll -- dort bleibt der
+  // Klick wirkungslos.
+  const panelWindow = $('#rs-panel-window');
+  const panelWindowBox = $('.rs-modal-box', panelWindow);
+  const panelWindowSlot = $('#rs-panel-window-slot');
+  const panelWindowTitle = $('#rs-panel-window-title');
+  const desktopMQ = matchMedia('(min-width: 1024px)');
+  let openPanel = null; // { section, body, placeholder }
+
+  const closePanelWindow = () => {
+    if (!openPanel) return;
+    openPanel.section.insertBefore(openPanel.body, openPanel.placeholder);
+    openPanel.placeholder.remove();
+    openPanel = null;
+    panelWindow.hidden = true;
+    panelWindowSlot.replaceChildren();
+  };
+
+  const openPanelWindow = (section) => {
+    if (!desktopMQ.matches) return;
+    if (openPanel) closePanelWindow();
+    const body = $('.rs-panel-body', section);
+    if (!body) return;
+    const placeholder = document.createComment('rs-panel-window-slot');
+    section.insertBefore(placeholder, body);
+    panelWindowSlot.append(body);
+    openPanel = { section, body, placeholder };
+    // .rs-panel-flush nimmt der Kachel ihr Innenpolster -- die Klasse muss mit
+    // ins Fenster wandern, sonst bekommt z.B. das Fließbild plötzlich Rand.
+    panelWindowBox.classList.toggle('rs-panel-flush', section.classList.contains('rs-panel-flush'));
+    let title = '';
+    for (const n of $('.rs-panel-h', section).childNodes) {
+      if (n.nodeType === Node.TEXT_NODE) title += n.textContent;
+    }
+    setText(panelWindowTitle, title.trim());
+    panelWindow.hidden = false;
+  };
+
+  for (const h of $$('.rs-panel-h')) {
+    h.setAttribute('title', t('hint_panel_window'));
+    h.addEventListener('click', (ev) => {
+      if (ev.target.closest('.rs-panel-h-actions')) return;
+      openPanelWindow(h.closest('.rs-panel'));
+    });
+  }
+  $('#rs-panel-window-close').addEventListener('click', closePanelWindow);
+  panelWindow.addEventListener('click', (ev) => { if (ev.target === panelWindow) closePanelWindow(); });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !panelWindow.hidden) closePanelWindow();
+  });
+
   $('#rs-save').addEventListener('click', () => {
     const scnId = app.session && app.session.scenario ? app.session.scenario.id : null;
     saveGame(app.engine, scnId, 'auto').then((ok) => {

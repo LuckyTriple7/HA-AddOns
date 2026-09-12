@@ -374,6 +374,20 @@
   </div>
 </div>
 
+<!-- ── Kachel als Fenster ───────────────────────────────────────────────── -->
+<!-- Nimmt beim Öffnen den echten rs-panel-body-Knoten auf (verschoben, nicht
+     geklont) -- dieselben data-v-Ziele, dieselben Knöpfe, keine doppelten
+     IDs. Nur auf dem Desktop verdrahtet, siehe main.js. -->
+<div class="rs-modal rs-panel-modal" id="rs-panel-window" hidden>
+  <div class="rs-modal-box rs-modal-panel">
+    <div class="rs-modal-panel-head">
+      <h2 id="rs-panel-window-title"></h2>
+      <button type="button" class="rs-btn rs-btn-ghost rs-btn-sm" id="rs-panel-window-close">{{ t.btn_close }}</button>
+    </div>
+    <div class="rs-panel-window-slot" id="rs-panel-window-slot"></div>
+  </div>
+</div>
+
 <!-- ── Alarmhilfe ───────────────────────────────────────────────────────── -->
 <div class="rs-modal" id="rs-alarm-help" hidden>
   <div class="rs-modal-box rs-modal-wide">
