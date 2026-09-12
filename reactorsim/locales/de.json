@@ -462,5 +462,8 @@
   "event_fuel_dispersal_body": "Die Brennstoffenthalpie hat 963 J/g überschritten. Der Brennstoff ist zerlegt, die Anlage verloren. Das ist der Ausgang einer schnellen Leistungsexkursion: mehr Reaktivität, als die Rückkopplungen in der verfügbaren Zeit wegnehmen konnten.",
   "event_clad_failure_body": "Die Hüllrohrtemperatur lag über drei Minuten oberhalb von 1204 °C. Ab dort trägt sich die Zirkon-Wasser-Reaktion selbst: sie erzeugt eigene Wärme und Wasserstoff dazu. Der Kern ist verloren — ohne Leistungsausflug, allein durch fehlende Kühlung.",
   "event_coolant_loss_body": "Die Unterkühlung lag über fünf Minuten unter null: der Kern lag nicht mehr in Wasser, sondern in Dampf. Dampf nimmt Wärme auf, er führt sie nicht ab. Von dem Augenblick an, in dem die Unterkühlung ins Negative geht, bleiben Minuten — sie war die Anzeige, auf die es ankam.",
-  "event_cont_failure_loss_body": "Der Sicherheitsbehälter hat seinen Auslegungsdruck von 4,3 bar überschritten und ist geborsten. Die letzte Barriere zwischen Spaltprodukten und Umgebung ist weg. Rechtzeitiges Venten hätte Druck abgebaut — kontrollierte Freisetzung statt unkontrollierter Bruch."
+  "event_cont_failure_loss_body": "Der Sicherheitsbehälter hat seinen Auslegungsdruck von 4,3 bar überschritten und ist geborsten. Die letzte Barriere zwischen Spaltprodukten und Umgebung ist weg. Rechtzeitiges Venten hätte Druck abgebaut — kontrollierte Freisetzung statt unkontrollierter Bruch.",
+  "btn_back": "Zurück",
+  "btn_mute": "Ton aus",
+  "btn_unmute": "Ton an"
 }

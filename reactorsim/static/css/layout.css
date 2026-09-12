@@ -201,11 +201,12 @@
     display: grid;
     overflow: hidden;
     grid-template-columns: minmax(260px, 1fr) minmax(360px, 1.5fr) minmax(260px, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 0.9fr);
     grid-template-areas:
       "core  mimic sec"
       "prim  mimic grid"
-      "trend trend alarm";
+      "chem  mimic alarm"
+      "trend trend trend";
   }
 
   #rs-p-core  { grid-area: core; }
@@ -216,9 +217,16 @@
   #rs-p-trend { grid-area: trend; }
   #rs-p-alarm { grid-area: alarm; }
 
-  /* Die Chemie hat auf dem Desktop kein eigenes Feld -- ihre Werte stehen dort
-     unten im Kern-Panel. Bis das gebaut ist, bleibt sie schlicht verborgen. */
-  #rs-p-chem { display: none; }
+  /* Die Chemie hatte auf dem Desktop kein eigenes Feld und stand hier auf
+     display:none -- mit der Begruendung, ihre Werte stuenden ja unten im
+     Kern-Panel. Das galt fuer die WERTE. In der Kachel sitzt aber auch die
+     Bedienung: die Borsaeure des Druckwasserreaktors (#rs-chem-ctl).
+     Damit gab es auf jedem Schirm ab 1024 px keine Moeglichkeit, Bor zu
+     dosieren -- und das Szenario "Lastfolgebetrieb" war dort unloesbar, weil
+     nach dem klemmenden Stab genau das der einzige verbliebene Weg ist. Die
+     Hilfetexte verwiesen auf ein Bedienelement, das der Spieler nicht finden
+     konnte, weil es nicht da war. */
+  #rs-p-chem { grid-area: chem; }
 
   .rs-status-scroll { padding: 8px 12px 0; }
   .rs-status-controls { padding: 8px 12px; }

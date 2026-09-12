@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.0.57
+
+Vier Dinge, die beim ersten echten Blick auf den Bildschirm auffielen — und
+eines davon machte ein Szenario unspielbar.
+
+- 🐛 **Die Borsäure gab es auf dem Desktop nicht.** In `layout.css` stand
+  `#rs-p-chem { display: none; }` für alles ab 1024 px, mit der Begründung,
+  die Chemie-Werte stünden ja im Kern-Panel. Das galt für die WERTE. In der
+  Kachel sitzt aber auch die Bedienung. Damit war auf jedem Desktop-Browser
+  **kein Bor dosierbar** — und `pwr_load_follow` dort nicht zu gewinnen, weil
+  nach dem klemmenden Stab genau das der einzige verbliebene Weg ist. Die
+  frisch geschriebenen Hilfetexte verwiesen auf ein Bedienelement, das der
+  Spieler nicht finden konnte, weil es nicht da war.
+  Die Kachel hat jetzt einen eigenen Platz im Raster. Nachgemessen mit
+  Playwright: drei Reaktortypen × drei Auflösungen, keine Überlappung.
+- 🐛 **Die Bedienung lag 140 px unter der Kachelkante.** Auch mit sichtbarer
+  Kachel hätte man im Panel scrollen müssen, ohne jeden Hinweis darauf. Die
+  Knöpfe stehen jetzt VOR den Messwerten — beim Druckwasserreaktor ist die
+  Borsäure das einzige Reaktivitätsstellglied neben den Stäben.
+- 🐛 **Die Einweisung war eine Textwand.** `#rs-alarm-help-text` hatte
+  `white-space: pre-line`, `#rs-brief-text` nicht. Seit dort in 0.0.56 ein
+  Block mit nummerierten Schritten steht, lief ausgerechnet der Teil, der die
+  Handgriffe aufzählt, zu einem Absatz zusammen.
+- 🐛 **Aus der Einweisung gab es keinen Weg zurück.** Wer ein Szenario
+  aufschlug, um zu lesen, worum es geht, musste es anschließend spielen.
+  Jetzt steht „Zurück" neben „Schicht beginnen".
+
+### Ton
+
+- 🔊 **Mute-Knopf**, auf dem Startbildschirm und in der Kopfzeile des
+  Leitstands. Vorher lagen die drei Tonschalter ausschließlich im
+  Zahnrad-Dialog INNEN — wer es still haben wollte, musste erst eine Schicht
+  beginnen.
+  `prefs.audio.muted` ist ein Hauptschalter über Musik, Hupe und
+  Geigerzähler; die drei Einzelschalter bleiben erhalten, damit sie nach dem
+  Aufdrehen wieder so stehen wie vorher. Der Zustand wird gespeichert und
+  überlebt das Neuladen.
+- 🧹 **`applyAudioPrefs()`** ist jetzt die einzige Stelle, die den Tonzustand
+  herstellt. Dieselbe Rechnung stand vorher dreimal im Code (Laden der
+  Einstellungen, Speichern im Zahnrad-Dialog, Rundenstart für die Hupe) — ein
+  vierter Schalter wäre ein vierter Ort zum Vergessen gewesen.
+
+**Warum der Ton erst nach einem Klick kommt, bleibt so:** das ist keine
+Einstellung, sondern die Autoplay-Sperre der Browser. Ohne echte Nutzergeste
+verweigern Chrome, Firefox und Safari jeden Ton. Das Spiel nutzt den ersten
+Klick auf eine Reaktorkarte dafür — vorher *kann* nichts kommen.
+
+Nachgeprüft mit Playwright statt behauptet: `play()`/`pause()` mitgeschrieben,
+stumm läuft kein einziger Aufruf, Aufdrehen im Leitstand startet die
+Hintergrundmusik sofort, beide Knöpfe bleiben synchron.
+
+
 ## 0.0.56
 
 Alle 33 Hilfetexte und alle 9 Einweisungen neu geschrieben, in beiden

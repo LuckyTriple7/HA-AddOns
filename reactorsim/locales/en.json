@@ -462,5 +462,8 @@
   "event_fuel_dispersal_body": "Fuel enthalpy exceeded 963 J/g. The fuel has dispersed and the plant is lost. This is how a fast power excursion ends: more reactivity than the feedbacks could remove in the time available.",
   "event_clad_failure_body": "Cladding temperature stayed above 1204 °C for more than three minutes. Beyond that point the zirconium-water reaction sustains itself, generating its own heat and hydrogen with it. The core is lost — with no power excursion at all, purely from lost cooling.",
   "event_coolant_loss_body": "Subcooling stayed below zero for more than five minutes: the core was no longer sitting in water but in steam. Steam absorbs heat, it does not carry it away. From the moment subcooling goes negative you have minutes — that was the indication that mattered.",
-  "event_cont_failure_loss_body": "Containment exceeded its design pressure of 4.3 bar and ruptured. The last barrier between fission products and the environment is gone. Venting in time would have relieved the pressure — a controlled release instead of an uncontrolled break."
+  "event_cont_failure_loss_body": "Containment exceeded its design pressure of 4.3 bar and ruptured. The last barrier between fission products and the environment is gone. Venting in time would have relieved the pressure — a controlled release instead of an uncontrolled break.",
+  "btn_back": "Back",
+  "btn_mute": "Mute",
+  "btn_unmute": "Unmute"
 }

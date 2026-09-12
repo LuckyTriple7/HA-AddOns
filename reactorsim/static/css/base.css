@@ -254,10 +254,14 @@ button {
   color: var(--rs-fg-mute);
   word-break: break-word;
 }
-/* Die Meldetafel-Hilfe kommt als ein String mit \n -- eigene Zeilen für
-   Bedingung, "Konkret tun:" und die Aufzählung, ohne dafür DOM-Knoten zu
-   bauen. */
-#rs-alarm-help-text { white-space: pre-line; }
+/* Meldetafel-Hilfe und Einweisung kommen als EIN String mit \n -- eigene
+   Zeilen für Bedingung, "Konkret tun:" und die Aufzählung, ohne dafür
+   DOM-Knoten zu bauen.
+   Der Einweisung fehlte die Regel: seit dort ein Block "Darauf kommt es an"
+   mit nummerierten Schritten steht, lief ohne sie alles zu einer einzigen
+   Textwand zusammen -- ausgerechnet der Teil, der die Handgriffe aufzählt. */
+#rs-alarm-help-text,
+#rs-brief-text { white-space: pre-line; }
 .rs-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .rs-modal-actions .rs-btn { flex: 1; }
 

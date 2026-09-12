@@ -45,12 +45,39 @@ const app = {
 // wie eh und je, kein Absturz.
 app.prefsPromise = api.readPrefs().then((r) => {
   app.prefs = (r.ok && r.data && typeof r.data === 'object') ? r.data : {};
-  app.geiger.enabled = !app.prefs.audio || app.prefs.audio.geiger !== false;
-  const musicOn = !app.prefs.audio || app.prefs.audio.music !== false;
-  app.introMusic.enabled = musicOn;
-  app.bgMusic.enabled = musicOn;
+  applyAudioPrefs();
   return app.prefs;
 }).catch(() => app.prefs);
+
+/**
+ * Tonzustand aus den Einstellungen herstellen -- die EINZIGE Stelle, die das
+ * tut. Vorher stand dieselbe Rechnung dreimal im Code (beim Laden der
+ * Einstellungen, beim Speichern im Zahnrad-Dialog, beim Rundenstart fuer die
+ * Hupe), und ein vierter Schalter waere ein vierter Ort zum Vergessen
+ * gewesen.
+ *
+ * `muted` ist der Hauptschalter und sticht die drei Einzelschalter: aus ist
+ * aus, ganz gleich was darunter steht. Die Einzelschalter bleiben dabei
+ * erhalten, damit sie nach dem Aufdrehen wieder so stehen wie vorher.
+ */
+function applyAudioPrefs() {
+  const a = app.prefs.audio || {};
+  const on = (key) => !a.muted && a[key] !== false;
+  app.geiger.enabled = on('geiger');
+  app.introMusic.enabled = on('music');
+  app.bgMusic.enabled = on('music');
+  if (app.horn) app.horn.enabled = on('horn');
+  if (!on('music')) { app.introMusic.stop(); app.bgMusic.stop(); }
+  // Zwei Knoepfe: einer auf dem Startbildschirm, einer in der Kopfzeile des
+  // Leitstands. Beide zeigen denselben Zustand.
+  const label = t(a.muted ? 'btn_unmute' : 'btn_mute');
+  for (const btn of $$('.rs-mute')) {
+    setText(btn, a.muted ? '\u{1F507}' : '\u{1F50A}');
+    setAttr(btn, 'aria-pressed', a.muted ? 'true' : 'false');
+    setAttr(btn, 'title', label);
+    setAttr(btn, 'aria-label', label);
+  }
+}
 
 // ── Startbildschirm ──────────────────────────────────────────────────────────
 
@@ -108,6 +135,25 @@ function initStart() {
     if (app.session && app.session.phase === PHASE.RUNNING) return;
     boot(app.reactor, app.briefDef, null, app.briefDef && app.briefDef.cold);
   });
+
+  // Ton-Hauptschalter. Der Klick ist zugleich die Nutzergeste, die der
+  // Browser fuer Audio verlangt -- wer aufdreht, hoert die Musik sofort und
+  // nicht erst nach der naechsten Aktion.
+  for (const btn of $$('.rs-mute')) {
+    btn.addEventListener('click', () => {
+      app.prefs.audio = { ...(app.prefs.audio || {}), muted: !(app.prefs.audio || {}).muted };
+      applyAudioPrefs();
+      api.writePrefs(app.prefs);
+      if (!app.prefs.audio.muted) {
+        (app.session && app.session.phase === PHASE.RUNNING ? app.bgMusic : app.introMusic).start();
+      }
+    });
+  }
+
+  // Zurueck aus der Einweisung, ohne die Schicht anzutreten. Schliesst nur
+  // den Dialog -- der Startbildschirm steht ohnehin noch dahinter, samt der
+  // getroffenen Szenarienwahl.
+  $('#rs-brief-back').addEventListener('click', () => { $('#rs-brief').hidden = true; });
 
   $('#rs-debrief-send').addEventListener('click', () => {
     const result = app.pendingResult;
@@ -254,6 +300,9 @@ function showBriefing(def) {
   // zweiter Rundenstart (siehe #rs-brief-go-Handler).
   const running = app.session && app.session.phase === PHASE.RUNNING;
   setText($('#rs-brief-go'), running ? t('btn_close') : t('brief_start'));
+  // Waehrend der Runde ist "Los" bereits der Schliessen-Knopf -- ein zweiter
+  // daneben waere sinnlos.
+  $('#rs-brief-back').hidden = running;
   $('#rs-brief').hidden = false;
 }
 
@@ -436,9 +485,10 @@ function initControls() {
     const saved = app.prefs.statusBar ? app.prefs.statusBar[reactorId] : null;
     const keys = new Set(sanitizeStatusKeys(saved));
     for (const box of $$('input', statsList)) box.checked = keys.has(box.value);
-    audioHornBox.checked = !app.prefs.audio || app.prefs.audio.horn !== false;
-    audioGeigerBox.checked = !app.prefs.audio || app.prefs.audio.geiger !== false;
-    audioMusicBox.checked = !app.prefs.audio || app.prefs.audio.music !== false;
+    const a = app.prefs.audio || {};
+    audioHornBox.checked = !a.muted && a.horn !== false;
+    audioGeigerBox.checked = !a.muted && a.geiger !== false;
+    audioMusicBox.checked = !a.muted && a.music !== false;
     statsModal.hidden = false;
   });
   $('#rs-stats-save').addEventListener('click', () => {
@@ -446,13 +496,16 @@ function initControls() {
     const chosen = $$('input', statsList).filter((b) => b.checked).map((b) => b.value);
     const keys = sanitizeStatusKeys(chosen);
     app.prefs.statusBar = { ...(app.prefs.statusBar || {}), [reactorId]: keys };
-    app.prefs.audio = { horn: audioHornBox.checked, geiger: audioGeigerBox.checked, music: audioMusicBox.checked };
+    // Wer hier einen Einzelschalter anfasst, will Ton -- also den
+    // Hauptschalter mit aufdrehen, sonst bliebe es still und niemand wuesste
+    // warum.
+    app.prefs.audio = {
+      horn: audioHornBox.checked, geiger: audioGeigerBox.checked,
+      music: audioMusicBox.checked, muted: false,
+    };
     api.writePrefs(app.prefs);
     applyStatusSelection(keys);
-    if (app.horn) app.horn.enabled = audioHornBox.checked;
-    app.geiger.enabled = audioGeigerBox.checked;
-    app.introMusic.enabled = audioMusicBox.checked;
-    app.bgMusic.enabled = audioMusicBox.checked;
+    applyAudioPrefs();
     flash($('#rs-stats-save'), t('stats_cfg_saved'));
   });
   $('#rs-stats-close').addEventListener('click', () => { statsModal.hidden = true; });
@@ -787,8 +840,8 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   app.horn = built.horn;
   // Anders als der Geigerzaehler wird die Hupe bei jeder Runde neu gebaut
   // (buildPanels()), die Einstellung muss also jedes Mal neu uebertragen
-  // werden.
-  app.horn.enabled = !prefs.audio || prefs.audio.horn !== false;
+  // werden -- ueber applyAudioPrefs(), damit auch der Hauptschalter greift.
+  applyAudioPrefs();
 
   const xenonSkipBtn = $('#rs-xenon-skip');
   app.loop = new Loop(app.engine, (state, now) => {

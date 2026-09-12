@@ -73,6 +73,14 @@
     <div class="rs-resume-list" id="rs-resume-list" hidden></div>
 
     <div class="rs-start-foot">
+      <!-- Hauptschalter für den Ton, schon auf dem Startbildschirm. Vorher
+           lagen die drei Tonschalter ausschließlich im Zahnrad-Dialog INNEN
+           im Leitstand -- wer es still haben wollte, musste erst eine Schicht
+           beginnen. Zustand steckt in prefs.audio.muted und gilt für Musik,
+           Hupe und Geigerzähler zugleich. -->
+      <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon rs-mute"
+              aria-pressed="false" title="{{ t.btn_mute }}"
+              aria-label="{{ t.btn_mute }}">🔊</button>
       <span class="rs-start-lang">{{ t.start_language }}:
         <a href="/set-lang/de"{% if lang == 'de' %} class="rs-lang-on"{% endif %}>DE</a>
         <a href="/set-lang/en"{% if lang == 'en' %} class="rs-lang-on"{% endif %}>EN</a>
@@ -117,6 +125,13 @@
            die einzige Stelle, an der die Zeile kurzzeitig breiter wird. -->
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-xenon-skip" hidden
               aria-label="{{ t.btn_xenon_skip }}" title="{{ t.btn_xenon_skip }}">⏩</button>
+      <!-- Derselbe Hauptschalter wie auf dem Startbildschirm (Klasse
+           rs-mute, ein gemeinsamer Handler). Ohne ihn hier waere der Ton
+           waehrend einer laufenden Schicht nur ueber den Zahnrad-Dialog
+           erreichbar. -->
+      <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon rs-mute"
+              aria-pressed="false" title="{{ t.btn_mute }}"
+              aria-label="{{ t.btn_mute }}">🔊</button>
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-glossary"
               aria-label="{{ t.btn_glossary }}" title="{{ t.btn_glossary }}">?</button>
       <button type="button" class="rs-btn rs-btn-ghost rs-btn-icon" id="rs-shortcuts"
@@ -295,6 +310,19 @@
       <section class="rs-panel" id="rs-p-chem">
         <h2 class="rs-panel-h">{{ t.panel_chemistry }}</h2>
         <div class="rs-panel-body">
+          <!-- Bedienung VOR den Messwerten. Andersherum stand die Borsäure
+               140 px unterhalb der Kachelkante: technisch vorhanden, ohne
+               Scrollen im Panel nicht erreichbar und ohne jeden Hinweis
+               darauf. Beim Druckwasserreaktor ist sie das einzige
+               Reaktivitätsstellglied neben den Stäben -- klemmt eine
+               Stabgruppe, hängt der ganze Lauf daran. -->
+          <!-- Keine eigene Überschrift: die Knopfgruppe bringt ihre
+               Beschriftung selbst mit (kit.buttonGroup('ctl_boron', ...)),
+               sonst stand "Borsäure" zweimal untereinander. -->
+          <div class="rs-group">
+            <div id="rs-chem-ctl"></div>
+            <p class="rs-ctl-hint">{{ t.ctl_boron_hint }}</p>
+          </div>
           <div class="rs-group">
             <div class="rs-row"><span>{{ t.val_xenon }}</span><b data-v="xenon">—</b></div>
             <div class="rs-row"><span>{{ t.val_iodine }}</span><b data-v="iodine">—</b></div>
@@ -302,11 +330,6 @@
             <div class="rs-row"><span>{{ t.val_boron }}</span><b data-v="boron">—</b></div>
             <div class="rs-row"><span>{{ t.val_burnup }}</span><b data-v="burnup">—</b></div>
             <div class="rs-row"><span>{{ t.val_shutdown_margin }}</span><b data-v="sdm">—</b></div>
-          </div>
-          <div class="rs-group">
-            <h3>{{ t.ctl_boron }}</h3>
-            <div id="rs-chem-ctl"></div>
-            <p class="rs-ctl-hint">{{ t.ctl_boron_hint }}</p>
           </div>
         </div>
       </section>
@@ -321,7 +344,15 @@
     <h2 id="rs-brief-title">{{ t.brief_title }}</h2>
     <p id="rs-brief-text"></p>
     <div class="rs-brief-meta" id="rs-brief-meta"></div>
-    <button type="button" class="rs-btn rs-btn-primary" id="rs-brief-go">{{ t.brief_start }}</button>
+    <!-- Zwei Knoepfe, nicht einer. Vorher gab es aus der Einweisung keinen
+         Weg zurueck: wer ein Szenario aufschlug, um zu lesen, worum es geht,
+         musste es anschliessend spielen. Waehrend einer laufenden Runde ist
+         "rs-brief-go" ohnehin ein Schliessen-Knopf, dann bleibt der zweite
+         verborgen (siehe showBriefing() in main.js). -->
+    <div class="rs-modal-actions">
+      <button type="button" class="rs-btn rs-btn-primary" id="rs-brief-go">{{ t.brief_start }}</button>
+      <button type="button" class="rs-btn" id="rs-brief-back">{{ t.btn_back }}</button>
+    </div>
   </div>
 </div>
 
