@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.34
+
+- ☢️ **Notkondensator jetzt im Fließbild.** Seit 0.0.29 real simuliert (Naturumlauf, Fukushima-Physik), stand aber nur als Textzeile im Sekundärkreis-Panel — im Anlagenfließbild fehlte er ganz. Jetzt eigene Schleife am Behälterkopf mit Isolierventil (auf/zu per Zustand) und Vorratsanzeige.
+- 🔲 **Meldetafel-Kacheln überarbeitet.** Symbol lag per `position:absolute` über der Kachel und überlappte bei kurzen, einzeiligen Meldungen ("Leistung hoch") die erste Textzeile statt sauber daneben zu stehen — betraf Handy, Desktop und das neue Fenster gleichermaßen. Jetzt eigene Zeile über dem Text, dazu größere Kacheln (58px statt 46px, Schrift 11px statt 10px, breitere Spalten).
+
 ## 0.0.33
 
 - 🖥️ **Kachel als Fenster.** Klick auf die Kopfzeile einer Kachel (Reaktorkern, Primärkreis, …) hebt sie als großes Fenster über den ganzen Leitstand — kein Freischrollen oder seitliches Scrollen in engen Spalten mehr nötig, um z.B. alle drei Rundinstrumente im Kern-Panel zu sehen. Verschiebt den echten `rs-panel-body`-Knoten (nicht geklont), daher bleiben alle Anzeigen live und alle Knöpfe bedienbar. Das gewohnte Raster samt Scrollen bleibt unverändert bestehen — das Fenster ist nur zusätzlich obendrauf. Esc, ein Klick daneben oder "Schließen" beenden es wieder. Nur auf dem Desktop-Raster aktiv (ab 1024px); auf dem Handy zeigt der Reiter das Panel schon voll, dort bleibt der Klick wirkungslos.

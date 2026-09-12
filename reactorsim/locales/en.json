@@ -296,6 +296,7 @@
   "val_dome_press": "Dome pressure",
   "val_cpr": "CPR",
   "mimic_rpv": "Vessel",
+  "mimic_ic": "Isolation condenser",
   "mimic_sep": "Separator",
   "mimic_recirc": "Recirc pump",
   "alarm_orm_low": "Reactivity margin low",

@@ -11,42 +11,46 @@
 
 .rs-annun {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 6px;
   padding: 8px;
   background: var(--rs-panel);
 }
 
 .rs-tile {
   position: relative;
-  min-height: 46px;
+  min-height: 58px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 3px;
   text-align: center;
-  padding: 5px 6px;
+  padding: 8px 8px 7px;
   border: 1px solid #24323f;
   border-radius: 3px;
   background: #0c1219;
   color: #46596b;
-  font-size: 10px;
-  line-height: 1.25;
+  font-size: 11px;
+  line-height: 1.3;
   letter-spacing: .04em;
   text-transform: uppercase;
   user-select: none;
+  overflow-wrap: break-word;
 }
 
 /* Schwere zusätzlich als Form, nicht nur als Farbe -- sonst ist Warnung
-   gegen Auslösung fuer Rot-Gruen-Schwaeche nicht zu unterscheiden. */
+   gegen Auslösung fuer Rot-Gruen-Schwaeche nicht zu unterscheiden.
+   Eigene Zeile über dem Text (kein position:absolute mehr) -- sonst legt
+   sich das Symbol bei kurzen, einzeiligen Meldungen über die erste Zeile
+   statt daneben zu stehen. */
 .rs-tile[data-st="new"]::before,
 .rs-tile[data-st="ack"]::before,
 .rs-tile[data-st="clear"]::before {
-  position: absolute;
-  top: 3px;
-  left: 4px;
-  font-size: 8px;
+  display: block;
+  font-size: 9px;
   line-height: 1;
-  opacity: .7;
+  opacity: .75;
 }
 .rs-tile[data-sev="1"]::before { content: "●"; }
 .rs-tile[data-sev="2"]::before { content: "▲"; }

@@ -244,6 +244,14 @@ export function buildBwrMimic(container) {
   // Umwälzschleife außen am Behälter entlang.
   g.push(pipe('M 118 150 L 74 150 L 74 206 L 150 206', 'cold', 'prim'));
 
+  // Notkondensator: eigene Naturumlaufschleife oben am Behälterkopf, unabhängig
+  // vom Frischdampf zur Turbine. Zweigt von derselben Dampfleitung ab wie die
+  // Umleitung (Punkt auf der durchgehenden Linie, kein eigener Anschluss),
+  // Kondensat läuft eine Etage tiefer per Schwerkraft in den Behälter zurück.
+  g.push(pipe('M 220 46 L 220 40', 'steam', 'ic'));
+  g.push(pipe('M 220 28 L 220 22', 'steam', 'ic'));
+  g.push(pipe('M 196 22 L 196 40 L 130 40', 'feed', 'ic'));
+
   // Druckbehälter mit Abscheider oben und Kern unten. Ein Bauteil im Bild,
   // deshalb auch eine gemeinsame Kennung -- der Siedewasserreaktor zeichnet
   // Kern, Fallraum und Dampfraum nicht getrennt wie der Druckwasserreaktor.
@@ -258,6 +266,12 @@ export function buildBwrMimic(container) {
     [t('mimic_rpv')]));
   g.push(readout(144, 140, 'power', 'middle'));
   g.push(readout(190, 60, 'dome'));
+
+  // Notkondensator-Wärmetauscher: statisches Kästchen wie Kondensator/Turbine,
+  // nur das Isolierventil davor zeigt auf/zu per data-state.
+  g.push(svg('rect', { class: 'rs-vessel', x: 188, y: 4, width: 64, height: 18, rx: 3 }));
+  g.push(valve(220, 34, 'ic', t('mimic_ic')));
+  g.push(readout(256, 13, 'icwater', 'start'));
 
   // Umwälzpumpe in der äußeren Schleife.
   g.push(pump(74, 178, 'rcp', t('mimic_recirc')));
@@ -313,6 +327,7 @@ export function buildBwrMimic(container) {
         setVar(n, '--rs-w', Math.max(0, Math.min(1.2, s.W_fw / sp.vessel.W_steam0)).toFixed(3));
       }
       for (const n of flows.get('bypass') || []) setVar(n, '--rs-w', (s.bypass || 0).toFixed(3));
+      for (const n of flows.get('ic') || []) setVar(n, '--rs-w', s.icOpen ? '1.000' : '0.000');
 
       const rcp = comps.get('rcp');
       if (rcp) {
@@ -322,6 +337,7 @@ export function buildBwrMimic(container) {
       setAttr(comps.get('gov'), 'data-state', s.gov > 0.02 && s.msiv > 0.5 ? 'run' : 'stopped');
       setAttr(comps.get('bypass'), 'data-state', s.bypass > 0.02 ? 'run' : 'stopped');
       setAttr(comps.get('sep'), 'data-state', s.x_e > 0.01 ? 'run' : 'stopped');
+      setAttr(comps.get('ic'), 'data-state', s.icOpen ? 'run' : 'stopped');
       setAttr(comps.get('gen'), 'data-state',
         s.turbineTripped ? 'tripped' : (s.breaker ? 'run' : 'stopped'));
 
@@ -335,6 +351,7 @@ export function buildBwrMimic(container) {
       setText(reads.get('dome'), num(s.p_dome, 1) + ' bar');
       setText(reads.get('gen'), num(s.P_e, 0) + ' MW');
       setText(reads.get('cond'), num(s.p_cond, 3) + ' bar');
+      setText(reads.get('icwater'), num(s.icWater * 100, 0) + ' %');
     },
   };
 }

@@ -296,6 +296,7 @@
   "val_dome_press": "Domdruck",
   "val_cpr": "CPR",
   "mimic_rpv": "Druckbehälter",
+  "mimic_ic": "Notkondensator",
   "mimic_sep": "Abscheider",
   "mimic_recirc": "Umwälzpumpe",
   "alarm_orm_low": "Abschaltreserve gering",
