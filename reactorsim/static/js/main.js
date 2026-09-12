@@ -678,6 +678,10 @@ function restart() {
 
 function toMenu() {
   if (app.loop) app.loop.stop();
+  // Die Sirene laeuft als eigene Dauerschleife unabhaengig von loop/bgMusic
+  // (siehe Horn in annunciator.js) -- ohne silence() hupt eine unquittierte
+  // Meldung im Hauptmenue weiter, obwohl die Runde laengst verlassen ist.
+  if (app.horn) app.horn.silence();
   app.bgMusic.stop();
   app.introMusic.start();
   $('#rs-app').hidden = true;
@@ -809,6 +813,10 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
   // state.destroyed && !app.endShown gesehen und die eben erst zurückgesetzte
   // Anzeige sofort wieder auf "Kernzerstörung" gestellt, mit dem neuen Motor.
   if (app.loop) app.loop.stop();
+  // Dieselbe Sirene abstellen wie in toMenu(): buildPanels() erzeugt gleich
+  // ein NEUES Horn-Objekt (siehe unten), das alte spielt sonst -- unquittiert
+  // aus der verlassenen Runde -- einfach im <audio>-Element weiter.
+  if (app.horn) app.horn.silence();
 
   $('#rs-start').hidden = true;
   $('#rs-app').hidden = false;

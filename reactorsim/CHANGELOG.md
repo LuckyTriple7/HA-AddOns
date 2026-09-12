@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.59
+
+- 🐛 **Sirene lief im Hauptmenü und nach Neustart weiter.** `toMenu()` und
+  `boot()` stoppten Loop und Musik, aber nie `app.horn` -- eine unquittierte
+  Meldung liess die Sirene (eigene Dauerschleife, unabhaengig vom Spieltakt)
+  einfach weiterlaufen, auch mit verlassener Runde. Beide Stellen rufen jetzt
+  `horn.silence()`, bevor der alte Horn verworfen bzw. das Menue gezeigt wird.
+
 ## 0.0.58
 
 - 🐛 **Lautloses Einfrieren behoben.** Warf `engine.step()` oder der
