@@ -6,6 +6,18 @@
 import { Scenario, RunState } from './scenario.js';
 import { getEvent, eventKey, eventSeverity, stepEvents } from './events.js';
 import { score } from './scoring.js';
+import { Rng } from '../rng.js';
+
+// Freies Spiel ohne Bedarfskurve hiesse: "folge der Netzanforderung" waere
+// nichts als "lass die Anforderung, wie sie ist" -- kein Unterschied zum
+// Nichtstun. Ein Szenario hat feste Kennpunkte in der JSON-Datei; das freie
+// Spiel bekommt stattdessen einen Zufallsspaziergang, neu gesät bei jedem
+// Start (kein fester Seed wie im Szenario -- hier zaehlt keine Wertung, die
+// Wiedergabe reproduzieren muesste).
+const FREE_DEMAND_MIN_FRAC = 0.5;   // Untergrenze der Anforderung, Anteil P0_e
+const FREE_DEMAND_MAX_FRAC = 1.0;   // Obergrenze
+const FREE_DEMAND_INTERVAL_S = [300, 900];   // Abstand zwischen neuen Zielwerten
+const FREE_DEMAND_RAMP_FRAC_PER_S = 0.002;   // maximale Aenderung je Sekunde, Anteil P0_e
 
 export const PHASE = {
   BRIEFING: 'briefing',
@@ -26,6 +38,9 @@ export class Session {
     this.phase = this.scenario ? PHASE.BRIEFING : PHASE.RUNNING;
     this.onEnd = null;
     this.result = null;
+    this.demandRng = this.free ? new Rng(Date.now() >>> 0) : null;
+    this.demandTarget = null;
+    this.demandNextChangeT = 0;
   }
 
   start() {
@@ -34,7 +49,27 @@ export class Session {
       const st = this.scenario.def.start_overrides || {};
       for (const [k, v] of Object.entries(st)) this.engine.state[k] = v;
       this.engine.state.P_demand = this.scenario.demandAt(0);
+    } else {
+      // Erstes Ziel erst ein Stueck nach dem Start waehlen -- sonst zerrt die
+      // Anforderung schon in der ersten Minute an einer Anlage, die gerade
+      // erst in den Beharrungszustand gefahren ist.
+      this.demandTarget = this.engine.state.P_demand;
+      this.demandNextChangeT = this.demandRng.range(...FREE_DEMAND_INTERVAL_S);
     }
+  }
+
+  /** Freies Spiel: die Anforderung wandert langsam zu einem neuen Zufallsziel,
+   *  nie sprunghaft -- ein realer Netzbetreiber ruft auch keine Stufenfunktion
+   *  ab. */
+  _stepFreeDemand(s, dt) {
+    const p0 = this.engine.spec.P0_e;
+    if (s.t_sim >= this.demandNextChangeT) {
+      this.demandTarget = this.demandRng.range(FREE_DEMAND_MIN_FRAC, FREE_DEMAND_MAX_FRAC) * p0;
+      this.demandNextChangeT = s.t_sim + this.demandRng.range(...FREE_DEMAND_INTERVAL_S);
+    }
+    const maxStep = FREE_DEMAND_RAMP_FRAC_PER_S * p0 * dt;
+    const diff = this.demandTarget - s.P_demand;
+    s.P_demand += Math.max(-maxStep, Math.min(maxStep, diff));
   }
 
   /** Ein Rechenschritt. Wird aus der Schleife gerufen, nach engine.step(). */
@@ -44,6 +79,7 @@ export class Session {
     stepEvents(this.engine, dt);
 
     if (!this.scenario) {
+      this._stepFreeDemand(s, dt);
       if (s.destroyed) this._finish(false, 'fail_fuel_damage');
       return;
     }

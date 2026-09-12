@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.38
+
+- 📈 **Freies Spiel: Netzanforderung wandert jetzt.** Bisher stand `P_demand` im freien Spiel fest auf dem Startwert und änderte sich nie von selbst -- "folge der Netzanforderung" war ohne Szenario nur Kosmetik in der Anleitung, es gab schlicht nichts zu folgen. Jetzt ein Zufallsspaziergang wie ein echter Netzbetreiber: alle 5–15 Minuten ein neues Ziel zwischen 50 % und 100 % Nennleistung, dahin geht es sanft (max. 0,2 %/s Nennleistung), nie sprunghaft. Neu gesät bei jedem Rundenstart -- keine feste Wiederholung wie bei einem Szenario, hier zählt keine Wertung. Die Regler-Zeile "Anforderung" zeigt weiterhin nur an, sie wird jetzt wie in Szenarien vom Spiel geführt statt vom Schieberegler.
+
 ## 0.0.37
 
 - ⚡ **Kopfzeilen-Auswahl wirkt jetzt sofort.** Statt beim Speichern nur den Server zu aktualisieren und auf den nächsten Rundenstart zu warten, wechselt die laufende Kopfzeile sofort um -- ohne die zugrundeliegenden Knoten neu zu bauen (nur `hidden`/Reihenfolge), bleiben die Wertebindungen aus dem laufenden `buildPanels()` gültig.
