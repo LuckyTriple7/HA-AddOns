@@ -42,6 +42,15 @@ function initStart() {
   const cards = $$('.rs-card');
   const go = $('#rs-start-go');
 
+  // Kaltstart-Haekchen dauerhaft merken -- sonst muesste man es bei jedem
+  // Besuch neu setzen, obwohl es bei jedem freien Spiel dasselbe sein soll.
+  const coldBox = $('#rs-cold-start');
+  app.prefsPromise.then((prefs) => { coldBox.checked = !!prefs.coldStart; });
+  coldBox.addEventListener('change', () => {
+    app.prefs.coldStart = coldBox.checked;
+    api.writePrefs(app.prefs);
+  });
+
   for (const card of cards) {
     const id = card.dataset.reactor;
     card.setAttribute('aria-pressed', 'false');

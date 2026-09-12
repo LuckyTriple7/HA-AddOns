@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.41
+
+- 📱 **Kopfzeilen-Bedienung lief auf schmalen Handys über.** Xenon-Vorspulknopf (Text) plus Zeitraffer, ⚙, ?, Speichern, Menü, SCRAM passten ab 360px Breite nicht mehr in eine Zeile -- SCRAM konnte bis zu 25px hinterm sichtbaren Rand landen. Vorspulknopf jetzt Icon (⏩) statt Text wie die anderen Werkzeugknöpfe, Zeile bekommt zusätzlich `flex-wrap`, damit sie bei Bedarf sauber zweizeilig wird statt zu überlaufen. Per Playwright bei 360px verifiziert: passt jetzt exakt, SCRAM immer voll sichtbar.
+- ⚗️ **Xenon-Override beim Hochfahren aus dem Kaltstart bestätigt.** Kein Code nötig, nur nachgerechnet: fährt man nach dem Kaltstart rein über Stäbe auf Vollast, drückt das nachwachsende Xenon die Leistung in den folgenden Stunden bis auf rund 12 % herunter, sobald die Stäbe ganz draußen sind und nichts mehr nachgeben -- der Kern erholt sich danach von selbst erst nach rund einem Tag. Genau das reale "Xenon-Override"-Problem; beim DWR hilft in der Praxis Verdünnen (`ctl_boron_dilute`) über die Stabreserve hinaus.
+- 💾 Kaltstart-Häkchen wird jetzt gespeichert (`/api/prefs`, wie die Kopfzeilen-Auswahl) statt bei jedem Besuch neu gesetzt werden zu müssen.
+
 ## 0.0.40
 
 - 🗑️ **Spielstände löschen.** Jeder Eintrag in der Fortsetzen-Liste hat jetzt einen Löschen-Knopf, gesichert wie SCRAM (erster Klick bewaffnet, zweiter binnen 4s löscht wirklich). Backend (`DELETE /api/saves/<slot>`) gab es schon, es fehlte nur die Oberfläche.
