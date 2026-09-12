@@ -10,7 +10,7 @@
 // zurückzugewinnen, arbeitet gegen eine Totzeit von drei Minuten -- und was er
 // vor drei Minuten losgeschickt hat, kommt jetzt an.
 
-import { Pump, Valve, TransportDelay, Lag } from '../sim/components.js';
+import { Pump, Valve, TransportDelay, Lag, coldStopPumps } from '../sim/components.js';
 import {
   RodController, PressurizerController, FeedwaterController, GovernorController,
 } from '../sim/controllers.js';
@@ -227,6 +227,9 @@ export const hooks = {
 
     // Anlagenteile mit eigenem Gedächtnis.
     ctx.pumps = [0, 1, 2, 3].map(() => new Pump({ W0: sp.coolant.W0 / 4, coastTau: 14 }));
+    // Kaltstart: Pumpen stehen, der Spieler faehrt sie selbst hoch -- genauso
+    // wie er selbst die Staebe zieht. Nur Naturumlauf, bis er zuschaltet.
+    if (ctx.cold) coldStopPumps(ctx.pumps);
     ctx.govValve = new Valve(sp.turbine.strokeS, 0.8);
     ctx.bypassValve = new Valve(sp.turbine.bypassStrokeS, 0);
     ctx.hotLeg = new TransportDelay(sp.primary.hotLegTau, 0.05, sp.coolant.T_out);

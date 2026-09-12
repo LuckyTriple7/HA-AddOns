@@ -107,13 +107,25 @@ export class Pump {
     return this.speed;
   }
 
-  /** Förderstrom. Der Naturumlauf bleibt auch bei stehender Pumpe -- ohne ihn
-   *  ginge die Kernkühlung nach einem Pumpenausfall auf null, was falsch ist. */
+  /** Förderstrom. Der Naturumlauf bleibt IMMER als Sockel -- ob nach einem
+   *  Ausfall, oder weil die Pumpe (Kaltstart) noch nie lief. Ohne ihn ginge
+   *  die Kernkühlung in beiden Fällen rechnerisch auf null, was falsch ist. */
   flow(naturalCirc = 0.05) {
-    return this.W0 * Math.max(this.speed, this.running || this.tripped ? naturalCirc : 0);
+    return this.W0 * Math.max(this.speed, naturalCirc);
   }
 
   get state() { return this.tripped ? 'tripped' : (this.speed > 0.05 ? 'run' : 'stopped'); }
+}
+
+/** Pumpen fuer einen Kaltstart abschalten: der Konstruktor faengt immer bei
+ *  Volldrehzahl an (Normalfall ist Vollastbetrieb). Bewusst trip() NICHT
+ *  benutzt -- das waere fuer die Anzeige ein Stoerungsauslauf (rot,
+ *  "tripped"), hier soll es schlicht "steht, nie gestartet" heissen (grau,
+ *  "stopped"). Der Spieler startet sie ueber denselben Knopf wie sonst
+ *  einen ausgefallenen Pumpe (togglePump ruft dafuer .start()). flow()
+ *  liefert trotzdem den Naturumlauf-Sockel weiter, kein Nullstrom. */
+export function coldStopPumps(pumps) {
+  for (const p of [].concat(pumps)) { p.running = false; p.speed = 0; }
 }
 
 /**

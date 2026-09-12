@@ -29,7 +29,7 @@
 // denselben Gleichungen wie bei den anderen beiden Reaktortypen; nur die
 // Vorzeichen und Kennwerte sind andere.
 
-import { Pump, Valve, Lag } from '../sim/components.js';
+import { Pump, Valve, Lag, coldStopPumps } from '../sim/components.js';
 import {
   FeedwaterController, GovernorController, RodController, PowerController,
 } from '../sim/controllers.js';
@@ -288,6 +288,9 @@ export const hooks = {
         W0: sp.mcp.W0 / sp.mcp.count, coastTau: sp.mcp.coastTau, rampTau: sp.mcp.rampTau,
       }));
     }
+    // Kaltstart: Hauptumwaelzpumpen stehen, der Spieler schaltet sie selbst
+    // zu -- genauso wie er selbst die Staebe zieht. Nur Naturumlauf bis dahin.
+    if (ctx.cold) coldStopPumps(ctx.mcp);
     ctx.govValve = new Valve(sp.turbine.strokeS, 0.8);
     ctx.bypassValve = new Valve(sp.turbine.bypassStrokeS, 0);
     ctx.voidLag = new Lag(1.0, sp.feedback.void_ref);

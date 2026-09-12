@@ -16,7 +16,7 @@
 // sich aufschaukelt statt abzuklingen. Dieser Bereich ist im
 // Leistungs-Durchsatz-Kennfeld gesperrt, und das Spiel bildet ihn nach.
 
-import { Pump, Valve, Lag } from '../sim/components.js';
+import { Pump, Valve, Lag, coldStopPumps } from '../sim/components.js';
 import { FeedwaterController, GovernorController, RodController } from '../sim/controllers.js';
 import { tsat, psat, hg, hf, hfg, rhog, dpdT, averageVoid } from '../sim/steam.js';
 import { clamp, toK, relax } from '../sim/constants.js';
@@ -288,6 +288,9 @@ export const hooks = {
     ctx.recircPump = new Pump({
       W0: sp.recirc.W0, coastTau: sp.recirc.coastTau, rampTau: sp.recirc.tau,
     });
+    // Kaltstart: Umwaelzpumpe steht, der Spieler schaltet sie selbst zu --
+    // genauso wie er selbst die Staebe zieht. Nur Naturumlauf bis dahin.
+    if (ctx.cold) coldStopPumps(ctx.recircPump);
     ctx.govValve = new Valve(sp.turbine.strokeS, 0.8);
     ctx.bypassValve = new Valve(sp.turbine.bypassStrokeS, 0);
     ctx.voidLag = new Lag(1.0, sp.feedback.void_ref);
