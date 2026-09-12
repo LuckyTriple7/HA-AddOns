@@ -279,20 +279,34 @@ export const hooks = {
     ctx.coldLeg.fill(s.T_ci);
     ctx.tAvgPrev = Tavg;
 
-    // Bor so wählen, dass ρ = 0. Genau das tut ein Betrieb auch: die kritische
-    // Borkonzentration ist kein Sollwert, sondern das Ergebnis aller anderen
-    // Beiträge. Der Borterm selbst ist linear, aber Bor verändert auch den
-    // Moderatorkoeffizienten -- deshalb ein paar Durchgänge statt einem.
-    const w = sp.feedback.boron_pcm_per_ppm * 1e-5;
-    s.C_B = 0;
-    for (let i = 0; i < 8; i++) {
-      const rho = rx.compute(s, sp);
-      if (Math.abs(rho) < 1e-7) break;
-      s.C_B = clamp(s.C_B + rho / w, 0, 2400);
+    if (ctx.cold) {
+      // Kaltstart: alle Staebe drin, Bor auf einen typischen Anfahrwert --
+      // deutlich ueber der mit Staeben drin kritischen Konzentration (rund
+      // 960 ppm bei dieser Anlage), damit der Kern spuerbar unterkritisch
+      // steht statt beim kleinsten Handgriff schon kritisch zu werden. Der
+      // Spieler zieht selbst Staebe und/oder verduennt (ctl_boron_dilute).
+      for (let i = 0; i < s.rod.length; i++) { s.rod[i] = 1; s.rodDmd[i] = 1; }
+      s.C_B = 1400;
+      s.C_B_cmd = s.C_B;
+      ctx.boronMix.set(s.C_B);
+      rx.compute(s, sp);
+    } else {
+      // Bor so wählen, dass ρ = 0. Genau das tut ein Betrieb auch: die
+      // kritische Borkonzentration ist kein Sollwert, sondern das Ergebnis
+      // aller anderen Beiträge. Der Borterm selbst ist linear, aber Bor
+      // verändert auch den Moderatorkoeffizienten -- deshalb ein paar
+      // Durchgänge statt einem.
+      const w = sp.feedback.boron_pcm_per_ppm * 1e-5;
+      s.C_B = 0;
+      for (let i = 0; i < 8; i++) {
+        const rho = rx.compute(s, sp);
+        if (Math.abs(rho) < 1e-7) break;
+        s.C_B = clamp(s.C_B + rho / w, 0, 2400);
+      }
+      s.C_B_cmd = s.C_B;
+      ctx.boronMix.set(s.C_B);
+      rx.compute(s, sp);
     }
-    s.C_B_cmd = s.C_B;
-    ctx.boronMix.set(s.C_B);
-    rx.compute(s, sp);
 
     // Sekundärseite auf die abzuführende Leistung einstellen.
     s.p_sg = sp.sg.p0;

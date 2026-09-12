@@ -76,6 +76,10 @@ export function createEngine(plant, opts = {}) {
   const ctx = {
     spec, hooks, kin, rx, trips,
     betaEff,
+    // Kaltstart: trim() soll den Kern NICHT auf Kritikalitaet einschwingen
+    // (das waere ja gerade die Aufgabe des Spielers), sondern absichtlich
+    // unterkritisch mit allen Staeben drin stehen lassen. Siehe trim() je Typ.
+    cold: !!opts.cold,
     // Gesaeter Zufall fuer alles, was in der Anlage rauscht (Messwerte,
     // Anregung der Dichtewelle). Nie Math.random: sonst waere kein Lauf
     // wiederholbar und kein Regressionstest moeglich.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.40
+
+- 🗑️ **Spielstände löschen.** Jeder Eintrag in der Fortsetzen-Liste hat jetzt einen Löschen-Knopf, gesichert wie SCRAM (erster Klick bewaffnet, zweiter binnen 4s löscht wirklich). Backend (`DELETE /api/saves/<slot>`) gab es schon, es fehlte nur die Oberfläche.
+- ❄️ **Kaltstart: den Reaktor selbst hochfahren.** Neue Option auf dem Startbildschirm ("Kalt starten", nur freies Spiel) -- Kern steht mit allen Stabbänken voll eingefahren spürbar unterkritisch (DWR ca. −3800 pcm, SWR ca. −3100 pcm, RBMK ca. −1600 pcm), Leistung bei 0. Kritisch werden und hochfahren ist jetzt selbst zu tun: Stäbe ziehen (und beim DWR zusätzlich verdünnen), Periode beobachten, bei Erreichen der Kritikalität rechtzeitig bremsen.
+  Kein Skript, echte Physik: an der Engine nachgemessen läuft der Übergang genau wie erwartet -- Periode wird mit dem Ziehen kürzer und kürzer, bei Kritikalität beginnt die Leistung zu steigen, alles ohne Fehler oder Kernschaden bei sachgemäßer Bedienung.
+  Kleinere Fundsache beim Bauen: der SWR wurde mit voll eingefahrenen Stäben trotzdem leicht ÜBERkritisch, weil der Dampfblasenanteil bei Nullleistung auf null fällt und der (auf Volllast-Blasenanteil kalibrierte) Rückkopplungsterm das als kräftig positive Reaktivität liest ("Blasenkollaps") -- derselbe Effekt, den ein Kommentar im Code schon aus dem Volllast-Hochfahren kennt ("startete fast zwei Dollar überkritisch"), hier nur ohne den rettenden Leistungsanstieg direkt danach. Für den Kaltstart wird der Rückkopplungswert deshalb auf den Referenzwert zurückgesetzt.
+
 ## 0.0.39
 
 - ⏩ **Jodgrube durchstehen, ohne 24 echte Minuten zu warten.** Neuer Knopf "Zeit vorspulen, bis Xenon abgeklungen" -- erscheint nur im freien Spiel, nur bei abgeschalteter Anlage (SCRAM) mit noch spürbar erhöhtem Xenon. Läuft dieselben Schritte wie der normale Betrieb (Engine + Sitzung je 0,05 s), nur ohne Bildaufbau dazwischen -- ein echter Störfall währenddessen bricht sofort ab und zeigt sich normal, statt still überfahren zu werden. In Blöcken mit Fortschrittsanzeige, damit der Tab nicht einfriert.

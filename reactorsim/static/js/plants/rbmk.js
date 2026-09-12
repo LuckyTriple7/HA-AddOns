@@ -367,17 +367,24 @@ export const hooks = {
     s.T_cl = Tbase + (P * 1000 * sp.fuel.depositFraction) / ctx.UA_cc;
     s.T_f = s.T_cl + (P * 1000 * sp.fuel.depositFraction) / ctx.UA_fc;
 
-    // Kritisch über die Stabstellung. Beide Gruppen werden gemeinsam gefahren,
-    // damit die Abschaltreserve ein sinnvoller Mittelwert bleibt.
-    let lo = 0, hi = 1;
-    for (let i = 0; i < 60; i++) {
-      const mid = 0.5 * (lo + hi);
-      s.rod[0] = mid; s.rod[1] = mid;
-      if (rx.compute(s, sp) > 0) lo = mid; else hi = mid;
+    if (ctx.cold) {
+      // Kaltstart: alle Staebe drin stehen lassen statt auf Kritikalitaet zu
+      // suchen -- volle Abschaltreserve, der Spieler zieht selbst.
+      for (let i = 0; i < s.rod.length; i++) { s.rod[i] = 1; s.rodDmd[i] = 1; }
+      rx.compute(s, sp);
+    } else {
+      // Kritisch über die Stabstellung. Beide Gruppen werden gemeinsam
+      // gefahren, damit die Abschaltreserve ein sinnvoller Mittelwert bleibt.
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 60; i++) {
+        const mid = 0.5 * (lo + hi);
+        s.rod[0] = mid; s.rod[1] = mid;
+        if (rx.compute(s, sp) > 0) lo = mid; else hi = mid;
+      }
+      const h = 0.5 * (lo + hi);
+      s.rod[0] = h; s.rod[1] = h;
+      s.rodDmd[0] = h; s.rodDmd[1] = h;
     }
-    const h = 0.5 * (lo + hi);
-    s.rod[0] = h; s.rod[1] = h;
-    s.rodDmd[0] = h; s.rodDmd[1] = h;
 
     ctx.powerCtl.setpoint = n;
 

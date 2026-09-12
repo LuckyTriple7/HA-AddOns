@@ -189,6 +189,17 @@ button {
 .rs-card-tag  { font: 12px/1.3 var(--rs-font-num); color: var(--rs-fg-mute); }
 .rs-card-desc { color: var(--rs-fg-dim); font-size: 13px; }
 
+.rs-cold-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--rs-fg-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+.rs-cold-start input { accent-color: var(--rs-value); width: 16px; height: 16px; }
+
 .rs-start-actions {
   display: flex;
   flex-wrap: wrap;
@@ -197,6 +208,10 @@ button {
   margin-top: 20px;
 }
 .rs-start-hint { color: var(--rs-fg-mute); font-size: 12px; }
+
+.rs-resume-list { display: grid; gap: 8px; margin-top: 20px; }
+.rs-resume-row { display: flex; gap: 8px; align-items: stretch; }
+.rs-resume-row .rs-btn:first-child { flex: 1; text-align: left; }
 
 .rs-start-foot {
   display: flex;

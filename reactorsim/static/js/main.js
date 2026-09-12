@@ -70,7 +70,7 @@ function initStart() {
   go.addEventListener('click', () => {
     if (!app.reactor) return;
     if (app.chosen) loadScenario(app.chosen);
-    else boot(app.reactor, null);
+    else boot(app.reactor, null, null, $('#rs-cold-start').checked);
   });
 
   $('#rs-brief-go').addEventListener('click', () => {
@@ -150,10 +150,28 @@ function refreshResumeList() {
       })]);
       btn.disabled = !isAvailable(sv.reactor);
       btn.addEventListener('click', () => boot(sv.reactor, null, sv.slot));
-      return btn;
+      return el('div.rs-resume-row', null, [btn, makeDeleteSaveButton(sv.slot)]);
     }));
     list.hidden = !autos.length;
   });
+}
+
+/** Löschen mit Sicherung wie beim SCRAM: erster Klick bewaffnet nur, der
+ *  zweite (binnen 4s) löscht wirklich -- kein Modal fuer eine Aktion, die
+ *  sich durchs blosse Weiterspielen jederzeit neu erzeugen liesse. */
+function makeDeleteSaveButton(slot) {
+  const btn = el('button.rs-btn.rs-btn-ghost.rs-btn-sm', { type: 'button' }, [t('btn_delete')]);
+  let armed = 0;
+  btn.addEventListener('click', () => {
+    if (!armed) {
+      armed = window.setTimeout(() => { armed = 0; setText(btn, t('btn_delete')); }, 4000);
+      setText(btn, t('btn_confirm_delete'));
+      return;
+    }
+    window.clearTimeout(armed);
+    api.deleteSave(slot).then(() => refreshResumeList());
+  });
+  return btn;
 }
 
 /** Szenarienkarten fuer den gewaehlten Reaktortyp. */
@@ -503,7 +521,7 @@ function showDestroyed() {
  *  vorn -- ohne den Umweg über Menü, Typwahl und Einweisung. */
 function restart() {
   if (!app.lastReactor) { toMenu(); return; }
-  boot(app.lastReactor, app.lastScenarioDef);
+  boot(app.lastReactor, app.lastScenarioDef, null, app.lastCold);
 }
 
 function toMenu() {
@@ -605,14 +623,21 @@ function applyStatusSelection(keys) {
   });
 }
 
-async function boot(reactorId, scenarioDef, loadSlot) {
+async function boot(reactorId, scenarioDef, loadSlot, cold) {
   const plant = getPlant(reactorId);
   if (!plant) return;
+
+  // Kaltstart gilt nur fuer ein echtes freies Spiel: ein Szenario bringt
+  // seine eigenen Startwerte (start_overrides) mit, ein Spielstand ueber-
+  // schreibt den Zustand ohnehin gleich wieder -- trim() liefe in beiden
+  // Faellen nur fuer einen Wimpernschlag unbeobachtet mit.
+  const isColdStart = !!cold && !scenarioDef && !loadSlot;
 
   // Für den Neustart-Knopf in Auswertung und Kernzerstörung gemerkt -- ein
   // Spielstand zählt dabei nicht als Szenario, "Neustart" fängt dann frei an.
   app.lastReactor = reactorId;
   app.lastScenarioDef = loadSlot ? null : (scenarioDef || null);
+  app.lastCold = isColdStart;
 
   // Eine laufende Schleife MUSS stehen, bevor eine neue entsteht. app.loop
   // zeigt danach auf ein neues Objekt, aber die alte Schleife lief bis dahin
@@ -635,7 +660,9 @@ async function boot(reactorId, scenarioDef, loadSlot) {
   applyStatusSelection(sanitizeStatusKeys(prefs.statusBar && prefs.statusBar[reactorId]));
 
   app.endShown = false;
-  app.engine = createEngine(plant, { n: 1.0, seed: scenarioDef ? scenarioDef.seed : 1 });
+  app.engine = createEngine(plant, {
+    n: isColdStart ? 1e-6 : 1.0, cold: isColdStart, seed: scenarioDef ? scenarioDef.seed : 1,
+  });
   app.session = new Session(app.engine, scenarioDef);
   app.session.onEnd = (result, failed) => showDebrief(result, failed);
   app.session.start();

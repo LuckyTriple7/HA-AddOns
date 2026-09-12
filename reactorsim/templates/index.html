@@ -56,6 +56,13 @@
     <h2 class="rs-start-headline" id="rs-scn-headline" hidden>{{ t.start_scenarios }}</h2>
     <div class="rs-scn-list" id="rs-scn-list"></div>
 
+    <!-- Gilt nur fuer das freie Spiel -- ein Szenario bringt seine eigenen
+         Startwerte per start_overrides mit, siehe scenario.js. -->
+    <label class="rs-cold-start">
+      <input type="checkbox" id="rs-cold-start">
+      {{ t.opt_cold_start }}
+    </label>
+
     <div class="rs-start-actions">
       <button class="rs-btn rs-btn-primary" id="rs-start-go" type="button" disabled>{{ t.start_free_play }}</button>
     </div>

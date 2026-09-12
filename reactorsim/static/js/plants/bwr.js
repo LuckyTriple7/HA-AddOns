@@ -355,19 +355,39 @@ export const hooks = {
     s.T_cl = Tbase + (P * 1000 * sp.fuel.depositFraction) / ctx.UA_cc;
     s.T_f = s.T_cl + (P * 1000 * sp.fuel.depositFraction) / ctx.UA_fc;
 
-    // Kritisch wird hier ueber die Stabstellung, nicht ueber Bor. Die
-    // Stabwirksamkeit ist nicht linear (S-Kurve), also Bisektion statt
-    // Division.
-    let lo = 0, hi = 1;
-    for (let i = 0; i < 60; i++) {
-      const mid = 0.5 * (lo + hi);
-      s.rod[0] = mid;
-      // Mehr Einfahrt heisst weniger Reaktivitaet.
-      if (rx.compute(s, sp) > 0) lo = mid; else hi = mid;
+    if (ctx.cold) {
+      // Kaltstart: ALLE Bankstellungen drin stehen lassen, nicht nur die
+      // Regelbank -- die Abschaltbank steht sonst auf ihrem Vollast-Anfangs-
+      // wert (ganz draussen) und macht den Kern trotz eingefahrener Regelbank
+      // deutlich UEBERkritisch. Der Spieler zieht selbst, bis er kritisch wird.
+      for (let i = 0; i < s.rod.length; i++) { s.rod[i] = 1; s.rodDmd[i] = 1; }
+      // _void() lieferte eben (Zeile 339) einen Blasenanteil nahe null, weil
+      // bei n ≈ 0 noch nichts siedet -- witzigerweise genau der Fall aus dem
+      // Kommentar oben ("startete fast zwei Dollar ueberkritisch"), nur ohne
+      // den rettenden P_th-Ramp direkt danach. Der Bezugswert der Rueck-
+      // kopplung gilt fuer Betrieb bei Nennlast, nicht fuer einen Kern, der
+      // noch gar nicht kritisch ist -- deshalb hier auf den Referenzwert
+      // zurueckgesetzt, denselben, den extraState() schon als Anfangswert
+      // eingetragen hatte. Sobald der Spieler den Kern hochfaehrt, uebernimmt
+      // wieder die echte Formel.
+      s.alphaBar = sp.feedback.void_ref;
+      ctx.voidLag.set(s.alphaBar);
+      rx.compute(s, sp);
+    } else {
+      // Kritisch wird hier ueber die Stabstellung, nicht ueber Bor. Die
+      // Stabwirksamkeit ist nicht linear (S-Kurve), also Bisektion statt
+      // Division.
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 60; i++) {
+        const mid = 0.5 * (lo + hi);
+        s.rod[0] = mid;
+        // Mehr Einfahrt heisst weniger Reaktivitaet.
+        if (rx.compute(s, sp) > 0) lo = mid; else hi = mid;
+      }
+      s.rod[0] = 0.5 * (lo + hi);
+      s.rodDmd[0] = s.rod[0];
+      rx.compute(s, sp);
     }
-    s.rod[0] = 0.5 * (lo + hi);
-    s.rodDmd[0] = s.rod[0];
-    rx.compute(s, sp);
 
     s.P_e = (s.W_steam * (hg(s.p_dome) - hf(s.p_cond)) * sp.turbine.workFactor) / 1000;
     s.P_demand = s.P_e;
