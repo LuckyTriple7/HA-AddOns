@@ -201,6 +201,7 @@
   "fault_title": "Simulation fault",
   "fault_body": "The simulation reached an invalid state and was stopped. That is a bug in the game, not your mistake.",
   "fault_reload": "Restart",
+  "fault_crash_detail": "Technical error: {msg}",
   "period_infinite": "∞",
   "footer_note": "Physically modelled, but a game — not a training simulator.",
   "reactor_soon": "in progress",

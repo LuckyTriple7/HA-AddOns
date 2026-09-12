@@ -865,6 +865,12 @@ async function boot(reactorId, scenarioDef, loadSlot, cold) {
     }
   });
   app.loop.onSlip = (slipping) => { $('#rs-slip').hidden = !slipping; };
+  // Absicherung gegen lautloses Einfrieren: jeder Fehler, der die rAF-Kette
+  // sonst unbemerkt gerissen haette, landet hier als sichtbarer Stoerfall
+  // mit Reload-Knopf statt als stehende Kopfzeile ohne jede Erklaerung.
+  app.loop.onCrash = (err) => {
+    showFault(t('fault_crash_detail', { msg: String(err && err.message ? err.message : err) }));
+  };
   // Die Spielschicht sieht jeden Simulationsschritt, nicht jedes Bild.
   app.loop.afterStep = (dt) => {
     let worst = 0;

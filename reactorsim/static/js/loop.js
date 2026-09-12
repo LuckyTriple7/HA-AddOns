@@ -32,6 +32,11 @@ export class Loop {
      *  1200 faellt, darf bei 60-fachem Zeitraffer nicht zwischen zwei Bildern
      *  verschwinden. */
     this.afterStep = null;
+    /** Wird gerufen, wenn engine.step()/afterStep() innerhalb eines Bildes
+     *  wirft. Ohne Fang hier stirbt die ganze rAF-Kette lautlos: running
+     *  bleibt true, aber requestAnimationFrame wird nie wieder aufgerufen --
+     *  ein Einfrieren ohne jede sichtbare Meldung. */
+    this.onCrash = null;
     this._frame = this._frame.bind(this);
     this._onVisibility = this._onVisibility.bind(this);
   }
@@ -73,24 +78,35 @@ export class Loop {
     const dtReal = Math.min((now - this.last) / 1000, 0.25);
     this.last = now;
 
-    if (this.speed > 0) {
-      this.acc += dtReal * this.speed;
-      let steps = 0;
-      while (this.acc >= DT && steps < MAX_STEPS_PER_FRAME) {
-        this.engine.step(DT);
-        if (this.afterStep) this.afterStep(DT);
-        this.acc -= DT;
-        steps++;
+    // Alles Rechnende in einem Fang: fliegt irgendwo in engine.step(),
+    // afterStep() oder render() ein Fehler, darf das nicht die rAF-Kette
+    // abreißen (running bliebe true, aber kein Bild käme je wieder) --
+    // vorher gab es genau das: ein lautloses Einfrieren ohne jede Meldung.
+    try {
+      if (this.speed > 0) {
+        this.acc += dtReal * this.speed;
+        let steps = 0;
+        while (this.acc >= DT && steps < MAX_STEPS_PER_FRAME) {
+          this.engine.step(DT);
+          if (this.afterStep) this.afterStep(DT);
+          this.acc -= DT;
+          steps++;
+        }
+        const slipping = this.acc >= DT;
+        if (slipping) this.acc = 0;
+        if (slipping !== this.slip) {
+          this.slip = slipping;
+          if (this.onSlip) this.onSlip(slipping);
+        }
       }
-      const slipping = this.acc >= DT;
-      if (slipping) this.acc = 0;
-      if (slipping !== this.slip) {
-        this.slip = slipping;
-        if (this.onSlip) this.onSlip(slipping);
-      }
-    }
 
-    this.render(this.engine.state, now);
+      this.render(this.engine.state, now);
+    } catch (err) {
+      console.error('[reactorsim] Simulationsschritt abgebrochen:', err);
+      this.stop();
+      if (this.onCrash) this.onCrash(err);
+      return;
+    }
     requestAnimationFrame(this._frame);
   }
 }

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.58
+
+- 🐛 **Lautloses Einfrieren behoben.** Warf `engine.step()` oder der
+  `afterStep`-Callback (Rundenauswertung, Trips) irgendwo einen Fehler, brach
+  die ganze rAF-Schleife stumm ab: die Kopfzeile blieb stehen, `running`
+  meldete weiter `true`, kein Dialog, kein sichtbarer Fehler — nur ein Neuladen
+  half. `app.render.tick()` war schon per try/catch abgesichert, der
+  Simulationsschritt selbst nicht. Jetzt fängt `loop.js` das ganze Bild in
+  einem try/catch, loggt den Fehler in die Konsole und zeigt den vorhandenen
+  Störfall-Dialog mit Fehlerdetail statt eines stillen Stillstands.
+
 ## 0.0.57
 
 Vier Dinge, die beim ersten echten Blick auf den Bildschirm auffielen — und

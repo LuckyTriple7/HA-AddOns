@@ -201,6 +201,7 @@
   "fault_title": "Simulationsfehler",
   "fault_body": "Die Simulation hat einen ungültigen Zustand erreicht und wurde angehalten. Das ist ein Fehler im Spiel, nicht deine Schuld.",
   "fault_reload": "Neu starten",
+  "fault_crash_detail": "Technischer Fehler: {msg}",
   "period_infinite": "∞",
   "footer_note": "Physikalisch nachgebildet, aber ein Spiel — kein Ausbildungssimulator.",
   "reactor_soon": "in Arbeit",
