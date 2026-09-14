@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.19] - 2026-09-14
+
+### Added
+- **Webhooks automatisch einrichten.** Neuer Tab „Webhooks" in den Settings:
+  Payload-URL eintragen, dann pro Repo oder für alle eigenen Repos auf einen
+  Klick per GitHub-API einrichten (`POST/PATCH /repos/{repo}/hooks`) statt
+  jedes Repo einzeln von Hand in den GitHub-Settings anzulegen. Zeigt pro
+  Repo den Ist-Zustand (eingerichtet / Events fehlen / deaktiviert / kein
+  Hook / kein Zugriff) gegen die tatsächlich vom Webhook-Handler
+  verarbeiteten Events geprüft — Secret wird gesetzt, aber (weil GitHub es
+  nie zurückgibt) nicht mit verglichen.
+
 ## [0.4.18] - 2026-09-14
 
 ### Fixed
