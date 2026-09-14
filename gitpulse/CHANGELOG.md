@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.20] - 2026-09-14
+
+### Fixed
+- **Settings-Tableiste lief über.** Mit 6 Tabs (neu: Webhooks) brach „E-Mail"
+  mitten im Wort um und „Webhooks" ragte über den Modal-Rand. Padding/Schrift
+  verkleinert, Tabs bekommen `white-space:nowrap`, Leiste scrollt bei Bedarf
+  horizontal statt zu brechen.
+
 ## [0.4.19] - 2026-09-14
 
 ### Added
