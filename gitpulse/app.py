@@ -119,6 +119,35 @@ _gh_cache: dict = {
 }
 _gh_lock = threading.Lock()
 
+# Kürzlich lokal gelöschte Workflow-Runs — GitHub listet einen DELETE'ten Run über
+# die Runs-API oft noch einige Minuten weiter (Eventual Consistency). Ohne diesen
+# Filter reißt der nächste Hintergrund-Poll den bereits gelöschten Run wieder in
+# die Liste, der Nutzer sieht ihn "wiederauferstanden" und ein zweiter Löschversuch
+# scheitert mit 404 ("Not Found").
+_deleted_runs: dict[tuple[str, int], float] = {}   # (repo, run_id) → gelöscht um (epoch)
+_deleted_runs_lock = threading.Lock()
+_DELETED_RUNS_TTL = 900  # 15 min — danach ist GitHub sicher konsistent
+
+
+def _mark_run_deleted(repo: str, run_id: int) -> None:
+    now = time.time()
+    with _deleted_runs_lock:
+        _deleted_runs[(repo, run_id)] = now
+        # nebenbei abgelaufene Einträge aufräumen, damit das Dict nicht unbegrenzt wächst
+        for key, ts in list(_deleted_runs.items()):
+            if now - ts > _DELETED_RUNS_TTL:
+                del _deleted_runs[key]
+
+
+def _filter_deleted_runs(repo: str, runs: list) -> list:
+    now = time.time()
+    with _deleted_runs_lock:
+        dead_ids = {rid for (r, rid), ts in _deleted_runs.items()
+                    if r == repo and now - ts < _DELETED_RUNS_TTL}
+    if not dead_ids:
+        return runs
+    return [run for run in runs if run['id'] not in dead_ids]
+
 # Seen releases (für Benachrichtigungen — persistent über Neustarts)
 _SEEN_PATH = _DATA + '/seen_releases.json'
 _seen_releases: set[str] = set()
@@ -895,6 +924,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'head_sha':     run.get('head_sha', '')[:7],
             'head_message': head_msg.split('\n')[0][:80] if head_msg else '',
         })
+    runs = _filter_deleted_runs(repo, runs)
 
     # Alle Workflows außer gelöschten für Verwaltung + Dispatch
     wf_raw = _gh_get(f'/repos/{repo}/actions/workflows', token) or {}
@@ -3080,9 +3110,16 @@ def api_workflow_delete():
             headers=_gh_headers(token),
             timeout=15,
         )
-        if r.status_code == 204:
-            log.info("Workflow-Run %s in %s gelöscht", run_id, repo)
-            # Aus lokalem Cache entfernen
+        if r.status_code == 204 or r.status_code == 404:
+            if r.status_code == 204:
+                log.info("Workflow-Run %s in %s gelöscht", run_id, repo)
+            else:
+                # Bereits gelöscht (z.B. zweiter Klick nach GitHub-Eventual-Consistency-
+                # Reappear) — für den Nutzer kein Fehler, Ziel (Run weg) ist erreicht.
+                log.info("Workflow-Run %s in %s bereits gelöscht", run_id, repo)
+            # Aus lokalem Cache entfernen + für kommende Polls sperren, sonst taucht der
+            # Run wieder auf, solange GitHubs Runs-API noch die alte Liste ausliefert.
+            _mark_run_deleted(repo, run_id)
             with _gh_lock:
                 for rd in _gh_cache.get('my_repos', []):
                     if rd['repo'] == repo:

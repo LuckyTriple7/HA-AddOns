@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.18] - 2026-09-14
+
+### Fixed
+- **Gelöschte Workflow-Runs tauchten wieder in der Liste auf, zweites Löschen
+  scheiterte mit 404.** GitHubs Runs-API listet einen gerade gelöschten Run
+  oft noch minutenlang weiter (Eventual Consistency). Der nächste
+  Hintergrund-Poll überschrieb den lokal bereinigten Cache komplett und riss
+  den Run wieder rein. Löschungen werden jetzt für 15 Minuten gesperrt und aus
+  jedem Poll-Ergebnis herausgefiltert; ein 404 beim Löschen gilt nun als
+  Erfolg (Run ist ja bereits weg) statt als Fehler.
+
+### Added
+- **Console-Tab: Filter nach Log-Level und Text.** Wie in TUIWatch gibt es
+  jetzt Schalter für ERROR/WARN/INFO/DEBUG plus ein Textfeld, die Auswahl wird
+  im Browser gemerkt.
+
 ## [0.4.17] - 2026-09-12
 
 ### Fixed

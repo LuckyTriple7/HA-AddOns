@@ -161,6 +161,14 @@
     .console-toolbar { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surf); }
     .con-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; font-size:0.72rem; cursor:pointer; }
     .con-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .con-lvl-btn { background:none; border:1px solid var(--border); color:var(--muted); font-size:0.68rem; padding:1px 7px; border-radius:4px; cursor:pointer; letter-spacing:.03em; }
+    .con-lvl-btn:hover { border-color:var(--muted); }
+    .con-lvl-btn.on[data-lvl=ERROR]   { color:#f85149; border-color:#f85149; }
+    .con-lvl-btn.on[data-lvl=WARNING] { color:#d29922; border-color:#d29922; }
+    .con-lvl-btn.on[data-lvl=INFO]    { color:#58a6ff; border-color:#58a6ff; }
+    .con-lvl-btn.on[data-lvl=DEBUG]   { color:#8b949e; border-color:#8b949e; }
+    #con-search { flex:1; min-width:70px; max-width:220px; background:#0d1117; border:1px solid var(--border); color:var(--text); font-size:0.72rem; padding:2px 8px; border-radius:4px; }
+    #con-search:focus { outline:none; border-color:var(--accent); }
 
     /* ── Offline Banner ─────────────────────────────────────── */
     #offline-banner { display:none; position:fixed; bottom:0; left:0; right:0; background:var(--red); color:#fff; padding:10px 16px; z-index:9999; align-items:center; gap:10px; font-size:0.85rem; }
@@ -745,6 +753,11 @@
         <div class="console-toolbar">
           <button class="con-btn" onclick="clearConsole()">{{ t.btn_clear }}</button>
           <button class="con-btn" id="con-scroll-btn" onclick="toggleConScroll()">{{ t.btn_autoscroll_on }}</button>
+          <button class="con-lvl-btn" data-lvl="ERROR" onclick="toggleConLevel('ERROR', this)">ERROR</button>
+          <button class="con-lvl-btn" data-lvl="WARNING" onclick="toggleConLevel('WARNING', this)">WARN</button>
+          <button class="con-lvl-btn" data-lvl="INFO" onclick="toggleConLevel('INFO', this)">INFO</button>
+          <button class="con-lvl-btn" data-lvl="DEBUG" onclick="toggleConLevel('DEBUG', this)">DEBUG</button>
+          <input id="con-search" type="text" placeholder="{{ t.con_filter_placeholder }}" oninput="conSearchInput(this.value)">
           <span id="con-count" style="font-size:0.72rem;color:var(--muted);margin-left:auto;align-self:center;"></span>
         </div>
         <div id="console-out"></div>
@@ -3153,6 +3166,21 @@
   let conSince = 0;
   let conAutoScroll = true;
   let conTimer = null;
+  let conLines = [];       // alle bisher geholten Einträge {ts, level, msg}
+  let conSearch = '';
+  let conLevels = {ERROR: true, WARNING: true, INFO: true, DEBUG: true};
+  try {
+    const saved = JSON.parse(localStorage.getItem('gp-console-levels') || 'null');
+    if (saved) ['ERROR','WARNING','INFO','DEBUG'].forEach(l => { if (l in saved) conLevels[l] = !!saved[l]; });
+  } catch (e) {}
+  // Python-Stufen auf die vier Filterknöpfe abbilden: CRITICAL läuft unter ERROR
+  // mit, alles Unbekannte unter INFO — sonst verschwände eine Zeile ohne eigenen Knopf.
+  function conGroup(l) {
+    return l === 'CRITICAL' ? 'ERROR' : (l === 'WARN' ? 'WARNING' : (['ERROR','WARNING','DEBUG'].includes(l) ? l : 'INFO'));
+  }
+  document.querySelectorAll('.con-lvl-btn').forEach(btn => {
+    btn.classList.toggle('on', !!conLevels[btn.dataset.lvl]);
+  });
 
   function startConsole() {
     if (conTimer) return;
@@ -3165,20 +3193,49 @@
       .then(r => r.json())
       .then(entries => {
         if (!entries.length) return;
-        const out = document.getElementById('console-out');
-        entries.forEach(e => {
-          const div = document.createElement('div');
-          div.className = 'log-' + e.level;
-          div.textContent = e.msg;
-          out.appendChild(div);
-          if (e.ts > conSince) conSince = e.ts;
-        });
-        if (conAutoScroll) out.scrollTop = out.scrollHeight;
-        document.getElementById('con-count').textContent = out.children.length + ' {{ t.log_lines }}';
+        entries.forEach(e => { if (e.ts > conSince) conSince = e.ts; });
+        conLines = conLines.concat(entries);
+        if (conLines.length > 300) conLines = conLines.slice(-300);  // Server-Puffer fasst auch nur 300
+        renderConsole();
       }).catch(() => {});
   }
 
+  function conMatches(e) {
+    if (!conLevels[conGroup(e.level)]) return false;
+    if (conSearch && (e.msg || '').toLowerCase().indexOf(conSearch) < 0) return false;
+    return true;
+  }
+
+  function renderConsole() {
+    const out = document.getElementById('console-out');
+    out.innerHTML = '';
+    let shown = 0;
+    conLines.forEach(e => {
+      if (!conMatches(e)) return;
+      shown++;
+      const div = document.createElement('div');
+      div.className = 'log-' + e.level;
+      div.textContent = e.msg;
+      out.appendChild(div);
+    });
+    if (conAutoScroll) out.scrollTop = out.scrollHeight;
+    document.getElementById('con-count').textContent = shown + '/' + conLines.length + '{{ t.log_lines }}';
+  }
+
+  function toggleConLevel(lvl, btn) {
+    conLevels[lvl] = !conLevels[lvl];
+    btn.classList.toggle('on', conLevels[lvl]);
+    try { localStorage.setItem('gp-console-levels', JSON.stringify(conLevels)); } catch (e) {}
+    renderConsole();
+  }
+
+  function conSearchInput(v) {
+    conSearch = v.trim().toLowerCase();
+    renderConsole();
+  }
+
   function clearConsole() {
+    conLines = [];
     document.getElementById('console-out').innerHTML = '';
     document.getElementById('con-count').textContent = '';
   }

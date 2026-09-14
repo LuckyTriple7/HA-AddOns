@@ -250,6 +250,7 @@
   "btn_clear": "Leeren",
   "btn_autoscroll_on": "Auto-Scroll: AN",
   "btn_autoscroll_off": "Auto-Scroll: AUS",
+  "con_filter_placeholder": "Text filtern…",
 
   "install_banner": "GitPulse als App installieren",
   "notif_request": "Browser-Benachrichtigungen für neue Releases aktivieren?",
