@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.10] - 2026-09-15
+
+### Geändert
+- Rebuild für Firefox ESR 140.16.0esr
+
+
 ## [1.0.9] - 2026-09-02
 
 ### Hinzugefügt
