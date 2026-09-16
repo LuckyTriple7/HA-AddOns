@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.37] - 2026-09-16
+
+`/api/privacy/diag?textscan=1` durchsucht jetzt den Quelltext jeder Modul-Factory im Registry-Modul nach alten Funktionsnamen (`privacyWebNameToServerName` u.a.) statt nur Modulnamen — falls die Funktion nur unter neuem Modulnamen weiterlebt, sollte das den Fundort zeigen.
+
 ## [1.8.36] - 2026-09-16
 
 - **Fix: Status-Publikum wieder nutzbar.** WA Web 2.3000.1047643939 hat `WAWebStatusPrivacyContactsUtils.convertPrivacyListContactsToWids` entfernt. Die Kontakt-Wid liegt aber schon auf jedem aufgeloesten Kontakt-Modell selbst (`contact.id`, wie ueberall sonst im Add-on genutzt) — der Umweg ueber die Utility war nur redundant. Betrifft "Status-Publikum" (allow/deny/contacts) im Reiter Datenschutz

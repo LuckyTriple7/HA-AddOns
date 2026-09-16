@@ -2879,6 +2879,61 @@ async function listPrivacyModuleNames() {
   });
 }
 
+// Letzter Ausweg: nicht nur Modulnamen durchsuchen, sondern den Quelltext
+// jeder Modul-Factory im Registry-Modul selbst nach alten Funktionsnamen
+// durchsuchen. Ein Modul kann umbenannt sein — der Funktionsname im Inneren
+// bleibt oft trotzdem gleich (er ist Teil der ueber Modulgrenzen hinweg
+// genutzten Schnittstelle und wird von Minifiern seltener angefasst als
+// der Modulname selbst).
+async function scanModuleSourcesForText(needles) {
+  return client.pupPage.evaluate((needles) => {
+    const pick = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+        if (obj[key] && typeof obj[key] === 'object') return obj[key];
+      }
+      return null;
+    };
+    let reg = null, via = null;
+    try { reg = pick(window.require('__debug')); if (reg) via = "require('__debug')"; } catch (e) {}
+    if (!reg) { try { reg = pick(window.__debug); if (reg) via = 'window.__debug'; } catch (e) {} }
+    if (!reg) return { via: null, error: 'kein Registry-Modul gefunden' };
+
+    const factoryOf = (entry) => {
+      if (typeof entry === 'function') return entry;
+      if (!entry || typeof entry !== 'object') return null;
+      for (const k of ['factory', 'moduleFactory', 'fn', 'func', '_moduleFactory']) {
+        if (typeof entry[k] === 'function') return entry[k];
+      }
+      for (const v of Object.values(entry)) if (typeof v === 'function') return v;
+      return null;
+    };
+
+    let names = [];
+    try { names = Object.keys(reg); } catch (e) { return { via, error: String((e && e.message) || e) }; }
+
+    const found = [];
+    let scanned = 0, noFactory = 0;
+    let sampleKeys = null, sampleEntryType = null;
+    for (const name of names) {
+      let entry; try { entry = reg[name]; } catch (e) { continue; }
+      if (sampleKeys === null && entry && typeof entry === 'object') { sampleKeys = Object.keys(entry).slice(0, 20); sampleEntryType = typeof entry; }
+      const fn = factoryOf(entry);
+      if (!fn) { noFactory++; continue; }
+      let src; try { src = fn.toString(); } catch (e) { continue; }
+      scanned++;
+      for (const needle of needles) {
+        const idx = src.indexOf(needle);
+        if (idx !== -1) {
+          found.push({ module: name, needle, snippet: src.slice(Math.max(0, idx - 100), idx + 250).replace(/\s+/g, ' ') });
+        }
+      }
+      if (found.length > 60) break;
+    }
+    return { via, total: names.length, scanned, noFactory, sampleKeys, sampleEntryType, found };
+  }, needles);
+}
+
 // Ausweichweg: die echten Namen aus den geladenen Bundles fischen.
 async function scanPrivacyModuleNames() {
   return client.pupPage.evaluate(async () => {
@@ -2905,12 +2960,24 @@ async function scanPrivacyModuleNames() {
   });
 }
 
-// GET /api/privacy/diag         — bekannte Modulnamen durchprobieren (schnell)
-// GET /api/privacy/diag?scan=1  — zusaetzlich die Bundles nach echten Namen durchsuchen (dauert)
+// GET /api/privacy/diag              — bekannte Modulnamen durchprobieren (schnell)
+// GET /api/privacy/diag?scan=1       — zusaetzlich die Bundles nach echten Namen durchsuchen (dauert)
 // GET /api/privacy/diag?scan=1&probeFound=1 — die gefundenen Namen gleich mit durchprobieren
+// GET /api/privacy/diag?textscan=1   — Quelltext aller Modul-Factorys nach alten Funktionsnamen durchsuchen
 app.get('/api/privacy/diag', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  if (req.query.textscan === '1') {
+    try {
+      const needles = (req.query.needles ? String(req.query.needles).split(',') : [
+        'privacyWebNameToServerName', 'setPrivacyForOneCategory', 'convertPrivacyListContactsToWids',
+      ]).map(s => s.trim()).filter(Boolean);
+      const result = await scanModuleSourcesForText(needles);
+      return res.json({ lib: WA_VERSION, waWeb: waWebVersion, needles, textscan: result });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
   try {
     const out = { lib: WA_VERSION, waWeb: waWebVersion, modules: await probePrivacyModules() };
     out.registry = await listPrivacyModuleNames();
