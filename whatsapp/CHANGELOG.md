@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.39] - 2026-09-16
+
+Neu gezaehlt, sonst inhaltsgleich mit dem Eintrag darunter: die Nummer 1.8.38 war bereits von einem zurueckgenommenen Build belegt, Home Assistant hat das Update deshalb nicht angeboten.
+
 ## [1.8.38] - 2026-09-16
 
 - **Datenschutz aendern: Nachlade-Bundles werden jetzt selbst geladen.** WhatsApp Web holt den Code der Einstellungsseiten erst, wenn jemand sie oeffnet (Module `…Loadable`). Im normalen Browser passiert das beim Anklicken, in der Hintergrund-Sitzung des Add-ons nie — deshalb fehlte `WAWebSetPrivacyForOneCategoryAction` nur hier, waehrend web.whatsapp.com alles aendern konnte. Vor jedem Schreibzugriff (`POST /api/privacy`, `POST /api/privacy/disallowed`) und vor dem Selbsttest wird das Nachladen ausgeloest, falls der Setter fehlt
