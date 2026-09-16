@@ -2942,129 +2942,126 @@ async function scanModuleSourcesForText(needles) {
 async function preloadPrivacyBundles(force = false) {
   return client.pupPage.evaluate(async (force) => {
     if (window.__haPrivacyPreloaded && !force) return { skipped: true };
-    const pick = (obj) => {
-      if (!obj || typeof obj !== 'object') return null;
-      for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
-        if (obj[key] && typeof obj[key] === 'object') return obj[key];
+    // __debug.modulesMap ist eine Momentaufnahme — fuer jeden Blick frisch holen
+    const getReg = () => {
+      try {
+        const d = window.require('__debug');
+        for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+          if (d && d[key] && typeof d[key] === 'object') return d[key];
+        }
+      } catch (e) {}
+      return null;
+    };
+    const err = (e) => String((e && e.message) || e).slice(0, 200);
+    const req = (n) => { try { return window.require(n) || null; } catch (e) { return null; } };
+    const has = (n) => !!req(n);
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const withTimeout = (p, ms) => Promise.race([p, sleep(ms).then(() => 'ZEITUEBERSCHREITUNG')]);
+    const PRIV = /privacy|lastseen|readreceipt|profilepic|groupadd|visibility/i;
+
+    // Setter anhand seiner Exporte finden — der Modulname kann sich aendern
+    const findSetter = () => {
+      const direct = req('WAWebSetPrivacyForOneCategoryAction');
+      if (direct) return { via: 'WAWebSetPrivacyForOneCategoryAction', mod: direct };
+      const reg = getReg() || {};
+      for (const n of Object.keys(reg)) {
+        let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+        if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) ex = req(n);
+        if (ex && typeof ex.setPrivacyForOneCategory === 'function') return { via: n, mod: ex };
       }
       return null;
     };
-    let reg = null;
-    try { reg = pick(window.require('__debug')); } catch (e) {}
-    const before = new Set(reg ? Object.keys(reg) : []);
+
+    const before = new Set(Object.keys(getReg() || {}));
     const loadables = [...before].filter(n => /Loadable/.test(n) && /privacy/i.test(n));
-    const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r('ZEITUEBERSCHREITUNG'), ms))]);
-    const calls = [], shapes = {};
+    const out = { loadables, calls: [], render: [], sources: {} };
 
-    const tryObj = async (label, obj, depth) => {
-      if (!obj || depth > 2) return false;
-      for (const m of ['preload', 'load', 'loader', 'loadModule']) {
-        let fn; try { fn = obj[m]; } catch (e) { continue; }
-        if (typeof fn !== 'function' || fn.length > 0) continue;
-        try {
-          const r = await withTimeout(Promise.resolve(fn.call(obj)), 15000);
-          calls.push({ at: label + '.' + m, ok: r !== 'ZEITUEBERSCHREITUNG' });
-        } catch (e) { calls.push({ at: label + '.' + m, error: String((e && e.message) || e).slice(0, 120) }); }
-        return true;
+    // 1) Loadables mit preload()
+    for (const name of loadables) {
+      const mod = req(name);
+      for (const k of Object.keys(mod || {})) {
+        const c = mod[k];
+        if (c && typeof c.preload === 'function') {
+          try {
+            const r = await withTimeout(Promise.resolve(c.preload()), 15000);
+            out.calls.push({ at: name + '.' + k + '.preload', ok: r !== 'ZEITUEBERSCHREITUNG' });
+          } catch (e) { out.calls.push({ at: name + '.' + k + '.preload', error: err(e) }); }
+        }
       }
-      let keys = [];
-      try { keys = Object.keys(obj).slice(0, 20); } catch (e) {}
-      let hit = false;
-      for (const k of keys) {
-        let v; try { v = obj[k]; } catch (e) { continue; }
-        if (v && (typeof v === 'object' || typeof v === 'function')) hit = (await tryObj(label + '.' + k, v, depth + 1)) || hit;
+    }
+
+    // 2) Loadables ohne preload(): unsichtbar in einem eigenen React-Root rendern.
+    //    Das stoesst dasselbe Nachladen an wie ein Klick in der Oberflaeche; ein
+    //    Renderfehler bleibt in diesem Root und beruehrt die WhatsApp-Oberflaeche nicht.
+    const React = req('react');
+    const domClient = ['ReactDOMClient', 'react-dom/client', 'ReactDOM', 'react-dom', 'ReactDOMComet']
+      .map(n => ({ n, m: req(n) })).find(x => x.m && typeof x.m.createRoot === 'function');
+    out.reactDom = domClient ? domClient.n : null;
+    if (!findSetter() && React && domClient) {
+      for (const name of loadables) {
+        const mod = req(name);
+        for (const k of Object.keys(mod || {})) {
+          const Comp = mod[k];
+          if (typeof Comp !== 'function' || typeof Comp.preload === 'function') continue;
+          const entry = { at: name + '.' + k, errors: [] };
+          const onErr = (ev) => { entry.errors.push(err(ev.error || ev.message)); ev.preventDefault && ev.preventDefault(); };
+          window.addEventListener('error', onErr);
+          const div = document.createElement('div');
+          div.style.cssText = 'position:fixed;left:-9999px;top:0;width:400px;height:600px;overflow:hidden;';
+          document.body.appendChild(div);
+          let root = null;
+          try {
+            root = domClient.m.createRoot(div, { onUncaughtError: (e) => entry.errors.push(err(e)), onRecoverableError: (e) => entry.errors.push(err(e)) });
+            root.render(React.createElement(Comp, { onClose: () => {}, onBack: () => {} }));
+          } catch (e) { entry.errors.push(err(e)); }
+          const t0 = Date.now();
+          while (Date.now() - t0 < 12000 && !findSetter()) await sleep(400);
+          entry.ms = Date.now() - t0;
+          entry.setterFound = !!findSetter();
+          try { root && root.unmount(); } catch (e) {}
+          div.remove();
+          window.removeEventListener('error', onErr);
+          entry.errors = entry.errors.slice(0, 5);
+          out.render.push(entry);
+        }
       }
-      return hit;
+    }
+
+    // 3) Wie laedt WhatsApp nach? Quelltext der Lade-Bausteine fuer die Diagnose
+    for (const n of ['JSResourceForInteraction', 'WAWebLoadable', 'WAWebLazyLoadedRetriable']) {
+      const m = req(n);
+      if (!m) { out.sources[n] = null; continue; }
+      const s = {};
+      const vals = typeof m === 'function' ? { default: m } : m;
+      for (const k of Object.keys(vals).slice(0, 6)) {
+        try { s[k] = typeof vals[k] === 'function' ? String(vals[k]).replace(/\s+/g, ' ').slice(0, 700) : typeof vals[k]; } catch (e) {}
+      }
+      out.sources[n] = s;
+    }
+
+    // 4) Ergebnis: was ist neu, welche Setter gibt es jetzt
+    const regAfter = getReg() || {};
+    const added = Object.keys(regAfter).filter(n => !before.has(n));
+    out.addedTotal = added.length;
+    out.addedPrivacy = added.filter(n => PRIV.test(n)).sort().slice(0, 80);
+    out.exportHits = [];
+    for (const n of Object.keys(regAfter)) {
+      let ex; try { ex = regAfter[n] && regAfter[n].exports; } catch (e) { continue; }
+      if (!ex && out.addedPrivacy.includes(n)) ex = req(n);
+      if (!ex || typeof ex !== 'object') continue;
+      let keys = []; try { keys = Object.keys(ex); } catch (e) { continue; }
+      const fns = keys.filter(k => /privacy/i.test(k) && /^set|ServerName|update|change/i.test(k));
+      if (fns.length) out.exportHits.push({ module: n, fns: fns.slice(0, 10) });
+      if (out.exportHits.length > 40) break;
+    }
+    const setter = findSetter();
+    out.setter = setter ? { via: setter.via, keys: Object.keys(setter.mod).slice(0, 15) } : null;
+    out.nowAvailable = {
+      setter: !!setter,
+      WAWebStatusPrivacyContactsUtils: has('WAWebStatusPrivacyContactsUtils'),
     };
-
-    for (const name of loadables) {
-      let mod; try { mod = window.require(name); } catch (e) { shapes[name] = 'FEHLER: ' + String((e && e.message) || e).slice(0, 100); continue; }
-      const shape = {};
-      try {
-        for (const k of Object.keys(mod || {}).slice(0, 10)) {
-          const v = mod[k];
-          shape[k] = typeof v === 'function'
-            ? { type: 'fn', statics: Object.keys(v).slice(0, 10), src: String(v).replace(/\s+/g, ' ').slice(0, 300) }
-            : typeof v;
-        }
-      } catch (e) {}
-      shapes[name] = shape;
-      await tryObj(name, mod, 0);
-    }
-
-    const after = reg ? Object.keys(reg) : [];
-    const added = after.filter(n => !before.has(n));
-    const re = /privacy|lastseen|readreceipt|profilepic|groupadd|visibility/i;
-    const addedPrivacy = added.filter(n => re.test(n)).sort().slice(0, 80);
-    const probe = {};
-    for (const n of addedPrivacy.slice(0, 30)) {
-      try {
-        const m = window.require(n);
-        const e = {};
-        for (const k of Object.keys(m || {}).slice(0, 20)) {
-          const v = m[k];
-          e[k] = typeof v === 'function' ? 'fn ' + String(v).replace(/\s+/g, ' ').slice(0, String(v).indexOf(')') + 1 || 80) : typeof v;
-        }
-        probe[n] = e;
-      } catch (e) { probe[n] = 'FEHLER'; }
-    }
-    const has = (n) => { try { return !!window.require(n); } catch (e) { return false; } };
-
-    // Nicht jedes Loadable hat preload() (die Datenschutz-Schublade ist nur eine
-    // React-Huelle). WhatsApps eigenes import() heisst importNamespace und holt
-    // ein Modul samt Bundle per Namen — direkt den Setter anfordern, notfalls die
-    // Schublade, die ihn mitbringt.
-    // Welche Module will ein Loadable nachladen? Steht als Zeichenkette in seiner Factory.
-    const loaderTargets = {};
-    const targets = new Set();
-    for (const name of loadables) {
-      const entry = reg && reg[name];
-      let src = '';
-      try { src = entry && typeof entry.factory === 'function' ? String(entry.factory) : ''; } catch (e) {}
-      const found = [...new Set((src.match(/["']([A-Za-z][\w.$-]*(?:Drawer|Flow|Privacy|privacy)[\w.$-]*)["']/g) || [])
-        .map(s => s.slice(1, -1)))].filter(n => n !== name);
-      let deps = null;
-      try { deps = Array.isArray(entry && entry.dependencies) ? entry.dependencies.map(d => (d && (d.id || d.name)) || String(d)).slice(0, 40) : null; } catch (e) {}
-      loaderTargets[name] = { found, deps, src: src.replace(/\s+/g, ' ').slice(0, 1500) };
-      found.forEach(n => targets.add(n));
-    }
-
-    const imports = [];
-    if (typeof window.importNamespace === 'function') {
-      for (const n of ['WAWebSetPrivacyForOneCategoryAction', ...targets]) {
-        if (has(n)) { imports.push({ name: n, ok: true, already: true }); continue; }
-        const t0 = Date.now();
-        try {
-          const r = await withTimeout(Promise.resolve(window.importNamespace(n)), 15000);
-          imports.push({ name: n, ms: Date.now() - t0, result: r === 'ZEITUEBERSCHREITUNG' ? r : typeof r,
-            keys: r && typeof r === 'object' ? Object.keys(r).slice(0, 15) : null, nowRequirable: has(n) });
-        } catch (e) { imports.push({ name: n, ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 160) }); }
-      }
-    }
-
-    // Nach dem Laden: alle initialisierten Module nach Funktionen mit "privacy"
-    // im Exportnamen absuchen — Exportnamen ueberleben Modul-Umbenennungen
-    const exportHits = [];
-    if (reg) {
-      for (const n of Object.keys(reg)) {
-        let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
-        if (!ex || typeof ex !== 'object') continue;
-        let keys = []; try { keys = Object.keys(ex); } catch (e) { continue; }
-        const fns = keys.filter(k => /privacy/i.test(k) && /^set|ServerName|update|change/i.test(k));
-        if (fns.length) exportHits.push({ module: n, fns: fns.slice(0, 10) });
-        if (exportHits.length > 40) break;
-      }
-    }
     window.__haPrivacyPreloaded = true;
-    return {
-      apis: { requireLazy: typeof window.requireLazy, importNamespace: typeof window.importNamespace, __d: typeof window.__d },
-      loadables, shapes, calls, loaderTargets, imports, exportHits,
-      addedTotal: added.length, addedPrivacy, probe,
-      nowAvailable: {
-        WAWebSetPrivacyForOneCategoryAction: has('WAWebSetPrivacyForOneCategoryAction'),
-        WAWebStatusPrivacyContactsUtils: has('WAWebStatusPrivacyContactsUtils'),
-      },
-    };
+    return out;
   }, force);
 }
 
@@ -3074,8 +3071,16 @@ let _privacyPreloadAt = 0;
 async function ensurePrivacyBundles() {
   try {
     const missing = await client.pupPage.evaluate(() => {
-      const has = (n) => { try { return !!window.require(n); } catch (e) { return false; } };
-      return !has('WAWebSetPrivacyForOneCategoryAction') || !has('WAWebStatusPrivacyContactsUtils');
+      const req = (n) => { try { return window.require(n) || null; } catch (e) { return null; } };
+      if (!req('WAWebStatusPrivacyContactsUtils')) return true;
+      if (req('WAWebSetPrivacyForOneCategoryAction')) return false;
+      let reg = null;
+      try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+      for (const n of Object.keys(reg || {})) {
+        let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+        if (ex && typeof ex.setPrivacyForOneCategory === 'function') return false;
+      }
+      return true;
     });
     if (!missing || Date.now() - _privacyPreloadAt < 5 * 60 * 1000) return;
     _privacyPreloadAt = Date.now();
@@ -3230,6 +3235,7 @@ app.post('/api/privacy', async (req, res) => {
         try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
         for (const n of Object.keys(reg || {})) {
           let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) { try { ex = window.require(n); } catch (e) {} }
           if (ex && typeof ex.setPrivacyForOneCategory === 'function' && typeof ex.privacyWebNameToServerName === 'function') return ex;
         }
         return null;
@@ -3352,6 +3358,7 @@ app.post('/api/privacy/disallowed', async (req, res) => {
         try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
         for (const n of Object.keys(reg || {})) {
           let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) { try { ex = window.require(n); } catch (e) {} }
           if (ex && typeof ex.setPrivacyForOneCategory === 'function' && typeof ex.privacyWebNameToServerName === 'function') return ex;
         }
         return null;

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.42] - 2026-09-16
+
+- **Datenschutz aendern: Schublade wird unsichtbar gerendert, um ihren Code nachzuladen.** Die Diagnose aus 1.8.41 zeigte: `importNamespace` laedt nichts nach, es liefert nur bereits geladene Module (Antwort nach 1 ms). Nachgeladen wird ueber `JSResourceForInteraction`, dessen Zielname in einer Closure steckt. Das Add-on rendert `PrivacyVisibilityEditDrawerLoadable` deshalb in einem eigenen, versteckten React-Root — das loest dasselbe Nachladen aus wie ein Klick. Renderfehler bleiben in diesem Root
+- Setter-Suche prueft auch noch nicht initialisierte Module mit `Privacy…Action/Job/Bridge/Api/Utils` im Namen
+- Fix in der Diagnose: `__debug.modulesMap` ist eine Momentaufnahme — die Vorher/Nachher-Liste wurde nie frisch gelesen und zeigte deshalb immer 0 neue Module
+
 ## [1.8.41] - 2026-09-16
 
 - `importNamespace("WAWebSetPrivacyForOneCategoryAction")` lieferte nichts — der Setter heisst im neuen Build vermutlich anders. Die Schreib-Endpunkte suchen ihn jetzt ueber seine Exporte (`setPrivacyForOneCategory` + `privacyWebNameToServerName`) in allen geladenen Modulen statt ueber den Modulnamen
