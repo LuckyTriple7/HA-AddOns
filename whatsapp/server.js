@@ -3014,20 +3014,51 @@ async function preloadPrivacyBundles(force = false) {
     // React-Huelle). WhatsApps eigenes import() heisst importNamespace und holt
     // ein Modul samt Bundle per Namen — direkt den Setter anfordern, notfalls die
     // Schublade, die ihn mitbringt.
+    // Welche Module will ein Loadable nachladen? Steht als Zeichenkette in seiner Factory.
+    const loaderTargets = {};
+    const targets = new Set();
+    for (const name of loadables) {
+      const entry = reg && reg[name];
+      let src = '';
+      try { src = entry && typeof entry.factory === 'function' ? String(entry.factory) : ''; } catch (e) {}
+      const found = [...new Set((src.match(/["']([A-Za-z][\w.$-]*(?:Drawer|Flow|Privacy|privacy)[\w.$-]*)["']/g) || [])
+        .map(s => s.slice(1, -1)))].filter(n => n !== name);
+      let deps = null;
+      try { deps = Array.isArray(entry && entry.dependencies) ? entry.dependencies.map(d => (d && (d.id || d.name)) || String(d)).slice(0, 40) : null; } catch (e) {}
+      loaderTargets[name] = { found, deps, src: src.replace(/\s+/g, ' ').slice(0, 1500) };
+      found.forEach(n => targets.add(n));
+    }
+
     const imports = [];
     if (typeof window.importNamespace === 'function') {
-      for (const n of ['WAWebSetPrivacyForOneCategoryAction', 'WAWebPrivacyVisibilityEditDrawer.react', 'WAWebStatusPrivacyContactsUtils']) {
+      for (const n of ['WAWebSetPrivacyForOneCategoryAction', ...targets]) {
         if (has(n)) { imports.push({ name: n, ok: true, already: true }); continue; }
+        const t0 = Date.now();
         try {
           const r = await withTimeout(Promise.resolve(window.importNamespace(n)), 15000);
-          imports.push({ name: n, ok: r !== 'ZEITUEBERSCHREITUNG' && !!r, nowRequirable: has(n) });
-        } catch (e) { imports.push({ name: n, error: String((e && e.message) || e).slice(0, 160) }); }
+          imports.push({ name: n, ms: Date.now() - t0, result: r === 'ZEITUEBERSCHREITUNG' ? r : typeof r,
+            keys: r && typeof r === 'object' ? Object.keys(r).slice(0, 15) : null, nowRequirable: has(n) });
+        } catch (e) { imports.push({ name: n, ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 160) }); }
+      }
+    }
+
+    // Nach dem Laden: alle initialisierten Module nach Funktionen mit "privacy"
+    // im Exportnamen absuchen — Exportnamen ueberleben Modul-Umbenennungen
+    const exportHits = [];
+    if (reg) {
+      for (const n of Object.keys(reg)) {
+        let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+        if (!ex || typeof ex !== 'object') continue;
+        let keys = []; try { keys = Object.keys(ex); } catch (e) { continue; }
+        const fns = keys.filter(k => /privacy/i.test(k) && /^set|ServerName|update|change/i.test(k));
+        if (fns.length) exportHits.push({ module: n, fns: fns.slice(0, 10) });
+        if (exportHits.length > 40) break;
       }
     }
     window.__haPrivacyPreloaded = true;
     return {
       apis: { requireLazy: typeof window.requireLazy, importNamespace: typeof window.importNamespace, __d: typeof window.__d },
-      loadables, shapes, calls, imports,
+      loadables, shapes, calls, loaderTargets, imports, exportHits,
       addedTotal: added.length, addedPrivacy, probe,
       nowAvailable: {
         WAWebSetPrivacyForOneCategoryAction: has('WAWebSetPrivacyForOneCategoryAction'),
@@ -3193,8 +3224,16 @@ app.post('/api/privacy', async (req, res) => {
   try {
     await ensurePrivacyBundles();
     const out = await client.pupPage.evaluate(async (name, value) => {
-      let mod;
-      try { mod = window.require('WAWebSetPrivacyForOneCategoryAction'); } catch (e) { mod = null; }
+      const mod = (function findSetter() {
+        try { const m = window.require('WAWebSetPrivacyForOneCategoryAction'); if (m) return m; } catch (e) {}
+        let reg = null;
+        try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+        for (const n of Object.keys(reg || {})) {
+          let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (ex && typeof ex.setPrivacyForOneCategory === 'function' && typeof ex.privacyWebNameToServerName === 'function') return ex;
+        }
+        return null;
+      })();
       if (!mod) {
         return { ok: false, error: 'privacy_change_unavailable',
           hint: 'WhatsApp Web hat das noetige Modul entfernt (Umbau) — Datenschutz aendern geht hier gerade nicht, bitte am Handy aendern.' };
@@ -3307,8 +3346,16 @@ app.post('/api/privacy/disallowed', async (req, res) => {
     await ensurePrivacyBundles();
     const out = await client.pupPage.evaluate(async (category, typeName, add, remove) => {
       const ser = (w) => { try { return w && (w._serialized || String(w)); } catch (e) { return null; } };
-      let setMod;
-      try { setMod = window.require('WAWebSetPrivacyForOneCategoryAction'); } catch (e) { setMod = null; }
+      const setMod = (function findSetter() {
+        try { const m = window.require('WAWebSetPrivacyForOneCategoryAction'); if (m) return m; } catch (e) {}
+        let reg = null;
+        try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+        for (const n of Object.keys(reg || {})) {
+          let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (ex && typeof ex.setPrivacyForOneCategory === 'function' && typeof ex.privacyWebNameToServerName === 'function') return ex;
+        }
+        return null;
+      })();
       if (!setMod) {
         return { ok: false, error: 'privacy_change_unavailable',
           hint: 'WhatsApp Web hat das noetige Modul entfernt (Umbau) — Ausnahmeliste bearbeiten geht hier gerade nicht, bitte am Handy aendern.' };

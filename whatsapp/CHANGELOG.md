@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.41] - 2026-09-16
+
+- `importNamespace("WAWebSetPrivacyForOneCategoryAction")` lieferte nichts — der Setter heisst im neuen Build vermutlich anders. Die Schreib-Endpunkte suchen ihn jetzt ueber seine Exporte (`setPrivacyForOneCategory` + `privacyWebNameToServerName`) in allen geladenen Modulen statt ueber den Modulnamen
+- `/api/privacy/diag?lazy=1` liest aus der Factory der Loadables die Namen der Module, die sie nachladen wollen, fordert diese per `importNamespace` an und listet danach alle Module mit Datenschutz-Setter im Exportnamen
+
 ## [1.8.40] - 2026-09-16
 
 - **Datenschutz aendern: Setter wird per `importNamespace` nachgeladen.** Die Diagnose aus 1.8.39 hat die Ursache bestaetigt: nach dem Nachladen war `WAWebStatusPrivacyContactsUtils` wieder verfuegbar, die Module waren also nie entfernt, nur nicht geladen. Die Datenschutz-Schublade hat aber kein `preload()` (nur eine React-Huelle) — deshalb fordert das Add-on `WAWebSetPrivacyForOneCategoryAction` jetzt direkt ueber WhatsApps eigenes `importNamespace` an
