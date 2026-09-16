@@ -3009,10 +3009,25 @@ async function preloadPrivacyBundles(force = false) {
       } catch (e) { probe[n] = 'FEHLER'; }
     }
     const has = (n) => { try { return !!window.require(n); } catch (e) { return false; } };
+
+    // Nicht jedes Loadable hat preload() (die Datenschutz-Schublade ist nur eine
+    // React-Huelle). WhatsApps eigenes import() heisst importNamespace und holt
+    // ein Modul samt Bundle per Namen — direkt den Setter anfordern, notfalls die
+    // Schublade, die ihn mitbringt.
+    const imports = [];
+    if (typeof window.importNamespace === 'function') {
+      for (const n of ['WAWebSetPrivacyForOneCategoryAction', 'WAWebPrivacyVisibilityEditDrawer.react', 'WAWebStatusPrivacyContactsUtils']) {
+        if (has(n)) { imports.push({ name: n, ok: true, already: true }); continue; }
+        try {
+          const r = await withTimeout(Promise.resolve(window.importNamespace(n)), 15000);
+          imports.push({ name: n, ok: r !== 'ZEITUEBERSCHREITUNG' && !!r, nowRequirable: has(n) });
+        } catch (e) { imports.push({ name: n, error: String((e && e.message) || e).slice(0, 160) }); }
+      }
+    }
     window.__haPrivacyPreloaded = true;
     return {
       apis: { requireLazy: typeof window.requireLazy, importNamespace: typeof window.importNamespace, __d: typeof window.__d },
-      loadables, shapes, calls,
+      loadables, shapes, calls, imports,
       addedTotal: added.length, addedPrivacy, probe,
       nowAvailable: {
         WAWebSetPrivacyForOneCategoryAction: has('WAWebSetPrivacyForOneCategoryAction'),
@@ -3022,13 +3037,19 @@ async function preloadPrivacyBundles(force = false) {
   }, force);
 }
 
-// Vor jedem Schreibzugriff: fehlt der Setter, erst die Einstellungs-Bundles nachladen
+// Vor jedem Schreibzugriff: fehlt ein Setter, die Einstellungs-Bundles nachladen.
+// Hoechstens alle 5 Minuten neu versuchen, falls es gar nicht klappt.
+let _privacyPreloadAt = 0;
 async function ensurePrivacyBundles() {
   try {
     const missing = await client.pupPage.evaluate(() => {
-      try { return !window.require('WAWebSetPrivacyForOneCategoryAction'); } catch (e) { return true; }
+      const has = (n) => { try { return !!window.require(n); } catch (e) { return false; } };
+      return !has('WAWebSetPrivacyForOneCategoryAction') || !has('WAWebStatusPrivacyContactsUtils');
     });
-    if (missing) await preloadPrivacyBundles();
+    if (!missing || Date.now() - _privacyPreloadAt < 5 * 60 * 1000) return;
+    _privacyPreloadAt = Date.now();
+    const r = await preloadPrivacyBundles(true);
+    dbg('ensurePrivacyBundles:', JSON.stringify(r && r.nowAvailable));
   } catch (e) { dbg('ensurePrivacyBundles:', e.message); }
 }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.40] - 2026-09-16
+
+- **Datenschutz aendern: Setter wird per `importNamespace` nachgeladen.** Die Diagnose aus 1.8.39 hat die Ursache bestaetigt: nach dem Nachladen war `WAWebStatusPrivacyContactsUtils` wieder verfuegbar, die Module waren also nie entfernt, nur nicht geladen. Die Datenschutz-Schublade hat aber kein `preload()` (nur eine React-Huelle) — deshalb fordert das Add-on `WAWebSetPrivacyForOneCategoryAction` jetzt direkt ueber WhatsApps eigenes `importNamespace` an
+- Nachladen wird bei fehlendem Setter hoechstens alle 5 Minuten neu versucht; `/api/privacy/diag?lazy=1` zeigt zusaetzlich das Ergebnis jedes `importNamespace`-Aufrufs
+
 ## [1.8.39] - 2026-09-16
 
 Neu gezaehlt, sonst inhaltsgleich mit dem Eintrag darunter: die Nummer 1.8.38 war bereits von einem zurueckgenommenen Build belegt, Home Assistant hat das Update deshalb nicht angeboten.
