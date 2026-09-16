@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.36] - 2026-09-16
+
+- **Fix: Status-Publikum wieder nutzbar.** WA Web 2.3000.1047643939 hat `WAWebStatusPrivacyContactsUtils.convertPrivacyListContactsToWids` entfernt. Die Kontakt-Wid liegt aber schon auf jedem aufgeloesten Kontakt-Modell selbst (`contact.id`, wie ueberall sonst im Add-on genutzt) — der Umweg ueber die Utility war nur redundant. Betrifft "Status-Publikum" (allow/deny/contacts) im Reiter Datenschutz
+- **Weiterhin offen: „Datenschutz aendern" und die Ausnahmeliste.** `WAWebSetPrivacyForOneCategoryAction` ist komplett verschwunden, noch kein Nachfolger gefunden (Sondierung in `/api/privacy/diag` lief mehrfach ins Leere — Kandidat `WAWebPrivacyBridgeApi` liefert nur eine Instanz ohne reflektierbare Methoden, vermutlich private Klassenfelder). Beide Endpunkte (`POST /api/privacy`, `POST /api/privacy/disallowed`) antworten jetzt mit einer klaren Fehlermeldung (`privacy_change_unavailable`) statt einem rohen Absturz — bis auf Weiteres am Handy aendern
+- Selbsttest (`/api/selfcheck`) prueft `WAWebStatusPrivacyContactsUtils` nicht mehr (wird nicht mehr gebraucht)
+
 ## [1.8.35] - 2026-09-16
 
 Fix fuer die Prototyp-Methoden-Sonde aus 1.8.34: griff faelschlich auch bei einfachen Objekten wie `{all:'all',...}` und listete Object.prototype-Muell (toString, hasOwnProperty, ...) mit auf. Jetzt nur noch bei echten Klassen-Instanzen (Prototyp != Object.prototype).

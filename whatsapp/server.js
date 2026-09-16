@@ -2999,8 +2999,13 @@ app.post('/api/privacy', async (req, res) => {
   }
   try {
     const out = await client.pupPage.evaluate(async (name, value) => {
+      let mod;
+      try { mod = window.require('WAWebSetPrivacyForOneCategoryAction'); } catch (e) { mod = null; }
+      if (!mod) {
+        return { ok: false, error: 'privacy_change_unavailable',
+          hint: 'WhatsApp Web hat das noetige Modul entfernt (Umbau) — Datenschutz aendern geht hier gerade nicht, bitte am Handy aendern.' };
+      }
       try {
-        const mod = window.require('WAWebSetPrivacyForOneCategoryAction');
         const serverName = mod.privacyWebNameToServerName(name);
         if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + name };
         await mod.setPrivacyForOneCategory({ name: serverName, value }, null);
@@ -3010,7 +3015,7 @@ app.post('/api/privacy', async (req, res) => {
         return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
       }
     }, name, value);
-    if (!out.ok) return res.status(500).json({ error: out.error });
+    if (!out.ok) return res.status(500).json({ error: out.error, hint: out.hint });
     // Ehrlich pruefen statt Erfolg zu behaupten: der neue Stand kommt frisch von WhatsApp
     const applied = out.settings && out.settings[name];
     _logSilent('INFO', `privacy: ${name} → ${value}${applied === value ? '' : ` (WhatsApp meldet ${applied})`}`);
@@ -3107,11 +3112,16 @@ app.post('/api/privacy/disallowed', async (req, res) => {
   try {
     const out = await client.pupPage.evaluate(async (category, typeName, add, remove) => {
       const ser = (w) => { try { return w && (w._serialized || String(w)); } catch (e) { return null; } };
+      let setMod;
+      try { setMod = window.require('WAWebSetPrivacyForOneCategoryAction'); } catch (e) { setMod = null; }
+      if (!setMod) {
+        return { ok: false, error: 'privacy_change_unavailable',
+          hint: 'WhatsApp Web hat das noetige Modul entfernt (Umbau) — Ausnahmeliste bearbeiten geht hier gerade nicht, bitte am Handy aendern.' };
+      }
       try {
         const schema = window.require('WAWebSchemaPrivacyDisallowedList');
         const type = schema.PrivacyDisallowedListType[typeName];
         const util = window.require('WAWebQueryPrivacyDisallowedListUtil');
-        const setMod = window.require('WAWebSetPrivacyForOneCategoryAction');
         const col = window.require('WAWebCollections');
         const serverName = setMod.privacyWebNameToServerName(category);
         if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + category };
@@ -3192,7 +3202,6 @@ const WA_INTERNALS = [
   { mod: 'WAWebSchemaPrivacyDisallowedList', need: ['PrivacyDisallowedListType'],                        feature: 'Ausnahmeliste' },
   { mod: 'WAWebQueryPrivacyDisallowedListUtil', need: ['queryPrivacyDisallowedList', 'isPrivacyDisallowedListTypeLidMigrated'], feature: 'Ausnahmeliste lesen' },
   { mod: 'WAWebStatusPrivacySettingAction',  need: ['getStatusPrivacySetting', 'setStatusPrivacyAllowList', 'setStatusPrivacyDenyList', 'setStatusPrivacyContact'], feature: 'Status-Publikum' },
-  { mod: 'WAWebStatusPrivacyContactsUtils',  need: ['convertPrivacyListContactsToWids'],                 feature: 'Status-Publikum' },
   { mod: '__debug',                          need: [],                                                   feature: 'Modulliste (Diagnose)', optional: true },
 ];
 
@@ -3481,9 +3490,10 @@ app.post('/api/privacy/status', async (req, res) => {
           await act.setStatusPrivacyContact();
         } else {
           const col = window.require('WAWebCollections');
-          const utils = window.require('WAWebStatusPrivacyContactsUtils');
-          // WhatsApp rechnet die Kontaktmodelle selbst in WIDs um (Rufnummer
-          // oder LID, je nach Kontakt) — genau diesen Weg hier mitgehen.
+          // WAWebStatusPrivacyContactsUtils.convertPrivacyListContactsToWids ist mit dem
+          // WA-Web-Umbau 2.3000.1047643939 verschwunden — jedes Kontakt-Modell traegt seine
+          // Wid aber schon selbst unter .id (wie ueberall sonst im Add-on genutzt), die
+          // Umrechnung per Utility war also nur ein Umweg zum gleichen Wert.
           const models = [], unresolved = [];
           for (const id of ids) {
             let m = null;
@@ -3492,8 +3502,8 @@ app.post('/api/privacy/status', async (req, res) => {
             if (m) models.push(m); else unresolved.push(id);
           }
           if (!models.length) return { ok: false, error: 'kein Kontakt aufloesbar', unresolved };
-          const wids = utils.convertPrivacyListContactsToWids(models);
-          if (!wids || !wids.length) return { ok: false, error: 'keine WID ermittelbar', unresolved };
+          const wids = models.map(m => m.id).filter(Boolean);
+          if (!wids.length) return { ok: false, error: 'keine WID ermittelbar', unresolved };
           if (mode === 'allow') await act.setStatusPrivacyAllowList(wids);
           else await act.setStatusPrivacyDenyList(wids);
           var _unresolved = unresolved;
