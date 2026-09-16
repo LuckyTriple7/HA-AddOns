@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.43] - 2026-09-16
+
+- **Selbsttest erkennt den nachgeladenen Datenschutz-Setter.** Er suchte ihn nur unter dem alten Modulnamen und meldete "Datenschutz aendern" deshalb weiter als kaputt, obwohl das Aendern seit 1.8.42 wieder geht — MessengerPortal zeigte "Online – mit Einschraenkung". Jetzt sucht er wie der Schreibpfad ueber die Exporte
+- Nach einem erfolgreichen Aendern laeuft der Selbsttest sofort neu, wenn das letzte Ergebnis eine Stoerung war, statt bis zu 6 Stunden das alte Ergebnis zu liefern
+
 ## [1.8.42] - 2026-09-16
 
 - **Datenschutz aendern: Schublade wird unsichtbar gerendert, um ihren Code nachzuladen.** Die Diagnose aus 1.8.41 zeigte: `importNamespace` laedt nichts nach, es liefert nur bereits geladene Module (Antwort nach 1 ms). Nachgeladen wird ueber `JSResourceForInteraction`, dessen Zielname in einer Closure steckt. Das Add-on rendert `PrivacyVisibilityEditDrawerLoadable` deshalb in einem eigenen, versteckten React-Root — das loest dasselbe Nachladen aus wie ein Klick. Renderfehler bleiben in diesem Root

@@ -3258,6 +3258,8 @@ app.post('/api/privacy', async (req, res) => {
     // Ehrlich pruefen statt Erfolg zu behaupten: der neue Stand kommt frisch von WhatsApp
     const applied = out.settings && out.settings[name];
     _logSilent('INFO', `privacy: ${name} → ${value}${applied === value ? '' : ` (WhatsApp meldet ${applied})`}`);
+    // Stand der Warnung im Portal sofort nachziehen, nicht erst in 6 Stunden
+    if (_lastSelfCheck && !_lastSelfCheck.ok) runSelfCheck().catch(e => dbg('runSelfCheck:', e.message));
     res.json({ success: applied === value, name, value, applied, settings: out.settings });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -3424,6 +3426,7 @@ app.post('/api/privacy/disallowed', async (req, res) => {
     }, category, typeName, add, remove);
     if (!out.ok) return res.status(500).json(out);
     _logSilent('INFO', `privacy-list: ${category} +${out.added.length} -${out.removed.length} → ${out.list.length} Eintrag/Eintraege`);
+    if (_lastSelfCheck && !_lastSelfCheck.ok) runSelfCheck().catch(e => dbg('runSelfCheck:', e.message));
     res.json({ success: true, category, ...out });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -3446,7 +3449,7 @@ const WA_INTERNALS = [
   { mod: 'WAWebSendStatusMsgAction',         need: ['sendStatusTextMsgAction', 'sendStatusMediaMsgAction'], feature: 'Status posten' },
   { mod: 'WAWebStatusGatingUtils',           need: [],                                                   feature: 'Status-Schalter des Kontos', optional: true },
   { mod: 'WAWebQueryPrivacySettingsJob',     need: ['getPrivacy'],                                       feature: 'Datenschutz lesen' },
-  { mod: 'WAWebSetPrivacyForOneCategoryAction', need: ['privacyWebNameToServerName', 'setPrivacyForOneCategory'], feature: 'Datenschutz aendern' },
+  { mod: 'WAWebSetPrivacyForOneCategoryAction', need: ['privacyWebNameToServerName', 'setPrivacyForOneCategory'], feature: 'Datenschutz aendern', byExports: true },
   { mod: 'WAWebPrivacySettings',             need: ['VISIBILITY', 'ONLINE_VISIBILITY', 'CALL_ADD'],      feature: 'zulaessige Datenschutz-Werte' },
   { mod: 'WAWebSchemaPrivacyDisallowedList', need: ['PrivacyDisallowedListType'],                        feature: 'Ausnahmeliste' },
   { mod: 'WAWebQueryPrivacyDisallowedListUtil', need: ['queryPrivacyDisallowedList', 'isPrivacyDisallowedListTypeLidMigrated'], feature: 'Ausnahmeliste lesen' },
@@ -3550,6 +3553,16 @@ async function runSelfCheck() {
     for (const spec of specs) {
       let mod = null, err = null;
       try { mod = window.require(spec.mod); } catch (e) { err = String((e && e.message) || e).slice(0, 120); }
+      // Umbenannte Module ueber ihre Exporte wiederfinden (so sucht sie auch der Schreibpfad)
+      if (!mod && spec.byExports) {
+        let reg = null;
+        try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+        for (const n of Object.keys(reg || {})) {
+          let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) { try { ex = window.require(n); } catch (e) {} }
+          if (ex && spec.need.every(k => { try { return typeof ex[k] === 'function'; } catch (e) { return false; } })) { mod = ex; err = null; break; }
+        }
+      }
       if (!mod) { out.push({ ...spec, ok: false, reason: err ? 'Modul-Fehler: ' + err : 'Modul fehlt' }); continue; }
       const missing = spec.need.filter((k) => {
         try { return mod[k] === undefined || mod[k] === null; } catch (e) { return true; }
