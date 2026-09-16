@@ -115,11 +115,27 @@ GET  /api/privacy/status             → Publikum der Statusmeldungen lesen (mod
 POST /api/privacy/status             → Publikum setzen ({mode, ids:[...]}); bei deny/allow wird die Liste vollständig ersetzt
 GET  /api/privacy/source?module=<n>  → Quelltext eines WhatsApp-Web-Moduls aus der Modulliste (Diagnose, nur lesen)
 GET  /api/privacy/diag               → Diagnose: findet WhatsApp Web ein Modul für die Datenschutzeinstellungen? (?scan=1 durchsucht die Bundles nach echten Modulnamen, ?probeFound=1 probiert die Fundstellen gleich durch) — liest nur, ändert nichts
+POST /api/privacy/diag/open-ui       → Öffnet Einstellungen → Datenschutz in der Hintergrundsitzung und vergleicht die Modul-Registry (DE/EN-UI, keine Einstellungsänderung)
 GET  /api/export/:chatId             → Chat als HTML exportieren
 DELETE /api/messages/:chatId/:msgId  → Nachricht für alle löschen
 POST /api/logout                     → Abmelden
 POST /api/reset                      → Session zurücksetzen (neuer QR-Code)
 ```
+
+### Datenschutz: Lazy Loading prüfen
+
+Bei verbundener Sitzung einmal aufrufen (REST-API und Port 17786 müssen aktiviert sein):
+
+```bash
+curl -X POST http://<HA-IP>:17786/api/privacy/diag/open-ui \
+  -H "Authorization: Bearer <Token>"
+```
+
+Der Aufruf dauert typischerweise 5–13 Sekunden und lässt die erreichte Hintergrundansicht offen. `ui.privacyVisible` bestätigt die Datenschutzansicht anhand ihrer Überschrift und mindestens zweier Kategorie-Texte. `ui.steps` zeigt die Navigation; `navigation_not_found`, `navigation_ambiguous` oder `privacy_view_not_confirmed` bedeuten, dass die aktuellen Selektoren/Sprachtexte nicht zum Ziel geführt haben. Es werden keine Optionen angeklickt. Parallel laufende UI-Diagnosen erhalten HTTP 409.
+
+`registry.added` enthält neue Modulnamen, `factoriesAdded` zusätzlich neu geladene Factorys schon bekannter Module. Diese Listen sind auf je 300 Einträge begrenzt; Zähler und `truncated` zeigen eine Kürzung an. `privacyAdded` filtert die Änderungen nach Datenschutz-Namen. `comparable: false` bedeutet, dass eine Registry-Aufnahme fehlgeschlagen ist. Nach der Navigation kann `GET /api/privacy/diag?probeFound=1` erneut ausgeführt werden; interessante Module lassen sich über `/api/privacy/source?module=<Name>` ansehen.
+
+`ui.alreadyOpen: true` bedeutet, dass die Ansicht schon offen war. Wiederholungen liefern häufig keine neuen Module, da geladene Module in der Sitzung verbleiben. Auch bei erfolgreicher Navigation ohne neue Module ist eine Client-Sperre **nicht belegt**; Hintergrundaktivität kann umgekehrt neue Module erklären. Während der Messung keine anderen Diagnosen starten. Der Test öffnet nur die Datenschutzübersicht, keine einzelnen Kategorien.
 
 ### Nachricht senden
 
@@ -362,6 +378,7 @@ GET  /api/privacy/status             → Read the status audience (mode: contact
 POST /api/privacy/status             → Set the audience ({mode, ids:[...]}); for deny/allow the list is replaced as a whole
 GET  /api/privacy/source?module=<n>  → Source of a WhatsApp Web module from the module map (diagnostics, read-only)
 GET  /api/privacy/diag               → Diagnostics: does WhatsApp Web expose a privacy-settings module? (?scan=1 searches the bundles for real module names, ?probeFound=1 probes the hits) — read-only
+POST /api/privacy/diag/open-ui       → Opens Settings → Privacy in the background session and compares module registries (German/English UI; no settings changed)
 GET  /api/export/:chatId             → Export chat as HTML
 DELETE /api/messages/:chatId/:msgId  → Delete message for everyone
 POST /api/logout                     → Log out

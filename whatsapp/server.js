@@ -56,6 +56,7 @@ const http = require('http');
 const { URL } = require('url');
 const fs = require('fs');
 const crypto = require('crypto');
+const { runPrivacyUiDiagnostic } = require('./privacy-ui-diag');
 const { existsSync, rmSync } = fs;
 
 const rateLimit = require('express-rate-limit');
@@ -2964,7 +2965,25 @@ async function scanPrivacyModuleNames() {
 // GET /api/privacy/diag?scan=1       — zusaetzlich die Bundles nach echten Namen durchsuchen (dauert)
 // GET /api/privacy/diag?scan=1&probeFound=1 — die gefundenen Namen gleich mit durchprobieren
 // GET /api/privacy/diag?textscan=1   — Quelltext aller Modul-Factorys nach alten Funktionsnamen durchsuchen
+let privacyUiDiagRunning = false;
+// POST, weil dieser Test die Hintergrund-UI navigiert. Keine Einstellungen setzen.
+app.post('/api/privacy/diag/open-ui', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  if (privacyUiDiagRunning) return res.status(409).json({ error: 'privacy_ui_diag_running' });
+  privacyUiDiagRunning = true;
+  try {
+    const result = await runPrivacyUiDiagnostic(client.pupPage);
+    res.json({ lib: WA_VERSION, waWeb: waWebVersion, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    privacyUiDiagRunning = false;
+  }
+});
+
 app.get('/api/privacy/diag', async (req, res) => {
+  if (privacyUiDiagRunning) return res.status(409).json({ error: 'privacy_ui_diag_running' });
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
   if (req.query.textscan === '1') {

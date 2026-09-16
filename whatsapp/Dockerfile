@@ -26,7 +26,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-fund --no-audit
 
-COPY server.js .
+COPY server.js privacy-ui-diag.js ./
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
