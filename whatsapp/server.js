@@ -2775,6 +2775,14 @@ const PRIVACY_MODULE_CANDIDATES = [
   'WAWebSchemaPrivacyDisallowedList',
   'WAWebWid',
   'WAWebLidMigrationUtils',
+  // Kandidaten fuer den WA-Web-Umbau 2.3000.1047643939 (WAWebSetPrivacyForOneCategoryAction
+  // und WAWebStatusPrivacyContactsUtils sind verschwunden) — noch unbestaetigt, nur zum Sondieren
+  'WAWebPrivacyBridgeApi',
+  'WAWebStatusSetAndSyncPrivacy',
+  'WAWebStatusPrivacySettingSync',
+  'WAWebSyncPrivacyDisallowedLists',
+  'WAWebUserPrefsPrivacyMode',
+  'WAWebHandlePrivacyModeChange',
 ];
 
 async function probePrivacyModules() {

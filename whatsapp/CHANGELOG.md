@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.33] - 2026-09-16
+
+WhatsApp Web 2.3000.1047643939 hat `WAWebSetPrivacyForOneCategoryAction` und `WAWebStatusPrivacyContactsUtils` entfernt — Datenschutz aendern und Status-Publikum sind seither aus (Selbsttest unter `/api/selfcheck` meldet es). `/api/privacy/diag` sondiert jetzt zusaetzliche Kandidaten-Module (`WAWebPrivacyBridgeApi`, `WAWebStatusSetAndSyncPrivacy` u.a.), um die Nachfolger zu finden.
+
 ## [1.8.32.1] - 2026-09-09
 
 chore(deps): Bump js-yaml from 4.3.1 to 4.3.2 in /whatsapp
