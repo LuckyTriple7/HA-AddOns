@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.38] - 2026-09-16
+
+- **Datenschutz aendern: Nachlade-Bundles werden jetzt selbst geladen.** WhatsApp Web holt den Code der Einstellungsseiten erst, wenn jemand sie oeffnet (Module `…Loadable`). Im normalen Browser passiert das beim Anklicken, in der Hintergrund-Sitzung des Add-ons nie — deshalb fehlte `WAWebSetPrivacyForOneCategoryAction` nur hier, waehrend web.whatsapp.com alles aendern konnte. Vor jedem Schreibzugriff (`POST /api/privacy`, `POST /api/privacy/disallowed`) und vor dem Selbsttest wird das Nachladen ausgeloest, falls der Setter fehlt
+- Die Quelltext-Suche aus 1.8.37 war dafuer kein Gegenbeweis: bereits ausgefuehrte Module verwerfen ihre `factory`, und nicht geladene Module stehen gar nicht erst in der Registry
+- Neue Diagnose `GET /api/privacy/diag?lazy=1`: loest das Nachladen aus und meldet, welche Module dabei neu dazukamen und ob der Setter danach verfuegbar ist
+
 ## [1.8.37] - 2026-09-16
 
 `/api/privacy/diag?textscan=1` durchsucht jetzt den Quelltext jeder Modul-Factory im Registry-Modul nach alten Funktionsnamen (`privacyWebNameToServerName` u.a.) statt nur Modulnamen — falls die Funktion nur unter neuem Modulnamen weiterlebt, sollte das den Fundort zeigen.

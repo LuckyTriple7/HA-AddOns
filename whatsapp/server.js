@@ -2934,6 +2934,104 @@ async function scanModuleSourcesForText(needles) {
   }, needles);
 }
 
+// WhatsApp Web laedt den Code der Einstellungsseiten erst nach, wenn jemand sie
+// oeffnet (Module mit "Loadable" im Namen). Seit 2.3000.104764xxxx liegen die
+// Datenschutz-Setter in so einem Nachlade-Bundle — im Browser da, sobald man
+// die Einstellungen anklickt, in unserer Sitzung nie. Hier wird das Nachladen
+// selbst ausgeloest: nur preload/load-Methoden, die Code holen, nichts aendern.
+async function preloadPrivacyBundles(force = false) {
+  return client.pupPage.evaluate(async (force) => {
+    if (window.__haPrivacyPreloaded && !force) return { skipped: true };
+    const pick = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+        if (obj[key] && typeof obj[key] === 'object') return obj[key];
+      }
+      return null;
+    };
+    let reg = null;
+    try { reg = pick(window.require('__debug')); } catch (e) {}
+    const before = new Set(reg ? Object.keys(reg) : []);
+    const loadables = [...before].filter(n => /Loadable/.test(n) && /privacy/i.test(n));
+    const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r('ZEITUEBERSCHREITUNG'), ms))]);
+    const calls = [], shapes = {};
+
+    const tryObj = async (label, obj, depth) => {
+      if (!obj || depth > 2) return false;
+      for (const m of ['preload', 'load', 'loader', 'loadModule']) {
+        let fn; try { fn = obj[m]; } catch (e) { continue; }
+        if (typeof fn !== 'function' || fn.length > 0) continue;
+        try {
+          const r = await withTimeout(Promise.resolve(fn.call(obj)), 15000);
+          calls.push({ at: label + '.' + m, ok: r !== 'ZEITUEBERSCHREITUNG' });
+        } catch (e) { calls.push({ at: label + '.' + m, error: String((e && e.message) || e).slice(0, 120) }); }
+        return true;
+      }
+      let keys = [];
+      try { keys = Object.keys(obj).slice(0, 20); } catch (e) {}
+      let hit = false;
+      for (const k of keys) {
+        let v; try { v = obj[k]; } catch (e) { continue; }
+        if (v && (typeof v === 'object' || typeof v === 'function')) hit = (await tryObj(label + '.' + k, v, depth + 1)) || hit;
+      }
+      return hit;
+    };
+
+    for (const name of loadables) {
+      let mod; try { mod = window.require(name); } catch (e) { shapes[name] = 'FEHLER: ' + String((e && e.message) || e).slice(0, 100); continue; }
+      const shape = {};
+      try {
+        for (const k of Object.keys(mod || {}).slice(0, 10)) {
+          const v = mod[k];
+          shape[k] = typeof v === 'function'
+            ? { type: 'fn', statics: Object.keys(v).slice(0, 10), src: String(v).replace(/\s+/g, ' ').slice(0, 300) }
+            : typeof v;
+        }
+      } catch (e) {}
+      shapes[name] = shape;
+      await tryObj(name, mod, 0);
+    }
+
+    const after = reg ? Object.keys(reg) : [];
+    const added = after.filter(n => !before.has(n));
+    const re = /privacy|lastseen|readreceipt|profilepic|groupadd|visibility/i;
+    const addedPrivacy = added.filter(n => re.test(n)).sort().slice(0, 80);
+    const probe = {};
+    for (const n of addedPrivacy.slice(0, 30)) {
+      try {
+        const m = window.require(n);
+        const e = {};
+        for (const k of Object.keys(m || {}).slice(0, 20)) {
+          const v = m[k];
+          e[k] = typeof v === 'function' ? 'fn ' + String(v).replace(/\s+/g, ' ').slice(0, String(v).indexOf(')') + 1 || 80) : typeof v;
+        }
+        probe[n] = e;
+      } catch (e) { probe[n] = 'FEHLER'; }
+    }
+    const has = (n) => { try { return !!window.require(n); } catch (e) { return false; } };
+    window.__haPrivacyPreloaded = true;
+    return {
+      apis: { requireLazy: typeof window.requireLazy, importNamespace: typeof window.importNamespace, __d: typeof window.__d },
+      loadables, shapes, calls,
+      addedTotal: added.length, addedPrivacy, probe,
+      nowAvailable: {
+        WAWebSetPrivacyForOneCategoryAction: has('WAWebSetPrivacyForOneCategoryAction'),
+        WAWebStatusPrivacyContactsUtils: has('WAWebStatusPrivacyContactsUtils'),
+      },
+    };
+  }, force);
+}
+
+// Vor jedem Schreibzugriff: fehlt der Setter, erst die Einstellungs-Bundles nachladen
+async function ensurePrivacyBundles() {
+  try {
+    const missing = await client.pupPage.evaluate(() => {
+      try { return !window.require('WAWebSetPrivacyForOneCategoryAction'); } catch (e) { return true; }
+    });
+    if (missing) await preloadPrivacyBundles();
+  } catch (e) { dbg('ensurePrivacyBundles:', e.message); }
+}
+
 // Ausweichweg: die echten Namen aus den geladenen Bundles fischen.
 async function scanPrivacyModuleNames() {
   return client.pupPage.evaluate(async () => {
@@ -2967,6 +3065,13 @@ async function scanPrivacyModuleNames() {
 app.get('/api/privacy/diag', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  if (req.query.lazy === '1') {
+    try {
+      return res.json({ lib: WA_VERSION, waWeb: waWebVersion, lazy: await preloadPrivacyBundles(true) });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
   if (req.query.textscan === '1') {
     try {
       const needles = (req.query.needles ? String(req.query.needles).split(',') : [
@@ -3065,6 +3170,7 @@ app.post('/api/privacy', async (req, res) => {
       hint: 'Die Ausnahmeliste laesst sich hier nicht pflegen — diese Einstellung nur am Handy aendern.' });
   }
   try {
+    await ensurePrivacyBundles();
     const out = await client.pupPage.evaluate(async (name, value) => {
       let mod;
       try { mod = window.require('WAWebSetPrivacyForOneCategoryAction'); } catch (e) { mod = null; }
@@ -3177,6 +3283,7 @@ app.post('/api/privacy/disallowed', async (req, res) => {
   const remove = clean(req.body?.remove);
   if (!add.length && !remove.length) return res.status(400).json({ error: 'add oder remove erforderlich' });
   try {
+    await ensurePrivacyBundles();
     const out = await client.pupPage.evaluate(async (category, typeName, add, remove) => {
       const ser = (w) => { try { return w && (w._serialized || String(w)); } catch (e) { return null; } };
       let setMod;
@@ -3361,6 +3468,8 @@ let _lastSelfCheck = null;
 
 async function runSelfCheck() {
   if (status !== 'connected' || !client.pupPage) return null;
+  // Nachlade-Module erst holen, sonst meldet der Test sie faelschlich als fehlend
+  await ensurePrivacyBundles();
   const result = await client.pupPage.evaluate((specs) => {
     const out = [];
     for (const spec of specs) {
