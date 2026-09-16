@@ -2821,6 +2821,20 @@ async function probePrivacyModules() {
             } catch (e) { entry.values[k] += ' → FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
           }
         } else if (v && typeof v === 'object') {
+          // Klassen-Instanzen wie PrivacyBridgeApi tragen ihre Methoden auf dem
+          // Prototyp, nicht als eigene Property — die landen nicht in JSON.stringify.
+          // Deshalb hier zusaetzlich Methodennamen samt Signatur eine Ebene tiefer,
+          // ohne sie aufzurufen.
+          try {
+            const own = [...new Set([...Object.getOwnPropertyNames(v), ...Object.getOwnPropertyNames(Object.getPrototypeOf(v) || {})])]
+              .filter(n => n !== 'constructor').slice(0, 60);
+            const nested = {};
+            for (const nk of own) {
+              let nv; try { nv = v[nk]; } catch (e) { continue; }
+              nested[nk] = typeof nv === 'function' ? 'fn ' + sig(nv) : typeof nv;
+            }
+            if (Object.keys(nested).length) entry.values[k + '.__methods'] = nested;
+          } catch (e) {}
           try { entry.values[k] = 'obj ' + JSON.stringify(v).slice(0, 200); }
           catch (e) { entry.values[k] = 'obj [nicht serialisierbar]'; }
         } else {
