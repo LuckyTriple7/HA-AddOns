@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.35] - 2026-09-16
+
+Fix fuer die Prototyp-Methoden-Sonde aus 1.8.34: griff faelschlich auch bei einfachen Objekten wie `{all:'all',...}` und listete Object.prototype-Muell (toString, hasOwnProperty, ...) mit auf. Jetzt nur noch bei echten Klassen-Instanzen (Prototyp != Object.prototype).
+
 ## [1.8.34] - 2026-09-16
 
 `/api/privacy/diag` listet jetzt auch Methodennamen von Objekt-Kandidaten wie `WAWebPrivacyBridgeApi.PrivacyBridgeApi` eine Ebene tiefer auf (Prototyp-Methoden, sonst von JSON.stringify verschluckt) — noetig, um den Nachfolger von `WAWebSetPrivacyForOneCategoryAction` zu finden.
