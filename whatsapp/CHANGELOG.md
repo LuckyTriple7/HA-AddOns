@@ -1,11 +1,5 @@
 # Changelog
 
-## [1.8.38] - 2026-09-16
-
-- Neue gezielte Lazy-Loading-Diagnose: `POST /api/privacy/diag/open-ui` oeffnet in der bestehenden Puppeteer-Sitzung Einstellungen → Datenschutz (deutsche/englische Navigation), ohne Datenschutzwerte anzuklicken. Die Ansicht bleibt offen.
-- Vergleicht die komplette Modul-Registry vor/nach der Navigation, inklusive neu verfuegbarer Factorys bereits registrierter Module. Liefert Navigationsschritte und Ansichtserkennung; keine Modul-Probes vor dem Vergleich, die das Ergebnis selbst beeinflussen koennten.
-- Fehlende oder mehrdeutige Navigation wird explizit gemeldet. Ausbleibende neue Module sind kein Beleg fuer eine WhatsApp-seitige Client-Sperre; eine bereits geoeffnete Ansicht ist keine frische Lazy-Loading-Probe.
-
 ## [1.8.37] - 2026-09-16
 
 `/api/privacy/diag?textscan=1` durchsucht jetzt den Quelltext jeder Modul-Factory im Registry-Modul nach alten Funktionsnamen (`privacyWebNameToServerName` u.a.) statt nur Modulnamen — falls die Funktion nur unter neuem Modulnamen weiterlebt, sollte das den Fundort zeigen.
