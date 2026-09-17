@@ -119,6 +119,35 @@ _gh_cache: dict = {
 }
 _gh_lock = threading.Lock()
 
+# Kürzlich lokal gelöschte Workflow-Runs — GitHub listet einen DELETE'ten Run über
+# die Runs-API oft noch einige Minuten weiter (Eventual Consistency). Ohne diesen
+# Filter reißt der nächste Hintergrund-Poll den bereits gelöschten Run wieder in
+# die Liste, der Nutzer sieht ihn "wiederauferstanden" und ein zweiter Löschversuch
+# scheitert mit 404 ("Not Found").
+_deleted_runs: dict[tuple[str, int], float] = {}   # (repo, run_id) → gelöscht um (epoch)
+_deleted_runs_lock = threading.Lock()
+_DELETED_RUNS_TTL = 900  # 15 min — danach ist GitHub sicher konsistent
+
+
+def _mark_run_deleted(repo: str, run_id: int) -> None:
+    now = time.time()
+    with _deleted_runs_lock:
+        _deleted_runs[(repo, run_id)] = now
+        # nebenbei abgelaufene Einträge aufräumen, damit das Dict nicht unbegrenzt wächst
+        for key, ts in list(_deleted_runs.items()):
+            if now - ts > _DELETED_RUNS_TTL:
+                del _deleted_runs[key]
+
+
+def _filter_deleted_runs(repo: str, runs: list) -> list:
+    now = time.time()
+    with _deleted_runs_lock:
+        dead_ids = {rid for (r, rid), ts in _deleted_runs.items()
+                    if r == repo and now - ts < _DELETED_RUNS_TTL}
+    if not dead_ids:
+        return runs
+    return [run for run in runs if run['id'] not in dead_ids]
+
 # Seen releases (für Benachrichtigungen — persistent über Neustarts)
 _SEEN_PATH = _DATA + '/seen_releases.json'
 _seen_releases: set[str] = set()
@@ -218,7 +247,18 @@ def save_user_repos(data: dict) -> None:
         log.warning("gitpulse_repos.json konnte nicht gespeichert werden: %s", e)
 
 
-_GP_SETTINGS_DEFAULTS = {'main_branch': 'main', 'dev_branch': 'dev', 'autofix_branch_check': True}
+_GP_SETTINGS_DEFAULTS = {'main_branch': 'main', 'dev_branch': 'dev', 'autofix_branch_check': True,
+                          'webhook_url': ''}
+
+# Events, die der /webhook-Handler unten tatsächlich auswertet (siehe dort). Bewusst
+# kein 'push'/'create'/'delete' — DOCS.md empfiehlt sie für die manuelle Einrichtung
+# als Vorrat für Zukünftiges, der Handler tut damit aber nichts; sie hier mit
+# einzurichten wäre totes Gewicht auf jedem Push.
+WEBHOOK_REQUIRED_EVENTS = [
+    'pull_request', 'issues', 'issue_comment', 'pull_request_review_comment',
+    'workflow_run', 'star', 'fork',
+    'secret_scanning_alert', 'code_scanning_alert', 'dependabot_alert',
+]
 
 def load_gitpulse_settings() -> dict:
     try:
@@ -895,6 +935,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'head_sha':     run.get('head_sha', '')[:7],
             'head_message': head_msg.split('\n')[0][:80] if head_msg else '',
         })
+    runs = _filter_deleted_runs(repo, runs)
 
     # Alle Workflows außer gelöschten für Verwaltung + Dispatch
     wf_raw = _gh_get(f'/repos/{repo}/actions/workflows', token) or {}
@@ -2657,6 +2698,8 @@ def api_gp_settings_post():
         s['dev_branch'] = str(data['dev_branch']).strip() or 'dev'
     if 'autofix_branch_check' in data:
         s['autofix_branch_check'] = bool(data['autofix_branch_check'])
+    if 'webhook_url' in data:
+        s['webhook_url'] = str(data['webhook_url']).strip()
     save_gitpulse_settings(s)
     return jsonify({'ok': True})
 
@@ -2877,6 +2920,119 @@ def api_config_repos_save():
     return jsonify({'status': 'saved', 'my_repos': my_repos, 'watch_repos': watch_repos})
 
 
+def _webhook_my_repos(cfg: dict) -> list:
+    user_repos_data = load_user_repos()
+    repos = (user_repos_data.get('my_repos') if user_repos_data is not None
+             else cfg.get('my_repos', []))
+    return [r.strip() for r in repos if r.strip()]
+
+
+def _webhook_repo_status(repo: str, token: str, webhook_url: str) -> dict:
+    """Aktuellen Zustand des GitPulse-Webhooks in einem Repo ermitteln — ohne
+    das Secret abzugleichen (GitHub gibt es aus der API nie zurück)."""
+    if not webhook_url:
+        return {'repo': repo, 'status': 'no_url', 'missing_events': [], 'hook_id': None}
+    try:
+        r = http.get(f'{GITHUB_API}/repos/{repo}/hooks', headers=_gh_headers(token), timeout=15)
+    except Exception as e:
+        return {'repo': repo, 'status': 'error', 'error': str(e), 'missing_events': [], 'hook_id': None}
+    if r.status_code == 404:
+        # GitHub liefert bei Hooks bewusst 404 statt 403, wenn Admin-Rechte/Scope fehlen
+        return {'repo': repo, 'status': 'forbidden', 'missing_events': [], 'hook_id': None}
+    if r.status_code != 200:
+        return {'repo': repo, 'status': 'error', 'error': f'HTTP {r.status_code}', 'missing_events': [], 'hook_id': None}
+    hooks = r.json() or []
+    hook = next((h for h in hooks if (h.get('config') or {}).get('url') == webhook_url), None)
+    if hook is None:
+        return {'repo': repo, 'status': 'missing', 'missing_events': list(WEBHOOK_REQUIRED_EVENTS), 'hook_id': None}
+    events  = set(hook.get('events') or [])
+    missing = [e for e in WEBHOOK_REQUIRED_EVENTS if e not in events]
+    if not hook.get('active', True):
+        return {'repo': repo, 'status': 'inactive', 'missing_events': missing, 'hook_id': hook['id']}
+    if missing:
+        return {'repo': repo, 'status': 'incomplete', 'missing_events': missing, 'hook_id': hook['id']}
+    return {'repo': repo, 'status': 'ok', 'missing_events': [], 'hook_id': hook['id']}
+
+
+@app.route('/api/webhooks/status')
+def api_webhooks_status():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg   = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    webhook_url = load_gitpulse_settings().get('webhook_url', '').strip()
+    repos = _webhook_my_repos(cfg)
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        results = list(ex.map(lambda repo: _webhook_repo_status(repo, token, webhook_url), repos))
+    return jsonify({
+        'webhook_url':        webhook_url,
+        'webhook_secret_set': bool(cfg.get('webhook_secret', '').strip()),
+        'required_events':    WEBHOOK_REQUIRED_EVENTS,
+        'repos':              results,
+    })
+
+
+@app.route('/api/webhooks/setup', methods=['POST'])
+def api_webhooks_setup():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg    = load_config()
+    token  = cfg.get('github_token', '').strip()
+    secret = cfg.get('webhook_secret', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    if not secret:
+        return jsonify({'error': 'no_secret'}), 400
+    webhook_url = load_gitpulse_settings().get('webhook_url', '').strip()
+    if not webhook_url:
+        return jsonify({'error': 'no_url'}), 400
+
+    body = request.get_json(silent=True) or {}
+    if body.get('all'):
+        repos = _webhook_my_repos(cfg)
+    else:
+        repo = (body.get('repo') or '').strip()
+        if not repo:
+            return jsonify({'error': 'repo erforderlich'}), 400
+        repos = [repo]
+
+    hook_config = {'url': webhook_url, 'content_type': 'json', 'secret': secret, 'insecure_ssl': '0'}
+
+    def _setup_one(repo: str) -> dict:
+        try:
+            r = http.get(f'{GITHUB_API}/repos/{repo}/hooks', headers=_gh_headers(token), timeout=15)
+            hooks = r.json() if r.status_code == 200 and isinstance(r.json(), list) else []
+            hook  = next((h for h in hooks if (h.get('config') or {}).get('url') == webhook_url), None)
+            if hook:
+                r2 = http.patch(f'{GITHUB_API}/repos/{repo}/hooks/{hook["id"]}',
+                                 headers=_gh_headers(token), timeout=15,
+                                 json={'active': True, 'events': WEBHOOK_REQUIRED_EVENTS, 'config': hook_config})
+            else:
+                r2 = http.post(f'{GITHUB_API}/repos/{repo}/hooks',
+                                headers=_gh_headers(token), timeout=15,
+                                json={'name': 'web', 'active': True, 'events': WEBHOOK_REQUIRED_EVENTS, 'config': hook_config})
+            if r2.status_code in (200, 201):
+                log.info("Webhook für %s eingerichtet", repo)
+                return {'repo': repo, 'ok': True}
+            try:
+                msg = r2.json().get('message', f'HTTP {r2.status_code}')
+            except Exception:
+                msg = f'HTTP {r2.status_code}'
+            log.warning("Webhook-Setup für %s fehlgeschlagen: %s", repo, msg)
+            return {'repo': repo, 'ok': False, 'error': msg}
+        except Exception as e:
+            log.error("Webhook-Setup Fehler (%s): %s", repo, e)
+            return {'repo': repo, 'ok': False, 'error': 'internal_error'}
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        results = list(ex.map(_setup_one, repos))
+    return jsonify({'results': results})
+
+
 @app.route('/api/test-email', methods=['POST'])
 def api_test_email():
     redir = _auth_required(request)
@@ -3080,9 +3236,16 @@ def api_workflow_delete():
             headers=_gh_headers(token),
             timeout=15,
         )
-        if r.status_code == 204:
-            log.info("Workflow-Run %s in %s gelöscht", run_id, repo)
-            # Aus lokalem Cache entfernen
+        if r.status_code == 204 or r.status_code == 404:
+            if r.status_code == 204:
+                log.info("Workflow-Run %s in %s gelöscht", run_id, repo)
+            else:
+                # Bereits gelöscht (z.B. zweiter Klick nach GitHub-Eventual-Consistency-
+                # Reappear) — für den Nutzer kein Fehler, Ziel (Run weg) ist erreicht.
+                log.info("Workflow-Run %s in %s bereits gelöscht", run_id, repo)
+            # Aus lokalem Cache entfernen + für kommende Polls sperren, sonst taucht der
+            # Run wieder auf, solange GitHubs Runs-API noch die alte Liste ausliefert.
+            _mark_run_deleted(repo, run_id)
             with _gh_lock:
                 for rd in _gh_cache.get('my_repos', []):
                     if rd['repo'] == repo:

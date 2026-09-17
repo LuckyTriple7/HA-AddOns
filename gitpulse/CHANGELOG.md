@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.4.20] - 2026-09-14
+
+### Fixed
+- **Settings-Tableiste lief über.** Mit 6 Tabs (neu: Webhooks) brach „E-Mail"
+  mitten im Wort um und „Webhooks" ragte über den Modal-Rand. Padding/Schrift
+  verkleinert, Tabs bekommen `white-space:nowrap`, Leiste scrollt bei Bedarf
+  horizontal statt zu brechen.
+
+## [0.4.19] - 2026-09-14
+
+### Added
+- **Webhooks automatisch einrichten.** Neuer Tab „Webhooks" in den Settings:
+  Payload-URL eintragen, dann pro Repo oder für alle eigenen Repos auf einen
+  Klick per GitHub-API einrichten (`POST/PATCH /repos/{repo}/hooks`) statt
+  jedes Repo einzeln von Hand in den GitHub-Settings anzulegen. Zeigt pro
+  Repo den Ist-Zustand (eingerichtet / Events fehlen / deaktiviert / kein
+  Hook / kein Zugriff) gegen die tatsächlich vom Webhook-Handler
+  verarbeiteten Events geprüft — Secret wird gesetzt, aber (weil GitHub es
+  nie zurückgibt) nicht mit verglichen.
+
+## [0.4.18] - 2026-09-14
+
+### Fixed
+- **Gelöschte Workflow-Runs tauchten wieder in der Liste auf, zweites Löschen
+  scheiterte mit 404.** GitHubs Runs-API listet einen gerade gelöschten Run
+  oft noch minutenlang weiter (Eventual Consistency). Der nächste
+  Hintergrund-Poll überschrieb den lokal bereinigten Cache komplett und riss
+  den Run wieder rein. Löschungen werden jetzt für 15 Minuten gesperrt und aus
+  jedem Poll-Ergebnis herausgefiltert; ein 404 beim Löschen gilt nun als
+  Erfolg (Run ist ja bereits weg) statt als Fehler.
+
+### Added
+- **Console-Tab: Filter nach Log-Level und Text.** Wie in TUIWatch gibt es
+  jetzt Schalter für ERROR/WARN/INFO/DEBUG plus ein Textfeld, die Auswahl wird
+  im Browser gemerkt.
+
 ## [0.4.17] - 2026-09-12
 
 ### Fixed

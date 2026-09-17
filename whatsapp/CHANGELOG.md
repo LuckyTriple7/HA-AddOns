@@ -1,5 +1,58 @@
 # Changelog
 
+## [1.8.43] - 2026-09-16
+
+- **Selbsttest erkennt den nachgeladenen Datenschutz-Setter.** Er suchte ihn nur unter dem alten Modulnamen und meldete "Datenschutz aendern" deshalb weiter als kaputt, obwohl das Aendern seit 1.8.42 wieder geht — MessengerPortal zeigte "Online – mit Einschraenkung". Jetzt sucht er wie der Schreibpfad ueber die Exporte
+- Nach einem erfolgreichen Aendern laeuft der Selbsttest sofort neu, wenn das letzte Ergebnis eine Stoerung war, statt bis zu 6 Stunden das alte Ergebnis zu liefern
+
+## [1.8.42] - 2026-09-16
+
+- **Datenschutz aendern: Schublade wird unsichtbar gerendert, um ihren Code nachzuladen.** Die Diagnose aus 1.8.41 zeigte: `importNamespace` laedt nichts nach, es liefert nur bereits geladene Module (Antwort nach 1 ms). Nachgeladen wird ueber `JSResourceForInteraction`, dessen Zielname in einer Closure steckt. Das Add-on rendert `PrivacyVisibilityEditDrawerLoadable` deshalb in einem eigenen, versteckten React-Root — das loest dasselbe Nachladen aus wie ein Klick. Renderfehler bleiben in diesem Root
+- Setter-Suche prueft auch noch nicht initialisierte Module mit `Privacy…Action/Job/Bridge/Api/Utils` im Namen
+- Fix in der Diagnose: `__debug.modulesMap` ist eine Momentaufnahme — die Vorher/Nachher-Liste wurde nie frisch gelesen und zeigte deshalb immer 0 neue Module
+
+## [1.8.41] - 2026-09-16
+
+- `importNamespace("WAWebSetPrivacyForOneCategoryAction")` lieferte nichts — der Setter heisst im neuen Build vermutlich anders. Die Schreib-Endpunkte suchen ihn jetzt ueber seine Exporte (`setPrivacyForOneCategory` + `privacyWebNameToServerName`) in allen geladenen Modulen statt ueber den Modulnamen
+- `/api/privacy/diag?lazy=1` liest aus der Factory der Loadables die Namen der Module, die sie nachladen wollen, fordert diese per `importNamespace` an und listet danach alle Module mit Datenschutz-Setter im Exportnamen
+
+## [1.8.40] - 2026-09-16
+
+- **Datenschutz aendern: Setter wird per `importNamespace` nachgeladen.** Die Diagnose aus 1.8.39 hat die Ursache bestaetigt: nach dem Nachladen war `WAWebStatusPrivacyContactsUtils` wieder verfuegbar, die Module waren also nie entfernt, nur nicht geladen. Die Datenschutz-Schublade hat aber kein `preload()` (nur eine React-Huelle) — deshalb fordert das Add-on `WAWebSetPrivacyForOneCategoryAction` jetzt direkt ueber WhatsApps eigenes `importNamespace` an
+- Nachladen wird bei fehlendem Setter hoechstens alle 5 Minuten neu versucht; `/api/privacy/diag?lazy=1` zeigt zusaetzlich das Ergebnis jedes `importNamespace`-Aufrufs
+
+## [1.8.39] - 2026-09-16
+
+Neu gezaehlt, sonst inhaltsgleich mit dem Eintrag darunter: die Nummer 1.8.38 war bereits von einem zurueckgenommenen Build belegt, Home Assistant hat das Update deshalb nicht angeboten.
+
+## [1.8.38] - 2026-09-16
+
+- **Datenschutz aendern: Nachlade-Bundles werden jetzt selbst geladen.** WhatsApp Web holt den Code der Einstellungsseiten erst, wenn jemand sie oeffnet (Module `…Loadable`). Im normalen Browser passiert das beim Anklicken, in der Hintergrund-Sitzung des Add-ons nie — deshalb fehlte `WAWebSetPrivacyForOneCategoryAction` nur hier, waehrend web.whatsapp.com alles aendern konnte. Vor jedem Schreibzugriff (`POST /api/privacy`, `POST /api/privacy/disallowed`) und vor dem Selbsttest wird das Nachladen ausgeloest, falls der Setter fehlt
+- Die Quelltext-Suche aus 1.8.37 war dafuer kein Gegenbeweis: bereits ausgefuehrte Module verwerfen ihre `factory`, und nicht geladene Module stehen gar nicht erst in der Registry
+- Neue Diagnose `GET /api/privacy/diag?lazy=1`: loest das Nachladen aus und meldet, welche Module dabei neu dazukamen und ob der Setter danach verfuegbar ist
+
+## [1.8.37] - 2026-09-16
+
+`/api/privacy/diag?textscan=1` durchsucht jetzt den Quelltext jeder Modul-Factory im Registry-Modul nach alten Funktionsnamen (`privacyWebNameToServerName` u.a.) statt nur Modulnamen — falls die Funktion nur unter neuem Modulnamen weiterlebt, sollte das den Fundort zeigen.
+
+## [1.8.36] - 2026-09-16
+
+- **Fix: Status-Publikum wieder nutzbar.** WA Web 2.3000.1047643939 hat `WAWebStatusPrivacyContactsUtils.convertPrivacyListContactsToWids` entfernt. Die Kontakt-Wid liegt aber schon auf jedem aufgeloesten Kontakt-Modell selbst (`contact.id`, wie ueberall sonst im Add-on genutzt) — der Umweg ueber die Utility war nur redundant. Betrifft "Status-Publikum" (allow/deny/contacts) im Reiter Datenschutz
+- **Weiterhin offen: „Datenschutz aendern" und die Ausnahmeliste.** `WAWebSetPrivacyForOneCategoryAction` ist komplett verschwunden, noch kein Nachfolger gefunden (Sondierung in `/api/privacy/diag` lief mehrfach ins Leere — Kandidat `WAWebPrivacyBridgeApi` liefert nur eine Instanz ohne reflektierbare Methoden, vermutlich private Klassenfelder). Beide Endpunkte (`POST /api/privacy`, `POST /api/privacy/disallowed`) antworten jetzt mit einer klaren Fehlermeldung (`privacy_change_unavailable`) statt einem rohen Absturz — bis auf Weiteres am Handy aendern
+- Selbsttest (`/api/selfcheck`) prueft `WAWebStatusPrivacyContactsUtils` nicht mehr (wird nicht mehr gebraucht)
+
+## [1.8.35] - 2026-09-16
+
+Fix fuer die Prototyp-Methoden-Sonde aus 1.8.34: griff faelschlich auch bei einfachen Objekten wie `{all:'all',...}` und listete Object.prototype-Muell (toString, hasOwnProperty, ...) mit auf. Jetzt nur noch bei echten Klassen-Instanzen (Prototyp != Object.prototype).
+
+## [1.8.34] - 2026-09-16
+
+`/api/privacy/diag` listet jetzt auch Methodennamen von Objekt-Kandidaten wie `WAWebPrivacyBridgeApi.PrivacyBridgeApi` eine Ebene tiefer auf (Prototyp-Methoden, sonst von JSON.stringify verschluckt) — noetig, um den Nachfolger von `WAWebSetPrivacyForOneCategoryAction` zu finden.
+
+## [1.8.33] - 2026-09-16
+
+WhatsApp Web 2.3000.1047643939 hat `WAWebSetPrivacyForOneCategoryAction` und `WAWebStatusPrivacyContactsUtils` entfernt — Datenschutz aendern und Status-Publikum sind seither aus (Selbsttest unter `/api/selfcheck` meldet es). `/api/privacy/diag` sondiert jetzt zusaetzliche Kandidaten-Module (`WAWebPrivacyBridgeApi`, `WAWebStatusSetAndSyncPrivacy` u.a.), um die Nachfolger zu finden.
+
 ## [1.8.32.1] - 2026-09-09
 
 chore(deps): Bump js-yaml from 4.3.1 to 4.3.2 in /whatsapp

@@ -1,3 +1,35 @@
+## [1.8.79] - 2026-09-17
+
+## [1.8.80] - 2026-09-17
+
+Webtop 1.8.78: Paket-Updates (2026-09-16)
+
+
+### Neu
+
+- Paket **libarchive-tools** (`bsdtar`) installiert, für Umgang mit weiteren Archivformaten neben `xarchiver`.
+
+## [1.8.78] - 2026-09-16
+
+### Aktualisiert
+
+- GitHub CLI: 2.100.0 → 2.101.0
+- Firefox: 155.0.1 → 156.0
+- Thunderbird: 155.0.1 → 156.0
+- Claude Desktop: 3.2.4+claude1.52386.6 → 3.2.4+claude2.110.0
+
+## [1.8.77] - 2026-09-15
+
+### Aktualisiert
+
+- OpenCode: 1.18.30 → 1.18.31
+
+## [1.8.76] - 2026-09-14
+
+### Aktualisiert
+
+- Claude Desktop: 3.2.4+claude1.52386.3 → 3.2.4+claude1.52386.6
+
 ## [1.8.75] - 2026-09-12
 
 ### Aktualisiert

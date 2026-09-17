@@ -161,6 +161,14 @@
     .console-toolbar { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surf); }
     .con-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; font-size:0.72rem; cursor:pointer; }
     .con-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .con-lvl-btn { background:none; border:1px solid var(--border); color:var(--muted); font-size:0.68rem; padding:1px 7px; border-radius:4px; cursor:pointer; letter-spacing:.03em; }
+    .con-lvl-btn:hover { border-color:var(--muted); }
+    .con-lvl-btn.on[data-lvl=ERROR]   { color:#f85149; border-color:#f85149; }
+    .con-lvl-btn.on[data-lvl=WARNING] { color:#d29922; border-color:#d29922; }
+    .con-lvl-btn.on[data-lvl=INFO]    { color:#58a6ff; border-color:#58a6ff; }
+    .con-lvl-btn.on[data-lvl=DEBUG]   { color:#8b949e; border-color:#8b949e; }
+    #con-search { flex:1; min-width:70px; max-width:220px; background:#0d1117; border:1px solid var(--border); color:var(--text); font-size:0.72rem; padding:2px 8px; border-radius:4px; }
+    #con-search:focus { outline:none; border-color:var(--accent); }
 
     /* ── Offline Banner ─────────────────────────────────────── */
     #offline-banner { display:none; position:fixed; bottom:0; left:0; right:0; background:var(--red); color:#fff; padding:10px 16px; z-index:9999; align-items:center; gap:10px; font-size:0.85rem; }
@@ -429,17 +437,19 @@
         {{ t.settings_title }}
       </h3>
       <!-- Tab-Bar -->
-      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto">
         <button id="stab-repos" onclick="_sTab('repos')"
-          style="background:none;border:none;border-bottom:2px solid var(--accent);padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--accent);cursor:pointer">{{ t.settings_tab_repos }}</button>
+          style="background:none;border:none;border-bottom:2px solid var(--accent);padding:6px 11px;font-size:.8rem;font-weight:600;color:var(--accent);cursor:pointer;white-space:nowrap;flex-shrink:0">{{ t.settings_tab_repos }}</button>
         <button id="stab-tg" onclick="_sTab('tg')"
-          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_tg }}</button>
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 11px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0">{{ t.settings_tab_tg }}</button>
         <button id="stab-email" onclick="_sTab('email')"
-          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_email }}</button>
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 11px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0">{{ t.settings_tab_email }}</button>
         <button id="stab-browser" onclick="_sTab('browser')"
-          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_browser }}</button>
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 11px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0">{{ t.settings_tab_browser }}</button>
         <button id="stab-advanced" onclick="_sTab('advanced')"
-          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_advanced }}</button>
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 11px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0">{{ t.settings_tab_advanced }}</button>
+        <button id="stab-webhooks" onclick="_sTab('webhooks')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 11px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0">{{ t.settings_tab_webhooks }}</button>
       </div>
       <!-- Tab: Repos -->
       <div id="stab-panel-repos">
@@ -508,6 +518,29 @@
           📧 {{ t.settings_em_test }}
         </button>
         <span id="test-email-result" style="font-size:.78rem;margin-left:8px"></span>
+      </div>
+      <!-- Tab: Webhooks -->
+      <div id="stab-panel-webhooks" style="display:none">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.wh_hint }}</div>
+        <div id="wh-secret-hint" style="font-size:.76rem;color:var(--yellow);margin-bottom:10px;display:none">⚠️ {{ t.wh_no_secret }}</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:6px">
+          <div style="flex:1">
+            <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:4px">{{ t.wh_url_label }}</label>
+            <input id="wh-url-input" type="text" placeholder="{{ t.wh_url_placeholder }}"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;font-size:.82rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px">
+          </div>
+          <button onclick="saveWebhookUrl(this)"
+            style="font-size:.8rem;padding:5px 14px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer;white-space:nowrap">
+            {{ t.settings_save }}
+          </button>
+        </div>
+        <div style="margin-bottom:14px"><span id="wh-url-save-result" style="font-size:.78rem"></span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <button class="con-btn" id="wh-setup-all-btn" onclick="setupAllWebhooks(this)">⚡ {{ t.wh_setup_all }}</button>
+          <button class="con-btn" onclick="loadWebhookStatus()">↻ {{ t.wh_refresh }}</button>
+          <span id="wh-list-count" style="font-size:.72rem;color:var(--muted);margin-left:auto"></span>
+        </div>
+        <div id="wh-repo-list"></div>
       </div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
@@ -745,6 +778,11 @@
         <div class="console-toolbar">
           <button class="con-btn" onclick="clearConsole()">{{ t.btn_clear }}</button>
           <button class="con-btn" id="con-scroll-btn" onclick="toggleConScroll()">{{ t.btn_autoscroll_on }}</button>
+          <button class="con-lvl-btn" data-lvl="ERROR" onclick="toggleConLevel('ERROR', this)">ERROR</button>
+          <button class="con-lvl-btn" data-lvl="WARNING" onclick="toggleConLevel('WARNING', this)">WARN</button>
+          <button class="con-lvl-btn" data-lvl="INFO" onclick="toggleConLevel('INFO', this)">INFO</button>
+          <button class="con-lvl-btn" data-lvl="DEBUG" onclick="toggleConLevel('DEBUG', this)">DEBUG</button>
+          <input id="con-search" type="text" placeholder="{{ t.con_filter_placeholder }}" oninput="conSearchInput(this.value)">
           <span id="con-count" style="font-size:0.72rem;color:var(--muted);margin-left:auto;align-self:center;"></span>
         </div>
         <div id="console-out"></div>
@@ -983,7 +1021,7 @@
   let _sMyRepos = [], _sWatchRepos = [];
 
   function _sTab(name) {
-    ['repos','tg','email','browser','advanced'].forEach(t => {
+    ['repos','tg','email','browser','advanced','webhooks'].forEach(t => {
       const panel = document.getElementById('stab-panel-'+t);
       const btn   = document.getElementById('stab-'+t);
       const active = t === name;
@@ -994,7 +1032,9 @@
         btn.style.fontWeight        = active ? '600' : '400';
       }
     });
+    if (name === 'webhooks' && !_whLoaded) { _whLoaded = true; loadWebhookStatus(); }
   }
+  let _whLoaded = false;
 
   const _tgNotifDefs = [
     { key:'startup',             label:'{{ t.tg_startup }}' },
@@ -1014,6 +1054,7 @@
   ];
 
   function openSettings() {
+    _whLoaded = false;
     fetch(u('/api/config/repos'))
       .then(r => r.json())
       .then(data => {
@@ -1091,6 +1132,7 @@
             document.getElementById('adv-main-branch').value   = s.main_branch  || 'main';
             document.getElementById('adv-dev-branch').value    = s.dev_branch   || 'dev';
             document.getElementById('adv-branch-check').checked = s.autofix_branch_check !== false;
+            document.getElementById('wh-url-input').value = s.webhook_url || '';
           }).catch(() => {});
 
         _sTab('repos');
@@ -1119,6 +1161,118 @@
       result.textContent = '✗';
       result.style.color = 'var(--red)';
     }
+    btn.disabled = false;
+  }
+
+  // ── Webhooks (Settings-Tab) ─────────────────────────────────────────
+  const _whStatusBadge = {
+    ok:         {cls: 'ghs-ok',   label: '{{ t.wh_status_ok }}'},
+    incomplete: {cls: 'ghs-warn', label: '{{ t.wh_status_incomplete }}'},
+    inactive:   {cls: 'ghs-warn', label: '{{ t.wh_status_inactive }}'},
+    missing:    {cls: 'ghs-crit', label: '{{ t.wh_status_missing }}'},
+    forbidden:  {cls: 'ghs-crit', label: '{{ t.wh_status_forbidden }}'},
+    error:      {cls: 'ghs-crit', label: '{{ t.wh_status_error }}'},
+    no_url:     {cls: 'ghs-unk',  label: '—'},
+  };
+
+  async function saveWebhookUrl(btn) {
+    const result = document.getElementById('wh-url-save-result');
+    btn.disabled = true;
+    result.textContent = '…';
+    try {
+      const r = await fetch(u('/api/gitpulse-settings'), {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({webhook_url: document.getElementById('wh-url-input').value.trim()}),
+      });
+      const data = await r.json();
+      result.textContent = data.ok ? '✓' : ('✗ ' + (data.error || '?'));
+      result.style.color = data.ok ? 'var(--green)' : 'var(--red)';
+      if (data.ok) loadWebhookStatus();
+    } catch {
+      result.textContent = '✗';
+      result.style.color = 'var(--red)';
+    }
+    btn.disabled = false;
+  }
+
+  function loadWebhookStatus() {
+    const list = document.getElementById('wh-repo-list');
+    list.innerHTML = `<div style="font-size:.8rem;color:var(--muted);padding:8px 0">…</div>`;
+    fetch(u('/api/webhooks/status'))
+      .then(r => r.json())
+      .then(data => renderWebhookList(data))
+      .catch(e => { list.innerHTML = `<div style="font-size:.8rem;color:var(--red)">${escHtml(String(e))}</div>`; });
+  }
+
+  function renderWebhookList(data) {
+    document.getElementById('wh-secret-hint').style.display = data.webhook_secret_set ? 'none' : '';
+    const list  = document.getElementById('wh-repo-list');
+    const repos = data.repos || [];
+    document.getElementById('wh-list-count').textContent =
+      repos.filter(r => r.status === 'ok').length + '/' + repos.length;
+    document.getElementById('wh-setup-all-btn').disabled = !data.webhook_url || !repos.length;
+    if (!repos.length) {
+      list.innerHTML = `<div style="font-size:.8rem;color:var(--muted);padding:8px 0">{{ t.wh_no_repos }}</div>`;
+      return;
+    }
+    if (!data.webhook_url) {
+      list.innerHTML = `<div style="font-size:.8rem;color:var(--muted);padding:8px 0">{{ t.wh_no_url }}</div>`;
+      return;
+    }
+    list.innerHTML = repos.map(r => {
+      const b = _whStatusBadge[r.status] || _whStatusBadge.error;
+      const missing = (r.missing_events && r.missing_events.length)
+        ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">{{ t.wh_events_missing }}${escHtml(r.missing_events.join(', '))}</div>` : '';
+      const btnLabel = r.status === 'missing' ? '{{ t.wh_btn_setup }}' : '{{ t.wh_btn_repair }}';
+      const needsBtn = r.status !== 'ok';
+      return `<div class="ghs-row" style="align-items:flex-start;flex-wrap:wrap">
+        <span class="name">${escHtml(r.repo)}${missing}</span>
+        <span class="token-badge ${b.cls}">${b.label}</span>
+        ${needsBtn ? `<button class="con-btn" onclick="setupWebhook('${escHtml(r.repo)}', this)">${btnLabel}</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  async function setupWebhook(repo, btn) {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = '…';
+    try {
+      const r = await fetch(u('/api/webhooks/setup'), {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({repo}),
+      });
+      const data = await r.json();
+      const res = (data.results || [])[0];
+      if (!r.ok || !res || !res.ok) { alert((res && res.error) || data.error || '{{ t.error_unknown }}'); btn.textContent = orig; btn.disabled = false; return; }
+      loadWebhookStatus();
+    } catch (e) {
+      alert(String(e));
+      btn.textContent = orig;
+      btn.disabled = false;
+    }
+  }
+
+  async function setupAllWebhooks(btn) {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = '…';
+    try {
+      const r = await fetch(u('/api/webhooks/setup'), {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({all: true}),
+      });
+      const data = await r.json();
+      if (!r.ok) { alert(data.error || '{{ t.error_unknown }}'); }
+      else {
+        const failed = (data.results || []).filter(x => !x.ok);
+        if (failed.length) alert(failed.map(x => x.repo + ': ' + x.error).join('\n'));
+      }
+      loadWebhookStatus();
+    } catch (e) {
+      alert(String(e));
+    }
+    btn.textContent = orig;
     btn.disabled = false;
   }
 
@@ -3153,6 +3307,21 @@
   let conSince = 0;
   let conAutoScroll = true;
   let conTimer = null;
+  let conLines = [];       // alle bisher geholten Einträge {ts, level, msg}
+  let conSearch = '';
+  let conLevels = {ERROR: true, WARNING: true, INFO: true, DEBUG: true};
+  try {
+    const saved = JSON.parse(localStorage.getItem('gp-console-levels') || 'null');
+    if (saved) ['ERROR','WARNING','INFO','DEBUG'].forEach(l => { if (l in saved) conLevels[l] = !!saved[l]; });
+  } catch (e) {}
+  // Python-Stufen auf die vier Filterknöpfe abbilden: CRITICAL läuft unter ERROR
+  // mit, alles Unbekannte unter INFO — sonst verschwände eine Zeile ohne eigenen Knopf.
+  function conGroup(l) {
+    return l === 'CRITICAL' ? 'ERROR' : (l === 'WARN' ? 'WARNING' : (['ERROR','WARNING','DEBUG'].includes(l) ? l : 'INFO'));
+  }
+  document.querySelectorAll('.con-lvl-btn').forEach(btn => {
+    btn.classList.toggle('on', !!conLevels[btn.dataset.lvl]);
+  });
 
   function startConsole() {
     if (conTimer) return;
@@ -3165,20 +3334,49 @@
       .then(r => r.json())
       .then(entries => {
         if (!entries.length) return;
-        const out = document.getElementById('console-out');
-        entries.forEach(e => {
-          const div = document.createElement('div');
-          div.className = 'log-' + e.level;
-          div.textContent = e.msg;
-          out.appendChild(div);
-          if (e.ts > conSince) conSince = e.ts;
-        });
-        if (conAutoScroll) out.scrollTop = out.scrollHeight;
-        document.getElementById('con-count').textContent = out.children.length + ' {{ t.log_lines }}';
+        entries.forEach(e => { if (e.ts > conSince) conSince = e.ts; });
+        conLines = conLines.concat(entries);
+        if (conLines.length > 300) conLines = conLines.slice(-300);  // Server-Puffer fasst auch nur 300
+        renderConsole();
       }).catch(() => {});
   }
 
+  function conMatches(e) {
+    if (!conLevels[conGroup(e.level)]) return false;
+    if (conSearch && (e.msg || '').toLowerCase().indexOf(conSearch) < 0) return false;
+    return true;
+  }
+
+  function renderConsole() {
+    const out = document.getElementById('console-out');
+    out.innerHTML = '';
+    let shown = 0;
+    conLines.forEach(e => {
+      if (!conMatches(e)) return;
+      shown++;
+      const div = document.createElement('div');
+      div.className = 'log-' + e.level;
+      div.textContent = e.msg;
+      out.appendChild(div);
+    });
+    if (conAutoScroll) out.scrollTop = out.scrollHeight;
+    document.getElementById('con-count').textContent = shown + '/' + conLines.length + '{{ t.log_lines }}';
+  }
+
+  function toggleConLevel(lvl, btn) {
+    conLevels[lvl] = !conLevels[lvl];
+    btn.classList.toggle('on', conLevels[lvl]);
+    try { localStorage.setItem('gp-console-levels', JSON.stringify(conLevels)); } catch (e) {}
+    renderConsole();
+  }
+
+  function conSearchInput(v) {
+    conSearch = v.trim().toLowerCase();
+    renderConsole();
+  }
+
   function clearConsole() {
+    conLines = [];
     document.getElementById('console-out').innerHTML = '';
     document.getElementById('con-count').textContent = '';
   }

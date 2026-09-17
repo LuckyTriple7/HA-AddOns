@@ -2775,6 +2775,14 @@ const PRIVACY_MODULE_CANDIDATES = [
   'WAWebSchemaPrivacyDisallowedList',
   'WAWebWid',
   'WAWebLidMigrationUtils',
+  // Kandidaten fuer den WA-Web-Umbau 2.3000.1047643939 (WAWebSetPrivacyForOneCategoryAction
+  // und WAWebStatusPrivacyContactsUtils sind verschwunden) — noch unbestaetigt, nur zum Sondieren
+  'WAWebPrivacyBridgeApi',
+  'WAWebStatusSetAndSyncPrivacy',
+  'WAWebStatusPrivacySettingSync',
+  'WAWebSyncPrivacyDisallowedLists',
+  'WAWebUserPrefsPrivacyMode',
+  'WAWebHandlePrivacyModeChange',
 ];
 
 async function probePrivacyModules() {
@@ -2813,6 +2821,24 @@ async function probePrivacyModules() {
             } catch (e) { entry.values[k] += ' → FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
           }
         } else if (v && typeof v === 'object') {
+          // Klassen-Instanzen wie PrivacyBridgeApi tragen ihre Methoden auf dem
+          // Prototyp, nicht als eigene Property — die landen nicht in JSON.stringify.
+          // Nur bei echten Klassen-Instanzen nachsehen (Prototyp != Object.prototype),
+          // sonst wird das bei einfachen {all:'all',...}-Objekten nur Object.prototype-Muell
+          // (toString, hasOwnProperty, ...).
+          try {
+            const proto = Object.getPrototypeOf(v);
+            if (proto && proto !== Object.prototype) {
+              const own = [...new Set([...Object.getOwnPropertyNames(v), ...Object.getOwnPropertyNames(proto)])]
+                .filter(n => n !== 'constructor' && !/^__/.test(n)).slice(0, 60);
+              const nested = {};
+              for (const nk of own) {
+                let nv; try { nv = v[nk]; } catch (e) { continue; }
+                nested[nk] = typeof nv === 'function' ? 'fn ' + sig(nv) : typeof nv;
+              }
+              if (Object.keys(nested).length) entry.values[k + '.__methods'] = nested;
+            }
+          } catch (e) {}
           try { entry.values[k] = 'obj ' + JSON.stringify(v).slice(0, 200); }
           catch (e) { entry.values[k] = 'obj [nicht serialisierbar]'; }
         } else {
@@ -2853,6 +2879,216 @@ async function listPrivacyModuleNames() {
   });
 }
 
+// Letzter Ausweg: nicht nur Modulnamen durchsuchen, sondern den Quelltext
+// jeder Modul-Factory im Registry-Modul selbst nach alten Funktionsnamen
+// durchsuchen. Ein Modul kann umbenannt sein — der Funktionsname im Inneren
+// bleibt oft trotzdem gleich (er ist Teil der ueber Modulgrenzen hinweg
+// genutzten Schnittstelle und wird von Minifiern seltener angefasst als
+// der Modulname selbst).
+async function scanModuleSourcesForText(needles) {
+  return client.pupPage.evaluate((needles) => {
+    const pick = (obj) => {
+      if (!obj || typeof obj !== 'object') return null;
+      for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+        if (obj[key] && typeof obj[key] === 'object') return obj[key];
+      }
+      return null;
+    };
+    let reg = null, via = null;
+    try { reg = pick(window.require('__debug')); if (reg) via = "require('__debug')"; } catch (e) {}
+    if (!reg) { try { reg = pick(window.__debug); if (reg) via = 'window.__debug'; } catch (e) {} }
+    if (!reg) return { via: null, error: 'kein Registry-Modul gefunden' };
+
+    const factoryOf = (entry) => {
+      if (typeof entry === 'function') return entry;
+      if (!entry || typeof entry !== 'object') return null;
+      for (const k of ['factory', 'moduleFactory', 'fn', 'func', '_moduleFactory']) {
+        if (typeof entry[k] === 'function') return entry[k];
+      }
+      for (const v of Object.values(entry)) if (typeof v === 'function') return v;
+      return null;
+    };
+
+    let names = [];
+    try { names = Object.keys(reg); } catch (e) { return { via, error: String((e && e.message) || e) }; }
+
+    const found = [];
+    let scanned = 0, noFactory = 0;
+    let sampleKeys = null, sampleEntryType = null;
+    for (const name of names) {
+      let entry; try { entry = reg[name]; } catch (e) { continue; }
+      if (sampleKeys === null && entry && typeof entry === 'object') { sampleKeys = Object.keys(entry).slice(0, 20); sampleEntryType = typeof entry; }
+      const fn = factoryOf(entry);
+      if (!fn) { noFactory++; continue; }
+      let src; try { src = fn.toString(); } catch (e) { continue; }
+      scanned++;
+      for (const needle of needles) {
+        const idx = src.indexOf(needle);
+        if (idx !== -1) {
+          found.push({ module: name, needle, snippet: src.slice(Math.max(0, idx - 100), idx + 250).replace(/\s+/g, ' ') });
+        }
+      }
+      if (found.length > 60) break;
+    }
+    return { via, total: names.length, scanned, noFactory, sampleKeys, sampleEntryType, found };
+  }, needles);
+}
+
+// WhatsApp Web laedt den Code der Einstellungsseiten erst nach, wenn jemand sie
+// oeffnet (Module mit "Loadable" im Namen). Seit 2.3000.104764xxxx liegen die
+// Datenschutz-Setter in so einem Nachlade-Bundle — im Browser da, sobald man
+// die Einstellungen anklickt, in unserer Sitzung nie. Hier wird das Nachladen
+// selbst ausgeloest: nur preload/load-Methoden, die Code holen, nichts aendern.
+async function preloadPrivacyBundles(force = false) {
+  return client.pupPage.evaluate(async (force) => {
+    if (window.__haPrivacyPreloaded && !force) return { skipped: true };
+    // __debug.modulesMap ist eine Momentaufnahme — fuer jeden Blick frisch holen
+    const getReg = () => {
+      try {
+        const d = window.require('__debug');
+        for (const key of ['modulesMap', 'modules', 'moduleMap', 'map']) {
+          if (d && d[key] && typeof d[key] === 'object') return d[key];
+        }
+      } catch (e) {}
+      return null;
+    };
+    const err = (e) => String((e && e.message) || e).slice(0, 200);
+    const req = (n) => { try { return window.require(n) || null; } catch (e) { return null; } };
+    const has = (n) => !!req(n);
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const withTimeout = (p, ms) => Promise.race([p, sleep(ms).then(() => 'ZEITUEBERSCHREITUNG')]);
+    const PRIV = /privacy|lastseen|readreceipt|profilepic|groupadd|visibility/i;
+
+    // Setter anhand seiner Exporte finden — der Modulname kann sich aendern
+    const findSetter = () => {
+      const direct = req('WAWebSetPrivacyForOneCategoryAction');
+      if (direct) return { via: 'WAWebSetPrivacyForOneCategoryAction', mod: direct };
+      const reg = getReg() || {};
+      for (const n of Object.keys(reg)) {
+        let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+        if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) ex = req(n);
+        if (ex && typeof ex.setPrivacyForOneCategory === 'function') return { via: n, mod: ex };
+      }
+      return null;
+    };
+
+    const before = new Set(Object.keys(getReg() || {}));
+    const loadables = [...before].filter(n => /Loadable/.test(n) && /privacy/i.test(n));
+    const out = { loadables, calls: [], render: [], sources: {} };
+
+    // 1) Loadables mit preload()
+    for (const name of loadables) {
+      const mod = req(name);
+      for (const k of Object.keys(mod || {})) {
+        const c = mod[k];
+        if (c && typeof c.preload === 'function') {
+          try {
+            const r = await withTimeout(Promise.resolve(c.preload()), 15000);
+            out.calls.push({ at: name + '.' + k + '.preload', ok: r !== 'ZEITUEBERSCHREITUNG' });
+          } catch (e) { out.calls.push({ at: name + '.' + k + '.preload', error: err(e) }); }
+        }
+      }
+    }
+
+    // 2) Loadables ohne preload(): unsichtbar in einem eigenen React-Root rendern.
+    //    Das stoesst dasselbe Nachladen an wie ein Klick in der Oberflaeche; ein
+    //    Renderfehler bleibt in diesem Root und beruehrt die WhatsApp-Oberflaeche nicht.
+    const React = req('react');
+    const domClient = ['ReactDOMClient', 'react-dom/client', 'ReactDOM', 'react-dom', 'ReactDOMComet']
+      .map(n => ({ n, m: req(n) })).find(x => x.m && typeof x.m.createRoot === 'function');
+    out.reactDom = domClient ? domClient.n : null;
+    if (!findSetter() && React && domClient) {
+      for (const name of loadables) {
+        const mod = req(name);
+        for (const k of Object.keys(mod || {})) {
+          const Comp = mod[k];
+          if (typeof Comp !== 'function' || typeof Comp.preload === 'function') continue;
+          const entry = { at: name + '.' + k, errors: [] };
+          const onErr = (ev) => { entry.errors.push(err(ev.error || ev.message)); ev.preventDefault && ev.preventDefault(); };
+          window.addEventListener('error', onErr);
+          const div = document.createElement('div');
+          div.style.cssText = 'position:fixed;left:-9999px;top:0;width:400px;height:600px;overflow:hidden;';
+          document.body.appendChild(div);
+          let root = null;
+          try {
+            root = domClient.m.createRoot(div, { onUncaughtError: (e) => entry.errors.push(err(e)), onRecoverableError: (e) => entry.errors.push(err(e)) });
+            root.render(React.createElement(Comp, { onClose: () => {}, onBack: () => {} }));
+          } catch (e) { entry.errors.push(err(e)); }
+          const t0 = Date.now();
+          while (Date.now() - t0 < 12000 && !findSetter()) await sleep(400);
+          entry.ms = Date.now() - t0;
+          entry.setterFound = !!findSetter();
+          try { root && root.unmount(); } catch (e) {}
+          div.remove();
+          window.removeEventListener('error', onErr);
+          entry.errors = entry.errors.slice(0, 5);
+          out.render.push(entry);
+        }
+      }
+    }
+
+    // 3) Wie laedt WhatsApp nach? Quelltext der Lade-Bausteine fuer die Diagnose
+    for (const n of ['JSResourceForInteraction', 'WAWebLoadable', 'WAWebLazyLoadedRetriable']) {
+      const m = req(n);
+      if (!m) { out.sources[n] = null; continue; }
+      const s = {};
+      const vals = typeof m === 'function' ? { default: m } : m;
+      for (const k of Object.keys(vals).slice(0, 6)) {
+        try { s[k] = typeof vals[k] === 'function' ? String(vals[k]).replace(/\s+/g, ' ').slice(0, 700) : typeof vals[k]; } catch (e) {}
+      }
+      out.sources[n] = s;
+    }
+
+    // 4) Ergebnis: was ist neu, welche Setter gibt es jetzt
+    const regAfter = getReg() || {};
+    const added = Object.keys(regAfter).filter(n => !before.has(n));
+    out.addedTotal = added.length;
+    out.addedPrivacy = added.filter(n => PRIV.test(n)).sort().slice(0, 80);
+    out.exportHits = [];
+    for (const n of Object.keys(regAfter)) {
+      let ex; try { ex = regAfter[n] && regAfter[n].exports; } catch (e) { continue; }
+      if (!ex && out.addedPrivacy.includes(n)) ex = req(n);
+      if (!ex || typeof ex !== 'object') continue;
+      let keys = []; try { keys = Object.keys(ex); } catch (e) { continue; }
+      const fns = keys.filter(k => /privacy/i.test(k) && /^set|ServerName|update|change/i.test(k));
+      if (fns.length) out.exportHits.push({ module: n, fns: fns.slice(0, 10) });
+      if (out.exportHits.length > 40) break;
+    }
+    const setter = findSetter();
+    out.setter = setter ? { via: setter.via, keys: Object.keys(setter.mod).slice(0, 15) } : null;
+    out.nowAvailable = {
+      setter: !!setter,
+      WAWebStatusPrivacyContactsUtils: has('WAWebStatusPrivacyContactsUtils'),
+    };
+    window.__haPrivacyPreloaded = true;
+    return out;
+  }, force);
+}
+
+// Vor jedem Schreibzugriff: fehlt ein Setter, die Einstellungs-Bundles nachladen.
+// Hoechstens alle 5 Minuten neu versuchen, falls es gar nicht klappt.
+let _privacyPreloadAt = 0;
+async function ensurePrivacyBundles() {
+  try {
+    const missing = await client.pupPage.evaluate(() => {
+      const req = (n) => { try { return window.require(n) || null; } catch (e) { return null; } };
+      if (!req('WAWebStatusPrivacyContactsUtils')) return true;
+      if (req('WAWebSetPrivacyForOneCategoryAction')) return false;
+      let reg = null;
+      try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+      for (const n of Object.keys(reg || {})) {
+        let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+        if (ex && typeof ex.setPrivacyForOneCategory === 'function') return false;
+      }
+      return true;
+    });
+    if (!missing || Date.now() - _privacyPreloadAt < 5 * 60 * 1000) return;
+    _privacyPreloadAt = Date.now();
+    const r = await preloadPrivacyBundles(true);
+    dbg('ensurePrivacyBundles:', JSON.stringify(r && r.nowAvailable));
+  } catch (e) { dbg('ensurePrivacyBundles:', e.message); }
+}
+
 // Ausweichweg: die echten Namen aus den geladenen Bundles fischen.
 async function scanPrivacyModuleNames() {
   return client.pupPage.evaluate(async () => {
@@ -2879,12 +3115,31 @@ async function scanPrivacyModuleNames() {
   });
 }
 
-// GET /api/privacy/diag         — bekannte Modulnamen durchprobieren (schnell)
-// GET /api/privacy/diag?scan=1  — zusaetzlich die Bundles nach echten Namen durchsuchen (dauert)
+// GET /api/privacy/diag              — bekannte Modulnamen durchprobieren (schnell)
+// GET /api/privacy/diag?scan=1       — zusaetzlich die Bundles nach echten Namen durchsuchen (dauert)
 // GET /api/privacy/diag?scan=1&probeFound=1 — die gefundenen Namen gleich mit durchprobieren
+// GET /api/privacy/diag?textscan=1   — Quelltext aller Modul-Factorys nach alten Funktionsnamen durchsuchen
 app.get('/api/privacy/diag', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  if (req.query.lazy === '1') {
+    try {
+      return res.json({ lib: WA_VERSION, waWeb: waWebVersion, lazy: await preloadPrivacyBundles(true) });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+  if (req.query.textscan === '1') {
+    try {
+      const needles = (req.query.needles ? String(req.query.needles).split(',') : [
+        'privacyWebNameToServerName', 'setPrivacyForOneCategory', 'convertPrivacyListContactsToWids',
+      ]).map(s => s.trim()).filter(Boolean);
+      const result = await scanModuleSourcesForText(needles);
+      return res.json({ lib: WA_VERSION, waWeb: waWebVersion, needles, textscan: result });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
   try {
     const out = { lib: WA_VERSION, waWeb: waWebVersion, modules: await probePrivacyModules() };
     out.registry = await listPrivacyModuleNames();
@@ -2972,9 +3227,24 @@ app.post('/api/privacy', async (req, res) => {
       hint: 'Die Ausnahmeliste laesst sich hier nicht pflegen — diese Einstellung nur am Handy aendern.' });
   }
   try {
+    await ensurePrivacyBundles();
     const out = await client.pupPage.evaluate(async (name, value) => {
+      const mod = (function findSetter() {
+        try { const m = window.require('WAWebSetPrivacyForOneCategoryAction'); if (m) return m; } catch (e) {}
+        let reg = null;
+        try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+        for (const n of Object.keys(reg || {})) {
+          let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) { try { ex = window.require(n); } catch (e) {} }
+          if (ex && typeof ex.setPrivacyForOneCategory === 'function' && typeof ex.privacyWebNameToServerName === 'function') return ex;
+        }
+        return null;
+      })();
+      if (!mod) {
+        return { ok: false, error: 'privacy_change_unavailable',
+          hint: 'WhatsApp Web hat das noetige Modul entfernt (Umbau) — Datenschutz aendern geht hier gerade nicht, bitte am Handy aendern.' };
+      }
       try {
-        const mod = window.require('WAWebSetPrivacyForOneCategoryAction');
         const serverName = mod.privacyWebNameToServerName(name);
         if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + name };
         await mod.setPrivacyForOneCategory({ name: serverName, value }, null);
@@ -2984,10 +3254,12 @@ app.post('/api/privacy', async (req, res) => {
         return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
       }
     }, name, value);
-    if (!out.ok) return res.status(500).json({ error: out.error });
+    if (!out.ok) return res.status(500).json({ error: out.error, hint: out.hint });
     // Ehrlich pruefen statt Erfolg zu behaupten: der neue Stand kommt frisch von WhatsApp
     const applied = out.settings && out.settings[name];
     _logSilent('INFO', `privacy: ${name} → ${value}${applied === value ? '' : ` (WhatsApp meldet ${applied})`}`);
+    // Stand der Warnung im Portal sofort nachziehen, nicht erst in 6 Stunden
+    if (_lastSelfCheck && !_lastSelfCheck.ok) runSelfCheck().catch(e => dbg('runSelfCheck:', e.message));
     res.json({ success: applied === value, name, value, applied, settings: out.settings });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -3079,13 +3351,28 @@ app.post('/api/privacy/disallowed', async (req, res) => {
   const remove = clean(req.body?.remove);
   if (!add.length && !remove.length) return res.status(400).json({ error: 'add oder remove erforderlich' });
   try {
+    await ensurePrivacyBundles();
     const out = await client.pupPage.evaluate(async (category, typeName, add, remove) => {
       const ser = (w) => { try { return w && (w._serialized || String(w)); } catch (e) { return null; } };
+      const setMod = (function findSetter() {
+        try { const m = window.require('WAWebSetPrivacyForOneCategoryAction'); if (m) return m; } catch (e) {}
+        let reg = null;
+        try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+        for (const n of Object.keys(reg || {})) {
+          let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) { try { ex = window.require(n); } catch (e) {} }
+          if (ex && typeof ex.setPrivacyForOneCategory === 'function' && typeof ex.privacyWebNameToServerName === 'function') return ex;
+        }
+        return null;
+      })();
+      if (!setMod) {
+        return { ok: false, error: 'privacy_change_unavailable',
+          hint: 'WhatsApp Web hat das noetige Modul entfernt (Umbau) — Ausnahmeliste bearbeiten geht hier gerade nicht, bitte am Handy aendern.' };
+      }
       try {
         const schema = window.require('WAWebSchemaPrivacyDisallowedList');
         const type = schema.PrivacyDisallowedListType[typeName];
         const util = window.require('WAWebQueryPrivacyDisallowedListUtil');
-        const setMod = window.require('WAWebSetPrivacyForOneCategoryAction');
         const col = window.require('WAWebCollections');
         const serverName = setMod.privacyWebNameToServerName(category);
         if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + category };
@@ -3139,6 +3426,7 @@ app.post('/api/privacy/disallowed', async (req, res) => {
     }, category, typeName, add, remove);
     if (!out.ok) return res.status(500).json(out);
     _logSilent('INFO', `privacy-list: ${category} +${out.added.length} -${out.removed.length} → ${out.list.length} Eintrag/Eintraege`);
+    if (_lastSelfCheck && !_lastSelfCheck.ok) runSelfCheck().catch(e => dbg('runSelfCheck:', e.message));
     res.json({ success: true, category, ...out });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -3161,12 +3449,11 @@ const WA_INTERNALS = [
   { mod: 'WAWebSendStatusMsgAction',         need: ['sendStatusTextMsgAction', 'sendStatusMediaMsgAction'], feature: 'Status posten' },
   { mod: 'WAWebStatusGatingUtils',           need: [],                                                   feature: 'Status-Schalter des Kontos', optional: true },
   { mod: 'WAWebQueryPrivacySettingsJob',     need: ['getPrivacy'],                                       feature: 'Datenschutz lesen' },
-  { mod: 'WAWebSetPrivacyForOneCategoryAction', need: ['privacyWebNameToServerName', 'setPrivacyForOneCategory'], feature: 'Datenschutz aendern' },
+  { mod: 'WAWebSetPrivacyForOneCategoryAction', need: ['privacyWebNameToServerName', 'setPrivacyForOneCategory'], feature: 'Datenschutz aendern', byExports: true },
   { mod: 'WAWebPrivacySettings',             need: ['VISIBILITY', 'ONLINE_VISIBILITY', 'CALL_ADD'],      feature: 'zulaessige Datenschutz-Werte' },
   { mod: 'WAWebSchemaPrivacyDisallowedList', need: ['PrivacyDisallowedListType'],                        feature: 'Ausnahmeliste' },
   { mod: 'WAWebQueryPrivacyDisallowedListUtil', need: ['queryPrivacyDisallowedList', 'isPrivacyDisallowedListTypeLidMigrated'], feature: 'Ausnahmeliste lesen' },
   { mod: 'WAWebStatusPrivacySettingAction',  need: ['getStatusPrivacySetting', 'setStatusPrivacyAllowList', 'setStatusPrivacyDenyList', 'setStatusPrivacyContact'], feature: 'Status-Publikum' },
-  { mod: 'WAWebStatusPrivacyContactsUtils',  need: ['convertPrivacyListContactsToWids'],                 feature: 'Status-Publikum' },
   { mod: '__debug',                          need: [],                                                   feature: 'Modulliste (Diagnose)', optional: true },
 ];
 
@@ -3259,11 +3546,23 @@ let _lastSelfCheck = null;
 
 async function runSelfCheck() {
   if (status !== 'connected' || !client.pupPage) return null;
+  // Nachlade-Module erst holen, sonst meldet der Test sie faelschlich als fehlend
+  await ensurePrivacyBundles();
   const result = await client.pupPage.evaluate((specs) => {
     const out = [];
     for (const spec of specs) {
       let mod = null, err = null;
       try { mod = window.require(spec.mod); } catch (e) { err = String((e && e.message) || e).slice(0, 120); }
+      // Umbenannte Module ueber ihre Exporte wiederfinden (so sucht sie auch der Schreibpfad)
+      if (!mod && spec.byExports) {
+        let reg = null;
+        try { const d = window.require('__debug'); reg = d && (d.modulesMap || d.modules); } catch (e) {}
+        for (const n of Object.keys(reg || {})) {
+          let ex; try { ex = reg[n] && reg[n].exports; } catch (e) { continue; }
+          if (!ex && /Privacy.*(Action|Job|Bridge|Api|Utils)$/.test(n)) { try { ex = window.require(n); } catch (e) {} }
+          if (ex && spec.need.every(k => { try { return typeof ex[k] === 'function'; } catch (e) { return false; } })) { mod = ex; err = null; break; }
+        }
+      }
       if (!mod) { out.push({ ...spec, ok: false, reason: err ? 'Modul-Fehler: ' + err : 'Modul fehlt' }); continue; }
       const missing = spec.need.filter((k) => {
         try { return mod[k] === undefined || mod[k] === null; } catch (e) { return true; }
@@ -3455,9 +3754,10 @@ app.post('/api/privacy/status', async (req, res) => {
           await act.setStatusPrivacyContact();
         } else {
           const col = window.require('WAWebCollections');
-          const utils = window.require('WAWebStatusPrivacyContactsUtils');
-          // WhatsApp rechnet die Kontaktmodelle selbst in WIDs um (Rufnummer
-          // oder LID, je nach Kontakt) — genau diesen Weg hier mitgehen.
+          // WAWebStatusPrivacyContactsUtils.convertPrivacyListContactsToWids ist mit dem
+          // WA-Web-Umbau 2.3000.1047643939 verschwunden — jedes Kontakt-Modell traegt seine
+          // Wid aber schon selbst unter .id (wie ueberall sonst im Add-on genutzt), die
+          // Umrechnung per Utility war also nur ein Umweg zum gleichen Wert.
           const models = [], unresolved = [];
           for (const id of ids) {
             let m = null;
@@ -3466,8 +3766,8 @@ app.post('/api/privacy/status', async (req, res) => {
             if (m) models.push(m); else unresolved.push(id);
           }
           if (!models.length) return { ok: false, error: 'kein Kontakt aufloesbar', unresolved };
-          const wids = utils.convertPrivacyListContactsToWids(models);
-          if (!wids || !wids.length) return { ok: false, error: 'keine WID ermittelbar', unresolved };
+          const wids = models.map(m => m.id).filter(Boolean);
+          if (!wids.length) return { ok: false, error: 'keine WID ermittelbar', unresolved };
           if (mode === 'allow') await act.setStatusPrivacyAllowList(wids);
           else await act.setStatusPrivacyDenyList(wids);
           var _unresolved = unresolved;
