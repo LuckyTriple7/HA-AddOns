@@ -1,3 +1,9 @@
+## [1.8.79] - 2026-09-17
+
+### Neu
+
+- Paket **libarchive-tools** (`bsdtar`) installiert, für Umgang mit weiteren Archivformaten neben `xarchiver`.
+
 ## [1.8.78] - 2026-09-16
 
 ### Aktualisiert

@@ -98,6 +98,7 @@ RUN apt-get update \
         xdg-utils \
         fuse3 \
         unzip \
+        libarchive-tools \
         nfs-common \
         iproute2 \
         iptables \
