@@ -1,5 +1,10 @@
 ## [1.8.79] - 2026-09-17
 
+## [1.8.80] - 2026-09-17
+
+Webtop 1.8.78: Paket-Updates (2026-09-16)
+
+
 ### Neu
 
 - Paket **libarchive-tools** (`bsdtar`) installiert, für Umgang mit weiteren Archivformaten neben `xarchiver`.
