@@ -164,6 +164,28 @@ RUN mkdir -p /usr/share/man/man1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Python-Toolchain: pip, venv und die haeufig genutzten Bibliotheken fest ins Image.
+# Der EXTERNALLY-MANAGED-Marker (PEP 668) wird entfernt, damit "pip install" im
+# Desktop-Container ohne venv funktioniert.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-venv \
+        python3-dev \
+        python3-setuptools \
+        python3-wheel \
+        python3-flask \
+        python3-requests \
+        libpango-1.0-0 \
+        libpangoft2-1.0-0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
+        libffi-dev \
+        shared-mime-info \
+    && find /usr/lib/python3* -name "EXTERNALLY-MANAGED" -delete \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # FUSE: user_allow_other erlauben, damit rclone-Mounts (als root gemountet) für abc erreichbar sind
 RUN sed -i 's/^#user_allow_other/user_allow_other/' /etc/fuse.conf; \
     grep -q "^user_allow_other" /etc/fuse.conf || echo "user_allow_other" >> /etc/fuse.conf

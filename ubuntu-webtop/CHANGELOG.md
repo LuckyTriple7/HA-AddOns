@@ -1,3 +1,15 @@
+## [1.8.83] - 2026-09-22
+
+### Hinzugefügt
+
+- Python-Toolchain fest im Image: `python3-pip`, `python3-venv`, `python3-dev`, `setuptools`, `wheel`
+- Python-Bibliotheken: `flask`, `requests`
+- Systembibliotheken für WeasyPrint (PDF-Export): `libpango-1.0-0`, `libpangoft2-1.0-0`, `libcairo2`, `libgdk-pixbuf-2.0-0`, `libffi-dev`, `shared-mime-info`
+
+### Geändert
+
+- PEP-668-Marker (`EXTERNALLY-MANAGED`) entfernt, damit `pip install` ohne venv und ohne `--break-system-packages` funktioniert
+
 ## [1.8.82] - 2026-09-19
 
 ### Aktualisiert
