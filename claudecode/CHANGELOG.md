@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.26] - 2026-09-23
+
+### Changed
+- Modell-Auswahl: claude-opus-5-5 (Opus 5.5) statt claude-opus-5; claude-opus-5 bleibt als Legacy-Eintrag wählbar, damit bestehende Konfigurationen weiter starten
+
+
 ## [1.3.25] - 2026-09-21
 
 ### Changed
