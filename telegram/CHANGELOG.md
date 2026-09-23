@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.10] - 2026-09-23
+- Feature: **Alle Chats auf einmal nachladen.** Neuer Button in der Kopfleiste (Pfeil mit `*`, immer sichtbar) holt fuer jeden Chat die letzten 100 Nachrichten und ergaenzt, was fehlt — bisher ging das nur Chat fuer Chat. Anders als der Einzel-Button leert er den Cache nicht. Waehrend des Laufs dreht sich das Symbol, am Ende meldet ein Hinweis, wie viele Nachrichten dazugekommen sind. Ein zweiter Klick waehrend des Laufs wird abgewiesen
+- Neuer Endpoint `POST /api/refresh-all` (liefert `{ chats, added }`)
+
 ## [1.7.9] - 2026-09-23
 - Fix: **Nach einem Verbindungsabbruch hing das Add-on in „Waiting for SMS/app code...".** Der Auto-Retry rief `client.start()` erneut auf. teleproto prueft dort die Session mit `checkAuthorization()`, das jeden Fehler verschluckt — ein Netzwerkfehler (`Disconnected from dc 2`) sah deshalb aus wie „nicht angemeldet" und startete den SMS-Login, der dann ohne Ende auf einen Code wartete. Mit gespeicherter Session prueft das Add-on jetzt selbst per `updates.GetState`: Netzwerkfehler gehen zurueck in den Auto-Retry, nur echte Auth-Fehler (`AUTH_KEY_UNREGISTERED`, `SESSION_REVOKED` u. a.) fuehren in den Login
 - Fix: **Die Event-Handler wurden bei jedem Auto-Retry erneut registriert.** Jetzt nur noch einmal

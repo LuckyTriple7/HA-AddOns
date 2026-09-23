@@ -619,6 +619,29 @@ app.post('/api/reconnect', async (req, res) => {
   setTimeout(startClient, 1000);
 });
 
+// Alle Chats nachladen — holt je Chat die letzten 100 Nachrichten und ergänzt,
+// was fehlt. Anders als ?refresh=1 wird der Cache nicht geleert.
+let _refreshingAll = false;
+app.post('/api/refresh-all', mutatingRateLimit, async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'not connected' });
+  if (_refreshingAll) return res.status(409).json({ error: 'already running' });
+  _refreshingAll = true;
+  const countAll = () => [...messagesByChatId.values()].reduce((sum, a) => sum + a.length, 0);
+  const before = countAll();
+  const ids = [...chatMap.keys()];
+  console.log(`[INFO] Alle Chats nachladen: ${ids.length} Chat(s)`);
+  try {
+    await loadDialogs();
+    for (const chatId of ids) {
+      if (status !== 'connected') break;
+      await fetchMessages(chatId, 100);
+    }
+  } finally { _refreshingAll = false; }
+  const added = countAll() - before;
+  console.log(`[INFO] Alle Chats nachgeladen: ${added} neue Nachricht(en)`);
+  res.json({ ok: true, chats: ids.length, added });
+});
+
 app.get('/api/chats', (req, res) => {
   const chats = Array.from(chatMap.values()).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(chats);
@@ -1335,6 +1358,8 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; align-items: center; justify-content: center; opacity: 0.55; }
 #refresh-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
+#refresh-all-btn.busy svg { animation: spin 0.7s linear infinite; }
+#refresh-all-btn.busy { opacity: 1; pointer-events: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .photo-placeholder { display: none; }
 body.hide-photos .msg-img,
@@ -1680,6 +1705,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
   ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
   <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">${_SVG.refresh}</button>
+  <button id="refresh-all-btn" class="scroll-btn" onclick="refreshAllChats()" data-i18n-title="btnReloadAll" title="Alle Chats nachladen">${_SVG.refresh}<span style="font-size:11px;font-weight:600;margin-left:3px">*</span></button>
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
   <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="gap:4px;padding:0 8px;">${_SVG.globe} DE</button>
@@ -1772,7 +1798,10 @@ const LANG = {
     photosOn: 'Medien AN', photosOff: 'Medien AUS',
     videoDownload: '⬇ Video herunterladen', videoTooBig: '📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
-    btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
+    btnReload: 'Chat neu laden', btnReloadAll: 'Alle Chats nachladen',
+    reloadAllDone: (n, c) => n + ' neue Nachricht(en) aus ' + c + ' Chats nachgeladen.',
+    reloadAllError: (e) => 'Nachladen fehlgeschlagen: ' + e,
+    btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
     btnLogout: 'Abmelden', logoutConfirmMsg: 'Möchtest du dich wirklich abmelden?', btnYes: 'Ja', btnNo: 'Nein',
     searchPlaceholder: 'Suchen…',
@@ -1798,7 +1827,10 @@ const LANG = {
     photosOn: 'Media ON', photosOff: 'Media OFF',
     videoDownload: '⬇ Download video', videoTooBig: '📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Delete orphaned media files',
-    btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
+    btnReload: 'Reload chat', btnReloadAll: 'Reload all chats',
+    reloadAllDone: (n, c) => n + ' new message(s) loaded from ' + c + ' chats.',
+    reloadAllError: (e) => 'Reload failed: ' + e,
+    btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
     btnLogout: 'Log out', logoutConfirmMsg: 'Do you really want to log out?', btnYes: 'Yes', btnNo: 'No',
     searchPlaceholder: 'Search…',
@@ -2381,6 +2413,20 @@ async function refreshChat() {
     renderMessages(msgs);
   } catch(e) {}
   btn.classList.remove('spinning');
+}
+
+async function refreshAllChats() {
+  const btn = document.getElementById('refresh-all-btn');
+  btn.classList.add('busy');
+  try {
+    const r = await fetch(api('/api/refresh-all'), { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+    await loadChats();
+    if (selectedChatId) { _lastMsgFingerprint[selectedChatId] = ''; await loadMessages(selectedChatId, true); }
+    alert(tf('reloadAllDone', d.added, d.chats));
+  } catch(e) { alert(tf('reloadAllError', e.message)); }
+  btn.classList.remove('busy');
 }
 
 // Fingerprint der letzten gerenderten Nachrichten — verhindert unnötige Re-Renders
