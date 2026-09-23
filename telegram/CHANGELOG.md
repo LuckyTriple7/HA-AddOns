@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.9] - 2026-09-23
+- Fix: **Nach einem Verbindungsabbruch hing das Add-on in „Waiting for SMS/app code...".** Der Auto-Retry rief `client.start()` erneut auf. teleproto prueft dort die Session mit `checkAuthorization()`, das jeden Fehler verschluckt — ein Netzwerkfehler (`Disconnected from dc 2`) sah deshalb aus wie „nicht angemeldet" und startete den SMS-Login, der dann ohne Ende auf einen Code wartete. Mit gespeicherter Session prueft das Add-on jetzt selbst per `updates.GetState`: Netzwerkfehler gehen zurueck in den Auto-Retry, nur echte Auth-Fehler (`AUTH_KEY_UNREGISTERED`, `SESSION_REVOKED` u. a.) fuehren in den Login
+- Fix: **Die Event-Handler wurden bei jedem Auto-Retry erneut registriert.** Jetzt nur noch einmal
+- Feature: **Verpasste Nachrichten werden automatisch nachgeladen.** Was waehrend eines Ausfalls oder Neustarts ankam, lieferte kein Update-Event nach — jeder Chat musste einzeln per Button aktualisiert werden. Beim Laden der Dialoge (Start, Reconnect, jede Minute) wird jetzt die letzte Nachricht jedes Dialogs mit dem Cache verglichen; liegt sie dahinter, werden die letzten 100 Nachrichten des Chats im Hintergrund geholt
+- teleproto auf ^1.229.0
+
 ## [1.7.8.1] - 2026-09-09
 
 chore(deps): Bump multer from 2.2.0 to 2.3.0 in /telegram

@@ -397,6 +397,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
 
 async function loadDialogs() {
   if (status !== 'connected') return;
+  const stale = [];
   try {
     const dialogs = await Promise.race([
       client.getDialogs({ limit: 50 }),
@@ -422,9 +423,32 @@ async function loadDialogs() {
         c.isBot = isBot;
         c.chatType = chatType;
       }
+      // Nachrichten, die während eines Ausfalls oder Neustarts ankamen, liefert kein
+      // Update-Event nach. Liegt die letzte Nachricht des Dialogs hinter dem Cache,
+      // wird der Chat im Hintergrund nachgeladen.
+      const topId = dialog.message?.id || 0;
+      const cached = messagesByChatId.get(chatId);
+      if (topId && cached?.length) {
+        const maxCachedId = cached.reduce((mx, m) => Math.max(mx, parseInt(String(m.id).split('_').pop(), 10) || 0), 0);
+        if (topId > maxCachedId) stale.push(chatId);
+      }
     }
     scheduleSave();
   } catch (e) { console.error('[ERROR] loadDialogs:', e.message); }
+  if (stale.length) catchUpChats(stale);
+}
+
+let _catchingUp = false;
+async function catchUpChats(chatIds) {
+  if (_catchingUp) return;
+  _catchingUp = true;
+  try {
+    console.log(`[INFO] Lade fehlende Nachrichten nach für ${chatIds.length} Chat(s)`);
+    for (const chatId of chatIds) {
+      if (status !== 'connected') break;
+      await fetchMessages(chatId, 100);
+    }
+  } finally { _catchingUp = false; }
 }
 
 async function fetchMessages(chatId, limit = FETCH_LIMIT) {
@@ -440,6 +464,9 @@ async function fetchMessages(chatId, limit = FETCH_LIMIT) {
   } catch (e) { console.error('[ERROR] fetchMessages:', e.message); }
 }
 
+const AUTH_ERR_RE = /AUTH_KEY_UNREGISTERED|AUTH_KEY_INVALID|SESSION_REVOKED|SESSION_EXPIRED|USER_DEACTIVATED|AUTH_KEY_DUPLICATED/i;
+let _handlersRegistered = false;
+
 async function startClient() {
   if (!API_ID || !API_HASH || !PHONE_NUMBER) {
     status = 'error';
@@ -447,7 +474,22 @@ async function startClient() {
     return;
   }
   try {
-    await client.start({
+    // teleproto.start() prüft die Session per checkAuthorization(), das JEDEN Fehler
+    // schluckt — ein Netzwerkfehler sieht dort aus wie „nicht angemeldet" und startet
+    // den SMS-Login, der dann ewig auf einen Code wartet. Mit gespeicherter Session
+    // deshalb selbst prüfen: nur echte Auth-Fehler führen in den Login-Flow.
+    let authorized = false;
+    if (savedSession || fs.existsSync(SESSION_FILE)) {
+      await client.connect();
+      try {
+        await client.invoke(new Api.updates.GetState());
+        authorized = true;
+      } catch (e) {
+        if (!AUTH_ERR_RE.test(e.message || '')) throw e;
+        console.warn('[WARN] Session ungültig (%s) — neuer Login nötig', e.message);
+      }
+    }
+    if (!authorized) await client.start({
       phoneNumber: async () => PHONE_NUMBER,
       phoneCode: async () => {
         status = 'awaiting_code';
@@ -474,6 +516,9 @@ async function startClient() {
     lastError = '';
     console.log(`[INFO] Connected as ${myName} (${myId})`);
 
+    // startClient() läuft bei Auto-Retry mehrfach — Handler nur einmal registrieren
+    if (!_handlersRegistered) {
+    _handlersRegistered = true;
     client.addEventHandler(async (event) => {
       try {
         const msg = event.message;
@@ -526,6 +571,7 @@ async function startClient() {
         dbg(`UpdateMessageReactions: ${msgId} → ${JSON.stringify(newReactions)}`);
       }
     }, new Raw({}));
+    }
 
     await loadDialogs();
     console.log(`[INFO] ${chatMap.size} dialogs loaded`);
