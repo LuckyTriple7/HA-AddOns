@@ -1,3 +1,12 @@
+## [1.8.84] - 2026-09-23
+
+### Aktualisiert
+
+- Firefox: 156.0 → 156.0.1
+- Thunderbird: 156.0 → 156.0.1
+- Claude Desktop: 3.2.4+claude2.2553.1 → 3.2.4+claude2.2553.13
+- OpenCode: 1.18.31 → 1.18.32
+
 ## [1.8.83] - 2026-09-22
 
 ### Hinzugefügt
