@@ -9,7 +9,7 @@
     "qrcode": "^1.5.3",
     "multer": "^2.3.0",
     "express-rate-limit": "^7.0.0",
-    "archiver": "^7.0.1"
+    "archiver": "^8.0.0"
   },
   "overrides": {
     "minimatch": "^10.2.2",
