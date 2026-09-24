@@ -4125,6 +4125,311 @@ def _next_version_manual(current: str) -> str:
         return '.'.join(parts)
     return current
 
+# ── Versions-Prüfung + dev → main ─────────────────────────────────────────────
+# Grundlage ist der Git-Tree beider Branches (je ein Aufruf, per ETag) plus der
+# Vergleich main...dev. Datei-Inhalte kommen als Blob — deren Inhalt ist durch die
+# SHA festgelegt, das Ergebnis der Konstanten-Suche wird deshalb dauerhaft gemerkt.
+_VERSION_CONST_RE = re.compile(
+    r"^\s*(?:export\s+)?(?:const\s+|let\s+|var\s+)?(APP_VERSION|ADDON_VERSION)"
+    r"\s*[:=]\s*['\"](\d+(?:\.\d+){1,3})['\"]", re.M)
+_CONFIG_VER_RE    = re.compile(r"^version:\s*[\"']?([^\"'\s#]+)", re.M)
+_CONFIG_NAME_RE   = re.compile(r"^name:\s*[\"']?(.+?)[\"']?\s*$", re.M)
+_CHANGELOG_VER_RE = re.compile(r'^##\s*\[?v?(\d+(?:\.\d+){1,3})\]?', re.M)
+_VCHECK_EXTS      = ('.py', '.js', '.mjs', '.ts', '.sh')
+_VCHECK_SKIP      = ('node_modules/', 'vendor/', 'dist/', 'build/', '.venv/', 'venv/',
+                     '__pycache__/', 'dev_data/', '_pwtest/', 'static/lib/', 'tests/')
+_VCHECK_MAX_FILES = 25
+_blob_parse_cache: dict[tuple, object] = {}   # (Art, blob-SHA) → Auswertung
+_REPO_NAME_RE     = re.compile(r'[\w.-]+/[\w.-]+')
+
+
+def _ver_tuple(v: str) -> tuple:
+    try:
+        return tuple(int(x) for x in (v or '').split('.'))
+    except ValueError:
+        return ()
+
+
+def _gh_blob_text(owner: str, repo: str, sha: str, token: str) -> str | None:
+    d = _gh_get(f'/repos/{owner}/{repo}/git/blobs/{sha}', token)
+    if not isinstance(d, dict):
+        return None
+    try:
+        return base64.b64decode(d.get('content') or '').decode('utf-8', 'replace')
+    except Exception:
+        return None
+
+
+def _gh_tree(owner: str, repo: str, branch: str, token: str) -> dict:
+    d = _gh_get(f'/repos/{owner}/{repo}/git/trees/{branch}', token, {'recursive': '1'})
+    if not isinstance(d, dict):
+        return {}
+    return {e['path']: e for e in d.get('tree') or [] if e.get('type') == 'blob'}
+
+
+def _blob_parsed(owner: str, repo: str, entry: dict | None, token: str, kind: str, parse):
+    """Blob laden und auswerten; das Ergebnis hängt nur an der SHA und wird gemerkt.
+    Unveränderte Dateien kosten beim nächsten Mal keinen einzigen Abruf."""
+    if not entry:
+        return None
+    key = (kind, entry['sha'])
+    if key not in _blob_parse_cache:
+        text = _gh_blob_text(owner, repo, entry['sha'], token)
+        if text is None:
+            return None
+        if len(_blob_parse_cache) > 5000:
+            _blob_parse_cache.clear()
+        _blob_parse_cache[key] = parse(text)
+    return _blob_parse_cache[key]
+
+
+def _parse_config(text: str) -> dict:
+    v = _CONFIG_VER_RE.search(text)
+    n = _CONFIG_NAME_RE.search(text)
+    return {'version': v.group(1) if v else None, 'name': n.group(1) if n else None}
+
+
+def _parse_changelog_head(text: str) -> str | None:
+    m = _CHANGELOG_VER_RE.search(text)
+    return m.group(1) if m else None
+
+
+def _parse_code_consts(text: str) -> list:
+    return [(m.group(1), m.group(2)) for m in _VERSION_CONST_RE.finditer(text)]
+
+
+def _changelog_since(text: str, since: str | None) -> str:
+    """Alle CHANGELOG-Abschnitte oberhalb von Version `since` (die auf main liegt).
+    Ohne `since` (Add-on neu auf dev) nur der oberste Abschnitt."""
+    out, keep, seen = [], False, 0
+    since_t = _ver_tuple(since) if since else None
+    for line in (text or '').split('\n'):
+        m = _CHANGELOG_VER_RE.match(line)
+        if m:
+            seen += 1
+            if since_t:
+                if _ver_tuple(m.group(1)) <= since_t:
+                    break
+                keep = True
+            else:
+                if seen > 1:
+                    break
+                keep = True
+        if keep:
+            # Im PR-Text steht der Abschnitt unter „### Add-on" — Überschriften
+            # deshalb zwei Ebenen tiefer setzen.
+            out.append('##' + line if line.startswith('#') else line)
+    return re.sub(r'\n{3,}', '\n\n', '\n'.join(out)).strip()
+
+
+def _addon_version_report(owner: str, repo: str, token: str, dev_b: str, main_b: str,
+                          with_changelog: bool = False) -> dict:
+    """Pro Add-on: Version auf dev/main, seit main geändert?, CHANGELOG-Kopf und
+    Versions-Konstanten im Code — samt Liste der Unstimmigkeiten."""
+    dev_files  = _gh_tree(owner, repo, dev_b, token)
+    if not dev_files:
+        raise LookupError(f'Branch {dev_b} nicht lesbar')
+    main_files = _gh_tree(owner, repo, main_b, token) if main_b != dev_b else dev_files
+    cmp_data   = (_gh_get(f'/repos/{owner}/{repo}/compare/{main_b}...{dev_b}', token)
+                  if main_b != dev_b else None) or {}
+    changed    = {f.get('filename', '') for f in cmp_data.get('files') or []}
+    def _check(cfg_path: str) -> dict | None:
+        d   = cfg_path.split('/', 1)[0]
+        cfg = _blob_parsed(owner, repo, dev_files[cfg_path], token, 'cfg', _parse_config) or {}
+        dev_ver = cfg.get('version')
+        if not dev_ver:
+            return None
+        main_cfg   = _blob_parsed(owner, repo, main_files.get(cfg_path), token, 'cfg', _parse_config) or {}
+        main_ver   = main_cfg.get('version')
+        is_changed = any(p.startswith(d + '/') for p in changed)
+        cl_entry   = dev_files.get(f'{d}/CHANGELOG.md')
+        cl_ver     = _blob_parsed(owner, repo, cl_entry, token, 'cl', _parse_changelog_head)
+
+        # Code-Konstanten nur bei geänderten Add-ons — beim unveränderten hat der
+        # letzte Merge nach main sie schon mitgenommen.
+        code = []
+        if is_changed:
+            files = [e for p, e in sorted(dev_files.items())
+                     if p.startswith(d + '/') and p.endswith(_VCHECK_EXTS)
+                     and not any(f'/{skip}' in p for skip in _VCHECK_SKIP)
+                     and p.count('/') <= 3 and (e.get('size') or 0) <= 500_000]
+            for e in files[:_VCHECK_MAX_FILES]:
+                for const, v in _blob_parsed(owner, repo, e, token, 'code', _parse_code_consts) or []:
+                    code.append({'path': e['path'], 'name': const, 'version': v})
+
+        issues = []
+        if is_changed and main_ver and dev_ver == main_ver:
+            issues.append('not_bumped')
+        if main_ver and _ver_tuple(dev_ver) and _ver_tuple(dev_ver) < _ver_tuple(main_ver):
+            issues.append('lower_than_main')
+        if cl_ver and cl_ver != dev_ver:
+            issues.append('changelog_mismatch')
+        if any(c['version'] != dev_ver for c in code):
+            issues.append('code_mismatch')
+        item = {
+            'dir': d, 'name': cfg.get('name') or d,
+            'dev_version': dev_ver, 'main_version': main_ver,
+            'changed': is_changed, 'changelog_version': cl_ver,
+            'code_versions': code, 'issues': issues,
+        }
+        if with_changelog and is_changed and cl_entry:
+            item['changelog'] = _changelog_since(
+                _gh_blob_text(owner, repo, cl_entry['sha'], token) or '', main_ver)
+        return item
+
+    cfg_paths = sorted(p for p in dev_files if p.count('/') == 1 and p.endswith('/config.yaml'))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        addons = [a for a in pool.map(_check, cfg_paths) if a]
+    return {
+        'addons':          addons,
+        'ahead_by':        cmp_data.get('ahead_by', 0),
+        'behind_by':       cmp_data.get('behind_by', 0),
+        'files_truncated': len(cmp_data.get('files') or []) >= 300,
+        'commits':         cmp_data.get('commits') or [],
+    }
+
+
+@app.route('/api/addon-manager/version-check')
+def api_addon_version_check():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    repo_full = request.args.get('repo', '').strip()
+    if not _REPO_NAME_RE.fullmatch(repo_full):
+        return jsonify({'error': 'invalid_repo'}), 400
+    main_b, dev_b = _dev_main_branches()
+    branch = request.args.get('branch', '').strip() or dev_b
+    owner, repo = repo_full.split('/', 1)
+    try:
+        report = _addon_version_report(owner, repo, token, branch, main_b)
+    except LookupError:
+        return jsonify({'error': 'github_unreadable'}), 502
+    except Exception:
+        log.exception("version-check fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+    report.pop('commits', None)
+    return jsonify({**report, 'main': main_b, 'branch': branch})
+
+
+_DEV_MAIN_TXT = {
+    'de': {'changes': 'Änderungen', 'commits': 'Commits', 'new': 'neu', 'more': 'weitere'},
+    'en': {'changes': 'Changes', 'commits': 'Commits', 'new': 'new', 'more': 'more'},
+}
+
+
+def _dev_main_branches() -> tuple[str, str]:
+    gps = load_gitpulse_settings()
+    return ((gps.get('main_branch') or 'main').strip(), (gps.get('dev_branch') or 'dev').strip())
+
+
+@app.route('/api/dev-to-main/prepare')
+def api_dev_to_main_prepare():
+    """Vorschlag für den PR dev → main: Titel aus den geänderten Add-ons, Text aus
+    deren CHANGELOG-Abschnitten seit dem main-Stand plus Commit-Liste."""
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    repo_full = request.args.get('repo', '').strip()
+    if not _REPO_NAME_RE.fullmatch(repo_full):
+        return jsonify({'error': 'invalid_repo'}), 400
+    owner, repo = repo_full.split('/', 1)
+    main_b, dev_b = _dev_main_branches()
+    txt = _DEV_MAIN_TXT[detect_language(request)]
+
+    existing = None
+    open_prs = _gh_get(f'/repos/{repo_full}/pulls', token,
+                       {'state': 'open', 'head': f'{owner}:{dev_b}', 'base': main_b})
+    if isinstance(open_prs, list) and open_prs:
+        existing = {'number': open_prs[0]['number'], 'url': open_prs[0]['html_url'],
+                    'title': open_prs[0]['title']}
+    try:
+        report = _addon_version_report(owner, repo, token, dev_b, main_b, with_changelog=True)
+    except LookupError:
+        return jsonify({'error': 'github_unreadable'}), 502
+    except Exception:
+        log.exception("dev-to-main prepare fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+
+    changed = [a for a in report['addons'] if a['changed']]
+    parts   = []
+    for a in changed:
+        head = f"### {a['name']} {a['main_version'] or '(' + txt['new'] + ')'} → {a['dev_version']}"
+        parts.append(head + ('\n\n' + a['changelog'] if a.get('changelog') else ''))
+    commits = [c for c in report['commits'] if len(c.get('parents') or []) <= 1]
+    lines   = [f"- {(c.get('commit') or {}).get('message', '').split(chr(10))[0][:120]} "
+               f"({c.get('sha', '')[:7]})" for c in commits[-60:]]
+    if len(commits) > 60:
+        lines.insert(0, f"- … {len(commits) - 60} {txt['more']}")
+    body = ''
+    if parts:
+        body += f"## {txt['changes']}\n\n" + '\n\n'.join(parts) + '\n\n'
+    body += f"## {txt['commits']} ({len(commits)})\n\n" + '\n'.join(lines)
+    body = body[:60000]
+
+    bumped = [f"{a['name']} {a['dev_version']}" for a in changed
+              if a['dev_version'] != a['main_version']]
+    title  = (f"{dev_b} → {main_b}: " + ', '.join(bumped)) if bumped \
+        else f"{dev_b} → {main_b} ({len(commits)} {txt['commits']})"
+    if len(title) > 200:
+        title = title[:197] + '…'
+    return jsonify({
+        'repo': repo_full, 'main': main_b, 'dev': dev_b,
+        'ahead_by': report['ahead_by'], 'behind_by': report['behind_by'],
+        'existing': existing, 'title': title, 'body': body,
+        'warnings': [{'dir': a['dir'], 'name': a['name'], 'issues': a['issues'],
+                      'dev_version': a['dev_version'], 'main_version': a['main_version'],
+                      'changelog_version': a['changelog_version'],
+                      'code_versions': [c for c in a['code_versions']
+                                        if c['version'] != a['dev_version']]}
+                     for a in changed if a['issues']],
+        'files_truncated': report['files_truncated'],
+    })
+
+
+@app.route('/api/dev-to-main/create', methods=['POST'])
+def api_dev_to_main_create():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    body_in   = request.get_json(silent=True) or {}
+    repo_full = str(body_in.get('repo', '')).strip()
+    title     = str(body_in.get('title', '')).strip()[:250]
+    text      = str(body_in.get('body', ''))[:65000]
+    if not _REPO_NAME_RE.fullmatch(repo_full) or not title:
+        return jsonify({'error': 'repo und title erforderlich'}), 400
+    main_b, dev_b = _dev_main_branches()
+    try:
+        r = http.post(f'{GITHUB_API}/repos/{repo_full}/pulls', headers=_gh_headers(token),
+                      json={'title': title, 'head': dev_b, 'base': main_b, 'body': text},
+                      timeout=15)
+        if r.status_code == 201:
+            d = r.json()
+            log.info("PR %s → %s in %s angelegt: #%s", dev_b, main_b, repo_full, d.get('number'))
+            _branch_sync_cache.clear()
+            _schedule_repo_poll(repo_full)
+            return jsonify({'status': 'created', 'number': d.get('number'), 'url': d.get('html_url')})
+        data = r.json() if r.content else {}
+        msg  = data.get('message', f'HTTP {r.status_code}')
+        errs = data.get('errors') or []
+        if errs:
+            msg += ' — ' + '; '.join(str(e.get('message') or e.get('code', ''))
+                                     for e in errs if isinstance(e, dict))
+        log.warning("dev-to-main: PR-Anlage fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception:
+        log.exception("dev-to-main: PR-Anlage Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
+
 @app.route('/api/addon-manager/addons')
 def api_addon_manager_addons():
     redir = _auth_required(request)

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.2] - 2026-09-24
+
+### Added
+- **PR dev → main per Klick.** Die Branch-Sync-Kachel ist klickbar, sobald dev
+  vor main liegt. Der Dialog schlägt Titel („dev → main: GitPulse 0.5.2, …") und
+  Beschreibung vor: pro geändertem Add-on alle CHANGELOG-Abschnitte seit dem
+  main-Stand, darunter die Commit-Liste. Beides ist vor dem Anlegen editierbar.
+  Gibt es schon einen offenen PR dev → main, verlinkt der Dialog nur darauf.
+- **Versions-Prüfung.** Im Add-on Manager und im dev → main-Dialog werden
+  Unstimmigkeiten markiert: Add-on seit main geändert, aber Version nicht erhöht ·
+  Version niedriger als auf main · oberster CHANGELOG-Eintrag ≠ `config.yaml` ·
+  `APP_VERSION`/`ADDON_VERSION` im Code ≠ `config.yaml`. Ausgewertete Dateien
+  werden pro Git-SHA gemerkt; eine erneute Prüfung kostet nur drei API-Abrufe.
+
 ## [0.5.1] - 2026-09-24
 
 ### Added

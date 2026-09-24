@@ -201,6 +201,17 @@ Ermöglicht es, Versions-Bumps für HA Add-ons direkt aus der GitPulse-UI vorzun
 - **+Patch** — manuell: Patch-Version erhöhen (`1.5.6 → 1.5.7`, `1.5.6.1 → 1.5.7`)
 - CHANGELOG-Eintrag schreiben; aus geschlossenen PRs befüllen
 - Commit & Push direkt aus der UI — Image-Verfügbarkeit wird nach dem Build geprüft
+- **Versions-Prüfung** je Add-on: seit main geändert, aber Version nicht erhöht · Version niedriger als auf main · oberster CHANGELOG-Eintrag weicht von `config.yaml` ab · `APP_VERSION`/`ADDON_VERSION` im Code weicht ab (gesucht in `.py`/`.js`/`.ts`/`.sh` bis drei Ebenen tief, ohne `node_modules`, `tests` u. ä.)
+
+### PR dev → main
+
+Die Branch-Sync-Kachel im Header ist klickbar, sobald der Dev-Branch Commits enthält, die noch nicht auf main sind. Der Dialog schlägt vor:
+
+- **Titel**: geänderte Add-ons mit neuer Version, z. B. `dev → main: GitPulse 0.5.2, Telegram 1.7.10`
+- **Beschreibung**: je geändertem Add-on alle CHANGELOG-Abschnitte seit dem Stand auf main, danach die Commit-Liste (ohne Merge-Commits)
+- **Warnungen** aus der Versions-Prüfung, bevor der PR angelegt wird
+
+Existiert bereits ein offener PR dev → main, zeigt der Dialog nur den Link darauf. Branch-Namen kommen aus den GitPulse-Einstellungen (`main_branch`/`dev_branch`).
 
 ### Console
 

@@ -14,10 +14,10 @@ GitHub-Übersicht direkt im HA-Dashboard: Pull Requests, Issues, CI-Läufe, Secu
 - **Security** — Dependabot · Code Scanning · Secret Scanning Alerts mit Schweregrad-Icons · **CodeQL Autofix**: Fix per Knopfdruck in neuen Branch committen
 - **Meine Aktivität** — Alle eigenen offenen PRs und Issues + PRs mit Review-Anfrage · eigene Items schließen · neue-Kommentar-Benachrichtigungen
 - **Branch Manager** — Branches auflisten, einzeln oder per Mehrfachauswahl löschen · Merge-Status (✓ gemergt / ↑N ungemergte Commits / offener PR) · geschützte Branches (main/dev/master/develop) · Cherry-Pick-Funktion
-- **Add-on Manager** *(optional)* — Versionen bumpen, Changelog-Einträge schreiben und direkt aus der UI pushen
+- **Add-on Manager** *(optional)* — Versionen bumpen, Changelog-Einträge schreiben und direkt aus der UI pushen · Versions-Prüfung: `config.yaml`, CHANGELOG-Kopf und `APP_VERSION` im Code müssen übereinstimmen, geänderte Add-ons brauchen eine neue Version
 - **GitHub-Status** — Badge im Header mit dem Zustand von GitHub selbst (Vorfälle, Wartungen, Komponenten); zeigt sofort, ob ein Fehler an GitHub liegt
 - **Console** — Internes Live-Log mit Auto-Scroll
-- **Branch-Sync Kachel** — Zeigt pro Repo wie viele Commits dev vor/hinter main liegt (↑/↓) mit Farbkodierung
+- **Branch-Sync Kachel** — Zeigt pro Repo wie viele Commits dev vor/hinter main liegt (↑/↓) mit Farbkodierung · Klick legt den PR dev → main an (Titel und Text aus den CHANGELOGs der geänderten Add-ons, mit Versions-Warnungen)
 - **Benachrichtigungen** — Telegram · E-Mail (SMTP) · Browser-Benachrichtigungen — je Ereignistyp einzeln aktivierbar (inkl. Review-Anfragen und neuer Kommentare; selbst verfasste Kommentare lösen nichts aus)
 - **Tages-Digest** — Optionale tägliche Zusammenfassung aller offenen PRs, Issues und Security-Alerts zu einer konfigurierbaren Uhrzeit (`digest_hour 0–23`)
 - **Webhooks** — Optionaler Echtzeit-GitHub-Empfänger (< 1 s statt bis zu 5 Min. Polling)
@@ -59,10 +59,10 @@ Monitor pull requests, issues, CI runs, security alerts, releases and your own a
 - **Security** — Dependabot · Code Scanning · Secret Scanning alerts with severity icons · **CodeQL Autofix**: commit a fix to a new branch with one click
 - **My Activity** — All open PRs and issues you created + PRs where you are requested as reviewer · close own items · new-comment notifications · filter persistence across reloads
 - **Branch Manager** — List branches, delete individually or in bulk · merge status (✓ merged / ↑N unmerged commits / open PR) · protected branches (main/dev/master/develop) · cherry-pick function
-- **Add-on Manager** *(optional)* — Bump versions, write changelog entries and push directly from the UI
+- **Add-on Manager** *(optional)* — Bump versions, write changelog entries and push directly from the UI · version check: `config.yaml`, CHANGELOG head and `APP_VERSION` in code must match, changed add-ons need a new version
 - **GitHub Status** — Header badge with GitHub's own service status (incidents, maintenance, components); tells you at a glance whether a failure is GitHub's
 - **Console** — Live internal log with auto-scroll
-- **Branch-Sync Tile** — Shows per repo how many commits dev is ahead/behind main (↑/↓) with colour coding
+- **Branch-Sync Tile** — Shows per repo how many commits dev is ahead/behind main (↑/↓) with colour coding · click to open the dev → main PR (title and body from the changed add-ons' CHANGELOGs, with version warnings)
 - **Notifications** — Telegram · e-mail (SMTP) · browser notifications — each type individually toggleable per event (incl. review requests)
 - **Daily Digest** — Optional daily summary of all open PRs, issues and security alerts sent at a configurable hour (`digest_hour 0–23`)
 - **Webhooks** — Optional real-time GitHub event receiver (< 1 s vs. up to 5 min polling)
