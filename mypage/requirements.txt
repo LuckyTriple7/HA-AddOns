@@ -13,4 +13,4 @@ pdfplumber==0.11.7
 weasyprint==70.0
 # KI-Bilderzeugung (Google Gemini) für Bibliothek-Titelbilder. Fehlt das Paket oder
 # der API-Key, bleibt der Knopf im Admin einfach aus (siehe _HAS_GENAI).
-google-genai==2.10.0
+google-genai==2.24.0
