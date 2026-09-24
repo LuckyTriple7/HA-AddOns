@@ -7,7 +7,6 @@ on:
 
 jobs:
   sync:
-    if: github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -17,10 +16,19 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Wer den Dependabot-PR mergt, ist der Nutzer — nicht dependabot[bot]. Deshalb
+      # läuft der Job bei jedem Push auf main und entscheidet am Inhalt: Stehen auf
+      # main nur Merge-Commits, die dev nicht hat (der übliche dev → main-Merge),
+      # gibt es nichts zurückzuholen.
       - name: main → dev mergen
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -z "$(git rev-list --no-merges origin/dev..origin/main)" ]; then
+            echo "main enthält keine eigenen Commits — nichts zu tun."
+            exit 0
+          fi
+          git rev-list --no-merges --oneline origin/dev..origin/main
           git checkout dev
           git merge origin/main --no-edit -m "chore(deps): Dependabot-Fix von main nach dev übernommen"
           git push origin dev
