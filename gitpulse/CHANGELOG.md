@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.5.0] - 2026-09-24
+
+### Changed
+- **Webhook-Abrufe gebündelt.** Ein Merge feuert `pull_request` plus mehrere
+  `workflow_run`-Events; bisher startete jedes einen eigenen Voll-Abruf des Repos
+  (inkl. Security-Alerts), bis zu zehn parallel. Jetzt läuft pro Repo höchstens
+  ein Abruf; Ereignisse innerhalb von 2 s gehen darin auf, was währenddessen
+  eintrifft, löst genau einen weiteren aus.
+- **Deutlich weniger Rate-Limit-Verbrauch.** Paginierte Listen (offene PRs/Issues,
+  Code- und Secret-Scanning), Dependabot-Alerts und `releases/latest` nutzen jetzt
+  ETags — unveränderte Daten kommen als 304 und zählen nicht gegen das Limit.
+  Der Token-Check (`/user`) läuft nur noch alle 15 Minuten statt bei jedem Poll.
+
+### Fixed
+- **Parallele Polls.** Hintergrund-Poll und „Jetzt aktualisieren" konnten
+  gleichzeitig laufen; der langsamere schrieb veraltete Daten zurück, und neue
+  PRs/Issues wurden ggf. doppelt per Telegram/E-Mail gemeldet. Polls laufen jetzt
+  nacheinander, ein Anstoß während eines Laufs wird danach nachgeholt.
+- **Voll-Poll überschrieb frischere Webhook-Daten.** Jeder Repo-Datensatz trägt
+  einen Abrufzeitpunkt; ältere Daten ersetzen neuere nicht mehr.
+- „Jetzt aktualisieren" lud nach 2 s vorzeitig den alten Stand nach. Die Anzeige
+  aktualisiert sich jetzt per SSE, sobald der Poll wirklich fertig ist.
+
 ## [0.4.21] - 2026-09-24
 
 ### Fixed

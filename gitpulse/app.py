@@ -618,34 +618,56 @@ def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | 
 
 
 def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | None = None) -> list:
+    """Alle Seiten eines Listen-Endpunkts. Jede Seite läuft mit eigenem ETag —
+    unveränderte Seiten kommen als 304 und kosten kein Rate-Limit-Kontingent."""
     results = []
     url = f'{GITHUB_API}{path}' if path.startswith('/') else path
     base_params = {'per_page': 100, **(params or {})}
-    page = 1
-    while url and page <= max_pages:
+    for page in range(1, max_pages + 1):
+        page_params = {**base_params, 'page': page}
+        cache_key   = 'pg:' + path + str(sorted(page_params.items()))
+        hdrs        = _gh_headers(token)
+        cached      = _etag_cache.get(cache_key)
+        if cached:
+            hdrs['If-None-Match'] = cached[0]
         try:
-            r = http.get(url, headers=_gh_headers(token),
-                         params={**base_params, 'page': page}, timeout=15)
+            r = http.get(url, headers=hdrs, params=page_params, timeout=15)
             _update_rate_limit(r.headers)
-            if r.status_code != 200:
+            if r.status_code == 304 and cached:
+                data, has_next = cached[1], cached[2]
+            elif r.status_code == 200:
+                data     = r.json()
+                has_next = 'rel="next"' in r.headers.get('Link', '')
+                etag     = r.headers.get('ETag')
+                if etag:
+                    _etag_cache[cache_key] = (etag, data, has_next)
+            else:
                 break
-            data = r.json()
-            if not data:
-                break
-            results.extend(data)
-            link = r.headers.get('Link', '')
-            next_url = None
-            for part in link.split(','):
-                if 'rel="next"' in part and len(part) <= 4096:
-                    m = re.search(r'<(https?://[^>\s]{1,2048})>', part)
-                    if m:
-                        next_url = m.group(1)
-            url = next_url
-            page += 1
         except Exception as e:
             log.error("Paginierung Fehler (%s): %s", path, e)
             break
+        if not data:
+            break
+        results.extend(data)
+        if not has_next:
+            break
     return results
+
+
+_token_check: dict = {'token': '', 'ts': 0.0, 'result': None}
+_TOKEN_CHECK_TTL = 900
+
+
+def _check_token_cached(token: str) -> tuple[bool, str, str]:
+    """Wie `_check_token`, aber ein gültiges Ergebnis gilt 15 Minuten — Scopes und
+    Ablaufdatum ändern sich nicht bei jedem Poll. Fehlschläge werden nie gemerkt."""
+    if (_token_check['token'] == token and _token_check['result']
+            and time.time() - _token_check['ts'] < _TOKEN_CHECK_TTL):
+        return _token_check['result']
+    res = _check_token(token)
+    if res[0]:
+        _token_check.update(token=token, ts=time.time(), result=res)
+    return res
 
 
 def _check_token(token: str) -> tuple[bool, str, str]:
@@ -818,6 +840,7 @@ def _pr_recently_closed(repo: str, number) -> bool:
 def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     """Fetch PRs, Issues and latest workflow runs for one repo."""
     owner, name = repo.split('/', 1)
+    fetched_at  = time.time()
 
     repo_meta_raw = _gh_get(f'/repos/{repo}', token)
     repo_meta     = repo_meta_raw or {}
@@ -978,10 +1001,18 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     latest_release = None
     _last_404 = _no_release_repos.get(repo, 0)
     if time.time() - _last_404 > _NO_RELEASE_TTL:
-        url = f'{GITHUB_API}/repos/{repo}/releases/latest'
+        url       = f'{GITHUB_API}/repos/{repo}/releases/latest'
+        rel_key   = f'rel:{repo}'
+        rel_hdrs  = _gh_headers(token)
+        rel_cache = _etag_cache.get(rel_key)
+        if rel_cache:
+            rel_hdrs['If-None-Match'] = rel_cache[0]
         try:
-            r = http.get(url, headers=_gh_headers(token), timeout=15)
-            if r.status_code == 200:
+            r = http.get(url, headers=rel_hdrs, timeout=15)
+            _update_rate_limit(r.headers)
+            if r.status_code == 304 and rel_cache:
+                latest_release = rel_cache[1]
+            elif r.status_code == 200:
                 release_raw = r.json()
                 latest_release = {
                     'tag':        release_raw['tag_name'],
@@ -990,6 +1021,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
                     'date':       release_raw['published_at'],
                     'prerelease': release_raw.get('prerelease', False),
                 }
+                if r.headers.get('ETag'):
+                    _etag_cache[rel_key] = (r.headers['ETag'], latest_release)
             elif r.status_code == 404:
                 _no_release_repos[repo] = time.time()
                 log.info("%s hat noch keine Releases — nächste Prüfung in 1h", repo)
@@ -1007,6 +1040,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
 
     return {
         'repo':           repo,
+        'fetched_at':     fetched_at,
         'owner':          owner,
         'name':           name,
         'default_branch': default_branch,
@@ -1084,9 +1118,19 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
         Uses its own paginator (no explicit &page=N) because the Dependabot
         API returns HTTP 400 when per_page=100 + page=1 are combined."""
         url = f'{GITHUB_API}{path}' if path.startswith('/') else path
+        dep_key   = f'dep:{path}'
+        dep_hdrs  = _gh_headers(token)
+        dep_cache = _etag_cache.get(dep_key)
+        if dep_cache:
+            dep_hdrs['If-None-Match'] = dep_cache[0]
         try:
-            r = http.get(url, headers=_gh_headers(token),
+            r = http.get(url, headers=dep_hdrs,
                          params={'state': 'open', 'per_page': 30}, timeout=10)
+            _update_rate_limit(r.headers)
+            # Nur einseitige Ergebnisse werden gemerkt — bei mehreren Seiten könnte
+            # sich eine hintere ändern, ohne dass die erste ein neues ETag bekommt.
+            if r.status_code == 304 and dep_cache:
+                return list(dep_cache[1]), True
             if r.status_code == 403:
                 try:
                     msg = (r.json().get('message') or '').lower()
@@ -1100,6 +1144,10 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             if r.status_code != 200:
                 return [], True
             results = list(r.json()) if isinstance(r.json(), list) else []
+            if r.headers.get('ETag') and 'rel="next"' not in r.headers.get('Link', ''):
+                _etag_cache[dep_key] = (r.headers['ETag'], list(results))
+            else:
+                _etag_cache.pop(dep_key, None)
             for _ in range(20):
                 link = r.headers.get('Link', '')
                 next_url = None
@@ -1473,6 +1521,39 @@ def _notify_sse() -> None:
 
 # ── Webhook: einzelnen Repo neu laden ────────────────────────────────────────
 
+# Webhook-Ereignisse kommen gebündelt (ein Merge feuert pull_request plus mehrere
+# workflow_run-Events). Pro Repo läuft deshalb höchstens ein Abruf; was während
+# der Wartezeit eintrifft, geht darin auf, was während des Abrufs eintrifft,
+# löst genau einen weiteren aus.
+_repo_poll_state: dict[str, str] = {}   # repo → 'wait' | 'run' | 'again'
+_repo_poll_lock  = threading.Lock()
+_REPO_POLL_DEBOUNCE = 2
+
+
+def _schedule_repo_poll(repo_name: str) -> None:
+    with _repo_poll_lock:
+        state = _repo_poll_state.get(repo_name)
+        if state == 'run':
+            _repo_poll_state[repo_name] = 'again'
+        if state:
+            return
+        _repo_poll_state[repo_name] = 'wait'
+    threading.Thread(target=_repo_poll_loop, args=(repo_name,), daemon=True).start()
+
+
+def _repo_poll_loop(repo_name: str) -> None:
+    while True:
+        time.sleep(_REPO_POLL_DEBOUNCE)
+        with _repo_poll_lock:
+            _repo_poll_state[repo_name] = 'run'
+        _trigger_repo_poll(repo_name)   # fängt eigene Fehler ab
+        with _repo_poll_lock:
+            if _repo_poll_state.get(repo_name) != 'again':
+                _repo_poll_state.pop(repo_name, None)
+                return
+            _repo_poll_state[repo_name] = 'wait'
+
+
 def _trigger_repo_poll(repo_name: str) -> None:
     """Fetcht einen einzelnen Repo neu und aktualisiert den Cache (für Webhook-Events)."""
     cfg   = load_config()
@@ -1487,6 +1568,10 @@ def _trigger_repo_poll(repo_name: str) -> None:
             updated = False
             for i, rd in enumerate(repos):
                 if rd['repo'] == repo_name:
+                    updated = True
+                    # Ein Voll-Poll hat inzwischen frischere Daten geschrieben
+                    if rd.get('fetched_at', 0) > data['fetched_at']:
+                        break
                     # Runs mergen statt ersetzen — bestehende Liste wächst nie zurück auf 500
                     new_runs      = data.get('runs', [])
                     existing_runs = rd.get('runs', [])
@@ -1498,7 +1583,6 @@ def _trigger_repo_poll(repo_name: str) -> None:
                     brand_new = [r for r in new_runs if r['id'] not in existing_ids]
                     data['runs'] = brand_new + merged
                     repos[i] = data
-                    updated  = True
                     break
             if not updated:
                 repos.append(data)
@@ -1700,11 +1784,34 @@ def _poll_worker() -> None:
         time.sleep(wait)
 
 
+# Worker und „Jetzt aktualisieren" dürfen nie gleichzeitig pollen: sonst schreibt
+# der langsamere Lauf veraltete Daten zurück, und neue PRs/Issues werden doppelt
+# gemeldet. Ein Anstoß während eines Laufs wird vorgemerkt und danach nachgeholt.
+_poll_run_lock = threading.Lock()
+_poll_again    = threading.Event()
+
+
 def _do_poll(cfg: dict, token: str) -> None:
+    if not _poll_run_lock.acquire(blocking=False):
+        _poll_again.set()
+        return
+    try:
+        while True:
+            _poll_again.clear()
+            _do_poll_once(cfg, token)
+            if not _poll_again.is_set():
+                break
+            cfg   = load_config()
+            token = cfg.get('github_token', '').strip() or token
+    finally:
+        _poll_run_lock.release()
+
+
+def _do_poll_once(cfg: dict, token: str) -> None:
     global _seen_releases, _seen_activity, _first_poll_done, _gh_login
     global _last_digest_date, _seen_review_prs
 
-    token_ok, scopes, expires = _check_token(token)
+    token_ok, scopes, expires = _check_token_cached(token)
     if not token_ok:
         with _gh_lock:
             _gh_cache['token_ok'] = False
@@ -1997,6 +2104,14 @@ def _do_poll(cfg: dict, token: str) -> None:
             _last_digest_date = today
 
     with _gh_lock:
+        # Ein Webhook-Abruf, der nach dem Start dieses Polls lief, hat frischere Daten
+        _prev = {rd['repo']: rd for rd in _gh_cache.get('my_repos', [])}
+        repo_data = [
+            _prev[rd['repo']]
+            if _prev.get(rd['repo'], {}).get('fetched_at', 0) > rd.get('fetched_at', 0)
+            else rd
+            for rd in repo_data
+        ]
         _gh_cache['my_repos']      = repo_data
         _gh_cache['releases']      = releases
         _gh_cache['my_activity']          = {
@@ -3435,7 +3550,7 @@ def github_webhook():
                             rd['closed_pulls'] = rd['closed_pulls'][:50]
                         break
             _notify_sse()
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'issues':
         issue   = payload.get('issue', {})
@@ -3449,7 +3564,7 @@ def github_webhook():
                     f"🐛 Neues Issue: <b>{repo_full}</b>\n#{iss_num} {issue.get('title','')}\nvon @{user_login}\n<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>",
                     f"Neues Issue: {repo_full}",
                     [f"#{iss_num} {issue.get('title','')}", f"von @{user_login}", f"<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>"])
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event in ('issue_comment', 'pull_request_review_comment'):
         # Sofort-Meldung für neue Kommentare. Eigene bleiben stumm; der Poll
@@ -3487,7 +3602,7 @@ def github_webhook():
                          f"{label}: <a href=\"{url}\">{ref} {title}</a>",
                          f"von <b>@{author}</b>", snippet])
                     save_comment_state()
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'workflow_run':
         run    = payload.get('workflow_run', {})
@@ -3558,10 +3673,10 @@ def github_webhook():
                                 break
                         break
             _notify_sse()
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event in ('push', 'create', 'delete'):
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'star':
         count = (payload.get('repository') or {}).get('stargazers_count', 0)
@@ -3612,7 +3727,7 @@ def github_webhook():
             f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n#{alert_num} · {label}\nTyp: {secret_type}\n" + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''),
             f"Secret Scanning Alert: {repo_full}",
             [f"#{alert_num} · {label}", f"Typ: {secret_type}"] + ([f"<a href=\"{alert_url}\">Alert anzeigen</a>"] if alert_url else []))
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'code_scanning_alert':
         alert     = payload.get('alert', {})
@@ -3650,7 +3765,7 @@ def github_webhook():
                       + (f"📄 {loc_str}\n" if loc_str else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Code Scanning Alert: {repo_full} [{severity.upper()}]", em_lines)
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'dependabot_alert':
         alert    = payload.get('alert', {})
@@ -3685,7 +3800,7 @@ def github_webhook():
                       + (f"Fix verfügbar: {fixed_in}\n" if fixed_in else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Dependabot Alert: {repo_full} [{severity.upper()}]", em_lines)
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     return jsonify({'status': 'ok'}), 200
 
@@ -4464,7 +4579,7 @@ def api_release_create():
         data = r.json()
         log.info("release: %s %s angelegt (draft=%s, pre=%s)", repo_full, tag, draft, prerelease)
         _no_release_repos.pop(repo_full, None)
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
         return jsonify({
             'status':      'created',
             'tag':         data.get('tag_name', tag),

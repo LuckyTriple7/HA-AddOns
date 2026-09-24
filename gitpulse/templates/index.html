@@ -3234,9 +3234,11 @@
       .catch(err => console.error('API Fehler', err));
   }
 
+  // Das Ergebnis meldet der Server per SSE, sobald der Poll fertig ist. Nur ohne
+  // Dauerverbindung selbst nachladen — sonst kämen vorzeitig die alten Daten.
   function pollNow() {
     fetch(u('/api/poll-now'), {method:'POST'})
-      .then(() => setTimeout(loadData, 2000))
+      .then(() => { if (_sseFails) setTimeout(loadData, 2000); })
       .catch(() => {});
   }
 
