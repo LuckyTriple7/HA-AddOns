@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.65.1] - 2026-09-24
+
+chore(deps): cryptography 50.0.0 → 50.0.1, pdfplumber 0.11.7 → 0.11.10, markdown 3.10.2 → 3.10.3, qrcode 7.4.2 → 8.2, google-genai 2.10.0 → 2.24.0 in /mypage
+
 ## [0.11.65] - 2026-09-12
 
 chore(deps): Bump weasyprint from 69.0 to 70.0 in /mypage
