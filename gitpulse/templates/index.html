@@ -429,6 +429,26 @@
     </div>
   </div>
 
+  <!-- ── dev → main Modal ─────────────────────────────────────────── -->
+  <div id="devmain-modal" class="modal-backdrop">
+    <div class="modal" style="max-width:720px;max-height:90vh;overflow:auto">
+      <h3>⎇ <span id="dm-heading"></span></h3>
+      <div id="dm-status" style="font-size:.85rem;color:var(--muted)"></div>
+      <div id="dm-form" style="display:none">
+        <div id="dm-warn"></div>
+        <label for="dm-title">{{ t.dm_pr_title }}</label>
+        <input id="dm-title" type="text" maxlength="250">
+        <label for="dm-body">{{ t.dm_body }}</label>
+        <textarea id="dm-body" rows="14" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:5px;font-size:.8rem;font-family:monospace;resize:vertical"></textarea>
+      </div>
+      <div id="dm-err" class="modal-err" style="display:none"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('devmain-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" id="dm-create-btn" style="display:none" onclick="confirmDevMain()">{{ t.dm_create }}</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Settings Modal ───────────────────────────────────────────── -->
   <div id="settings-modal" class="modal-backdrop">
     <div class="modal" style="max-width:480px">
@@ -1051,6 +1071,7 @@
     { key:'new_comment',         label:'{{ t.tg_new_comment }}' },
     { key:'review_request',      label:'{{ t.tg_review_request }}' },
     { key:'digest',              label:'{{ t.tg_digest }}' },
+    { key:'token_expiry',        label:'{{ t.tg_token_expiry }}' },
   ];
 
   function openSettings() {
@@ -1879,6 +1900,24 @@
     review_approved:   '{{ t.review_approved }}',
     review_changes:    '{{ t.review_changes }}',
     review_pending:    '{{ t.review_pending }}',
+    ci_checks:         {{ t.ci_checks|tojson }},
+    vc_ok: {{ t.vc_ok|tojson }},
+    vc_not_bumped: {{ t.vc_not_bumped|tojson }},
+    vc_lower_than_main: {{ t.vc_lower_than_main|tojson }},
+    vc_changelog_mismatch: {{ t.vc_changelog_mismatch|tojson }},
+    vc_changed: {{ t.vc_changed|tojson }},
+    dm_heading: {{ t.dm_heading|tojson }},
+    dm_open_hint: {{ t.dm_open_hint|tojson }},
+    dm_loading: {{ t.dm_loading|tojson }},
+    dm_existing: {{ t.dm_existing|tojson }},
+    dm_warnings: {{ t.dm_warnings|tojson }},
+    dm_created: {{ t.dm_created|tojson }},
+    dm_truncated: {{ t.dm_truncated|tojson }},
+    dm_nothing: {{ t.dm_nothing|tojson }},
+    ci_failed:         {{ t.ci_failed|tojson }},
+    ci_running:        {{ t.ci_running|tojson }},
+    rl_poll_every:     {{ t.rl_poll_every|tojson }},
+    rl_webhook_mode:   {{ t.rl_webhook_mode|tojson }},
     error_unknown:     '{{ t.error_unknown }}',
     rl_of:             '{{ t.rl_of }}',
     rl_remaining:      '{{ t.rl_remaining }}',
@@ -2078,8 +2117,27 @@
     const resetStr = resetIn > 0 ? ` ⏱ ${resetIn}m` : '';
     el.className   = `rl-badge ${cls}`;
     el.textContent = `⚡ ${rem}/${lim}${resetStr}`;
-    el.title       = `GitHub API: ${rem} ${T.rl_of} ${lim} ${T.rl_remaining} (${pct}%)${resetIn > 0 ? ' · ' + T.rl_reset_in + ' ' + resetIn + ' ' + T.rl_min : ''}`;
+    const pollMin  = data.poll_interval_now ? Math.round(data.poll_interval_now / 60) : 0;
+    const pollStr  = pollMin ? `\n${T.rl_poll_every} ${pollMin} ${T.rl_min}${data.webhook_mode ? ' (' + T.rl_webhook_mode + ')' : ''}` : '';
+    el.title       = `GitHub API: ${rem} ${T.rl_of} ${lim} ${T.rl_remaining} (${pct}%)${resetIn > 0 ? ' · ' + T.rl_reset_in + ' ' + resetIn + ' ' + T.rl_min : ''}${pollStr}`;
     el.style.display = '';
+  }
+
+  // ── CI-Badge (Check-Runs bzw. Actions-Runs des PR-Kopf-Commits) ──
+  function ciBadge(ci) {
+    if (!ci || !ci.state || ci.state === 'none') return '';
+    const look = {
+      success: ['var(--green)',  '✓'],
+      failure: ['var(--red)',    '✗'],
+      pending: ['var(--yellow)', '⏳'],
+    }[ci.state];
+    if (!look) return '';
+    const tip = ci.state === 'failure'
+      ? `${T.ci_failed}: ${(ci.failed || []).join(', ')}`
+      : ci.state === 'pending'
+        ? `${T.ci_running} · ${T.ci_checks}: ${ci.passed}/${ci.total}`
+        : `${T.ci_checks}: ${ci.passed}/${ci.total}`;
+    return `<span style="color:${look[0]};font-size:.72rem;font-weight:600" title="${escHtml(tip)}">${look[1]} CI</span>`;
   }
 
   // ── Review Badge ──────────────────────────────────────────────────
@@ -2375,6 +2433,7 @@
               ${conflict ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}
               <span>@${escHtml(pr.user)}</span>
               <span>${relTime(pr.updated)}</span>
+              ${!closed ? ciBadge(pr.ci) : ''}
               ${!closed ? reviewBadge(pr.review_state) : ''}
               ${cmtBadge(pr, repo.repo)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
@@ -2948,6 +3007,7 @@
                   ? `<span class="pr-state-open">⇄ PR</span>`
                   : `<span style="color:var(--yellow)">● Issue</span>`}
               <span>${relTime(item.updated)}</span>
+              ${type !== 'issue' ? ciBadge(item.ci) : ''}
               ${type !== 'issue' ? reviewBadge(item.review_state) : ''}
               ${type !== 'issue' ? reviewerChip(item.reviewers) : ''}
               ${type !== 'issue' && item.mergeable === 'dirty' ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}
@@ -3234,9 +3294,11 @@
       .catch(err => console.error('API Fehler', err));
   }
 
+  // Das Ergebnis meldet der Server per SSE, sobald der Poll fertig ist. Nur ohne
+  // Dauerverbindung selbst nachladen — sonst kämen vorzeitig die alten Daten.
   function pollNow() {
     fetch(u('/api/poll-now'), {method:'POST'})
-      .then(() => setTimeout(loadData, 2000))
+      .then(() => { if (_sseFails) setTimeout(loadData, 2000); })
       .catch(() => {});
   }
 
@@ -3707,12 +3769,34 @@
       document.getElementById('am-count-chip').style.display = '';
       list.innerHTML = d.addons.map(a => amCard(a, repo, branch)).join('');
       d.addons.forEach(a => { if (a.image) amCheckImage(a.image, a.version, `am-${a.dir}-imgbadge`); });
+      amVersionCheck(repo, branch);
     } catch(e) {
       list.innerHTML = `<div style="color:#f85149">{{ t.am_error_load }}</div>`;
     } finally {
       btn.disabled = false;
       btn.textContent = '{{ t.am_load }}';
     }
+  }
+
+  async function amVersionCheck(repo, branch) {
+    try {
+      const r = await fetch(u(`/api/addon-manager/version-check?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`));
+      const d = await r.json();
+      if (!r.ok || d.error) return;
+      for (const a of d.addons || []) {
+        const el = document.getElementById(`am-${a.dir}-vcheck`);
+        if (!el) continue;
+        const mainInfo = a.main_version && a.main_version !== a.dev_version
+          ? ` <span style="color:var(--muted)">(${escHtml(d.main)}: ${escHtml(a.main_version)})</span>` : '';
+        if (a.issues.length) {
+          el.innerHTML = `<span style="color:var(--red)">⚠ ${a.issues.map(c => escHtml(vcIssueText(a, c))).join(' · ')}</span>${mainInfo}`;
+        } else if (a.changed) {
+          el.innerHTML = `<span style="color:var(--green)">✓ ${escHtml(T.vc_ok)}</span> <span style="color:var(--muted)">· ${escHtml(T.vc_changed)}</span>${mainInfo}`;
+        } else {
+          el.innerHTML = mainInfo;
+        }
+      }
+    } catch (e) { /* Prüfung ist nur ein Hinweis */ }
   }
 
   async function amCheckImage(image, version, badgeId) {
@@ -3747,6 +3831,7 @@
         <span style="font-size:0.8rem;color:var(--muted)">${escHtml(a.dir)}</span>
         <span style="font-size:0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px">{{ t.am_current_ver }}: <b>${escHtml(a.version)}</b></span>
         ${a.image ? `<span id="${id}-imgbadge" title="${escHtml(a.image)}:${escHtml(a.version)}" style="font-size:0.78rem;color:var(--muted);white-space:nowrap">⏳ {{ t.am_img_checking }}</span>` : ''}
+        <span id="${id}-vcheck" style="font-size:0.78rem"></span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
@@ -4297,6 +4382,18 @@
       const ac = a === 0 ? 'var(--green)' : a <= 9 ? 'var(--yellow)' : a <= 29 ? 'var(--orange)' : 'var(--red)';
       const bc = b === 0 ? 'var(--green)' : 'var(--red)';
       const shortRepo = escHtml(rp.repo.split('/')[1] || rp.repo);
+      if (a > 0) {
+        const hint = T.dm_open_hint.replace('{dev}', data.dev).replace('{main}', data.main);
+        return `<div class="stat-chip" style="min-width:90px;cursor:pointer" role="button" tabindex="0"
+          title="${escHtml(rp.repo + ' — ' + hint)}" onclick="openDevMainModal(${safeJsArg(rp.repo)})"
+          onkeydown="if(event.key==='Enter')openDevMainModal(${safeJsArg(rp.repo)})">
+        <div class="num" style="display:flex;flex-direction:row;align-items:center;gap:6px">
+          <span style="color:${ac}">↑${a}</span>
+          <span style="color:${bc}">↓${b}</span>
+        </div>
+        <div class="lbl">${shortRepo}: ${escHtml(data.dev)}→${escHtml(data.main)} ⎇</div>
+      </div>`;
+      }
       return `<div class="stat-chip" style="min-width:90px" title="${escHtml(rp.repo)}">
         <div class="num" style="display:flex;flex-direction:row;align-items:center;gap:6px">
           <span style="color:${ac}">↑${a}</span>
@@ -4305,6 +4402,85 @@
         <div class="lbl">${shortRepo}: ${escHtml(data.dev)}→${escHtml(data.main)}</div>
       </div>`;
     }).join('');
+  }
+
+  // ── Versions-Hinweise (Add-on Manager + dev → main) ──────────────
+  function vcIssueText(a, code) {
+    switch (code) {
+      case 'not_bumped':         return T.vc_not_bumped;
+      case 'lower_than_main':    return T.vc_lower_than_main;
+      case 'changelog_mismatch': return T.vc_changelog_mismatch.replace('{v}', a.changelog_version || '?');
+      case 'code_mismatch':
+        return (a.code_versions || []).filter(c => c.version !== a.dev_version)
+          .map(c => `${c.name} (${c.path}): ${c.version}`).join(', ');
+    }
+    return code;
+  }
+
+  // ── PR dev → main ─────────────────────────────────────────────────
+  let _dmRepo = null;
+  async function openDevMainModal(repo) {
+    _dmRepo = repo;
+    const el = id => document.getElementById(id);
+    el('dm-heading').textContent = T.dm_heading + ' · ' + (repo.split('/')[1] || repo);
+    el('dm-status').textContent  = T.dm_loading;
+    el('dm-form').style.display  = 'none';
+    el('dm-err').style.display   = 'none';
+    el('dm-create-btn').style.display = 'none';
+    el('devmain-modal').classList.add('show');
+    try {
+      const r = await fetch(u('/api/dev-to-main/prepare?repo=' + encodeURIComponent(repo)));
+      const d = await r.json();
+      if (_dmRepo !== repo) return;
+      if (!r.ok || d.error) throw new Error(d.error || T.error_unknown);
+      if (d.existing) {
+        el('dm-status').innerHTML = `${escHtml(T.dm_existing)} <a href="${escHtml(d.existing.url)}" target="_blank" rel="noopener noreferrer">#${d.existing.number} ${escHtml(d.existing.title)}</a>`;
+        return;
+      }
+      if (!d.ahead_by) { el('dm-status').textContent = T.dm_nothing; return; }
+      el('dm-status').textContent = `${d.dev} → ${d.main}: ↑${d.ahead_by} ↓${d.behind_by}`;
+      const w = d.warnings || [];
+      el('dm-warn').innerHTML =
+        (w.length ? `<div style="margin-top:10px;padding:8px 10px;border:1px solid var(--red);border-radius:6px;font-size:.8rem">
+            <b style="color:var(--red)">⚠ ${escHtml(T.dm_warnings)}</b>
+            <ul style="margin:4px 0 0 18px">${w.map(a => `<li><b>${escHtml(a.name)}</b> ${escHtml(a.dev_version)}: ${a.issues.map(c => escHtml(vcIssueText(a, c))).join(' · ')}</li>`).join('')}</ul>
+          </div>` : '')
+        + (d.files_truncated ? `<div style="font-size:.78rem;color:var(--yellow);margin-top:6px">${escHtml(T.dm_truncated)}</div>` : '');
+      el('dm-title').value = d.title || '';
+      el('dm-body').value  = d.body || '';
+      el('dm-form').style.display = '';
+      el('dm-create-btn').style.display = '';
+    } catch (e) {
+      if (_dmRepo !== repo) return;
+      el('dm-status').textContent = '';
+      el('dm-err').textContent = String(e.message || e);
+      el('dm-err').style.display = 'block';
+    }
+  }
+
+  async function confirmDevMain() {
+    const el  = id => document.getElementById(id);
+    const btn = el('dm-create-btn');
+    const repo = _dmRepo;
+    btn.disabled = true;
+    el('dm-err').style.display = 'none';
+    try {
+      const r = await fetch(u('/api/dev-to-main/create'), {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({repo, title: el('dm-title').value, body: el('dm-body').value}),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || T.error_unknown);
+      el('dm-form').style.display = 'none';
+      btn.style.display = 'none';
+      el('dm-status').innerHTML = `✓ ${escHtml(T.dm_created)} <a href="${escHtml(d.url)}" target="_blank" rel="noopener noreferrer">#${d.number}</a>`;
+      refreshBranchSync();
+    } catch (e) {
+      el('dm-err').textContent = String(e.message || e);
+      el('dm-err').style.display = 'block';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function refreshBranchSync() {

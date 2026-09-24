@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.12] - 2026-09-21
+
+chore(deps): bump uvicorn from 0.52.4 to 0.53.0 in /cardboard/rootfs/app
+
+
 ## [1.0.11.1] - 2026-08-24
 
 chore(deps): Bump uvicorn from 0.52.3 to 0.52.4 in /cardboard/rootfs/app

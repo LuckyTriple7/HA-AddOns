@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import base64
+import gzip
 import hashlib
 import hmac
 import html as htmllib
@@ -92,6 +93,7 @@ GITHUB_API    = 'https://api.github.com'
 GITHUB_STATUS_API = 'https://www.githubstatus.com/api/v2/summary.json'
 GITHUB_STATUS_INTERVAL = 60  # seconds
 POLL_INTERVAL_DEFAULT = 300  # seconds
+WEBHOOK_POLL_INTERVAL_DEFAULT = 1800  # seconds, wenn alle Webhooks aktiv sind
 
 # ── State ─────────────────────────────────────────────────────────────────────
 _config_cache: dict | None = None
@@ -162,6 +164,7 @@ _seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
 _SEEN_COMMENTS_PATH = _DATA + '/seen_comments.json'
 _seen_comment_totals: dict[str, int] = {}
 _seen_comments_lock = threading.Lock()
+_seen_comments_file_lock = threading.Lock()   # parallele Repo-Abrufe schreiben sonst ineinander
 _seen_comments_dirty = False
 
 # GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
@@ -196,8 +199,31 @@ _last_digest_date: str = ''
 # Review-Request-Tracking — PRs die zur Review angefragt wurden (in-memory)
 _seen_review_prs: set[str] = set()
 
-# ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit)
+# ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit).
+# Einträge, die kein Poll mehr anfragt (geschlossene PRs, weggefallene Seiten,
+# entfernte Repos), räumt `_etag_prune` nach einem Tag ab.
 _etag_cache: dict[str, tuple] = {}
+_etag_used:  dict[str, float] = {}
+_ETAG_MAX_IDLE = 86400
+
+
+def _etag_get(key: str) -> tuple | None:
+    hit = _etag_cache.get(key)
+    if hit is not None:
+        _etag_used[key] = time.time()
+    return hit
+
+
+def _etag_put(key: str, value: tuple) -> None:
+    _etag_cache[key] = value
+    _etag_used[key]  = time.time()
+
+
+def _etag_prune() -> None:
+    cutoff = time.time() - _ETAG_MAX_IDLE
+    for key in [k for k, ts in list(_etag_used.items()) if ts < cutoff]:
+        _etag_used.pop(key, None)
+        _etag_cache.pop(key, None)
 
 # GitHub Rate-Limit State
 _rate_limit: dict = {'remaining': 5000, 'limit': 5000, 'reset': 0}
@@ -209,6 +235,13 @@ _seen_prs:   dict[str, set] = defaultdict(set)   # repo → {pr_number, …}
 _seen_issues: dict[str, set] = defaultdict(set)  # repo → {issue_number, …}
 _known_run_conclusions: dict[int, str | None] = {}  # run_id → conclusion
 _repo_stats: dict[str, dict] = {}  # repo → {stars, forks, watchers} für Änderungserkennung
+
+# Gerade gemergte/geschlossene PRs: (repo, nummer) → Ablaufzeit.
+# Nach einem Merge liefern /pulls und vor allem die Search-API den PR noch einige
+# Sekunden als offen; ein Poll, der in dieses Fenster fällt, würde ihn sonst wieder
+# in die Liste schreiben, nachdem Webhook bzw. Merge-Button ihn schon entfernt haben.
+_closed_pr_hold: dict[tuple, float] = {}
+_CLOSED_PR_HOLD_SEC = 180
 
 # Doppel-Benachrichtigungen bei Security-Alerts unterdrücken.
 # GitHub feuert für einen neuen Code-Scanning-Alert zwei Webhooks ("created" und
@@ -484,7 +517,7 @@ def save_seen_comments() -> None:
         snapshot = dict(_seen_comment_totals)
         _seen_comments_dirty = False
     try:
-        with open(_SEEN_COMMENTS_PATH, 'w') as f:
+        with _seen_comments_file_lock, open(_SEEN_COMMENTS_PATH, 'w') as f:
             json.dump(snapshot, f)
     except Exception as e:
         log.warning("seen_comments konnte nicht gespeichert werden: %s", e)
@@ -581,64 +614,147 @@ def _gh_headers(token: str) -> dict:
 
 
 def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | None:
+    return _gh_get_ex(path, token, params)[1]
+
+
+def _gh_get_ex(path: str, token: str, params: dict | None = None,
+               quiet: tuple = ()) -> tuple[int, dict | list | None]:
+    """Wie `_gh_get`, liefert zusätzlich den HTTP-Status (0 = Netzwerkfehler).
+    Status in `quiet` werden nicht geloggt — für erwartbare 403/404."""
     url       = f'{GITHUB_API}{path}' if path.startswith('/') else path
     cache_key = path + (str(sorted(params.items())) if params else '')
     hdrs      = _gh_headers(token)
-    cached    = _etag_cache.get(cache_key)
+    cached    = _etag_get(cache_key)
     if cached:
         hdrs['If-None-Match'] = cached[0]
     try:
         r = http.get(url, headers=hdrs, params=params, timeout=15)
         _update_rate_limit(r.headers)
         if r.status_code == 304 and cached:
-            return cached[1]
+            return 200, cached[1]
         if r.status_code == 200:
             data = r.json()
             etag = r.headers.get('ETag')
             if etag:
-                _etag_cache[cache_key] = (etag, data)
-            return data
+                _etag_put(cache_key, (etag, data))
+            return 200, data
         if r.status_code == 429:
             reset_ts = int(r.headers.get('X-RateLimit-Reset', time.time() + 60))
             log.warning("GitHub Rate-Limit überschritten — Reset um %s UTC",
                         datetime.fromtimestamp(reset_ts, tz=timezone.utc).strftime('%H:%M'))
-        else:
+        elif r.status_code not in quiet:
             log.warning("GitHub API %s → HTTP %d", path, r.status_code)
-        return None
+        return r.status_code, None
     except Exception as e:
         log.error("GitHub API Fehler (%s): %s", path, e)
-        return None
+        return 0, None
 
 
 def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | None = None) -> list:
+    """Alle Seiten eines Listen-Endpunkts. Jede Seite läuft mit eigenem ETag —
+    unveränderte Seiten kommen als 304 und kosten kein Rate-Limit-Kontingent."""
     results = []
     url = f'{GITHUB_API}{path}' if path.startswith('/') else path
     base_params = {'per_page': 100, **(params or {})}
-    page = 1
-    while url and page <= max_pages:
+    for page in range(1, max_pages + 1):
+        page_params = {**base_params, 'page': page}
+        cache_key   = 'pg:' + path + str(sorted(page_params.items()))
+        hdrs        = _gh_headers(token)
+        cached      = _etag_get(cache_key)
+        if cached:
+            hdrs['If-None-Match'] = cached[0]
         try:
-            r = http.get(url, headers=_gh_headers(token),
-                         params={**base_params, 'page': page}, timeout=15)
+            r = http.get(url, headers=hdrs, params=page_params, timeout=15)
             _update_rate_limit(r.headers)
-            if r.status_code != 200:
+            if r.status_code == 304 and cached:
+                data, has_next = cached[1], cached[2]
+            elif r.status_code == 200:
+                data     = r.json()
+                has_next = 'rel="next"' in r.headers.get('Link', '')
+                etag     = r.headers.get('ETag')
+                if etag:
+                    _etag_put(cache_key, (etag, data, has_next))
+            else:
                 break
-            data = r.json()
-            if not data:
-                break
-            results.extend(data)
-            link = r.headers.get('Link', '')
-            next_url = None
-            for part in link.split(','):
-                if 'rel="next"' in part and len(part) <= 4096:
-                    m = re.search(r'<(https?://[^>\s]{1,2048})>', part)
-                    if m:
-                        next_url = m.group(1)
-            url = next_url
-            page += 1
         except Exception as e:
             log.error("Paginierung Fehler (%s): %s", path, e)
             break
+        if not data:
+            break
+        results.extend(data)
+        if not has_next:
+            break
     return results
+
+
+_token_check: dict = {'token': '', 'ts': 0.0, 'result': None}
+_TOKEN_CHECK_TTL = 900
+
+
+def _check_token_cached(token: str) -> tuple[bool, str, str]:
+    """Wie `_check_token`, aber ein gültiges Ergebnis gilt 15 Minuten — Scopes und
+    Ablaufdatum ändern sich nicht bei jedem Poll. Fehlschläge werden nie gemerkt."""
+    if (_token_check['token'] == token and _token_check['result']
+            and time.time() - _token_check['ts'] < _TOKEN_CHECK_TTL):
+        return _token_check['result']
+    res = _check_token(token)
+    if res[0]:
+        _token_check.update(token=token, ts=time.time(), result=res)
+    return res
+
+
+_TOKEN_WARN_PATH = _DATA + '/token_warn.json'
+_TOKEN_WARN_DAYS = (7, 1)
+
+
+def _parse_gh_expiry(value: str) -> datetime | None:
+    """GitHub liefert z. B. '2026-10-15 12:00:00 UTC' oder '... +0200'."""
+    value = (value or '').strip()
+    for fmt in ('%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%S %z'):
+        try:
+            dt = datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _warn_token_expiry(cfg: dict, expires: str, tg_token: str, tg_chat: str,
+                       tg_notif: dict, em_notif: dict) -> None:
+    """Meldet 7 Tage und 1 Tag vor Ablauf des PAT je einmal. Der Stand liegt auf
+    der Platte, damit ein Neustart die Meldung nicht wiederholt; ein neues
+    Token (anderes Ablaufdatum) setzt ihn zurück."""
+    exp = _parse_gh_expiry(expires)
+    if not exp:
+        return
+    days = (exp - datetime.now(timezone.utc)).total_seconds() / 86400
+    due  = [d for d in _TOKEN_WARN_DAYS if days <= d]
+    if not due or days < 0:
+        return
+    level = min(due)
+    try:
+        with open(_TOKEN_WARN_PATH) as f:
+            state = json.load(f)
+    except Exception:
+        state = {}
+    if state.get('expires') == expires and int(state.get('level', 99)) <= level:
+        return
+    try:
+        with open(_TOKEN_WARN_PATH, 'w') as f:
+            json.dump({'expires': expires, 'level': level}, f)
+    except Exception as e:
+        log.warning("token_warn konnte nicht gespeichert werden: %s", e)
+    when = (f"in {int(days)} Tag{'en' if int(days) != 1 else ''}"
+            if days >= 1 else "in weniger als einem Tag")
+    date = exp.astimezone().strftime('%d.%m.%Y %H:%M')
+    log.warning("GitHub-Token läuft %s ab (%s)", when, date)
+    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'token_expiry',
+        f"🔑 <b>GitHub-Token läuft {when} ab</b>\nAblauf: {date}\n"
+        f"<a href=\"https://github.com/settings/personal-access-tokens\">Token erneuern</a>",
+        f"GitHub-Token läuft {when} ab",
+        [f"Ablauf: <b>{date}</b>",
+         "Danach kann GitPulse nichts mehr von GitHub abrufen.",
+         "<a href=\"https://github.com/settings/personal-access-tokens\">Token erneuern</a>"])
 
 
 def _check_token(token: str) -> tuple[bool, str, str]:
@@ -793,15 +909,71 @@ def _review_bodies_count(reviews: list) -> int:
     return sum(1 for rev in reviews if (rev.get('body') or '').strip())
 
 
+# Check-Runs brauchen die PAT-Berechtigung „Checks: Read", die ältere Tokens oft
+# nicht haben. Dann für eine Stunde auf die Actions-Runs des Commits ausweichen
+# (Actions-Leserecht ist Pflicht) statt bei jedem PR erneut 403 zu kassieren.
+_CI_FAIL_CONCLUSIONS = {'failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'}
+_checks_denied: dict[str, float] = {}   # repo → bis wann nur Actions-Runs
+_CHECKS_DENIED_TTL = 3600
+
+
+def _ci_state(repo: str, sha: str, token: str) -> dict:
+    """CI-Zustand eines Commits: success | failure | pending | none."""
+    if not sha:
+        return {'state': 'none'}
+    runs = None
+    if _checks_denied.get(repo, 0) < time.time():
+        status, data = _gh_get_ex(f'/repos/{repo}/commits/{sha}/check-runs', token,
+                                  {'per_page': 100}, quiet=(403, 404))
+        if status == 200 and isinstance(data, dict):
+            runs = [{'name': c.get('name', ''), 'status': c.get('status'),
+                     'conclusion': c.get('conclusion')} for c in data.get('check_runs') or []]
+        elif status in (403, 404):
+            _checks_denied[repo] = time.time() + _CHECKS_DENIED_TTL
+    if runs is None:
+        data = _gh_get(f'/repos/{repo}/actions/runs', token, {'head_sha': sha, 'per_page': 50})
+        latest: dict = {}
+        for r in (data or {}).get('workflow_runs') or []:
+            # Liste ist neueste zuerst — Re-Runs überdecken ältere Läufe desselben Workflows
+            latest.setdefault(r.get('workflow_id'), r)
+        runs = [{'name': r.get('name', ''), 'status': r.get('status'),
+                 'conclusion': r.get('conclusion')} for r in latest.values()]
+    if not runs:
+        return {'state': 'none'}
+    failed  = [r['name'] for r in runs
+               if r['status'] == 'completed' and r['conclusion'] in _CI_FAIL_CONCLUSIONS]
+    pending = sum(1 for r in runs if r['status'] != 'completed')
+    state   = 'failure' if failed else 'pending' if pending else 'success'
+    return {'state': state, 'total': len(runs),
+            'passed': len(runs) - len(failed) - pending, 'failed': failed[:5]}
+
+
+def _mark_pr_closed(repo: str, number) -> None:
+    try:
+        number = int(number)
+    except (TypeError, ValueError):
+        return
+    _closed_pr_hold[(repo, number)] = time.time() + _CLOSED_PR_HOLD_SEC
+
+
+def _pr_recently_closed(repo: str, number) -> bool:
+    now = time.time()
+    for key in [k for k, exp in list(_closed_pr_hold.items()) if exp < now]:
+        _closed_pr_hold.pop(key, None)
+    return (repo, number) in _closed_pr_hold
+
+
 def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     """Fetch PRs, Issues and latest workflow runs for one repo."""
     owner, name = repo.split('/', 1)
+    fetched_at  = time.time()
 
     repo_meta_raw = _gh_get(f'/repos/{repo}', token)
     repo_meta     = repo_meta_raw or {}
     default_branch = repo_meta.get('default_branch', 'main')
 
     pulls_raw = _gh_get_paginated(f'/repos/{repo}/pulls', token) or []
+    pulls_raw = [pr for pr in pulls_raw if not _pr_recently_closed(repo, pr.get('number'))]
     pulls = []
     for pr in pulls_raw:
         reviews_raw = _gh_get(f'/repos/{repo}/pulls/{pr["number"]}/reviews', token) or []
@@ -828,6 +1000,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'comments_new': _comments_new(repo, pr['number'], _pr_cmts),
             'review_state': _compute_review_state(reviews_raw, len(_pr_reqs)),
             'reviewers':    [u.get('login', '') for u in _pr_reqs if u.get('login')],
+            'ci':           _ci_state(repo, (pr.get('head') or {}).get('sha', ''), token),
             'body':         _strip_html(pr.get('body') or '')[:1500],
         })
 
@@ -955,10 +1128,18 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     latest_release = None
     _last_404 = _no_release_repos.get(repo, 0)
     if time.time() - _last_404 > _NO_RELEASE_TTL:
-        url = f'{GITHUB_API}/repos/{repo}/releases/latest'
+        url       = f'{GITHUB_API}/repos/{repo}/releases/latest'
+        rel_key   = f'rel:{repo}'
+        rel_hdrs  = _gh_headers(token)
+        rel_cache = _etag_get(rel_key)
+        if rel_cache:
+            rel_hdrs['If-None-Match'] = rel_cache[0]
         try:
-            r = http.get(url, headers=_gh_headers(token), timeout=15)
-            if r.status_code == 200:
+            r = http.get(url, headers=rel_hdrs, timeout=15)
+            _update_rate_limit(r.headers)
+            if r.status_code == 304 and rel_cache:
+                latest_release = rel_cache[1]
+            elif r.status_code == 200:
                 release_raw = r.json()
                 latest_release = {
                     'tag':        release_raw['tag_name'],
@@ -967,6 +1148,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
                     'date':       release_raw['published_at'],
                     'prerelease': release_raw.get('prerelease', False),
                 }
+                if r.headers.get('ETag'):
+                    _etag_put(rel_key, (r.headers['ETag'], latest_release))
             elif r.status_code == 404:
                 _no_release_repos[repo] = time.time()
                 log.info("%s hat noch keine Releases — nächste Prüfung in 1h", repo)
@@ -980,10 +1163,9 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
                   len(security.get('code_scanning', [])) +
                   len(security.get('secret_scanning', [])))
 
-    save_seen_comments()
-
     return {
         'repo':           repo,
+        'fetched_at':     fetched_at,
         'owner':          owner,
         'name':           name,
         'default_branch': default_branch,
@@ -1061,9 +1243,19 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
         Uses its own paginator (no explicit &page=N) because the Dependabot
         API returns HTTP 400 when per_page=100 + page=1 are combined."""
         url = f'{GITHUB_API}{path}' if path.startswith('/') else path
+        dep_key   = f'dep:{path}'
+        dep_hdrs  = _gh_headers(token)
+        dep_cache = _etag_get(dep_key)
+        if dep_cache:
+            dep_hdrs['If-None-Match'] = dep_cache[0]
         try:
-            r = http.get(url, headers=_gh_headers(token),
+            r = http.get(url, headers=dep_hdrs,
                          params={'state': 'open', 'per_page': 30}, timeout=10)
+            _update_rate_limit(r.headers)
+            # Nur einseitige Ergebnisse werden gemerkt — bei mehreren Seiten könnte
+            # sich eine hintere ändern, ohne dass die erste ein neues ETag bekommt.
+            if r.status_code == 304 and dep_cache:
+                return list(dep_cache[1]), True
             if r.status_code == 403:
                 try:
                     msg = (r.json().get('message') or '').lower()
@@ -1077,6 +1269,10 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             if r.status_code != 200:
                 return [], True
             results = list(r.json()) if isinstance(r.json(), list) else []
+            if r.headers.get('ETag') and 'rel="next"' not in r.headers.get('Link', ''):
+                _etag_put(dep_key, (r.headers['ETag'], list(results)))
+            else:
+                _etag_cache.pop(dep_key, None)
             for _ in range(20):
                 link = r.headers.get('Link', '')
                 next_url = None
@@ -1309,6 +1505,7 @@ def _pr_activity_meta(repo: str, number: int, token: str) -> dict:
         'reviewers':      [u.get('login', '') for u in requested if u.get('login')],
         'mergeable':      detail.get('mergeable_state') or '',
         'extra_comments': _review_bodies_count(reviews) + (detail.get('review_comments') or 0),
+        'ci':             _ci_state(repo, (detail.get('head') or {}).get('sha', ''), token),
     }
 
 
@@ -1360,16 +1557,23 @@ def _fetch_my_activity(login: str, token: str) -> dict:
             'review_state': _meta.get('review_state', 'none'),
             'reviewers':    _meta.get('reviewers', []),
             'mergeable':    _meta.get('mergeable', ''),
+            'ci':           _meta.get('ci', {'state': 'none'}),
             'labels':   [l['name'] for l in item.get('labels', [])],
             'body':     _strip_html(item.get('body') or '')[:1000],
         }
 
+    def _still_open(item: dict) -> bool:
+        _repo = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
+        return not _pr_recently_closed(_repo, item['number'])
+
     for item in _search(f'author:{login} type:pr state:open'):
-        prs.append(_fmt(item))
+        if _still_open(item):
+            prs.append(_fmt(item))
     for item in _search(f'author:{login} type:issue state:open'):
         issues.append(_fmt(item))
     for item in _search(f'review-requested:{login} type:pr state:open'):
-        review_prs.append(_fmt(item))
+        if _still_open(item):
+            review_prs.append(_fmt(item))
 
     save_seen_comments()
     return {'prs': prs, 'issues': issues, 'review_prs': review_prs}
@@ -1444,6 +1648,39 @@ def _notify_sse() -> None:
 
 # ── Webhook: einzelnen Repo neu laden ────────────────────────────────────────
 
+# Webhook-Ereignisse kommen gebündelt (ein Merge feuert pull_request plus mehrere
+# workflow_run-Events). Pro Repo läuft deshalb höchstens ein Abruf; was während
+# der Wartezeit eintrifft, geht darin auf, was während des Abrufs eintrifft,
+# löst genau einen weiteren aus.
+_repo_poll_state: dict[str, str] = {}   # repo → 'wait' | 'run' | 'again'
+_repo_poll_lock  = threading.Lock()
+_REPO_POLL_DEBOUNCE = 2
+
+
+def _schedule_repo_poll(repo_name: str) -> None:
+    with _repo_poll_lock:
+        state = _repo_poll_state.get(repo_name)
+        if state == 'run':
+            _repo_poll_state[repo_name] = 'again'
+        if state:
+            return
+        _repo_poll_state[repo_name] = 'wait'
+    threading.Thread(target=_repo_poll_loop, args=(repo_name,), daemon=True).start()
+
+
+def _repo_poll_loop(repo_name: str) -> None:
+    while True:
+        time.sleep(_REPO_POLL_DEBOUNCE)
+        with _repo_poll_lock:
+            _repo_poll_state[repo_name] = 'run'
+        _trigger_repo_poll(repo_name)   # fängt eigene Fehler ab
+        with _repo_poll_lock:
+            if _repo_poll_state.get(repo_name) != 'again':
+                _repo_poll_state.pop(repo_name, None)
+                return
+            _repo_poll_state[repo_name] = 'wait'
+
+
 def _trigger_repo_poll(repo_name: str) -> None:
     """Fetcht einen einzelnen Repo neu und aktualisiert den Cache (für Webhook-Events)."""
     cfg   = load_config()
@@ -1453,11 +1690,16 @@ def _trigger_repo_poll(repo_name: str) -> None:
     try:
         run_limit = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
         data = _fetch_repo_data(repo_name, token, min(50, run_limit))
+        save_seen_comments()
         with _gh_lock:
             repos   = _gh_cache.get('my_repos', [])
             updated = False
             for i, rd in enumerate(repos):
                 if rd['repo'] == repo_name:
+                    updated = True
+                    # Ein Voll-Poll hat inzwischen frischere Daten geschrieben
+                    if rd.get('fetched_at', 0) > data['fetched_at']:
+                        break
                     # Runs mergen statt ersetzen — bestehende Liste wächst nie zurück auf 500
                     new_runs      = data.get('runs', [])
                     existing_runs = rd.get('runs', [])
@@ -1469,7 +1711,6 @@ def _trigger_repo_poll(repo_name: str) -> None:
                     brand_new = [r for r in new_runs if r['id'] not in existing_ids]
                     data['runs'] = brand_new + merged
                     repos[i] = data
-                    updated  = True
                     break
             if not updated:
                 repos.append(data)
@@ -1634,6 +1875,35 @@ def api_github_status():
     return jsonify(cached)
 
 
+# Wenn in allen eigenen Repos der GitPulse-Webhook aktiv ist und zuletzt sauber
+# zugestellt hat, kommen Änderungen dort ohnehin sofort an. Der Poll ist dann nur
+# noch Kontrolle (und für Watch-Releases/fremde Repos zuständig) und darf seltener
+# laufen. Geprüft wird stündlich; fällt ein Hook aus, gilt wieder poll_interval.
+_webhook_health: dict = {'ts': 0.0, 'ok': False}
+_WEBHOOK_HEALTH_TTL = 3600
+
+
+def _webhooks_healthy(cfg: dict, token: str) -> bool:
+    if not cfg.get('webhook_secret', '').strip():
+        return False
+    now = time.time()
+    if now - _webhook_health['ts'] < _WEBHOOK_HEALTH_TTL:
+        return _webhook_health['ok']
+    url   = load_gitpulse_settings().get('webhook_url', '').strip()
+    repos = _webhook_my_repos(cfg)
+    ok    = bool(url and repos)
+    if ok:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            res = list(ex.map(lambda r: _webhook_repo_status(r, token, url), repos))
+        ok = all(x['status'] == 'ok' and x.get('last_code') in (None, 200) for x in res)
+    if ok != _webhook_health['ok']:
+        log.info("Webhooks %s — Poll-Intervall %s",
+                 'in allen Repos aktiv' if ok else 'nicht vollständig aktiv',
+                 'verlängert' if ok else 'normal')
+    _webhook_health.update(ts=now, ok=ok)
+    return ok
+
+
 def _poll_worker() -> None:
     log.info("GitHub-Poller gestartet")
     while True:
@@ -1653,6 +1923,19 @@ def _poll_worker() -> None:
             with _gh_lock:
                 _gh_cache['error'] = str(e)
 
+        wh_interval = int(cfg.get('webhook_poll_interval', WEBHOOK_POLL_INTERVAL_DEFAULT) or 0)
+        webhook_mode = False
+        if wh_interval > interval:
+            try:
+                webhook_mode = _webhooks_healthy(cfg, token)
+            except Exception as e:
+                log.warning("Webhook-Status nicht prüfbar: %s", e)
+        if webhook_mode:
+            interval = wh_interval
+        with _gh_lock:
+            _gh_cache['poll_interval_now'] = interval
+            _gh_cache['webhook_mode']      = webhook_mode
+
         # Auto-Anpassung Schlafzeit bei Rate-Limit-Engpass
         rem   = _rate_limit.get('remaining', 5000)
         reset = _rate_limit.get('reset', 0)
@@ -1671,11 +1954,35 @@ def _poll_worker() -> None:
         time.sleep(wait)
 
 
+# Worker und „Jetzt aktualisieren" dürfen nie gleichzeitig pollen: sonst schreibt
+# der langsamere Lauf veraltete Daten zurück, und neue PRs/Issues werden doppelt
+# gemeldet. Ein Anstoß während eines Laufs wird vorgemerkt und danach nachgeholt.
+_poll_run_lock = threading.Lock()
+_poll_again    = threading.Event()
+_REPO_FETCH_WORKERS = 4
+
+
 def _do_poll(cfg: dict, token: str) -> None:
+    if not _poll_run_lock.acquire(blocking=False):
+        _poll_again.set()
+        return
+    try:
+        while True:
+            _poll_again.clear()
+            _do_poll_once(cfg, token)
+            if not _poll_again.is_set():
+                break
+            cfg   = load_config()
+            token = cfg.get('github_token', '').strip() or token
+    finally:
+        _poll_run_lock.release()
+
+
+def _do_poll_once(cfg: dict, token: str) -> None:
     global _seen_releases, _seen_activity, _first_poll_done, _gh_login
     global _last_digest_date, _seen_review_prs
 
-    token_ok, scopes, expires = _check_token(token)
+    token_ok, scopes, expires = _check_token_cached(token)
     if not token_ok:
         with _gh_lock:
             _gh_cache['token_ok'] = False
@@ -1706,41 +2013,44 @@ def _do_poll(cfg: dict, token: str) -> None:
     em_notif   = (user_repos or {}).get('email_notifications', {})
     run_limit  = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
 
+    _warn_token_expiry(cfg, expires, tg_token, tg_chat, tg_notif, em_notif)
+
     if _verbose():
         log.info("Polling %d eigene Repos, %d Watch-Repos", len(my_repos), len(watch_repos))
 
-    # eigene Repos
-    repo_data = []
-    for repo in my_repos:
+    # eigene Repos — parallel, jedes Repo braucht ein gutes Dutzend Abfragen
+    # Initialer Poll: volle run_limit laden; folgende Polls: nur 50 holen + mergen
+    poll_limit = run_limit if not _first_poll_done else min(50, run_limit)
+
+    def _fetch_one(repo: str) -> dict | None:
         try:
-            # Initialer Poll: volle run_limit laden; folgende Polls: nur 50 holen + mergen
-            poll_limit = run_limit if not _first_poll_done else min(50, run_limit)
             data = _fetch_repo_data(repo, token, poll_limit)
-
-            if _first_poll_done:
-                with _gh_lock:
-                    existing = next(
-                        (rd for rd in _gh_cache.get('my_repos', []) if rd['repo'] == repo), None
-                    )
-                if existing:
-                    new_runs = data.get('runs', [])
-                    new_ids  = {r['id'] for r in new_runs}
-                    # Bestehende Runs mit frischen Status-Daten aktualisieren
-                    updated = [
-                        next((r for r in new_runs if r['id'] == er['id']), er)
-                        for er in existing.get('runs', [])
-                    ]
-                    # Neue Runs vorne einfügen
-                    brand_new = [r for r in new_runs if r['id'] not in {er['id'] for er in existing.get('runs', [])}]
-                    data['runs'] = brand_new + updated
-
-            repo_data.append(data)
-            if _verbose():
-                pr_cnt = int(data['open_prs'])
-                issue_cnt = int(data['open_issues'])
-                log.info("%s — %d PRs, %d Issues", repo, pr_cnt, issue_cnt)
         except Exception as e:
             log.error("Repo %s Fehler: %s", repo, e)
+            return None
+        if _first_poll_done:
+            with _gh_lock:
+                existing = next(
+                    (rd for rd in _gh_cache.get('my_repos', []) if rd['repo'] == repo), None
+                )
+            if existing:
+                new_runs = {r['id']: r for r in data.get('runs', [])}
+                old_runs = existing.get('runs', [])
+                old_ids  = {er['id'] for er in old_runs}
+                # Bestehende Runs mit frischen Status-Daten aktualisieren, neue vorne einfügen
+                updated   = [new_runs.get(er['id'], er) for er in old_runs]
+                brand_new = [r for rid, r in new_runs.items() if rid not in old_ids]
+                data['runs'] = brand_new + updated
+        if _verbose():
+            log.info("%s — %d PRs, %d Issues", repo, int(data['open_prs']), int(data['open_issues']))
+        return data
+
+    if my_repos:
+        with ThreadPoolExecutor(max_workers=min(_REPO_FETCH_WORKERS, len(my_repos))) as pool:
+            repo_data = [d for d in pool.map(_fetch_one, my_repos) if d is not None]
+    else:
+        repo_data = []
+    save_seen_comments()
 
     # Telegram: neue PRs / Issues / CI-Failures erkennen
     for rd in repo_data:
@@ -1968,6 +2278,14 @@ def _do_poll(cfg: dict, token: str) -> None:
             _last_digest_date = today
 
     with _gh_lock:
+        # Ein Webhook-Abruf, der nach dem Start dieses Polls lief, hat frischere Daten
+        _prev = {rd['repo']: rd for rd in _gh_cache.get('my_repos', [])}
+        repo_data = [
+            _prev[rd['repo']]
+            if _prev.get(rd['repo'], {}).get('fetched_at', 0) > rd.get('fetched_at', 0)
+            else rd
+            for rd in repo_data
+        ]
         _gh_cache['my_repos']      = repo_data
         _gh_cache['releases']      = releases
         _gh_cache['my_activity']          = {
@@ -1986,6 +2304,7 @@ def _do_poll(cfg: dict, token: str) -> None:
         _gh_cache['rate_limit']    = dict(_rate_limit)
 
     _notify_sse()
+    _etag_prune()
     if _verbose():
         log.info("Poll abgeschlossen — %d Repos, %d Watch-Releases", len(repo_data), len(releases))
 
@@ -2128,7 +2447,14 @@ def api_data():
         return jsonify({'error': 'unauthorized'}), 401
     with _gh_lock:
         data = dict(_gh_cache)
-    return jsonify(data)
+    resp = jsonify(data)
+    # Bis zu 500 Runs pro Repo plus PR-/Issue-Texte — gzip spart grob 90 %.
+    # Hinter dem Ingress entpackt der Supervisor-Proxy selbst, das bleibt korrekt.
+    if 'gzip' in (request.headers.get('Accept-Encoding') or '').lower():
+        resp.set_data(gzip.compress(resp.get_data(), compresslevel=5))
+        resp.headers['Content-Encoding'] = 'gzip'
+        resp.headers['Vary'] = 'Accept-Encoding'
+    return resp
 
 
 @app.route('/api/console')
@@ -2272,6 +2598,18 @@ def api_pr_merge():
         )
         if r.status_code == 200:
             log.info("PR #%s in %s gemergt (%s)", pr_nr, repo, method)
+            _mark_pr_closed(repo, pr_nr)
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo:
+                        rd['pulls'] = [p for p in rd.get('pulls', [])
+                                       if not _pr_recently_closed(repo, p.get('number'))]
+                        rd['open_prs'] = len(rd['pulls'])
+                act = _gh_cache.get('my_activity') or {}
+                for key in ('prs', 'review_prs'):
+                    act[key] = [p for p in act.get(key, [])
+                                if not _pr_recently_closed(p.get('repo', ''), p.get('number'))]
+            _notify_sse()
             return jsonify({'status': 'merged'})
         data = r.json()
         msg  = data.get('message', f'HTTP {r.status_code}')
@@ -2863,7 +3201,7 @@ _TG_NOTIF_KEYS = (
     'startup', 'new_pr', 'pr_closed', 'new_issue',
     'workflow_started', 'workflow_completed',
     'releases', 'repo_stats', 'star_fork', 'security', 'my_activity',
-    'new_comment', 'review_request', 'digest',
+    'new_comment', 'review_request', 'digest', 'token_expiry',
 )
 
 
@@ -2916,6 +3254,8 @@ def api_config_repos_save():
                      'tg_notifications': tg_notif, 'email_notifications': em_notif})
     save_user_repos(existing)
     _etag_cache.clear()  # frischer Poll für neue Repos
+    _etag_used.clear()
+    _webhook_health['ts'] = 0.0
     log.info("Repo-Config gespeichert: %d eigene, %d Watch-Repos", len(my_repos), len(watch_repos))
     return jsonify({'status': 'saved', 'my_repos': my_repos, 'watch_repos': watch_repos})
 
@@ -2951,7 +3291,8 @@ def _webhook_repo_status(repo: str, token: str, webhook_url: str) -> dict:
         return {'repo': repo, 'status': 'inactive', 'missing_events': missing, 'hook_id': hook['id']}
     if missing:
         return {'repo': repo, 'status': 'incomplete', 'missing_events': missing, 'hook_id': hook['id']}
-    return {'repo': repo, 'status': 'ok', 'missing_events': [], 'hook_id': hook['id']}
+    return {'repo': repo, 'status': 'ok', 'missing_events': [], 'hook_id': hook['id'],
+            'last_code': (hook.get('last_response') or {}).get('code')}
 
 
 @app.route('/api/webhooks/status')
@@ -3030,6 +3371,7 @@ def api_webhooks_setup():
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         results = list(ex.map(_setup_one, repos))
+    _webhook_health['ts'] = 0.0
     return jsonify({'results': results})
 
 
@@ -3356,7 +3698,10 @@ def github_webhook():
                     f"🔀 Neuer PR: <b>{repo_full}</b>\n#{pr_num} {pr.get('title','')}\nvon @{user_login}\n<a href=\"{pr.get('html_url','')}\">PR öffnen</a>",
                     f"Neuer PR: {repo_full}",
                     [f"#{pr_num} {pr.get('title','')}", f"von @{user_login}", f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>"])
+        elif action == 'reopened':
+            _closed_pr_hold.pop((repo_full, pr_num), None)
         elif action == 'closed':
+            _mark_pr_closed(repo_full, pr_num)
             merged = pr.get('merged', False)
             if _first_poll_done:
                 icon = '⎇' if merged else '✕'
@@ -3391,7 +3736,7 @@ def github_webhook():
                             rd['closed_pulls'] = rd['closed_pulls'][:50]
                         break
             _notify_sse()
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'issues':
         issue   = payload.get('issue', {})
@@ -3405,7 +3750,7 @@ def github_webhook():
                     f"🐛 Neues Issue: <b>{repo_full}</b>\n#{iss_num} {issue.get('title','')}\nvon @{user_login}\n<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>",
                     f"Neues Issue: {repo_full}",
                     [f"#{iss_num} {issue.get('title','')}", f"von @{user_login}", f"<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>"])
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event in ('issue_comment', 'pull_request_review_comment'):
         # Sofort-Meldung für neue Kommentare. Eigene bleiben stumm; der Poll
@@ -3443,7 +3788,7 @@ def github_webhook():
                          f"{label}: <a href=\"{url}\">{ref} {title}</a>",
                          f"von <b>@{author}</b>", snippet])
                     save_comment_state()
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'workflow_run':
         run    = payload.get('workflow_run', {})
@@ -3514,10 +3859,10 @@ def github_webhook():
                                 break
                         break
             _notify_sse()
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event in ('push', 'create', 'delete'):
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'star':
         count = (payload.get('repository') or {}).get('stargazers_count', 0)
@@ -3568,7 +3913,7 @@ def github_webhook():
             f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n#{alert_num} · {label}\nTyp: {secret_type}\n" + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''),
             f"Secret Scanning Alert: {repo_full}",
             [f"#{alert_num} · {label}", f"Typ: {secret_type}"] + ([f"<a href=\"{alert_url}\">Alert anzeigen</a>"] if alert_url else []))
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'code_scanning_alert':
         alert     = payload.get('alert', {})
@@ -3606,7 +3951,7 @@ def github_webhook():
                       + (f"📄 {loc_str}\n" if loc_str else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Code Scanning Alert: {repo_full} [{severity.upper()}]", em_lines)
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     elif event == 'dependabot_alert':
         alert    = payload.get('alert', {})
@@ -3641,7 +3986,7 @@ def github_webhook():
                       + (f"Fix verfügbar: {fixed_in}\n" if fixed_in else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Dependabot Alert: {repo_full} [{severity.upper()}]", em_lines)
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
 
     return jsonify({'status': 'ok'}), 200
 
@@ -3779,6 +4124,319 @@ def _next_version_manual(current: str) -> str:
         parts[2] = str(int(parts[2]) + 1)
         return '.'.join(parts)
     return current
+
+# ── Versions-Prüfung + dev → main ─────────────────────────────────────────────
+# Grundlage ist der Git-Tree beider Branches (je ein Aufruf, per ETag) plus der
+# Vergleich main...dev. Datei-Inhalte kommen als Blob — deren Inhalt ist durch die
+# SHA festgelegt, das Ergebnis der Konstanten-Suche wird deshalb dauerhaft gemerkt.
+_VERSION_CONST_RE = re.compile(
+    r"^\s*(?:export\s+)?(?:const\s+|let\s+|var\s+)?(APP_VERSION|ADDON_VERSION)"
+    r"\s*[:=]\s*['\"](\d+(?:\.\d+){1,3})['\"]", re.M)
+_CONFIG_VER_RE    = re.compile(r"^version:\s*[\"']?([^\"'\s#]+)", re.M)
+_CONFIG_NAME_RE   = re.compile(r"^name:\s*[\"']?(.+?)[\"']?\s*$", re.M)
+_CHANGELOG_VER_RE = re.compile(r'^##\s*\[?v?(\d+(?:\.\d+){1,3})\]?', re.M)
+_VCHECK_EXTS      = ('.py', '.js', '.mjs', '.ts', '.sh')
+_VCHECK_SKIP      = ('node_modules/', 'vendor/', 'dist/', 'build/', '.venv/', 'venv/',
+                     '__pycache__/', 'dev_data/', '_pwtest/', 'static/lib/', 'tests/')
+_VCHECK_MAX_FILES = 25
+_blob_parse_cache: dict[tuple, object] = {}   # (Art, blob-SHA) → Auswertung
+_REPO_NAME_CHARS  = frozenset('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-')
+
+
+def _valid_repo_name(name: str) -> bool:
+    """`owner/repo` ohne Regex prüfen — der Wert kommt aus der Anfrage."""
+    owner, sep, repo = name.partition('/')
+    return (bool(sep) and 0 < len(owner) <= 100 and 0 < len(repo) <= 100
+            and owner not in ('.', '..') and repo not in ('.', '..')
+            and all(ch in _REPO_NAME_CHARS for ch in owner + repo))
+
+
+def _ver_tuple(v: str) -> tuple:
+    try:
+        return tuple(int(x) for x in (v or '').split('.'))
+    except ValueError:
+        return ()
+
+
+def _gh_blob_text(owner: str, repo: str, sha: str, token: str) -> str | None:
+    d = _gh_get(f'/repos/{owner}/{repo}/git/blobs/{sha}', token)
+    if not isinstance(d, dict):
+        return None
+    try:
+        return base64.b64decode(d.get('content') or '').decode('utf-8', 'replace')
+    except Exception:
+        return None
+
+
+def _gh_tree(owner: str, repo: str, branch: str, token: str) -> dict:
+    d = _gh_get(f'/repos/{owner}/{repo}/git/trees/{branch}', token, {'recursive': '1'})
+    if not isinstance(d, dict):
+        return {}
+    return {e['path']: e for e in d.get('tree') or [] if e.get('type') == 'blob'}
+
+
+def _blob_parsed(owner: str, repo: str, entry: dict | None, token: str, kind: str, parse):
+    """Blob laden und auswerten; das Ergebnis hängt nur an der SHA und wird gemerkt.
+    Unveränderte Dateien kosten beim nächsten Mal keinen einzigen Abruf."""
+    if not entry:
+        return None
+    key = (kind, entry['sha'])
+    if key not in _blob_parse_cache:
+        text = _gh_blob_text(owner, repo, entry['sha'], token)
+        if text is None:
+            return None
+        if len(_blob_parse_cache) > 5000:
+            _blob_parse_cache.clear()
+        _blob_parse_cache[key] = parse(text)
+    return _blob_parse_cache[key]
+
+
+def _parse_config(text: str) -> dict:
+    v = _CONFIG_VER_RE.search(text)
+    n = _CONFIG_NAME_RE.search(text)
+    return {'version': v.group(1) if v else None, 'name': n.group(1) if n else None}
+
+
+def _parse_changelog_head(text: str) -> str | None:
+    m = _CHANGELOG_VER_RE.search(text)
+    return m.group(1) if m else None
+
+
+def _parse_code_consts(text: str) -> list:
+    return [(m.group(1), m.group(2)) for m in _VERSION_CONST_RE.finditer(text)]
+
+
+def _changelog_since(text: str, since: str | None) -> str:
+    """Alle CHANGELOG-Abschnitte oberhalb von Version `since` (die auf main liegt).
+    Ohne `since` (Add-on neu auf dev) nur der oberste Abschnitt."""
+    out, keep, seen = [], False, 0
+    since_t = _ver_tuple(since) if since else None
+    for line in (text or '').split('\n'):
+        m = _CHANGELOG_VER_RE.match(line)
+        if m:
+            seen += 1
+            if since_t:
+                if _ver_tuple(m.group(1)) <= since_t:
+                    break
+                keep = True
+            else:
+                if seen > 1:
+                    break
+                keep = True
+        if keep:
+            # Im PR-Text steht der Abschnitt unter „### Add-on" — Überschriften
+            # deshalb zwei Ebenen tiefer setzen.
+            out.append('##' + line if line.startswith('#') else line)
+    return re.sub(r'\n{3,}', '\n\n', '\n'.join(out)).strip()
+
+
+def _addon_version_report(owner: str, repo: str, token: str, dev_b: str, main_b: str,
+                          with_changelog: bool = False) -> dict:
+    """Pro Add-on: Version auf dev/main, seit main geändert?, CHANGELOG-Kopf und
+    Versions-Konstanten im Code — samt Liste der Unstimmigkeiten."""
+    dev_files  = _gh_tree(owner, repo, dev_b, token)
+    if not dev_files:
+        raise LookupError(f'Branch {dev_b} nicht lesbar')
+    main_files = _gh_tree(owner, repo, main_b, token) if main_b != dev_b else dev_files
+    cmp_data   = (_gh_get(f'/repos/{owner}/{repo}/compare/{main_b}...{dev_b}', token)
+                  if main_b != dev_b else None) or {}
+    changed    = {f.get('filename', '') for f in cmp_data.get('files') or []}
+    def _check(cfg_path: str) -> dict | None:
+        d   = cfg_path.split('/', 1)[0]
+        cfg = _blob_parsed(owner, repo, dev_files[cfg_path], token, 'cfg', _parse_config) or {}
+        dev_ver = cfg.get('version')
+        if not dev_ver:
+            return None
+        main_cfg   = _blob_parsed(owner, repo, main_files.get(cfg_path), token, 'cfg', _parse_config) or {}
+        main_ver   = main_cfg.get('version')
+        is_changed = any(p.startswith(d + '/') for p in changed)
+        cl_entry   = dev_files.get(f'{d}/CHANGELOG.md')
+        cl_ver     = _blob_parsed(owner, repo, cl_entry, token, 'cl', _parse_changelog_head)
+
+        # Code-Konstanten nur bei geänderten Add-ons — beim unveränderten hat der
+        # letzte Merge nach main sie schon mitgenommen.
+        code = []
+        if is_changed:
+            files = [e for p, e in sorted(dev_files.items())
+                     if p.startswith(d + '/') and p.endswith(_VCHECK_EXTS)
+                     and not any(f'/{skip}' in p for skip in _VCHECK_SKIP)
+                     and p.count('/') <= 3 and (e.get('size') or 0) <= 500_000]
+            for e in files[:_VCHECK_MAX_FILES]:
+                for const, v in _blob_parsed(owner, repo, e, token, 'code', _parse_code_consts) or []:
+                    code.append({'path': e['path'], 'name': const, 'version': v})
+
+        issues = []
+        if is_changed and main_ver and dev_ver == main_ver:
+            issues.append('not_bumped')
+        if main_ver and _ver_tuple(dev_ver) and _ver_tuple(dev_ver) < _ver_tuple(main_ver):
+            issues.append('lower_than_main')
+        if cl_ver and cl_ver != dev_ver:
+            issues.append('changelog_mismatch')
+        if any(c['version'] != dev_ver for c in code):
+            issues.append('code_mismatch')
+        item = {
+            'dir': d, 'name': cfg.get('name') or d,
+            'dev_version': dev_ver, 'main_version': main_ver,
+            'changed': is_changed, 'changelog_version': cl_ver,
+            'code_versions': code, 'issues': issues,
+        }
+        if with_changelog and is_changed and cl_entry:
+            item['changelog'] = _changelog_since(
+                _gh_blob_text(owner, repo, cl_entry['sha'], token) or '', main_ver)
+        return item
+
+    cfg_paths = sorted(p for p in dev_files if p.count('/') == 1 and p.endswith('/config.yaml'))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        addons = [a for a in pool.map(_check, cfg_paths) if a]
+    return {
+        'addons':          addons,
+        'ahead_by':        cmp_data.get('ahead_by', 0),
+        'behind_by':       cmp_data.get('behind_by', 0),
+        'files_truncated': len(cmp_data.get('files') or []) >= 300,
+        'commits':         cmp_data.get('commits') or [],
+    }
+
+
+@app.route('/api/addon-manager/version-check')
+def api_addon_version_check():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    repo_full = request.args.get('repo', '').strip()
+    if not _valid_repo_name(repo_full):
+        return jsonify({'error': 'invalid_repo'}), 400
+    main_b, dev_b = _dev_main_branches()
+    branch = request.args.get('branch', '').strip() or dev_b
+    owner, repo = repo_full.split('/', 1)
+    try:
+        report = _addon_version_report(owner, repo, token, branch, main_b)
+    except LookupError:
+        return jsonify({'error': 'github_unreadable'}), 502
+    except Exception:
+        log.exception("version-check fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+    report.pop('commits', None)
+    return jsonify({**report, 'main': main_b, 'branch': branch})
+
+
+_DEV_MAIN_TXT = {
+    'de': {'changes': 'Änderungen', 'commits': 'Commits', 'new': 'neu', 'more': 'weitere'},
+    'en': {'changes': 'Changes', 'commits': 'Commits', 'new': 'new', 'more': 'more'},
+}
+
+
+def _dev_main_branches() -> tuple[str, str]:
+    gps = load_gitpulse_settings()
+    return ((gps.get('main_branch') or 'main').strip(), (gps.get('dev_branch') or 'dev').strip())
+
+
+@app.route('/api/dev-to-main/prepare')
+def api_dev_to_main_prepare():
+    """Vorschlag für den PR dev → main: Titel aus den geänderten Add-ons, Text aus
+    deren CHANGELOG-Abschnitten seit dem main-Stand plus Commit-Liste."""
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    repo_full = request.args.get('repo', '').strip()
+    if not _valid_repo_name(repo_full):
+        return jsonify({'error': 'invalid_repo'}), 400
+    owner, repo = repo_full.split('/', 1)
+    main_b, dev_b = _dev_main_branches()
+    txt = _DEV_MAIN_TXT[detect_language(request)]
+
+    existing = None
+    open_prs = _gh_get(f'/repos/{repo_full}/pulls', token,
+                       {'state': 'open', 'head': f'{owner}:{dev_b}', 'base': main_b})
+    if isinstance(open_prs, list) and open_prs:
+        existing = {'number': open_prs[0]['number'], 'url': open_prs[0]['html_url'],
+                    'title': open_prs[0]['title']}
+    try:
+        report = _addon_version_report(owner, repo, token, dev_b, main_b, with_changelog=True)
+    except LookupError:
+        return jsonify({'error': 'github_unreadable'}), 502
+    except Exception:
+        log.exception("dev-to-main prepare fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+
+    changed = [a for a in report['addons'] if a['changed']]
+    parts   = []
+    for a in changed:
+        head = f"### {a['name']} {a['main_version'] or '(' + txt['new'] + ')'} → {a['dev_version']}"
+        parts.append(head + ('\n\n' + a['changelog'] if a.get('changelog') else ''))
+    commits = [c for c in report['commits'] if len(c.get('parents') or []) <= 1]
+    lines   = [f"- {(c.get('commit') or {}).get('message', '').split(chr(10))[0][:120]} "
+               f"({c.get('sha', '')[:7]})" for c in commits[-60:]]
+    if len(commits) > 60:
+        lines.insert(0, f"- … {len(commits) - 60} {txt['more']}")
+    body = ''
+    if parts:
+        body += f"## {txt['changes']}\n\n" + '\n\n'.join(parts) + '\n\n'
+    body += f"## {txt['commits']} ({len(commits)})\n\n" + '\n'.join(lines)
+    body = body[:60000]
+
+    bumped = [f"{a['name']} {a['dev_version']}" for a in changed
+              if a['dev_version'] != a['main_version']]
+    title  = (f"{dev_b} → {main_b}: " + ', '.join(bumped)) if bumped \
+        else f"{dev_b} → {main_b} ({len(commits)} {txt['commits']})"
+    if len(title) > 200:
+        title = title[:197] + '…'
+    return jsonify({
+        'repo': repo_full, 'main': main_b, 'dev': dev_b,
+        'ahead_by': report['ahead_by'], 'behind_by': report['behind_by'],
+        'existing': existing, 'title': title, 'body': body,
+        'warnings': [{'dir': a['dir'], 'name': a['name'], 'issues': a['issues'],
+                      'dev_version': a['dev_version'], 'main_version': a['main_version'],
+                      'changelog_version': a['changelog_version'],
+                      'code_versions': [c for c in a['code_versions']
+                                        if c['version'] != a['dev_version']]}
+                     for a in changed if a['issues']],
+        'files_truncated': report['files_truncated'],
+    })
+
+
+@app.route('/api/dev-to-main/create', methods=['POST'])
+def api_dev_to_main_create():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    body_in   = request.get_json(silent=True) or {}
+    repo_full = str(body_in.get('repo', '')).strip()
+    title     = str(body_in.get('title', '')).strip()[:250]
+    text      = str(body_in.get('body', ''))[:65000]
+    if not _valid_repo_name(repo_full) or not title:
+        return jsonify({'error': 'repo und title erforderlich'}), 400
+    main_b, dev_b = _dev_main_branches()
+    try:
+        r = http.post(f'{GITHUB_API}/repos/{repo_full}/pulls', headers=_gh_headers(token),
+                      json={'title': title, 'head': dev_b, 'base': main_b, 'body': text},
+                      timeout=15)
+        if r.status_code == 201:
+            d = r.json()
+            log.info("PR %s → %s in %s angelegt: #%s", dev_b, main_b, repo_full, d.get('number'))
+            _branch_sync_cache.clear()
+            _schedule_repo_poll(repo_full)
+            return jsonify({'status': 'created', 'number': d.get('number'), 'url': d.get('html_url')})
+        data = r.json() if r.content else {}
+        msg  = data.get('message', f'HTTP {r.status_code}')
+        errs = data.get('errors') or []
+        if errs:
+            msg += ' — ' + '; '.join(str(e.get('message') or e.get('code', ''))
+                                     for e in errs if isinstance(e, dict))
+        log.warning("dev-to-main: PR-Anlage fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception:
+        log.exception("dev-to-main: PR-Anlage Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
 
 @app.route('/api/addon-manager/addons')
 def api_addon_manager_addons():
@@ -4420,7 +5078,7 @@ def api_release_create():
         data = r.json()
         log.info("release: %s %s angelegt (draft=%s, pre=%s)", repo_full, tag, draft, prerelease)
         _no_release_repos.pop(repo_full, None)
-        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        _schedule_repo_poll(repo_full)
         return jsonify({
             'status':      'created',
             'tag':         data.get('tag_name', tag),

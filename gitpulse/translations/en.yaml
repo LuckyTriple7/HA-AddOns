@@ -23,6 +23,9 @@ configuration:
   poll_interval:
     name: Poll Interval (seconds)
     description: "Pause between GitHub API queries. Lower = faster updates but more API calls (limit: 5000/hour). Default 300 (5 minutes). Minimum 10 seconds. With few repos, 30–60 seconds is recommended."
+  webhook_poll_interval:
+    name: Poll Interval with Webhooks (seconds)
+    description: "If the GitPulse webhooks are active in all your own repos and their last delivery succeeded, polling only runs at this interval — changes there arrive instantly via webhook anyway. Watch releases and activity in other people's repos then update less often. Default 1800 (30 minutes). 0 = always use the normal poll interval."
   verbose_log:
     name: Verbose Logging
     description: Logs repo count and details on every poll cycle. Default false — only errors and important events are logged.

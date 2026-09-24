@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.5.3] - 2026-09-24
+
+### Security
+- **CodeQL #256–#258 (Polynomial regular expression).** Der Repo-Name aus
+  Versions-Prüfung und dev → main-Dialog wurde per Regex geprüft; jetzt ohne
+  Regex über Zeichenmenge und Längengrenze. Dabei zusätzlich `.` und `..` als
+  Owner/Repo abgelehnt — die alte Prüfung ließ `../etc` durch.
+
+## [0.5.2] - 2026-09-24
+
+### Added
+- **PR dev → main per Klick.** Die Branch-Sync-Kachel ist klickbar, sobald dev
+  vor main liegt. Der Dialog schlägt Titel („dev → main: GitPulse 0.5.2, …") und
+  Beschreibung vor: pro geändertem Add-on alle CHANGELOG-Abschnitte seit dem
+  main-Stand, darunter die Commit-Liste. Beides ist vor dem Anlegen editierbar.
+  Gibt es schon einen offenen PR dev → main, verlinkt der Dialog nur darauf.
+- **Versions-Prüfung.** Im Add-on Manager und im dev → main-Dialog werden
+  Unstimmigkeiten markiert: Add-on seit main geändert, aber Version nicht erhöht ·
+  Version niedriger als auf main · oberster CHANGELOG-Eintrag ≠ `config.yaml` ·
+  `APP_VERSION`/`ADDON_VERSION` im Code ≠ `config.yaml`. Ausgewertete Dateien
+  werden pro Git-SHA gemerkt; eine erneute Prüfung kostet nur drei API-Abrufe.
+
+## [0.5.1] - 2026-09-24
+
+### Added
+- **CI-Status am PR.** Offene PRs (Repo-Liste und „Meine Aktivität") zeigen
+  ✓ / ✗ / ⏳ CI für den letzten Commit; der Tooltip nennt fehlgeschlagene Checks
+  bzw. „x/y ok". Quelle sind die Check-Runs — fehlt dem Token die Berechtigung
+  „Checks: Read", wertet GitPulse stattdessen die Actions-Läufe des Commits aus.
+- **Warnung vor Token-Ablauf per Telegram/E-Mail**, 7 Tage und 1 Tag vorher je
+  einmal (überlebt Neustarts, ein neues Token setzt sie zurück). Unter
+  ⚙ → Benachrichtigungen abschaltbar.
+- **Seltener pollen, wenn Webhooks laufen.** Neue Option `webhook_poll_interval`
+  (Standard 1800 s): Ist der GitPulse-Webhook in allen eigenen Repos aktiv und
+  zuletzt erfolgreich zugestellt (stündlich geprüft), wird nur noch in diesem
+  Abstand gepollt. `0` = immer `poll_interval`. Das aktuelle Intervall steht im
+  Tooltip des ⚡-Rate-Limit-Badges.
+
+## [0.5.0] - 2026-09-24
+
+### Changed
+- **Webhook-Abrufe gebündelt.** Ein Merge feuert `pull_request` plus mehrere
+  `workflow_run`-Events; bisher startete jedes einen eigenen Voll-Abruf des Repos
+  (inkl. Security-Alerts), bis zu zehn parallel. Jetzt läuft pro Repo höchstens
+  ein Abruf; Ereignisse innerhalb von 2 s gehen darin auf, was währenddessen
+  eintrifft, löst genau einen weiteren aus.
+- **Deutlich weniger Rate-Limit-Verbrauch.** Paginierte Listen (offene PRs/Issues,
+  Code- und Secret-Scanning), Dependabot-Alerts und `releases/latest` nutzen jetzt
+  ETags — unveränderte Daten kommen als 304 und zählen nicht gegen das Limit.
+  Der Token-Check (`/user`) läuft nur noch alle 15 Minuten statt bei jedem Poll.
+- **Eigene Repos werden parallel abgerufen** (bis zu 4 gleichzeitig) statt
+  nacheinander — ein Poll ist entsprechend schneller fertig.
+- **`/api/data` wird gzip-komprimiert**, wenn der Browser es anbietet. Die Antwort
+  enthält bis zu 500 Runs pro Repo plus PR-/Issue-Texte und schrumpft dadurch auf
+  einen Bruchteil.
+- **ETag-Cache räumt sich auf.** Einträge, die ein Tag lang kein Poll mehr
+  angefragt hat (geschlossene PRs, entfernte Repos), werden verworfen — vorher
+  wuchs der Cache bis zum Neustart unbegrenzt.
+
+### Fixed
+- **Parallele Polls.** Hintergrund-Poll und „Jetzt aktualisieren" konnten
+  gleichzeitig laufen; der langsamere schrieb veraltete Daten zurück, und neue
+  PRs/Issues wurden ggf. doppelt per Telegram/E-Mail gemeldet. Polls laufen jetzt
+  nacheinander, ein Anstoß während eines Laufs wird danach nachgeholt.
+- **Voll-Poll überschrieb frischere Webhook-Daten.** Jeder Repo-Datensatz trägt
+  einen Abrufzeitpunkt; ältere Daten ersetzen neuere nicht mehr.
+- „Jetzt aktualisieren" lud nach 2 s vorzeitig den alten Stand nach. Die Anzeige
+  aktualisiert sich jetzt per SSE, sobald der Poll wirklich fertig ist.
+
+## [0.4.21] - 2026-09-24
+
+### Fixed
+- **Gemergter PR tauchte kurz wieder auf.** Nach dem Merge entfernte der Webhook
+  den PR sofort, ein gleichzeitig laufender Poll (oder die noch verzögerte
+  GitHub-API/Search-API) schrieb ihn aber mit veralteten Daten zurück, bis der
+  nächste Poll ihn endgültig löschte. Gemergte/geschlossene PRs werden jetzt
+  3 Minuten lang aus allen Poll-Ergebnissen herausgefiltert; der Merge-Button
+  entfernt den PR zudem sofort aus der Liste (auch ohne Webhook).
+
 ## [0.4.20] - 2026-09-14
 
 ### Fixed

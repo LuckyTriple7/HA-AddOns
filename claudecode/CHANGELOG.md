@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.3.27] - 2026-09-24
+
+### Changed
+- Modell-Auswahl: claude-fable-5-1 (Fable 5.1) statt claude-fable-5; claude-fable-5 bleibt als Legacy-Eintrag wählbar, damit bestehende Konfigurationen weiter starten
+
+
+## [1.3.26] - 2026-09-23
+
+### Changed
+- Modell-Auswahl: claude-opus-5-5 (Opus 5.5) statt claude-opus-5; claude-opus-5 bleibt als Legacy-Eintrag wählbar, damit bestehende Konfigurationen weiter starten
+
+
+## [1.3.25] - 2026-09-21
+
+### Changed
+- Rebuild für Claude Code 2.1.267
+
+
 ## [1.3.24] - 2026-09-12
 
 ### Changed

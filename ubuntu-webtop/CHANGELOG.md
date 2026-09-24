@@ -1,3 +1,44 @@
+## [1.8.85] - 2026-09-24
+
+### Aktualisiert
+
+- VS Code: 1.138.0 → 1.139.0
+- Claude Desktop: 3.2.4+claude2.2553.13 → 3.2.4+claude2.7032.0
+
+## [1.8.84] - 2026-09-23
+
+### Aktualisiert
+
+- Firefox: 156.0 → 156.0.1
+- Thunderbird: 156.0 → 156.0.1
+- Claude Desktop: 3.2.4+claude2.2553.1 → 3.2.4+claude2.2553.13
+- OpenCode: 1.18.31 → 1.18.32
+
+## [1.8.83] - 2026-09-22
+
+### Hinzugefügt
+
+- Python-Toolchain fest im Image: `python3-pip`, `python3-venv`, `python3-dev`, `setuptools`, `wheel`
+- Python-Bibliotheken: `flask`, `requests`
+- Systembibliotheken für WeasyPrint (PDF-Export): `libpango-1.0-0`, `libpangoft2-1.0-0`, `libcairo2`, `libgdk-pixbuf-2.0-0`, `libffi-dev`, `shared-mime-info`
+
+### Geändert
+
+- PEP-668-Marker (`EXTERNALLY-MANAGED`) entfernt, damit `pip install` ohne venv und ohne `--break-system-packages` funktioniert
+
+## [1.8.82] - 2026-09-19
+
+### Aktualisiert
+
+- Claude Desktop: 3.2.4+claude2.110.0 → 3.2.4+claude2.2553.1
+
+## [1.8.81] - 2026-09-18
+
+### Aktualisiert
+
+- Bitwarden: 2026.8.0 → 2026.9.0
+- VS Code: 1.137.0 → 1.138.0
+
 ## [1.8.79] - 2026-09-17
 
 ## [1.8.80] - 2026-09-17

@@ -63,6 +63,39 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
 
+  - package-ecosystem: "pip"
+    directory: "/mypage"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
+  # ── Node (npm) ────────────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/telegram"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "npm"
+    directory: "/whatsapp"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "npm"
+    directory: "/signal"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
   # ── Docker (Base Images) ──────────────────────────────────────────────────────
   - package-ecosystem: "docker"
     directory: "/mediagrab"

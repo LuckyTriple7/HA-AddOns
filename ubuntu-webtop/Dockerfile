@@ -26,13 +26,13 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
 # BUILD_VERSION kommt aus config.yaml und wird von HA bei jedem Update übergeben.
 ARG BUILD_VERSION
 ARG IPSCAN_VERSION=3.10.0
-ARG BITWARDEN_VERSION=2026.8.0
-ARG VSCODE_VERSION=1.137.0
+ARG BITWARDEN_VERSION=2026.9.0
+ARG VSCODE_VERSION=1.139.0
 ARG GH_CLI_VERSION=2.101.0
-ARG FIREFOX_VERSION=156.0
-ARG THUNDERBIRD_VERSION=156.0
+ARG FIREFOX_VERSION=156.0.1
+ARG THUNDERBIRD_VERSION=156.0.1
 ARG RCLONE_VERSION=1.75.1
-ARG OPENCODE_VERSION=1.18.31
+ARG OPENCODE_VERSION=1.18.32
 ARG TAILSCALE_VERSION=1.102.4
 
 # XFCE Desktop-Umgebung + Anwendungen installieren
@@ -161,6 +161,28 @@ RUN mkdir -p /usr/share/man/man1 \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         default-jre-headless \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python-Toolchain: pip, venv und die haeufig genutzten Bibliotheken fest ins Image.
+# Der EXTERNALLY-MANAGED-Marker (PEP 668) wird entfernt, damit "pip install" im
+# Desktop-Container ohne venv funktioniert.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-venv \
+        python3-dev \
+        python3-setuptools \
+        python3-wheel \
+        python3-flask \
+        python3-requests \
+        libpango-1.0-0 \
+        libpangoft2-1.0-0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
+        libffi-dev \
+        shared-mime-info \
+    && find /usr/lib/python3* -name "EXTERNALLY-MANAGED" -delete \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
