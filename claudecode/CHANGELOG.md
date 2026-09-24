@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.27] - 2026-09-24
+
+### Changed
+- Modell-Auswahl: claude-fable-5-1 (Fable 5.1) statt claude-fable-5; claude-fable-5 bleibt als Legacy-Eintrag wählbar, damit bestehende Konfigurationen weiter starten
+
+
 ## [1.3.26] - 2026-09-23
 
 ### Changed

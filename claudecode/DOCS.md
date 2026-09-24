@@ -44,7 +44,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | Modell | Für was |
 |--------|---------|
 | `claude-sonnet-5` | Beste Balance (Standard) |
-| `claude-fable-5` | Leistungsstärkstes Modell, für die schwierigsten Aufgaben |
+| `claude-fable-5-1` | Leistungsstärkstes Modell, für die schwierigsten Aufgaben |
 | `claude-opus-5-5` | Sehr stark, für komplexe Aufgaben |
 | `claude-haiku-4-5-20251001` | Schnellstes Modell, für einfache Anfragen |
 
@@ -280,7 +280,7 @@ claude --continue   # continue last conversation
 | Model | Best for |
 |-------|----------|
 | `claude-sonnet-5` | Best balance (default) |
-| `claude-fable-5` | Most powerful, for the hardest tasks |
+| `claude-fable-5-1` | Most powerful, for the hardest tasks |
 | `claude-opus-5-5` | Very capable, for complex tasks |
 | `claude-haiku-4-5-20251001` | Fastest, for simple queries |
 
