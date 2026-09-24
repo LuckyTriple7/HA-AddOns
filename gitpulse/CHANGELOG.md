@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.1] - 2026-09-24
+
+### Added
+- **CI-Status am PR.** Offene PRs (Repo-Liste und „Meine Aktivität") zeigen
+  ✓ / ✗ / ⏳ CI für den letzten Commit; der Tooltip nennt fehlgeschlagene Checks
+  bzw. „x/y ok". Quelle sind die Check-Runs — fehlt dem Token die Berechtigung
+  „Checks: Read", wertet GitPulse stattdessen die Actions-Läufe des Commits aus.
+- **Warnung vor Token-Ablauf per Telegram/E-Mail**, 7 Tage und 1 Tag vorher je
+  einmal (überlebt Neustarts, ein neues Token setzt sie zurück). Unter
+  ⚙ → Benachrichtigungen abschaltbar.
+- **Seltener pollen, wenn Webhooks laufen.** Neue Option `webhook_poll_interval`
+  (Standard 1800 s): Ist der GitPulse-Webhook in allen eigenen Repos aktiv und
+  zuletzt erfolgreich zugestellt (stündlich geprüft), wird nur noch in diesem
+  Abstand gepollt. `0` = immer `poll_interval`. Das aktuelle Intervall steht im
+  Tooltip des ⚡-Rate-Limit-Badges.
+
 ## [0.5.0] - 2026-09-24
 
 ### Changed

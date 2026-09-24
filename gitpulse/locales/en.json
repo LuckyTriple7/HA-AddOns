@@ -199,6 +199,12 @@
   "tg_new_comment":        "💬 New comments (excluding your own)",
   "tg_review_request":     "🔍 Review requested",
   "tg_digest":             "📋 Daily digest (once per day)",
+  "tg_token_expiry": "🔑 Token expiry (7 days and 1 day before)",
+  "ci_checks": "Checks passed",
+  "ci_failed": "Failed",
+  "ci_running": "Still running",
+  "rl_poll_every": "Polling every",
+  "rl_webhook_mode": "webhooks active",
 
   "no_activity":           "No open PRs, issues or review requests found",
   "activity_my_prs":       "My open pull requests",

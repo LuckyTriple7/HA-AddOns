@@ -1051,6 +1051,7 @@
     { key:'new_comment',         label:'{{ t.tg_new_comment }}' },
     { key:'review_request',      label:'{{ t.tg_review_request }}' },
     { key:'digest',              label:'{{ t.tg_digest }}' },
+    { key:'token_expiry',        label:'{{ t.tg_token_expiry }}' },
   ];
 
   function openSettings() {
@@ -1879,6 +1880,11 @@
     review_approved:   '{{ t.review_approved }}',
     review_changes:    '{{ t.review_changes }}',
     review_pending:    '{{ t.review_pending }}',
+    ci_checks:         {{ t.ci_checks|tojson }},
+    ci_failed:         {{ t.ci_failed|tojson }},
+    ci_running:        {{ t.ci_running|tojson }},
+    rl_poll_every:     {{ t.rl_poll_every|tojson }},
+    rl_webhook_mode:   {{ t.rl_webhook_mode|tojson }},
     error_unknown:     '{{ t.error_unknown }}',
     rl_of:             '{{ t.rl_of }}',
     rl_remaining:      '{{ t.rl_remaining }}',
@@ -2078,8 +2084,27 @@
     const resetStr = resetIn > 0 ? ` ⏱ ${resetIn}m` : '';
     el.className   = `rl-badge ${cls}`;
     el.textContent = `⚡ ${rem}/${lim}${resetStr}`;
-    el.title       = `GitHub API: ${rem} ${T.rl_of} ${lim} ${T.rl_remaining} (${pct}%)${resetIn > 0 ? ' · ' + T.rl_reset_in + ' ' + resetIn + ' ' + T.rl_min : ''}`;
+    const pollMin  = data.poll_interval_now ? Math.round(data.poll_interval_now / 60) : 0;
+    const pollStr  = pollMin ? `\n${T.rl_poll_every} ${pollMin} ${T.rl_min}${data.webhook_mode ? ' (' + T.rl_webhook_mode + ')' : ''}` : '';
+    el.title       = `GitHub API: ${rem} ${T.rl_of} ${lim} ${T.rl_remaining} (${pct}%)${resetIn > 0 ? ' · ' + T.rl_reset_in + ' ' + resetIn + ' ' + T.rl_min : ''}${pollStr}`;
     el.style.display = '';
+  }
+
+  // ── CI-Badge (Check-Runs bzw. Actions-Runs des PR-Kopf-Commits) ──
+  function ciBadge(ci) {
+    if (!ci || !ci.state || ci.state === 'none') return '';
+    const look = {
+      success: ['var(--green)',  '✓'],
+      failure: ['var(--red)',    '✗'],
+      pending: ['var(--yellow)', '⏳'],
+    }[ci.state];
+    if (!look) return '';
+    const tip = ci.state === 'failure'
+      ? `${T.ci_failed}: ${(ci.failed || []).join(', ')}`
+      : ci.state === 'pending'
+        ? `${T.ci_running} · ${T.ci_checks}: ${ci.passed}/${ci.total}`
+        : `${T.ci_checks}: ${ci.passed}/${ci.total}`;
+    return `<span style="color:${look[0]};font-size:.72rem;font-weight:600" title="${escHtml(tip)}">${look[1]} CI</span>`;
   }
 
   // ── Review Badge ──────────────────────────────────────────────────
@@ -2375,6 +2400,7 @@
               ${conflict ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}
               <span>@${escHtml(pr.user)}</span>
               <span>${relTime(pr.updated)}</span>
+              ${!closed ? ciBadge(pr.ci) : ''}
               ${!closed ? reviewBadge(pr.review_state) : ''}
               ${cmtBadge(pr, repo.repo)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
@@ -2948,6 +2974,7 @@
                   ? `<span class="pr-state-open">⇄ PR</span>`
                   : `<span style="color:var(--yellow)">● Issue</span>`}
               <span>${relTime(item.updated)}</span>
+              ${type !== 'issue' ? ciBadge(item.ci) : ''}
               ${type !== 'issue' ? reviewBadge(item.review_state) : ''}
               ${type !== 'issue' ? reviewerChip(item.reviewers) : ''}
               ${type !== 'issue' && item.mergeable === 'dirty' ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}

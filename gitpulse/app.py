@@ -93,6 +93,7 @@ GITHUB_API    = 'https://api.github.com'
 GITHUB_STATUS_API = 'https://www.githubstatus.com/api/v2/summary.json'
 GITHUB_STATUS_INTERVAL = 60  # seconds
 POLL_INTERVAL_DEFAULT = 300  # seconds
+WEBHOOK_POLL_INTERVAL_DEFAULT = 1800  # seconds, wenn alle Webhooks aktiv sind
 
 # ── State ─────────────────────────────────────────────────────────────────────
 _config_cache: dict | None = None
@@ -613,6 +614,13 @@ def _gh_headers(token: str) -> dict:
 
 
 def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | None:
+    return _gh_get_ex(path, token, params)[1]
+
+
+def _gh_get_ex(path: str, token: str, params: dict | None = None,
+               quiet: tuple = ()) -> tuple[int, dict | list | None]:
+    """Wie `_gh_get`, liefert zusätzlich den HTTP-Status (0 = Netzwerkfehler).
+    Status in `quiet` werden nicht geloggt — für erwartbare 403/404."""
     url       = f'{GITHUB_API}{path}' if path.startswith('/') else path
     cache_key = path + (str(sorted(params.items())) if params else '')
     hdrs      = _gh_headers(token)
@@ -623,23 +631,23 @@ def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | 
         r = http.get(url, headers=hdrs, params=params, timeout=15)
         _update_rate_limit(r.headers)
         if r.status_code == 304 and cached:
-            return cached[1]
+            return 200, cached[1]
         if r.status_code == 200:
             data = r.json()
             etag = r.headers.get('ETag')
             if etag:
                 _etag_put(cache_key, (etag, data))
-            return data
+            return 200, data
         if r.status_code == 429:
             reset_ts = int(r.headers.get('X-RateLimit-Reset', time.time() + 60))
             log.warning("GitHub Rate-Limit überschritten — Reset um %s UTC",
                         datetime.fromtimestamp(reset_ts, tz=timezone.utc).strftime('%H:%M'))
-        else:
+        elif r.status_code not in quiet:
             log.warning("GitHub API %s → HTTP %d", path, r.status_code)
-        return None
+        return r.status_code, None
     except Exception as e:
         log.error("GitHub API Fehler (%s): %s", path, e)
-        return None
+        return 0, None
 
 
 def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | None = None) -> list:
@@ -693,6 +701,60 @@ def _check_token_cached(token: str) -> tuple[bool, str, str]:
     if res[0]:
         _token_check.update(token=token, ts=time.time(), result=res)
     return res
+
+
+_TOKEN_WARN_PATH = _DATA + '/token_warn.json'
+_TOKEN_WARN_DAYS = (7, 1)
+
+
+def _parse_gh_expiry(value: str) -> datetime | None:
+    """GitHub liefert z. B. '2026-10-15 12:00:00 UTC' oder '... +0200'."""
+    value = (value or '').strip()
+    for fmt in ('%Y-%m-%d %H:%M:%S %Z', '%Y-%m-%d %H:%M:%S %z'):
+        try:
+            dt = datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _warn_token_expiry(cfg: dict, expires: str, tg_token: str, tg_chat: str,
+                       tg_notif: dict, em_notif: dict) -> None:
+    """Meldet 7 Tage und 1 Tag vor Ablauf des PAT je einmal. Der Stand liegt auf
+    der Platte, damit ein Neustart die Meldung nicht wiederholt; ein neues
+    Token (anderes Ablaufdatum) setzt ihn zurück."""
+    exp = _parse_gh_expiry(expires)
+    if not exp:
+        return
+    days = (exp - datetime.now(timezone.utc)).total_seconds() / 86400
+    due  = [d for d in _TOKEN_WARN_DAYS if days <= d]
+    if not due or days < 0:
+        return
+    level = min(due)
+    try:
+        with open(_TOKEN_WARN_PATH) as f:
+            state = json.load(f)
+    except Exception:
+        state = {}
+    if state.get('expires') == expires and int(state.get('level', 99)) <= level:
+        return
+    try:
+        with open(_TOKEN_WARN_PATH, 'w') as f:
+            json.dump({'expires': expires, 'level': level}, f)
+    except Exception as e:
+        log.warning("token_warn konnte nicht gespeichert werden: %s", e)
+    when = (f"in {int(days)} Tag{'en' if int(days) != 1 else ''}"
+            if days >= 1 else "in weniger als einem Tag")
+    date = exp.astimezone().strftime('%d.%m.%Y %H:%M')
+    log.warning("GitHub-Token läuft %s ab (%s)", when, date)
+    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'token_expiry',
+        f"🔑 <b>GitHub-Token läuft {when} ab</b>\nAblauf: {date}\n"
+        f"<a href=\"https://github.com/settings/personal-access-tokens\">Token erneuern</a>",
+        f"GitHub-Token läuft {when} ab",
+        [f"Ablauf: <b>{date}</b>",
+         "Danach kann GitPulse nichts mehr von GitHub abrufen.",
+         "<a href=\"https://github.com/settings/personal-access-tokens\">Token erneuern</a>"])
 
 
 def _check_token(token: str) -> tuple[bool, str, str]:
@@ -847,6 +909,45 @@ def _review_bodies_count(reviews: list) -> int:
     return sum(1 for rev in reviews if (rev.get('body') or '').strip())
 
 
+# Check-Runs brauchen die PAT-Berechtigung „Checks: Read", die ältere Tokens oft
+# nicht haben. Dann für eine Stunde auf die Actions-Runs des Commits ausweichen
+# (Actions-Leserecht ist Pflicht) statt bei jedem PR erneut 403 zu kassieren.
+_CI_FAIL_CONCLUSIONS = {'failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'}
+_checks_denied: dict[str, float] = {}   # repo → bis wann nur Actions-Runs
+_CHECKS_DENIED_TTL = 3600
+
+
+def _ci_state(repo: str, sha: str, token: str) -> dict:
+    """CI-Zustand eines Commits: success | failure | pending | none."""
+    if not sha:
+        return {'state': 'none'}
+    runs = None
+    if _checks_denied.get(repo, 0) < time.time():
+        status, data = _gh_get_ex(f'/repos/{repo}/commits/{sha}/check-runs', token,
+                                  {'per_page': 100}, quiet=(403, 404))
+        if status == 200 and isinstance(data, dict):
+            runs = [{'name': c.get('name', ''), 'status': c.get('status'),
+                     'conclusion': c.get('conclusion')} for c in data.get('check_runs') or []]
+        elif status in (403, 404):
+            _checks_denied[repo] = time.time() + _CHECKS_DENIED_TTL
+    if runs is None:
+        data = _gh_get(f'/repos/{repo}/actions/runs', token, {'head_sha': sha, 'per_page': 50})
+        latest: dict = {}
+        for r in (data or {}).get('workflow_runs') or []:
+            # Liste ist neueste zuerst — Re-Runs überdecken ältere Läufe desselben Workflows
+            latest.setdefault(r.get('workflow_id'), r)
+        runs = [{'name': r.get('name', ''), 'status': r.get('status'),
+                 'conclusion': r.get('conclusion')} for r in latest.values()]
+    if not runs:
+        return {'state': 'none'}
+    failed  = [r['name'] for r in runs
+               if r['status'] == 'completed' and r['conclusion'] in _CI_FAIL_CONCLUSIONS]
+    pending = sum(1 for r in runs if r['status'] != 'completed')
+    state   = 'failure' if failed else 'pending' if pending else 'success'
+    return {'state': state, 'total': len(runs),
+            'passed': len(runs) - len(failed) - pending, 'failed': failed[:5]}
+
+
 def _mark_pr_closed(repo: str, number) -> None:
     try:
         number = int(number)
@@ -899,6 +1000,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'comments_new': _comments_new(repo, pr['number'], _pr_cmts),
             'review_state': _compute_review_state(reviews_raw, len(_pr_reqs)),
             'reviewers':    [u.get('login', '') for u in _pr_reqs if u.get('login')],
+            'ci':           _ci_state(repo, (pr.get('head') or {}).get('sha', ''), token),
             'body':         _strip_html(pr.get('body') or '')[:1500],
         })
 
@@ -1403,6 +1505,7 @@ def _pr_activity_meta(repo: str, number: int, token: str) -> dict:
         'reviewers':      [u.get('login', '') for u in requested if u.get('login')],
         'mergeable':      detail.get('mergeable_state') or '',
         'extra_comments': _review_bodies_count(reviews) + (detail.get('review_comments') or 0),
+        'ci':             _ci_state(repo, (detail.get('head') or {}).get('sha', ''), token),
     }
 
 
@@ -1454,6 +1557,7 @@ def _fetch_my_activity(login: str, token: str) -> dict:
             'review_state': _meta.get('review_state', 'none'),
             'reviewers':    _meta.get('reviewers', []),
             'mergeable':    _meta.get('mergeable', ''),
+            'ci':           _meta.get('ci', {'state': 'none'}),
             'labels':   [l['name'] for l in item.get('labels', [])],
             'body':     _strip_html(item.get('body') or '')[:1000],
         }
@@ -1771,6 +1875,35 @@ def api_github_status():
     return jsonify(cached)
 
 
+# Wenn in allen eigenen Repos der GitPulse-Webhook aktiv ist und zuletzt sauber
+# zugestellt hat, kommen Änderungen dort ohnehin sofort an. Der Poll ist dann nur
+# noch Kontrolle (und für Watch-Releases/fremde Repos zuständig) und darf seltener
+# laufen. Geprüft wird stündlich; fällt ein Hook aus, gilt wieder poll_interval.
+_webhook_health: dict = {'ts': 0.0, 'ok': False}
+_WEBHOOK_HEALTH_TTL = 3600
+
+
+def _webhooks_healthy(cfg: dict, token: str) -> bool:
+    if not cfg.get('webhook_secret', '').strip():
+        return False
+    now = time.time()
+    if now - _webhook_health['ts'] < _WEBHOOK_HEALTH_TTL:
+        return _webhook_health['ok']
+    url   = load_gitpulse_settings().get('webhook_url', '').strip()
+    repos = _webhook_my_repos(cfg)
+    ok    = bool(url and repos)
+    if ok:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            res = list(ex.map(lambda r: _webhook_repo_status(r, token, url), repos))
+        ok = all(x['status'] == 'ok' and x.get('last_code') in (None, 200) for x in res)
+    if ok != _webhook_health['ok']:
+        log.info("Webhooks %s — Poll-Intervall %s",
+                 'in allen Repos aktiv' if ok else 'nicht vollständig aktiv',
+                 'verlängert' if ok else 'normal')
+    _webhook_health.update(ts=now, ok=ok)
+    return ok
+
+
 def _poll_worker() -> None:
     log.info("GitHub-Poller gestartet")
     while True:
@@ -1789,6 +1922,19 @@ def _poll_worker() -> None:
             log.error("Poll-Fehler: %s", e)
             with _gh_lock:
                 _gh_cache['error'] = str(e)
+
+        wh_interval = int(cfg.get('webhook_poll_interval', WEBHOOK_POLL_INTERVAL_DEFAULT) or 0)
+        webhook_mode = False
+        if wh_interval > interval:
+            try:
+                webhook_mode = _webhooks_healthy(cfg, token)
+            except Exception as e:
+                log.warning("Webhook-Status nicht prüfbar: %s", e)
+        if webhook_mode:
+            interval = wh_interval
+        with _gh_lock:
+            _gh_cache['poll_interval_now'] = interval
+            _gh_cache['webhook_mode']      = webhook_mode
 
         # Auto-Anpassung Schlafzeit bei Rate-Limit-Engpass
         rem   = _rate_limit.get('remaining', 5000)
@@ -1866,6 +2012,8 @@ def _do_poll_once(cfg: dict, token: str) -> None:
     tg_notif   = (user_repos or {}).get('tg_notifications', {})
     em_notif   = (user_repos or {}).get('email_notifications', {})
     run_limit  = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
+
+    _warn_token_expiry(cfg, expires, tg_token, tg_chat, tg_notif, em_notif)
 
     if _verbose():
         log.info("Polling %d eigene Repos, %d Watch-Repos", len(my_repos), len(watch_repos))
@@ -3053,7 +3201,7 @@ _TG_NOTIF_KEYS = (
     'startup', 'new_pr', 'pr_closed', 'new_issue',
     'workflow_started', 'workflow_completed',
     'releases', 'repo_stats', 'star_fork', 'security', 'my_activity',
-    'new_comment', 'review_request', 'digest',
+    'new_comment', 'review_request', 'digest', 'token_expiry',
 )
 
 
@@ -3107,6 +3255,7 @@ def api_config_repos_save():
     save_user_repos(existing)
     _etag_cache.clear()  # frischer Poll für neue Repos
     _etag_used.clear()
+    _webhook_health['ts'] = 0.0
     log.info("Repo-Config gespeichert: %d eigene, %d Watch-Repos", len(my_repos), len(watch_repos))
     return jsonify({'status': 'saved', 'my_repos': my_repos, 'watch_repos': watch_repos})
 
@@ -3142,7 +3291,8 @@ def _webhook_repo_status(repo: str, token: str, webhook_url: str) -> dict:
         return {'repo': repo, 'status': 'inactive', 'missing_events': missing, 'hook_id': hook['id']}
     if missing:
         return {'repo': repo, 'status': 'incomplete', 'missing_events': missing, 'hook_id': hook['id']}
-    return {'repo': repo, 'status': 'ok', 'missing_events': [], 'hook_id': hook['id']}
+    return {'repo': repo, 'status': 'ok', 'missing_events': [], 'hook_id': hook['id'],
+            'last_code': (hook.get('last_response') or {}).get('code')}
 
 
 @app.route('/api/webhooks/status')
@@ -3221,6 +3371,7 @@ def api_webhooks_setup():
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         results = list(ex.map(_setup_one, repos))
+    _webhook_health['ts'] = 0.0
     return jsonify({'results': results})
 
 

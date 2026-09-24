@@ -25,6 +25,7 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 | Repository: Dependabot alerts | Read |
 | Repository: Secret scanning alerts | Read |
 | Repository: Security events | Read |
+| Repository: Checks | Read *(optional)* |
 
 **Token erstellen:**
 
@@ -35,7 +36,9 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 5. Berechtigungen wie oben setzen → „Generate token"
 6. Token kopieren und in der Add-on-Konfiguration unter `github_token` eintragen
 
-**Empfohlene Ablaufzeit**: 90 Tage — GitPulse warnt 14 Tage vor Ablauf mit einem gelben Badge im Header.
+**Empfohlene Ablaufzeit**: 90 Tage — GitPulse warnt 14 Tage vor Ablauf mit einem gelben Badge im Header. Zusätzlich kommt 7 Tage und 1 Tag vorher je eine Telegram-/E-Mail-Meldung (abschaltbar unter ⚙ → Benachrichtigungen).
+
+**Checks (optional)**: Damit zeigt GitPulse am PR den Status aller Checks (auch externer). Ohne diese Berechtigung wertet GitPulse stattdessen die GitHub-Actions-Läufe des PR-Commits aus.
 
 > Watch-Repos (Release-Tracking externer Repos wie z. B. `home-assistant/core`) benötigen nur öffentlichen Zugriff — dafür braucht der Token keine speziellen Rechte auf diese Repos.
 
@@ -53,6 +56,7 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 | `watch_repos` | `home-assistant/core` | Nur Release-Tracking; kein Schreibzugriff erforderlich |
 | `include_ha_betas` | `true` | HA Beta/RC-Releases im Releases-Tab anzeigen |
 | `poll_interval` | `300` | Abfrageintervall in Sekunden (Minimum 10, empfohlen 30–300) |
+| `webhook_poll_interval` | `1800` | Abfrageintervall, solange die Webhooks in allen eigenen Repos aktiv sind; `0` = immer `poll_interval` |
 | `verbose_log` | `false` | Detailliertere Logging-Ausgabe je Poll-Zyklus |
 | `workflow_run_limit` | `25` | Maximale Anzahl geladener Workflow-Runs pro Repo (Maximum 50) |
 | `addon_manager` | `false` | Add-on-Manager-Tab aktivieren (Versions-Bump direkt aus der UI) |
@@ -73,7 +77,7 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 
 **`watch_repos`** — Nur für Release-Tracking geeignet (z. B. `home-assistant/core`, `Hyundai-Kia-Connect/kia_uvo`). PRs, Issues, CI und Security werden für Watch-Repos nicht abgefragt.
 
-**`poll_interval`** — Mit aktivierten Webhooks kann ein höheres Intervall (z. B. 300 s) gesetzt werden, da Updates sofort ankommen. Das Polling bleibt als Fallback erhalten.
+**`poll_interval`** / **`webhook_poll_interval`** — GitPulse prüft stündlich, ob der Webhook in jedem eigenen Repo vorhanden, aktiv und zuletzt erfolgreich zugestellt ist. Ist das der Fall, wird nur noch alle `webhook_poll_interval` Sekunden gepollt; sonst gilt `poll_interval`. Das aktuelle Intervall zeigt der Tooltip des Rate-Limit-Badges (⚡).
 
 **`workflow_run_limit`** — Höhere Werte bedeuten mehr API-Aufrufe pro Poll-Zyklus. Bei vielen Repos und niedrigem Poll-Intervall kann das Rate-Limit schneller erreicht werden.
 
