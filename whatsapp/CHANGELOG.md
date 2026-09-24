@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.44] - 2026-09-24
+
+- Abhaengigkeiten: **express 4 → 5.2.1**, **express-rate-limit 7 → 8.7.0**, **archiver 7 → 8.0.0**, multer 2.3.0 → 2.4.0
+- archiver 8 ist ein reines ES-Modul ohne `archiver('zip')`-Fabrik; der Status-Archiv-Export nutzt jetzt `new ZipArchive(...)`
+- Express 5 laesst `req.body` ohne JSON-Body `undefined` statt `{}`; eine Middleware stellt das alte Verhalten wieder her, damit Routen, die `req.body` direkt zerlegen, nicht mit 500 abbrechen
+- Node bleibt auf 24 (LTS) — das vorgeschlagene `node:25-alpine` ist seit Juni 2026 ohne Support
+
 ## [1.8.43] - 2026-09-16
 
 - **Selbsttest erkennt den nachgeladenen Datenschutz-Setter.** Er suchte ihn nur unter dem alten Modulnamen und meldete "Datenschutz aendern" deshalb weiter als kaputt, obwohl das Aendern seit 1.8.42 wieder geht — MessengerPortal zeigte "Online – mit Einschraenkung". Jetzt sucht er wie der Schreibpfad ueber die Exporte
