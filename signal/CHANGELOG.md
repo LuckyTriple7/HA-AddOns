@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.30] - 2026-09-24
+- Abhaengigkeiten: **express 4 → 5.2.1**, **express-rate-limit 7 → 8.7.0**
+- **node-fetch entfernt**, stattdessen das in Node eingebaute `fetch`. node-fetch 3 ist ein reines ES-Modul und kennt weder die `timeout`-Option noch `.buffer()` — beides nutzte das Add-on. Zeitlimits laufen jetzt ueber `AbortSignal.timeout()`, Anhaenge und QR-Code ueber `arrayBuffer()`
+- Express 5: Catch-all-Route von `'*'` auf `'/{*splat}'` umgestellt (neue Pfadsyntax); `req.body` ohne JSON-Body wird wie unter Express 4 zu `{}`
+
 ## [1.6.29] - 2026-08-29
 - **REST-API auf eigenem Port mit Token-Pflicht.** Neue Optionen `api_enabled` (Standard: aus) und `api_token` starten einen zweiten Listener auf **17787**, der ausschliesslich `/api/*` bedient und jeden Aufruf ohne `Authorization: Bearer <Token>` mit `401` abweist
 - **Breaking Change: Port 17777 wird nicht mehr veroeffentlicht.** Er gab Weboberflaeche und REST-API ohne jede Anmeldung an das ganze LAN heraus — wer die Adresse kannte, konnte mitlesen und senden. Beides liegt auf demselben Express-Server, und der UI-Port kann keinen Token verlangen: die Oberflaeche ruft ihre eigenen `/api/`-Routen aus dem Browser auf. Sein Schutz kann deshalb nur sein, ihn nicht freizugeben

@@ -39,7 +39,6 @@ function _logSilent(level, msg) {
   });
 })();
 const express = require('express');
-const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -59,6 +58,8 @@ const app = express();
 // express-rate-limit über das X-Forwarded-For-Header (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
 app.set('trust proxy', 1);
 app.use(express.json());
+// Express 5 laesst req.body ohne JSON-Body undefined (Express 4: {}); Routen destrukturieren es direkt.
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   return mutatingRateLimit(req, res, next);
@@ -165,10 +166,10 @@ function scheduleSave() {
 
 async function checkStatus() {
   try {
-    const aboutRes = await fetch(`${SIGNAL_API}/v1/about`, { timeout: 5000 });
+    const aboutRes = await fetch(`${SIGNAL_API}/v1/about`, { signal: AbortSignal.timeout(5000) });
     if (!aboutRes.ok) throw new Error('API not responding');
 
-    const accountsRes = await fetch(`${SIGNAL_API}/v1/accounts`, { timeout: 5000 });
+    const accountsRes = await fetch(`${SIGNAL_API}/v1/accounts`, { signal: AbortSignal.timeout(5000) });
     if (!accountsRes.ok) { status = 'not-linked'; return; }
 
     const accounts = await accountsRes.json();
@@ -204,7 +205,7 @@ async function fetchQR() {
   qrFetching = true;
   try {
     console.log('[INFO] Requesting QR code from signal-cli-rest-api...');
-    const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 120000 });
+    const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { signal: AbortSignal.timeout(120000) });
     if (!r.ok) {
       const body = await r.text().catch(() => '');
       throw new Error(`HTTP ${r.status}: ${body}`);
@@ -213,7 +214,7 @@ async function fetchQR() {
     console.log('[INFO] QR response content-type:', contentType);
     if (contentType.includes('image/')) {
       // API returns a ready-made QR image — use it directly
-      const buf = await r.buffer();
+      const buf = Buffer.from(await r.arrayBuffer());
       qrDataUrl = `data:${contentType.split(';')[0]};base64,` + buf.toString('base64');
       qrSvg = null;
       qrUri = null;
@@ -239,7 +240,7 @@ async function fetchQR() {
 async function loadContacts() {
   if (!PHONE_NUMBER) return;
   try {
-    const r = await fetch(`${SIGNAL_API}/v1/contacts/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 10000 });
+    const r = await fetch(`${SIGNAL_API}/v1/contacts/${encodeURIComponent(PHONE_NUMBER)}`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) return;
     const contacts = await r.json();
     if (!Array.isArray(contacts)) return;
@@ -261,7 +262,7 @@ async function loadContacts() {
 async function loadGroups() {
   if (!PHONE_NUMBER) return;
   try {
-    const r = await fetch(`${SIGNAL_API}/v1/groups/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 10000 });
+    const r = await fetch(`${SIGNAL_API}/v1/groups/${encodeURIComponent(PHONE_NUMBER)}`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) return;
     const groups = await r.json();
     if (!Array.isArray(groups)) return;
@@ -392,7 +393,7 @@ let _pollCount = 0;
 async function pollMessages() {
   if (status !== 'linked' || !PHONE_NUMBER) return;
   try {
-    const r = await fetch(`${SIGNAL_API}/v1/receive/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 5000 });
+    const r = await fetch(`${SIGNAL_API}/v1/receive/${encodeURIComponent(PHONE_NUMBER)}`, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return;
     _pollCount++;
     if (_pollCount % 30 === 0) _logSilent('INFO', `signal-cli Keep-alive OK — API reachable chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
@@ -414,9 +415,9 @@ async function downloadAttachment(attId, contentType, msgId) {
     if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); scheduleSave(); return; }
     _logSilent('DEBUG', `signal-cli downloadAttachment: start ${filename}`);
     const _t0 = Date.now();
-    const r = await fetch(`${SIGNAL_API}/v1/attachments/${encodeURIComponent(attId)}`, { timeout: 30000 });
+    const r = await fetch(`${SIGNAL_API}/v1/attachments/${encodeURIComponent(attId)}`, { signal: AbortSignal.timeout(30000) });
     if (!r.ok) { console.warn(`[WARN] Attachment download failed: HTTP ${r.status}`); return; }
-    const buf = await r.buffer();
+    const buf = Buffer.from(await r.arrayBuffer());
     fs.writeFileSync(filepath, buf);
     _logSilent('DEBUG', `signal-cli downloadAttachment: ok ${filename} ${(buf.length/1024).toFixed(1)}KB in ${Date.now()-_t0}ms`);
     updateMsgMedia(msgId, filename);
@@ -750,7 +751,7 @@ app.post('/api/send', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to] }),
-      timeout: 10000,
+      signal: AbortSignal.timeout(10000),
     });
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
@@ -786,7 +787,7 @@ app.post('/api/reply', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote: { id: quoteTimestamp, author: quoteAuthor, message: quoteBody || '' } }),
-      timeout: 10000,
+      signal: AbortSignal.timeout(10000),
     });
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
@@ -827,7 +828,7 @@ app.post('/api/forward', async (req, res) => {
       }
     }
     if (!payload) payload = { message: origMsg.body || '', number: PHONE_NUMBER, recipients: [to] };
-    const r = await fetch(`${SIGNAL_API}/v2/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), timeout: 30000 });
+    const r = await fetch(`${SIGNAL_API}/v2/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) });
     if (!r.ok) return res.status(500).json({ error: await r.json() });
     const result = await r.json();
     const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
@@ -859,7 +860,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: caption || '', number: PHONE_NUMBER, recipients: [to], base64_attachments: [dataUri] }),
-      timeout: 30000,
+      signal: AbortSignal.timeout(30000),
     });
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
@@ -923,7 +924,7 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs }),
-        timeout: 10000,
+        signal: AbortSignal.timeout(10000),
       });
       if (!r.ok) {
         const t = await r.text().catch(() => '');
@@ -960,7 +961,7 @@ app.post('/api/logout', async (req, res) => {
 
 // --- UI ---
 
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   if (req.path !== '/' && !req.path.startsWith('/api')) {
     return res.redirect(req.baseUrl + '/');
   }
@@ -2574,7 +2575,7 @@ async function init() {
   let retries = 30;
   while (retries-- > 0) {
     try {
-      const r = await fetch(`${SIGNAL_API}/v1/about`, { timeout: 3000 });
+      const r = await fetch(`${SIGNAL_API}/v1/about`, { signal: AbortSignal.timeout(3000) });
       if (r.ok) break;
     } catch (e) {}
     await new Promise(r => setTimeout(r, 2000));
