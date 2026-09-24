@@ -62,6 +62,8 @@ const app = express();
 // express-rate-limit über das X-Forwarded-For-Header (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
 app.set('trust proxy', 1);
 app.use(express.json());
+// Express 5 laesst req.body ohne JSON-Body undefined (Express 4: {}); Routen destrukturieren es direkt.
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   return mutatingRateLimit(req, res, next);
@@ -1271,7 +1273,7 @@ app.get('/api/contact/:chatId', async (req, res) => {
 
 // ── UI ────────────────────────────────────────────────────────────────────────
 
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   if (req.path !== '/' && !req.path.startsWith('/api')) return res.redirect(req.baseUrl + '/');
   res.send(getHtml());
 });

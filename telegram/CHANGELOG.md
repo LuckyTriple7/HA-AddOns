@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.11] - 2026-09-24
+- Abhaengigkeiten: **express 4 → 5.2.1**, **express-rate-limit 7 → 8.7.0**, multer 2.3.0 → 2.4.0
+- Express 5: Catch-all-Route von `'*'` auf `'/{*splat}'` umgestellt (neue Pfadsyntax); `req.body` ohne JSON-Body wird wie unter Express 4 zu `{}`
+
 ## [1.7.10] - 2026-09-23
 - Feature: **Alle Chats auf einmal nachladen.** Neuer Button in der Kopfleiste (Pfeil mit `*`, immer sichtbar) holt fuer jeden Chat die letzten 100 Nachrichten und ergaenzt, was fehlt — bisher ging das nur Chat fuer Chat. Anders als der Einzel-Button leert er den Cache nicht. Waehrend des Laufs dreht sich das Symbol, am Ende meldet ein Hinweis, wie viele Nachrichten dazugekommen sind. Ein zweiter Klick waehrend des Laufs wird abgewiesen
 - Neuer Endpoint `POST /api/refresh-all` (liefert `{ chats, added }`)
