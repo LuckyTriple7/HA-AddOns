@@ -51,3 +51,14 @@ def test_endpunkt_liefert_vorher_nachher(m):
     d = r.get_json()
     assert {'ok', 'before_mb', 'after_mb', 'freed_mb'} <= set(d)
     assert d['ok'] is True
+
+
+def test_analyse_nennt_speicherhalter(m, monkeypatch):
+    """Belegt oder zerstückelt, und wer hält es — ohne das bleibt nur Raten."""
+    m._test_ballast = [('x' * 1024) + str(i) for i in range(3000)]   # ~3 MB, je eigener String
+    monkeypatch.setattr(m, '_require_api', lambda: None)
+    d = m.app.test_client().get('/api/memory/analyze').get_json()
+    names = [h['name'] for h in d['holders']]
+    assert 'app._test_ballast' in names
+    assert d['types'] and d['gc_objects'] > 0
+    assert 'malloc' in d and 'pymalloc' in d

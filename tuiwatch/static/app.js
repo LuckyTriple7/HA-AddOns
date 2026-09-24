@@ -6010,6 +6010,13 @@
             title="Python-Müll einsammeln und freie Speicher-Arenen ans Betriebssystem zurückgeben">Speicher freigeben</button>
           <div class="hint">Läuft ohnehin nach jeder Prüfrunde mit. Gibt nur zurück, was
             wirklich frei ist — belegte Daten bleiben unangetastet.</div>
+        </div>
+        <div style="margin:12px 0">
+          <button class="btn sec" id="mem-analyze-btn" onclick="analyzeMemory()"
+            title="Zeigt, ob der Speicher belegt oder nur zerstückelt ist und welche Variable wie viel hält">Analysieren</button>
+          <div class="hint">Dauert ein paar Sekunden. Unterscheidet „wirklich belegt“ von
+            „frei, aber zerstückelt“ und nennt die größten Speicherhalter.</div>
+          <div id="mem-analyze"></div>
         </div>`;
       html += '<div style="margin-top:12px;font-weight:600">Größte Prozesse im Container</div>'
         + (d.processes||[]).map(p =>
@@ -6029,6 +6036,35 @@
                              : 'Nichts zurückzugeben — der Speicher ist wirklich belegt');
       } catch(e){ toast('Fehlgeschlagen'); }
       openSyslog('memory');
+    }
+    // Wer hält den Speicher? RSS sagt nur wieviel; hier steht, ob er in Benutzung
+    // ist (used) oder frei, aber zerstückelt festgehalten (free), und von wem.
+    async function analyzeMemory(){
+      const btn = $('#mem-analyze-btn'), out = $('#mem-analyze');
+      btn.disabled = true; out.innerHTML = '<div class="hint">Analysiere…</div>';
+      try {
+        const r = await fetch(api('/api/memory/analyze'));
+        const d = await r.json();
+        const line = (a, b) => `<div style="display:flex;gap:8px;padding:3px 0;font-size:.8rem;font-family:ui-monospace,monospace">
+            <span style="flex:1;word-break:break-all">${esc(a)}</span><span style="white-space:nowrap">${esc(b)}</span></div>`;
+        const m = d.malloc, p = d.pymalloc;
+        let h = '<div style="margin-top:10px;font-weight:600">Belegt oder zerstückelt?</div>';
+        h += m ? line('malloc: benutzt / frei gehalten / mmap', _mb(m.used_mb)+' / '+_mb(m.free_mb)+' / '+_mb(m.mmap_mb))
+               : line('malloc', 'nicht verfügbar');
+        h += p ? line('pymalloc: benutzt / frei gehalten / Arenen (Spitze)',
+                      _mb(p.used_mb)+' / '+_mb(p.free_mb)+' / '+_mb(p.arenas_mb)+' ('+_mb(p.peak_mb)+')')
+               : line('pymalloc', 'nicht verfügbar');
+        h += '<div style="margin-top:10px;font-weight:600">Größte Speicherhalter</div>';
+        h += (d.holders||[]).length ? d.holders.map(x =>
+               line(x.name + (x.len!=null ? ' ('+x.len+' Einträge)' : ''), _mb(x.mb))).join('')
+             : '<div class="hint">Keine Variable über 1 MB.</div>';
+        if(d.holders_truncated) h += '<div class="hint">Abgebrochen nach 3 Mio. Objekten — Liste unvollständig.</div>';
+        h += '<div style="margin-top:10px;font-weight:600">Objekttypen (' + (d.gc_objects||0).toLocaleString('de-DE') + ' Objekte)</div>';
+        h += (d.types||[]).map(t => line(t.name + ' × ' + t.count.toLocaleString('de-DE'), _mb(t.mb))).join('');
+        h += '<div class="hint">RSS jetzt ' + _mb(d.rss_mb) + ' · Analyse ' + d.seconds + ' s</div>';
+        out.innerHTML = h;
+      } catch(e){ out.innerHTML = '<div class="hint">Fehlgeschlagen</div>'; }
+      btn.disabled = false;
     }
     async function reapChromium(){
       try {

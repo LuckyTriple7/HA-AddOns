@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.113.30
+
+- 🔬 **Speicher-Tab: neuer Knopf „Analysieren".** Die Messung zeigte 570 MB echten Heap, einen Höchststand von fast 2 GB, und „Speicher freigeben" brachte nur 0,2 MB. Ob die 570 MB wirklich belegt sind oder nach der Spitze nur zerstückelt festgehalten werden, ließ sich damit nicht unterscheiden — beides sieht von außen gleich aus. Die Analyse zeigt jetzt:
+  - **malloc und pymalloc getrennt: benutzt vs. frei gehalten.** Viel „frei gehalten" heißt Zerstückelung nach der Spitze; viel „benutzt" heißt, Python hält wirklich Daten.
+  - **Die größten Speicherhalter** — jede Modul-Variable ab 1 MB samt allem, was sie erreicht (Caches, Listen), mit Anzahl der Einträge.
+  - **Die häufigsten Objekttypen** nach Zahl und Größe.
+- Dauert ein paar Sekunden und läuft nur auf Knopfdruck; danach wird der eigene Zwischenspeicher gleich wieder zurückgegeben.
+
 ## 0.113.29
 
 - 🎟 **Aktionscodes haben jetzt eine Historie.** Bisher zeigte das Fenster nur, was gerade läuft — war eine Aktion vorbei, war sie spurlos weg. Neu steht unter den aktuellen Codes der **Verlauf**: je Aktionszeitraum eine Zeile mit Wert, Code und Laufzeit, z. B. „300 € · ACMYTUI30020260810 · 10.08. bis 17.08. · 8 Tg.". Laufende Aktionen stehen mit „seit 10.09. — läuft" und grüner Kante obenauf.

@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.29"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.30"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -4621,6 +4621,154 @@ def api_memory_reap():
         return jsonify({'ok': False, 'killed': 0,
                         'error': 'Gerade laeuft ein Abruf ueber den Browser'}), 409
     return jsonify({'ok': True, 'killed': _reap_orphan_chromium()})
+
+
+def _mallinfo_mb() -> dict | None:
+    """Was der malloc der C-Bibliothek gerade belegt und was er frei, aber
+    festhaelt. `fordblks` gross = Speicher ist frei, nur zerstueckelt (malloc_trim
+    kommt nicht heran); `uordblks` gross = wirklich in Benutzung."""
+    try:
+        import ctypes
+
+        class _MI2(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_size_t) for n in (
+                'arena', 'ordblks', 'smblks', 'hblks', 'hblkhd', 'usmblks',
+                'fsmblks', 'uordblks', 'fordblks', 'keepcost')]
+        libc = ctypes.CDLL('libc.so.6')
+        libc.mallinfo2.restype = _MI2
+        mi = libc.mallinfo2()
+        mb = lambda v: round(v / 1048576, 1)  # noqa: E731
+        return {'heap_mb': mb(mi.arena), 'used_mb': mb(mi.uordblks),
+                'free_mb': mb(mi.fordblks), 'mmap_mb': mb(mi.hblkhd)}
+    except Exception:
+        return None
+
+
+def _pymalloc_mb() -> dict | None:
+    """Pythons eigener Kleinobjekt-Allocator (pymalloc) — liegt ausserhalb von
+    malloc in eigenen 1-MB-Arenen. Eine Arena geht erst ans System zurueck, wenn
+    sie ganz leer ist; ein einziges ueberlebendes Objekt haelt sie fest.
+    `sys._debugmallocstats()` schreibt nur auf den C-stderr, deshalb kurz umleiten."""
+    import tempfile
+    try:
+        with tempfile.TemporaryFile(mode='w+b') as tmp:
+            sys.stderr.flush()
+            saved = os.dup(2)
+            try:
+                os.dup2(tmp.fileno(), 2)
+                sys._debugmallocstats()
+            finally:
+                os.dup2(saved, 2)
+                os.close(saved)
+            tmp.seek(0)
+            text = tmp.read().decode('utf-8', 'replace')
+    except Exception:
+        return None
+    # Zeilen wie "# bytes in allocated blocks = 1,485,424" und
+    # "20 unused pools * 16384 bytes = 327,680"; das erste "Total" ist die
+    # Summe aller Arenen.
+    vals: dict = {}
+    for line in text.splitlines():
+        k, sep, v = line.rpartition('=')
+        if not sep:
+            continue
+        k = k.strip().lstrip('#').strip()
+        if 'unused pools' in k:
+            k = 'unused pools'
+        try:
+            vals.setdefault(k, int(v.strip().replace(',', '')))
+        except ValueError:
+            pass
+    if 'Total' not in vals:
+        return None
+    mb = lambda v: round((v or 0) / 1048576, 1)  # noqa: E731
+    per_arena = vals['Total'] / max(1, vals.get('arenas allocated current', 1))
+    return {'arenas_mb': mb(vals['Total']),
+            'peak_mb': mb(vals.get('arenas highwater mark', 0) * per_arena),
+            'used_mb': mb(vals.get('bytes in allocated blocks')),
+            'free_mb': mb((vals.get('bytes in available blocks') or 0)
+                          + (vals.get('unused pools') or 0))}
+
+
+_DEEP_SKIP = (type(os), type(_mallinfo_mb), type(print), type)
+
+
+def _deep_size(obj, seen: set, budget: list) -> int:
+    """Groesse eines Objekts samt allem, was es erreicht (ohne Module, Funktionen,
+    Klassen). `seen` gilt ueber alle Aufrufe hinweg, damit Geteiltes nur einmal
+    zaehlt; `budget` begrenzt die Zahl besuchter Objekte."""
+    total, stack = 0, [obj]
+    while stack and budget[0] > 0:
+        o = stack.pop()
+        if id(o) in seen or isinstance(o, _DEEP_SKIP):
+            continue
+        seen.add(id(o))
+        budget[0] -= 1
+        try:
+            total += sys.getsizeof(o)
+        except Exception:
+            continue
+        if isinstance(o, (str, bytes, bytearray, int, float, bool)) or o is None:
+            continue
+        stack.extend(gc.get_referents(o))
+    return total
+
+
+@app.route('/api/memory/analyze', methods=['GET'])
+def api_memory_analyze():
+    """Wer haelt den Speicher? Auf Knopfdruck, weil es ein paar Sekunden dauert.
+
+    Beantwortet zwei Fragen, zwischen denen RSS und cgroup nicht unterscheiden:
+      * belegt oder nur zerstueckelt? (malloc und pymalloc: benutzt vs. frei gehalten)
+      * wenn belegt: welche Variable in welchem Modul? (tiefe Groesse der
+        Modul-Globals, groesste zuerst) und welche Objekttypen in welcher Zahl."""
+    if (err := _require_api()):
+        return err
+    t0 = time.time()
+    gc.collect()
+    base = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+    seen: set = set()
+    budget = [3_000_000]
+    holders = []
+    for mname, mod in list(sys.modules.items()):
+        f = os.path.normcase(os.path.abspath(getattr(mod, '__file__', None) or '/'))
+        if (not f.startswith(base) or 'site-packages' in f
+                or mname.startswith('tests')):
+            continue
+        for gname, val in list(vars(mod).items()):
+            if gname.startswith('__') or isinstance(val, _DEEP_SKIP):
+                continue
+            size = _deep_size(val, seen, budget)
+            if size >= 1048576:
+                holders.append({'name': f'{mname}.{gname}',
+                                'mb': round(size / 1048576, 1),
+                                'len': len(val) if hasattr(val, '__len__') else None})
+    holders.sort(key=lambda h: h['mb'], reverse=True)
+    del seen
+    types: dict = {}
+    for o in gc.get_objects():
+        t = type(o).__name__
+        c = types.get(t)
+        if c is None:
+            types[t] = [1, sys.getsizeof(o)]
+        else:
+            c[0] += 1
+            c[1] += sys.getsizeof(o)
+    top_types = sorted(types.items(), key=lambda kv: kv[1][1], reverse=True)[:12]
+    result = {
+        'rss_mb': _rss_mb(),
+        'malloc': _mallinfo_mb(),
+        'pymalloc': _pymalloc_mb(),
+        'holders': holders[:20],
+        'holders_truncated': budget[0] <= 0,
+        'types': [{'name': n, 'count': c, 'mb': round(s / 1048576, 1)}
+                  for n, (c, s) in top_types],
+        'gc_objects': sum(c for c, _ in types.values()),
+        'seconds': round(time.time() - t0, 1),
+    }
+    del types
+    _trim_once(auto=False)      # die Analyse selbst legt Zwischenspeicher an
+    return jsonify(result)
 
 
 @app.route('/api/logs', methods=['GET'])
