@@ -4140,7 +4140,15 @@ _VCHECK_SKIP      = ('node_modules/', 'vendor/', 'dist/', 'build/', '.venv/', 'v
                      '__pycache__/', 'dev_data/', '_pwtest/', 'static/lib/', 'tests/')
 _VCHECK_MAX_FILES = 25
 _blob_parse_cache: dict[tuple, object] = {}   # (Art, blob-SHA) → Auswertung
-_REPO_NAME_RE     = re.compile(r'[\w.-]+/[\w.-]+')
+_REPO_NAME_CHARS  = frozenset('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-')
+
+
+def _valid_repo_name(name: str) -> bool:
+    """`owner/repo` ohne Regex prüfen — der Wert kommt aus der Anfrage."""
+    owner, sep, repo = name.partition('/')
+    return (bool(sep) and 0 < len(owner) <= 100 and 0 < len(repo) <= 100
+            and owner not in ('.', '..') and repo not in ('.', '..')
+            and all(ch in _REPO_NAME_CHARS for ch in owner + repo))
 
 
 def _ver_tuple(v: str) -> tuple:
@@ -4298,7 +4306,7 @@ def api_addon_version_check():
     if not token:
         return jsonify({'error': 'no_token'}), 400
     repo_full = request.args.get('repo', '').strip()
-    if not _REPO_NAME_RE.fullmatch(repo_full):
+    if not _valid_repo_name(repo_full):
         return jsonify({'error': 'invalid_repo'}), 400
     main_b, dev_b = _dev_main_branches()
     branch = request.args.get('branch', '').strip() or dev_b
@@ -4336,7 +4344,7 @@ def api_dev_to_main_prepare():
     if not token:
         return jsonify({'error': 'no_token'}), 400
     repo_full = request.args.get('repo', '').strip()
-    if not _REPO_NAME_RE.fullmatch(repo_full):
+    if not _valid_repo_name(repo_full):
         return jsonify({'error': 'invalid_repo'}), 400
     owner, repo = repo_full.split('/', 1)
     main_b, dev_b = _dev_main_branches()
@@ -4404,7 +4412,7 @@ def api_dev_to_main_create():
     repo_full = str(body_in.get('repo', '')).strip()
     title     = str(body_in.get('title', '')).strip()[:250]
     text      = str(body_in.get('body', ''))[:65000]
-    if not _REPO_NAME_RE.fullmatch(repo_full) or not title:
+    if not _valid_repo_name(repo_full) or not title:
         return jsonify({'error': 'repo und title erforderlich'}), 400
     main_b, dev_b = _dev_main_branches()
     try:

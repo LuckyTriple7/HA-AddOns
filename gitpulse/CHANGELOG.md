@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.3] - 2026-09-24
+
+### Security
+- **CodeQL #256–#258 (Polynomial regular expression).** Der Repo-Name aus
+  Versions-Prüfung und dev → main-Dialog wurde per Regex geprüft; jetzt ohne
+  Regex über Zeichenmenge und Längengrenze. Dabei zusätzlich `.` und `..` als
+  Owner/Repo abgelehnt — die alte Prüfung ließ `../etc` durch.
+
 ## [0.5.2] - 2026-09-24
 
 ### Added
