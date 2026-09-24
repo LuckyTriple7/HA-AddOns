@@ -3,7 +3,7 @@ waitress==3.0.2
 requests==2.34.2
 markdown==3.10.2
 pillow==12.3.0
-cryptography==50.0.0
+cryptography==50.0.1
 qrcode==7.4.2
 # PDF-Import der Rechtstexte (Impressum/Datenschutz aus einem Generator-PDF).
 # Reines Python, bringt pdfminer.six mit — keine zusätzlichen Systempakete.
