@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import base64
+import gzip
 import hashlib
 import hmac
 import html as htmllib
@@ -162,6 +163,7 @@ _seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
 _SEEN_COMMENTS_PATH = _DATA + '/seen_comments.json'
 _seen_comment_totals: dict[str, int] = {}
 _seen_comments_lock = threading.Lock()
+_seen_comments_file_lock = threading.Lock()   # parallele Repo-Abrufe schreiben sonst ineinander
 _seen_comments_dirty = False
 
 # GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
@@ -196,8 +198,31 @@ _last_digest_date: str = ''
 # Review-Request-Tracking — PRs die zur Review angefragt wurden (in-memory)
 _seen_review_prs: set[str] = set()
 
-# ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit)
+# ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit).
+# Einträge, die kein Poll mehr anfragt (geschlossene PRs, weggefallene Seiten,
+# entfernte Repos), räumt `_etag_prune` nach einem Tag ab.
 _etag_cache: dict[str, tuple] = {}
+_etag_used:  dict[str, float] = {}
+_ETAG_MAX_IDLE = 86400
+
+
+def _etag_get(key: str) -> tuple | None:
+    hit = _etag_cache.get(key)
+    if hit is not None:
+        _etag_used[key] = time.time()
+    return hit
+
+
+def _etag_put(key: str, value: tuple) -> None:
+    _etag_cache[key] = value
+    _etag_used[key]  = time.time()
+
+
+def _etag_prune() -> None:
+    cutoff = time.time() - _ETAG_MAX_IDLE
+    for key in [k for k, ts in list(_etag_used.items()) if ts < cutoff]:
+        _etag_used.pop(key, None)
+        _etag_cache.pop(key, None)
 
 # GitHub Rate-Limit State
 _rate_limit: dict = {'remaining': 5000, 'limit': 5000, 'reset': 0}
@@ -491,7 +516,7 @@ def save_seen_comments() -> None:
         snapshot = dict(_seen_comment_totals)
         _seen_comments_dirty = False
     try:
-        with open(_SEEN_COMMENTS_PATH, 'w') as f:
+        with _seen_comments_file_lock, open(_SEEN_COMMENTS_PATH, 'w') as f:
             json.dump(snapshot, f)
     except Exception as e:
         log.warning("seen_comments konnte nicht gespeichert werden: %s", e)
@@ -591,7 +616,7 @@ def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | 
     url       = f'{GITHUB_API}{path}' if path.startswith('/') else path
     cache_key = path + (str(sorted(params.items())) if params else '')
     hdrs      = _gh_headers(token)
-    cached    = _etag_cache.get(cache_key)
+    cached    = _etag_get(cache_key)
     if cached:
         hdrs['If-None-Match'] = cached[0]
     try:
@@ -603,7 +628,7 @@ def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | 
             data = r.json()
             etag = r.headers.get('ETag')
             if etag:
-                _etag_cache[cache_key] = (etag, data)
+                _etag_put(cache_key, (etag, data))
             return data
         if r.status_code == 429:
             reset_ts = int(r.headers.get('X-RateLimit-Reset', time.time() + 60))
@@ -627,7 +652,7 @@ def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | 
         page_params = {**base_params, 'page': page}
         cache_key   = 'pg:' + path + str(sorted(page_params.items()))
         hdrs        = _gh_headers(token)
-        cached      = _etag_cache.get(cache_key)
+        cached      = _etag_get(cache_key)
         if cached:
             hdrs['If-None-Match'] = cached[0]
         try:
@@ -640,7 +665,7 @@ def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | 
                 has_next = 'rel="next"' in r.headers.get('Link', '')
                 etag     = r.headers.get('ETag')
                 if etag:
-                    _etag_cache[cache_key] = (etag, data, has_next)
+                    _etag_put(cache_key, (etag, data, has_next))
             else:
                 break
         except Exception as e:
@@ -1004,7 +1029,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         url       = f'{GITHUB_API}/repos/{repo}/releases/latest'
         rel_key   = f'rel:{repo}'
         rel_hdrs  = _gh_headers(token)
-        rel_cache = _etag_cache.get(rel_key)
+        rel_cache = _etag_get(rel_key)
         if rel_cache:
             rel_hdrs['If-None-Match'] = rel_cache[0]
         try:
@@ -1022,7 +1047,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
                     'prerelease': release_raw.get('prerelease', False),
                 }
                 if r.headers.get('ETag'):
-                    _etag_cache[rel_key] = (r.headers['ETag'], latest_release)
+                    _etag_put(rel_key, (r.headers['ETag'], latest_release))
             elif r.status_code == 404:
                 _no_release_repos[repo] = time.time()
                 log.info("%s hat noch keine Releases — nächste Prüfung in 1h", repo)
@@ -1035,8 +1060,6 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     _sec_count = (len(security.get('dependabot', [])) +
                   len(security.get('code_scanning', [])) +
                   len(security.get('secret_scanning', [])))
-
-    save_seen_comments()
 
     return {
         'repo':           repo,
@@ -1120,7 +1143,7 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
         url = f'{GITHUB_API}{path}' if path.startswith('/') else path
         dep_key   = f'dep:{path}'
         dep_hdrs  = _gh_headers(token)
-        dep_cache = _etag_cache.get(dep_key)
+        dep_cache = _etag_get(dep_key)
         if dep_cache:
             dep_hdrs['If-None-Match'] = dep_cache[0]
         try:
@@ -1145,7 +1168,7 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
                 return [], True
             results = list(r.json()) if isinstance(r.json(), list) else []
             if r.headers.get('ETag') and 'rel="next"' not in r.headers.get('Link', ''):
-                _etag_cache[dep_key] = (r.headers['ETag'], list(results))
+                _etag_put(dep_key, (r.headers['ETag'], list(results)))
             else:
                 _etag_cache.pop(dep_key, None)
             for _ in range(20):
@@ -1563,6 +1586,7 @@ def _trigger_repo_poll(repo_name: str) -> None:
     try:
         run_limit = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
         data = _fetch_repo_data(repo_name, token, min(50, run_limit))
+        save_seen_comments()
         with _gh_lock:
             repos   = _gh_cache.get('my_repos', [])
             updated = False
@@ -1789,6 +1813,7 @@ def _poll_worker() -> None:
 # gemeldet. Ein Anstoß während eines Laufs wird vorgemerkt und danach nachgeholt.
 _poll_run_lock = threading.Lock()
 _poll_again    = threading.Event()
+_REPO_FETCH_WORKERS = 4
 
 
 def _do_poll(cfg: dict, token: str) -> None:
@@ -1845,38 +1870,39 @@ def _do_poll_once(cfg: dict, token: str) -> None:
     if _verbose():
         log.info("Polling %d eigene Repos, %d Watch-Repos", len(my_repos), len(watch_repos))
 
-    # eigene Repos
-    repo_data = []
-    for repo in my_repos:
+    # eigene Repos — parallel, jedes Repo braucht ein gutes Dutzend Abfragen
+    # Initialer Poll: volle run_limit laden; folgende Polls: nur 50 holen + mergen
+    poll_limit = run_limit if not _first_poll_done else min(50, run_limit)
+
+    def _fetch_one(repo: str) -> dict | None:
         try:
-            # Initialer Poll: volle run_limit laden; folgende Polls: nur 50 holen + mergen
-            poll_limit = run_limit if not _first_poll_done else min(50, run_limit)
             data = _fetch_repo_data(repo, token, poll_limit)
-
-            if _first_poll_done:
-                with _gh_lock:
-                    existing = next(
-                        (rd for rd in _gh_cache.get('my_repos', []) if rd['repo'] == repo), None
-                    )
-                if existing:
-                    new_runs = data.get('runs', [])
-                    new_ids  = {r['id'] for r in new_runs}
-                    # Bestehende Runs mit frischen Status-Daten aktualisieren
-                    updated = [
-                        next((r for r in new_runs if r['id'] == er['id']), er)
-                        for er in existing.get('runs', [])
-                    ]
-                    # Neue Runs vorne einfügen
-                    brand_new = [r for r in new_runs if r['id'] not in {er['id'] for er in existing.get('runs', [])}]
-                    data['runs'] = brand_new + updated
-
-            repo_data.append(data)
-            if _verbose():
-                pr_cnt = int(data['open_prs'])
-                issue_cnt = int(data['open_issues'])
-                log.info("%s — %d PRs, %d Issues", repo, pr_cnt, issue_cnt)
         except Exception as e:
             log.error("Repo %s Fehler: %s", repo, e)
+            return None
+        if _first_poll_done:
+            with _gh_lock:
+                existing = next(
+                    (rd for rd in _gh_cache.get('my_repos', []) if rd['repo'] == repo), None
+                )
+            if existing:
+                new_runs = {r['id']: r for r in data.get('runs', [])}
+                old_runs = existing.get('runs', [])
+                old_ids  = {er['id'] for er in old_runs}
+                # Bestehende Runs mit frischen Status-Daten aktualisieren, neue vorne einfügen
+                updated   = [new_runs.get(er['id'], er) for er in old_runs]
+                brand_new = [r for rid, r in new_runs.items() if rid not in old_ids]
+                data['runs'] = brand_new + updated
+        if _verbose():
+            log.info("%s — %d PRs, %d Issues", repo, int(data['open_prs']), int(data['open_issues']))
+        return data
+
+    if my_repos:
+        with ThreadPoolExecutor(max_workers=min(_REPO_FETCH_WORKERS, len(my_repos))) as pool:
+            repo_data = [d for d in pool.map(_fetch_one, my_repos) if d is not None]
+    else:
+        repo_data = []
+    save_seen_comments()
 
     # Telegram: neue PRs / Issues / CI-Failures erkennen
     for rd in repo_data:
@@ -2130,6 +2156,7 @@ def _do_poll_once(cfg: dict, token: str) -> None:
         _gh_cache['rate_limit']    = dict(_rate_limit)
 
     _notify_sse()
+    _etag_prune()
     if _verbose():
         log.info("Poll abgeschlossen — %d Repos, %d Watch-Releases", len(repo_data), len(releases))
 
@@ -2272,7 +2299,14 @@ def api_data():
         return jsonify({'error': 'unauthorized'}), 401
     with _gh_lock:
         data = dict(_gh_cache)
-    return jsonify(data)
+    resp = jsonify(data)
+    # Bis zu 500 Runs pro Repo plus PR-/Issue-Texte — gzip spart grob 90 %.
+    # Hinter dem Ingress entpackt der Supervisor-Proxy selbst, das bleibt korrekt.
+    if 'gzip' in (request.headers.get('Accept-Encoding') or '').lower():
+        resp.set_data(gzip.compress(resp.get_data(), compresslevel=5))
+        resp.headers['Content-Encoding'] = 'gzip'
+        resp.headers['Vary'] = 'Accept-Encoding'
+    return resp
 
 
 @app.route('/api/console')
@@ -3072,6 +3106,7 @@ def api_config_repos_save():
                      'tg_notifications': tg_notif, 'email_notifications': em_notif})
     save_user_repos(existing)
     _etag_cache.clear()  # frischer Poll für neue Repos
+    _etag_used.clear()
     log.info("Repo-Config gespeichert: %d eigene, %d Watch-Repos", len(my_repos), len(watch_repos))
     return jsonify({'status': 'saved', 'my_repos': my_repos, 'watch_repos': watch_repos})
 

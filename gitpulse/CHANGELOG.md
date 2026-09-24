@@ -12,6 +12,14 @@
   Code- und Secret-Scanning), Dependabot-Alerts und `releases/latest` nutzen jetzt
   ETags — unveränderte Daten kommen als 304 und zählen nicht gegen das Limit.
   Der Token-Check (`/user`) läuft nur noch alle 15 Minuten statt bei jedem Poll.
+- **Eigene Repos werden parallel abgerufen** (bis zu 4 gleichzeitig) statt
+  nacheinander — ein Poll ist entsprechend schneller fertig.
+- **`/api/data` wird gzip-komprimiert**, wenn der Browser es anbietet. Die Antwort
+  enthält bis zu 500 Runs pro Repo plus PR-/Issue-Texte und schrumpft dadurch auf
+  einen Bruchteil.
+- **ETag-Cache räumt sich auf.** Einträge, die ein Tag lang kein Poll mehr
+  angefragt hat (geschlossene PRs, entfernte Repos), werden verworfen — vorher
+  wuchs der Cache bis zum Neustart unbegrenzt.
 
 ### Fixed
 - **Parallele Polls.** Hintergrund-Poll und „Jetzt aktualisieren" konnten
