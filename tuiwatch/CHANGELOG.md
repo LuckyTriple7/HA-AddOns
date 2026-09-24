@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.31
+
+- 🧠 **Der Speicher geht nach einer Spitze jetzt wirklich zurück: `PYTHONMALLOC=malloc`.** Die neue Analyse war eindeutig — von 570 MB waren nur rund 125 MB belegt. Pythons eigener Allocator (pymalloc) hielt **401 MB frei, aber unerreichbar** fest: er arbeitet in 1-MB-Blöcken und gibt einen Block erst zurück, wenn er komplett leer ist. Nach einer Spitze auf 1 GB genügen verstreut überlebende Objekte, um hunderte solcher Blöcke festzuhalten, und `malloc_trim` kommt an sie nicht heran. Jetzt legt Python alles über glibc an, und der Aufräumer alle fünf Minuten gibt auch Lücken mitten im Speicher zurück. Im Nachbau derselben Lage: **750 MB → 148 MB** nach dem Aufräumen.
+- 🔎 **Speicherspitzen aus der Oberfläche stehen jetzt im Log.** Bisher wurden nur die Schritte der Prüfrunde benannt; die Spitze von fast 2 GB kam ohne solche Zeile. Wächst der Speicher während einer Anfrage um 100 MB oder mehr, steht sie im Log: `Anfrage GET /api/…: +300 MB (Speicher 200 → 500 MB)` — mit der Routen-Vorlage, nicht der URL.
+- 🏷 Neue Zeile **Python-Allocator (PYTHONMALLOC)** im Speicher-Tab; die Analyse zeigt bei pymalloc dann „aus".
+
 ## 0.113.30
 
 - 🔬 **Speicher-Tab: neuer Knopf „Analysieren".** Die Messung zeigte 570 MB echten Heap, einen Höchststand von fast 2 GB, und „Speicher freigeben" brachte nur 0,2 MB. Ob die 570 MB wirklich belegt sind oder nach der Spitze nur zerstückelt festgehalten werden, ließ sich damit nicht unterscheiden — beides sieht von außen gleich aus. Die Analyse zeigt jetzt:

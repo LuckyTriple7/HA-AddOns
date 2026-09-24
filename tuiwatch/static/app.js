@@ -5986,6 +5986,10 @@
         + row('Speicher-Arenen (MALLOC_ARENA_MAX)', d.malloc_arena_max || 'unbegrenzt',
               'Ohne Begrenzung legt die C-Bibliothek pro Thread eigene Arenen an und '
               + 'gibt sie nicht wieder her.')
+        + row('Python-Allocator (PYTHONMALLOC)', d.pythonmalloc || 'pymalloc',
+              d.pythonmalloc === 'malloc'
+                ? 'Alles über glibc — der Aufräumer gibt auch Lücken mitten im Speicher zurück.'
+                : 'pymalloc gibt einen 1-MB-Block erst zurück, wenn er ganz leer ist.')
         + row('Zuletzt aufgeräumt', (function(){
               const t = d.trim||{};
               if(!t.ts) return 'noch nicht';
@@ -6053,7 +6057,7 @@
                : line('malloc', 'nicht verfügbar');
         h += p ? line('pymalloc: benutzt / frei gehalten / Arenen (Spitze)',
                       _mb(p.used_mb)+' / '+_mb(p.free_mb)+' / '+_mb(p.arenas_mb)+' ('+_mb(p.peak_mb)+')')
-               : line('pymalloc', 'nicht verfügbar');
+               : line('pymalloc', d.pythonmalloc === 'malloc' ? 'aus (PYTHONMALLOC=malloc)' : 'nicht verfügbar');
         h += '<div style="margin-top:10px;font-weight:600">Größte Speicherhalter</div>';
         h += (d.holders||[]).length ? d.holders.map(x =>
                line(x.name + (x.len!=null ? ' ('+x.len+' Einträge)' : ''), _mb(x.mb))).join('')

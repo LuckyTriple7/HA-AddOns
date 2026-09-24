@@ -62,3 +62,19 @@ def test_analyse_nennt_speicherhalter(m, monkeypatch):
     assert 'app._test_ballast' in names
     assert d['types'] and d['gc_objects'] > 0
     assert 'malloc' in d and 'pymalloc' in d
+
+
+def test_run_sh_nutzt_glibc_malloc():
+    """pymalloc hielt nach einer Spitze 401 MB frei, aber unerreichbar für den Trim."""
+    from pathlib import Path
+    run = (Path(__file__).resolve().parent.parent / 'run.sh').read_text(encoding='utf-8')
+    assert 'export PYTHONMALLOC=malloc' in run
+
+
+def test_speicherspitze_einer_anfrage_steht_im_log(m, monkeypatch, caplog):
+    import logging
+    werte = iter([100.0, 250.0])
+    monkeypatch.setattr(m, '_rss_mb', lambda: next(werte, 250.0))
+    with caplog.at_level(logging.INFO):
+        m.app.test_client().get('/health')
+    assert any('Anfrage GET /health: +150 MB' in r.getMessage() for r in caplog.records)

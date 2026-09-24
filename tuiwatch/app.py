@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.30"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.31"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3565,6 +3565,26 @@ def _require_api():
     return None if _auth_ok(request) else (jsonify({'error': 'unauthorized'}), 401)
 
 
+@app.before_request
+def _rss_mark():
+    request.environ['tuiwatch.rss_mb'] = _rss_mb()
+
+
+@app.after_request
+def _rss_spike(resp):
+    """Welche Anfrage treibt den Speicher hoch? Die Pruefrunde loggt ihre Schritte
+    schon mit Namen; Spitzen von fast 2 GB kamen aber auch ohne solche Zeile vor —
+    also aus der Oberflaeche. Geloggt wird die Routen-Vorlage, nicht die URL."""
+    before = request.environ.get('tuiwatch.rss_mb')
+    if before is not None:
+        grew = _rss_mb() - before
+        if grew >= 100:
+            rule = request.url_rule.rule if request.url_rule else '?'
+            log.info("Anfrage %s %s: +%.0f MB (Speicher %.0f → %.0f MB)",
+                     request.method, rule, grew, before, before + grew)
+    return resp
+
+
 @app.after_request
 def _slide_session(resp):
     """Sliding-Session: aktive Nutzung verlängert Ablauf & Cookie, statt exakt
@@ -4605,6 +4625,7 @@ def api_memory():
                      'leftover_mb': round(sum(mb for _, mb in leftovers), 1)},
         'browser_fallback': bool(load_config().get('browser_fallback', True)),
         'malloc_arena_max': os.environ.get('MALLOC_ARENA_MAX') or '',
+        'pythonmalloc': os.environ.get('PYTHONMALLOC') or '',
         'trim': {'ts': _trim_state['ts'], 'freed_mb': _trim_state['freed_mb'],
                  'auto': _trim_state['auto'], 'every_s': MEMORY_TRIM_INTERVAL},
         'log_buffer': len(_log_buffer),
@@ -4759,6 +4780,7 @@ def api_memory_analyze():
         'rss_mb': _rss_mb(),
         'malloc': _mallinfo_mb(),
         'pymalloc': _pymalloc_mb(),
+        'pythonmalloc': os.environ.get('PYTHONMALLOC') or '',
         'holders': holders[:20],
         'holders_truncated': budget[0] <= 0,
         'types': [{'name': n, 'count': c, 'mb': round(s / 1048576, 1)}
