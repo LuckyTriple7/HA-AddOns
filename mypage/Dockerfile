@@ -12,7 +12,11 @@ RUN apk add --no-cache curl cifs-utils jq ttf-dejavu pango libffi
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# pip danach wieder entfernen: Es bringt msgpack und setuptools (pkg_resources) als
+# eigene Kopien unter pip/_vendor mit, die Trivy als verwundbar meldet — selbst in der
+# neuesten pip-Version. Zur Laufzeit installiert das Add-on nichts nach.
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y pip
 
 COPY app.py .
 COPY settings.py .
