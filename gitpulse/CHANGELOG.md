@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.21] - 2026-09-24
+
+### Fixed
+- **Gemergter PR tauchte kurz wieder auf.** Nach dem Merge entfernte der Webhook
+  den PR sofort, ein gleichzeitig laufender Poll (oder die noch verzögerte
+  GitHub-API/Search-API) schrieb ihn aber mit veralteten Daten zurück, bis der
+  nächste Poll ihn endgültig löschte. Gemergte/geschlossene PRs werden jetzt
+  3 Minuten lang aus allen Poll-Ergebnissen herausgefiltert; der Merge-Button
+  entfernt den PR zudem sofort aus der Liste (auch ohne Webhook).
+
 ## [0.4.20] - 2026-09-14
 
 ### Fixed

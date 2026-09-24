@@ -210,6 +210,13 @@ _seen_issues: dict[str, set] = defaultdict(set)  # repo → {issue_number, …}
 _known_run_conclusions: dict[int, str | None] = {}  # run_id → conclusion
 _repo_stats: dict[str, dict] = {}  # repo → {stars, forks, watchers} für Änderungserkennung
 
+# Gerade gemergte/geschlossene PRs: (repo, nummer) → Ablaufzeit.
+# Nach einem Merge liefern /pulls und vor allem die Search-API den PR noch einige
+# Sekunden als offen; ein Poll, der in dieses Fenster fällt, würde ihn sonst wieder
+# in die Liste schreiben, nachdem Webhook bzw. Merge-Button ihn schon entfernt haben.
+_closed_pr_hold: dict[tuple, float] = {}
+_CLOSED_PR_HOLD_SEC = 180
+
 # Doppel-Benachrichtigungen bei Security-Alerts unterdrücken.
 # GitHub feuert für einen neuen Code-Scanning-Alert zwei Webhooks ("created" und
 # "appeared_in_branch") — beide sollen zusammen nur eine Nachricht ergeben.
@@ -793,6 +800,21 @@ def _review_bodies_count(reviews: list) -> int:
     return sum(1 for rev in reviews if (rev.get('body') or '').strip())
 
 
+def _mark_pr_closed(repo: str, number) -> None:
+    try:
+        number = int(number)
+    except (TypeError, ValueError):
+        return
+    _closed_pr_hold[(repo, number)] = time.time() + _CLOSED_PR_HOLD_SEC
+
+
+def _pr_recently_closed(repo: str, number) -> bool:
+    now = time.time()
+    for key in [k for k, exp in list(_closed_pr_hold.items()) if exp < now]:
+        _closed_pr_hold.pop(key, None)
+    return (repo, number) in _closed_pr_hold
+
+
 def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     """Fetch PRs, Issues and latest workflow runs for one repo."""
     owner, name = repo.split('/', 1)
@@ -802,6 +824,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     default_branch = repo_meta.get('default_branch', 'main')
 
     pulls_raw = _gh_get_paginated(f'/repos/{repo}/pulls', token) or []
+    pulls_raw = [pr for pr in pulls_raw if not _pr_recently_closed(repo, pr.get('number'))]
     pulls = []
     for pr in pulls_raw:
         reviews_raw = _gh_get(f'/repos/{repo}/pulls/{pr["number"]}/reviews', token) or []
@@ -1364,12 +1387,18 @@ def _fetch_my_activity(login: str, token: str) -> dict:
             'body':     _strip_html(item.get('body') or '')[:1000],
         }
 
+    def _still_open(item: dict) -> bool:
+        _repo = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
+        return not _pr_recently_closed(_repo, item['number'])
+
     for item in _search(f'author:{login} type:pr state:open'):
-        prs.append(_fmt(item))
+        if _still_open(item):
+            prs.append(_fmt(item))
     for item in _search(f'author:{login} type:issue state:open'):
         issues.append(_fmt(item))
     for item in _search(f'review-requested:{login} type:pr state:open'):
-        review_prs.append(_fmt(item))
+        if _still_open(item):
+            review_prs.append(_fmt(item))
 
     save_seen_comments()
     return {'prs': prs, 'issues': issues, 'review_prs': review_prs}
@@ -2272,6 +2301,18 @@ def api_pr_merge():
         )
         if r.status_code == 200:
             log.info("PR #%s in %s gemergt (%s)", pr_nr, repo, method)
+            _mark_pr_closed(repo, pr_nr)
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo:
+                        rd['pulls'] = [p for p in rd.get('pulls', [])
+                                       if not _pr_recently_closed(repo, p.get('number'))]
+                        rd['open_prs'] = len(rd['pulls'])
+                act = _gh_cache.get('my_activity') or {}
+                for key in ('prs', 'review_prs'):
+                    act[key] = [p for p in act.get(key, [])
+                                if not _pr_recently_closed(p.get('repo', ''), p.get('number'))]
+            _notify_sse()
             return jsonify({'status': 'merged'})
         data = r.json()
         msg  = data.get('message', f'HTTP {r.status_code}')
@@ -3356,7 +3397,10 @@ def github_webhook():
                     f"🔀 Neuer PR: <b>{repo_full}</b>\n#{pr_num} {pr.get('title','')}\nvon @{user_login}\n<a href=\"{pr.get('html_url','')}\">PR öffnen</a>",
                     f"Neuer PR: {repo_full}",
                     [f"#{pr_num} {pr.get('title','')}", f"von @{user_login}", f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>"])
+        elif action == 'reopened':
+            _closed_pr_hold.pop((repo_full, pr_num), None)
         elif action == 'closed':
+            _mark_pr_closed(repo_full, pr_num)
             merged = pr.get('merged', False)
             if _first_poll_done:
                 icon = '⎇' if merged else '✕'
