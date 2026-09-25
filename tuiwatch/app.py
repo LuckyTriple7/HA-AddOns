@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.32"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.114.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3095,6 +3095,13 @@ def _maybe_refresh_calendars() -> None:
     Preisänderung. Max. 10 je Poll-Zyklus (je ~3 HTTP-Requests), älteste zuerst.
     Abschaltbar über calendar_daily_refresh.
 
+    **Pausierte Angebote laufen weiter.** Die Pause gilt nur der Preisprüfung der
+    konkreten Reise — typischer Fall ist die Auto-Pause wenige Tage vor Abreise,
+    wenn TUI den Termin nicht mehr anbietet. Der Kalender fragt ohnehin ab HEUTE
+    nach vorn (siehe unten), liefert also weiter Preise für andere Abreisetage;
+    ohne ihn klaffte zwischen Pause und Archivierung eine Lücke im Verlauf. Tote
+    Hotels stoppt weiterhin der eigene Fehlerzähler (`calendar_paused`).
+
     **Archivierte Angebote laufen weiter** (`calendar_archived_refresh`): Der Preis
     des abgelaufenen Angebots wird zwar zu Recht nicht mehr abgefragt, der Kalender
     beschreibt aber Hotel, Zimmer, Verpflegung und Dauer — und der Abruf schaut
@@ -3113,7 +3120,7 @@ def _maybe_refresh_calendars() -> None:
     with db() as con:
         rows = con.execute(
             'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
-            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 '
+            'WHERE COALESCE(o.archived,0)=0 '
             'AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
             'ORDER BY c.ts LIMIT 10', (now - 86400,)).fetchall()
         rest = 10 - len(rows)

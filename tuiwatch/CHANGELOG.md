@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.114.0
+
+- 📅 **Preiskalender läuft bei pausierten Angeboten weiter.** Kurz vor Abreise bietet TUI den eigenen Termin meist nicht mehr an; nach drei Fehlversuchen pausiert TUIWatch das Angebot. Bisher blieb damit auch der Kalender stehen, bis die Reise nach dem Rückreisedatum archiviert wurde — eine Lücke von oft zwei Wochen im Preisverlauf. Jetzt pausiert nur die Preisprüfung der Reise selbst; der Kalender wird weiter täglich abgerufen. Er fragt ohnehin ab heute nach vorn, Termine in der Vergangenheit werden nie abgefragt. Fällt das Hotel ganz aus dem Angebot, stoppt der Kalender wie bisher nach fünf Fehlschlägen in Folge von selbst.
+
 ## 0.113.32
 
 - 🔌 **Speicher-Tab: Netzwerkpuffer (`sock`) werden jetzt ausgewiesen.** Über Nacht stieg der Container auf 709 MB, TUIWatch selbst blieb aber bei 212 MB — der Zuwachs von 483 MB stand als „nicht zugeordnet" da. Laut Kernel-Doku steckt genau ein großer Posten in keiner der bisherigen Zeilen: Speicher in Netzwerkverbindungen, deren Daten nicht abfließen oder nie gelesen werden. Er hat jetzt eine eigene Zeile und zählt nicht mehr zum Rest.
