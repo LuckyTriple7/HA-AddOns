@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import tempfile
 
 import pytest
 
@@ -12,6 +13,12 @@ import pytest
 # Testumgebung stellt genau das her. Die Sperre selbst prueft
 # tests/test_ingress_trust.py.
 os.environ.setdefault("TUIWATCH_TRUST_INGRESS", "1")
+
+# Der TripPilot-Fragebogen liegt standardmaessig unter /config/trippilot, und
+# app.py legt dort beim Import README/questions.default.json an. Ohne eigenes
+# Verzeichnis schrieben die Tests also in ein echtes /config und laesen einen dort
+# liegenden (evtl. veralteten) questions.json statt der mitgelieferten Fragen.
+os.environ.setdefault("TUIWATCH_TRIPPILOT_DIR", tempfile.mkdtemp(prefix="tuiwatch-trippilot-"))
 
 HERE = os.path.dirname(__file__)
 ROOT = os.path.dirname(HERE)              # …/tuiwatch

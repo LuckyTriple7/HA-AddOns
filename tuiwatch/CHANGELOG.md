@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.114.1
+
+- 🧪 **Testsuite wieder komplett grün.** Fünf Reiseberater-Tests prüften seit dem überarbeiteten Fragebogen (0.90.0) noch die alten Antwortwerte ohne Emoji und die alten Bezeichnungen — sie lesen den Tagesausflug-Wert jetzt aus dem Fragebogen selbst.
+- 🧹 **Die Tests schreiben nicht mehr nach `/config/trippilot`.** Beim Import legt TUIWatch dort README und `questions.default.json` an; ohne eigenes Verzeichnis landete das im echten `/config` der Testmaschine, und eine dort liegende `questions.json` hätte die mitgelieferten Fragen verdrängt.
+- Zwei ungenutzte Variablen entfernt (Suche zum Angebot, Statistik).
+
 ## 0.114.0
 
 - 📅 **Preiskalender läuft bei pausierten Angeboten weiter.** Kurz vor Abreise bietet TUI den eigenen Termin meist nicht mehr an; nach drei Fehlversuchen pausiert TUIWatch das Angebot. Bisher blieb damit auch der Kalender stehen, bis die Reise nach dem Rückreisedatum archiviert wurde — eine Lücke von oft zwei Wochen im Preisverlauf. Jetzt pausiert nur die Preisprüfung der Reise selbst; der Kalender wird weiter täglich abgerufen. Er fragt ohnehin ab heute nach vorn, Termine in der Vergangenheit werden nie abgefragt. Fällt das Hotel ganz aus dem Angebot, stoppt der Kalender wie bisher nach fünf Fehlschlägen in Folge von selbst.
