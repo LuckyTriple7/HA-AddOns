@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.114.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.115.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1084,6 +1084,8 @@ def init_db() -> None:
         price_calendar.init_month_db(con)
         # Störungsliste (wiederkehrende Leerläufe) — dito, Schema im issues-Modul.
         issues.init_issues_db(con)
+        # Flugzeiten-Wächter für gebuchte Reisen — dito, Schema im flight_watch-Modul.
+        flight_watch.init_db(con)
         if backfill_last_move:
             price_calendar._recalc_last_move_ts(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
@@ -3017,6 +3019,7 @@ def _poll_worker() -> None:
                     ('Aufraeumen', _reap_orphan_chromium, False),
                     ('Suchabos', _maybe_check_watches, True),
                     ('Preiskalender', _maybe_refresh_calendars, True),
+                    ('Flugzeiten', flight_watch.maybe_check_flights, True),
                     ('Preisbarometer', market_basket.maybe_run_baskets, False)):
                 if _needs_net and not online:
                     continue
@@ -5180,7 +5183,9 @@ import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
 import issues  # noqa: E402
 import maintenance  # noqa: E402
+import flight_watch  # noqa: E402
 app.register_blueprint(issues.bp)
+app.register_blueprint(flight_watch.bp)
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)

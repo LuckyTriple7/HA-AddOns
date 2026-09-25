@@ -3083,8 +3083,15 @@
       ].join('');
       const reisende = (d.reisende||[]).length?`<div class="dsec">Reisende</div><table class="tdt"><tr><th>Name</th><th>Geburtsdatum</th><th>Preis</th></tr>${
         d.reisende.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.geburtsdatum||'')}</td><td>${esc(p.preis||'')} €</td></tr>`).join('')}</table>`:'';
-      const fluege = (d.fluege||[]).length?`<div class="dsec">Flüge</div><table class="tdt"><tr><th>Typ</th><th>Datum</th><th>Strecke</th><th>Zeit</th><th>Airline</th></tr>${
-        d.fluege.map(f=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td></tr>`).join('')}</table>`:'';
+      // Flugzeiten-Wächter: Zustand je Flug (Index in d.fluege) aus trip_flight_checks.
+      // Spalte nur, wenn es einen Abgleich gibt; Knopf nur bei noch kommenden Flügen.
+      const fchk = {}; (t.flight_checks||[]).forEach(c=>{ fchk[c.idx]=c; });
+      const hasChk = Object.keys(fchk).length>0;
+      const todayIso = new Date().toISOString().slice(0,10);
+      const upcomingFl = (d.fluege||[]).some(f=>{ const m=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec(f.datum||''); return m && `${m[3]}-${m[2]}-${m[1]}`>=todayIso; });
+      const flBtn = upcomingFl?` <button class="btn sec" style="font-size:.75rem;padding:2px 8px" onclick="checkTripFlights(${id})" title="Flüge jetzt mit dem Flugplan des Heimatflughafens abgleichen (STR, FRA, MUC, FKB)"><svg class="i"><use href="#i-repeat"/></svg> Flugplan prüfen</button>`:'';
+      const fluege = (d.fluege||[]).length?`<div class="dsec">Flüge${flBtn}</div><table class="tdt"><tr><th>Typ</th><th>Datum</th><th>Strecke</th><th>Zeit</th><th>Airline</th>${hasChk?'<th>Flugplan</th>':''}</tr>${
+        d.fluege.map((f,i)=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td>${hasChk?'<td>'+flightCheckCell(fchk[i])+'</td>':''}</tr>`).join('')}</table>`:'';
       const extras = (d.extras||[]).length?`<div class="dsec">Extras</div><table class="tdt"><tr><th>Typ</th><th>Details</th><th>Preis</th></tr>${
         d.extras.map(e=>{ const det=[e.plaetze,e.gewicht,e.strecke,e.details,(e.anzahl?('x'+e.anzahl):'')].filter(Boolean).join(' '); const pr=(e.preis==='inkl.')?'inkl.':((e.preis!=null)?e.preis+' €':''); return `<tr><td>${esc(e.typ||'')}</td><td>${esc(det)}</td><td>${esc(pr)}</td></tr>`; }).join('')}</table>`:'';
       const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte${d.rabatt_inklusive?' <span class="hint">(bereits im Reisepreis enthalten)</span>':''}</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
@@ -3109,6 +3116,27 @@
         ${packHtml}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    function flightCheckCell(c){
+      if(!c) return '';
+      const when = c.checked ? ' · geprüft '+new Date(c.checked).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      const src = 'Flugplan '+(c.airport||'')+when;
+      const cell = (txt, tip, color)=>`<span title="${esc(tip)}"${color?` style="color:${color}"`:''}>${esc(txt)}</span>`;
+      switch(c.status){
+        case 'ok': return cell('✅ '+(c.plan_time||'')+' '+(c.airport||''), 'Steht wie gebucht im '+src);
+        case 'changed': return cell('⚠️ jetzt '+(c.plan_time||'?'), 'Uhrzeit laut '+src+' geändert — bei TUI prüfen', '#c0392b');
+        case 'missing': return cell('⚠️ nicht im Plan', 'Flugnummer an diesem Tag nicht (mehr) im '+src+(c.note?'. Am selben Tag auf der Strecke: '+c.note:''), '#c0392b');
+        case 'pending': return cell('– noch nicht veröffentlicht', 'Der '+src+' reicht noch nicht bis zu diesem Datum');
+        case 'error': return cell('? Abruf fehlgeschlagen', src);
+        default: return cell('–', 'Kein unterstützter Heimatflughafen (STR, FRA, MUC, FKB) oder Flugnummer nicht erkannt');
+      }
+    }
+    async function checkTripFlights(id){
+      toast('Flugplan wird abgeglichen…');
+      try { const r = await fetch(api('/api/trips/'+id+'/flights/check'), {method:'POST'}); if(!r.ok) throw 0; }
+      catch(e){ toast('Flugplan-Abgleich fehlgeschlagen'); return; }
+      toast('Flugplan abgeglichen ✓');
+      showTripDetail(id);
     }
     async function rescanTrip(id){
       toast('PDF wird neu eingelesen…');

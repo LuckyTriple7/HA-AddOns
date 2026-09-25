@@ -81,6 +81,20 @@ dass wir Modellnamen nachziehen müssen. Offen zu klären, bevor sich das lohnt:
   OpenAI oder Google — wer bewusst „Perplexity" eingestellt hat, rechnet damit
   nicht unbedingt. Gehört in die Options-Beschreibung und in DOCS.md.
 
+## 18. Last-Minute-Auswertung aus dem Kalender pausierter Angebote
+Seit 0.114.0 läuft der Preiskalender pausierter Angebote bis zur Abreise weiter
+(vorher riss er mit der Auto-Pause wenige Tage vor Abflug ab). Damit wird messbar,
+was TUI in den letzten 2–3 Wochen vor Abreise mit den Preisen macht — steigen oder
+fallen sie für dasselbe Hotel?
+
+- Auswertung über `calendar_history`: Preis je Reisetag nach Vorlauf (Tage bis
+  Abreise), gepoolt über alle Angebote, analog `_lead_curve` in stats_routes.py.
+- Ergebnis könnte die Buchungsampel unter 14 Tagen ergänzen (heute dort nur
+  „nie 🔴").
+- Erst sinnvoll, wenn einige Reisen die letzten Wochen durchlaufen haben —
+  frühestens Anfang 2027 ansehen.
+- _Besprochen am 25.09.2026, bewusst zurückgestellt._
+
 ---
 
 ## Erledigt

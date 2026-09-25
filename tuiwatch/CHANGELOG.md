@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.115.0
+
+- ✈️ **Neu: Flugzeiten-Wächter für gebuchte Reisen.** Einmal am Tag — und gleich nach dem Import einer neuen Reise — gleicht TUIWatch die kommenden Flüge unter „Meine Reisen" mit dem Flugplan des Heimatflughafens ab (STR, FRA, MUC oder FKB; die Pläne liest das Add-on ohnehin schon). Weicht die Abflugzeit (Hinflug) bzw. Ankunftszeit (Rückflug) von der gebuchten ab, kommt eine Meldung per HA und Telegram: „Abflug STR jetzt 07:30 statt 06:45 Uhr". Steht die Flugnummer an dem Tag nicht mehr im Plan, wird das beim zweiten Abgleich in Folge gemeldet, zusammen mit den Flügen, die am selben Tag auf der Strecke gehen. Steht der Flug wieder wie gebucht im Plan, gibt es Entwarnung.
+- 🗂 In der Reise-Detailansicht zeigt eine neue Spalte **Flugplan** den Stand je Flug, der Knopf **„Flugplan prüfen"** gleicht sofort ab.
+- 🔕 Abschaltbar über **Flugzeiten-Wächter (Meine Reisen)** unter Einstellungen → Benachrichtigungen (Standard an). Quelle ist der Flughafen, nicht TUI; reicht der Plan noch nicht bis zum Reisedatum, bleibt es still.
+
 ## 0.114.2
 
 - 🔕 **Keine Kalender-Meldungen mehr für pausierte und archivierte Angebote.** Ihr Preiskalender läuft weiter, aber nur noch für den Preisverlauf. Die Reise steht kurz bevor oder ist vorbei, eine „📅 Kalenderpreise geändert"-Meldung per HA oder Telegram wäre dort nur Lärm. Auch der Wochenüberblick lässt sie im Abschnitt „Kalenderpreise geändert" weg (archivierte fehlten dort schon immer). Die Trend-Ansicht im Kalender zeigt weiterhin jede Änderung.

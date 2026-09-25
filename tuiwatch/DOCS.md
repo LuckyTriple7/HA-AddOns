@@ -594,6 +594,25 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   Reisende, aufsummiert = dein persönlicher Anteil) und **Ø €/Nacht pro Person** — gesamt
   **und pro Reisejahr** aufgeschlüsselt. Der €/Nacht-Wert ist durchweg **pro Person**
   (Personen-Nächte = Nächte × Reisende), damit Solo- und Gruppenreisen vergleichbar sind.
+- **✈️ Flugzeiten-Wächter** (`notify_flight_changes`, Standard an, abschaltbar unter
+  Zahnrad → Einstellungen → Benachrichtigungen): Einmal am Tag — und gleich nach dem
+  Import einer neuen Reise — gleicht TUIWatch die kommenden Flüge mit dem Flugplan des
+  **Heimatflughafens** ab, sofern das **STR, FRA, MUC oder FKB** ist. Verglichen wird die
+  Zeit dort: beim Hinflug der Abflug, beim Rückflug die Ankunft. Gemeldet wird per HA und
+  Telegram,
+  - wenn die Uhrzeit im Plan von der gebuchten abweicht („jetzt 07:30 statt 06:45"),
+  - wenn die Flugnummer an dem Tag nicht mehr im Plan steht — erst beim **zweiten**
+    Abgleich in Folge, damit ein einzelner Aussetzer keinen Fehlalarm auslöst; die
+    Meldung nennt, was am selben Tag auf der Strecke fliegt (oft hat TUI nur die Nummer
+    getauscht),
+  - und mit Entwarnung, sobald der Flug wieder wie gebucht im Plan steht.
+
+  Die Detailansicht zeigt je Flug eine Spalte **Flugplan** (✅ wie gebucht, ⚠️ geändert
+  bzw. nicht im Plan, „noch nicht veröffentlicht") und den Knopf **„Flugplan prüfen"**
+  für einen sofortigen Abgleich. Reicht der Plan noch nicht bis zum Reisedatum — typisch
+  für Sommerflüge, solange nur der Winterplan draußen ist —, gibt es keine Meldung.
+  **Quelle ist der Flughafen, nicht TUI**: eine Meldung ist ein Anlass, bei TUI
+  nachzusehen, keine Bestätigung.
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
   gespeicherten PDF und aller weiteren Anhänge.

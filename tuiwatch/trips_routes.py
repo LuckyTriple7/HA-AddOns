@@ -113,6 +113,7 @@ def api_trip_detail(tid):
         packing = con.execute(
             'SELECT id, category, label, checked FROM trip_packing_items '
             'WHERE trip_id=? ORDER BY id', (tid,)).fetchall()
+        trip['flight_checks'] = A.flight_watch.flight_checks_for(con, tid)
     trip['attachments'] = [dict(a) for a in atts]
     trip['packing'] = [dict(p) for p in packing]
     return jsonify(trip)
