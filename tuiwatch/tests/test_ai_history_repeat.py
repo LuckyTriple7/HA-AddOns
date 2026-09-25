@@ -79,10 +79,10 @@ def test_save_ai_analysis_prompt_defaults_empty(m):
 
 def test_ai_config_for_ignores_active_provider(m):
     _write_options(m, anthropic_api_key="ak", anthropic_model="claude-sonnet-5",
-                   gemini_api_key="gk", gemini_model="gemini-3.5-flash", ai_provider="gemini")
+                   gemini_api_key="gk", gemini_model="gemini-3.7-flash", ai_provider="gemini")
     m._meta_set("ai_provider_active", "gemini")   # "aktiver" Provider ist gemini
     assert m._ai_config_for("anthropic") == ("ak", "claude-sonnet-5")
-    assert m._ai_config_for("gemini") == ("gk", "gemini-3.5-flash")
+    assert m._ai_config_for("gemini") == ("gk", "gemini-3.7-flash")
 
 
 def test_ai_config_for_empty_key_when_not_configured(m):

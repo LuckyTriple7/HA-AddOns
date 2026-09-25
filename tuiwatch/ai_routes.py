@@ -572,15 +572,19 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
                  # ohne evtl. befristete Einführungsrabatte. Nur zur groben
                  # Kosten-Schätzung, kein echtes Guthaben (das zeigt nur die Console).
     'claude-opus-5':    {'input': 5.0,  'output': 25.0},
+    'claude-opus-5-5':  {'input': 4.0,  'output': 20.0},
     'claude-opus-4-8':  {'input': 5.0,  'output': 25.0},
-    'claude-sonnet-5':  {'input': 3.0,  'output': 15.0},
+    'claude-sonnet-5':  {'input': 2.0,  'output': 10.0},
     'claude-haiku-4-5': {'input': 1.0,  'output': 5.0},
-    'claude-fable-5':   {'input': 10.0, 'output': 50.0},
-    # Gemini-Listenpreise (Google AI, Stand August 2026). gemini-2.5-flash wird laut
-    # ai.google.dev/gemini-api/docs/deprecations am 16.10.2026 abgeschaltet
-    # (Ersatz lt. Google: gemini-3.6-flash) — bis dahin funktioniert es noch,
-    # danach aus _GEMINI_MODELS/config.yaml-Schema entfernen.
+    'claude-fable-5-1': {'input': 10.0, 'output': 50.0},
+    'claude-fable-5':   {'input': 10.0, 'output': 50.0},   # nur noch für alte Verlaufseinträge
+    # Gemini-Listenpreise (Google AI, Stand September 2026). Die 3.6-/3.7-/3.8-Flash
+    # kosten bis 31.12.2026 befristet die Hälfte — hier stehen die regulären Preise.
+    # 3.5-flash und 2.5-flash sind aus der Auswahl (siehe A._MODEL_SUCCESSOR) und
+    # bleiben nur für alte Verlaufseinträge stehen.
     'gemini-3.1-pro':   {'input': 2.0,  'output': 12.0},
+    'gemini-3.8-flash': {'input': 1.5,  'output': 7.5},
+    'gemini-3.7-flash': {'input': 1.5,  'output': 7.5},
     'gemini-3.6-flash': {'input': 1.5,  'output': 7.5},
     'gemini-3.5-flash': {'input': 1.5,  'output': 9.0},
     'gemini-2.5-flash': {'input': 0.3,  'output': 2.5},
@@ -923,6 +927,7 @@ def _provider_for_model(model: str) -> str:
     für Folgefragen (`/api/ai/history/<id>/followup`), die mit demselben Modell
     weiterlaufen müssen, das die ursprüngliche Antwort gegeben hat (nicht
     zwangsläufig der gerade aktive Standard-Provider)."""
+    model = A._MODEL_SUCCESSOR.get(model, model)
     if model in A._GEMINI_MODELS:
         return 'gemini'
     if model in A._PERPLEXITY_MODELS:
@@ -964,6 +969,7 @@ def _ai_config_for(provider: str) -> tuple[str, str]:
     if provider == 'gemini':
         api_key = (cfg.get('gemini_api_key') or '').strip()
         model = cfg.get('gemini_model') or 'gemini-3.1-pro'
+        model = A._MODEL_SUCCESSOR.get(model, model)
         if model not in A._GEMINI_MODELS:
             model = 'gemini-3.1-pro'
         return api_key, model
@@ -979,6 +985,7 @@ def _ai_config_for(provider: str) -> tuple[str, str]:
         return api_key, model
     api_key = (cfg.get('anthropic_api_key') or '').strip()
     model = cfg.get('anthropic_model') or 'claude-opus-5'
+    model = A._MODEL_SUCCESSOR.get(model, model)
     if model not in A._AI_MODELS:
         model = 'claude-opus-5'
     return api_key, model

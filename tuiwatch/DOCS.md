@@ -272,15 +272,16 @@ sie komplett ausgeblendet).
 `ai_provider` schaltet **global für alle KI-Features** zwischen Anthropic
 (Standard), Google Gemini und Perplexity um:
 - **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-5`; auch
-  `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar —
-  schneller/günstiger bzw. teurer). Websuche über Anthropics
+  `claude-opus-5-5`, `claude-sonnet-5`, `claude-haiku-4-5`,
+  `claude-fable-5-1` wählbar — schneller/günstiger bzw. teurer; eine alte
+  Auswahl `claude-fable-5` läuft automatisch auf `claude-fable-5-1`). Websuche über Anthropics
   `web_search`-Tool, per `ai_max_web_searches` (Standard 12, 1-50)
   gedeckelt — niedriger spart Input-Tokens/Kosten, höher liefert
   gründlichere Antworten bei mehreren Zielen/Hotels.
 - **Gemini:** `gemini_model` (Standard `gemini-3.1-pro`; auch
-  `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-2.5-flash` wählbar —
-  Google schaltet `gemini-2.5-flash` am 16.10.2026 ab, Ersatz ist
-  `gemini-3.6-flash`). Websuche über
+  `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash` wählbar —
+  eine alte Auswahl `gemini-3.5-flash` oder `gemini-2.5-flash` läuft
+  automatisch auf `gemini-3.8-flash`). Websuche über
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
 - **Perplexity:** `perplexity_model` wählt die **Gründlichkeitsstufe** (Standard

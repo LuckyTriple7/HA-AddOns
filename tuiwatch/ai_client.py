@@ -202,6 +202,7 @@ def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
     Prompt-Funktionen (nicht über `_ai_request_messages`) — Tests/Aufrufer
     patchen teils gezielt `_ai_request_anthropic`/`_ai_request_gemini`/
     `_ai_request_perplexity`, das muss auf diesem Pfad weiterhin greifen."""
+    model = A._MODEL_SUCCESSOR.get(model, model)
     if model in A._GEMINI_MODELS:
         return A._ai_request_gemini(api_key, model, prompt, max_tokens=max_tokens,
                                   log_ctx=log_ctx, use_web_search=use_web_search,
@@ -226,6 +227,7 @@ def _ai_request_messages(api_key: str, model: str, messages: list[dict], *, max_
     übergreifend einheitlich 'user'/'assistant' (Gemini erwartet intern 'model'
     statt 'assistant' — die Umbenennung passiert in `_ai_request_gemini_messages`,
     nicht hier, damit Aufrufer sich nicht um Provider-Eigenheiten kümmern müssen)."""
+    model = A._MODEL_SUCCESSOR.get(model, model)
     if model in A._GEMINI_MODELS:
         return A._ai_request_gemini_messages(api_key, model, messages, max_tokens=max_tokens,
                                            log_ctx=log_ctx, use_web_search=use_web_search,

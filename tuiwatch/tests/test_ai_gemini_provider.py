@@ -79,10 +79,10 @@ def _patch_genai(app_mod, monkeypatch, response):
 
 def test_ai_config_reads_gemini_options(app_mod):
     _write_options(app_mod, ai_provider="gemini", gemini_api_key="g-key",
-                   gemini_model="gemini-3.5-flash")
+                   gemini_model="gemini-3.7-flash")
     api_key, model = app_mod._ai_config()
     assert api_key == "g-key"
-    assert model == "gemini-3.5-flash"
+    assert model == "gemini-3.7-flash"
 
 
 def test_ai_config_falls_back_to_flagship_on_invalid_gemini_model(app_mod):
@@ -90,6 +90,19 @@ def test_ai_config_falls_back_to_flagship_on_invalid_gemini_model(app_mod):
                    gemini_model="not-a-real-model")
     _api_key, model = app_mod._ai_config()
     assert model == "gemini-3.1-pro"
+
+
+def test_retired_models_move_to_successor(app_mod):
+    """Aus der Auswahl genommene Modelle laufen auf dem Nachfolger weiter, statt
+    auf den teuren Standard zu fallen — und ein alter Gemini-Verlaufseintrag darf
+    im Dispatcher nicht beim Claude-Zweig landen."""
+    ai_routes = importlib.import_module("ai_routes")
+    _write_options(app_mod, ai_provider="gemini", gemini_api_key="g-key",
+                   gemini_model="gemini-2.5-flash")
+    assert app_mod._ai_config() == ("g-key", "gemini-3.8-flash")
+    _write_options(app_mod, anthropic_api_key="a-key", anthropic_model="claude-fable-5")
+    assert app_mod._ai_config() == ("a-key", "claude-fable-5-1")
+    assert ai_routes._provider_for_model("gemini-3.5-flash") == "gemini"
 
 
 def test_ai_config_defaults_to_anthropic(app_mod):

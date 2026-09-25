@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.115.3
+
+- 🤖 **KI-Modelle aktualisiert.** Claude: neu **Opus 5.5** (Nachfolger von Opus 5, etwas günstiger) und **Fable 5.1** statt Fable 5. Gemini: neu **3.8 Flash** und **3.7 Flash**; 3.5 Flash und 2.5 Flash sind aus der Auswahl (2.5 Flash gibt Google nur noch Bestandsnutzern frei, 3.5 Flash ist teurer als 3.8 Flash).
+- 🔁 Eine gespeicherte alte Auswahl läuft automatisch auf dem Nachfolger weiter (Fable 5 → Fable 5.1, 3.5/2.5 Flash → 3.8 Flash), statt auf das teure Standardmodell zu fallen. Das gilt auch für „Wiederholen“ und Folgefragen bei älteren KI-Verlaufseinträgen.
+- 💶 Kostenschätzung korrigiert: Sonnet 5 kostet 2/10 $ je 1 Mio. Tokens, nicht 3/15 $.
+
 ## 0.115.2
 
 - ⚡ **Weniger Last beim Preis-Check.** Nach jedem geprüften Angebot hat TUIWatch bisher **alle** HA-Sensoren neu gemeldet, mit mehreren Datenbank-Abfragen und einem HTTP-Aufruf je Angebot. Im Poller über viele Angebote wuchs das quadratisch. Jetzt geht nach einem Check nur der Sensor dieses Angebots plus die Übersicht raus. Der volle Abgleich mit dem Aufräumen verwaister Sensoren läuft weiter, sobald sich eine Sensor-ID ändert, und beim Löschen oder Umbenennen.
