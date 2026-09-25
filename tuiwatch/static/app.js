@@ -6022,6 +6022,10 @@
               d.pythonmalloc === 'malloc'
                 ? 'Alles über glibc — der Aufräumer gibt auch Lücken mitten im Speicher zurück.'
                 : 'pymalloc gibt einen 1-MB-Block erst zurück, wenn er ganz leer ist.')
+        + row('Große Speicherseiten (THP)', d.thp_disabled === true ? 'aus' : d.thp_disabled === false ? 'an' : 'unbekannt',
+              d.thp_disabled === true
+                ? 'Aus: freier Speicher geht beim Aufräumen wirklich zurück (Einstellung „Große Speicherseiten abschalten").'
+                : '2-MB-Seiten gibt der Kernel erst zurück, wenn sie ganz leer sind — die Anzeige wächst dadurch stetig. Abschaltbar in den Einstellungen.')
         + row('Zuletzt aufgeräumt', (function(){
               const t = d.trim||{};
               if(!t.ts) return 'noch nicht';

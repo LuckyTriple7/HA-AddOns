@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.115.1
+
+- 🧠 **Große Speicherseiten (THP) für TUIWatch abgeschaltet.** Die Speicher-Analyse war eindeutig: Python belegte nur **134 MB**, der Container stand trotzdem bei **730 MB**, und nach dem Start wuchs er stetig. 372 MB davon lagen in großen 2-MB-Seiten. Der Aufräumer gibt alle 5 Minuten freie Stücke zurück. Liegt so ein Stück in einer 2-MB-Seite, bleibt die ganze Seite angerechnet, bis der Kernel sie irgendwann zerlegt. Genau diese Lücke stand als „nicht zugeordnet" da (236 MB, exakt der Abstand zwischen `active_anon` und `anon`). Jetzt verwaltet der Kernel den Speicher von TUIWatch in normalen 4-KB-Seiten, und was frei ist, geht wirklich zurück.
+- ⚙️ Neue Einstellung **„Große Speicherseiten (THP) abschalten"** (Standard an). Sie betrifft nur dieses Add-on, wirkt sofort für neuen Speicher und vollständig ab dem nächsten Start.
+- 🏷 Neue Zeile **Große Speicherseiten (THP)** im Speicher-Tab.
+
 ## 0.115.0
 
 - ✈️ **Neu: Flugzeiten-Wächter für gebuchte Reisen.** Einmal am Tag — und gleich nach dem Import einer neuen Reise — gleicht TUIWatch die kommenden Flüge unter „Meine Reisen" mit dem Flugplan des Heimatflughafens ab (STR, FRA, MUC oder FKB; die Pläne liest das Add-on ohnehin schon). Weicht die Abflugzeit (Hinflug) bzw. Ankunftszeit (Rückflug) von der gebuchten ab, kommt eine Meldung per HA und Telegram: „Abflug STR jetzt 07:30 statt 06:45 Uhr". Steht die Flugnummer an dem Tag nicht mehr im Plan, wird das beim zweiten Abgleich in Folge gemeldet, zusammen mit den Flügen, die am selben Tag auf der Strecke gehen. Steht der Flug wieder wie gebucht im Plan, gibt es Entwarnung.

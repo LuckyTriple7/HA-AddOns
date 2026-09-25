@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.115.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.115.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -379,6 +379,46 @@ def _settings_changed() -> None:
     global _merged_cache, _merged_stamp
     _merged_cache, _merged_stamp = None, None
     _apply_ipv4_pref()
+    _apply_thp_pref()
+
+
+_PR_SET_THP_DISABLE = 41
+_PR_GET_THP_DISABLE = 42
+
+
+def _prctl(*args) -> int | None:
+    try:
+        import ctypes
+        return ctypes.CDLL('libc.so.6', use_errno=True).prctl(*args, 0, 0, 0)
+    except (OSError, AttributeError):
+        return None
+
+
+def _apply_thp_pref() -> None:
+    """Einstellung `memory_thp_disable`: große 2-MB-Speicherseiten (Transparent
+    Huge Pages) für diesen Prozess abschalten.
+
+    Gemessen (Speicher-Tab, 0.115.0): Python belegte 134 MB, der Container stand bei
+    730 MB, davon 372 MB in großen Seiten. Der Aufräumer gibt alle 5 Minuten freie
+    4-KB-Stücke zurück — liegt so ein Stück in einer 2-MB-Seite, bleibt die Seite
+    trotzdem ganz angerechnet, bis der Kernel sie irgendwann zerlegt (in der Anzeige
+    die Lücke zwischen `active_anon` und `anon`, „nicht zugeordnet"). Dazu fasst
+    khugepaged im Hintergrund kleine Seiten wieder zu großen zusammen. Ergebnis: die
+    Anzeige wächst stetig, obwohl Python nicht mehr braucht.
+
+    Gilt nur für TUIWatch (und von ihm gestartete Prozesse), wirkt ohne Neustart für
+    alles, was ab jetzt angelegt wird; schon vorhandene große Seiten verschwinden
+    erst nach und nach — sauber ab dem nächsten Start."""
+    want_off = bool(load_config().get('memory_thp_disable', True))
+    if _prctl(_PR_GET_THP_DISABLE, 0) == (1 if want_off else 0):
+        return
+    if _prctl(_PR_SET_THP_DISABLE, 1 if want_off else 0) == 0:
+        log.info("Große Speicherseiten (THP) für TUIWatch %s", "abgeschaltet" if want_off else "erlaubt")
+
+
+def _thp_disabled() -> bool | None:
+    r = _prctl(_PR_GET_THP_DISABLE, 0)
+    return None if r is None or r < 0 else bool(r)
 
 
 # Ausgangslage merken: `force_ipv4` aus soll den vom System erkannten Wert
@@ -4698,6 +4738,7 @@ def api_memory():
         'browser_fallback': bool(load_config().get('browser_fallback', True)),
         'malloc_arena_max': os.environ.get('MALLOC_ARENA_MAX') or '',
         'pythonmalloc': os.environ.get('PYTHONMALLOC') or '',
+        'thp_disabled': _thp_disabled(),
         'trim': {'ts': _trim_state['ts'], 'freed_mb': _trim_state['freed_mb'],
                  'auto': _trim_state['auto'], 'every_s': MEMORY_TRIM_INTERVAL},
         'log_buffer': len(_log_buffer),

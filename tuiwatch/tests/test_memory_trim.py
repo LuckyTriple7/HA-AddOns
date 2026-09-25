@@ -90,3 +90,25 @@ def test_netzwerkpuffer_zaehlen_nicht_als_rest(m):
 def test_adressen_aus_proc_net_tcp(m):
     assert m._hex_addr('0100007F:1F90') == '127.0.0.1:8080'
     assert m._hex_addr('0000000000000000FFFF00000100007F:0050') == '127.0.0.1:80'
+
+
+def test_grosse_speicherseiten_folgen_der_einstellung(m, monkeypatch):
+    """THP-Schalter: an = prctl(PR_SET_THP_DISABLE, 1), aus = wieder erlauben;
+    steht der Prozess schon richtig, wird nichts gesetzt."""
+    state = {"off": 0}
+    calls = []
+
+    def fake(op, arg):
+        if op == m._PR_GET_THP_DISABLE:
+            return state["off"]
+        calls.append(arg)
+        state["off"] = arg
+        return 0
+    monkeypatch.setattr(m, "_prctl", fake)
+    monkeypatch.setattr(m, "load_config", lambda: {})
+    m._apply_thp_pref()
+    m._apply_thp_pref()
+    assert calls == [1] and m._thp_disabled() is True
+    monkeypatch.setattr(m, "load_config", lambda: {"memory_thp_disable": False})
+    m._apply_thp_pref()
+    assert calls == [1, 0] and m._thp_disabled() is False

@@ -76,6 +76,9 @@ FIELDS: dict = {
     "browser_fallback": ("bool", True, None, "poll",
         "Browser-Fallback (Chromium)",
         "Antwortet die JSON-API von TUI technisch nicht, liest TUIWatch den Preis ersatzweise aus der gerenderten Seite — dafür startet ein Headless-Chromium. Das kostet Zeit und viel Arbeitsspeicher: gemessen rund 400 MB leer und bis 740 MB mit geladener Seite, im Add-on-Container zusätzlich zu den etwa 150 MB von TUIWatch selbst. Aus heißt: bei API-Fehlern wird der Abruf als fehlgeschlagen vermerkt statt den Browser zu starten — die API ist der normale Weg, der Fallback greift selten. Standard an. Fällt die Internetverbindung ganz aus, wird der Browser ohnehin nicht gestartet."),
+    "memory_thp_disable": ("bool", True, None, "poll",
+        "Große Speicherseiten (THP) abschalten",
+        "Verhindert, dass der Kernel den Speicher von TUIWatch in 2-MB-Seiten verwaltet. Solche Seiten gibt er erst zurück, wenn sie ganz leer sind — die Speicheranzeige wuchs dadurch stetig, obwohl TUIWatch nur rund 130 MB wirklich belegte. Betrifft nur dieses Add-on, kostet praktisch keine Leistung. Wirkt sofort für neuen Speicher, vollständig ab dem nächsten Start. Standard an."),
     # ── market ──
     "market_trend_threshold": ("float", 1.0, (0.0, 100.0), "market",
         "Schwelle für Markttrend (%)",
