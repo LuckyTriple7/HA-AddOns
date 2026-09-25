@@ -104,7 +104,7 @@ def _pdf_size(url: str) -> int:
         return 0
 
 
-def _airport_names(pdf) -> dict:
+def _airport_names(pdf, texts: list) -> dict:
     """Ziel-Überschriften der Tabellenseiten: IATA → (Stadt, Land).
 
     Die Überschrift steht in einer Zeile, aber in zwei Spalten (Stadt links bei
@@ -112,10 +112,12 @@ def _airport_names(pdf) -> dict:
     Seite, deshalb über die x-Position des `(CODE)`-Tokens getrennt statt über
     die Wortfolge. **Nur Tabellenseiten** auswerten: das Inhaltsverzeichnis am
     Heftanfang listet dieselben Codes in umgekehrter Spaltenfolge (Land links,
-    Stadt rechts) und würde sonst Stadt und Land vertauschen."""
+    Stadt rechts) und würde sonst Stadt und Land vertauschen.
+
+    `texts` = bereits extrahierter Seitentext (parse_pdf braucht ihn ohnehin —
+    `extract_text()` ist der teure Teil, zweimal je Seite kostete das ~15 s)."""
     out: dict = {}
-    for page in pdf.pages:
-        text = page.extract_text() or ""
+    for page, text in zip(pdf.pages, texts):
         if not any(l.strip().startswith(("L ", "S ")) for l in text.split("\n")):
             continue  # Deckblatt, Airline-Verzeichnis, Inhaltsverzeichnis
         lines: dict = {}
@@ -142,9 +144,9 @@ def parse_pdf(data: bytes, verbose: bool = False) -> dict:
     rows: list = []
     datenstand = season = ""
     with pdfplumber.open(io.BytesIO(data)) as pdf:
-        names = _airport_names(pdf)
-        for page in pdf.pages:
-            text = page.extract_text() or ""
+        texts = [page.extract_text() or "" for page in pdf.pages]
+        names = _airport_names(pdf, texts)
+        for text in texts:
             if not datenstand and (m := _DATENSTAND_RE.search(text)):
                 datenstand = m.group(1)
             if not season and (m := _SEASON_RE.search(text)):

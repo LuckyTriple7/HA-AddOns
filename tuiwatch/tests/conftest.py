@@ -42,6 +42,26 @@ class FakeResp:
         return self._data
 
 
+class _RequestsPassthrough:
+    """Ersetzt in Tests die modulweite Session von scraper.py (`_http`). Die Tests
+    monkeypatchen `scraper.requests.get/post` — eine echte Session würde daran
+    vorbei direkt ins Netz gehen. Aufgelöst wird erst beim Aufruf, damit auch
+    ein erst im Test gesetzter Patch greift."""
+    def get(self, *a, **k):
+        import requests
+        return requests.get(*a, **k)
+
+    def post(self, *a, **k):
+        import requests
+        return requests.post(*a, **k)
+
+
+@pytest.fixture(autouse=True)
+def _scraper_http_passthrough(monkeypatch):
+    import scraper
+    monkeypatch.setattr(scraper, "_http", _RequestsPassthrough())
+
+
 @pytest.fixture
 def fx():
     return load_fixture

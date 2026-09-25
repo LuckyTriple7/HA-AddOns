@@ -3,6 +3,11 @@
 // kleinen Inline-Script im Template — NUR dort steckt Jinja.
 // Cache-Busting über ?v=<APP_VERSION> im <script src>.
 
+// Hüllt einen Timer-Callback so ein, dass er bei verstecktem Tab nichts tut —
+// niemand sieht das Ergebnis, der Server soll nicht umsonst gefragt werden. Der
+// Timer selbst läuft weiter; nach dem Zurückwechseln greift der nächste Tick.
+function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.apply(this, a); }; }
+
 // ── Abgelaufene Cloudflare-Access-Sitzung automatisch abfangen ──
 // Laeuft die Seite hinter Cloudflare Access und dessen Sitzung ab, beantwortet
 // Cloudflare jeden /api/-Aufruf mit einem 302 auf den Login unter
@@ -72,7 +77,7 @@
     header.addEventListener('mousedown',function(e){ if(e.target.id==='tw-console-close')return; _drag=true;_dx=e.clientX-panel.offsetLeft;_dy=e.clientY-panel.offsetTop;e.preventDefault(); });
     document.addEventListener('mousemove',function(e){ if(!_drag)return; panel.style.left=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth))+'px'; panel.style.top=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight))+'px'; panel.style.right='auto';panel.style.bottom='auto'; });
     document.addEventListener('mouseup',function(){_drag=false;});
-    function _setOpen(v){ _open=v; panel.classList.toggle('open',_open); try{localStorage.setItem('tw-console-open',_open?'1':'0');}catch(e){} if(_open){_poll();_timer=setInterval(_poll,2000);} else {clearInterval(_timer);_timer=null;} }
+    function _setOpen(v){ _open=v; panel.classList.toggle('open',_open); try{localStorage.setItem('tw-console-open',_open?'1':'0');}catch(e){} if(_open){_poll();_timer=setInterval(whenVisible(_poll),2000);} else {clearInterval(_timer);_timer=null;} }
     function consoleToggle(){ if(window.innerWidth<768)return; _setOpen(!_open); }
     window.consoleToggle=consoleToggle;
     try{ if(localStorage.getItem('tw-console-open')==='1') setTimeout(function(){_setOpen(true);},100); }catch(e){}
@@ -534,7 +539,7 @@
       if(!all.size){ el.style.display = 'none'; el.innerHTML = ''; return; }
       el.style.display = 'flex';
       el.innerHTML = Array.from(all).sort((a,b)=>a.localeCompare(b,'de')).map(t =>
-        `<span class="tag-pill${activeTags.has(t)?' active':''}" onclick="toggleTagFilter('${esc(t)}')">${esc(t)}</span>`
+        `<span class="tag-pill${activeTags.has(t)?' active':''}" onclick="toggleTagFilter('${jsArg(t)}')">${esc(t)}</span>`
       ).join('');
     }
     function toggleTagFilter(tag){
@@ -665,7 +670,7 @@
           <div class="offer-top">
             <div class="offer-main">
               <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen"><svg class="i"><use href="#i-pencil"/></svg></button><span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
-                `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
+                `<span class="tag-pill" onclick="removeTag(${o.id}, '${jsArg(t)}')" title="Entfernen">${esc(t)} ×</span>`
               ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen"><svg class="i"><use href="#i-pin"/></svg> ${esc(o.location)} ↗</a>`:''}
               ${stars?`<div class="meta">${stars}</div>`:''}
@@ -728,7 +733,7 @@
             const btn = cur
               ? (o.flight_pin?`<button class="btn sec" onclick="pinFlight(${o.id},'')" title="Fixierung lösen – wieder günstigster Flug"><svg class="i"><use href="#i-pin"/></svg> fixiert ✕</button>`
                              :'<span class="fv-cur" title="Dieser Flug wird aktuell verfolgt">✓ verfolgt</span>')
-              : `<button class="btn sec" onclick="pinFlight(${o.id},'${esc(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten"><svg class="i"><use href="#i-pin"/></svg> verfolgen</button>`;
+              : `<button class="btn sec" onclick="pinFlight(${o.id},'${jsArg(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten"><svg class="i"><use href="#i-pin"/></svg> verfolgen</button>`;
             return `<div class="fv-row${cur?' cur':''}">
               <div class="fv-price">${eur(v.price)} ${dTxt}</div>
               <div class="fv-legs">${plane}<span>${esc(v.out)}</span><br>${plane}<span>${esc(v.ret)}</span></div>
@@ -773,7 +778,7 @@
         if(o.giata){
           const giataUrl = 'https://hg15.giatamedia.com/index2.php?uid=782&com=sc&gid='+encodeURIComponent(o.giata)+'&frame=0&from=ks&catlang[]=de';
           codeParts.push('<a href="'+esc(giataUrl)+'" target="_blank" rel="noopener" title="GIATA-Hoteldetails öffnen">GIATA '+esc(o.giata)+' ↗</a>'
-            +' <a href="#" onclick="event.preventDefault();openGiataGallery(\''+esc(o.giata)+'\')" title="Hotelfotos (GIATA) anzeigen"><svg class="i"><use href="#i-image"/></svg> Fotos</a>');
+            +' <a href="#" onclick="event.preventDefault();openGiataGallery(\''+jsArg(o.giata)+'\')" title="Hotelfotos (GIATA) anzeigen"><svg class="i"><use href="#i-image"/></svg> Fotos</a>');
         }
         const codesLine = codeParts.length?`<div class="codes"><svg class="i"><use href="#i-receipt"/></svg> ${codeParts.join(' · ')}</div>`:'';
         let statsLine = '';
@@ -798,7 +803,7 @@
         // Darstellungen nicht auseinanderlaufen.
         const labelRow = `<div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen"><svg class="i"><use href="#i-pencil"/></svg></button>${
           o.is_foreign?`<button class="rename-btn foreign-toggle" onclick="toggleForeignOpen(${o.id})" title="${foreignOpen(o)?'Einklappen':'Aufklappen'}">${foreignOpen(o)?'▴':'▾'}</button>`:''}<span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
-            `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
+            `<span class="tag-pill" onclick="removeTag(${o.id}, '${jsArg(t)}')" title="Entfernen">${esc(t)} ×</span>`
           ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>`;
         const locRow = o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen"><svg class="i"><use href="#i-pin"/></svg> ${esc(o.location)} ↗</a>`:'';
         const bellBtn = o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'<svg class="i"><use href="#i-bell-off"/></svg>':'<svg class="i"><use href="#i-bell"/></svg>'}</button>`;
@@ -1131,7 +1136,7 @@
       return `<div class="cmp-load">${esc(label)}<div class="twprog indet"><i></i></div></div>`;
     }
     function cmpSpinner(){ $('#cmp-body').innerHTML = progBar('Live-Abruf läuft… einen Moment.'); }
-    function startCmpPolling(){ clearInterval(cmpTimer); cmpPoll(); cmpTimer = setInterval(cmpPoll, 2000); }
+    function startCmpPolling(){ clearInterval(cmpTimer); cmpPoll(); cmpTimer = setInterval(whenVisible(cmpPoll), 2000); }
 
     async function openCompare(id){
       cmpId = id;
@@ -1209,7 +1214,7 @@
     function nigSpinner(){ $('#nig-body').innerHTML = progBar('Live-Abruf läuft… mehrere Dauern werden geprüft.'); }
     function nigSetSpan(v){ nightsSpan = Math.max(1, Math.min(7, v)); $('#nig-span').textContent = nightsSpan; localStorage.setItem('tw-nights-span', String(nightsSpan)); }
     function nightsStep(d){ nigSetSpan(nightsSpan + d); }
-    function startNigPolling(){ clearInterval(nigTimer); nigPoll(); nigTimer = setInterval(nigPoll, 2000); }
+    function startNigPolling(){ clearInterval(nigTimer); nigPoll(); nigTimer = setInterval(whenVisible(nigPoll), 2000); }
 
     async function openNights(id){
       nigId = id;
@@ -1292,7 +1297,7 @@
       Check24_nicht_erreichbar: 'Check24 nicht erreichbar.',
     };
     function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… dauert meist unter 15 Sekunden.'); }
-    function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(c24Poll, 2000); }
+    function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(whenVisible(c24Poll), 2000); }
 
     // Sucht automatisch mit dem TUI-Hotelnamen (kein Eintippen nötig) und zeigt
     // Treffer zum Anklicken; bei genau einem eindeutigen Treffer wird direkt
@@ -1824,14 +1829,14 @@
           <td>${it.views}</td>
           <td class="${it.expired?'shr-exp':''}">${exp}</td>
           <td>
-            <button class="btn sec shr-cmt${it.new_comments?' has-new':''}" onclick="openShareComments('${esc(it.token)}')"
+            <button class="btn sec shr-cmt${it.new_comments?' has-new':''}" onclick="openShareComments('${jsArg(it.token)}')"
               title="${it.new_comments ? it.new_comments+' neue(r) Kommentar(e) seit dem letzten Öffnen'
                                        : 'Kommentare der Empfänger ansehen, bearbeiten oder löschen'}"><svg class="i"><use href="#i-comment"/></svg> Kommentare${
               it.comments?` (${it.comments})`:''}</button>
-            <button class="btn sec" onclick="copyShareUrl('${esc(it.token)}')">Kopieren</button>
-            <button class="btn sec" onclick="openShareDialog('${esc(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
-            <button class="btn sec" onclick="extendShare('${esc(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
-            <button class="btn danger" onclick="revokeShare('${esc(it.token)}')">Widerrufen</button>
+            <button class="btn sec" onclick="copyShareUrl('${jsArg(it.token)}')">Kopieren</button>
+            <button class="btn sec" onclick="openShareDialog('${jsArg(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
+            <button class="btn sec" onclick="extendShare('${jsArg(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
+            <button class="btn danger" onclick="revokeShare('${jsArg(it.token)}')">Widerrufen</button>
           </td></tr>`;
       }).join('');
       $('#shr-body').innerHTML = `<div class="shr-list-wrap"><table class="shr-list">
@@ -2110,7 +2115,7 @@
     const ALLF_FRA_TITLE = 'Näherung: Frankfurt hat keine amtliche Gesamtliste (Drehkreuz), dieses Ziel stammt aus einem rollierend gesammelten Tagesbord einer Drittseite — kann bei sehr seltenen Verbindungen fehlen oder veraltet sein.';
     function renderAllfDestinations(dest){
       if(!dest.length){ $('#allf-dest-body').innerHTML = '<div class="hint">Keine Ziele gefunden.</div>'; return; }
-      const rowsHtml = dest.map(d => `<tr class="allf-dest-row" style="cursor:pointer" onclick="allfPickDestination('${esc(d.code)}')" title="Klicken, um nach ${esc(d.name)} zu suchen">
+      const rowsHtml = dest.map(d => `<tr class="allf-dest-row" style="cursor:pointer" onclick="allfPickDestination('${jsArg(d.code)}')" title="Klicken, um nach ${esc(d.name)} zu suchen">
         <td>${esc(d.name)}</td>
         <td class="hint">${esc(d.code)}</td>
         <td class="hint">${esc(d.country)}</td>
@@ -2449,7 +2454,7 @@
     async function refreshAktion(){
       $('#aktion-body').innerHTML = progBar('Aktionscodes werden geprüft…');
       try { await fetch(api('/api/aktionscodes'), {method:'POST'}); } catch(e){}
-      clearInterval(aktionTimer); aktionTimer = setInterval(()=>aktionPoll(false), 2000);
+      clearInterval(aktionTimer); aktionTimer = setInterval(whenVisible(()=>aktionPoll(false)), 2000);
     }
     async function aktionPoll(first){
       let d; try { d = await fetch(api('/api/aktionscodes')).then(r=>r.json()); } catch(e){ return; }
@@ -2801,7 +2806,7 @@
     function stopBasketPoll(){ if(_basketPoll){ clearInterval(_basketPoll); _basketPoll = null; } }
     function startBasketPoll(){
       stopBasketPoll();
-      _basketPoll = setInterval(async ()=>{
+      _basketPoll = setInterval(whenVisible(async ()=>{
         // Fenster zu → nicht weiter pollen; der Lauf selbst läuft serverseitig weiter.
         if(!$('#basket-bg').classList.contains('show')){ stopBasketPoll(); return; }
         let d; try { d = await fetch(api('/api/market-basket/progress')).then(r=>r.json()); }
@@ -2814,7 +2819,7 @@
           loadBasket();
           updateTrendBtn();
         }
-      }, 1500);
+      }), 1500);
     }
     async function runMarketBasket(){
       try {
@@ -6286,7 +6291,7 @@
     }
     function setBuildNav(){
       $('#set-nav').innerHTML = SET_GROUPS.map(g =>
-        `<button type="button" data-cat="${esc(g.group)}" onclick="setSelectCat('${esc(g.group)}')">`
+        `<button type="button" data-cat="${esc(g.group)}" onclick="setSelectCat('${jsArg(g.group)}')">`
         + `${setCatDot(g)}<span class="set-navname">${esc(g.title)}</span>`
         + `<span class="set-count">${(g.items || []).length}</span></button>`).join('');
     }
@@ -7531,7 +7536,7 @@
     }
     function closeCalDayChart(){ $('#cal-day-chart').classList.remove('show'); $('#cal-day-chart').innerHTML=''; }
     function calSpinner(){ $('#cal-body').innerHTML = progBar('Preiskalender wird geladen…'); }
-    function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
+    function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(whenVisible(calPoll), 2000); }
 
     async function openCalendar(id){
       calId = id; calMonth = null; calData = null; calMovesOpen = false; calMonths = null;
@@ -7633,7 +7638,7 @@
           <div class="room-actions">
             <div class="room-price">${eur(r.price)} <span class="pp">p.P.</span></div>
             <a class="btn sec" href="${esc(r.url)}" target="_blank" rel="noopener" title="Details & Fotos auf tui.com">Details ↗</a>
-            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${esc(r.code)}', '${jsArg(r.name)}')">${active?'aktiv':'tracken'}</button>
+            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${jsArg(r.code)}', '${jsArg(r.name)}')">${active?'aktiv':'tracken'}</button>
           </div>
         </div>`;
       }).join('');
@@ -8522,7 +8527,13 @@
         const s = offen[0].querySelector('summary'); if(s) s.focus();
       });
     })();
-    $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
+    // Entprellt: renderAll baut die ganze Liste neu — nicht bei jedem Tastendruck.
+    let searchDebounce = null;
+    $('#search').addEventListener('input', e=>{
+      searchTerm = e.target.value;
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(()=>renderAll(curOffers||[]), 200);
+    });
 
     // ── ✕ zum Leeren in Suchfeldern ────────────────────────────────────────────
     // Generisch statt pro Feld: jedes Text-/Suchfeld mit „Such…"/🔍 im Placeholder
@@ -8581,10 +8592,10 @@
     setInterval(()=>{ if(!document.hidden) loadOffers(); }, 5000);
     loadHealth();
     updateAktionBtn();
-    setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
+    setInterval(whenVisible(updateAktionBtn), 600000);   // Button-Leuchten alle 10 min aktualisieren
     updateTrendBtn();
-    setInterval(updateTrendBtn, 600000);
-    setInterval(loadHealth, 60000);
+    setInterval(whenVisible(updateTrendBtn), 600000);
+    setInterval(whenVisible(loadHealth), 60000);
 
     // ── Countdown zur nächsten Reise (Header) ─────────────────────────────────
     let nextTrip = null;
@@ -8610,7 +8621,7 @@
     }
     loadNextTrip();
     setInterval(renderTripCountdown, 30000);
-    setInterval(loadNextTrip, 300000);
+    setInterval(whenVisible(loadNextTrip), 300000);
 
     function fmtBytes(n){
       if(n < 1024) return n+' B';
@@ -8701,14 +8712,14 @@
       catch(e){}
     }
     loadDbSize();
-    setInterval(loadDbSize, 300000);
+    setInterval(whenVisible(loadDbSize), 300000);
 
     async function loadTuiCalls(){
       try { const d = await fetch(api('/api/tui-calls')).then(r=>r.json()); $('#tui-calls').textContent = d.count; }
       catch(e){}
     }
     loadTuiCalls();
-    setInterval(loadTuiCalls, 60000);
+    setInterval(whenVisible(loadTuiCalls), 60000);
 
     async function loadAiUsageFooter(){
       if(!G.ai) return;
@@ -8723,7 +8734,7 @@
       } catch(e){}
     }
     loadAiUsageFooter();
-    setInterval(loadAiUsageFooter, 300000);
+    setInterval(whenVisible(loadAiUsageFooter), 300000);
 
     const AI_PROVIDER_LABEL = { anthropic: 'Claude', gemini: 'Gemini', perplexity: 'Perplexity' };
     const AI_PROVIDER_NAME = Object.fromEntries(

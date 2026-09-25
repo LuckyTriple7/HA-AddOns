@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.115.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.115.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1376,18 +1376,30 @@ def _entity_ids() -> dict[int, str]:
     return mapping
 
 
-def push_ha_sensors() -> None:
+_ha_last_mapping: dict[int, str] | None = None   # Entity-Zuordnung des letzten Vollabgleichs
+
+
+def push_ha_sensors(only: int | None = None) -> None:
     """Meldet je Angebot einen Sensor an HA: Wert=Preis (€) bzw. 'unknown' (kein
     Preis ermittelbar — 'unavailable' wäre in HA-Konvention für einen kaputten/
     nicht erreichbaren Sensor reserviert, hier ist der Sensor selbst ja da),
-    Attribut 'description' = Reise-Eckdaten. Räumt verwaiste Sensoren auf."""
+    Attribut 'description' = Reise-Eckdaten. Räumt verwaiste Sensoren auf.
+
+    `only=<offer_id>` (nach einem einzelnen Preis-Check): nur dieser Sensor plus
+    Übersicht, ohne Waisen-Abgleich — sonst liefe im Poller über N Angebote
+    jeder Check einmal über alle Sensoren (O(N²) Queries + HTTP-Calls). Hat sich
+    die Entity-Zuordnung seit dem letzten Vollabgleich geändert (z. B. Hotelname
+    erstmals ermittelt → neue entity_id), läuft trotzdem der volle Abgleich."""
+    global _ha_last_mapping
     if not _ha_enabled():
         return
     headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
     mapping = _entity_ids()
+    full = only is None or mapping != _ha_last_mapping
+    targets = mapping if full else {only: mapping[only]} if only in mapping else {}
     try:
         with db() as con:
-            for oid, eid in mapping.items():
+            for oid, eid in targets.items():
                 o = con.execute('SELECT * FROM offers WHERE id=?', (oid,)).fetchone()
                 last = con.execute('SELECT * FROM price_history WHERE offer_id=? '
                                    'ORDER BY ts DESC LIMIT 1', (oid,)).fetchone()
@@ -1482,6 +1494,8 @@ def push_ha_sensors() -> None:
             s_state = 'unknown'
         http.post(f'{HA_BASE}/states/{summary_eid}', headers=headers, timeout=10,
                   json={'state': s_state, 'attributes': s_attrs})
+        if not full:
+            return
 
         # Verwaiste tuiwatch-Sensoren entfernen (z. B. nach Löschen/Umbenennen)
         valid = set(mapping.values()) | {summary_eid}
@@ -1490,6 +1504,7 @@ def push_ha_sensors() -> None:
             ent = st.get('entity_id', '')
             if ent.startswith('sensor.tuiwatch_') and ent not in valid:
                 http.delete(f'{HA_BASE}/states/{ent}', headers=headers, timeout=10)
+        _ha_last_mapping = mapping
     except Exception as e:
         log.warning("HA-Sensoren aktualisieren fehlgeschlagen: %s", e)
 
@@ -2414,7 +2429,7 @@ def check_offer(offer_id: int) -> None:
     finally:
         with _checking_lock:
             _checking.discard(offer_id)
-    push_ha_sensors()
+    push_ha_sensors(only=offer_id)
 
 
 def check_all(reason: str = '') -> None:

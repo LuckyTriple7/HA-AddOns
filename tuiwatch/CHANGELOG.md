@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.115.2
+
+- ⚡ **Weniger Last beim Preis-Check.** Nach jedem geprüften Angebot hat TUIWatch bisher **alle** HA-Sensoren neu gemeldet, mit mehreren Datenbank-Abfragen und einem HTTP-Aufruf je Angebot. Im Poller über viele Angebote wuchs das quadratisch. Jetzt geht nach einem Check nur der Sensor dieses Angebots plus die Übersicht raus. Der volle Abgleich mit dem Aufräumen verwaister Sensoren läuft weiter, sobald sich eine Sensor-ID ändert, und beim Löschen oder Umbenennen.
+- 🔌 **TUI-Abfragen nutzen offene Verbindungen weiter.** Ein Preis-Check macht rund 15 Aufrufe hintereinander, jeder baute bisher eine neue TLS-Verbindung auf. Cookies werden weiterhin nicht gespeichert.
+- 🛡 **Tags, Flug- und Zielcodes mit Apostroph** brechen den Klick nicht mehr (und lassen sich nicht mehr als Skript ausführen).
+- 💤 **Hintergrund-Tab fragt nicht mehr nach.** Zustands-, Fortschritts- und Fußzeilen-Abfragen pausieren, solange der Tab nicht sichtbar ist.
+- ⌨️ Die Schnellsuche filtert erst nach einer kurzen Tipp-Pause statt bei jedem Tastendruck.
+- ✈️ Der MUC-Flugplan wird schneller eingelesen (Seitentext nur noch einmal ausgelesen).
+
 ## 0.115.1
 
 - 🧠 **Große Speicherseiten (THP) für TUIWatch abgeschaltet.** Die Speicher-Analyse war eindeutig: Python belegte nur **134 MB**, der Container stand trotzdem bei **730 MB**, und nach dem Start wuchs er stetig. 372 MB davon lagen in großen 2-MB-Seiten. Der Aufräumer gibt alle 5 Minuten freie Stücke zurück. Liegt so ein Stück in einer 2-MB-Seite, bleibt die ganze Seite angerechnet, bis der Kernel sie irgendwann zerlegt. Genau diese Lücke stand als „nicht zugeordnet" da (236 MB, exakt der Abstand zwischen `active_anon` und `anon`). Jetzt verwaltet der Kernel den Speicher von TUIWatch in normalen 4-KB-Seiten, und was frei ist, geht wirklich zurück.
