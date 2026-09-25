@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.114.2
+
+- 🔕 **Keine Kalender-Meldungen mehr für pausierte und archivierte Angebote.** Ihr Preiskalender läuft weiter, aber nur noch für den Preisverlauf. Die Reise steht kurz bevor oder ist vorbei, eine „📅 Kalenderpreise geändert"-Meldung per HA oder Telegram wäre dort nur Lärm. Auch der Wochenüberblick lässt sie im Abschnitt „Kalenderpreise geändert" weg (archivierte fehlten dort schon immer). Die Trend-Ansicht im Kalender zeigt weiterhin jede Änderung.
+
 ## 0.114.1
 
 - 🧪 **Testsuite wieder komplett grün.** Fünf Reiseberater-Tests prüften seit dem überarbeiteten Fragebogen (0.90.0) noch die alten Antwortwerte ohne Emoji und die alten Bezeichnungen — sie lesen den Tagesausflug-Wert jetzt aus dem Fragebogen selbst.

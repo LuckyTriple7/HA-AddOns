@@ -60,6 +60,8 @@ def _build_digest() -> dict | None:
         since = int(time.time()) - 7 * 86400
         cal_moves = []
         for o in offers:
+            if o.get('paused'):   # Kalender läuft nur für den Verlauf, keine Meldung
+                continue
             months = A._calendar_moves_since(con, o['id'], since)
             if months:
                 cal_moves.append({'name': o.get('label') or o.get('hotel') or f"Angebot #{o['id']}",

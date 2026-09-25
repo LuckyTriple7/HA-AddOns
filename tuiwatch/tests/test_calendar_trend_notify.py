@@ -80,6 +80,20 @@ def test_calendar_trend_alert_respects_config_flag(m, monkeypatch):
     assert sink == []
 
 
+@pytest.mark.parametrize("col", ["paused", "archived"])
+def test_calendar_trend_alert_silent_for_paused_and_archived(m, monkeypatch, col):
+    """Kalender pausierter/archivierter Angebote läuft nur für den Verlauf weiter —
+    keine Meldung."""
+    oid = _add_offer(m, f"https://example.invalid/{col}?duration=7")
+    with m.db() as con:
+        con.execute(f"UPDATE offers SET {col}=1 WHERE id=?", (oid,))
+    sink = _mock_notify(m, monkeypatch)
+    monkeypatch.setattr(m, "load_config", lambda: {"notify_calendar_trend": True,
+                                                     "calendar_trend_min_diff": 0})
+    m._check_calendar_trend_alert(oid, ["2027-05-02"])
+    assert sink == []
+
+
 def test_calendar_trend_alert_sends_hotel_and_month_only(m, monkeypatch):
     oid = _add_offer(m, "https://example.invalid/c?duration=7", hotel="Strandhotel Sonne")
     sink = _mock_notify(m, monkeypatch)
@@ -214,3 +228,19 @@ def test_digest_includes_calendar_moves_section(m, monkeypatch):
     assert "Mai 2027" in digest["text"]
     assert "Kalenderpreise geändert" in digest["html"]
     assert "Berghotel Alpin" in digest["html"]
+
+
+def test_digest_skips_calendar_moves_of_paused_offer(m, monkeypatch):
+    oid = _add_offer(m, "https://example.invalid/g?duration=7", hotel="Seehotel Pause")
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 900, "region": "Kanaren", "country": "Spanien",
+        "return_date": "2027-05-15"})
+    monkeypatch.setattr(m, "fetch_hotel_image", lambda url, **k: "")
+    m.check_offer(oid)
+    with m.db() as con:
+        m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 500)]))
+        m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 540)]))
+        con.execute("UPDATE offers SET paused=1 WHERE id=?", (oid,))
+
+    digest = m._build_digest()
+    assert digest is None or "Kalenderpreise geändert" not in digest["text"]

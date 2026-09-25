@@ -258,7 +258,11 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
     gefiltert auf Tage mit einer Bewegung >= calendar_trend_min_diff (€) — winzige
     Änderungen (z. B. 10 € bei 2000+ € Reisepreis) sollen nicht benachrichtigen.
     Die Storage-Seite (calendar_history/Trend-Ansicht) bleibt davon unberührt und
-    zeigt weiterhin JEDE Änderung, unabhängig von dieser Schwelle."""
+    zeigt weiterhin JEDE Änderung, unabhängig von dieser Schwelle.
+
+    Pausierte und archivierte Angebote melden nichts: ihr Kalender läuft nur noch
+    für den Preisverlauf weiter (siehe `_maybe_refresh_calendars`), die Reise
+    selbst ist kurz vor Abreise oder vorbei — eine Meldung wäre dort nur Lärm."""
     if not changed_dates:
         return
     cfg = A.load_config()
@@ -266,11 +270,12 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
         return
     min_diff = max(0, int(cfg.get('calendar_trend_min_diff', 20) or 0))
     with A.db() as con:
-        offer = con.execute('SELECT label, hotel, url, notify_calendar_muted FROM offers WHERE id=?',
-                            (offer_id,)).fetchone()
+        offer = con.execute('SELECT label, hotel, url, notify_calendar_muted, '
+                            'COALESCE(paused,0) paused, COALESCE(archived,0) archived '
+                            'FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not offer or offer['paused'] or offer['archived']:
+            return
         moves = _calendar_moves(con, offer_id)   # auch fürs Detail-Log unten gebraucht
-    if not offer:
-        return
     if min_diff > 0:
         changed_dates = [d for d in changed_dates
                          if abs(moves.get(d, {}).get('delta', 0)) >= min_diff]
