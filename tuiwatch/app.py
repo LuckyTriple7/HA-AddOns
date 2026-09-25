@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.31"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.113.32"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -4521,10 +4521,12 @@ def _cgroup_view(cg: dict, current: int | None) -> dict:
     (/dev/shm, /tmp), denn das liegt im Speicher, nicht auf der Platte.
     """
     mb = lambda v: round(v / 1048576, 1) if v else (0.0 if v == 0 else None)  # noqa: E731
-    known = sum(cg.get(k, 0) for k in ('anon', 'file', 'kernel'))
+    # `sock` (Netzwerkpuffer) und `zswap` stecken laut Kernel-Doku weder in anon,
+    # file noch kernel — ohne sie blieben 483 MB „nicht zugeordnet" (0.113.31).
+    known = sum(cg.get(k, 0) for k in ('anon', 'file', 'kernel', 'sock', 'zswap'))
     # `kernel` fehlt auf aelteren Kerneln; dann bleibt slab der beste Ersatz.
     if 'kernel' not in cg:
-        known = sum(cg.get(k, 0) for k in ('anon', 'file', 'slab'))
+        known = sum(cg.get(k, 0) for k in ('anon', 'file', 'slab', 'sock', 'zswap'))
     return {
         'current_mb': mb(current),
         'anon_mb': mb(cg.get('anon')),
@@ -4534,9 +4536,64 @@ def _cgroup_view(cg: dict, current: int | None) -> dict:
         'pagetables_mb': mb(cg.get('pagetables')),
         'kernel_stack_mb': mb(cg.get('kernel_stack')),
         'shmem_mb': mb(cg.get('shmem')),
+        'sock_mb': mb(cg.get('sock')),
+        'zswap_mb': mb(cg.get('zswap')),
         'other_mb': (round(max(0, current - known) / 1048576, 1)
                      if current and known else None),
     }
+
+
+_TCP_STATES = {'01': 'ESTABLISHED', '02': 'SYN_SENT', '03': 'SYN_RECV',
+               '04': 'FIN_WAIT1', '05': 'FIN_WAIT2', '06': 'TIME_WAIT',
+               '07': 'CLOSE', '08': 'CLOSE_WAIT', '09': 'LAST_ACK',
+               '0A': 'LISTEN', '0B': 'CLOSING'}
+
+
+def _hex_addr(s: str) -> str:
+    """"0100007F:1F90" aus /proc/net/tcp → "127.0.0.1:8080" (IPv4 und IPv6,
+    beide in Host-Byte-Reihenfolge je 32-Bit-Wort abgelegt)."""
+    ip_hex, port_hex = s.split(':')
+    raw = b''.join(bytes.fromhex(ip_hex[i:i + 8])[::-1] for i in range(0, len(ip_hex), 8))
+    ip = ipaddress.ip_address(raw)
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return f'{ip}:{int(port_hex, 16)}'
+
+
+def _socket_table() -> dict:
+    """Alle Sockets im Netz-Namensraum des Containers, groesste Warteschlange zuerst.
+
+    `sock` in memory.stat ist Speicher in Netzwerkpuffern — Daten, die gesendet
+    werden sollen, aber nicht abfliessen (tx), oder angekommen sind, aber nie
+    gelesen werden (rx). Die Warteschlangen zeigen, welche Verbindung das ist."""
+    rows, states = [], {}
+    for proto in ('tcp', 'tcp6', 'udp', 'udp6'):
+        try:
+            with open(f'/proc/self/net/{proto}', encoding='utf-8') as f:
+                next(f, None)
+                for line in f:
+                    p = line.split()
+                    if len(p) < 5:
+                        continue
+                    tx, rx = (int(x, 16) for x in p[4].split(':'))
+                    st = _TCP_STATES.get(p[3], p[3]) if proto.startswith('tcp') else 'UDP'
+                    states[st] = states.get(st, 0) + 1
+                    if tx or rx:
+                        rows.append({'proto': proto, 'state': st,
+                                     'local': _hex_addr(p[1]), 'remote': _hex_addr(p[2]),
+                                     'tx_kb': round(tx / 1024, 1),
+                                     'rx_kb': round(rx / 1024, 1)})
+        except (OSError, ValueError):
+            continue
+    rows.sort(key=lambda r: r['tx_kb'] + r['rx_kb'], reverse=True)
+    sockstat = []
+    for name in ('sockstat', 'sockstat6'):
+        try:
+            with open(f'/proc/self/net/{name}', encoding='utf-8') as f:
+                sockstat += [ln.strip() for ln in f if ln.strip()]
+        except OSError:
+            pass
+    return {'states': states, 'queued': rows[:15], 'sockstat': sockstat}
 
 
 def _rss_mb() -> float:
@@ -4617,6 +4674,11 @@ def api_memory():
                  'peak_mb': round(st.get('VmHWM', 0) / 1024, 1),
                  'threads': st.get('Threads', 0)},
         'cgroup': _cgroup_view(cg, _num('/sys/fs/cgroup/memory.current')),
+        # Alles aus memory.stat ab 1 MB, roh: damit nie wieder ein Posten
+        # unsichtbar bleibt, den die Aufteilung oben nicht kennt.
+        'cgroup_raw': {k: round(v / 1048576, 1) for k, v in sorted(cg.items())
+                       if v >= 1048576 and not k.startswith(('pg', 'thp', 'work'))},
+        'sockets': _socket_table(),
         'processes': procs,
         'chromium': {'count': len(chromium),
                      'rss_mb': round(sum(p['rss_mb'] for p in chromium), 1),

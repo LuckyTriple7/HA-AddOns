@@ -78,3 +78,15 @@ def test_speicherspitze_einer_anfrage_steht_im_log(m, monkeypatch, caplog):
     with caplog.at_level(logging.INFO):
         m.app.test_client().get('/health')
     assert any('Anfrage GET /health: +150 MB' in r.getMessage() for r in caplog.records)
+
+
+def test_netzwerkpuffer_zaehlen_nicht_als_rest(m):
+    """`sock` steckt weder in anon, file noch kernel — sonst 483 MB „nicht zugeordnet"."""
+    v = m._cgroup_view({'anon': 100 << 20, 'file': 10 << 20, 'kernel': 5 << 20,
+                        'sock': 400 << 20}, 520 << 20)
+    assert v['sock_mb'] == 400.0 and v['other_mb'] == 5.0
+
+
+def test_adressen_aus_proc_net_tcp(m):
+    assert m._hex_addr('0100007F:1F90') == '127.0.0.1:8080'
+    assert m._hex_addr('0000000000000000FFFF00000100007F:0050') == '127.0.0.1:80'

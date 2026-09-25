@@ -5977,6 +5977,10 @@
         + row('darin tmpfs (shmem)', _mb(cg.shmem_mb),
               'Teil des Dateicaches, kein eigener Posten: was im Container nach /dev/shm oder /tmp '
               + 'geschrieben wurde. Das liegt im Speicher, nicht auf der Platte.')
+        + row('davon Netzwerkpuffer (sock)', _mb(cg.sock_mb),
+              'Daten in Verbindungen, die nicht abfließen (Senden) oder nie gelesen werden '
+              + '(Empfang). Welche Verbindung, steht unten unter „Netzwerkverbindungen".')
+        + (cg.zswap_mb ? row('davon komprimiert ausgelagert (zswap)', _mb(cg.zswap_mb), '') : '')
         + row('nicht zugeordnet', _mb(cg.other_mb),
               'Rest zwischen der Summe und dem Gesamtwert.')
         + row('TUIWatch selbst', _mb(me.rss_mb) + ' · ' + (me.threads||0) + ' Threads', '')
@@ -6022,6 +6026,20 @@
             „frei, aber zerstückelt“ und nennt die größten Speicherhalter.</div>
           <div id="mem-analyze"></div>
         </div>`;
+      const so = d.sockets||{}, mono = 'font-size:.8rem;font-family:ui-monospace,monospace';
+      html += '<div style="margin-top:12px;font-weight:600">Netzwerkverbindungen</div>'
+        + `<div class="hint">${esc(Object.entries(so.states||{}).map(([k,v]) => k+' '+v).join(' · ') || 'keine')}</div>`
+        + ((so.queued||[]).length ? (so.queued||[]).map(q =>
+            `<div style="display:flex;gap:8px;padding:3px 0;${mono}">
+               <span style="flex:1;word-break:break-all">${esc(q.proto+' '+q.state+' '+q.local+' → '+q.remote)}</span>
+               <span style="white-space:nowrap">tx ${esc(String(q.tx_kb))} KB · rx ${esc(String(q.rx_kb))} KB</span>
+             </div>`).join('')
+          : '<div class="hint">Keine Verbindung mit wartenden Daten.</div>')
+        + (so.sockstat||[]).map(l => `<div class="hint" style="${mono}">${esc(l)}</div>`).join('');
+      html += '<div style="margin-top:12px;font-weight:600">memory.stat (ab 1 MB)</div>'
+        + Object.entries(d.cgroup_raw||{}).map(([k,v]) =>
+            `<div style="display:flex;gap:8px;padding:2px 0;${mono}">
+               <span style="flex:1">${esc(k)}</span><span>${esc(_mb(v))}</span></div>`).join('');
       html += '<div style="margin-top:12px;font-weight:600">Größte Prozesse im Container</div>'
         + (d.processes||[]).map(p =>
             `<div style="display:flex;gap:8px;padding:3px 0;font-size:.8rem;font-family:ui-monospace,monospace">

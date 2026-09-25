@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.113.32
+
+- 🔌 **Speicher-Tab: Netzwerkpuffer (`sock`) werden jetzt ausgewiesen.** Über Nacht stieg der Container auf 709 MB, TUIWatch selbst blieb aber bei 212 MB — der Zuwachs von 483 MB stand als „nicht zugeordnet" da. Laut Kernel-Doku steckt genau ein großer Posten in keiner der bisherigen Zeilen: Speicher in Netzwerkverbindungen, deren Daten nicht abfließen oder nie gelesen werden. Er hat jetzt eine eigene Zeile und zählt nicht mehr zum Rest.
+- 🌐 **Neuer Abschnitt „Netzwerkverbindungen"**: Anzahl je Zustand (ESTABLISHED, CLOSE_WAIT …), jede Verbindung mit wartenden Daten samt Gegenstelle und Sende-/Empfangs-Warteschlange (größte zuerst) und die Kernel-Summen aus `sockstat`. Damit ist die Verbindung, die den Speicher hält, mit Adresse sichtbar.
+- 📋 **Dazu `memory.stat` roh (alles ab 1 MB)** — falls es doch ein anderer Posten ist, bleibt er nicht wieder unsichtbar.
+
 ## 0.113.31
 
 - 🧠 **Der Speicher geht nach einer Spitze jetzt wirklich zurück: `PYTHONMALLOC=malloc`.** Die neue Analyse war eindeutig — von 570 MB waren nur rund 125 MB belegt. Pythons eigener Allocator (pymalloc) hielt **401 MB frei, aber unerreichbar** fest: er arbeitet in 1-MB-Blöcken und gibt einen Block erst zurück, wenn er komplett leer ist. Nach einer Spitze auf 1 GB genügen verstreut überlebende Objekte, um hunderte solcher Blöcke festzuhalten, und `malloc_trim` kommt an sie nicht heran. Jetzt legt Python alles über glibc an, und der Aufräumer alle fünf Minuten gibt auch Lücken mitten im Speicher zurück. Im Nachbau derselben Lage: **750 MB → 148 MB** nach dem Aufräumen.
