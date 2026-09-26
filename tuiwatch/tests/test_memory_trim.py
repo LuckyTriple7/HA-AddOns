@@ -51,3 +51,64 @@ def test_endpunkt_liefert_vorher_nachher(m):
     d = r.get_json()
     assert {'ok', 'before_mb', 'after_mb', 'freed_mb'} <= set(d)
     assert d['ok'] is True
+
+
+def test_analyse_nennt_speicherhalter(m, monkeypatch):
+    """Belegt oder zerstückelt, und wer hält es — ohne das bleibt nur Raten."""
+    m._test_ballast = [('x' * 1024) + str(i) for i in range(3000)]   # ~3 MB, je eigener String
+    monkeypatch.setattr(m, '_require_api', lambda: None)
+    d = m.app.test_client().get('/api/memory/analyze').get_json()
+    names = [h['name'] for h in d['holders']]
+    assert 'app._test_ballast' in names
+    assert d['types'] and d['gc_objects'] > 0
+    assert 'malloc' in d and 'pymalloc' in d
+
+
+def test_run_sh_nutzt_glibc_malloc():
+    """pymalloc hielt nach einer Spitze 401 MB frei, aber unerreichbar für den Trim."""
+    from pathlib import Path
+    run = (Path(__file__).resolve().parent.parent / 'run.sh').read_text(encoding='utf-8')
+    assert 'export PYTHONMALLOC=malloc' in run
+
+
+def test_speicherspitze_einer_anfrage_steht_im_log(m, monkeypatch, caplog):
+    import logging
+    werte = iter([100.0, 250.0])
+    monkeypatch.setattr(m, '_rss_mb', lambda: next(werte, 250.0))
+    with caplog.at_level(logging.INFO):
+        m.app.test_client().get('/health')
+    assert any('Anfrage GET /health: +150 MB' in r.getMessage() for r in caplog.records)
+
+
+def test_netzwerkpuffer_zaehlen_nicht_als_rest(m):
+    """`sock` steckt weder in anon, file noch kernel — sonst 483 MB „nicht zugeordnet"."""
+    v = m._cgroup_view({'anon': 100 << 20, 'file': 10 << 20, 'kernel': 5 << 20,
+                        'sock': 400 << 20}, 520 << 20)
+    assert v['sock_mb'] == 400.0 and v['other_mb'] == 5.0
+
+
+def test_adressen_aus_proc_net_tcp(m):
+    assert m._hex_addr('0100007F:1F90') == '127.0.0.1:8080'
+    assert m._hex_addr('0000000000000000FFFF00000100007F:0050') == '127.0.0.1:80'
+
+
+def test_grosse_speicherseiten_folgen_der_einstellung(m, monkeypatch):
+    """THP-Schalter: an = prctl(PR_SET_THP_DISABLE, 1), aus = wieder erlauben;
+    steht der Prozess schon richtig, wird nichts gesetzt."""
+    state = {"off": 0}
+    calls = []
+
+    def fake(op, arg):
+        if op == m._PR_GET_THP_DISABLE:
+            return state["off"]
+        calls.append(arg)
+        state["off"] = arg
+        return 0
+    monkeypatch.setattr(m, "_prctl", fake)
+    monkeypatch.setattr(m, "load_config", lambda: {})
+    m._apply_thp_pref()
+    m._apply_thp_pref()
+    assert calls == [1] and m._thp_disabled() is True
+    monkeypatch.setattr(m, "load_config", lambda: {"memory_thp_disable": False})
+    m._apply_thp_pref()
+    assert calls == [1, 0] and m._thp_disabled() is False

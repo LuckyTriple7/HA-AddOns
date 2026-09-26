@@ -1,16 +1,16 @@
 flask==3.1.3
 waitress==3.0.2
 requests==2.34.2
-markdown==3.10.2
+markdown==3.10.3
 pillow==12.3.0
-cryptography==50.0.0
-qrcode==7.4.2
+cryptography==50.0.1
+qrcode==8.2
 # PDF-Import der Rechtstexte (Impressum/Datenschutz aus einem Generator-PDF).
 # Reines Python, bringt pdfminer.six mit — keine zusätzlichen Systempakete.
-pdfplumber==0.11.7
+pdfplumber==0.11.10
 # PDF-Erzeugung für Bibliothek-Einträge. Braucht pango (siehe Dockerfile);
 # fehlt das Paket, läuft das Add-on ohne PDF-Button weiter (siehe _HAS_WEASY).
 weasyprint==70.0
 # KI-Bilderzeugung (Google Gemini) für Bibliothek-Titelbilder. Fehlt das Paket oder
 # der API-Key, bleibt der Knopf im Admin einfach aus (siehe _HAS_GENAI).
-google-genai==2.10.0
+google-genai==2.24.0

@@ -272,15 +272,16 @@ sie komplett ausgeblendet).
 `ai_provider` schaltet **global für alle KI-Features** zwischen Anthropic
 (Standard), Google Gemini und Perplexity um:
 - **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-5`; auch
-  `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar —
-  schneller/günstiger bzw. teurer). Websuche über Anthropics
+  `claude-opus-5-5`, `claude-sonnet-5`, `claude-haiku-4-5`,
+  `claude-fable-5-1` wählbar — schneller/günstiger bzw. teurer; eine alte
+  Auswahl `claude-fable-5` läuft automatisch auf `claude-fable-5-1`). Websuche über Anthropics
   `web_search`-Tool, per `ai_max_web_searches` (Standard 12, 1-50)
   gedeckelt — niedriger spart Input-Tokens/Kosten, höher liefert
   gründlichere Antworten bei mehreren Zielen/Hotels.
 - **Gemini:** `gemini_model` (Standard `gemini-3.1-pro`; auch
-  `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-2.5-flash` wählbar —
-  Google schaltet `gemini-2.5-flash` am 16.10.2026 ab, Ersatz ist
-  `gemini-3.6-flash`). Websuche über
+  `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash` wählbar —
+  eine alte Auswahl `gemini-3.5-flash` oder `gemini-2.5-flash` läuft
+  automatisch auf `gemini-3.8-flash`). Websuche über
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
 - **Perplexity:** `perplexity_model` wählt die **Gründlichkeitsstufe** (Standard
@@ -594,6 +595,25 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   Reisende, aufsummiert = dein persönlicher Anteil) und **Ø €/Nacht pro Person** — gesamt
   **und pro Reisejahr** aufgeschlüsselt. Der €/Nacht-Wert ist durchweg **pro Person**
   (Personen-Nächte = Nächte × Reisende), damit Solo- und Gruppenreisen vergleichbar sind.
+- **✈️ Flugzeiten-Wächter** (`notify_flight_changes`, Standard an, abschaltbar unter
+  Zahnrad → Einstellungen → Benachrichtigungen): Einmal am Tag — und gleich nach dem
+  Import einer neuen Reise — gleicht TUIWatch die kommenden Flüge mit dem Flugplan des
+  **Heimatflughafens** ab, sofern das **STR, FRA, MUC oder FKB** ist. Verglichen wird die
+  Zeit dort: beim Hinflug der Abflug, beim Rückflug die Ankunft. Gemeldet wird per HA und
+  Telegram,
+  - wenn die Uhrzeit im Plan von der gebuchten abweicht („jetzt 07:30 statt 06:45"),
+  - wenn die Flugnummer an dem Tag nicht mehr im Plan steht — erst beim **zweiten**
+    Abgleich in Folge, damit ein einzelner Aussetzer keinen Fehlalarm auslöst; die
+    Meldung nennt, was am selben Tag auf der Strecke fliegt (oft hat TUI nur die Nummer
+    getauscht),
+  - und mit Entwarnung, sobald der Flug wieder wie gebucht im Plan steht.
+
+  Die Detailansicht zeigt je Flug eine Spalte **Flugplan** (✅ wie gebucht, ⚠️ geändert
+  bzw. nicht im Plan, „noch nicht veröffentlicht") und den Knopf **„Flugplan prüfen"**
+  für einen sofortigen Abgleich. Reicht der Plan noch nicht bis zum Reisedatum — typisch
+  für Sommerflüge, solange nur der Winterplan draußen ist —, gibt es keine Meldung.
+  **Quelle ist der Flughafen, nicht TUI**: eine Meldung ist ein Anlass, bei TUI
+  nachzusehen, keine Bestätigung.
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
   gespeicherten PDF und aller weiteren Anhänge.
@@ -1280,7 +1300,7 @@ landen dauerhaft im **KI-Verlauf**.
   Euro mehr was Besseres"), ab dann wird deren Preis verfolgt. **„Details ↗"** öffnet das
   Zimmer mit Fotos/Beschreibung auf tui.com; **„Günstigstes automatisch"** hebt die
   Festlegung wieder auf.
-- **Pausieren / Fortsetzen** (ebenfalls im ⋯-Menü) — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
+- **Pausieren / Fortsetzen** (ebenfalls im ⋯-Menü) — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen. Der **Preiskalender** läuft dabei täglich weiter: er fragt immer ab heute nach vorn, liefert also auch dann noch Preise für andere Abreisetage, wenn der eigene Termin kurz vor Abreise nicht mehr buchbar ist und das Angebot deshalb automatisch pausiert wurde. So reißt der Preisverlauf zwischen Pause und Archivierung nicht ab.
 - **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache samt Kalender-Trend-Historie) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Der Schalter **„Archiv"** oben zeigt **nur** die archivierten Angebote (wie „Preisverlauf" für die Verlaufs-Hotels; beide Schalter schließen sich gegenseitig aus). Bei Prüfungen, Übersicht und E-Mail-Versand bleiben archivierte Angebote außen vor.
   **Ausnahme Preiskalender:** der läuft weiter (`calendar_archived_refresh`, Standard an) - alle 3 Tage statt täglich und immer erst, nachdem die aktiven Angebote dran waren. Grund: der Preis der abgelaufenen Reise ist zwar tot, der Kalender beschreibt aber Hotel, Zimmer, Verpflegung und Dauer und schaut immer **ab heute** nach vorn (das alte Reisedatum der URL geht in die Abfrage gar nicht ein). So wächst der Preisverlauf desselben Hotels über Jahre weiter, statt mit dem Archivieren abzureißen. Archivierte Karten haben dafür einen eigenen **Kalender**-Knopf.

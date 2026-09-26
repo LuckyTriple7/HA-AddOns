@@ -6,6 +6,8 @@ import importlib
 
 import pytest
 
+import trippilot_questions as TQ
+
 pytest.importorskip("flask")
 
 ING = {"X-Ingress-Path": "/test"}
@@ -77,12 +79,12 @@ def test_advisor_prompt_includes_beach_detail_when_set(app_mod):
 
 
 def test_advisor_prompt_includes_arrival_distance_clause_for_own_arrival(app_mod):
-    profile = {"region": "Europa", "arrival_mode": "Auto",
-               "home_location": "70173 Stuttgart", "max_distance": "bis 400 km"}
+    profile = {"region": "Europa", "arrival_mode": "🚗 Auto",
+               "home_location": "70173 Stuttgart", "max_distance": "📍 bis 400 km"}
     prompt = app_mod._advisor_prompt(profile)
-    assert "Startort eigene Anreise: 70173 Stuttgart" in prompt
-    assert "Max. Entfernung eigene Anreise: bis 400 km" in prompt
-    assert "eigenständig mit Auto an" in prompt
+    assert "Startort: 70173 Stuttgart" in prompt
+    assert "Max. Entfernung: 📍 bis 400 km" in prompt
+    assert "eigenständig mit 🚗 Auto an" in prompt
     assert "🎲 Überraschung darf in diesem Fall KEIN anderes Land" in prompt
 
 
@@ -93,13 +95,13 @@ def test_advisor_prompt_omits_arrival_distance_clause_for_flight(app_mod):
 
 
 def test_advisor_prompt_uses_daytrip_instructions(app_mod):
-    profile = {"region": app_mod._DAYTRIP_REGION_VALUE,
-               "home_location": "70173 Stuttgart", "max_distance": "bis 100 km",
-               "duration_daytrip": "Ganzer Tag"}
+    profile = {"region": TQ.daytrip_value(),
+               "home_location": "70173 Stuttgart", "max_distance": "📍 bis 100 km",
+               "duration_daytrip": "🌞 Ganzer Tag"}
     prompt = app_mod._advisor_prompt(profile)
     assert "Tagesausflugsziele" in prompt
-    assert "Startort eigene Anreise: 70173 Stuttgart" in prompt
-    assert "Verfügbare Zeit: Ganzer Tag" in prompt
+    assert "Startort: 70173 Stuttgart" in prompt
+    assert "Verfügbare Zeit: 🌞 Ganzer Tag" in prompt
     assert "Unterkunftsvorschläge" not in prompt
     assert "die TUI tatsächlich im Programm hat" not in prompt
     assert "TUI-Pauschalreisen einen Flug" not in prompt
@@ -108,10 +110,10 @@ def test_advisor_prompt_uses_daytrip_instructions(app_mod):
 
 def test_advisor_prompt_daytrip_includes_perfect_daytrip_freetext(app_mod):
     """Neues Freitext-Feld des Tagesausflug-Wizards muss im Prompt ankommen."""
-    profile = {"region": app_mod._DAYTRIP_REGION_VALUE, "home_location": "Köln",
+    profile = {"region": TQ.daytrip_value(), "home_location": "Köln",
                "perfect_daytrip": "Viel Natur, wenig Trubel, gutes Café am Ziel"}
     prompt = app_mod._advisor_prompt(profile)
-    assert "Perfekter Ausflug laut Nutzer (Freitext): Viel Natur, wenig Trubel, gutes Café am Ziel" in prompt
+    assert "Perfekter Ausflug laut Nutzer: Viel Natur, wenig Trubel, gutes Café am Ziel" in prompt
 
 
 def test_advisor_prompt_vacation_still_checks_reisewarnung(app_mod):
@@ -129,8 +131,8 @@ def test_region_is_multi_select_list(app_mod):
 
 
 def test_region_list_containing_daytrip_triggers_daytrip_mode(app_mod):
-    profile = {"region": [app_mod._DAYTRIP_REGION_VALUE],
-               "home_location": "Köln", "max_distance": "bis 100 km"}
+    profile = {"region": [TQ.daytrip_value()],
+               "home_location": "Köln", "max_distance": "📍 bis 100 km"}
     prompt = app_mod._advisor_prompt(profile)
     assert "Tagesausflugsziele" in prompt
 
@@ -142,7 +144,7 @@ def test_region_values_helper_normalizes_scalar_and_list(app_mod):
 
 
 def test_advisor_prompt_daytrip_ignores_dna_context(app_mod):
-    profile = {"region": app_mod._DAYTRIP_REGION_VALUE, "home_location": "Köln"}
+    profile = {"region": TQ.daytrip_value(), "home_location": "Köln"}
     prompt = app_mod._advisor_prompt(profile, prev_dna={"🌴 Strand": 50})
     assert "Reise-DNA" not in prompt
 

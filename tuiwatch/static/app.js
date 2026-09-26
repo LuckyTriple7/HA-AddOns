@@ -3,6 +3,11 @@
 // kleinen Inline-Script im Template — NUR dort steckt Jinja.
 // Cache-Busting über ?v=<APP_VERSION> im <script src>.
 
+// Hüllt einen Timer-Callback so ein, dass er bei verstecktem Tab nichts tut —
+// niemand sieht das Ergebnis, der Server soll nicht umsonst gefragt werden. Der
+// Timer selbst läuft weiter; nach dem Zurückwechseln greift der nächste Tick.
+function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.apply(this, a); }; }
+
 // ── Abgelaufene Cloudflare-Access-Sitzung automatisch abfangen ──
 // Laeuft die Seite hinter Cloudflare Access und dessen Sitzung ab, beantwortet
 // Cloudflare jeden /api/-Aufruf mit einem 302 auf den Login unter
@@ -72,7 +77,7 @@
     header.addEventListener('mousedown',function(e){ if(e.target.id==='tw-console-close')return; _drag=true;_dx=e.clientX-panel.offsetLeft;_dy=e.clientY-panel.offsetTop;e.preventDefault(); });
     document.addEventListener('mousemove',function(e){ if(!_drag)return; panel.style.left=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth))+'px'; panel.style.top=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight))+'px'; panel.style.right='auto';panel.style.bottom='auto'; });
     document.addEventListener('mouseup',function(){_drag=false;});
-    function _setOpen(v){ _open=v; panel.classList.toggle('open',_open); try{localStorage.setItem('tw-console-open',_open?'1':'0');}catch(e){} if(_open){_poll();_timer=setInterval(_poll,2000);} else {clearInterval(_timer);_timer=null;} }
+    function _setOpen(v){ _open=v; panel.classList.toggle('open',_open); try{localStorage.setItem('tw-console-open',_open?'1':'0');}catch(e){} if(_open){_poll();_timer=setInterval(whenVisible(_poll),2000);} else {clearInterval(_timer);_timer=null;} }
     function consoleToggle(){ if(window.innerWidth<768)return; _setOpen(!_open); }
     window.consoleToggle=consoleToggle;
     try{ if(localStorage.getItem('tw-console-open')==='1') setTimeout(function(){_setOpen(true);},100); }catch(e){}
@@ -534,7 +539,7 @@
       if(!all.size){ el.style.display = 'none'; el.innerHTML = ''; return; }
       el.style.display = 'flex';
       el.innerHTML = Array.from(all).sort((a,b)=>a.localeCompare(b,'de')).map(t =>
-        `<span class="tag-pill${activeTags.has(t)?' active':''}" onclick="toggleTagFilter('${esc(t)}')">${esc(t)}</span>`
+        `<span class="tag-pill${activeTags.has(t)?' active':''}" onclick="toggleTagFilter('${jsArg(t)}')">${esc(t)}</span>`
       ).join('');
     }
     function toggleTagFilter(tag){
@@ -665,7 +670,7 @@
           <div class="offer-top">
             <div class="offer-main">
               <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen"><svg class="i"><use href="#i-pencil"/></svg></button><span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
-                `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
+                `<span class="tag-pill" onclick="removeTag(${o.id}, '${jsArg(t)}')" title="Entfernen">${esc(t)} ×</span>`
               ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen"><svg class="i"><use href="#i-pin"/></svg> ${esc(o.location)} ↗</a>`:''}
               ${stars?`<div class="meta">${stars}</div>`:''}
@@ -728,7 +733,7 @@
             const btn = cur
               ? (o.flight_pin?`<button class="btn sec" onclick="pinFlight(${o.id},'')" title="Fixierung lösen – wieder günstigster Flug"><svg class="i"><use href="#i-pin"/></svg> fixiert ✕</button>`
                              :'<span class="fv-cur" title="Dieser Flug wird aktuell verfolgt">✓ verfolgt</span>')
-              : `<button class="btn sec" onclick="pinFlight(${o.id},'${esc(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten"><svg class="i"><use href="#i-pin"/></svg> verfolgen</button>`;
+              : `<button class="btn sec" onclick="pinFlight(${o.id},'${jsArg(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten"><svg class="i"><use href="#i-pin"/></svg> verfolgen</button>`;
             return `<div class="fv-row${cur?' cur':''}">
               <div class="fv-price">${eur(v.price)} ${dTxt}</div>
               <div class="fv-legs">${plane}<span>${esc(v.out)}</span><br>${plane}<span>${esc(v.ret)}</span></div>
@@ -773,7 +778,7 @@
         if(o.giata){
           const giataUrl = 'https://hg15.giatamedia.com/index2.php?uid=782&com=sc&gid='+encodeURIComponent(o.giata)+'&frame=0&from=ks&catlang[]=de';
           codeParts.push('<a href="'+esc(giataUrl)+'" target="_blank" rel="noopener" title="GIATA-Hoteldetails öffnen">GIATA '+esc(o.giata)+' ↗</a>'
-            +' <a href="#" onclick="event.preventDefault();openGiataGallery(\''+esc(o.giata)+'\')" title="Hotelfotos (GIATA) anzeigen"><svg class="i"><use href="#i-image"/></svg> Fotos</a>');
+            +' <a href="#" onclick="event.preventDefault();openGiataGallery(\''+jsArg(o.giata)+'\')" title="Hotelfotos (GIATA) anzeigen"><svg class="i"><use href="#i-image"/></svg> Fotos</a>');
         }
         const codesLine = codeParts.length?`<div class="codes"><svg class="i"><use href="#i-receipt"/></svg> ${codeParts.join(' · ')}</div>`:'';
         let statsLine = '';
@@ -798,7 +803,7 @@
         // Darstellungen nicht auseinanderlaufen.
         const labelRow = `<div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen"><svg class="i"><use href="#i-pencil"/></svg></button>${
           o.is_foreign?`<button class="rename-btn foreign-toggle" onclick="toggleForeignOpen(${o.id})" title="${foreignOpen(o)?'Einklappen':'Aufklappen'}">${foreignOpen(o)?'▴':'▾'}</button>`:''}<span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
-            `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
+            `<span class="tag-pill" onclick="removeTag(${o.id}, '${jsArg(t)}')" title="Entfernen">${esc(t)} ×</span>`
           ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>`;
         const locRow = o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen"><svg class="i"><use href="#i-pin"/></svg> ${esc(o.location)} ↗</a>`:'';
         const bellBtn = o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'<svg class="i"><use href="#i-bell-off"/></svg>':'<svg class="i"><use href="#i-bell"/></svg>'}</button>`;
@@ -1131,7 +1136,7 @@
       return `<div class="cmp-load">${esc(label)}<div class="twprog indet"><i></i></div></div>`;
     }
     function cmpSpinner(){ $('#cmp-body').innerHTML = progBar('Live-Abruf läuft… einen Moment.'); }
-    function startCmpPolling(){ clearInterval(cmpTimer); cmpPoll(); cmpTimer = setInterval(cmpPoll, 2000); }
+    function startCmpPolling(){ clearInterval(cmpTimer); cmpPoll(); cmpTimer = setInterval(whenVisible(cmpPoll), 2000); }
 
     async function openCompare(id){
       cmpId = id;
@@ -1209,7 +1214,7 @@
     function nigSpinner(){ $('#nig-body').innerHTML = progBar('Live-Abruf läuft… mehrere Dauern werden geprüft.'); }
     function nigSetSpan(v){ nightsSpan = Math.max(1, Math.min(7, v)); $('#nig-span').textContent = nightsSpan; localStorage.setItem('tw-nights-span', String(nightsSpan)); }
     function nightsStep(d){ nigSetSpan(nightsSpan + d); }
-    function startNigPolling(){ clearInterval(nigTimer); nigPoll(); nigTimer = setInterval(nigPoll, 2000); }
+    function startNigPolling(){ clearInterval(nigTimer); nigPoll(); nigTimer = setInterval(whenVisible(nigPoll), 2000); }
 
     async function openNights(id){
       nigId = id;
@@ -1292,7 +1297,7 @@
       Check24_nicht_erreichbar: 'Check24 nicht erreichbar.',
     };
     function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… dauert meist unter 15 Sekunden.'); }
-    function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(c24Poll, 2000); }
+    function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(whenVisible(c24Poll), 2000); }
 
     // Sucht automatisch mit dem TUI-Hotelnamen (kein Eintippen nötig) und zeigt
     // Treffer zum Anklicken; bei genau einem eindeutigen Treffer wird direkt
@@ -1824,14 +1829,14 @@
           <td>${it.views}</td>
           <td class="${it.expired?'shr-exp':''}">${exp}</td>
           <td>
-            <button class="btn sec shr-cmt${it.new_comments?' has-new':''}" onclick="openShareComments('${esc(it.token)}')"
+            <button class="btn sec shr-cmt${it.new_comments?' has-new':''}" onclick="openShareComments('${jsArg(it.token)}')"
               title="${it.new_comments ? it.new_comments+' neue(r) Kommentar(e) seit dem letzten Öffnen'
                                        : 'Kommentare der Empfänger ansehen, bearbeiten oder löschen'}"><svg class="i"><use href="#i-comment"/></svg> Kommentare${
               it.comments?` (${it.comments})`:''}</button>
-            <button class="btn sec" onclick="copyShareUrl('${esc(it.token)}')">Kopieren</button>
-            <button class="btn sec" onclick="openShareDialog('${esc(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
-            <button class="btn sec" onclick="extendShare('${esc(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
-            <button class="btn danger" onclick="revokeShare('${esc(it.token)}')">Widerrufen</button>
+            <button class="btn sec" onclick="copyShareUrl('${jsArg(it.token)}')">Kopieren</button>
+            <button class="btn sec" onclick="openShareDialog('${jsArg(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
+            <button class="btn sec" onclick="extendShare('${jsArg(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
+            <button class="btn danger" onclick="revokeShare('${jsArg(it.token)}')">Widerrufen</button>
           </td></tr>`;
       }).join('');
       $('#shr-body').innerHTML = `<div class="shr-list-wrap"><table class="shr-list">
@@ -2110,7 +2115,7 @@
     const ALLF_FRA_TITLE = 'Näherung: Frankfurt hat keine amtliche Gesamtliste (Drehkreuz), dieses Ziel stammt aus einem rollierend gesammelten Tagesbord einer Drittseite — kann bei sehr seltenen Verbindungen fehlen oder veraltet sein.';
     function renderAllfDestinations(dest){
       if(!dest.length){ $('#allf-dest-body').innerHTML = '<div class="hint">Keine Ziele gefunden.</div>'; return; }
-      const rowsHtml = dest.map(d => `<tr class="allf-dest-row" style="cursor:pointer" onclick="allfPickDestination('${esc(d.code)}')" title="Klicken, um nach ${esc(d.name)} zu suchen">
+      const rowsHtml = dest.map(d => `<tr class="allf-dest-row" style="cursor:pointer" onclick="allfPickDestination('${jsArg(d.code)}')" title="Klicken, um nach ${esc(d.name)} zu suchen">
         <td>${esc(d.name)}</td>
         <td class="hint">${esc(d.code)}</td>
         <td class="hint">${esc(d.country)}</td>
@@ -2449,7 +2454,7 @@
     async function refreshAktion(){
       $('#aktion-body').innerHTML = progBar('Aktionscodes werden geprüft…');
       try { await fetch(api('/api/aktionscodes'), {method:'POST'}); } catch(e){}
-      clearInterval(aktionTimer); aktionTimer = setInterval(()=>aktionPoll(false), 2000);
+      clearInterval(aktionTimer); aktionTimer = setInterval(whenVisible(()=>aktionPoll(false)), 2000);
     }
     async function aktionPoll(first){
       let d; try { d = await fetch(api('/api/aktionscodes')).then(r=>r.json()); } catch(e){ return; }
@@ -2801,7 +2806,7 @@
     function stopBasketPoll(){ if(_basketPoll){ clearInterval(_basketPoll); _basketPoll = null; } }
     function startBasketPoll(){
       stopBasketPoll();
-      _basketPoll = setInterval(async ()=>{
+      _basketPoll = setInterval(whenVisible(async ()=>{
         // Fenster zu → nicht weiter pollen; der Lauf selbst läuft serverseitig weiter.
         if(!$('#basket-bg').classList.contains('show')){ stopBasketPoll(); return; }
         let d; try { d = await fetch(api('/api/market-basket/progress')).then(r=>r.json()); }
@@ -2814,7 +2819,7 @@
           loadBasket();
           updateTrendBtn();
         }
-      }, 1500);
+      }), 1500);
     }
     async function runMarketBasket(){
       try {
@@ -3083,8 +3088,15 @@
       ].join('');
       const reisende = (d.reisende||[]).length?`<div class="dsec">Reisende</div><table class="tdt"><tr><th>Name</th><th>Geburtsdatum</th><th>Preis</th></tr>${
         d.reisende.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.geburtsdatum||'')}</td><td>${esc(p.preis||'')} €</td></tr>`).join('')}</table>`:'';
-      const fluege = (d.fluege||[]).length?`<div class="dsec">Flüge</div><table class="tdt"><tr><th>Typ</th><th>Datum</th><th>Strecke</th><th>Zeit</th><th>Airline</th></tr>${
-        d.fluege.map(f=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td></tr>`).join('')}</table>`:'';
+      // Flugzeiten-Wächter: Zustand je Flug (Index in d.fluege) aus trip_flight_checks.
+      // Spalte nur, wenn es einen Abgleich gibt; Knopf nur bei noch kommenden Flügen.
+      const fchk = {}; (t.flight_checks||[]).forEach(c=>{ fchk[c.idx]=c; });
+      const hasChk = Object.keys(fchk).length>0;
+      const todayIso = new Date().toISOString().slice(0,10);
+      const upcomingFl = (d.fluege||[]).some(f=>{ const m=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec(f.datum||''); return m && `${m[3]}-${m[2]}-${m[1]}`>=todayIso; });
+      const flBtn = upcomingFl?` <button class="btn sec" style="font-size:.75rem;padding:2px 8px" onclick="checkTripFlights(${id})" title="Flüge jetzt mit dem Flugplan des Heimatflughafens abgleichen (STR, FRA, MUC, FKB)"><svg class="i"><use href="#i-repeat"/></svg> Flugplan prüfen</button>`:'';
+      const fluege = (d.fluege||[]).length?`<div class="dsec">Flüge${flBtn}</div><table class="tdt"><tr><th>Typ</th><th>Datum</th><th>Strecke</th><th>Zeit</th><th>Airline</th>${hasChk?'<th>Flugplan</th>':''}</tr>${
+        d.fluege.map((f,i)=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td>${hasChk?'<td>'+flightCheckCell(fchk[i])+'</td>':''}</tr>`).join('')}</table>`:'';
       const extras = (d.extras||[]).length?`<div class="dsec">Extras</div><table class="tdt"><tr><th>Typ</th><th>Details</th><th>Preis</th></tr>${
         d.extras.map(e=>{ const det=[e.plaetze,e.gewicht,e.strecke,e.details,(e.anzahl?('x'+e.anzahl):'')].filter(Boolean).join(' '); const pr=(e.preis==='inkl.')?'inkl.':((e.preis!=null)?e.preis+' €':''); return `<tr><td>${esc(e.typ||'')}</td><td>${esc(det)}</td><td>${esc(pr)}</td></tr>`; }).join('')}</table>`:'';
       const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte${d.rabatt_inklusive?' <span class="hint">(bereits im Reisepreis enthalten)</span>':''}</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
@@ -3109,6 +3121,27 @@
         ${packHtml}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    function flightCheckCell(c){
+      if(!c) return '';
+      const when = c.checked ? ' · geprüft '+new Date(c.checked).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      const src = 'Flugplan '+(c.airport||'')+when;
+      const cell = (txt, tip, color)=>`<span title="${esc(tip)}"${color?` style="color:${color}"`:''}>${esc(txt)}</span>`;
+      switch(c.status){
+        case 'ok': return cell('✅ '+(c.plan_time||'')+' '+(c.airport||''), 'Steht wie gebucht im '+src);
+        case 'changed': return cell('⚠️ jetzt '+(c.plan_time||'?'), 'Uhrzeit laut '+src+' geändert — bei TUI prüfen', '#c0392b');
+        case 'missing': return cell('⚠️ nicht im Plan', 'Flugnummer an diesem Tag nicht (mehr) im '+src+(c.note?'. Am selben Tag auf der Strecke: '+c.note:''), '#c0392b');
+        case 'pending': return cell('– noch nicht veröffentlicht', 'Der '+src+' reicht noch nicht bis zu diesem Datum');
+        case 'error': return cell('? Abruf fehlgeschlagen', src);
+        default: return cell('–', 'Kein unterstützter Heimatflughafen (STR, FRA, MUC, FKB) oder Flugnummer nicht erkannt');
+      }
+    }
+    async function checkTripFlights(id){
+      toast('Flugplan wird abgeglichen…');
+      try { const r = await fetch(api('/api/trips/'+id+'/flights/check'), {method:'POST'}); if(!r.ok) throw 0; }
+      catch(e){ toast('Flugplan-Abgleich fehlgeschlagen'); return; }
+      toast('Flugplan abgeglichen ✓');
+      showTripDetail(id);
     }
     async function rescanTrip(id){
       toast('PDF wird neu eingelesen…');
@@ -5977,6 +6010,10 @@
         + row('darin tmpfs (shmem)', _mb(cg.shmem_mb),
               'Teil des Dateicaches, kein eigener Posten: was im Container nach /dev/shm oder /tmp '
               + 'geschrieben wurde. Das liegt im Speicher, nicht auf der Platte.')
+        + row('davon Netzwerkpuffer (sock)', _mb(cg.sock_mb),
+              'Daten in Verbindungen, die nicht abfließen (Senden) oder nie gelesen werden '
+              + '(Empfang). Welche Verbindung, steht unten unter „Netzwerkverbindungen".')
+        + (cg.zswap_mb ? row('davon komprimiert ausgelagert (zswap)', _mb(cg.zswap_mb), '') : '')
         + row('nicht zugeordnet', _mb(cg.other_mb),
               'Rest zwischen der Summe und dem Gesamtwert.')
         + row('TUIWatch selbst', _mb(me.rss_mb) + ' · ' + (me.threads||0) + ' Threads', '')
@@ -5986,6 +6023,14 @@
         + row('Speicher-Arenen (MALLOC_ARENA_MAX)', d.malloc_arena_max || 'unbegrenzt',
               'Ohne Begrenzung legt die C-Bibliothek pro Thread eigene Arenen an und '
               + 'gibt sie nicht wieder her.')
+        + row('Python-Allocator (PYTHONMALLOC)', d.pythonmalloc || 'pymalloc',
+              d.pythonmalloc === 'malloc'
+                ? 'Alles über glibc — der Aufräumer gibt auch Lücken mitten im Speicher zurück.'
+                : 'pymalloc gibt einen 1-MB-Block erst zurück, wenn er ganz leer ist.')
+        + row('Große Speicherseiten (THP)', d.thp_disabled === true ? 'aus' : d.thp_disabled === false ? 'an' : 'unbekannt',
+              d.thp_disabled === true
+                ? 'Aus: freier Speicher geht beim Aufräumen wirklich zurück (Einstellung „Große Speicherseiten abschalten").'
+                : '2-MB-Seiten gibt der Kernel erst zurück, wenn sie ganz leer sind — die Anzeige wächst dadurch stetig. Abschaltbar in den Einstellungen.')
         + row('Zuletzt aufgeräumt', (function(){
               const t = d.trim||{};
               if(!t.ts) return 'noch nicht';
@@ -6010,7 +6055,28 @@
             title="Python-Müll einsammeln und freie Speicher-Arenen ans Betriebssystem zurückgeben">Speicher freigeben</button>
           <div class="hint">Läuft ohnehin nach jeder Prüfrunde mit. Gibt nur zurück, was
             wirklich frei ist — belegte Daten bleiben unangetastet.</div>
+        </div>
+        <div style="margin:12px 0">
+          <button class="btn sec" id="mem-analyze-btn" onclick="analyzeMemory()"
+            title="Zeigt, ob der Speicher belegt oder nur zerstückelt ist und welche Variable wie viel hält">Analysieren</button>
+          <div class="hint">Dauert ein paar Sekunden. Unterscheidet „wirklich belegt“ von
+            „frei, aber zerstückelt“ und nennt die größten Speicherhalter.</div>
+          <div id="mem-analyze"></div>
         </div>`;
+      const so = d.sockets||{}, mono = 'font-size:.8rem;font-family:ui-monospace,monospace';
+      html += '<div style="margin-top:12px;font-weight:600">Netzwerkverbindungen</div>'
+        + `<div class="hint">${esc(Object.entries(so.states||{}).map(([k,v]) => k+' '+v).join(' · ') || 'keine')}</div>`
+        + ((so.queued||[]).length ? (so.queued||[]).map(q =>
+            `<div style="display:flex;gap:8px;padding:3px 0;${mono}">
+               <span style="flex:1;word-break:break-all">${esc(q.proto+' '+q.state+' '+q.local+' → '+q.remote)}</span>
+               <span style="white-space:nowrap">tx ${esc(String(q.tx_kb))} KB · rx ${esc(String(q.rx_kb))} KB</span>
+             </div>`).join('')
+          : '<div class="hint">Keine Verbindung mit wartenden Daten.</div>')
+        + (so.sockstat||[]).map(l => `<div class="hint" style="${mono}">${esc(l)}</div>`).join('');
+      html += '<div style="margin-top:12px;font-weight:600">memory.stat (ab 1 MB)</div>'
+        + Object.entries(d.cgroup_raw||{}).map(([k,v]) =>
+            `<div style="display:flex;gap:8px;padding:2px 0;${mono}">
+               <span style="flex:1">${esc(k)}</span><span>${esc(_mb(v))}</span></div>`).join('');
       html += '<div style="margin-top:12px;font-weight:600">Größte Prozesse im Container</div>'
         + (d.processes||[]).map(p =>
             `<div style="display:flex;gap:8px;padding:3px 0;font-size:.8rem;font-family:ui-monospace,monospace">
@@ -6029,6 +6095,35 @@
                              : 'Nichts zurückzugeben — der Speicher ist wirklich belegt');
       } catch(e){ toast('Fehlgeschlagen'); }
       openSyslog('memory');
+    }
+    // Wer hält den Speicher? RSS sagt nur wieviel; hier steht, ob er in Benutzung
+    // ist (used) oder frei, aber zerstückelt festgehalten (free), und von wem.
+    async function analyzeMemory(){
+      const btn = $('#mem-analyze-btn'), out = $('#mem-analyze');
+      btn.disabled = true; out.innerHTML = '<div class="hint">Analysiere…</div>';
+      try {
+        const r = await fetch(api('/api/memory/analyze'));
+        const d = await r.json();
+        const line = (a, b) => `<div style="display:flex;gap:8px;padding:3px 0;font-size:.8rem;font-family:ui-monospace,monospace">
+            <span style="flex:1;word-break:break-all">${esc(a)}</span><span style="white-space:nowrap">${esc(b)}</span></div>`;
+        const m = d.malloc, p = d.pymalloc;
+        let h = '<div style="margin-top:10px;font-weight:600">Belegt oder zerstückelt?</div>';
+        h += m ? line('malloc: benutzt / frei gehalten / mmap', _mb(m.used_mb)+' / '+_mb(m.free_mb)+' / '+_mb(m.mmap_mb))
+               : line('malloc', 'nicht verfügbar');
+        h += p ? line('pymalloc: benutzt / frei gehalten / Arenen (Spitze)',
+                      _mb(p.used_mb)+' / '+_mb(p.free_mb)+' / '+_mb(p.arenas_mb)+' ('+_mb(p.peak_mb)+')')
+               : line('pymalloc', d.pythonmalloc === 'malloc' ? 'aus (PYTHONMALLOC=malloc)' : 'nicht verfügbar');
+        h += '<div style="margin-top:10px;font-weight:600">Größte Speicherhalter</div>';
+        h += (d.holders||[]).length ? d.holders.map(x =>
+               line(x.name + (x.len!=null ? ' ('+x.len+' Einträge)' : ''), _mb(x.mb))).join('')
+             : '<div class="hint">Keine Variable über 1 MB.</div>';
+        if(d.holders_truncated) h += '<div class="hint">Abgebrochen nach 3 Mio. Objekten — Liste unvollständig.</div>';
+        h += '<div style="margin-top:10px;font-weight:600">Objekttypen (' + (d.gc_objects||0).toLocaleString('de-DE') + ' Objekte)</div>';
+        h += (d.types||[]).map(t => line(t.name + ' × ' + t.count.toLocaleString('de-DE'), _mb(t.mb))).join('');
+        h += '<div class="hint">RSS jetzt ' + _mb(d.rss_mb) + ' · Analyse ' + d.seconds + ' s</div>';
+        out.innerHTML = h;
+      } catch(e){ out.innerHTML = '<div class="hint">Fehlgeschlagen</div>'; }
+      btn.disabled = false;
     }
     async function reapChromium(){
       try {
@@ -6196,7 +6291,7 @@
     }
     function setBuildNav(){
       $('#set-nav').innerHTML = SET_GROUPS.map(g =>
-        `<button type="button" data-cat="${esc(g.group)}" onclick="setSelectCat('${esc(g.group)}')">`
+        `<button type="button" data-cat="${esc(g.group)}" onclick="setSelectCat('${jsArg(g.group)}')">`
         + `${setCatDot(g)}<span class="set-navname">${esc(g.title)}</span>`
         + `<span class="set-count">${(g.items || []).length}</span></button>`).join('');
     }
@@ -7441,7 +7536,7 @@
     }
     function closeCalDayChart(){ $('#cal-day-chart').classList.remove('show'); $('#cal-day-chart').innerHTML=''; }
     function calSpinner(){ $('#cal-body').innerHTML = progBar('Preiskalender wird geladen…'); }
-    function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
+    function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(whenVisible(calPoll), 2000); }
 
     async function openCalendar(id){
       calId = id; calMonth = null; calData = null; calMovesOpen = false; calMonths = null;
@@ -7543,7 +7638,7 @@
           <div class="room-actions">
             <div class="room-price">${eur(r.price)} <span class="pp">p.P.</span></div>
             <a class="btn sec" href="${esc(r.url)}" target="_blank" rel="noopener" title="Details & Fotos auf tui.com">Details ↗</a>
-            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${esc(r.code)}', '${jsArg(r.name)}')">${active?'aktiv':'tracken'}</button>
+            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${jsArg(r.code)}', '${jsArg(r.name)}')">${active?'aktiv':'tracken'}</button>
           </div>
         </div>`;
       }).join('');
@@ -8432,7 +8527,13 @@
         const s = offen[0].querySelector('summary'); if(s) s.focus();
       });
     })();
-    $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
+    // Entprellt: renderAll baut die ganze Liste neu — nicht bei jedem Tastendruck.
+    let searchDebounce = null;
+    $('#search').addEventListener('input', e=>{
+      searchTerm = e.target.value;
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(()=>renderAll(curOffers||[]), 200);
+    });
 
     // ── ✕ zum Leeren in Suchfeldern ────────────────────────────────────────────
     // Generisch statt pro Feld: jedes Text-/Suchfeld mit „Such…"/🔍 im Placeholder
@@ -8491,10 +8592,10 @@
     setInterval(()=>{ if(!document.hidden) loadOffers(); }, 5000);
     loadHealth();
     updateAktionBtn();
-    setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
+    setInterval(whenVisible(updateAktionBtn), 600000);   // Button-Leuchten alle 10 min aktualisieren
     updateTrendBtn();
-    setInterval(updateTrendBtn, 600000);
-    setInterval(loadHealth, 60000);
+    setInterval(whenVisible(updateTrendBtn), 600000);
+    setInterval(whenVisible(loadHealth), 60000);
 
     // ── Countdown zur nächsten Reise (Header) ─────────────────────────────────
     let nextTrip = null;
@@ -8520,7 +8621,7 @@
     }
     loadNextTrip();
     setInterval(renderTripCountdown, 30000);
-    setInterval(loadNextTrip, 300000);
+    setInterval(whenVisible(loadNextTrip), 300000);
 
     function fmtBytes(n){
       if(n < 1024) return n+' B';
@@ -8611,14 +8712,14 @@
       catch(e){}
     }
     loadDbSize();
-    setInterval(loadDbSize, 300000);
+    setInterval(whenVisible(loadDbSize), 300000);
 
     async function loadTuiCalls(){
       try { const d = await fetch(api('/api/tui-calls')).then(r=>r.json()); $('#tui-calls').textContent = d.count; }
       catch(e){}
     }
     loadTuiCalls();
-    setInterval(loadTuiCalls, 60000);
+    setInterval(whenVisible(loadTuiCalls), 60000);
 
     async function loadAiUsageFooter(){
       if(!G.ai) return;
@@ -8633,7 +8734,7 @@
       } catch(e){}
     }
     loadAiUsageFooter();
-    setInterval(loadAiUsageFooter, 300000);
+    setInterval(whenVisible(loadAiUsageFooter), 300000);
 
     const AI_PROVIDER_LABEL = { anthropic: 'Claude', gemini: 'Gemini', perplexity: 'Perplexity' };
     const AI_PROVIDER_NAME = Object.fromEntries(

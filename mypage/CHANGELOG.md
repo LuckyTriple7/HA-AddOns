@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.66] - 2026-09-24
+
+- 🔒 **pip wird nach dem Build aus dem Image entfernt.** Trivy meldete msgpack 1.1.2 (GHSA-6v7p-g79w-8964) und setuptools 70.3.0 (CVE-2025-47273, CVE-2026-59890). Beide stecken nicht in den Abhängigkeiten des Add-ons, sondern als eingebettete Kopien in pip selbst (`pip/_vendor`) — auch die neueste pip-Version bringt noch genau diese Stände mit. Das Add-on installiert zur Laufzeit nichts nach, pip wird also nicht gebraucht.
+
+## [0.11.65.1] - 2026-09-24
+
+chore(deps): cryptography 50.0.0 → 50.0.1, pdfplumber 0.11.7 → 0.11.10, markdown 3.10.2 → 3.10.3, qrcode 7.4.2 → 8.2, google-genai 2.10.0 → 2.24.0 in /mypage
+
 ## [0.11.65] - 2026-09-12
 
 chore(deps): Bump weasyprint from 69.0 to 70.0 in /mypage

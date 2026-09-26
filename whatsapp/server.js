@@ -50,7 +50,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 
 const path = require('path');
 const express = require('express');
 const qrcode = require('qrcode');
-const archiver = require('archiver');
+const { ZipArchive } = require('archiver');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
@@ -92,6 +92,8 @@ const app = express();
 // express-rate-limit über das X-Forwarded-For-Header (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
 app.set('trust proxy', 1);
 app.use(express.json());
+// Express 5 laesst req.body ohne JSON-Body undefined (Express 4: {}); Routen destrukturieren es direkt.
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   return mutatingRateLimit(req, res, next);
@@ -4219,7 +4221,7 @@ app.get('/api/status-archive/:chatId/export', async (req, res) => {
 
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
-  const archive = archiver('zip', { zlib: { level: 6 } });
+  const archive = new ZipArchive({ zlib: { level: 6 } });
   archive.on('error', (e) => { console.error('[ERROR] status-archive export:', e.message); res.end(); });
   archive.pipe(res);
 

@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import tempfile
 
 import pytest
 
@@ -12,6 +13,12 @@ import pytest
 # Testumgebung stellt genau das her. Die Sperre selbst prueft
 # tests/test_ingress_trust.py.
 os.environ.setdefault("TUIWATCH_TRUST_INGRESS", "1")
+
+# Der TripPilot-Fragebogen liegt standardmaessig unter /config/trippilot, und
+# app.py legt dort beim Import README/questions.default.json an. Ohne eigenes
+# Verzeichnis schrieben die Tests also in ein echtes /config und laesen einen dort
+# liegenden (evtl. veralteten) questions.json statt der mitgelieferten Fragen.
+os.environ.setdefault("TUIWATCH_TRIPPILOT_DIR", tempfile.mkdtemp(prefix="tuiwatch-trippilot-"))
 
 HERE = os.path.dirname(__file__)
 ROOT = os.path.dirname(HERE)              # …/tuiwatch
@@ -33,6 +40,26 @@ class FakeResp:
 
     def json(self):
         return self._data
+
+
+class _RequestsPassthrough:
+    """Ersetzt in Tests die modulweite Session von scraper.py (`_http`). Die Tests
+    monkeypatchen `scraper.requests.get/post` — eine echte Session würde daran
+    vorbei direkt ins Netz gehen. Aufgelöst wird erst beim Aufruf, damit auch
+    ein erst im Test gesetzter Patch greift."""
+    def get(self, *a, **k):
+        import requests
+        return requests.get(*a, **k)
+
+    def post(self, *a, **k):
+        import requests
+        return requests.post(*a, **k)
+
+
+@pytest.fixture(autouse=True)
+def _scraper_http_passthrough(monkeypatch):
+    import scraper
+    monkeypatch.setattr(scraper, "_http", _RequestsPassthrough())
 
 
 @pytest.fixture

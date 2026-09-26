@@ -225,8 +225,9 @@ def test_check_cheaper_date_first_call_has_no_cache_and_fetches(m, monkeypatch):
 
 
 def test_maybe_refresh_calendars_daily(m, monkeypatch):
-    """Täglicher Kalender-Auto-Refresh: nur aktive Angebote mit Kalender älter
-    24h, älteste zuerst; pausierte/frische bleiben unangetastet; abschaltbar."""
+    """Täglicher Kalender-Auto-Refresh: Angebote mit Kalender älter 24h, älteste
+    zuerst; frische bleiben unangetastet, pausierte laufen mit (die Pause gilt
+    nur der Preisprüfung); abschaltbar."""
     old = _add_offer(m, "https://example.invalid/da?duration=7")
     fresh = _add_offer(m, "https://example.invalid/db?duration=7")
     paused = _add_offer(m, "https://example.invalid/dc?duration=7")
@@ -242,7 +243,7 @@ def test_maybe_refresh_calendars_daily(m, monkeypatch):
     runs = []
     monkeypatch.setattr(m, "_run_calendar", lambda oid: runs.append(oid))
     m._maybe_refresh_calendars()
-    assert runs == [old]
+    assert runs == [old, paused]
 
     runs.clear()
     monkeypatch.setattr(m, "load_config", lambda: {"calendar_daily_refresh": False})

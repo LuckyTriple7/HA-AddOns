@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.115.3
+
+- 🤖 **KI-Modelle aktualisiert.** Claude: neu **Opus 5.5** (Nachfolger von Opus 5, etwas günstiger) und **Fable 5.1** statt Fable 5. Gemini: neu **3.8 Flash** und **3.7 Flash**; 3.5 Flash und 2.5 Flash sind aus der Auswahl (2.5 Flash gibt Google nur noch Bestandsnutzern frei, 3.5 Flash ist teurer als 3.8 Flash).
+- 🔁 Eine gespeicherte alte Auswahl läuft automatisch auf dem Nachfolger weiter (Fable 5 → Fable 5.1, 3.5/2.5 Flash → 3.8 Flash), statt auf das teure Standardmodell zu fallen. Das gilt auch für „Wiederholen“ und Folgefragen bei älteren KI-Verlaufseinträgen.
+- 💶 Kostenschätzung korrigiert: Sonnet 5 kostet 2/10 $ je 1 Mio. Tokens, nicht 3/15 $.
+
+## 0.115.2
+
+- ⚡ **Weniger Last beim Preis-Check.** Nach jedem geprüften Angebot hat TUIWatch bisher **alle** HA-Sensoren neu gemeldet, mit mehreren Datenbank-Abfragen und einem HTTP-Aufruf je Angebot. Im Poller über viele Angebote wuchs das quadratisch. Jetzt geht nach einem Check nur der Sensor dieses Angebots plus die Übersicht raus. Der volle Abgleich mit dem Aufräumen verwaister Sensoren läuft weiter, sobald sich eine Sensor-ID ändert, und beim Löschen oder Umbenennen.
+- 🔌 **TUI-Abfragen nutzen offene Verbindungen weiter.** Ein Preis-Check macht rund 15 Aufrufe hintereinander, jeder baute bisher eine neue TLS-Verbindung auf. Cookies werden weiterhin nicht gespeichert.
+- 🛡 **Tags, Flug- und Zielcodes mit Apostroph** brechen den Klick nicht mehr (und lassen sich nicht mehr als Skript ausführen).
+- 💤 **Hintergrund-Tab fragt nicht mehr nach.** Zustands-, Fortschritts- und Fußzeilen-Abfragen pausieren, solange der Tab nicht sichtbar ist.
+- ⌨️ Die Schnellsuche filtert erst nach einer kurzen Tipp-Pause statt bei jedem Tastendruck.
+- ✈️ Der MUC-Flugplan wird schneller eingelesen (Seitentext nur noch einmal ausgelesen).
+
+## 0.115.1
+
+- 🧠 **Große Speicherseiten (THP) für TUIWatch abgeschaltet.** Die Speicher-Analyse war eindeutig: Python belegte nur **134 MB**, der Container stand trotzdem bei **730 MB**, und nach dem Start wuchs er stetig. 372 MB davon lagen in großen 2-MB-Seiten. Der Aufräumer gibt alle 5 Minuten freie Stücke zurück. Liegt so ein Stück in einer 2-MB-Seite, bleibt die ganze Seite angerechnet, bis der Kernel sie irgendwann zerlegt. Genau diese Lücke stand als „nicht zugeordnet" da (236 MB, exakt der Abstand zwischen `active_anon` und `anon`). Jetzt verwaltet der Kernel den Speicher von TUIWatch in normalen 4-KB-Seiten, und was frei ist, geht wirklich zurück.
+- ⚙️ Neue Einstellung **„Große Speicherseiten (THP) abschalten"** (Standard an). Sie betrifft nur dieses Add-on, wirkt sofort für neuen Speicher und vollständig ab dem nächsten Start.
+- 🏷 Neue Zeile **Große Speicherseiten (THP)** im Speicher-Tab.
+
+## 0.115.0
+
+- ✈️ **Neu: Flugzeiten-Wächter für gebuchte Reisen.** Einmal am Tag — und gleich nach dem Import einer neuen Reise — gleicht TUIWatch die kommenden Flüge unter „Meine Reisen" mit dem Flugplan des Heimatflughafens ab (STR, FRA, MUC oder FKB; die Pläne liest das Add-on ohnehin schon). Weicht die Abflugzeit (Hinflug) bzw. Ankunftszeit (Rückflug) von der gebuchten ab, kommt eine Meldung per HA und Telegram: „Abflug STR jetzt 07:30 statt 06:45 Uhr". Steht die Flugnummer an dem Tag nicht mehr im Plan, wird das beim zweiten Abgleich in Folge gemeldet, zusammen mit den Flügen, die am selben Tag auf der Strecke gehen. Steht der Flug wieder wie gebucht im Plan, gibt es Entwarnung.
+- 🗂 In der Reise-Detailansicht zeigt eine neue Spalte **Flugplan** den Stand je Flug, der Knopf **„Flugplan prüfen"** gleicht sofort ab.
+- 🔕 Abschaltbar über **Flugzeiten-Wächter (Meine Reisen)** unter Einstellungen → Benachrichtigungen (Standard an). Quelle ist der Flughafen, nicht TUI; reicht der Plan noch nicht bis zum Reisedatum, bleibt es still.
+
+## 0.114.2
+
+- 🔕 **Keine Kalender-Meldungen mehr für pausierte und archivierte Angebote.** Ihr Preiskalender läuft weiter, aber nur noch für den Preisverlauf. Die Reise steht kurz bevor oder ist vorbei, eine „📅 Kalenderpreise geändert"-Meldung per HA oder Telegram wäre dort nur Lärm. Auch der Wochenüberblick lässt sie im Abschnitt „Kalenderpreise geändert" weg (archivierte fehlten dort schon immer). Die Trend-Ansicht im Kalender zeigt weiterhin jede Änderung.
+
+## 0.114.1
+
+- 🧪 **Testsuite wieder komplett grün.** Fünf Reiseberater-Tests prüften seit dem überarbeiteten Fragebogen (0.90.0) noch die alten Antwortwerte ohne Emoji und die alten Bezeichnungen — sie lesen den Tagesausflug-Wert jetzt aus dem Fragebogen selbst.
+- 🧹 **Die Tests schreiben nicht mehr nach `/config/trippilot`.** Beim Import legt TUIWatch dort README und `questions.default.json` an; ohne eigenes Verzeichnis landete das im echten `/config` der Testmaschine, und eine dort liegende `questions.json` hätte die mitgelieferten Fragen verdrängt.
+- Zwei ungenutzte Variablen entfernt (Suche zum Angebot, Statistik).
+
+## 0.114.0
+
+- 📅 **Preiskalender läuft bei pausierten Angeboten weiter.** Kurz vor Abreise bietet TUI den eigenen Termin meist nicht mehr an; nach drei Fehlversuchen pausiert TUIWatch das Angebot. Bisher blieb damit auch der Kalender stehen, bis die Reise nach dem Rückreisedatum archiviert wurde — eine Lücke von oft zwei Wochen im Preisverlauf. Jetzt pausiert nur die Preisprüfung der Reise selbst; der Kalender wird weiter täglich abgerufen. Er fragt ohnehin ab heute nach vorn, Termine in der Vergangenheit werden nie abgefragt. Fällt das Hotel ganz aus dem Angebot, stoppt der Kalender wie bisher nach fünf Fehlschlägen in Folge von selbst.
+
+## 0.113.32
+
+- 🔌 **Speicher-Tab: Netzwerkpuffer (`sock`) werden jetzt ausgewiesen.** Über Nacht stieg der Container auf 709 MB, TUIWatch selbst blieb aber bei 212 MB — der Zuwachs von 483 MB stand als „nicht zugeordnet" da. Laut Kernel-Doku steckt genau ein großer Posten in keiner der bisherigen Zeilen: Speicher in Netzwerkverbindungen, deren Daten nicht abfließen oder nie gelesen werden. Er hat jetzt eine eigene Zeile und zählt nicht mehr zum Rest.
+- 🌐 **Neuer Abschnitt „Netzwerkverbindungen"**: Anzahl je Zustand (ESTABLISHED, CLOSE_WAIT …), jede Verbindung mit wartenden Daten samt Gegenstelle und Sende-/Empfangs-Warteschlange (größte zuerst) und die Kernel-Summen aus `sockstat`. Damit ist die Verbindung, die den Speicher hält, mit Adresse sichtbar.
+- 📋 **Dazu `memory.stat` roh (alles ab 1 MB)** — falls es doch ein anderer Posten ist, bleibt er nicht wieder unsichtbar.
+
+## 0.113.31
+
+- 🧠 **Der Speicher geht nach einer Spitze jetzt wirklich zurück: `PYTHONMALLOC=malloc`.** Die neue Analyse war eindeutig — von 570 MB waren nur rund 125 MB belegt. Pythons eigener Allocator (pymalloc) hielt **401 MB frei, aber unerreichbar** fest: er arbeitet in 1-MB-Blöcken und gibt einen Block erst zurück, wenn er komplett leer ist. Nach einer Spitze auf 1 GB genügen verstreut überlebende Objekte, um hunderte solcher Blöcke festzuhalten, und `malloc_trim` kommt an sie nicht heran. Jetzt legt Python alles über glibc an, und der Aufräumer alle fünf Minuten gibt auch Lücken mitten im Speicher zurück. Im Nachbau derselben Lage: **750 MB → 148 MB** nach dem Aufräumen.
+- 🔎 **Speicherspitzen aus der Oberfläche stehen jetzt im Log.** Bisher wurden nur die Schritte der Prüfrunde benannt; die Spitze von fast 2 GB kam ohne solche Zeile. Wächst der Speicher während einer Anfrage um 100 MB oder mehr, steht sie im Log: `Anfrage GET /api/…: +300 MB (Speicher 200 → 500 MB)` — mit der Routen-Vorlage, nicht der URL.
+- 🏷 Neue Zeile **Python-Allocator (PYTHONMALLOC)** im Speicher-Tab; die Analyse zeigt bei pymalloc dann „aus".
+
+## 0.113.30
+
+- 🔬 **Speicher-Tab: neuer Knopf „Analysieren".** Die Messung zeigte 570 MB echten Heap, einen Höchststand von fast 2 GB, und „Speicher freigeben" brachte nur 0,2 MB. Ob die 570 MB wirklich belegt sind oder nach der Spitze nur zerstückelt festgehalten werden, ließ sich damit nicht unterscheiden — beides sieht von außen gleich aus. Die Analyse zeigt jetzt:
+  - **malloc und pymalloc getrennt: benutzt vs. frei gehalten.** Viel „frei gehalten" heißt Zerstückelung nach der Spitze; viel „benutzt" heißt, Python hält wirklich Daten.
+  - **Die größten Speicherhalter** — jede Modul-Variable ab 1 MB samt allem, was sie erreicht (Caches, Listen), mit Anzahl der Einträge.
+  - **Die häufigsten Objekttypen** nach Zahl und Größe.
+- Dauert ein paar Sekunden und läuft nur auf Knopfdruck; danach wird der eigene Zwischenspeicher gleich wieder zurückgegeben.
+
 ## 0.113.29
 
 - 🎟 **Aktionscodes haben jetzt eine Historie.** Bisher zeigte das Fenster nur, was gerade läuft — war eine Aktion vorbei, war sie spurlos weg. Neu steht unter den aktuellen Codes der **Verlauf**: je Aktionszeitraum eine Zeile mit Wert, Code und Laufzeit, z. B. „300 € · ACMYTUI30020260810 · 10.08. bis 17.08. · 8 Tg.". Laufende Aktionen stehen mit „seit 10.09. — läuft" und grüner Kante obenauf.

@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.113.29"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.115.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -221,8 +221,20 @@ _region_outlook_cache: dict = {}          # region → {result, usage, ts}
 _calendar_outlook_cache: dict = {}        # offer_id → {summary, usage, ts}
 _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
 _CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
-_AI_MODELS = ('claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
-_GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash')
+_AI_MODELS = ('claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5', 'claude-haiku-4-5',
+              'claude-fable-5-1')
+_GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash')
+# Aus der Auswahl genommene Modelle → Nachfolger. Greift für die gespeicherte
+# Einstellung und für KI-Verlaufseinträge (Wiederholen/Folgefrage), die noch den
+# alten Namen tragen — ohne die Umleitung fiele ein altes Gemini-Modell aus
+# _GEMINI_MODELS heraus und landete im Dispatcher beim Claude-Zweig.
+# gemini-2.5-flash gibt Google nur noch Bestandsnutzern frei, 3.5-flash ist teurer
+# als 3.8-flash; claude-fable-5 hat claude-fable-5-1 als Nachfolger (gleicher Preis).
+_MODEL_SUCCESSOR = {
+    'claude-fable-5': 'claude-fable-5-1',
+    'gemini-3.5-flash': 'gemini-3.8-flash',
+    'gemini-2.5-flash': 'gemini-3.8-flash',
+}
 # Perplexity-Auswahl = die Presets der Agent API, nicht mehr die Sonar-Modelle.
 # Von denen existiert dort nur noch `perplexity/sonar`; sonar-pro,
 # sonar-reasoning-pro und sonar-deep-research lehnt die API mit
@@ -379,6 +391,46 @@ def _settings_changed() -> None:
     global _merged_cache, _merged_stamp
     _merged_cache, _merged_stamp = None, None
     _apply_ipv4_pref()
+    _apply_thp_pref()
+
+
+_PR_SET_THP_DISABLE = 41
+_PR_GET_THP_DISABLE = 42
+
+
+def _prctl(*args) -> int | None:
+    try:
+        import ctypes
+        return ctypes.CDLL('libc.so.6', use_errno=True).prctl(*args, 0, 0, 0)
+    except (OSError, AttributeError):
+        return None
+
+
+def _apply_thp_pref() -> None:
+    """Einstellung `memory_thp_disable`: große 2-MB-Speicherseiten (Transparent
+    Huge Pages) für diesen Prozess abschalten.
+
+    Gemessen (Speicher-Tab, 0.115.0): Python belegte 134 MB, der Container stand bei
+    730 MB, davon 372 MB in großen Seiten. Der Aufräumer gibt alle 5 Minuten freie
+    4-KB-Stücke zurück — liegt so ein Stück in einer 2-MB-Seite, bleibt die Seite
+    trotzdem ganz angerechnet, bis der Kernel sie irgendwann zerlegt (in der Anzeige
+    die Lücke zwischen `active_anon` und `anon`, „nicht zugeordnet"). Dazu fasst
+    khugepaged im Hintergrund kleine Seiten wieder zu großen zusammen. Ergebnis: die
+    Anzeige wächst stetig, obwohl Python nicht mehr braucht.
+
+    Gilt nur für TUIWatch (und von ihm gestartete Prozesse), wirkt ohne Neustart für
+    alles, was ab jetzt angelegt wird; schon vorhandene große Seiten verschwinden
+    erst nach und nach — sauber ab dem nächsten Start."""
+    want_off = bool(load_config().get('memory_thp_disable', True))
+    if _prctl(_PR_GET_THP_DISABLE, 0) == (1 if want_off else 0):
+        return
+    if _prctl(_PR_SET_THP_DISABLE, 1 if want_off else 0) == 0:
+        log.info("Große Speicherseiten (THP) für TUIWatch %s", "abgeschaltet" if want_off else "erlaubt")
+
+
+def _thp_disabled() -> bool | None:
+    r = _prctl(_PR_GET_THP_DISABLE, 0)
+    return None if r is None or r < 0 else bool(r)
 
 
 # Ausgangslage merken: `force_ipv4` aus soll den vom System erkannten Wert
@@ -1084,6 +1136,8 @@ def init_db() -> None:
         price_calendar.init_month_db(con)
         # Störungsliste (wiederkehrende Leerläufe) — dito, Schema im issues-Modul.
         issues.init_issues_db(con)
+        # Flugzeiten-Wächter für gebuchte Reisen — dito, Schema im flight_watch-Modul.
+        flight_watch.init_db(con)
         if backfill_last_move:
             price_calendar._recalc_last_move_ts(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
@@ -1334,18 +1388,30 @@ def _entity_ids() -> dict[int, str]:
     return mapping
 
 
-def push_ha_sensors() -> None:
+_ha_last_mapping: dict[int, str] | None = None   # Entity-Zuordnung des letzten Vollabgleichs
+
+
+def push_ha_sensors(only: int | None = None) -> None:
     """Meldet je Angebot einen Sensor an HA: Wert=Preis (€) bzw. 'unknown' (kein
     Preis ermittelbar — 'unavailable' wäre in HA-Konvention für einen kaputten/
     nicht erreichbaren Sensor reserviert, hier ist der Sensor selbst ja da),
-    Attribut 'description' = Reise-Eckdaten. Räumt verwaiste Sensoren auf."""
+    Attribut 'description' = Reise-Eckdaten. Räumt verwaiste Sensoren auf.
+
+    `only=<offer_id>` (nach einem einzelnen Preis-Check): nur dieser Sensor plus
+    Übersicht, ohne Waisen-Abgleich — sonst liefe im Poller über N Angebote
+    jeder Check einmal über alle Sensoren (O(N²) Queries + HTTP-Calls). Hat sich
+    die Entity-Zuordnung seit dem letzten Vollabgleich geändert (z. B. Hotelname
+    erstmals ermittelt → neue entity_id), läuft trotzdem der volle Abgleich."""
+    global _ha_last_mapping
     if not _ha_enabled():
         return
     headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
     mapping = _entity_ids()
+    full = only is None or mapping != _ha_last_mapping
+    targets = mapping if full else {only: mapping[only]} if only in mapping else {}
     try:
         with db() as con:
-            for oid, eid in mapping.items():
+            for oid, eid in targets.items():
                 o = con.execute('SELECT * FROM offers WHERE id=?', (oid,)).fetchone()
                 last = con.execute('SELECT * FROM price_history WHERE offer_id=? '
                                    'ORDER BY ts DESC LIMIT 1', (oid,)).fetchone()
@@ -1440,6 +1506,8 @@ def push_ha_sensors() -> None:
             s_state = 'unknown'
         http.post(f'{HA_BASE}/states/{summary_eid}', headers=headers, timeout=10,
                   json={'state': s_state, 'attributes': s_attrs})
+        if not full:
+            return
 
         # Verwaiste tuiwatch-Sensoren entfernen (z. B. nach Löschen/Umbenennen)
         valid = set(mapping.values()) | {summary_eid}
@@ -1448,6 +1516,7 @@ def push_ha_sensors() -> None:
             ent = st.get('entity_id', '')
             if ent.startswith('sensor.tuiwatch_') and ent not in valid:
                 http.delete(f'{HA_BASE}/states/{ent}', headers=headers, timeout=10)
+        _ha_last_mapping = mapping
     except Exception as e:
         log.warning("HA-Sensoren aktualisieren fehlgeschlagen: %s", e)
 
@@ -2372,7 +2441,7 @@ def check_offer(offer_id: int) -> None:
     finally:
         with _checking_lock:
             _checking.discard(offer_id)
-    push_ha_sensors()
+    push_ha_sensors(only=offer_id)
 
 
 def check_all(reason: str = '') -> None:
@@ -3017,6 +3086,7 @@ def _poll_worker() -> None:
                     ('Aufraeumen', _reap_orphan_chromium, False),
                     ('Suchabos', _maybe_check_watches, True),
                     ('Preiskalender', _maybe_refresh_calendars, True),
+                    ('Flugzeiten', flight_watch.maybe_check_flights, True),
                     ('Preisbarometer', market_basket.maybe_run_baskets, False)):
                 if _needs_net and not online:
                     continue
@@ -3095,6 +3165,13 @@ def _maybe_refresh_calendars() -> None:
     Preisänderung. Max. 10 je Poll-Zyklus (je ~3 HTTP-Requests), älteste zuerst.
     Abschaltbar über calendar_daily_refresh.
 
+    **Pausierte Angebote laufen weiter.** Die Pause gilt nur der Preisprüfung der
+    konkreten Reise — typischer Fall ist die Auto-Pause wenige Tage vor Abreise,
+    wenn TUI den Termin nicht mehr anbietet. Der Kalender fragt ohnehin ab HEUTE
+    nach vorn (siehe unten), liefert also weiter Preise für andere Abreisetage;
+    ohne ihn klaffte zwischen Pause und Archivierung eine Lücke im Verlauf. Tote
+    Hotels stoppt weiterhin der eigene Fehlerzähler (`calendar_paused`).
+
     **Archivierte Angebote laufen weiter** (`calendar_archived_refresh`): Der Preis
     des abgelaufenen Angebots wird zwar zu Recht nicht mehr abgefragt, der Kalender
     beschreibt aber Hotel, Zimmer, Verpflegung und Dauer — und der Abruf schaut
@@ -3113,7 +3190,7 @@ def _maybe_refresh_calendars() -> None:
     with db() as con:
         rows = con.execute(
             'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
-            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 '
+            'WHERE COALESCE(o.archived,0)=0 '
             'AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
             'ORDER BY c.ts LIMIT 10', (now - 86400,)).fetchall()
         rest = 10 - len(rows)
@@ -3563,6 +3640,26 @@ def _auth_ok(req) -> bool:
 
 def _require_api():
     return None if _auth_ok(request) else (jsonify({'error': 'unauthorized'}), 401)
+
+
+@app.before_request
+def _rss_mark():
+    request.environ['tuiwatch.rss_mb'] = _rss_mb()
+
+
+@app.after_request
+def _rss_spike(resp):
+    """Welche Anfrage treibt den Speicher hoch? Die Pruefrunde loggt ihre Schritte
+    schon mit Namen; Spitzen von fast 2 GB kamen aber auch ohne solche Zeile vor —
+    also aus der Oberflaeche. Geloggt wird die Routen-Vorlage, nicht die URL."""
+    before = request.environ.get('tuiwatch.rss_mb')
+    if before is not None:
+        grew = _rss_mb() - before
+        if grew >= 100:
+            rule = request.url_rule.rule if request.url_rule else '?'
+            log.info("Anfrage %s %s: +%.0f MB (Speicher %.0f → %.0f MB)",
+                     request.method, rule, grew, before, before + grew)
+    return resp
 
 
 @app.after_request
@@ -4501,10 +4598,12 @@ def _cgroup_view(cg: dict, current: int | None) -> dict:
     (/dev/shm, /tmp), denn das liegt im Speicher, nicht auf der Platte.
     """
     mb = lambda v: round(v / 1048576, 1) if v else (0.0 if v == 0 else None)  # noqa: E731
-    known = sum(cg.get(k, 0) for k in ('anon', 'file', 'kernel'))
+    # `sock` (Netzwerkpuffer) und `zswap` stecken laut Kernel-Doku weder in anon,
+    # file noch kernel — ohne sie blieben 483 MB „nicht zugeordnet" (0.113.31).
+    known = sum(cg.get(k, 0) for k in ('anon', 'file', 'kernel', 'sock', 'zswap'))
     # `kernel` fehlt auf aelteren Kerneln; dann bleibt slab der beste Ersatz.
     if 'kernel' not in cg:
-        known = sum(cg.get(k, 0) for k in ('anon', 'file', 'slab'))
+        known = sum(cg.get(k, 0) for k in ('anon', 'file', 'slab', 'sock', 'zswap'))
     return {
         'current_mb': mb(current),
         'anon_mb': mb(cg.get('anon')),
@@ -4514,9 +4613,64 @@ def _cgroup_view(cg: dict, current: int | None) -> dict:
         'pagetables_mb': mb(cg.get('pagetables')),
         'kernel_stack_mb': mb(cg.get('kernel_stack')),
         'shmem_mb': mb(cg.get('shmem')),
+        'sock_mb': mb(cg.get('sock')),
+        'zswap_mb': mb(cg.get('zswap')),
         'other_mb': (round(max(0, current - known) / 1048576, 1)
                      if current and known else None),
     }
+
+
+_TCP_STATES = {'01': 'ESTABLISHED', '02': 'SYN_SENT', '03': 'SYN_RECV',
+               '04': 'FIN_WAIT1', '05': 'FIN_WAIT2', '06': 'TIME_WAIT',
+               '07': 'CLOSE', '08': 'CLOSE_WAIT', '09': 'LAST_ACK',
+               '0A': 'LISTEN', '0B': 'CLOSING'}
+
+
+def _hex_addr(s: str) -> str:
+    """"0100007F:1F90" aus /proc/net/tcp → "127.0.0.1:8080" (IPv4 und IPv6,
+    beide in Host-Byte-Reihenfolge je 32-Bit-Wort abgelegt)."""
+    ip_hex, port_hex = s.split(':')
+    raw = b''.join(bytes.fromhex(ip_hex[i:i + 8])[::-1] for i in range(0, len(ip_hex), 8))
+    ip = ipaddress.ip_address(raw)
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return f'{ip}:{int(port_hex, 16)}'
+
+
+def _socket_table() -> dict:
+    """Alle Sockets im Netz-Namensraum des Containers, groesste Warteschlange zuerst.
+
+    `sock` in memory.stat ist Speicher in Netzwerkpuffern — Daten, die gesendet
+    werden sollen, aber nicht abfliessen (tx), oder angekommen sind, aber nie
+    gelesen werden (rx). Die Warteschlangen zeigen, welche Verbindung das ist."""
+    rows, states = [], {}
+    for proto in ('tcp', 'tcp6', 'udp', 'udp6'):
+        try:
+            with open(f'/proc/self/net/{proto}', encoding='utf-8') as f:
+                next(f, None)
+                for line in f:
+                    p = line.split()
+                    if len(p) < 5:
+                        continue
+                    tx, rx = (int(x, 16) for x in p[4].split(':'))
+                    st = _TCP_STATES.get(p[3], p[3]) if proto.startswith('tcp') else 'UDP'
+                    states[st] = states.get(st, 0) + 1
+                    if tx or rx:
+                        rows.append({'proto': proto, 'state': st,
+                                     'local': _hex_addr(p[1]), 'remote': _hex_addr(p[2]),
+                                     'tx_kb': round(tx / 1024, 1),
+                                     'rx_kb': round(rx / 1024, 1)})
+        except (OSError, ValueError):
+            continue
+    rows.sort(key=lambda r: r['tx_kb'] + r['rx_kb'], reverse=True)
+    sockstat = []
+    for name in ('sockstat', 'sockstat6'):
+        try:
+            with open(f'/proc/self/net/{name}', encoding='utf-8') as f:
+                sockstat += [ln.strip() for ln in f if ln.strip()]
+        except OSError:
+            pass
+    return {'states': states, 'queued': rows[:15], 'sockstat': sockstat}
 
 
 def _rss_mb() -> float:
@@ -4597,6 +4751,11 @@ def api_memory():
                  'peak_mb': round(st.get('VmHWM', 0) / 1024, 1),
                  'threads': st.get('Threads', 0)},
         'cgroup': _cgroup_view(cg, _num('/sys/fs/cgroup/memory.current')),
+        # Alles aus memory.stat ab 1 MB, roh: damit nie wieder ein Posten
+        # unsichtbar bleibt, den die Aufteilung oben nicht kennt.
+        'cgroup_raw': {k: round(v / 1048576, 1) for k, v in sorted(cg.items())
+                       if v >= 1048576 and not k.startswith(('pg', 'thp', 'work'))},
+        'sockets': _socket_table(),
         'processes': procs,
         'chromium': {'count': len(chromium),
                      'rss_mb': round(sum(p['rss_mb'] for p in chromium), 1),
@@ -4605,6 +4764,8 @@ def api_memory():
                      'leftover_mb': round(sum(mb for _, mb in leftovers), 1)},
         'browser_fallback': bool(load_config().get('browser_fallback', True)),
         'malloc_arena_max': os.environ.get('MALLOC_ARENA_MAX') or '',
+        'pythonmalloc': os.environ.get('PYTHONMALLOC') or '',
+        'thp_disabled': _thp_disabled(),
         'trim': {'ts': _trim_state['ts'], 'freed_mb': _trim_state['freed_mb'],
                  'auto': _trim_state['auto'], 'every_s': MEMORY_TRIM_INTERVAL},
         'log_buffer': len(_log_buffer),
@@ -4621,6 +4782,155 @@ def api_memory_reap():
         return jsonify({'ok': False, 'killed': 0,
                         'error': 'Gerade laeuft ein Abruf ueber den Browser'}), 409
     return jsonify({'ok': True, 'killed': _reap_orphan_chromium()})
+
+
+def _mallinfo_mb() -> dict | None:
+    """Was der malloc der C-Bibliothek gerade belegt und was er frei, aber
+    festhaelt. `fordblks` gross = Speicher ist frei, nur zerstueckelt (malloc_trim
+    kommt nicht heran); `uordblks` gross = wirklich in Benutzung."""
+    try:
+        import ctypes
+
+        class _MI2(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_size_t) for n in (
+                'arena', 'ordblks', 'smblks', 'hblks', 'hblkhd', 'usmblks',
+                'fsmblks', 'uordblks', 'fordblks', 'keepcost')]
+        libc = ctypes.CDLL('libc.so.6')
+        libc.mallinfo2.restype = _MI2
+        mi = libc.mallinfo2()
+        mb = lambda v: round(v / 1048576, 1)  # noqa: E731
+        return {'heap_mb': mb(mi.arena), 'used_mb': mb(mi.uordblks),
+                'free_mb': mb(mi.fordblks), 'mmap_mb': mb(mi.hblkhd)}
+    except Exception:
+        return None
+
+
+def _pymalloc_mb() -> dict | None:
+    """Pythons eigener Kleinobjekt-Allocator (pymalloc) — liegt ausserhalb von
+    malloc in eigenen 1-MB-Arenen. Eine Arena geht erst ans System zurueck, wenn
+    sie ganz leer ist; ein einziges ueberlebendes Objekt haelt sie fest.
+    `sys._debugmallocstats()` schreibt nur auf den C-stderr, deshalb kurz umleiten."""
+    import tempfile
+    try:
+        with tempfile.TemporaryFile(mode='w+b') as tmp:
+            sys.stderr.flush()
+            saved = os.dup(2)
+            try:
+                os.dup2(tmp.fileno(), 2)
+                sys._debugmallocstats()
+            finally:
+                os.dup2(saved, 2)
+                os.close(saved)
+            tmp.seek(0)
+            text = tmp.read().decode('utf-8', 'replace')
+    except Exception:
+        return None
+    # Zeilen wie "# bytes in allocated blocks = 1,485,424" und
+    # "20 unused pools * 16384 bytes = 327,680"; das erste "Total" ist die
+    # Summe aller Arenen.
+    vals: dict = {}
+    for line in text.splitlines():
+        k, sep, v = line.rpartition('=')
+        if not sep:
+            continue
+        k = k.strip().lstrip('#').strip()
+        if 'unused pools' in k:
+            k = 'unused pools'
+        try:
+            vals.setdefault(k, int(v.strip().replace(',', '')))
+        except ValueError:
+            pass
+    if 'Total' not in vals:
+        return None
+    mb = lambda v: round((v or 0) / 1048576, 1)  # noqa: E731
+    per_arena = vals['Total'] / max(1, vals.get('arenas allocated current', 1))
+    return {'arenas_mb': mb(vals['Total']),
+            'peak_mb': mb(vals.get('arenas highwater mark', 0) * per_arena),
+            'used_mb': mb(vals.get('bytes in allocated blocks')),
+            'free_mb': mb((vals.get('bytes in available blocks') or 0)
+                          + (vals.get('unused pools') or 0))}
+
+
+_DEEP_SKIP = (type(os), type(_mallinfo_mb), type(print), type)
+
+
+def _deep_size(obj, seen: set, budget: list) -> int:
+    """Groesse eines Objekts samt allem, was es erreicht (ohne Module, Funktionen,
+    Klassen). `seen` gilt ueber alle Aufrufe hinweg, damit Geteiltes nur einmal
+    zaehlt; `budget` begrenzt die Zahl besuchter Objekte."""
+    total, stack = 0, [obj]
+    while stack and budget[0] > 0:
+        o = stack.pop()
+        if id(o) in seen or isinstance(o, _DEEP_SKIP):
+            continue
+        seen.add(id(o))
+        budget[0] -= 1
+        try:
+            total += sys.getsizeof(o)
+        except Exception:
+            continue
+        if isinstance(o, (str, bytes, bytearray, int, float, bool)) or o is None:
+            continue
+        stack.extend(gc.get_referents(o))
+    return total
+
+
+@app.route('/api/memory/analyze', methods=['GET'])
+def api_memory_analyze():
+    """Wer haelt den Speicher? Auf Knopfdruck, weil es ein paar Sekunden dauert.
+
+    Beantwortet zwei Fragen, zwischen denen RSS und cgroup nicht unterscheiden:
+      * belegt oder nur zerstueckelt? (malloc und pymalloc: benutzt vs. frei gehalten)
+      * wenn belegt: welche Variable in welchem Modul? (tiefe Groesse der
+        Modul-Globals, groesste zuerst) und welche Objekttypen in welcher Zahl."""
+    if (err := _require_api()):
+        return err
+    t0 = time.time()
+    gc.collect()
+    base = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+    seen: set = set()
+    budget = [3_000_000]
+    holders = []
+    for mname, mod in list(sys.modules.items()):
+        f = os.path.normcase(os.path.abspath(getattr(mod, '__file__', None) or '/'))
+        if (not f.startswith(base) or 'site-packages' in f
+                or mname.startswith('tests')):
+            continue
+        for gname, val in list(vars(mod).items()):
+            if gname.startswith('__') or isinstance(val, _DEEP_SKIP):
+                continue
+            size = _deep_size(val, seen, budget)
+            if size >= 1048576:
+                holders.append({'name': f'{mname}.{gname}',
+                                'mb': round(size / 1048576, 1),
+                                'len': len(val) if hasattr(val, '__len__') else None})
+    holders.sort(key=lambda h: h['mb'], reverse=True)
+    del seen
+    types: dict = {}
+    for o in gc.get_objects():
+        t = type(o).__name__
+        c = types.get(t)
+        if c is None:
+            types[t] = [1, sys.getsizeof(o)]
+        else:
+            c[0] += 1
+            c[1] += sys.getsizeof(o)
+    top_types = sorted(types.items(), key=lambda kv: kv[1][1], reverse=True)[:12]
+    result = {
+        'rss_mb': _rss_mb(),
+        'malloc': _mallinfo_mb(),
+        'pymalloc': _pymalloc_mb(),
+        'pythonmalloc': os.environ.get('PYTHONMALLOC') or '',
+        'holders': holders[:20],
+        'holders_truncated': budget[0] <= 0,
+        'types': [{'name': n, 'count': c, 'mb': round(s / 1048576, 1)}
+                  for n, (c, s) in top_types],
+        'gc_objects': sum(c for c, _ in types.values()),
+        'seconds': round(time.time() - t0, 1),
+    }
+    del types
+    _trim_once(auto=False)      # die Analyse selbst legt Zwischenspeicher an
+    return jsonify(result)
 
 
 @app.route('/api/logs', methods=['GET'])
@@ -4941,7 +5251,9 @@ import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
 import issues  # noqa: E402
 import maintenance  # noqa: E402
+import flight_watch  # noqa: E402
 app.register_blueprint(issues.bp)
+app.register_blueprint(flight_watch.bp)
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)

@@ -724,7 +724,7 @@ def api_search():
     search_region = data.get('region')  # Param-Modus aus der Suchmaske
     if offer_id:
         with A.db() as con:
-            o = con.execute('SELECT url, label, hotel FROM offers WHERE id=?',
+            o = con.execute('SELECT url FROM offers WHERE id=?',
                             (offer_id,)).fetchone()
         if not o:
             return jsonify({'error': 'not_found'}), 404
@@ -734,7 +734,6 @@ def api_search():
             if not region:
                 return jsonify({'error': 'no_region',
                                 'note': 'Region zum Angebot nicht ermittelbar'}), 400
-        src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         criteria = _criteria_from_url(url)
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,

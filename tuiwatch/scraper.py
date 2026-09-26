@@ -23,7 +23,10 @@ from datetime import date, datetime, timedelta
 from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
                           urlunparse)
 
+import http.cookiejar
+
 import requests
+import requests.adapters
 # playwright wird nur für den Browser-Fallback gebraucht und erst dort (lazy) importiert
 # (siehe _fetch_price_browser). So lässt sich scraper.py auch ohne installiertes
 # playwright importieren — z. B. für die Parsing-Tests.
@@ -46,16 +49,32 @@ def _count_call() -> None:
         pass
 
 
+def _make_session() -> requests.Session:
+    """Modulweite Session für die TUI-APIs: hält TCP+TLS-Verbindungen offen, statt
+    je Aufruf neu aufzubauen (fetch_price feuert ~15 Calls hintereinander).
+    Cookies werden bewusst verworfen — vorher war jeder Aufruf zustandslos, und
+    CloudFront-/Bot-Cookies sollen das Antwortverhalten nicht still ändern."""
+    s = requests.Session()
+    s.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+    adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=16)
+    s.mount('https://', adapter)
+    s.mount('http://', adapter)
+    return s
+
+
+_http = _make_session()
+
+
 def _get(*a, **kw):
     """`requests.get` mit Zähler — Ersatz für alle TUI-API-Aufrufe unten."""
     _count_call()
-    return requests.get(*a, **kw)
+    return _http.get(*a, **kw)
 
 
 def _post(*a, **kw):
     """`requests.post` mit Zähler — Ersatz für alle TUI-API-Aufrufe unten."""
     _count_call()
-    return requests.post(*a, **kw)
+    return _http.post(*a, **kw)
 
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36")

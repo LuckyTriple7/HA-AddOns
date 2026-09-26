@@ -54,7 +54,7 @@ def _collect_stats() -> dict:
             if not hist:
                 continue
             prices = [h['price'] for h in hist]
-            cur, peak, low = prices[-1], max(prices), min(prices)
+            cur, peak = prices[-1], max(prices)
             # Ersparnis ggü. Höchstpreis — nur aktive Angebote (bei archivierten
             # ist "sparen" vorbei)
             if not o.get('archived') and peak > cur:
