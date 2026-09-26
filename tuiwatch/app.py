@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.117.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.117.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3898,7 +3898,7 @@ def api_settings_save():
         log.info("Einstellungen geändert: %s%s", ', '.join(plain) or '—',
                  f' (+{n_secret} Zugangsdaten)' if n_secret else '')
     return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart,
-                    'cleared': cleared})
+                    'cleared': cleared, 'ui': _ui_flags(load_config())})
 
 
 # Schlüssel-Export ist die einzige Stelle, an der ein Geheimnis TUIWatch
@@ -4306,24 +4306,38 @@ def logout():
     return resp
 
 
+def _ui_flags(cfg: dict) -> dict:
+    """Einstellungen, die die Hauptseite beim Aufbau als `G` übernimmt. Dieselbe
+    Quelle für den Seitenaufbau und für die Antwort auf „Speichern" — so zieht
+    die Seite nach dem Speichern ohne Neuladen nach."""
+    return {
+        'iv': int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
+        # jeder konfigurierte Anbieter zählt — bis 0.117.2 fehlte Perplexity hier,
+        # mit nur einem Perplexity-Key blieben alle KI-Knöpfe ausgeblendet
+        'ai': bool(ai_routes._configured_ai_providers(cfg)),
+        'homeLoc': (cfg.get('trippilot_home_location') or '').strip(),
+        'check24': bool(cfg.get('enable_check24_compare', False)),
+        'strFlights': bool(cfg.get('enable_str_flights', False)),
+        'fraFlights': bool(cfg.get('enable_fra_flights', False)),
+        'mucFlights': bool(cfg.get('enable_muc_flights', False)),
+        'fkbFlights': bool(cfg.get('enable_fkb_flights', False)),
+        'share': bool(cfg.get('enable_public_share', False)),
+    }
+
+
 @app.route('/')
 def index():
     if not _auth_ok(request):
         return redirect(url_for('login'))
-    cfg = load_config()
+    ui = _ui_flags(load_config())
     return make_response(render_template(
         'index.html', script_root=request.script_root,
-        poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
-        ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip()
-                        or (cfg.get('gemini_api_key') or '').strip()),
-        trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
+        poll_interval=ui['iv'], ai_enabled=ui['ai'],
+        trippilot_home_location=ui['homeLoc'],
         is_ingress=_is_ingress(),
-        check24_enabled=bool(cfg.get('enable_check24_compare', False)),
-        str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
-        fra_flights_enabled=bool(cfg.get('enable_fra_flights', False)),
-        muc_flights_enabled=bool(cfg.get('enable_muc_flights', False)),
-        fkb_flights_enabled=bool(cfg.get('enable_fkb_flights', False)),
-        share_enabled=bool(cfg.get('enable_public_share', False)),
+        check24_enabled=ui['check24'], str_flights_enabled=ui['strFlights'],
+        fra_flights_enabled=ui['fraFlights'], muc_flights_enabled=ui['mucFlights'],
+        fkb_flights_enabled=ui['fkbFlights'], share_enabled=ui['share'],
         app_version=APP_VERSION))
 
 

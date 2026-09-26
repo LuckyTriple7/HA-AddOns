@@ -6416,14 +6416,36 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
               : d.restart ? 'Gespeichert — für die öffentlichen Angebots-Links das Add-on neu starten'
               : 'Gespeichert');
         await loadSettings();
-        // Anzeigen, die von gespeicherten Werten abhängen (eingetragene Proxys,
-        // Merk-Dauer der 2FA), gleich mit auffrischen — nicht erst beim Neuöffnen
+        // Anzeigen, die von gespeicherten Werten abhängen, gleich mit auffrischen —
+        // nicht erst beim Neuöffnen des Dialogs bzw. Neuladen der Seite
         loadConnInfo();
         loadTwofaState();
+        loadKeyState();          // erstes Geheimfeld legt den Schlüssel an
+        if((d.changed || []).some(k => k === 'ha_url' || k === 'ha_token')){
+          const hs = $('#set-hatest-state'); if(hs) hs.textContent = '';   // altes Testergebnis gilt nicht mehr
+        }
+        if(d.ui) applyUiFlags(d.ui);
       } catch(e){ toast('Speichern fehlgeschlagen'); }
       finally { btn.disabled = false; }
     }
 
+
+    // Seitenwerte nach dem Speichern übernehmen (dieselben wie beim Seitenaufbau,
+    // siehe _ui_flags in app.py): Module/KI ein- und ausblenden, Liste neu zeichnen.
+    function applyUiFlags(ui){
+      const aiWasOff = !G.ai;
+      Object.assign(G, ui);
+      document.body.classList.toggle('ai-disabled', !G.ai);
+      document.body.classList.toggle('check24-disabled', !G.check24);
+      document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights && !G.fkbFlights);
+      document.body.classList.toggle('share-disabled', !G.share);
+      if(G.ai){
+        if(aiWasOff) loadAiUsageFooter();
+        _aiActiveProvider = null; _aiProviderLoadPromise = null;   // Anbieter evtl. neu
+        loadAiProviderFooter();
+      }
+      renderAll(curOffers || []);   // Prüfintervall-Anzeige, Check24-Klick am Preis
+    }
 
     // ── Diese Verbindung (Hilfe für „Eigene Reverse-Proxys“) ──────────────────
     let CONN_SUGGESTION = '';

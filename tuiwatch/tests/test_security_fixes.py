@@ -172,3 +172,16 @@ def test_client_ip_x_real_ip_and_cloudflare(m, monkeypatch):
 
 def test_waitress_keeps_proxy_headers(m):
     assert m._WAITRESS_PROXY_KW == {"clear_untrusted_proxy_headers": False}
+
+
+# ── Seitenwerte nach dem Speichern (0.117.3) ──────────────────────────────────
+
+def test_ui_flags_count_perplexity_as_ai(m):
+    assert m._ui_flags({"perplexity_api_key": "p"})["ai"] is True
+    assert m._ui_flags({})["ai"] is False
+
+
+def test_settings_save_returns_ui_flags(m):
+    d = m.app.test_client().post("/api/settings", headers=ING, json={"values": {
+        "enable_check24_compare": True}}).get_json()
+    assert d["ui"]["check24"] is True

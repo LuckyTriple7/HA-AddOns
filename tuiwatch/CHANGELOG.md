@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.117.3
+
+- 🔄 **Einstellungen wirken sofort, ohne Neuladen der Seite:** KI an/aus, Zusatzmodule (Check24, Flugpläne, öffentliche Links), Prüfintervall und Heimatort. Bisher las die Seite diese Werte nur beim Laden.
+- 🔄 Im Einstellungsdialog aktualisieren sich nach dem Speichern auch die Schlüssel-Anzeige (Backup), und ein altes HA-Testergebnis verschwindet, sobald sich Adresse oder Token ändern.
+- 🐛 **Nur Perplexity eingerichtet → KI-Knöpfe fehlten.** Die Oberfläche zählte nur Claude- und Gemini-Keys als „KI vorhanden“.
+
 ## 0.117.2
 
 - 🐛 **„Diese Verbindung“ und der 2FA-Status aktualisieren sich jetzt direkt nach dem Speichern**, nicht erst nach Schließen und erneutem Öffnen der Einstellungen.
