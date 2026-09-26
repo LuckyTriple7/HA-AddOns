@@ -1,5 +1,11 @@
 # Changelog — MariaDB 2
 
+## [1.0.4] - 2026-09-26
+- `tmp_table_size` und `max_heap_table_size` auf 64M (weniger Temp-Tabellen auf Platte), `innodb_log_file_size` auf 256M. Behebt die Nextcloud-35-Warnungen „On-disk temp tables“ und „InnoDB log file size“. Das Redo-Log wird beim ersten Start automatisch neu angelegt.
+
+## [1.0.3] - 2026-09-26
+- Neue Option `slow_query_log` (Standard an): `slow_query_log=ON`, `long_query_time=2`, Log nach `/data/slow-query.log`. Behebt die Nextcloud-35-Setup-Hinweise zu slow_query_log und long_query_time.
+
 ## [1.0.2] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

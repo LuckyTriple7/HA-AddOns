@@ -11,6 +11,9 @@ configuration:
   disable_foreign_key_checks:
     name: Disable Foreign Key Checks
     description: Disables foreign key checks on startup (useful for imports). Default false.
+  slow_query_log:
+    name: Slow query log
+    description: Logs queries taking longer than 2 seconds to /data/slow-query.log (recommended by Nextcloud 35). Default true.
 
 network:
   3306/tcp: MariaDB 2 (accessible on host port 3307)
