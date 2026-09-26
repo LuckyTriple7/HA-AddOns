@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.117.4
+
+- 🔒 Log beim Speichern der Einstellungen: geänderte Zugangsdaten erscheinen nur noch als fester Satz „Zugangsdaten geändert“, ohne Anzahl (zweiter CodeQL-Hinweis).
+
 ## 0.117.3
 
 - 🔄 **Einstellungen wirken sofort, ohne Neuladen der Seite:** KI an/aus, Zusatzmodule (Check24, Flugpläne, öffentliche Links), Prüfintervall und Heimatort. Bisher las die Seite diese Werte nur beim Laden.
