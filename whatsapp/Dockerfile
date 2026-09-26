@@ -27,7 +27,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-fund --no-audit
 
 COPY patches/ ./patches/
-RUN node patches/wwebjs-media-id.js
+RUN for f in patches/*.js; do node "$f" || exit 1; done
 
 COPY server.js .
 COPY run.sh /run.sh

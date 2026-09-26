@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.49] - 2026-09-26
+
+- **Haenger bei "Verbinde mit WhatsApp…" behoben.** Die Diagnose aus 1.8.48 zeigte die Ursache: `Protocol error (Runtime.addBinding): Target closed`. Nach dem Login meldet whatsapp-web.js rund 20 Rueckruf-Funktionen an, Puppeteer traegt jede in alle Frames der Seite ein. Schliesst WhatsApp Web waehrenddessen einen Neben-Frame, bricht das ab und `ready` kommt nie — deshalb hing der Start mal und mal nicht, unabhaengig vom Medien-Patch
+- Der Docker-Build patcht puppeteer-core so, dass dieser Fehler bei Neben-Frames ignoriert wird, wie Puppeteer es beim Frame-Aufbau selbst schon tut
+- Der Build fuehrt jetzt alle Skripte unter `patches/` aus
+
 ## [1.8.48] - 2026-09-26
 
 - **Diagnose fuer den Haenger bei `authenticated`.** Nach dem Login laedt whatsapp-web.js seinen Hilfscode in die Seite und meldet erst dann `ready`; scheitert das, verschluckt die Bibliothek den Fehler und das Add-on bleibt ohne Meldung bei "Verbinde mit WhatsApp…" stehen
