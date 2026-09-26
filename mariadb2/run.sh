@@ -8,12 +8,14 @@ SOCKET=/run/mysqld/mysqld.sock
 DBS=$(jq -r '.databases // [] | join(", ")' /data/options.json)
 USERS=$(jq -r '.logins // [] | map(.username) | join(", ")' /data/options.json)
 DISABLE_FK=$(jq -r '.disable_foreign_key_checks // false' /data/options.json)
+SLOW_LOG=$(jq -r 'if .slow_query_log == false then "false" else "true" end' /data/options.json)
 
 # Log configuration
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Configuration:"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] databases                   : ${DBS:-none}"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] logins                      : ${USERS:-none}"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] disable_foreign_key_checks  : $DISABLE_FK"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] slow_query_log              : $SLOW_LOG"
 
 mkdir -p /run/mysqld "$DATA_DIR"
 
@@ -85,6 +87,10 @@ EXTRA_ARGS=()
 if [ "$DISABLE_FK" = "true" ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Foreign key checks DISABLED (migration mode)"
     EXTRA_ARGS+=("--init-connect=SET foreign_key_checks=0")
+fi
+if [ "$SLOW_LOG" = "true" ]; then
+    # Nextcloud 35 setup check: slow_query_log=ON, long_query_time<=2
+    EXTRA_ARGS+=("--slow-query-log=ON" "--long-query-time=2" "--slow-query-log-file=/data/slow-query.log")
 fi
 
 # Start MariaDB in foreground on port 3306
