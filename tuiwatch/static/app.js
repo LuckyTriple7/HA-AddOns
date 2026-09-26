@@ -6416,6 +6416,10 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
               : d.restart ? 'Gespeichert — für die öffentlichen Angebots-Links das Add-on neu starten'
               : 'Gespeichert');
         await loadSettings();
+        // Anzeigen, die von gespeicherten Werten abhängen (eingetragene Proxys,
+        // Merk-Dauer der 2FA), gleich mit auffrischen — nicht erst beim Neuöffnen
+        loadConnInfo();
+        loadTwofaState();
       } catch(e){ toast('Speichern fehlgeschlagen'); }
       finally { btn.disabled = false; }
     }

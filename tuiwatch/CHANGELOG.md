@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.117.2
+
+- 🐛 **„Diese Verbindung“ und der 2FA-Status aktualisieren sich jetzt direkt nach dem Speichern**, nicht erst nach Schließen und erneutem Öffnen der Einstellungen.
+- 🔒 Das Log nennt beim Speichern der Einstellungen nur noch die Namen normaler Felder; geänderte Zugangsdaten erscheinen nur als Anzahl (CodeQL-Hinweis).
+
 ## 0.117.1
 
 Sicherheitsprüfung abgearbeitet:

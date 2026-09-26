@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.117.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.117.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3889,8 +3889,14 @@ def api_settings_save():
     cleared = [s for _u, s in settings_store.BOUND_SECRETS
                if s in changed and not values.get(s)]
     if changed:
-        # Nur die Feldnamen ins Log, niemals die Werte
-        log.info("Einstellungen geändert: %s", ', '.join(sorted(changed)))
+        # Nur Namen normaler Felder ins Log, aus der festen Feldliste statt aus
+        # der Anfrage abgeleitet; Zugangsdaten nur als Anzahl (CodeQL: clear-text
+        # logging of sensitive information)
+        plain = [k for k in settings_store.FIELDS
+                 if k in changed and k not in settings_store.SECRET_KEYS]
+        n_secret = sum(1 for k in settings_store.SECRET_KEYS if k in changed)
+        log.info("Einstellungen geändert: %s%s", ', '.join(plain) or '—',
+                 f' (+{n_secret} Zugangsdaten)' if n_secret else '')
     return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart,
                     'cleared': cleared})
 
