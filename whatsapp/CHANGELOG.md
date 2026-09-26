@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.47] - 2026-09-26
+
+- **Medien-Patch aus 1.8.45 wieder drin.** Der Haenger nach dem Update (Status blieb auf `authenticated`, Oberflaeche mit 503) kam nicht vom Patch — ein erneuter Neustart des Add-ons hat ihn behoben. Bilder und Dateien senden sollte damit wieder gehen
+
 ## [1.8.46] - 2026-09-26
 
 - 1.8.45 zurueckgenommen: nach dem Update lud die Oberflaeche nicht mehr (`/api/me` und `/api/selfcheck` mit 503). Stand wieder wie 1.8.44, Bilder senden bleibt vorerst kaputt
