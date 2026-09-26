@@ -105,5 +105,8 @@ exec mariadbd --no-defaults --user=root \
     --collation-server=utf8mb4_unicode_ci \
     --innodb-default-row-format=dynamic \
     --transaction-isolation=READ-COMMITTED \
+    --tmp-table-size=64M \
+    --max-heap-table-size=64M \
+    --innodb-log-file-size=256M \
     "${EXTRA_ARGS[@]}" \
     --log-warnings=0
