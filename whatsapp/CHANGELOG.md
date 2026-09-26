@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.45] - 2026-09-26
+
+- **Bilder und Dateien senden geht wieder.** Seit den WhatsApp-Web-Builds vom 17.09. brach jeder Medienversand mit "Data passed to getter must include an id property (it's how we memoize) but got undefined" ab: das Medienobjekt bringt ein internes `__x_id` mit, das beim Zusammenbauen der Nachricht deren echte ID ueberschrieb. Der Docker-Build patcht whatsapp-web.js jetzt nach `npm ci` (Fix aus Upstream-PR #201923); betrifft auch Status-Bilder
+
 ## [1.8.44] - 2026-09-24
 
 - Abhaengigkeiten: **express 4 → 5.2.1**, **express-rate-limit 7 → 8.7.0**, **archiver 7 → 8.0.0**, multer 2.3.0 → 2.4.0
