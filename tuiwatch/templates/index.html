@@ -1892,6 +1892,41 @@
           <button class="btn sec" type="button" onclick="testHaConnection(this)">Verbindung testen</button>
         </div>
       </div>
+      <div class="set-group" id="set-2fa-group" data-cat="security" hidden>
+        <h3>🔐 Zwei-Faktor-Anmeldung</h3>
+        <div class="set-row">
+          <div class="hint">Fragt beim direkten Login über den Port nach Passwort zusätzlich einen Code aus
+            einer Authenticator-App (Google Authenticator, Aegis, 2FAS, 1Password …). Über Home Assistant
+            angemeldet bleibt alles wie bisher. Notzugang, falls Handy und Backup-Codes weg sind: in Home
+            Assistant beim Add-on unter Konfiguration „Zwei-Faktor-Abfrage überspringen" einschalten
+            (ohne HA: <code>"twofa_reset": true</code> in <code>options.json</code>).</div>
+          <div class="hint" id="set-2fa-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row" id="set-2fa-off" hidden>
+          <button class="btn sec" type="button" onclick="twofaSetup(this)">Einrichten</button>
+          <div id="set-2fa-setup" hidden style="margin-top:10px">
+            <div class="hint">1. QR-Code mit der App scannen (oder den Schlüssel von Hand eingeben):</div>
+            <div id="set-2fa-qr" style="background:#fff;display:inline-block;padding:6px;border-radius:8px;margin:8px 0;max-width:220px"></div>
+            <div class="hint">Schlüssel: <code id="set-2fa-secret" style="user-select:all;word-break:break-all"></code></div>
+            <div class="hint" style="margin-top:8px">2. Den angezeigten 6-stelligen Code eingeben:</div>
+            <input type="text" id="set-2fa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="max-width:140px">
+            <button class="btn" type="button" onclick="twofaEnable(this)">Aktivieren</button>
+          </div>
+          <div id="set-2fa-backup" hidden style="margin-top:10px">
+            <div class="hint"><b>Backup-Codes — jetzt sichern, sie werden nur dieses eine Mal angezeigt.</b>
+              Jeder Code funktioniert einmal anstelle des App-Codes.</div>
+            <pre id="set-2fa-backup-list" style="user-select:all;margin-top:6px"></pre>
+          </div>
+        </div>
+        <div class="set-row" id="set-2fa-on" hidden>
+          <button class="btn sec" type="button" onclick="twofaForget(this)">Gemerkte Geräte vergessen</button>
+          <div style="margin-top:10px">
+            <div class="hint">Abschalten — aktuellen Code oder einen Backup-Code eingeben:</div>
+            <input type="text" id="set-2fa-off-code" autocomplete="one-time-code" style="max-width:180px">
+            <button class="btn danger" type="button" onclick="twofaDisable(this)">Abschalten</button>
+          </div>
+        </div>
+      </div>
       <div class="set-group" id="set-key-group" data-cat="backup" hidden>
         <h3>🔑 Schlüssel &amp; Komplettsicherung</h3>
         <div class="set-row">

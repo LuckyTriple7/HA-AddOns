@@ -126,7 +126,7 @@ def test_ha_test_endpoint(tmp_path, monkeypatch):
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     m = _load(tmp_path, monkeypatch)
     monkeypatch.setattr(m, "SUPERVISOR_TOKEN", "")
-    assert _ha_test(m)["error"] == "not_configured"
+    assert _ha_test(m)["error"] == "no_url"
 
     monkeypatch.setattr(m, "load_config", lambda: dict(_EXT))
     seen = []
@@ -135,9 +135,18 @@ def test_ha_test_endpoint(tmp_path, monkeypatch):
         seen.append(url)
         return _R(200, {"version": "2026.9.2", "location_name": "Zuhause"})
     monkeypatch.setattr(m.http, "get", ok)
+    posts = []
+    monkeypatch.setattr(m.http, "post",
+                        lambda url, **kw: posts.append((url, kw["json"])) or _R(200, []))
     d = _ha_test(m)
-    assert d == {"ok": True, "mode": "external", "version": "2026.9.2", "location": "Zuhause"}
+    assert d == {"ok": True, "mode": "external", "notified": True,
+                 "version": "2026.9.2", "location": "Zuhause"}
     assert seen == ["http://192.168.178.10:8123/api/config"]
+    # sichtbare Probe in HA, immer unter derselben ID
+    assert posts[0][0] == "http://192.168.178.10:8123/api/services/persistent_notification/create"
+    assert posts[0][1]["notification_id"] == "tuiwatch_verbindungstest"
+    monkeypatch.setattr(m.http, "post", lambda url, **kw: _R(403))
+    assert _ha_test(m)["notified"] is False
 
     monkeypatch.setattr(m.http, "get", lambda url, **kw: _R(401))
     assert _ha_test(m)["error"] == "auth"
@@ -149,3 +158,14 @@ def test_ha_test_endpoint(tmp_path, monkeypatch):
     monkeypatch.setattr(m.http, "get", boom)
     d = _ha_test(m)
     assert d["error"] == "unreachable" and "geheim" not in str(d)
+
+
+def test_ha_test_names_missing_part(tmp_path, monkeypatch):
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    m = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(m, "SUPERVISOR_TOKEN", "")
+    for cfg, code in (({"ha_url": "ha.example.de", "ha_token": "t"}, "bad_url"),
+                      ({"ha_url": "https://ha.example.de"}, "no_token"),
+                      ({"ha_token": "t"}, "no_url")):
+        monkeypatch.setattr(m, "load_config", lambda c=cfg: dict(c))
+        assert _ha_test(m)["error"] == code

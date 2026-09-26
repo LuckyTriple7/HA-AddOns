@@ -37,6 +37,7 @@ import urllib3.util.connection
 
 import atomic_io
 import settings as settings_store
+import twofa
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
@@ -101,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.116.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.117.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -109,6 +110,7 @@ _DATA = os.environ.get('TUIWATCH_DATA', '/data')
 CONFIG_PATH = _DATA + '/options.json'   # Home Assistant: Login-Notzugang
 # Alles Weitere pflegt der Nutzer selbst (settings.json + settings.key)
 settings_store.init(_DATA)
+twofa.init(_DATA)
 SETTINGS_PATH = settings_store.path()
 SESSIONS_PATH = _DATA + '/sessions.json'
 DB_PATH = _DATA + '/tuiwatch.db'
@@ -3766,7 +3768,19 @@ def api_settings_ha_test():
     mode = 'supervisor' if SUPERVISOR_TOKEN else 'external'
     conn = _ha_api()
     if not conn:
-        return jsonify({'ok': False, 'mode': mode, 'error': 'not_configured'})
+        # Genau sagen, was fehlt — eine Adresse ohne http(s):// sah vorher aus
+        # wie „nichts eingetragen".
+        cfg = load_config()
+        raw_url = (cfg.get('ha_url') or '').strip()
+        if not raw_url:
+            error = 'no_url'
+        elif not _ha_external_base(raw_url):
+            error = 'bad_url'
+        elif not (cfg.get('ha_token') or '').strip():
+            error = 'no_token'
+        else:
+            error = 'not_configured'
+        return jsonify({'ok': False, 'mode': mode, 'error': error})
     base, headers = conn
     try:
         r = http.get(f'{base}/config', headers=headers, timeout=10)
@@ -3786,7 +3800,23 @@ def api_settings_ha_test():
                         'status': 200})
     if not isinstance(info, dict):
         info = {}
-    return jsonify({'ok': True, 'mode': mode,
+    # Zusätzlich eine sichtbare Probe in HA: bestätigt auch, dass das Token
+    # Dienste aufrufen darf (GET /config allein prüft nur das Lesen). Immer an
+    # dieselbe ID, damit wiederholtes Testen nicht stapelt.
+    notified = True
+    try:
+        n = http.post(f'{base}/services/persistent_notification/create', headers=headers,
+                      timeout=10, json={
+                          'title': 'TUIWatch',
+                          'message': 'Verbindungstest erfolgreich — TUIWatch kann '
+                                     'Home Assistant erreichen und Benachrichtigungen senden.',
+                          'notification_id': 'tuiwatch_verbindungstest'})
+        notified = n.status_code < 400
+    except http.exceptions.RequestException as e:
+        log.warning("HA-Verbindungstest: Benachrichtigung fehlgeschlagen (%s)",
+                    type(e).__name__)
+        notified = False
+    return jsonify({'ok': True, 'mode': mode, 'notified': notified,
                     'version': str(info.get('version') or '')[:40],
                     'location': str(info.get('location_name') or '')[:100]})
 
@@ -4031,23 +4061,144 @@ def login():
     if _is_ingress() or is_valid_session(request.cookies.get('session')):
         return redirect(url_for('index'))
     error = None
+    step = 'password'
+    remember_days = _twofa_remember_days(cfg)
+
+    def _grant(ip):
+        clear_failed_attempts(ip)
+        hours = int(cfg.get('session_hours', 24))
+        token = create_session(hours)
+        resp = make_response(redirect(url_for('index')))
+        resp.set_cookie('session', token, httponly=True, samesite='Lax',
+                        max_age=hours * 3600)
+        resp.delete_cookie(twofa.PENDING_COOKIE)
+        return resp
+
     if request.method == 'POST':
         ip = get_client_ip(request)
         if is_rate_limited(ip):
             error = 'Zu viele Fehlversuche. Bitte 15 Minuten warten.'
-        elif (request.form.get('username', '') == cfg.get('username', 'admin') and
-              request.form.get('password', '') == cfg.get('password', 'secret')):
-            clear_failed_attempts(ip)
-            token = create_session(int(cfg.get('session_hours', 24)))
-            resp = make_response(redirect(url_for('index')))
-            resp.set_cookie('session', token, httponly=True, samesite='Lax',
-                            max_age=int(cfg.get('session_hours', 24)) * 3600)
-            return resp
+        elif request.form.get('step') == 'code':
+            # Schritt 2: nur mit gültiger Vormerkung aus Schritt 1 (Passwort)
+            pre = request.cookies.get(twofa.PENDING_COOKIE)
+            if not twofa.pending_valid(pre):
+                return redirect(url_for('login'))
+            if twofa.check_code(request.form.get('code', '')):
+                twofa.pending_drop(pre)
+                resp = _grant(ip)
+                if remember_days and request.form.get('remember_device'):
+                    resp.set_cookie(twofa.TRUST_COOKIE, twofa.trust_device(),
+                                    httponly=True, samesite='Lax',
+                                    max_age=remember_days * 86400)
+                log.info("Anmeldung mit Zwei-Faktor-Code")
+                return resp
+            record_failed_attempt(ip)
+            log.warning("Zwei-Faktor-Code falsch (IP %s)", log_safe(ip))
+            error = 'Ungültiger Code.'
+            step = 'code'
+        elif (secrets.compare_digest(request.form.get('username', ''),
+                                     str(cfg.get('username', 'admin')))
+              and secrets.compare_digest(request.form.get('password', ''),
+                                         str(cfg.get('password', 'secret')))):
+            if _twofa_required() and not twofa.device_trusted(
+                    request.cookies.get(twofa.TRUST_COOKIE), remember_days):
+                resp = make_response(render_template(
+                    'login.html', error=None, step='code', remember_days=remember_days,
+                    script_root=request.script_root))
+                resp.set_cookie(twofa.PENDING_COOKIE, twofa.pending_new(), httponly=True,
+                                samesite='Lax', max_age=twofa.PENDING_TTL)
+                return resp
+            return _grant(ip)
         else:
             record_failed_attempt(ip)
             error = 'Ungültige Anmeldedaten.'
-    return make_response(render_template('login.html', error=error,
+    return make_response(render_template('login.html', error=error, step=step,
+                                         remember_days=remember_days,
                                          script_root=request.script_root))
+
+
+def _twofa_bypassed() -> bool:
+    """Notzugang: Add-on-Option `twofa_reset` (HA → Add-on → Konfiguration)
+    überspringt die Zwei-Faktor-Abfrage, solange sie an ist — für den Fall, dass
+    Handy und Backup-Codes weg sind. Sie löscht bewusst nichts: nach dem Login
+    lässt sich die 2FA in den Einstellungen abschalten oder neu einrichten."""
+    return bool(load_options().get('twofa_reset'))
+
+
+def _twofa_required() -> bool:
+    if not twofa.enabled():
+        return False
+    if _twofa_bypassed():
+        log.warning("Zwei-Faktor-Abfrage übersprungen: Add-on-Option twofa_reset ist an "
+                    "— nach dem Login wieder ausschalten")
+        return False
+    return True
+
+
+def _twofa_remember_days(cfg: dict | None = None) -> int:
+    try:
+        days = int((cfg or load_config()).get('twofa_remember_days', 30))
+    except (TypeError, ValueError):
+        days = 30
+    return max(0, min(days, twofa.MAX_TRUST_DAYS))
+
+
+# ── Zwei-Faktor-Anmeldung einrichten (Einstellungen → Anmeldung) ──────────────
+# Die Routen hängen an der normalen API-Anmeldung, also auch über Ingress
+# erreichbar — dort hat HA angemeldet. Abschalten verlangt einen gültigen Code,
+# damit eine offen gelassene Sitzung allein die 2FA nicht entfernen kann.
+
+@app.route('/api/2fa', methods=['GET'])
+def api_2fa_status():
+    if (err := _require_api()):
+        return err
+    return jsonify(dict(twofa.status(_twofa_remember_days()), ingress=_is_ingress(),
+                        remember_days=_twofa_remember_days(), bypassed=_twofa_bypassed()))
+
+
+@app.route('/api/2fa/setup', methods=['POST'])
+def api_2fa_setup():
+    if (err := _require_api()):
+        return err
+    if twofa.enabled():
+        return jsonify({'error': 'already_enabled'}), 400
+    secret = twofa.start_setup()
+    account = str(load_config().get('username', 'admin'))[:64]
+    uri = twofa.otpauth_uri(secret, account)
+    return jsonify({'secret': secret, 'uri': uri, 'qr': twofa.qr_svg(uri)})
+
+
+@app.route('/api/2fa/enable', methods=['POST'])
+def api_2fa_enable():
+    if (err := _require_api()):
+        return err
+    codes = twofa.confirm_setup((request.get_json(silent=True) or {}).get('code', ''))
+    if codes is None:
+        return jsonify({'error': 'bad_code'}), 400
+    log.info("Zwei-Faktor-Anmeldung aktiviert")
+    return jsonify({'ok': True, 'backup_codes': codes})
+
+
+@app.route('/api/2fa/disable', methods=['POST'])
+def api_2fa_disable():
+    if (err := _require_api()):
+        return err
+    if not twofa.enabled():
+        return jsonify({'ok': True})
+    if not twofa.check_code((request.get_json(silent=True) or {}).get('code', '')):
+        return jsonify({'error': 'bad_code'}), 400
+    twofa.disable()
+    log.info("Zwei-Faktor-Anmeldung deaktiviert")
+    return jsonify({'ok': True})
+
+
+@app.route('/api/2fa/forget-devices', methods=['POST'])
+def api_2fa_forget_devices():
+    if (err := _require_api()):
+        return err
+    twofa.forget_devices()
+    log.info("Gemerkte Geräte der Zwei-Faktor-Anmeldung vergessen")
+    return jsonify({'ok': True})
 
 
 @app.route('/logout')

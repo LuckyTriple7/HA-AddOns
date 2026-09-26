@@ -56,6 +56,7 @@ GROUPS: tuple = (
     ('modules',   '🧩 Zusatzmodule'),
     ('share',     '🌍 Öffentliche Angebots-Links'),
     ('backup',    '💾 Backup'),
+    ('security',  '🔐 Anmeldung'),
     ('misc',      '⚙️ Sonstiges'),
 )
 
@@ -98,7 +99,7 @@ FIELDS: dict = {
     # ── notify ──
     "ha_url": ("str", "", 300, "notify",
         "Home-Assistant-Adresse",
-        "Nur nötig, wenn TUIWatch nicht als Home-Assistant-Add-on läuft (eigener Docker-Host). Adresse von Home Assistant samt Port, z. B. http://192.168.178.10:8123 oder https://ha.example.de. Zusammen mit dem Token unten werden Sensoren und HA-Benachrichtigungen darüber gemeldet. Nach dem Speichern mit „Verbindung testen\" prüfen."),
+        "Nur nötig, wenn TUIWatch nicht als Home-Assistant-Add-on läuft (eigener Docker-Host). Adresse von Home Assistant mit http:// bzw. https:// davor und ggf. Port, z. B. http://192.168.178.10:8123 oder https://ha.example.de. Zusammen mit dem Token unten werden Sensoren und HA-Benachrichtigungen darüber gemeldet. Nach dem Speichern mit „Verbindung testen\" prüfen."),
     "ha_token": ("str", "", 400, "notify",
         "Home-Assistant-Token",
         "Langlebiges Zugriffstoken aus Home Assistant: Profil → Sicherheit → „Langlebige Zugriffstoken\" → Token erstellen. Wird verschlüsselt gespeichert. Das Token hat die Rechte des HA-Benutzers, der es erstellt hat — am besten einen eigenen Benutzer dafür anlegen."),
@@ -276,6 +277,10 @@ FIELDS: dict = {
     "history_compact_months": ("int", 0, (0, 120), "backup",
         "Alten Verlauf verdichten (Monate, 0 = aus)",
         "Dünnt Verlaufsdaten aus, die älter sind als die angegebene Zahl Monate — täglich im Hintergrund. Behalten werden je Angebot und Tag die erste, letzte, günstigste und teuerste Preismessung; beim Preiskalender je Reisetag und Kalenderwoche der letzte beobachtete Preis, dazu immer die älteste und die jüngste Beobachtung. Preisverlauf, niedrigster/höchster Preis, Kalender-Trend und Vorjahresvergleich bleiben damit erhalten, nur die zeitliche Auflösung alter Daten sinkt; lediglich Tagesdurchschnitte können sich minimal verschieben. Standard 0: aus — Verlaufsdaten sind der eigentliche Wert des Add-ons, und eine 25-MB-Datenbank ist für SQLite völlig unkritisch. Sinnvoll erst bei sehr vielen Angeboten über Jahre. Minimum 3 Monate. Der frei gewordene Platz wird erst durch „Speicher freigeben\" im Datenbank-Dialog an das Dateisystem zurückgegeben."),
+    # ── security ──
+    "twofa_remember_days": ("int", 30, (0, 90), "security",
+        "Gerät merken (Tage)",
+        "Wie lange ein Gerät nach der Zwei-Faktor-Anmeldung gemerkt werden darf, wenn beim Code „Dieses Gerät merken\" angehakt ist — so lange fragt TUIWatch dort nur Benutzername und Passwort ab. 0 = nie merken, jedes Mal Code. Ein Verkürzen gilt sofort auch für schon gemerkte Geräte. Standard 30. Wirkt nur beim direkten Login über den Port, nicht über Home Assistant."),
     # ── misc ──
     "trippilot_home_location": ("str", "", 400, "misc",
         "TripPilot Heimatort (PLZ/Ort)",

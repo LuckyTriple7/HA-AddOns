@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.117.0
+
+- 🔐 **Zwei-Faktor-Anmeldung** für den direkten Login über den Port: Einstellungen → Anmeldung → Einrichten, QR-Code mit einer Authenticator-App scannen, Code bestätigen. Dazu 10 einmal nutzbare Backup-Codes. Über Home Assistant ändert sich nichts.
+- 📱 **Gerät merken:** Beim Code-Schritt lässt sich das Gerät merken, dann reichen dort Benutzername und Passwort. Die Dauer ist einstellbar (Standard 30 Tage, 0 = nie), „Gemerkte Geräte vergessen“ setzt alle zurück.
+- 🆘 **Notzugang** über die neue Add-on-Option `twofa_reset`: überspringt die Code-Abfrage, solange sie an ist, und löscht nichts.
+- 🔒 Benutzername und Passwort werden beim Login jetzt in konstanter Zeit verglichen.
+- 🐛 **Knöpfe im Einstellungsdialog verschwanden nach dem Speichern** („Verbindung testen“, KI-Kosten zurücksetzen, Schlüssel sichern) und kamen erst nach Neuladen der Seite wieder. Behoben.
+- 🏠 **HA-Verbindungstest nennt genau, was fehlt:** Adresse ohne `http://`/`https://` davor, fehlendes Token oder fehlende Adresse. Vorher hieß alles „Keine Verbindung eingerichtet“.
+- 🔔 **„Verbindung testen“ schickt jetzt eine persistente Benachrichtigung an HA.** So ist sofort sichtbar, dass auch Benachrichtigungen ankommen. Wiederholte Tests ersetzen die Meldung, statt sie zu stapeln.
+
 ## 0.116.0
 
 - 🏠 **Home Assistant auch ohne HA OS anbinden.** Läuft TUIWatch als eigener Docker-Container, lassen sich unter Einstellungen → Benachrichtigungen jetzt **Home-Assistant-Adresse** und **Token** (langlebiges Zugriffstoken) eintragen. Sensoren, HA-Benachrichtigungen und zusätzliche notify-Dienste funktionieren dann wie im Add-on. Als Add-on ändert sich nichts, die beiden Felder sind dort ausgeblendet.

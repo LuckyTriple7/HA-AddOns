@@ -23,7 +23,29 @@ Hier stehen nur noch die Login-Daten. Sie bleiben bewusst in Home Assistant: Dam
 username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
+twofa_reset: false       # Notzugang: Zwei-Faktor-Abfrage überspringen
 ```
+
+### Zwei-Faktor-Anmeldung (seit 0.117.0)
+
+Unter Zahnrad → Einstellungen → **🔐 Anmeldung** → **Einrichten**: QR-Code mit
+einer Authenticator-App scannen (Google Authenticator, Aegis, 2FAS, 1Password …),
+angezeigten Code eingeben, **Aktivieren**. Danach erscheinen einmalig
+**10 Backup-Codes** — sichern, jeder funktioniert einmal anstelle des App-Codes.
+
+- Gilt nur für den **direkten Login** über Port 17794. Über Home Assistant
+  (Ingress) hat HA bereits angemeldet, dort ändert sich nichts.
+- **Gerät merken:** Beim Code lässt sich „Dieses Gerät … Tage merken" anhaken,
+  dann fragt TUIWatch dort nur noch Benutzername und Passwort. Die Dauer stellt
+  die Option **Gerät merken (Tage)** ein (Standard 30, 0 = nie merken); ein
+  Verkürzen gilt sofort auch für schon gemerkte Geräte. **Gemerkte Geräte
+  vergessen** setzt alle zurück.
+- **Abschalten** verlangt einen aktuellen Code oder Backup-Code.
+- **Notzugang**, falls Handy und Backup-Codes weg sind: in Home Assistant beim
+  Add-on unter Konfiguration **twofa_reset** einschalten (ohne HA:
+  `"twofa_reset": true` in `options.json`). Solange sie an ist, fragt der Login
+  keinen Code ab — gelöscht wird nichts. Danach die 2FA in den Einstellungen
+  abschalten oder neu einrichten und die Option wieder ausschalten.
 
 Die übrigen Optionen sind seit **0.104.1** aus dem Schema entfernt und tauchen in der HA-Konfigurationsseite nicht mehr auf. Beim Update auf 0.104.0 wurden ihre Werte bereits einmalig nach `settings.json` übernommen.
 

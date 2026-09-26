@@ -6176,6 +6176,9 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       loadKeyState();
       loadAiUsageState();
       const hs = $('#set-hatest-state'); if(hs) hs.textContent = '';
+      $('#set-2fa-backup').hidden = true;
+      $('#set-2fa-off').querySelector('button').hidden = false;
+      loadTwofaState();
       return false;
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
@@ -6244,6 +6247,12 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
 
     async function loadSettings(){
       const body = $('#settings-body');
+      // Die fest im HTML stehenden Blöcke hängen nach dem ersten Laden in den
+      // Kategorien — vor dem Neuaufbau zurück an ihren Ursprungsort, sonst
+      // zerstört das innerHTML unten sie (nach „Speichern" fehlten die Knöpfe).
+      body.querySelectorAll('.set-group[data-cat][id]').forEach(b => {
+        if(b._home){ b.hidden = true; b._home.appendChild(b); }
+      });
       body.innerHTML = '<div class="cmp-load">lädt…</div>';
       SET_CLEAR.clear();
       let d;
@@ -6263,6 +6272,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       // IDs und Ereignisbehandler unveraendert weiterarbeiten.
       document.querySelectorAll('#settings-bg [data-cat][id]').forEach(block => {
         const ziel = body.querySelector(`.set-pane[data-cat="${block.dataset.cat}"]`);
+        if(!block._home) block._home = block.parentNode;
         if(ziel){ block.hidden = false; ziel.appendChild(block); }
       });
       body.querySelectorAll('[data-clear]').forEach(b =>
@@ -6409,10 +6419,92 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
     }
 
 
+    // ── Zwei-Faktor-Anmeldung (Einstellungen → Anmeldung) ─────────────────────
+    async function loadTwofaState(){
+      const st = $('#set-2fa-state'); if(!st) return;
+      let d;
+      try { d = await fetch(api('/api/2fa')).then(r=>r.json()); }
+      catch(e){ st.textContent = ''; return; }
+      $('#set-2fa-on').hidden = !d.enabled;
+      $('#set-2fa-off').hidden = !!d.enabled;
+      $('#set-2fa-setup').hidden = true;
+      if(d.enabled){
+        st.textContent = `✅ Aktiv — ${d.backup_remaining} Backup-Code${d.backup_remaining === 1 ? '' : 's'} übrig`
+          + (d.remember_days ? `, ${d.trusted_devices} gemerkte${d.trusted_devices === 1 ? 's Gerät' : ' Geräte'}` : '')
+          + (d.backup_remaining < 3 ? ' — ⚠️ bald neu einrichten, um frische Backup-Codes zu bekommen' : '')
+          + (d.bypassed ? ' — ⚠️ Notzugang „Zwei-Faktor-Abfrage überspringen" ist an, der Login fragt gerade KEINEN Code ab' : '');
+      } else {
+        st.textContent = 'Nicht eingerichtet.';
+      }
+    }
+    async function twofaSetup(btn){
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/setup'), {method:'POST'});
+        if(!r.ok){ toast('Einrichten fehlgeschlagen'); return; }
+        const d = await r.json();
+        // Das SVG erzeugt der eigene Server (qrcode-Bibliothek), kein Fremdinhalt.
+        $('#set-2fa-qr').innerHTML = d.qr || '<span style="color:#000">QR nicht verfügbar — Schlüssel von Hand eingeben</span>';
+        $('#set-2fa-secret').textContent = d.secret;
+        $('#set-2fa-code').value = '';
+        $('#set-2fa-setup').hidden = false;
+        $('#set-2fa-backup').hidden = true;
+        $('#set-2fa-code').focus();
+      } catch(e){ toast('Einrichten fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function twofaEnable(btn){
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/enable'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({code: $('#set-2fa-code').value})});
+        const d = await r.json().catch(()=>({}));
+        if(!r.ok){ toast(d.error === 'bad_code' ? 'Code falsch — Uhrzeit am Handy prüfen' : 'Aktivieren fehlgeschlagen'); return; }
+        await loadTwofaState();
+        // Backup-Codes einmalig zeigen: der Block liegt im Aus-Zweig, also sichtbar lassen
+        $('#set-2fa-off').hidden = false;
+        $('#set-2fa-off').querySelector('button').hidden = true;
+        $('#set-2fa-backup-list').textContent = (d.backup_codes || []).join('\n');
+        $('#set-2fa-backup').hidden = false;
+        toast('Zwei-Faktor-Anmeldung aktiv');
+      } catch(e){ toast('Aktivieren fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function twofaDisable(btn){
+      if(!confirm('Zwei-Faktor-Anmeldung wirklich abschalten?')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/disable'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({code: $('#set-2fa-off-code').value})});
+        if(!r.ok){ toast('Code falsch'); return; }
+        $('#set-2fa-off-code').value = '';
+        toast('Zwei-Faktor-Anmeldung abgeschaltet');
+        $('#set-2fa-off').querySelector('button').hidden = false;
+        $('#set-2fa-backup').hidden = true;
+        await loadTwofaState();
+      } catch(e){ toast('Abschalten fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function twofaForget(btn){
+      if(!confirm('Alle gemerkten Geräte vergessen? Dort wird beim nächsten Login wieder ein Code verlangt.')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/forget-devices'), {method:'POST'});
+        toast(r.ok ? 'Gemerkte Geräte vergessen' : 'Fehlgeschlagen');
+        await loadTwofaState();
+      } catch(e){ toast('Fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+
     // HA-Verbindung testen: prüft den gespeicherten Stand, nicht die Felder im
     // Formular — ungespeicherte Änderungen würden sonst still ignoriert.
     const HA_TEST_ERR = {
       not_configured: 'Keine Verbindung eingerichtet — Adresse und Token eintragen und speichern.',
+      no_url: 'Keine Home-Assistant-Adresse eingetragen.',
+      bad_url: 'Adresse ungültig — mit http:// oder https:// davor eintragen, z. B. https://ha.example.de oder http://192.168.178.10:8123.',
+      no_token: 'Kein Token gespeichert — langlebiges Zugriffstoken eintragen und speichern.',
       unreachable: 'Home Assistant nicht erreichbar — Adresse und Port prüfen.',
       auth: 'Home Assistant lehnt das Token ab — neues langlebiges Zugriffstoken erstellen.',
       bad_response: 'Unerwartete Antwort — ist die Adresse wirklich Home Assistant?',
@@ -6428,7 +6520,9 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
         const weg = d.mode === 'supervisor' ? 'über den Supervisor' : 'über Adresse und Token';
         if(d.ok){
           el.textContent = `✅ Verbunden ${weg}` + (d.version ? ` — Home Assistant ${d.version}` : '')
-            + (d.location ? ` („${d.location}“)` : '');
+            + (d.location ? ` („${d.location}“)` : '')
+            + (d.notified ? ' — Test-Benachrichtigung in HA gesendet.'
+                          : ' — ⚠️ Test-Benachrichtigung konnte nicht gesendet werden (Rechte des Tokens prüfen).');
         } else {
           el.textContent = '❌ ' + (HA_TEST_ERR[d.error] || 'Test fehlgeschlagen')
             + (d.error === 'bad_response' && d.status ? ` (HTTP ${d.status})` : '');
