@@ -1881,6 +1881,17 @@
           <button class="btn sec" type="button" onclick="resetAiUsage(this)">KI-Kosten zurücksetzen</button>
         </div>
       </div>
+      <div class="set-group" id="set-hatest-group" data-cat="notify" hidden>
+        <h3>🏠 Home-Assistant-Verbindung</h3>
+        <div class="set-row">
+          <div class="hint">Prüft die gespeicherte Verbindung zu Home Assistant — als Add-on über den
+            Supervisor, sonst über Adresse und Token oben. Geänderte Werte vorher speichern.</div>
+          <div class="hint" id="set-hatest-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row">
+          <button class="btn sec" type="button" onclick="testHaConnection(this)">Verbindung testen</button>
+        </div>
+      </div>
       <div class="set-group" id="set-key-group" data-cat="backup" hidden>
         <h3>🔑 Schlüssel &amp; Komplettsicherung</h3>
         <div class="set-row">

@@ -96,6 +96,12 @@ FIELDS: dict = {
         "Buchungszeitpunkt-Ampel",
         "Wertet die Tagesbewegungen des Preisbarometers zusätzlich nach Vorlaufzeit aus (Booking-Kurve) und leitet daraus eine Ampel ab: grün = guter Buchungszeitpunkt, rot = eher warten. Verrechnet den 14-Tage-Trend, die Lage im bisherigen Verlauf und die bis zur Abreise erwartete Preisbewegung. Braucht das Preisbarometer und einige Wochen Daten. Standard an."),
     # ── notify ──
+    "ha_url": ("str", "", 300, "notify",
+        "Home-Assistant-Adresse",
+        "Nur nötig, wenn TUIWatch nicht als Home-Assistant-Add-on läuft (eigener Docker-Host). Adresse von Home Assistant samt Port, z. B. http://192.168.178.10:8123 oder https://ha.example.de. Zusammen mit dem Token unten werden Sensoren und HA-Benachrichtigungen darüber gemeldet. Nach dem Speichern mit „Verbindung testen\" prüfen."),
+    "ha_token": ("str", "", 400, "notify",
+        "Home-Assistant-Token",
+        "Langlebiges Zugriffstoken aus Home Assistant: Profil → Sicherheit → „Langlebige Zugriffstoken\" → Token erstellen. Wird verschlüsselt gespeichert. Das Token hat die Rechte des HA-Benutzers, der es erstellt hat — am besten einen eigenen Benutzer dafür anlegen."),
     "ha_sensors": ("bool", True, None, "notify",
         "Home-Assistant-Sensoren",
         "Je verfolgtem Angebot einen Sensor (sensor.tuiwatch_<hotelname>) in Home Assistant anlegen. Wert = aktueller Preis in €, bei Fehler 'unknown'; Reise-Eckdaten stehen im Attribut 'description'. Standard an."),
@@ -285,16 +291,19 @@ FIELDS: dict = {
 # Verschlüsselt gespeichert und nie an den Browser zurückgegeben.
 SECRET_KEYS = frozenset({
     'telegram_bot_token', 'smtp_password', 'nc_app_password',
-    'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key',
+    'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key', 'ha_token',
 })
 
-# Felder, die ohne Home Assistant nichts bewirken: die Sensoren und die
-# persistenten Benachrichtigungen laufen ausschliesslich ueber die Supervisor-API.
-# Laeuft TUIWatch als eigener Container (Docker-Host, Server im Netz), fehlt das
-# SUPERVISOR_TOKEN, die drei Schalter waeren wirkungslos — und ein wirkungsloser
-# Schalter in den Einstellungen ist schlimmer als gar keiner. Sie werden dort
-# deshalb ausgeblendet (siehe public_view).
+# Felder, die ohne Home-Assistant-Verbindung nichts bewirken: Sensoren und
+# persistente Benachrichtigungen laufen über die HA-REST-API — als Add-on über den
+# Supervisor, sonst über ha_url + ha_token. Fehlt beides, wären die drei Schalter
+# wirkungslos — und ein wirkungsloser Schalter in den Einstellungen ist schlimmer
+# als gar keiner. Sie werden dort deshalb ausgeblendet (siehe public_view).
 HA_ONLY_KEYS = frozenset({'ha_sensors', 'notify_ha', 'ha_notify_service'})
+
+# Zugang zu einem externen Home Assistant — nur außerhalb des Add-ons sinnvoll
+# (als Add-on spricht TUIWatch immer den Supervisor), dort also ausgeblendet.
+HA_EXTERNAL_KEYS = frozenset({'ha_url', 'ha_token'})
 
 # Diese Werte liest TUIWatch nur beim Start: der zweite Webserver für die
 # öffentlichen Angebots-Seiten wird einmalig gebunden (_start_public_server).
@@ -641,10 +650,11 @@ def migrate(options: dict) -> bool:
     return True
 
 
-def public_view(effective: dict, ha: bool = True) -> dict:
+def public_view(effective: dict, ha: bool = True, supervisor: bool = True) -> dict:
     """Ansicht für die Oberfläche: Feldbeschreibung + Werte.
 
     Geheime Felder kommen nie im Klartext zurück, sondern nur als „gesetzt".
+    `ha` = eine HA-Verbindung besteht, `supervisor` = läuft als Add-on.
     """
     fields = []
     for group, title in GROUPS:
@@ -653,6 +663,8 @@ def public_view(effective: dict, ha: bool = True) -> dict:
             if spec[3] != group:
                 continue
             if key in HA_ONLY_KEYS and not ha:
+                continue
+            if key in HA_EXTERNAL_KEYS and supervisor:
                 continue
             kind, default, extra = spec[0], spec[1], spec[2]
             item = {'key': key, 'kind': kind, 'label': spec[4], 'hint': spec[5],

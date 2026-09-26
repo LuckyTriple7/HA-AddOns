@@ -6175,6 +6175,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       loadSettings();
       loadKeyState();
       loadAiUsageState();
+      const hs = $('#set-hatest-state'); if(hs) hs.textContent = '';
       return false;
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
@@ -6407,6 +6408,34 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       finally { btn.disabled = false; }
     }
 
+
+    // HA-Verbindung testen: prüft den gespeicherten Stand, nicht die Felder im
+    // Formular — ungespeicherte Änderungen würden sonst still ignoriert.
+    const HA_TEST_ERR = {
+      not_configured: 'Keine Verbindung eingerichtet — Adresse und Token eintragen und speichern.',
+      unreachable: 'Home Assistant nicht erreichbar — Adresse und Port prüfen.',
+      auth: 'Home Assistant lehnt das Token ab — neues langlebiges Zugriffstoken erstellen.',
+      bad_response: 'Unerwartete Antwort — ist die Adresse wirklich Home Assistant?',
+    };
+    async function testHaConnection(btn){
+      const el = $('#set-hatest-state');
+      if(setDirtyCount() > 0){ el.textContent = '⚠️ Erst speichern, dann testen.'; return; }
+      btn.disabled = true;
+      el.textContent = 'prüfe…';
+      try {
+        const r = await fetch(api('/api/settings/ha-test'), {method:'POST'});
+        const d = await r.json();
+        const weg = d.mode === 'supervisor' ? 'über den Supervisor' : 'über Adresse und Token';
+        if(d.ok){
+          el.textContent = `✅ Verbunden ${weg}` + (d.version ? ` — Home Assistant ${d.version}` : '')
+            + (d.location ? ` („${d.location}“)` : '');
+        } else {
+          el.textContent = '❌ ' + (HA_TEST_ERR[d.error] || 'Test fehlgeschlagen')
+            + (d.error === 'bad_response' && d.status ? ` (HTTP ${d.status})` : '');
+        }
+      } catch(e){ el.textContent = '❌ Test fehlgeschlagen'; }
+      finally { btn.disabled = false; }
+    }
 
     // Schlüssel sichern: verlaesst das Add-on nur mit einer Passphrase verpackt,
     // und erst nach erneuter Eingabe des Login-Passworts.

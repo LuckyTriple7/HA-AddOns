@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.116.0
+
+- 🏠 **Home Assistant auch ohne HA OS anbinden.** Läuft TUIWatch als eigener Docker-Container, lassen sich unter Einstellungen → Benachrichtigungen jetzt **Home-Assistant-Adresse** und **Token** (langlebiges Zugriffstoken) eintragen. Sensoren, HA-Benachrichtigungen und zusätzliche notify-Dienste funktionieren dann wie im Add-on. Als Add-on ändert sich nichts, die beiden Felder sind dort ausgeblendet.
+- 🔌 Neuer Knopf **„Verbindung testen“**: prüft die gespeicherte Verbindung und zeigt HA-Version und Standortnamen, bei Fehlern den Grund (nicht erreichbar, Token abgelehnt, keine HA-Antwort).
+- 🔒 Das Token wird verschlüsselt gespeichert und öffnet nur die HA-Aufrufe. Die Ingress-Anmeldung bleibt an den echten Supervisor gebunden.
+
 ## 0.115.3
 
 - 🤖 **KI-Modelle aktualisiert.** Claude: neu **Opus 5.5** (Nachfolger von Opus 5, etwas günstiger) und **Fable 5.1** statt Fable 5. Gemini: neu **3.8 Flash** und **3.7 Flash**; 3.5 Flash und 2.5 Flash sind aus der Auswahl (2.5 Flash gibt Google nur noch Bestandsnutzern frei, 3.5 Flash ist teurer als 3.8 Flash).

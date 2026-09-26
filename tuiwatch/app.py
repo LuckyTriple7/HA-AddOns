@@ -101,7 +101,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.115.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.116.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -333,9 +333,8 @@ def _push_cooldown_sensor() -> None:
     attrs = {'friendly_name': 'TUIWatch Cooldown aktiv', 'icon': 'mdi:timer-sand',
              'retry_after': remaining}
     try:
-        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_cooldown_active',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': 'on' if remaining else 'off', 'attributes': attrs})
+        _ha_post('states/binary_sensor.tuiwatch_cooldown_active',
+                 {'state': 'on' if remaining else 'off', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Cooldown-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -1362,8 +1361,49 @@ SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
 HA_BASE = 'http://supervisor/core/api'
 
 
+def _ha_external_base(raw: str) -> str:
+    """Adresse aus der Einstellung `ha_url` auf die REST-Basis bringen:
+    nur http/https, Pfad und Query verworfen, `/api` angehängt. Leer = ungültig.
+    Ein mit eingetragenes `/api` am Ende stört so nicht."""
+    try:
+        p = urlparse((raw or '').strip())
+    except ValueError:
+        return ''
+    if p.scheme not in ('http', 'https') or not p.hostname:
+        return ''
+    return f'{p.scheme}://{p.netloc}/api'
+
+
+def _ha_api() -> tuple[str, dict] | None:
+    """(REST-Basis, Header) für Home Assistant — oder None ohne Verbindung.
+
+    Als Add-on immer über den Supervisor. Außerhalb (eigener Docker-Host) über
+    die Einstellungen `ha_url` + `ha_token` (langlebiges Zugriffstoken). Der
+    externe Token schaltet ausschließlich diese Aufrufe frei — die Ingress-
+    Anmeldung (`_trust_ingress_header`) hängt weiter nur am echten SUPERVISOR_TOKEN,
+    sonst wäre der fälschbare X-Ingress-Path-Header ein Login-Bypass."""
+    if SUPERVISOR_TOKEN:
+        return HA_BASE, {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    cfg = load_config()
+    base = _ha_external_base(cfg.get('ha_url') or '')
+    token = (cfg.get('ha_token') or '').strip()
+    if base and token:
+        return base, {'Authorization': f'Bearer {token}'}
+    return None
+
+
+def _ha_post(path: str, payload: dict) -> None:
+    """POST an die HA-REST-API (`path` ohne führenden Schrägstrich). Wirft bei
+    Netzfehlern wie `http.post` — die Aufrufer loggen selbst mit eigenem Text."""
+    conn = _ha_api()
+    if not conn:
+        return
+    base, headers = conn
+    http.post(f'{base}/{path}', headers=headers, timeout=10, json=payload)
+
+
 def _ha_enabled() -> bool:
-    return bool(SUPERVISOR_TOKEN) and bool(load_config().get('ha_sensors', True))
+    return _ha_api() is not None and bool(load_config().get('ha_sensors', True))
 
 
 def _slug(s: str) -> str:
@@ -1403,9 +1443,10 @@ def push_ha_sensors(only: int | None = None) -> None:
     die Entity-Zuordnung seit dem letzten Vollabgleich geändert (z. B. Hotelname
     erstmals ermittelt → neue entity_id), läuft trotzdem der volle Abgleich."""
     global _ha_last_mapping
-    if not _ha_enabled():
+    conn = _ha_api()
+    if not conn or not _ha_enabled():
         return
-    headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    base, headers = conn
     mapping = _entity_ids()
     full = only is None or mapping != _ha_last_mapping
     targets = mapping if full else {only: mapping[only]} if only in mapping else {}
@@ -1482,7 +1523,7 @@ def push_ha_sensors(only: int | None = None) -> None:
                             attrs['avg_price_30d'] = int(round(s30['av']))
                 if last and last['ts']:
                     attrs['last_checked'] = datetime.fromtimestamp(last['ts']).isoformat()
-                http.post(f'{HA_BASE}/states/{eid}', headers=headers, timeout=10,
+                http.post(f'{base}/states/{eid}', headers=headers, timeout=10,
                           json={'state': state, 'attributes': attrs})
         # Übersichts-Sensor (günstigstes Angebot, Anzahl unter Wunschpreis …)
         summary_eid = 'sensor.tuiwatch_uebersicht'
@@ -1504,18 +1545,18 @@ def push_ha_sensors(only: int | None = None) -> None:
             s_state = int(round(cheapest['price']))
         else:
             s_state = 'unknown'
-        http.post(f'{HA_BASE}/states/{summary_eid}', headers=headers, timeout=10,
+        http.post(f'{base}/states/{summary_eid}', headers=headers, timeout=10,
                   json={'state': s_state, 'attributes': s_attrs})
         if not full:
             return
 
         # Verwaiste tuiwatch-Sensoren entfernen (z. B. nach Löschen/Umbenennen)
         valid = set(mapping.values()) | {summary_eid}
-        states = http.get(f'{HA_BASE}/states', headers=headers, timeout=10).json()
+        states = http.get(f'{base}/states', headers=headers, timeout=10).json()
         for st in states:
             ent = st.get('entity_id', '')
             if ent.startswith('sensor.tuiwatch_') and ent not in valid:
-                http.delete(f'{HA_BASE}/states/{ent}', headers=headers, timeout=10)
+                http.delete(f'{base}/states/{ent}', headers=headers, timeout=10)
         _ha_last_mapping = mapping
     except Exception as e:
         log.warning("HA-Sensoren aktualisieren fehlgeschlagen: %s", e)
@@ -1545,13 +1586,12 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
         _log_notification('ha', title, message, tag, True)
         return
     cfg = load_config()
-    if not (SUPERVISOR_TOKEN and cfg.get('notify_ha', True)):
+    if not (_ha_api() and cfg.get('notify_ha', True)):
         return
     ok = True
     try:
-        http.post(f'{HA_BASE}/services/persistent_notification/create',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'title': title, 'message': message, 'notification_id': f'tuiwatch_{tag}'})
+        _ha_post('services/persistent_notification/create',
+                 {'title': title, 'message': message, 'notification_id': f'tuiwatch_{tag}'})
     except Exception as e:
         ok = False
         log.error("HA-Benachrichtigung fehlgeschlagen: %s", e)
@@ -1562,9 +1602,8 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
         if not svc:
             continue
         try:
-            http.post(f'{HA_BASE}/services/notify/{svc}',
-                      headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                      json={'title': title, 'message': message})
+            _ha_post(f'services/notify/{svc}',
+                     {'title': title, 'message': message})
         except Exception as e:
             ok = False
             log.error("HA-Notify-Dienst %s fehlgeschlagen: %s", svc, e)
@@ -2799,9 +2838,8 @@ def _push_aktionscodes_sensor(codes: list, info: dict) -> None:
     if info.get('travel_period'):
         attrs['travel_period'] = info['travel_period']
     try:
-        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_aktionscodes',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': 'on' if codes else 'off', 'attributes': attrs})
+        _ha_post('states/binary_sensor.tuiwatch_aktionscodes',
+                 {'state': 'on' if codes else 'off', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Aktionscode-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -3235,9 +3273,8 @@ def _push_health_sensor(res: dict) -> None:
     if res.get('ts'):
         attrs['checked_at'] = datetime.fromtimestamp(res['ts']).isoformat()
     try:
-        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_api_available',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': 'off' if bad else 'on', 'attributes': attrs})
+        _ha_post('states/binary_sensor.tuiwatch_api_available',
+                 {'state': 'off' if bad else 'on', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-API-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -3362,9 +3399,8 @@ def _push_market_trend_sensor() -> None:
         log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
                      type(e).__name__, e)
     try:
-        http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': state, 'attributes': attrs})
+        _ha_post('states/sensor.tuiwatch_markttrend',
+                 {'state': state, 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -3712,9 +3748,47 @@ def api_settings_get():
     """
     if (err := _require_api()):
         return err
-    # Ohne Supervisor sind die drei HA-Felder wirkungslos (kein Token, keine
-    # Sensoren, keine persistenten Benachrichtigungen) — dann gar nicht erst zeigen.
-    return jsonify(settings_store.public_view(load_config(), ha=bool(SUPERVISOR_TOKEN)))
+    # Ohne HA-Verbindung (weder Supervisor noch ha_url+ha_token) sind die HA-Felder
+    # wirkungslos — dann gar nicht erst zeigen. Die Felder für die externe
+    # Verbindung nur außerhalb des Add-ons: dort spricht TUIWatch den Supervisor.
+    return jsonify(settings_store.public_view(load_config(), ha=_ha_api() is not None,
+                                              supervisor=bool(SUPERVISOR_TOKEN)))
+
+
+@app.route('/api/settings/ha-test', methods=['POST'])
+def api_settings_ha_test():
+    """Prüft die gespeicherte HA-Verbindung mit GET /api/config. Antwortet nur
+    mit festen Fehlercodes, nie mit Ausnahmetext (CodeQL: information exposure).
+    Getestet wird bewusst der gespeicherte Stand, keine Adresse aus dem Request —
+    sonst könnte der Endpunkt beliebige Ziele im Netz abfragen (SSRF)."""
+    if (err := _require_api()):
+        return err
+    mode = 'supervisor' if SUPERVISOR_TOKEN else 'external'
+    conn = _ha_api()
+    if not conn:
+        return jsonify({'ok': False, 'mode': mode, 'error': 'not_configured'})
+    base, headers = conn
+    try:
+        r = http.get(f'{base}/config', headers=headers, timeout=10)
+    except http.exceptions.RequestException as e:
+        log.warning("HA-Verbindungstest: nicht erreichbar (%s)", type(e).__name__)
+        return jsonify({'ok': False, 'mode': mode, 'error': 'unreachable'})
+    if r.status_code in (401, 403):
+        return jsonify({'ok': False, 'mode': mode, 'error': 'auth'})
+    if r.status_code != 200:
+        log.warning("HA-Verbindungstest: HTTP %s", r.status_code)
+        return jsonify({'ok': False, 'mode': mode, 'error': 'bad_response',
+                        'status': int(r.status_code)})
+    try:
+        info = r.json()
+    except ValueError:
+        return jsonify({'ok': False, 'mode': mode, 'error': 'bad_response',
+                        'status': 200})
+    if not isinstance(info, dict):
+        info = {}
+    return jsonify({'ok': True, 'mode': mode,
+                    'version': str(info.get('version') or '')[:40],
+                    'location': str(info.get('location_name') or '')[:100]})
 
 
 @app.route('/api/settings', methods=['POST'])

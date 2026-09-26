@@ -890,6 +890,16 @@ Flugplänen, sofern das Ziel dort ebenfalls vorkommt.
 
 ## Home-Assistant-Sensoren
 
+**Ohne HA OS (eigener Docker-Host):** Als Add-on spricht TUIWatch Home Assistant
+über den Supervisor. Läuft es als eigener Container, unter Zahnrad →
+Einstellungen → Benachrichtigungen die **Home-Assistant-Adresse** (z. B.
+`http://192.168.178.10:8123`) und ein **Home-Assistant-Token** (HA → Profil →
+Sicherheit → Langlebige Zugriffstoken) eintragen und speichern. Danach stehen
+Sensoren, HA-Benachrichtigungen und `ha_notify_service` wie im Add-on zur
+Verfügung; **Verbindung testen** zeigt, ob Adresse und Token passen. Das Token
+hat die Rechte des HA-Benutzers, der es erstellt hat — am besten einen eigenen
+Benutzer anlegen.
+
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 `sensor.tuiwatch_<hotelname>` an (bei gleichem Hotel `_2`, `_3` …):
 - **Wert** = aktueller Preis in € (bei Fehler `unknown`)
