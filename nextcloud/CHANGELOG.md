@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.32
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 35.0.1 (35.0.1-ls452)
+
 ## 1.0.31
 - Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 35.0.0 (35.0.0-ls452)
 
