@@ -511,12 +511,60 @@ client.on('qr', async (qr) => {
   qrCodeDataUrl = await qrcode.toDataURL(qr, { width: 300 });
 });
 
+// Diagnose fuer den Haenger zwischen 'authenticated' und 'ready': whatsapp-web.js
+// laedt dort seinen Hilfscode in die Seite und verschluckt Fehler dabei. Fehler der
+// Seite gehen deshalb ins Log, und nach 90 s wird nachgesehen, woran es haengt.
+const _diagPages = new WeakSet();
+let _pageErrLogged = 0;
+function attachPageDiagnostics() {
+  const page = client.pupPage;
+  if (!page || _diagPages.has(page)) return;
+  _diagPages.add(page);
+  page.on('pageerror', (err) => {
+    if (_pageErrLogged >= 50) return;
+    _pageErrLogged++;
+    console.warn('[PAGE] pageerror: %s', String(err?.message || err).slice(0, 500));
+  });
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error' || _pageErrLogged >= 50) return;
+    _pageErrLogged++;
+    console.warn('[PAGE] console.error: %s', String(msg.text()).slice(0, 500));
+  });
+}
+
+let _authWatchdog = null;
 client.on('authenticated', () => {
   status = 'authenticated';
   qrCodeDataUrl = null;
+  attachPageDiagnostics();
+  clearTimeout(_authWatchdog);
+  _authWatchdog = setTimeout(async () => {
+    if (status !== 'authenticated' || !client.pupPage) return;
+    let msg;
+    try {
+      const injected = await client.pupPage.evaluate(() => typeof window.WWebJS !== 'undefined');
+      if (injected) {
+        msg = 'Haengt nach authenticated: Hilfscode ist geladen, ready kam trotzdem nicht';
+      } else {
+        // Hilfscode selbst laden, um den Fehler zu sehen, den die Bibliothek verschluckt
+        const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
+        try {
+          await client.pupPage.evaluate(LoadUtils);
+          msg = 'Haengt nach authenticated: Hilfscode fehlte, Nachladen lief ohne Fehler durch';
+        } catch (e) {
+          msg = 'Haengt nach authenticated: Hilfscode laedt nicht: ' + String(e?.message || e).slice(0, 500);
+        }
+      }
+    } catch (e) {
+      msg = 'Haengt nach authenticated: Seite nicht auswertbar: ' + String(e?.message || e).slice(0, 300);
+    }
+    lastError = msg;
+    console.error('[ERROR] %s', msg);
+  }, 90000);
 });
 
 client.on('ready', async () => {
+  clearTimeout(_authWatchdog);
   _reconnecting = false;
   _reconnectStartedAt = 0;
   _intentionalDisconnect = false;

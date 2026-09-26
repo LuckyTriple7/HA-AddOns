@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.48] - 2026-09-26
+
+- **Diagnose fuer den Haenger bei `authenticated`.** Nach dem Login laedt whatsapp-web.js seinen Hilfscode in die Seite und meldet erst dann `ready`; scheitert das, verschluckt die Bibliothek den Fehler und das Add-on bleibt ohne Meldung bei "Verbinde mit WhatsApp…" stehen
+- Fehler der WhatsApp-Web-Seite (`pageerror`, `console.error`) landen jetzt im Add-on-Log, hoechstens 50 pro Start
+- Steht der Status 90 s nach `authenticated` noch dort, prueft das Add-on, ob der Hilfscode geladen ist, laedt ihn notfalls selbst und schreibt das Ergebnis samt Fehlertext ins Log und nach `/api/status` (`error`)
+
 ## [1.8.47] - 2026-09-26
 
 - **Medien-Patch aus 1.8.45 wieder drin.** Der Haenger nach dem Update (Status blieb auf `authenticated`, Oberflaeche mit 503) kam nicht vom Patch — ein erneuter Neustart des Add-ons hat ihn behoben. Bilder und Dateien senden sollte damit wieder gehen
