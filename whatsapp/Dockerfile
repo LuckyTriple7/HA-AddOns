@@ -26,9 +26,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-fund --no-audit
 
-COPY patches/ ./patches/
-RUN node patches/wwebjs-media-id.js
-
 COPY server.js .
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
