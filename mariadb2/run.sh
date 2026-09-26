@@ -108,5 +108,7 @@ exec mariadbd --no-defaults --user=root \
     --tmp-table-size=64M \
     --max-heap-table-size=64M \
     --innodb-log-file-size=256M \
+    --table-open-cache=4000 \
+    --table-definition-cache=2000 \
     "${EXTRA_ARGS[@]}" \
     --log-warnings=0
