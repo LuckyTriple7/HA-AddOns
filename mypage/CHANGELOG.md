@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.67] - 2026-09-26
+
+- 🔒 **Besucherarchiv (CSV) ohne Formel-Einschleusung.** Referrer, User-Agent und Pfad kommen vom Besucher und landeten ungeprüft in `visits-JJJJ-MM.csv`. Ein Wert wie `=HYPERLINK(...)` wurde beim Öffnen in Excel/LibreOffice als Formel ausgeführt. Zellen, die mit `= + - @` (oder Tab/Zeilenumbruch) beginnen, bekommen jetzt ein `'` vorangestellt. Bestehende Dateien werden bei der nächsten GeoIP-Nachpflege mit entschärft; der Besucher-Explorer zeigt die Werte weiter ohne das Zeichen.
+- 🔒 **Slot-Jackpot schreibt nicht mehr die ganze Seite neu.** Jeder Spin eines beliebigen Besuchers speicherte bisher die komplette `site.json` – ohne Limit. Zusätzlich konnte ein Spin, der zwischen Laden und Speichern einer Admin-Änderung lag, diese Änderung überschreiben. Der Jackpot liegt jetzt in einer eigenen kleinen `slot.json`, wird im Speicher gezählt und höchstens alle 30 Sekunden geschrieben (bei Gewinn und beim Beenden sofort). Der bisherige Stand wird beim ersten Spin übernommen.
+- 🔒 **Markdown-Ausgabe wird bereinigt.** Seiten, Bibliothek, Reiseberichte, Rechtstexte und Newsletter gehen als HTML ungefiltert auf die Seite. Markdown lässt rohes HTML durch, und KI-Entwürfe hätten per Prompt-Injection `<script>` oder `onerror=` einschleusen können. Die Ausgabe läuft jetzt durch `nh3`: Gestaltung (Tabellen, Code, Bilder, `class`/`style`, eigene `<div>`s) bleibt, Skripte, Event-Attribute, `javascript:`-Links, iframes und Formulare fallen weg.
+- 🔒 **Admin-Panel auf Port 17761 nicht mehr in fremde Seiten einbettbar.** Bei direktem Aufruf gehen jetzt `X-Frame-Options: SAMEORIGIN` und `frame-ancestors 'self'` mit. Über den HA-Ingress bleibt alles wie bisher, dort muss das Panel im iframe von Home Assistant laufen.
+
 ## [0.11.66] - 2026-09-24
 
 - 🔒 **pip wird nach dem Build aus dem Image entfernt.** Trivy meldete msgpack 1.1.2 (GHSA-6v7p-g79w-8964) und setuptools 70.3.0 (CVE-2025-47273, CVE-2026-59890). Beide stecken nicht in den Abhängigkeiten des Add-ons, sondern als eingebettete Kopien in pip selbst (`pip/_vendor`) — auch die neueste pip-Version bringt noch genau diese Stände mit. Das Add-on installiert zur Laufzeit nichts nach, pip wird also nicht gebraucht.

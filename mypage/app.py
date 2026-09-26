@@ -42,6 +42,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 import markdown as md_lib
+import nh3
 from markupsafe import Markup, escape
 
 import pdfimport
@@ -305,6 +306,20 @@ _VISIT_FILE_RE = re.compile(r'^visits-(\d{4})-(\d{2})\.csv$')
 _visit_file_lock = threading.Lock()
 VISIT_CSV_COLUMNS = ('datum', 'ip', 'land', 'browser', 'system', 'pfad', 'referrer',
                      'sprache', 'bot', 'neuer_besucher', 'user_agent')
+# Zellanfaenge, die Excel/LibreOffice als Formel lesen. Referrer, User-Agent und
+# Pfad schickt der Besucher selbst — `Referer: =HYPERLINK(...)` landete sonst als
+# ausfuehrbare Formel in der Tabelle des Admins.
+_CSV_FORMULA_START = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _csv_guard(v: str) -> str:
+    """Formel-Anfang mit `'` entschaerfen (Tabellenprogramme zeigen es als Text).
+
+    Idempotent: ein bereits entschaerfter Wert beginnt mit `'` und bleibt, wie er
+    ist — die GeoIP-Nachpflege schreibt gelesene Zeilen erneut.
+    """
+    v = v or ''
+    return "'" + v if v.startswith(_CSV_FORMULA_START) else v
 # Automatische tägliche Backups — landen unter addon_configs/<slug>_mypage/autobackup/,
 # also im selben Ordner wie die Daten (map: app_config:rw). Bewusst NICHT Teil des
 # Backup-Inhalts, sonst würde sich jedes Backup mit allen Vorgängern selbst aufblähen.
@@ -1028,10 +1043,30 @@ def _fill_img_alts(html: str, lang: str) -> str:
     return _IMG_TAG_RE.sub(one, html)
 
 
+# Was nach `render_md` im HTML stehen darf. Markdown laesst rohes HTML durch, und
+# die Ausgabe geht mit `|safe` auf die oeffentliche Seite — dazu kommt KI-Text
+# (Gemini-Entwuerfe, Uebersetzungen), der per Prompt-Injection `<script>` oder
+# `onerror=` enthalten koennte. Die CSP faengt das nicht, sie erlaubt
+# `'unsafe-inline'`. Erlaubt bleibt alles Gestalterische inklusive `class`/`style`,
+# es fallen Skripte, Event-Attribute, `javascript:`-Links, iframes und Formulare.
+_MD_TAGS = nh3.ALLOWED_TAGS | {'section', 'tfoot', 'picture', 'source'}
+_MD_ATTRS = {k: set(v) for k, v in nh3.ALLOWED_ATTRIBUTES.items()}
+_MD_ATTRS['*'] = {'class', 'id', 'style', 'title', 'lang', 'dir'}
+_MD_ATTRS['a'] = {'href', 'hreflang', 'target', 'rel'}
+_MD_ATTRS['img'] = _MD_ATTRS.get('img', set()) | {'loading', 'decoding', 'srcset', 'sizes'}
+_MD_ATTRS['source'] = {'srcset', 'type', 'media', 'sizes'}
+
+
+def sanitize_html(html: str) -> str:
+    """Fremdes/generiertes HTML auf das gestalterisch Noetige zurueckschneiden."""
+    return nh3.clean(html or '', tags=_MD_TAGS, attributes=_MD_ATTRS,
+                     link_rel=None, strip_comments=True)
+
+
 def render_md(text: str, lang: str = '') -> str:
-    """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
+    """Markdown → HTML, bereinigt (Admin-Inhalte, aber auch KI-Entwuerfe)."""
     out = md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
-    return _fill_img_alts(out, lang or _req_lang())
+    return _fill_img_alts(sanitize_html(out), lang or _req_lang())
 
 
 # Tags, die `render_md` erzeugen kann. Bewusst eine Liste statt `<[^>]+>`: der
@@ -2993,6 +3028,7 @@ def append_visit_file(entry: dict) -> None:
         'neuer_besucher': '1' if entry.get('new') else '0',
         'user_agent':     ua,
     }
+    row = {k: _csv_guard(str(v)) for k, v in row.items()}
     try:
         with _visit_file_lock:
             VISITS_DIR.mkdir(parents=True, exist_ok=True)
@@ -3372,7 +3408,7 @@ def _geo_backfill_archive() -> int:
                                        extrasaction='ignore')
                     w.writeheader()
                     for row in rows:
-                        w.writerow({k: (row.get(k) or '') for k in VISIT_CSV_COLUMNS})
+                        w.writerow({k: _csv_guard(row.get(k) or '') for k in VISIT_CSV_COLUMNS})
                 tmp.replace(path)
                 filled += hits
             except (OSError, csv.Error) as e:
@@ -13063,7 +13099,28 @@ def _security_headers(resp, csp: str):
 
 
 public_app.after_request(lambda r: _security_headers(r, CSP_PUBLIC))
-admin_app.after_request(lambda r: _security_headers(r, _csp_admin()))
+
+
+def _admin_headers(resp):
+    """Wie oben, dazu Klickjacking-Schutz — aber nur ausserhalb des Ingress.
+
+    Im HA-Panel steckt der Admin in einem iframe von Home Assistant, dort muss
+    Einbetten gehen. Bei direktem Aufruf ueber Port 17761 gibt es keinen Grund
+    dafuer. Entschieden wird bewusst an der blossen Kopfzeile `X-Ingress-Path`
+    statt an `_is_ingress()`: Faelschen hilft hier niemandem (eine fremde Seite
+    kann dem Browser des Opfers keine Kopfzeile unterschieben), und ein
+    Fehlurteil der Absenderpruefung liesse sonst die Anmeldeseite im Panel weiss.
+    `SAMEORIGIN`, weil der Vorschaurahmen eigene Inhalte zeigt. Die Kopfzeile
+    wirkt unabhaengig vom `csp_mode`, `frame-ancestors` nur bei `on`.
+    """
+    csp = _csp_admin()
+    if not request.headers.get('X-Ingress-Path'):
+        resp.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        csp += "; frame-ancestors 'self'"
+    return _security_headers(resp, csp)
+
+
+admin_app.after_request(_admin_headers)
 
 
 # Einstieg in die Vorschau: ?vorschau=<token> an einer beliebigen oeffentlichen
@@ -13539,21 +13596,62 @@ def indexnow_keyfile(key: str):
     abort(404)
 
 
+# Der Jackpot liegt bewusst NICHT mehr in site.json (bis 0.11.66): Jeder Spin
+# eines beliebigen Besuchers schrieb dort die komplette Seite neu — ohne Limit,
+# und ein Spin zwischen Laden und Speichern einer Admin-Änderung ueberschrieb
+# diese wieder. Jetzt zaehlt der Speicher mit, die kleine slot.json wird
+# hoechstens alle SLOT_FLUSH_SECS geschrieben (und bei Gewinn/Beenden sofort).
+SLOT_PATH = _DATA + '/slot.json'
+SLOT_FLUSH_SECS = 30
+_slot_state: dict = {'jp': None, 'dirty': False, 'saved': 0.0}
+
+
+def _slot_jackpot() -> int:
+    """Aktueller Jackpot; beim ersten Aufruf aus slot.json bzw. dem Altstand in
+    site.json. Nur unter `_slot_lock` aufrufen."""
+    if _slot_state['jp'] is None:
+        try:
+            with open(SLOT_PATH, encoding='utf-8') as f:
+                jp = int(json.load(f).get('jackpot') or 500)
+        except FileNotFoundError:
+            jp = int(load_site().get('slot_jackpot') or 500)
+        except (OSError, ValueError, TypeError, AttributeError):
+            jp = 500
+        _slot_state['jp'] = max(500, min(jp, 100_000_000))
+    return _slot_state['jp']
+
+
+def _slot_flush(force: bool = False) -> None:
+    """Jackpot auf die Platte, falls geaendert. Nur unter `_slot_lock` aufrufen."""
+    if not _slot_state['dirty']:
+        return
+    now = time.time()
+    if not force and now - _slot_state['saved'] < SLOT_FLUSH_SECS:
+        return
+    try:
+        _atomic_write_json(SLOT_PATH, {'jackpot': _slot_state['jp']})
+        _slot_state['dirty'] = False
+        _slot_state['saved'] = now
+    except OSError as e:
+        log.warning("slot.json konnte nicht gespeichert werden: %s", e)
+
+
 @public_app.route('/api/slot', methods=['GET', 'POST'])
 def api_slot():
     """Progressiver Slot-Jackpot (für alle Besucher gemeinsam): jeder Spin +1, bei 777 zurück auf 500."""
     with _slot_lock:
-        site = load_site()
-        jp = int(site.get('slot_jackpot') or 500)
+        jp = _slot_jackpot()
         if request.method == 'POST':
             data = request.get_json(silent=True) or {}
             if data.get('win'):
-                site['slot_jackpot'] = 500
-                save_site(site)
+                _slot_state['jp'] = 500
+                _slot_state['dirty'] = True
+                _slot_flush(force=True)
                 return jsonify({'jackpot': 500, 'won': jp})
             jp = min(jp + 1, 100_000_000)
-            site['slot_jackpot'] = jp
-            save_site(site)
+            _slot_state['jp'] = jp
+            _slot_state['dirty'] = True
+            _slot_flush()
     return jsonify({'jackpot': jp})
 
 
@@ -18164,6 +18262,9 @@ def _handle_sigterm(signum, frame) -> None:
     # diesen letzten Anstoß fehlten nach einem Neustart genau die Meldungen, die
     # kurz davor auflaufen — also die, die den Neustart erklären.
     admin_log_buffer.flush_now()
+    # Spins seit dem letzten Schreiben nicht verlieren. Ohne Lock: der
+    # Handler kann den Thread unterbrechen, der ihn gerade haelt.
+    _slot_flush(force=True)
     os._exit(0)
 
 
