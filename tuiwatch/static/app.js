@@ -6179,6 +6179,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       $('#set-2fa-backup').hidden = true;
       $('#set-2fa-off').querySelector('button').hidden = false;
       loadTwofaState();
+      loadConnInfo();
       return false;
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
@@ -6411,6 +6412,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
         if(!r.ok){ toast('Speichern fehlgeschlagen'); return; }
         const d = await r.json();
         toast(!d.changed.length ? 'Nichts geändert'
+              : (d.cleared || []).length ? 'Gespeichert — Adresse geändert, deshalb Token/Passwort bitte neu eintragen'
               : d.restart ? 'Gespeichert — für die öffentlichen Angebots-Links das Add-on neu starten'
               : 'Gespeichert');
         await loadSettings();
@@ -6418,6 +6420,39 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       finally { btn.disabled = false; }
     }
 
+
+    // ── Diese Verbindung (Hilfe für „Eigene Reverse-Proxys“) ──────────────────
+    let CONN_SUGGESTION = '';
+    async function loadConnInfo(){
+      const st = $('#set-conn-state'); if(!st) return;
+      let d;
+      try { d = await fetch(api('/api/connection-info')).then(r=>r.json()); }
+      catch(e){ st.textContent = ''; return; }
+      CONN_SUGGESTION = d.suggestion || '';
+      const lines = [];
+      if(d.ingress) lines.push('ℹ️ Gerade über Home Assistant geöffnet — für diese Einstellung TUIWatch über die öffentliche Adresse öffnen.');
+      lines.push('Verbindung kommt von: ' + d.peer);
+      if((d.forwarded || []).length){
+        lines.push('Der Absender meldet als Besucher: ' + d.forwarded.join(', '));
+        lines.push(d.trusted
+          ? '✅ Absender ist als eigener Proxy eingetragen — erkannte Besucher-Adresse: ' + d.detected
+          : '⚠️ Absender ist (noch) nicht als eigener Proxy eingetragen — TUIWatch rechnet mit ' + d.detected
+            + (CONN_SUGGESTION ? '.\nVorschlag zum Eintragen: ' + CONN_SUGGESTION : ''));
+      } else {
+        lines.push('Kein Proxy erkannt (keine Weiterleitungs-Angabe) — für diesen Weg muss nichts eingetragen werden.');
+      }
+      st.textContent = lines.join('\n');
+      $('#set-conn-apply').hidden = !CONN_SUGGESTION;
+    }
+    function connApplySuggestion(){
+      const inp = $('#settings-body [data-set="trusted_proxies"]');
+      if(!inp || !CONN_SUGGESTION) return;
+      const parts = inp.value.split(/[\s,]+/).filter(Boolean);
+      if(!parts.includes(CONN_SUGGESTION)) parts.push(CONN_SUGGESTION);
+      inp.value = parts.join(', ');
+      setDirtyCount();
+      toast('Eingetragen — jetzt unten speichern');
+    }
 
     // ── Zwei-Faktor-Anmeldung (Einstellungen → Anmeldung) ─────────────────────
     async function loadTwofaState(){
@@ -6432,6 +6467,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
         st.textContent = `✅ Aktiv — ${d.backup_remaining} Backup-Code${d.backup_remaining === 1 ? '' : 's'} übrig`
           + (d.remember_days ? `, ${d.trusted_devices} gemerkte${d.trusted_devices === 1 ? 's Gerät' : ' Geräte'}` : '')
           + (d.backup_remaining < 3 ? ' — ⚠️ bald neu einrichten, um frische Backup-Codes zu bekommen' : '')
+          + (d.corrupt ? ' — ⚠️ twofa.json ist unlesbar: Login über den Port geht nur mit dem Notzugang. Abschalten und neu einrichten (kein Code nötig).' : '')
           + (d.bypassed ? ' — ⚠️ Notzugang „Zwei-Faktor-Abfrage überspringen" ist an, der Login fragt gerade KEINEN Code ab' : '');
       } else {
         st.textContent = 'Nicht eingerichtet.';
@@ -8543,8 +8579,12 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       }
       if(d.options_skipped && extra.replace_settings !== '1'){
         if(confirm('Das Backup enthält Einstellungen, auf diesem System liegen aber schon welche. '
-                 + 'Sollen die gespeicherten Einstellungen durch die aus dem Backup ersetzt werden?'))
-          return postRestore(f, Object.assign({}, extra, {replace_settings:'1'}));
+                 + 'Sollen die gespeicherten Einstellungen durch die aus dem Backup ersetzt werden?')){
+          // Ersetzt auch die gespeicherten Zugangsdaten — deshalb Passwort bestätigen
+          const pw = extra.password || prompt('Zur Bestätigung das Login-Passwort von TUIWatch eingeben:');
+          if(!pw) return;
+          return postRestore(f, Object.assign({}, extra, {replace_settings:'1', password: pw}));
+        }
       }
     }
 

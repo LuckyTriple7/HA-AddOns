@@ -53,7 +53,7 @@ _OFFER_FIELDS = (
 # Reiseführer, Reiseberater) bleibt eingefroren.
 _LIVE_FIELDS = ('price', 'total_price', 'available', 'vac_ok', 'last_ts')
 
-_TOKEN_RE = re.compile(r'^[A-Za-z0-9_-]{8,64}$')
+_TOKEN_RE = re.compile(r'[A-Za-z0-9_-]{8,64}')   # nur mit fullmatch: `$` ließe ein Zeilenende durch
 _DEFAULT_DAYS = 30
 _MAX_DAYS = 365
 _MAX_OFFERS = 20          # ein Share bündelt eine Auswahl, keine ganze Datenbank
@@ -71,6 +71,43 @@ _COMMENT_WINDOW, _COMMENT_MAX_PER_WINDOW = 600, 5
 # Rauschunterdrückung, hält aber Scanner aus dem Log.
 _fail_hits: dict[str, list[float]] = defaultdict(list)
 _FAIL_WINDOW, _FAIL_MAX = 900, 20
+_HITS_MAX_KEYS = 5000     # Obergrenze je Map — viele verschiedene IPs sonst = Speicher
+
+
+def _prune_hits(hits: dict, window: int) -> None:
+    """Abgelaufene IP-Einträge entfernen, sobald die Map zu groß wird. Hilft das
+    nicht (echte Flut), wird geleert: lieber kurz keine Bremse als ein Add-on,
+    das seinen Speicher mit IP-Listen füllt."""
+    if len(hits) <= _HITS_MAX_KEYS:
+        return
+    now = time.time()
+    for ip in [ip for ip, ts in hits.items() if not ts or now - ts[-1] >= window]:
+        hits.pop(ip, None)
+    if len(hits) > _HITS_MAX_KEYS:
+        hits.clear()
+
+
+def _safe_img(url) -> str:
+    """Nur https-Bild-URLs auf die öffentliche Seite — kein http (Mixed Content,
+    Mitlesen) und keine anderen Schemata."""
+    try:
+        p = urlparse(str(url or '').strip())
+    except ValueError:
+        return ''
+    return p.geturl() if p.scheme == 'https' and p.netloc else ''
+
+
+def _same_origin(req) -> bool:
+    """Kommentar-Formular nur von der eigenen Seite annehmen (Cross-Site-Spam).
+    Browser schicken bei POST Origin, ältere zumindest Referer; fehlt beides
+    (z. B. strenge Datenschutz-Einstellungen), wird nicht blockiert."""
+    src = req.headers.get('Origin') or req.headers.get('Referer') or ''
+    if not src or src == 'null':
+        return not src
+    try:
+        return urlparse(src).netloc == req.host
+    except ValueError:
+        return False
 
 
 # ── Snapshot bauen ────────────────────────────────────────────────────────────
@@ -105,6 +142,7 @@ def _build_payload(offer_ids: list, title: str, note: str, include: dict,
             if not o:
                 continue
             item = {k: o.get(k) for k in _OFFER_FIELDS}
+            item['image_url'] = _safe_img(item.get('image_url'))
             # Nur als Schlüssel für den Live-Abgleich beim Anzeigen (siehe
             # _refresh_live) — wird nie gerendert.
             item['id'] = oid
@@ -274,7 +312,7 @@ def api_share_get(token: str):
     kommt `offer_ids` leer zurück und die Oberfläche lässt neu auswählen."""
     if (err := A._require_api()):
         return err
-    if not _TOKEN_RE.match(token):
+    if not _TOKEN_RE.fullmatch(token):
         return jsonify({'error': 'not_found'}), 404
     with A.db() as con:
         row = con.execute('SELECT * FROM shares WHERE token=?', (token,)).fetchone()
@@ -307,7 +345,7 @@ def api_share_patch(token: str):
     und Erstelldatum bleiben erhalten."""
     if (err := A._require_api()):
         return err
-    if not _TOKEN_RE.match(token):
+    if not _TOKEN_RE.fullmatch(token):
         return jsonify({'error': 'not_found'}), 404
     data = request.get_json(silent=True) or {}
     with A.db() as con:
@@ -372,7 +410,7 @@ def api_share_patch(token: str):
 def api_share_delete(token: str):
     if (err := A._require_api()):
         return err
-    if not _TOKEN_RE.match(token):
+    if not _TOKEN_RE.fullmatch(token):
         return jsonify({'error': 'not_found'}), 404
     with A.db() as con:
         cur = con.execute('DELETE FROM shares WHERE token=?', (token,))
@@ -391,7 +429,7 @@ def api_share_comments(token: str):
     der Knopf in der Übersicht nicht mehr."""
     if (err := A._require_api()):
         return err
-    if not _TOKEN_RE.match(token):
+    if not _TOKEN_RE.fullmatch(token):
         return jsonify({'error': 'not_found'}), 404
     with A.db() as con:
         if not con.execute('SELECT 1 FROM shares WHERE token=?', (token,)).fetchone():
@@ -408,7 +446,7 @@ def api_share_comment_edit(token: str, cid: int):
     """Kommentar bearbeiten (Tippfehler, Kürzen, unerwünschte Passagen raus)."""
     if (err := A._require_api()):
         return err
-    if not _TOKEN_RE.match(token):
+    if not _TOKEN_RE.fullmatch(token):
         return jsonify({'error': 'not_found'}), 404
     data = request.get_json(silent=True) or {}
     with A.db() as con:
@@ -432,7 +470,7 @@ def api_share_comment_edit(token: str, cid: int):
 def api_share_comment_delete(token: str, cid: int):
     if (err := A._require_api()):
         return err
-    if not _TOKEN_RE.match(token):
+    if not _TOKEN_RE.fullmatch(token):
         return jsonify({'error': 'not_found'}), 404
     with A.db() as con:
         cur = con.execute('DELETE FROM share_comments WHERE id=? AND token=?', (cid, token))
@@ -457,7 +495,7 @@ def cleanup_expired() -> int:
 
 share_app = Flask('tuiwatch_share', template_folder=A._BASE + '/templates',
                   static_folder=None)
-share_app.wsgi_app = ProxyFix(share_app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+share_app.wsgi_app = ProxyFix(share_app.wsgi_app, x_for=0, x_proto=1, x_host=0, x_prefix=0)  # siehe app.py
 
 # Ausschließlich diese Dateien sind öffentlich abrufbar — die Admin-Oberfläche
 # (app.js) bleibt draußen, deshalb kein static_folder.
@@ -659,6 +697,7 @@ def _rate_limited(ip: str) -> bool:
 
 
 def _note_fail(ip: str) -> None:
+    _prune_hits(_fail_hits, _FAIL_WINDOW)
     _fail_hits[ip].append(time.time())
 
 
@@ -674,7 +713,7 @@ def public_share(token: str):
     if _rate_limited(ip):
         return _error_page(429, 'Zu viele Anfragen',
                            'Bitte später noch einmal versuchen.')
-    if not _TOKEN_RE.match(token):
+    if not _TOKEN_RE.fullmatch(token):
         _note_fail(ip)
         return _error_page(404, 'Nicht gefunden', 'Dieser Link existiert nicht.')
     with A.db() as con:
@@ -696,6 +735,7 @@ def public_share(token: str):
     offers = payload.get('offers') or []
     _refresh_live(offers, with_history=any(o.get('history') for o in offers))
     for o in offers:
+        o['image_url'] = _safe_img(o.get('image_url'))   # auch ältere Schnappschüsse
         o['place'] = _place(o)
         o['travel'] = _travel_line(o)
         o['tui_url'] = _tui_link(o)
@@ -741,7 +781,10 @@ def public_share_comment(token: str):
     ip = A.get_client_ip(request)
     if _rate_limited(ip):
         return _error_page(429, 'Zu viele Anfragen', 'Bitte später noch einmal versuchen.')
-    if not _TOKEN_RE.match(token):
+    if not _same_origin(request):
+        return _error_page(403, 'Nicht erlaubt',
+                           'Kommentare nur direkt auf der Angebotsseite schreiben.')
+    if not _TOKEN_RE.fullmatch(token):
         _note_fail(ip)
         return _error_page(404, 'Nicht gefunden', 'Dieser Link existiert nicht.')
     now = int(time.time())
@@ -770,6 +813,7 @@ def public_share_comment(token: str):
                             (token,)).fetchone()['title']
         con.execute('INSERT INTO share_comments (token, author, text, ts, ip) '
                     'VALUES (?,?,?,?,?)', (token, author, text, now, ip))
+    _prune_hits(_comment_hits, _COMMENT_WINDOW)
     _comment_hits[ip].append(time.time())
     A.log.info("Neuer Kommentar zu Share %s von %s (%d Zeichen)",
                token[:6] + '…', ip, len(text))
@@ -781,10 +825,9 @@ def public_share_comment(token: str):
                      ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP', 'X-Forwarded-For')
                      if request.headers.get(h)}
         A.log.warning(
-            "Kommentar ohne echte Client-IP (%s). Weitergereicht: %s. Im Reverse "
-            "Proxy „X-Real-IP\" setzen (nginx/NPM: proxy_set_header X-Real-IP "
-            "$remote_addr) — X-Forwarded-For allein reicht nicht, waitress "
-            "verwirft den Kopf.", ip, vorhanden or 'nichts')
+            "Kommentar ohne echte Client-IP (%s). Weitergereicht: %s. Die Adresse "
+            "des Reverse Proxys unter Einstellungen → Anmeldung → Eigene "
+            "Reverse-Proxys eintragen.", ip, vorhanden or 'nichts')
     A._spawn(_notify_comment, title, author, text, ip)
     return _comment_redirect(token, 'ok')
 

@@ -488,6 +488,12 @@ def api_restore():
             # zwar hier — bevor irgendetwas in die Datenbank geschrieben wurde.
             if key_raw and (gate := A._key_gate_check(request.form.get('password'))):
                 return gate
+            # Vorhandene Einstellungen ersetzen heißt auch: verschlüsselte Tokens
+            # samt Zieladressen austauschen — damit ließe sich die Bindung
+            # Adresse ↔ Geheimnis (settings.save) umgehen. Deshalb dasselbe Tor.
+            if (settings_raw and request.form.get('replace_settings') == '1'
+                    and (gate := A._key_gate_check(request.form.get('password')))):
+                return gate
         else:                                       # hochgeladene JSON-Datei
             try:
                 data = json.loads(raw.decode('utf-8'))

@@ -41,7 +41,8 @@ def _enable(m):
 
 
 def _now_code(m, secret):
-    return m.twofa._totp_at(secret, __import__("time").time())
+    # nächstes Zeitfenster: der Code aus dem Aktivieren gilt nicht noch einmal
+    return m.twofa._totp_at(secret, __import__("time").time() + m.twofa.TOTP_STEP)
 
 
 def _login(c, user="admin", pw="secret"):
@@ -137,7 +138,8 @@ def test_api_setup_enable_disable(m):
     d = c.post("/api/2fa/setup", headers=ING).get_json()
     assert d["secret"] and d["uri"].startswith("otpauth://totp/TUIWatch")
     assert c.post("/api/2fa/enable", headers=ING, json={"code": "000000"}).status_code == 400
-    r = c.post("/api/2fa/enable", headers=ING, json={"code": _now_code(m, d["secret"])})
+    r = c.post("/api/2fa/enable", headers=ING,
+               json={"code": m.twofa._totp_at(d["secret"], __import__("time").time())})
     assert r.status_code == 200 and len(r.get_json()["backup_codes"]) == 10
     assert c.get("/api/2fa", headers=ING).get_json()["enabled"] is True
     assert c.post("/api/2fa/setup", headers=ING).status_code == 400   # schon aktiv
@@ -147,10 +149,29 @@ def test_api_setup_enable_disable(m):
     assert r.status_code == 200 and not m.twofa.enabled()
 
 
-def test_corrupt_file_means_off(m):
-    _enable(m)
+def test_corrupt_file_fails_closed(m):
+    secret, codes = _enable(m)
     open(m.twofa._path, "w").write("{kaputt")
+    assert m.twofa.enabled() is True
+    assert not m.twofa.check_code(_now_code(m, secret))
+    assert not m.twofa.check_code(codes[0])
+    c = m.app.test_client()
+    assert c.post("/api/2fa/disable", headers=ING, json={}).status_code == 200
     assert m.twofa.enabled() is False
+
+
+def test_totp_code_cannot_be_replayed(m):
+    secret, _ = _enable(m)
+    code = _now_code(m, secret)
+    assert m.twofa.check_code(code) is True
+    assert m.twofa.check_code(code) is False
+
+
+def test_setup_code_not_reusable_for_login(m):
+    secret = m.twofa.start_setup()
+    code = m.twofa._totp_at(secret, __import__("time").time())
+    assert m.twofa.confirm_setup(code)
+    assert m.twofa.check_code(code) is False
 
 
 def test_emergency_option_skips_code_without_deleting(m, monkeypatch):

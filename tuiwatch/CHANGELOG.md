@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.117.1
+
+Sicherheitsprüfung abgearbeitet:
+
+- 🛡 **Login-Sperre nicht mehr per gefälschtem Header umgehbar.** `X-Forwarded-For` & Co. zählen nur noch, wenn die Anfrage von einem eigenen Reverse-Proxy kommt. Neue Einstellung **Anmeldung → Eigene Reverse-Proxys**: IP oder Netz des Proxys eintragen (hinter Cloudflare dessen Netze mit). ⚠️ Wer öffentliche Angebots-Links hinter einem Proxy betreibt: ohne Eintrag teilen sich alle Besucher eine Adresse und damit die Kommentar-Bremse.
+- 🌐 **Neu: „Diese Verbindung“** unter Einstellungen → Anmeldung zeigt, von welcher Adresse dein Aufruf kommt und welche Besucher-Adresse der Proxy meldet, samt Vorschlag und Knopf **„Vorschlag übernehmen“**. Einfach TUIWatch einmal über die öffentliche Adresse öffnen, übernehmen, speichern.
+- 🐛 Der Webserver (waitress) hat `X-Forwarded-For` und `X-Forwarded-Proto` bisher still verworfen. Jetzt kommen sie an, die Entscheidung trifft TUIWatch anhand der eingetragenen Proxys. Damit greift hinter einem HTTPS-Proxy auch das `Secure`-Flag der Cookies.
+- 🔑 **Zieladresse geändert → Token/Passwort muss neu eingegeben werden** (Home Assistant, Nextcloud, SMTP). Eine übernommene Sitzung kann sich gespeicherte Zugangsdaten so nicht an einen eigenen Server schicken lassen. Verbindungen zu HA und Nextcloud folgen außerdem keinen Umleitungen mehr.
+- 🔒 **Einstellungen aus einem Backup ersetzen** verlangt jetzt das Login-Passwort (wie Schlüssel sichern/einspielen).
+- 🔐 **Zwei-Faktor-Anmeldung gehärtet:** Jeder App-Code gilt nur einmal, Backup-Codes lassen sich nicht doppelt einlösen, und eine unlesbare `twofa.json` schaltet die zweite Stufe nicht mehr still ab. Dann geht es über den Notzugang, und in den Einstellungen lässt sich die 2FA ohne Code abschalten und neu einrichten.
+- 🙈 Telegram-Fehler schreiben den Bot-Token nicht mehr ins Log.
+- 🍪 Anmelde-Cookies bekommen bei HTTPS das `Secure`-Flag.
+- 🧹 Kleinkram: Schlüssel- und Restore-Passwort nutzen denselben Standard wie der Login, GIATA-IDs müssen numerisch sein, Kommentare auf öffentlichen Links nur noch von der Seite selbst (Origin-Prüfung), Bild-Links dort nur per https, Token-Prüfung ohne Zeilenende-Lücke, Rate-Limit-Listen begrenzt, ProxyFix übernimmt nur noch das Protokoll, Werkzeug gepinnt.
+
 ## 0.117.0
 
 - 🔐 **Zwei-Faktor-Anmeldung** für den direkten Login über den Port: Einstellungen → Anmeldung → Einrichten, QR-Code mit einer Authenticator-App scannen, Code bestätigen. Dazu 10 einmal nutzbare Backup-Codes. Über Home Assistant ändert sich nichts.

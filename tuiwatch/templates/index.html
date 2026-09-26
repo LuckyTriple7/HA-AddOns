@@ -1892,6 +1892,18 @@
           <button class="btn sec" type="button" onclick="testHaConnection(this)">Verbindung testen</button>
         </div>
       </div>
+      <div class="set-group" id="set-conn-group" data-cat="security" hidden>
+        <h3>🌐 Diese Verbindung</h3>
+        <div class="set-row">
+          <div class="hint">Hilfe für „Eigene Reverse-Proxys“: So sieht TUIWatch deinen Aufruf gerade.
+            Aussagekräftig ist das nur, wenn du TUIWatch über dieselbe Adresse geöffnet hast wie
+            Besucher deiner öffentlichen Links (also über den Proxy).</div>
+          <div class="hint" id="set-conn-state" style="margin-top:6px;white-space:pre-line"></div>
+        </div>
+        <div class="set-row" id="set-conn-apply" hidden>
+          <button class="btn sec" type="button" onclick="connApplySuggestion()">Vorschlag übernehmen</button>
+        </div>
+      </div>
       <div class="set-group" id="set-2fa-group" data-cat="security" hidden>
         <h3>🔐 Zwei-Faktor-Anmeldung</h3>
         <div class="set-row">

@@ -122,7 +122,7 @@ def test_settings_skipped_is_reported_and_overridable(app_mod, tmp_path):
     assert res["options_restored"] is False
     assert m.settings_store.load()["poll_interval"] == 999
 
-    res = _restore(c, blob, replace_settings="1")
+    res = _restore(c, blob, replace_settings="1", password="secret")   # seit 0.117.1 mit Passwort
     assert res["options_restored"] is True
     assert res["options_skipped"] is False
     assert m.settings_store.load()["poll_interval"] == 12345

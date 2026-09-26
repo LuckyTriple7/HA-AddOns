@@ -7,8 +7,11 @@
 - 10 Backup-Codes, nur als Hash gespeichert, je einmal nutzbar.
 - „Gerät merken": zufälliges Token im Cookie; gespeichert wird nur sein
   SHA-256 — eine geleakte twofa.json öffnet also kein gemerktes Gerät.
-- Ablage in `<Datenordner>/twofa.json` mit Rechten 0600. Wer sich aussperrt
-  (Handy weg, keine Backup-Codes), löscht diese Datei: dann gilt 2FA als aus.
+- Ablage in `<Datenordner>/twofa.json` mit Rechten 0600.
+- Jeder App-Code gilt nur einmal (zuletzt angenommenes Zeitfenster wird
+  gespeichert), Backup-Codes werden unter Lock verbraucht.
+- Ist die Datei vorhanden, aber unlesbar, gilt 2FA als AN und kein Code passt
+  (fail-closed). Notzugang dann über die Add-on-Option `twofa_reset`.
 """
 from __future__ import annotations
 
@@ -38,7 +41,8 @@ PENDING_TTL = 300           # Sekunden zwischen Passwort- und Code-Schritt
 TRUST_COOKIE = 'tw_trust2fa'
 PENDING_COOKIE = 'tw_pre2fa'
 
-_lock = threading.Lock()
+_lock = threading.Lock()          # Datei lesen/schreiben
+_op_lock = threading.RLock()      # ganze Lesen-Ändern-Schreiben-Vorgänge
 _path = ''
 _pending: dict[str, float] = {}     # Token → Ablaufzeit (nur im Speicher)
 
@@ -58,11 +62,11 @@ def _load() -> dict:
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as e:
-            # Unlesbar → 2FA gilt als aus. Lieber das als ein ausgesperrter
-            # Besitzer; laut loggen, damit es nicht untergeht.
-            log.error("twofa.json nicht lesbar (%s) — Zwei-Faktor-Anmeldung ist AUS",
-                      type(e).__name__)
-            return {}
+            # Unlesbar → fail-closed: 2FA gilt als an, kein Code passt. Eine
+            # kaputte Datei darf die zweite Stufe nicht still abschalten.
+            log.error("twofa.json nicht lesbar (%s) — Anmeldung über den Port nur noch "
+                      "mit Add-on-Option twofa_reset möglich", type(e).__name__)
+            return {'enabled': True, 'secret': '', 'corrupt': True}
 
 
 def _save(d: dict) -> None:
@@ -72,13 +76,14 @@ def _save(d: dict) -> None:
 
 def enabled() -> bool:
     d = _load()
-    return bool(d.get('enabled') and d.get('secret'))
+    return bool(d.get('enabled') and (d.get('secret') or d.get('corrupt')))
 
 
 def status(days: int) -> dict:
     d = _load()
     now = time.time()
-    return {'enabled': bool(d.get('enabled') and d.get('secret')),
+    return {'enabled': bool(d.get('enabled') and (d.get('secret') or d.get('corrupt'))),
+            'corrupt': bool(d.get('corrupt')),
             'backup_remaining': len(d.get('backup') or []),
             'trusted_devices': sum(1 for v in (d.get('trusted') or {}).values()
                                    if now - v < days * 86400)}
@@ -99,13 +104,21 @@ def _totp_at(secret_b32: str, t: float) -> str:
     return str(num % (10 ** TOTP_DIGITS)).zfill(TOTP_DIGITS)
 
 
-def totp_verify(secret_b32: str, code: str) -> bool:
+def totp_match(secret_b32: str, code: str) -> int | None:
+    """Zeitfenster-Zähler, zu dem `code` passt — oder None."""
     code = (code or '').strip().replace(' ', '')
     if not (secret_b32 and code.isdigit() and len(code) == TOTP_DIGITS):
-        return False
+        return None
     now = time.time()
-    return any(secrets.compare_digest(_totp_at(secret_b32, now + w * TOTP_STEP), code)
-               for w in range(-TOTP_WINDOW, TOTP_WINDOW + 1))
+    for w in range(-TOTP_WINDOW, TOTP_WINDOW + 1):
+        t = now + w * TOTP_STEP
+        if secrets.compare_digest(_totp_at(secret_b32, t), code):
+            return int(t // TOTP_STEP)
+    return None
+
+
+def totp_verify(secret_b32: str, code: str) -> bool:
+    return totp_match(secret_b32, code) is not None
 
 
 def otpauth_uri(secret_b32: str, account: str) -> str:
@@ -131,44 +144,64 @@ def qr_svg(data: str) -> str:
 
 # ── Einrichten / Abschalten ───────────────────────────────────────────────────
 
+def corrupt() -> bool:
+    return bool(_load().get('corrupt'))
+
+
 def start_setup() -> str:
     """Neues Secret vormerken; aktiv wird es erst nach bestätigtem Code."""
     secret = new_secret()
-    d = _load()
-    d['pending'] = secret
-    _save(d)
+    with _op_lock:
+        d = _load()
+        d['pending'] = secret
+        _save(d)
     return secret
 
 
 def confirm_setup(code: str) -> list | None:
     """Vorgemerktes Secret aktivieren. Liefert die Backup-Codes (Klartext, nur
     diese eine Anzeige) oder None bei falschem Code / fehlender Vormerkung."""
-    d = _load()
-    pending = d.get('pending') or ''
-    if not pending or not totp_verify(pending, code):
-        return None
-    plain = ['-'.join(secrets.token_hex(2) for _ in range(2)) for _ in range(BACKUP_CODE_COUNT)]
-    _save({'enabled': True, 'secret': pending,
-           'backup': [generate_password_hash(c) for c in plain], 'trusted': {}})
+    with _op_lock:
+        d = _load()
+        pending = d.get('pending') or ''
+        counter = totp_match(pending, code) if pending else None
+        if counter is None:
+            return None
+        plain = ['-'.join(secrets.token_hex(2) for _ in range(2))
+                 for _ in range(BACKUP_CODE_COUNT)]
+        # last_counter: der Bestätigungs-Code gilt nicht noch einmal beim Login
+        _save({'enabled': True, 'secret': pending, 'last_counter': counter,
+               'backup': [generate_password_hash(c) for c in plain], 'trusted': {}})
     return plain
 
 
 def check_code(code: str) -> bool:
-    """TOTP- oder Backup-Code des aktiven Secrets. Backup-Codes werden verbraucht."""
-    d = _load()
-    if totp_verify(d.get('secret') or '', code):
-        return True
-    code = (code or '').strip().lower()
-    if not code:
-        return False
-    hashes = list(d.get('backup') or [])
-    for i, h in enumerate(hashes):
-        if check_password_hash(h, code):
-            hashes.pop(i)
-            d['backup'] = hashes
+    """TOTP- oder Backup-Code des aktiven Secrets. Ein App-Code gilt nur einmal
+    (kein Wiederverwenden innerhalb seines Zeitfensters), Backup-Codes werden
+    verbraucht — beides unter Lock, damit zwei gleichzeitige Anfragen nicht
+    denselben Code einlösen."""
+    with _op_lock:
+        d = _load()
+        if d.get('corrupt'):
+            return False
+        counter = totp_match(d.get('secret') or '', code)
+        if counter is not None:
+            if counter <= int(d.get('last_counter') or -1):
+                return False
+            d['last_counter'] = counter
             _save(d)
             return True
-    return False
+        code = (code or '').strip().lower()
+        if not code:
+            return False
+        hashes = list(d.get('backup') or [])
+        for i, h in enumerate(hashes):
+            if check_password_hash(h, code):
+                hashes.pop(i)
+                d['backup'] = hashes
+                _save(d)
+                return True
+        return False
 
 
 def disable() -> None:
@@ -214,13 +247,14 @@ def trust_device() -> str:
     Gespeichert wird der Anlegezeitpunkt, nicht das Ablaufdatum — so gilt eine
     später verkürzte Einstellung sofort auch für schon gemerkte Geräte."""
     token = secrets.token_hex(32)
-    d = _load()
-    now = time.time()
-    trusted = {k: v for k, v in (d.get('trusted') or {}).items()
-               if now - v < MAX_TRUST_DAYS * 86400}
-    trusted[_h(token)] = now
-    d['trusted'] = trusted
-    _save(d)
+    with _op_lock:
+        d = _load()
+        now = time.time()
+        trusted = {k: v for k, v in (d.get('trusted') or {}).items()
+                   if now - v < MAX_TRUST_DAYS * 86400}
+        trusted[_h(token)] = now
+        d['trusted'] = trusted
+        _save(d)
     return token
 
 
@@ -233,6 +267,9 @@ def device_trusted(token: str | None, days: int) -> bool:
 
 
 def forget_devices() -> None:
-    d = _load()
-    d['trusted'] = {}
-    _save(d)
+    with _op_lock:
+        d = _load()
+        if d.get('corrupt'):
+            return
+        d['trusted'] = {}
+        _save(d)

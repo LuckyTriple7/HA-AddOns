@@ -493,22 +493,30 @@ def test_revoking_share_removes_its_comments(m, sr, public, admin, offer_id):
         assert con.execute("SELECT COUNT(*) c FROM share_comments").fetchone()["c"] == 0
 
 
-def test_comment_stores_client_ip(m, sr, public, admin, offer_id):
+def _trust_local_proxy(m, monkeypatch):
+    import ipaddress
+    monkeypatch.setattr(m, "_trusted_proxy_nets",
+                        lambda: [ipaddress.ip_network("127.0.0.1/32")])
+
+
+def test_comment_stores_client_ip(m, sr, public, admin, offer_id, monkeypatch):
     sr._comment_hits.clear()
+    _trust_local_proxy(m, monkeypatch)
     tok = _create(admin, offer_id)["token"]
     public.post(f"/s/{tok}/comment", data={"text": "Hallo"},
-                headers={"CF-Connecting-IP": "93.184.216.34"})
+                headers={"X-Forwarded-For": "93.184.216.34"})
     items = admin.get(f"/api/shares/{tok}/comments").get_json()["items"]
     assert items[0]["ip"] == "93.184.216.34"
 
 
-def test_public_page_never_shows_ips(sr, public, admin, offer_id):
+def test_public_page_never_shows_ips(m, sr, public, admin, offer_id, monkeypatch):
     """Die IP ist nur für den Besitzer — auf der öffentlichen Seite hat sie nichts
     verloren (sonst sieht jeder Empfänger, woher die anderen schreiben)."""
     sr._comment_hits.clear()
+    _trust_local_proxy(m, monkeypatch)
     tok = _create(admin, offer_id)["token"]
     public.post(f"/s/{tok}/comment", data={"text": "Hallo"},
-                headers={"CF-Connecting-IP": "93.184.216.34"})
+                headers={"X-Forwarded-For": "93.184.216.34"})
     assert "93.184.216.34" not in public.get("/s/" + tok).get_data(as_text=True)
 
 
@@ -518,9 +526,10 @@ def test_comment_triggers_notification(m, sr, public, admin, offer_id, monkeypat
     ha, tg = [], []
     monkeypatch.setattr(m, "_notify_ha", lambda t, msg, tag, muted=False: ha.append((t, msg)))
     monkeypatch.setattr(m, "_notify_telegram", lambda text, muted=False: tg.append(text))
+    _trust_local_proxy(m, monkeypatch)
     tok = _create(admin, offer_id)["token"]
     public.post(f"/s/{tok}/comment", data={"text": "Gefällt mir", "author": "Oma"},
-                headers={"CF-Connecting-IP": "45.83.12.7"})
+                headers={"X-Forwarded-For": "45.83.12.7"})
     assert len(ha) == 1 and len(tg) == 1
     assert "Oma" in ha[0][1] and "45.83.12.7" in ha[0][1] and "Gefällt mir" in ha[0][1]
     assert "45.83.12.7" in tg[0]
@@ -559,39 +568,82 @@ class _Req:
         self.remote_addr = remote_addr
 
 
-def test_client_ip_prefers_cloudflare_header(m):
-    assert m.get_client_ip(_Req({"CF-Connecting-IP": "93.184.216.34",
-                                 "X-Forwarded-For": "10.0.0.9"})) == "93.184.216.34"
+def _nets(*cidrs):
+    import ipaddress
+    return lambda: [ipaddress.ip_network(c) for c in cidrs]
 
 
-def test_client_ip_takes_first_public_from_chain(m):
-    """Reverse Proxy hängt sich hinten an — links steht der echte Client."""
+def test_client_ip_ignores_headers_without_trusted_proxy(m, monkeypatch):
+    """Ohne eingetragenen Proxy zählt nur der Absender — sonst ließe sich die
+    Login-Sperre mit wechselnden gefälschten Headern umgehen."""
+    monkeypatch.setattr(m, "_trusted_proxy_nets", _nets())
+    assert m.get_client_ip(_Req({"X-Forwarded-For": "93.184.216.34",
+                                 "CF-Connecting-IP": "45.83.12.7",
+                                 "X-Real-IP": "8.8.8.8"})) == "172.30.32.1"
+
+
+def test_client_ip_ignores_headers_from_untrusted_peer(m, monkeypatch):
+    monkeypatch.setattr(m, "_trusted_proxy_nets", _nets("192.168.178.200/32"))
+    assert m.get_client_ip(_Req({"X-Forwarded-For": "93.184.216.34"})) == "172.30.32.1"
+
+
+def test_client_ip_reads_chain_from_the_right(m, monkeypatch):
+    """Links in der Kette kann der Client beliebiges vorgeben; der eigene Proxy
+    hängt den echten Absender rechts an."""
+    monkeypatch.setattr(m, "_trusted_proxy_nets", _nets("172.30.32.0/23"))
+    assert m.get_client_ip(_Req({"X-Forwarded-For": "1.1.1.1, 45.83.12.7"})) == "45.83.12.7"
+
+
+def test_client_ip_skips_own_proxies_in_chain(m, monkeypatch):
+    """Hinter Cloudflare: dessen Netz eingetragen → der Eintrag davor ist der Client."""
+    monkeypatch.setattr(m, "_trusted_proxy_nets", _nets("172.30.32.0/23", "162.158.0.0/15"))
     assert m.get_client_ip(_Req(
-        {"X-Forwarded-For": "93.184.216.34, 172.30.32.1, 10.0.0.9"})) == "93.184.216.34"
+        {"X-Forwarded-For": "93.184.216.34, 162.158.1.5"})) == "93.184.216.34"
 
 
-def test_client_ip_skips_internal_proxy_headers(m):
-    """172.30.32.1 (Docker-Bridge) ist keine Client-Adresse, nur der letzte Hop."""
-    assert m.get_client_ip(_Req({"X-Real-IP": "172.30.32.1",
-                                 "X-Forwarded-For": "45.83.12.7, 172.30.32.1"})) == "45.83.12.7"
-
-
-def test_client_ip_keeps_lan_address_when_thats_all(m):
-    """Aus dem eigenen Netz gibt es keine öffentliche IP — dann eben die private."""
-    assert m.get_client_ip(_Req({"X-Forwarded-For": "192.168.1.50"})) == "192.168.1.50"
-
-
-def test_client_ip_falls_back_to_remote_addr(m):
+def test_client_ip_falls_back_to_remote_addr(m, monkeypatch):
+    monkeypatch.setattr(m, "_trusted_proxy_nets", _nets("172.30.32.0/23"))
     assert m.get_client_ip(_Req({})) == "172.30.32.1"
 
 
-def test_comment_uses_forwarded_chain(m, sr, public, admin, offer_id):
+def test_comment_uses_forwarded_chain(m, sr, public, admin, offer_id, monkeypatch):
     sr._comment_hits.clear()
+    _trust_local_proxy(m, monkeypatch)
     tok = _create(admin, offer_id)["token"]
     public.post(f"/s/{tok}/comment", data={"text": "Aus dem Netz"},
-                headers={"X-Forwarded-For": "45.83.12.7, 172.30.32.1"})
+                headers={"X-Forwarded-For": "6.6.6.6, 45.83.12.7"})
     items = admin.get(f"/api/shares/{tok}/comments").get_json()["items"]
     assert items[0]["ip"] == "45.83.12.7"
+
+
+def test_comment_rejects_foreign_origin(sr, public, admin, offer_id):
+    sr._comment_hits.clear()
+    tok = _create(admin, offer_id)["token"]
+    r = public.post(f"/s/{tok}/comment", data={"text": "Spam"},
+                    headers={"Origin": "https://boese.example"})
+    assert r.status_code == 403
+    r = public.post(f"/s/{tok}/comment", data={"text": "Echt"},
+                    headers={"Origin": "http://localhost"})
+    assert r.status_code == 303
+
+
+def test_token_with_trailing_newline_rejected(public):
+    assert public.get("/s/abcdefghijkl%0A").status_code == 404
+
+
+def test_rate_maps_are_bounded(sr):
+    sr._fail_hits.clear()
+    for i in range(sr._HITS_MAX_KEYS + 50):
+        sr._fail_hits[f"10.0.{i // 250}.{i % 250}"] = [0.0]   # uralt
+    sr._note_fail("1.2.3.4")
+    assert len(sr._fail_hits) <= sr._HITS_MAX_KEYS
+    sr._fail_hits.clear()
+
+
+def test_share_image_must_be_https(sr):
+    assert sr._safe_img("https://pics.tui.com/a.jpg") == "https://pics.tui.com/a.jpg"
+    assert sr._safe_img("http://pics.tui.com/a.jpg") == ""
+    assert sr._safe_img("javascript:alert(1)") == ""
 
 
 # ── Kommentare je Link an/aus ─────────────────────────────────────────────────
@@ -639,12 +691,12 @@ def test_edit_keeps_comment_setting(sr, public, admin, offer_id):
     assert admin.get(f"/api/shares/{tok}").get_json()["comments_enabled"] is False
 
 
-def test_client_ip_rejects_garbage_headers(m):
+def test_client_ip_rejects_garbage_headers(m, monkeypatch):
     """Header sind Fremdeingaben: nur geprüfte IP-Literale dürfen weiter, sonst
     landet beliebiger Text in Log, Datenbank und Oberfläche."""
+    monkeypatch.setattr(m, "_trusted_proxy_nets", _nets("172.30.32.0/23"))
     assert m.get_client_ip(_Req({"X-Real-IP": "nicht-l\nog-sicher"})) == "172.30.32.1"
-    assert m.get_client_ip(_Req({"X-Forwarded-For": "<script>, 45.83.12.7"})) == "45.83.12.7"
-    assert m.get_client_ip(_Req({"CF-Connecting-IP": "1.2.3.4.5.6"})) == "172.30.32.1"
+    assert m.get_client_ip(_Req({"X-Forwarded-For": "45.83.12.7, <script>"})) == "45.83.12.7"
 
 
 def test_log_safe_strips_control_chars(m):

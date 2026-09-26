@@ -41,6 +41,13 @@ angezeigten Code eingeben, **Aktivieren**. Danach erscheinen einmalig
   Verkürzen gilt sofort auch für schon gemerkte Geräte. **Gemerkte Geräte
   vergessen** setzt alle zurück.
 - **Abschalten** verlangt einen aktuellen Code oder Backup-Code.
+- **Eigene Reverse-Proxys** (Einstellung `trusted_proxies`): Nur von dort
+  eingetragenen Adressen werden `X-Forwarded-For`/`X-Real-IP` geglaubt — für die
+  Login-Sperre und die Kommentar-Bremse der öffentlichen Links. Leer = immer
+  der direkte Absender. Hinter Cloudflare dessen Netze mit eintragen.
+- Ändert sich die Adresse von Home Assistant, Nextcloud oder dem SMTP-Server,
+  verfällt das dazu gespeicherte Token bzw. Passwort und muss neu eingetragen
+  werden.
 - **Notzugang**, falls Handy und Backup-Codes weg sind: in Home Assistant beim
   Add-on unter Konfiguration **twofa_reset** einschalten (ohne HA:
   `"twofa_reset": true` in `options.json`). Solange sie an ist, fragt der Login

@@ -278,6 +278,9 @@ FIELDS: dict = {
         "Alten Verlauf verdichten (Monate, 0 = aus)",
         "Dünnt Verlaufsdaten aus, die älter sind als die angegebene Zahl Monate — täglich im Hintergrund. Behalten werden je Angebot und Tag die erste, letzte, günstigste und teuerste Preismessung; beim Preiskalender je Reisetag und Kalenderwoche der letzte beobachtete Preis, dazu immer die älteste und die jüngste Beobachtung. Preisverlauf, niedrigster/höchster Preis, Kalender-Trend und Vorjahresvergleich bleiben damit erhalten, nur die zeitliche Auflösung alter Daten sinkt; lediglich Tagesdurchschnitte können sich minimal verschieben. Standard 0: aus — Verlaufsdaten sind der eigentliche Wert des Add-ons, und eine 25-MB-Datenbank ist für SQLite völlig unkritisch. Sinnvoll erst bei sehr vielen Angeboten über Jahre. Minimum 3 Monate. Der frei gewordene Platz wird erst durch „Speicher freigeben\" im Datenbank-Dialog an das Dateisystem zurückgegeben."),
     # ── security ──
+    "trusted_proxies": ("str", "", 400, "security",
+        "Eigene Reverse-Proxys",
+        "IP-Adressen oder Netze der eigenen Reverse-Proxys vor TUIWatch, mit Komma getrennt, z. B. 192.168.178.200 oder 172.30.32.0/23. Nur Anfragen von dort dürfen per X-Forwarded-For die echte Besucher-Adresse mitteilen — für die Login-Sperre nach Fehlversuchen und die Begrenzung der Kommentare auf öffentlichen Angebots-Links. Leer = immer der direkte Absender (sicher, aber hinter einem Proxy teilen sich dann alle Besucher eine Adresse). Hinter Cloudflare dessen Netze mit eintragen."),
     "twofa_remember_days": ("int", 30, (0, 90), "security",
         "Gerät merken (Tage)",
         "Wie lange ein Gerät nach der Zwei-Faktor-Anmeldung gemerkt werden darf, wenn beim Code „Dieses Gerät merken\" angehakt ist — so lange fragt TUIWatch dort nur Benutzername und Passwort ab. 0 = nie merken, jedes Mal Code. Ein Verkürzen gilt sofort auch für schon gemerkte Geräte. Standard 30. Wirkt nur beim direkten Login über den Port, nicht über Home Assistant."),
@@ -298,6 +301,14 @@ SECRET_KEYS = frozenset({
     'telegram_bot_token', 'smtp_password', 'nc_app_password',
     'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key', 'ha_token',
 })
+
+# Zieladresse → Geheimnis, das dorthin geschickt wird. Ändert sich die Adresse,
+# muss das Geheimnis neu eingegeben werden (siehe save).
+BOUND_SECRETS = (
+    ('ha_url', 'ha_token'),
+    ('nc_addressbook_url', 'nc_app_password'),
+    ('smtp_host', 'smtp_password'),
+)
 
 # Felder, die ohne Home-Assistant-Verbindung nichts bewirken: Sensoren und
 # persistente Benachrichtigungen laufen über die HA-REST-API — als Add-on über den
@@ -498,6 +509,14 @@ def save(values: dict, clear=()) -> list:
             if raw.get(key) != new:
                 raw[key] = new
                 changed.append(key)
+        # Ziel geändert, Geheimnis nicht neu eingegeben → Geheimnis verwerfen.
+        # Sonst könnte eine übernommene Sitzung die Adresse auf einen eigenen
+        # Server umbiegen und sich das gespeicherte Token schicken lassen.
+        for url_key, secret_key in BOUND_SECRETS:
+            if (url_key in changed and secret_key not in changed
+                    and raw.get(secret_key) not in (None, '')):
+                raw[secret_key] = ''
+                changed.append(secret_key)
         if not changed:
             return []
         _write(raw)   # OSError meldet der Aufrufer als Fehler an die Oberfläche

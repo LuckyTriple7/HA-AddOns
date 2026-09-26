@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.117.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.117.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -185,7 +185,12 @@ class _IngressMiddleware:
         return self._app(environ, start_response)
 
 
-app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1))
+# Nur das Protokoll übernehmen (für das Secure-Flag der Cookies). x_for bleibt
+# aus: remote_addr ist der echte Absender, get_client_ip wertet Forwarding-Header
+# selbst und nur von eigenen Proxys aus. x_host/x_prefix aus, weil beides
+# Client-Header wären, die URL-Aufbau und Pfadpräfix verändern könnten.
+app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=0, x_proto=1,
+                                           x_host=0, x_prefix=0))
 
 # ── State ──────────────────────────────────────────────────────────────────────
 sessions: dict[str, float] = {}
@@ -548,34 +553,71 @@ def log_safe(value, limit: int = 120) -> str:
     return text[:limit] + ('…' if len(text) > limit else '')
 
 
+def _trusted_proxy_nets() -> list:
+    """Netze der eigenen Reverse-Proxys aus der Einstellung `trusted_proxies`."""
+    nets = []
+    for part in re.split(r'[,\s]+', str(load_config().get('trusted_proxies') or '')):
+        if part:
+            try:
+                nets.append(ipaddress.ip_network(part, strict=False))
+            except ValueError:
+                continue
+    return nets
+
+
+def _in_nets(value: str, nets: list) -> bool:
+    try:
+        addr = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return any(addr in n for n in nets)
+
+
+# waitress entfernt X-Forwarded-For/-Proto von sich aus, solange kein eigenes
+# `trusted_proxy` gesetzt ist (gemessen) — dann kam die Kette nie an, und das
+# Secure-Flag hinter einem Proxy griff nie. `trusted_proxy` selbst wäre keine
+# Lösung: waitress schriebe dann REMOTE_ADDR um und bräuchte die genaue Zahl der
+# Proxy-Ebenen. Deshalb Header durchreichen und in get_client_ip entscheiden.
+_WAITRESS_PROXY_KW = {'clear_untrusted_proxy_headers': False}
+
+
+def _peer_addr(req) -> str:
+    """Absender der TCP-Verbindung — nie aus einem Header."""
+    return req.remote_addr or 'unknown'
+
+
 def get_client_ip(req) -> str:
-    """Beste bekannte Client-Adresse.
+    """Beste bekannte Client-Adresse — für Login-Sperre, Share-Kommentare, Log.
 
-    Läuft die Seite hinter mehreren Ebenen (Cloudflare → Reverse Proxy → HA), ist
-    `remote_addr` die Docker-Bridge (172.30.32.1) und ProxyFix greift nur einen
-    Hop tief. Deshalb der Reihe nach: die eindeutigen Proxy-Header, dann der
-    erste öffentliche Eintrag der X-Forwarded-For-Kette (links = Client), erst
-    zum Schluss der direkte Absender.
-
-    Verlassen kann man sich darauf nur so weit wie auf den eigenen Proxy: einen
-    X-Forwarded-For-Kopf kann jeder mitschicken. Cloudflare und die üblichen
-    Reverse Proxies überschreiben ihn, ein direkt erreichbarer Port nicht.
-    Zurück kommt deshalb immer nur ein geprüftes IP-Literal oder `remote_addr`
-    aus der Verbindung — nie roher Header-Text, der später in Log, Datenbank
-    oder Oberfläche landen würde.
+    Forwarding-Header (X-Forwarded-For, X-Real-IP) kann jeder mitschicken. Sie
+    zählen deshalb nur, wenn die Verbindung von einem eigenen Reverse-Proxy
+    kommt (Einstellung `trusted_proxies`). Dann wird die X-Forwarded-For-Kette
+    von rechts gelesen — dort hängt jeder Proxy den Absender an, links kann der
+    Client beliebiges vorgeben — und der erste Eintrag, der kein eigener Proxy
+    ist, ist der Client. Hinter Cloudflare dessen Netze mit eintragen.
+    Ohne Eintrag gilt immer der direkte Absender: mit wechselnden gefälschten
+    Headern landete sonst jeder Loginversuch in einer neuen Sperr-Schublade.
+    Zurück kommt nur ein geprüftes IP-Literal oder `remote_addr`.
     """
-    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
-        val = (req.headers.get(header) or '').strip()
-        if val and _is_valid_ip(val) and not _is_internal_ip(val):
-            return val
+    peer = _peer_addr(req)
+    nets = _trusted_proxy_nets()
+    if not nets or not _in_nets(peer, nets):
+        return peer
     chain = [p.strip() for p in (req.headers.get('X-Forwarded-For') or '').split(',')]
-    for val in chain:
-        if val and _is_valid_ip(val) and not _is_internal_ip(val):
+    chain = [p for p in chain if p and _is_valid_ip(p)]
+    # X-Real-IP setzt der letzte Proxy auf seinen Absender — gehört ans Ende der Kette
+    real = (req.headers.get('X-Real-IP') or '').strip()
+    if real and _is_valid_ip(real) and (not chain or chain[-1] != real):
+        chain.append(real)
+    for val in reversed(chain):
+        if not _in_nets(val, nets):
             return val
-    # Nichts Öffentliches dabei: der erste gültige Eintrag der Kette (LAN-Zugriff),
-    # sonst der direkte Absender.
-    first_valid = next((v for v in chain if v and _is_valid_ip(v)), None)
-    return first_valid or req.remote_addr or 'unknown'
+    # Ganzer Weg aus eigenen Proxys (z. B. Cloudflare-Netze eingetragen): dann
+    # darf der Kopf des vordersten Proxys gelten.
+    cf = (req.headers.get('CF-Connecting-IP') or '').strip()
+    if cf and _is_valid_ip(cf):
+        return cf
+    return peer
 
 
 def is_rate_limited(ip: str) -> bool:
@@ -1401,7 +1443,8 @@ def _ha_post(path: str, payload: dict) -> None:
     if not conn:
         return
     base, headers = conn
-    http.post(f'{base}/{path}', headers=headers, timeout=10, json=payload)
+    http.post(f'{base}/{path}', headers=headers, timeout=10, json=payload,
+              allow_redirects=False)
 
 
 def _ha_enabled() -> bool:
@@ -1525,7 +1568,7 @@ def push_ha_sensors(only: int | None = None) -> None:
                             attrs['avg_price_30d'] = int(round(s30['av']))
                 if last and last['ts']:
                     attrs['last_checked'] = datetime.fromtimestamp(last['ts']).isoformat()
-                http.post(f'{base}/states/{eid}', headers=headers, timeout=10,
+                http.post(f'{base}/states/{eid}', headers=headers, timeout=10, allow_redirects=False,
                           json={'state': state, 'attributes': attrs})
         # Übersichts-Sensor (günstigstes Angebot, Anzahl unter Wunschpreis …)
         summary_eid = 'sensor.tuiwatch_uebersicht'
@@ -1547,18 +1590,20 @@ def push_ha_sensors(only: int | None = None) -> None:
             s_state = int(round(cheapest['price']))
         else:
             s_state = 'unknown'
-        http.post(f'{base}/states/{summary_eid}', headers=headers, timeout=10,
+        http.post(f'{base}/states/{summary_eid}', headers=headers, timeout=10, allow_redirects=False,
                   json={'state': s_state, 'attributes': s_attrs})
         if not full:
             return
 
         # Verwaiste tuiwatch-Sensoren entfernen (z. B. nach Löschen/Umbenennen)
         valid = set(mapping.values()) | {summary_eid}
-        states = http.get(f'{base}/states', headers=headers, timeout=10).json()
+        states = http.get(f'{base}/states', headers=headers, timeout=10,
+                          allow_redirects=False).json()
         for st in states:
             ent = st.get('entity_id', '')
             if ent.startswith('sensor.tuiwatch_') and ent not in valid:
-                http.delete(f'{base}/states/{ent}', headers=headers, timeout=10)
+                http.delete(f'{base}/states/{ent}', headers=headers, timeout=10,
+                            allow_redirects=False)
         _ha_last_mapping = mapping
     except Exception as e:
         log.warning("HA-Sensoren aktualisieren fehlgeschlagen: %s", e)
@@ -1629,7 +1674,9 @@ def _notify_telegram(text: str, muted: bool = False) -> None:
                         'disable_web_page_preview': True})
     except Exception as e:
         ok = False
-        log.error("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+        # Nur den Typ: die Ausnahme enthält die URL samt Bot-Token, und der
+        # Log-Puffer ist über /api/logs in der Oberfläche lesbar.
+        log.error("Telegram-Benachrichtigung fehlgeschlagen: %s", type(e).__name__)
     _log_notification('telegram', '', text, '', ok)
 
 
@@ -3709,7 +3756,7 @@ def _slide_session(resp):
         if token and is_valid_session(token):
             hours = int(load_config().get('session_hours', 24))
             touch_session(token, hours)
-            resp.set_cookie('session', token, httponly=True, samesite='Lax',
+            resp.set_cookie('session', token, httponly=True, samesite='Lax', secure=request.is_secure,
                             max_age=hours * 3600)
     return resp
 
@@ -3783,7 +3830,7 @@ def api_settings_ha_test():
         return jsonify({'ok': False, 'mode': mode, 'error': error})
     base, headers = conn
     try:
-        r = http.get(f'{base}/config', headers=headers, timeout=10)
+        r = http.get(f'{base}/config', headers=headers, timeout=10, allow_redirects=False)
     except http.exceptions.RequestException as e:
         log.warning("HA-Verbindungstest: nicht erreichbar (%s)", type(e).__name__)
         return jsonify({'ok': False, 'mode': mode, 'error': 'unreachable'})
@@ -3806,7 +3853,7 @@ def api_settings_ha_test():
     notified = True
     try:
         n = http.post(f'{base}/services/persistent_notification/create', headers=headers,
-                      timeout=10, json={
+                      timeout=10, allow_redirects=False, json={
                           'title': 'TUIWatch',
                           'message': 'Verbindungstest erfolgreich — TUIWatch kann '
                                      'Home Assistant erreichen und Benachrichtigungen senden.',
@@ -3838,10 +3885,14 @@ def api_settings_save():
         return jsonify({'error': 'write failed'}), 500
     _settings_changed()
     restart = any(k in settings_store.RESTART_KEYS for k in changed)
+    # Wegen geänderter Adresse verworfene Geheimnisse (siehe settings.save)
+    cleared = [s for _u, s in settings_store.BOUND_SECRETS
+               if s in changed and not values.get(s)]
     if changed:
         # Nur die Feldnamen ins Log, niemals die Werte
         log.info("Einstellungen geändert: %s", ', '.join(sorted(changed)))
-    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
+    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart,
+                    'cleared': cleared})
 
 
 # Schlüssel-Export ist die einzige Stelle, an der ein Geheimnis TUIWatch
@@ -3852,12 +3903,18 @@ _KEY_GATE_MAX = 5
 _KEY_GATE_LOCK_S = 300
 
 
+def _login_password(cfg: dict | None = None) -> str:
+    """Login-Passwort mit demselben Standard wie /login — das Passwort-Tor für
+    Schlüssel und Restore darf nicht von einem anderen Default ausgehen."""
+    return str((cfg or load_config()).get('password', 'secret'))
+
+
 def _key_gate_check(password: str):
     """None = freigegeben, sonst die fertige Fehlerantwort."""
     now = time.time()
     if _key_gate['until'] > now:
         return jsonify({'error': 'locked', 'retry_after': int(_key_gate['until'] - now)}), 429
-    if not secrets.compare_digest(str(password or ''), str(load_config().get('password', ''))):
+    if not secrets.compare_digest(str(password or ''), _login_password()):
         _key_gate['fails'] += 1
         if _key_gate['fails'] >= _KEY_GATE_MAX:
             _key_gate['until'] = now + _KEY_GATE_LOCK_S
@@ -3960,6 +4017,10 @@ def api_giata_images(giata):
     nur Links (i.giatamedia.com), Bilder werden nicht heruntergeladen/gespeichert."""
     if (err := _require_api()):
         return err
+    # GIATA-IDs sind rein numerisch; alles andere ginge roh in die ausgehende
+    # Anfrage und als neuer Schlüssel in den Cache.
+    if not (giata.isdigit() and len(giata) <= 12):
+        return jsonify({'images': []}), 400
     cached = _giata_images_cache.get(giata)
     if cached and time.time() - cached['ts'] < _GIATA_IMAGES_TTL:
         return jsonify({'images': cached['images']})
@@ -4069,7 +4130,7 @@ def login():
         hours = int(cfg.get('session_hours', 24))
         token = create_session(hours)
         resp = make_response(redirect(url_for('index')))
-        resp.set_cookie('session', token, httponly=True, samesite='Lax',
+        resp.set_cookie('session', token, httponly=True, samesite='Lax', secure=request.is_secure,
                         max_age=hours * 3600)
         resp.delete_cookie(twofa.PENDING_COOKIE)
         return resp
@@ -4088,7 +4149,7 @@ def login():
                 resp = _grant(ip)
                 if remember_days and request.form.get('remember_device'):
                     resp.set_cookie(twofa.TRUST_COOKIE, twofa.trust_device(),
-                                    httponly=True, samesite='Lax',
+                                    httponly=True, samesite='Lax', secure=request.is_secure,
                                     max_age=remember_days * 86400)
                 log.info("Anmeldung mit Zwei-Faktor-Code")
                 return resp
@@ -4099,14 +4160,14 @@ def login():
         elif (secrets.compare_digest(request.form.get('username', ''),
                                      str(cfg.get('username', 'admin')))
               and secrets.compare_digest(request.form.get('password', ''),
-                                         str(cfg.get('password', 'secret')))):
+                                         _login_password(cfg))):
             if _twofa_required() and not twofa.device_trusted(
                     request.cookies.get(twofa.TRUST_COOKIE), remember_days):
                 resp = make_response(render_template(
                     'login.html', error=None, step='code', remember_days=remember_days,
                     script_root=request.script_root))
                 resp.set_cookie(twofa.PENDING_COOKIE, twofa.pending_new(), httponly=True,
-                                samesite='Lax', max_age=twofa.PENDING_TTL)
+                                samesite='Lax', secure=request.is_secure, max_age=twofa.PENDING_TTL)
                 return resp
             return _grant(ip)
         else:
@@ -4148,6 +4209,30 @@ def _twofa_remember_days(cfg: dict | None = None) -> int:
 # erreichbar — dort hat HA angemeldet. Abschalten verlangt einen gültigen Code,
 # damit eine offen gelassene Sitzung allein die 2FA nicht entfernen kann.
 
+@app.route('/api/connection-info', methods=['GET'])
+def api_connection_info():
+    """Was TUIWatch über die aktuelle Verbindung sieht — als Hilfe für die
+    Einstellung „Eigene Reverse-Proxys“. Nur geprüfte IP-Literale gehen zurück."""
+    if (err := _require_api()):
+        return err
+    peer = _peer_addr(request)
+    chain = [p.strip() for p in (request.headers.get('X-Forwarded-For') or '').split(',')]
+    chain = [p for p in chain if p and _is_valid_ip(p)][:10]
+    nets = _trusted_proxy_nets()
+    trusted = bool(nets) and _in_nets(peer, nets)
+    suggestion = ''
+    if chain and not trusted and _is_valid_ip(peer):
+        addr = ipaddress.ip_address(peer)
+        if addr.version == 4 and addr in ipaddress.ip_network('172.16.0.0/12'):
+            # Docker-Netz: Container-IPs wechseln, das Netz bleibt → /16
+            suggestion = str(ipaddress.ip_network(f'{peer}/16', strict=False))
+        else:
+            suggestion = peer
+    return jsonify({'peer': peer, 'forwarded': chain, 'detected': get_client_ip(request),
+                    'trusted': trusted, 'suggestion': suggestion,
+                    'ingress': _is_ingress()})
+
+
 @app.route('/api/2fa', methods=['GET'])
 def api_2fa_status():
     if (err := _require_api()):
@@ -4185,7 +4270,10 @@ def api_2fa_disable():
         return err
     if not twofa.enabled():
         return jsonify({'ok': True})
-    if not twofa.check_code((request.get_json(silent=True) or {}).get('code', '')):
+    # Kaputte twofa.json: kein Code kann mehr passen — Abschalten ohne Code, sonst
+    # käme man aus dem fail-closed-Zustand nicht mehr heraus.
+    if not twofa.corrupt() and not twofa.check_code(
+            (request.get_json(silent=True) or {}).get('code', '')):
         return jsonify({'error': 'bad_code'}), 400
     twofa.disable()
     log.info("Zwei-Faktor-Anmeldung deaktiviert")
@@ -5701,17 +5789,11 @@ def _start_public_server() -> None:
         return
     port = int(cfg.get('public_port') or 17796)
     log.info("Öffentliche Angebots-Seiten aktiv auf Port %d (nur /s/<token>)", port)
-    # Zur Client-IP hinter dem Reverse Proxy (Kommentare zeigen sie an):
-    # waitress verwirft X-Forwarded-For, solange kein `trusted_proxy` gesetzt
-    # ist — `X-Real-IP` und `CF-Connecting-IP` reicht es dagegen durch (gemessen).
-    # Genau die wertet get_client_ip aus. `trusted_proxy` wäre die Alternative,
-    # verlangt aber die exakte Zahl der Proxy-Ebenen (trusted_proxy_count); rät
-    # man daneben, steht am Ende wieder die Adresse eines Zwischenhops da.
-    # Deshalb bleibt es bei den Standardeinstellungen; fehlt die echte IP, sagt
-    # eine Warnung im Log, welcher Header im Proxy zu setzen ist.
+    # Proxy-Header ungefiltert durchreichen (siehe _WAITRESS_PROXY_KW); welcher
+    # Absender ihnen trauen darf, entscheidet get_client_ip anhand trusted_proxies.
     threading.Thread(
         target=lambda: serve(share_routes.share_app, host='0.0.0.0', port=port,
-                             threads=8),
+                             threads=8, **_WAITRESS_PROXY_KW),
         daemon=True).start()
 
 
@@ -5753,7 +5835,7 @@ def main() -> None:
     # fetch_price ueber Poller UND manuelle UI-Aktionen (Zimmer-/Naechte-Vergleich)
     # hinweg, mehrere gleichzeitige Lock-Waits konnten alle Threads belegen und
     # neue Verbindungen (inkl. Docker-HEALTHCHECK) blockieren.
-    serve(app, host='0.0.0.0', port=port, threads=32)
+    serve(app, host='0.0.0.0', port=port, threads=32, **_WAITRESS_PROXY_KW)
 
 
 if __name__ == '__main__':
