@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [1.0.5] - 2026-09-26
+- `table_open_cache` auf 4000, `table_definition_cache` auf 2000. Behebt den Nextcloud-35-Hinweis „Table open cache hit rate“.
+
 ## [1.0.4] - 2026-09-26
 - `tmp_table_size` und `max_heap_table_size` auf 64M (weniger Temp-Tabellen auf Platte), `innodb_log_file_size` auf 256M. Behebt die Nextcloud-35-Warnungen „On-disk temp tables“ und „InnoDB log file size“. Das Redo-Log wird beim ersten Start automatisch neu angelegt.
 
