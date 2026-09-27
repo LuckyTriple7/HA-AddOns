@@ -939,6 +939,9 @@ mcp_servers:
   `get_trip`, `next_trip`, `get_status`; mit **Aktionen erlauben** zusätzlich
   `check_offer`, `set_target_price`, `pause_offer`.
 - Neues Token erzeugen macht das alte sofort ungültig.
+- Keine Personendaten: Namen und Geburtsdaten der Reisenden, Sonderwünsche und
+  die Buchungsnummer gehen nicht an das KI-Modell.
+- Jede Anfrage steht im Log (INFO): Verbindung und Werkzeug-Aufruf mit IP.
 
 ## Home-Assistant-Sensoren
 

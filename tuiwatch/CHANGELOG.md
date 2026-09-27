@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.119.1
+
+- 🔒 **MCP gibt keine Personendaten mehr heraus.** Aus den Reise-Details gehen nur noch freigegebene Felder an das KI-Modell: Termine, Hotel, Zimmer, Verpflegung, Flüge, Preise, Zahlungen und Fristen, Anzahl der Reisenden samt Preis je Person. Nicht mehr enthalten: Namen und Geburtsdaten der Reisenden, Sonderwünsche (Freitext) und die Buchungsnummer. Die Auswahl läuft über eine Liste erlaubter Felder, ein neues Feld aus dem PDF-Parser gelangt so nicht versehentlich nach außen.
+- 📝 **MCP-Anfragen im Log (INFO):** „MCP: Verbindung von <IP> (<Client>)“ beim Verbinden und „MCP: get_trip(trip_id=3) von <IP>“ je Werkzeug-Aufruf. Argumente nur als Zahlen, kein Freitext.
+
 ## 0.119.0
 
 - 🤖 **Neu: MCP-Server.** TUIWatch lässt sich jetzt als MCP-Server (Model Context Protocol) in KI-Clients einbinden, z. B. LiteLLM, Claude Desktop oder Claude Code. Einrichten unter Einstellungen → 🤖 MCP-Server → **Neues Token erzeugen**: Das Token wird einmal angezeigt, zusammen mit dem fertigen Eintrag für die `config.yaml` von LiteLLM. Danach speichert TUIWatch es nur noch verschlüsselt, vergessen heißt neues erzeugen.

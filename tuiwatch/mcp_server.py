@@ -125,8 +125,42 @@ def t_get_offer(args: dict):
     return out
 
 
-_TRIPS_COLS = ('SELECT id, booking_code, booking_date, title, destination, hotel, start_date, '
+# Datenschutz: an das KI-Modell gehen nur Reisedaten, nichts zu Personen. Keine
+# Namen, keine Geburtsdaten, keine Sonderwünsche (Freitext) und keine
+# Buchungsnummer (mit Namen zusammen der Schlüssel zur Buchung bei TUI).
+# Deshalb eine Liste ERLAUBTER Felder statt einer Sperrliste — ein neues
+# Parser-Feld gelangt so nicht versehentlich nach außen.
+_TRIPS_COLS = ('SELECT id, booking_date, title, destination, hotel, start_date, '
                'end_date, nights, travellers, total_price, package_price, meal FROM trips ')
+_TRIP_DETAIL_KEYS = ('buchungsdatum', 'reisezeitraum', 'naechte', 'reiseziel', 'zimmertyp',
+                     'verpflegung', 'gesamtpreis', 'paketpreis', 'paketpreis_netto',
+                     'extras_summe', 'rabatte_summe', 'preis_pro_nacht', 'preis_pro_person_nacht',
+                     'preis_pro_nacht_paket', 'preis_pro_person_nacht_paket', 'rabatte',
+                     'zahlungsart', 'anzahlung', 'restzahlung')
+_FLIGHT_KEYS = ('datum', 'typ', 'abflug_zeit', 'ankunft_zeit', 'dauer', 'von', 'nach',
+                'flugnummer')
+_EXTRA_KEYS = ('typ', 'code', 'teilnehmer', 'anzahl', 'gewicht', 'plaetze', 'preis')
+
+
+def _pick(d, keys) -> dict:
+    return {k: d[k] for k in keys if isinstance(d, dict) and k in d}
+
+
+def _trip_details(data: dict) -> dict:
+    """Aus dem geparsten TUI-PDF nur die freigegebenen Felder (siehe oben)."""
+    out = _pick(data, _TRIP_DETAIL_KEYS)
+    hotel = data.get('hotel')
+    if isinstance(hotel, dict):
+        out['hotel'] = _pick(hotel, ('name', 'code'))
+    out['fluege'] = [_pick(f, _FLIGHT_KEYS) for f in (data.get('fluege') or [])
+                     if isinstance(f, dict)]
+    out['extras'] = [_pick(e, _EXTRA_KEYS) for e in (data.get('extras') or [])
+                     if isinstance(e, dict)]
+    # Reisende nur als Anzahl und Preis je Person — ohne Namen und Geburtsdatum
+    reisende = [x for x in (data.get('reisende') or []) if isinstance(x, dict)]
+    out['reisende_anzahl'] = len(reisende) or None
+    out['preis_je_reisendem'] = [x.get('preis') for x in reisende if x.get('preis')]
+    return out
 _TRIPS_UPCOMING_SQL = (_TRIPS_COLS + 'WHERE end_date >= ? OR end_date IS NULL '
                        'ORDER BY start_date ASC LIMIT ?')
 _TRIPS_ALL_SQL = _TRIPS_COLS + 'ORDER BY start_date DESC LIMIT ?'
@@ -175,10 +209,10 @@ def t_get_trip(args: dict):
         atts = con.execute('SELECT orig_name FROM trip_attachments WHERE trip_id=? '
                            'ORDER BY id', (tid,)).fetchall()
         checks = A.flight_watch.flight_checks_for(con, tid)
-    trip = {k: row[k] for k in ('id', 'booking_code', 'booking_date', 'title', 'destination',
+    trip = {k: row[k] for k in ('id', 'booking_date', 'title', 'destination',
                                 'hotel', 'start_date', 'end_date', 'nights', 'travellers',
                                 'total_price', 'package_price', 'net_per_night', 'meal')}
-    trip['details'] = A._json_loads_safe(row['data'] or '{}', {})
+    trip['details'] = _trip_details(A._json_loads_safe(row['data'] or '{}', {}))
     trip['flight_schedule_checks'] = checks
     open_items = [f"{p['category']}: {p['label']}" for p in packing if not p['checked']]
     trip['packing'] = {'total': len(packing), 'open': len(open_items),
@@ -267,8 +301,9 @@ TOOLS = [
          'include_past': {'type': 'boolean', 'description': 'Auch vergangene Reisen', 'default': False},
          'limit': {'type': 'integer', 'default': 50}}, 'additionalProperties': False}},
     {'name': 'get_trip', 'handler': t_get_trip, 'write': False,
-     'description': 'Alle Daten einer gebuchten Reise: Flüge mit Zeiten, Hotel, Zimmer, Verpflegung, '
-                    'Reisende, Zahlungen/Fristen, Abgleich mit dem Flughafen-Flugplan, offene Punkte der Packliste.',
+     'description': 'Daten einer gebuchten Reise: Flüge mit Zeiten, Hotel, Zimmer, Verpflegung, '
+                    'Anzahl Reisende und Preise, Zahlungen/Fristen, Abgleich mit dem Flughafen-Flugplan, '
+                    'offene Punkte der Packliste. Enthält keine Personendaten.',
      'inputSchema': {'type': 'object', 'properties': {
          'trip_id': {'type': 'integer', 'description': 'ID der Reise (aus list_trips)'}},
          'required': ['trip_id'], 'additionalProperties': False}},
@@ -327,6 +362,9 @@ def _handle(msg) -> dict | None:
         return _err(mid, -32602, 'Invalid params')
     if method == 'initialize':
         asked = params.get('protocolVersion')
+        client = params.get('clientInfo') if isinstance(params.get('clientInfo'), dict) else {}
+        A.log.info("MCP: Verbindung von %s (%s)", A.log_safe(A.get_client_ip(request)),
+                   A.log_safe(client.get('name') or '?', 60))
         return _ok(mid, {
             'protocolVersion': asked if asked in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0],
             'capabilities': {'tools': {'listChanged': False}},
@@ -346,6 +384,11 @@ def _handle(msg) -> dict | None:
         tool = next((t for t in _visible_tools() if t['name'] == name), None)
         if tool is None or not isinstance(args, dict):
             return _err(mid, -32602, 'Unknown tool or invalid arguments')
+        # Nur Zahlen/Wahrheitswerte als Argumente ins Log, kein Freitext
+        shown = ', '.join(f'{k}={v}' for k, v in args.items()
+                          if isinstance(k, str) and k.isidentifier()
+                          and (v is None or isinstance(v, (bool, int, float))))
+        A.log.info("MCP: %s(%s) von %s", tool['name'], shown, A.log_safe(A.get_client_ip(request)))
         try:
             data = tool['handler'](args)
         except ToolError as e:

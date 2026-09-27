@@ -131,8 +131,35 @@ def test_trip_tools(m):
     assert up["count"] == 1 and up["trips"][0]["own_share"] == 1200.0
     assert call(c, "list_trips", {"include_past": True})["structuredContent"]["count"] == 2
     det = call(c, "get_trip", {"trip_id": tid})["structuredContent"]
-    assert det["details"]["hinflug"] == "STR 06:45" and det["booking_code"] == "B123"
-    assert "packing" in det
+    assert "booking_code" not in det and "packing" in det
+
+
+def test_trip_details_contain_no_personal_data(m, caplog):
+    data = {"buchungsnummer": "TUI-GEHEIM-99", "reiseziel": "Kreta",
+            "hotel": {"name": "Hotel Test", "code": "HER123"},
+            "reisende": [{"name": "Erika Mustermann", "geburtsdatum": "01.02.1980", "preis": "1.200,00"},
+                         {"name": "Max Mustermann", "geburtsdatum": "03.04.1978", "preis": "1.200,00"}],
+            "sonderwuensche": ["Zimmer neben Familie Mustermann"],
+            "fluege": [{"datum": "01.06.2099", "typ": "Hinflug", "abflug_zeit": "06:45",
+                        "von": "Stuttgart", "nach": "Heraklion", "flugnummer": "X3 2150",
+                        "passagier": "Erika Mustermann"}],
+            "gesamtpreis": "2.400,00", "anzahlung": {"betrag": "480,00", "faelligkeit": "01.02.2099"}}
+    with m.db() as con:
+        tid = con.execute(
+            "INSERT INTO trips (booking_code, destination, hotel, start_date, end_date, data, created) "
+            "VALUES ('TUI-GEHEIM-99', 'Kreta', 'Hotel Test', '2099-06-01', '2099-06-08', ?, 1)",
+            (json.dumps(data),)).lastrowid
+    c = m.app.test_client()
+    with caplog.at_level("INFO"):
+        det = call(c, "get_trip", {"trip_id": tid})
+        lst = call(c, "list_trips", {"include_past": True})
+    text = json.dumps(det) + json.dumps(lst)
+    for secret in ("Mustermann", "Erika", "1980", "TUI-GEHEIM", "Familie"):
+        assert secret not in text, secret
+    d = det["structuredContent"]["details"]
+    assert d["reisende_anzahl"] == 2 and d["hotel"]["name"] == "Hotel Test"
+    assert d["fluege"][0]["abflug_zeit"] == "06:45" and d["anzahlung"]["betrag"] == "480,00"
+    assert "MCP: get_trip(trip_id=%d)" % tid in caplog.text
 
 
 def test_token_generated_once_and_hidden(m, monkeypatch, tmp_path):
