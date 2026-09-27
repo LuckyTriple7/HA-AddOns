@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.117.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.117.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -5658,6 +5658,8 @@ def _health_sensor_worker() -> None:
 # waitress-Thread mit eigener Arena. Bis zur naechsten Runde stand die Anzeige
 # deshalb hoch, obwohl Python die Daten laengst losgelassen hatte.
 MEMORY_TRIM_INTERVAL = 300
+MEMORY_TRIM_STARTUP_S = 900      # Startphase: die ersten 15 Minuten …
+MEMORY_TRIM_STARTUP_TICK = 60    # … jede Minute aufraeumen
 
 # Letztes Aufraeumen, fuer die Anzeige im Speicher-Tab: ohne das laesst sich von
 # aussen nicht unterscheiden, ob der Aufraeumer laeuft und nichts findet oder ob
@@ -5678,10 +5680,17 @@ def _trim_once(auto: bool = True) -> float:
 
 
 def _memory_janitor() -> None:
-    """Raeumt alle `MEMORY_TRIM_INTERVAL` Sekunden auf.
+    """Raeumt alle `MEMORY_TRIM_INTERVAL` Sekunden auf, in der Startphase jede Minute.
+
+    Beim Start laufen Reiseziel-Index, Selbsttest und vier Flugplan-Worker
+    gleichzeitig an und treiben den Speicher auf weit ueber 1 GB. Enden sie nach
+    der ersten Runde, stand der freie Speicher bis zur naechsten fuenf Minuten
+    herum (gemessen: ~1 GB, den „Speicher freigeben" sofort zurueckgab). Deshalb
+    in den ersten `MEMORY_TRIM_STARTUP_S` Sekunden im Minutentakt.
 
     Geloggt wird nur, wenn es sich lohnt (ab 50 MB): sonst stuende alle fuenf
     Minuten dieselbe Zeile im Log."""
+    started = time.time()
     time.sleep(60)          # erst hochlaufen lassen
     while True:
         try:
@@ -5692,7 +5701,9 @@ def _memory_janitor() -> None:
                          freed, before, before - freed)
         except Exception as e:
             log.warning("Speicher-Aufraeumer: %s", e)
-        time.sleep(MEMORY_TRIM_INTERVAL)
+        time.sleep(MEMORY_TRIM_STARTUP_TICK
+                   if time.time() - started < MEMORY_TRIM_STARTUP_S
+                   else MEMORY_TRIM_INTERVAL)
 
 
 def _cooldown_sensor_worker() -> None:

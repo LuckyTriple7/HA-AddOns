@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.117.5
+
+- 🧠 **Nach dem Start gibt TUIWatch den Speicher schneller zurück.** Beim Hochfahren laufen Reiseziel-Index, Selbsttest und die Flugplan-Abrufe gleichzeitig an und belegen kurz weit über 1 GB. Der Aufräumer schaute bisher nur alle 5 Minuten nach, der freie Speicher (rund 1 GB) blieb so lange stehen. In den ersten 15 Minuten nach dem Start räumt er jetzt jede Minute auf, danach wie gewohnt alle 5 Minuten.
+
 ## 0.117.4
 
 - 🔒 Log beim Speichern der Einstellungen: geänderte Zugangsdaten erscheinen nur noch als fester Satz „Zugangsdaten geändert“, ohne Anzahl (zweiter CodeQL-Hinweis).
