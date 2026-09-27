@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.119.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.120.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -4594,6 +4594,11 @@ def api_market_trend():
     statt nur der eigenen getrackten Angebote."""
     if (err := _require_api()):
         return err
+    return jsonify(market_trend_payload())
+
+
+def market_trend_payload() -> dict:
+    """Daten für /api/market-trend — auch vom MCP-Server genutzt."""
     with db() as con:
         regions = [r['region'] for r in con.execute(
             "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
@@ -4603,8 +4608,8 @@ def api_market_trend():
             t, i = _market_trend(con, region=r), _market_index(con, region=r)
             if t or i:
                 by_region.append({'region': r, 'trend': t, 'index': i})
-    return jsonify({'global': glob, 'by_region': by_region,
-                    'basket': market_basket.basket_payload()})
+    return {'global': glob, 'by_region': by_region,
+            'basket': market_basket.basket_payload()}
 
 
 @app.route('/api/market-trend/recompute', methods=['POST'])

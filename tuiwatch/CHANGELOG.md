@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.120.0
+
+- 🤖 **MCP-Server kann mehr** (alles nur lesend):
+  - **Probleme:** Angebot nicht mehr verfügbar, Abruf schlägt wiederholt fehl, Messreihe oder Suchabo gestört.
+  - **API-Status:** letzter Selbsttest der TUI-Schnittstellen, welche Prüfung scheitert. Erklärt z. B., warum keine neuen Preise kommen.
+  - **Flugpläne:** Abflüge zu einem Ziel ab den eingeschalteten Heimatflughäfen und die Liste aller Ziele.
+  - **Benachrichtigungen:** zuletzt gemeldete Preisänderungen, erreichte Wunschpreise, günstigere Termine usw. Kommentare zu öffentlichen Links fehlen bewusst (Name und IP des Schreibenden).
+  - **Preiskalender** eines Angebots, **Markttrend mit Buchungsampel** und **Aktionscodes**.
+
 ## 0.119.1
 
 - 🔒 **MCP gibt keine Personendaten mehr heraus.** Aus den Reise-Details gehen nur noch freigegebene Felder an das KI-Modell: Termine, Hotel, Zimmer, Verpflegung, Flüge, Preise, Zahlungen und Fristen, Anzahl der Reisenden samt Preis je Person. Nicht mehr enthalten: Namen und Geburtsdaten der Reisenden, Sonderwünsche (Freitext) und die Buchungsnummer. Die Auswahl läuft über eine Liste erlaubter Felder, ein neues Feld aus dem PDF-Parser gelangt so nicht versehentlich nach außen.

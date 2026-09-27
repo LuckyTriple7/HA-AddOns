@@ -182,3 +182,63 @@ def test_token_generated_once_and_hidden(m, monkeypatch, tmp_path):
     tok2 = c.post("/api/mcp/token", headers=ING).get_json()["token"]
     assert rpc(c, "ping", headers={"Authorization": "Bearer " + tok}).status_code == 401
     assert rpc(c, "ping", headers={"Authorization": "Bearer " + tok2}).status_code == 200
+
+
+# ── Erweiterung 0.120.0 ───────────────────────────────────────────────────────
+
+def test_new_tools_listed(m):
+    names = {t["name"] for t in rpc(m.app.test_client(), "tools/list").get_json()["result"]["tools"]}
+    assert {"get_problems", "get_api_status", "search_flights", "list_flight_destinations",
+            "get_notifications", "get_price_calendar", "get_market_trend",
+            "get_promo_codes"} <= names
+
+
+def test_problems_and_api_status(m):
+    import issues
+    issues.report("offer", "7", "Hotel Test", "Kein Angebot im Zeitraum")
+    c = m.app.test_client()
+    p = call(c, "get_problems")["structuredContent"]
+    assert p["problems"][0]["title"] == "Hotel Test" and p["problems"][0]["kind"] == "Angebot"
+    m._health_state.update(ok=False, ts=int(time.time()), checks=[
+        {"name": "Preis-API", "ok": False, "detail": "HTTP 503", "critical": True}])
+    s = call(c, "get_api_status")["structuredContent"]
+    assert s["ok"] is False and s["checks"][0]["note"] == "HTTP 503"
+
+
+def test_notifications_hide_share_comments(m):
+    with m.db() as con:
+        con.execute("INSERT INTO notify_log (ts, channel, title, message, tag, ok) VALUES "
+                    "(1000, 'ha', 'Preis gesunken', 'Kreta jetzt 899 €', 'price_1', 1)")
+        con.execute("INSERT INTO notify_log (ts, channel, title, message, tag, ok) VALUES "
+                    "(1000, 'telegram', 'Preis gesunken', 'Kreta jetzt 899 €', 'price_1', 1)")
+        con.execute("INSERT INTO notify_log (ts, channel, title, message, tag, ok) VALUES "
+                    "(1001, 'ha', 'Kommentar', 'Erika (93.184.216.34): super', 'share_comment', 1)")
+    n = call(m.app.test_client(), "get_notifications")["structuredContent"]["notifications"]
+    assert len(n) == 1 and n[0]["title"] == "Preis gesunken"
+    assert "Erika" not in json.dumps(n)
+
+
+def test_flights_tools(m, monkeypatch):
+    import all_flights_routes as afr
+    c = m.app.test_client()
+    monkeypatch.setattr(afr, "search_all", lambda q, a="", b="": None)
+    assert call(c, "search_flights", {"destination": "HER"})["isError"] is True
+    monkeypatch.setattr(afr, "search_all", lambda q, a="", b="": {
+        "str": {"rows": [{"to": "HER", "time": "06:45"}] * 100}, "muc": {"error": True}})
+    r = call(c, "search_flights", {"destination": "HER"})["structuredContent"]
+    assert r["Stuttgart"]["count"] == 100 and len(r["Stuttgart"]["flights"]) == 80
+    assert r["Stuttgart"]["truncated"] is True and r["München"] == {"error": True}
+    monkeypatch.setattr(afr, "destinations_all", lambda: [
+        {"code": "HER", "name": "Heraklion", "country": "Griechenland", "airports": ["str"]},
+        {"code": "PMI", "name": "Palma", "country": "Spanien", "airports": ["str"]}])
+    d = call(c, "list_flight_destinations", {"filter": "griech"})["structuredContent"]
+    assert d["count"] == 1 and d["destinations"][0]["code"] == "HER"
+
+
+def test_calendar_market_promo(m):
+    oid = _add_offer(m)
+    c = m.app.test_client()
+    cal = call(c, "get_price_calendar", {"offer_id": oid})["structuredContent"]
+    assert cal["status"] == "idle"
+    assert "global" in call(c, "get_market_trend")["structuredContent"]
+    assert "codes" in call(c, "get_promo_codes")["structuredContent"]

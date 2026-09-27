@@ -36,7 +36,8 @@ INSTRUCTIONS = (
     "TUIWatch verfolgt Preise von TUI-Reiseangeboten und verwaltet gebuchte Reisen. "
     "Preise sind pro Person in Euro, total_price ist der Gesamtpreis aller Reisenden. "
     "Zuerst list_offers aufrufen, Details und Preisverlauf dann mit get_offer. "
-    "Gebuchte Reisen („Meine Reisen“) mit list_trips und get_trip.")
+    "Gebuchte Reisen („Meine Reisen“) mit list_trips und get_trip. "
+    "Bei Fragen zu fehlenden Preisen zuerst get_problems und get_api_status.")
 
 
 # ── Hilfen ────────────────────────────────────────────────────────────────────
@@ -236,6 +237,121 @@ def t_get_status(args: dict):
             'running_tasks': A.busy_labels()}
 
 
+def t_get_problems(args: dict):
+    """Offene Störungen (Angebot nicht verfügbar, Abruf-Fehler in Folge …)."""
+    import issues
+    with A.db() as con:
+        rows = con.execute('SELECT * FROM issues ORDER BY muted, streak DESC, '
+                           'last_ts DESC').fetchall()
+        items = [issues._row(r, con) for r in rows]
+    return {'summary': issues.summary(), 'problems': [
+        {'kind': i['kind_label'], 'title': i['title'], 'detail': i['detail'],
+         'severity': i['severity'], 'failures_in_a_row': i['streak'],
+         'since': _iso(i['first_ts']), 'last': _iso(i['last_ts']),
+         'muted': bool(i['muted'])} for i in items]}
+
+
+def t_get_api_status(args: dict):
+    """Letzter Selbsttest der TUI-Schnittstellen (ohne neuen anzustoßen)."""
+    with A._health_lock:
+        st = dict(A._health_state)
+    return {'ok': st.get('ok'), 'checked': _iso(st.get('ts')), 'running': bool(st.get('running')),
+            'checks': [{'name': c.get('name'), 'ok': c.get('ok'), 'critical': c.get('critical'),
+                        'note': c.get('note') or c.get('detail') or ''}
+                       for c in (st.get('checks') or []) if isinstance(c, dict)]}
+
+
+_FLIGHT_ROWS_MAX = 80
+
+
+def t_search_flights(args: dict):
+    """Abflüge zu einem Ziel an den eingeschalteten Flughäfen (Flugpläne)."""
+    import all_flights_routes
+    q = str(args.get('destination') or '').strip()
+    if len(q) < 2:
+        raise ToolError('destination: mindestens 2 Zeichen (Stadt, Land oder IATA-Code)')
+    out = all_flights_routes.search_all(q, str(args.get('date_from') or '').strip(),
+                                        str(args.get('date_till') or '').strip())
+    if out is None:
+        raise ToolError('Kein Flugplan eingeschaltet (Einstellungen → Zusatzmodule)')
+    names = {'str': 'Stuttgart', 'fra': 'Frankfurt', 'muc': 'München', 'fkb': 'Karlsruhe/Baden-Baden'}
+    result = {}
+    for k, v in out.items():
+        rows = (v or {}).get('rows') or []
+        result[names.get(k, k)] = ({'error': True} if (v or {}).get('error')
+                                   else {'count': len(rows), 'flights': rows[:_FLIGHT_ROWS_MAX],
+                                         'truncated': len(rows) > _FLIGHT_ROWS_MAX})
+    return result
+
+
+def t_list_flight_destinations(args: dict):
+    import all_flights_routes
+    out = all_flights_routes.destinations_all()
+    if out is None:
+        raise ToolError('Kein Flugplan eingeschaltet (Einstellungen → Zusatzmodule)')
+    q = str(args.get('filter') or '').strip().lower()
+    if q:
+        out = [d for d in out if q in (d.get('name') or '').lower()
+               or q in (d.get('country') or '').lower() or q == (d.get('code') or '').lower()]
+    return {'count': len(out), 'destinations': out[:300]}
+
+
+# Kommentare zu öffentlichen Links tragen Name und IP des Schreibenden — keine
+# Personendaten an das KI-Modell, diese Meldungen fallen deshalb ganz heraus.
+_NOTIFY_HIDDEN_TAGS = ('share_comment',)
+
+
+def t_get_notifications(args: dict):
+    limit = max(1, min(int(args.get('limit') or 30), 200))
+    with A.db() as con:
+        rows = con.execute(
+            'SELECT ts, channel, title, message, tag, ok FROM notify_log '
+            'ORDER BY id DESC LIMIT 400').fetchall()
+    items = []
+    seen = set()
+    for r in rows:
+        if (r['tag'] or '') in _NOTIFY_HIDDEN_TAGS or (r['tag'] or '').startswith('share_comment'):
+            continue
+        key = (r['ts'], r['title'], r['message'])       # HA + Telegram = eine Meldung
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append({'time': _iso(r['ts']), 'title': r['title'] or '', 'message': r['message'] or ''})
+        if len(items) >= limit:
+            break
+    return {'notifications': items}
+
+
+def t_get_price_calendar(args: dict):
+    import price_calendar
+    o = _find_offer(args.get('offer_id'))
+    if not o:
+        raise ToolError('Angebot nicht gefunden')
+    cal = price_calendar._calendar_payload(o['id'])
+    if cal.get('status') != 'done':
+        return {'offer_id': o['id'], 'status': cal.get('status'),
+                'hint': 'Noch kein Preiskalender abgerufen (in der Oberfläche starten).'}
+    days = [{'date': d.get('date'), 'price': d.get('price')}
+            for d in (cal.get('days') or []) if d.get('date')]
+    keep = ('cheapest_date', 'cheapest_price', 'priciest_date', 'priciest_price')
+    return {'offer_id': o['id'], 'fetched': _iso(cal.get('ts')),
+            **{k: cal.get(k) for k in keep if k in cal},
+            'current_price_per_person': o.get('price'), 'days': days[:200]}
+
+
+def t_get_market_trend(args: dict):
+    data = A.market_trend_payload()
+    region = str(args.get('region') or '').strip().lower()
+    if region:
+        data['by_region'] = [r for r in data.get('by_region') or []
+                             if region in str(r.get('region') or '').lower()]
+    return data
+
+
+def t_get_promo_codes(args: dict):
+    return A._aktionscodes_payload()
+
+
 def t_check_offer(args: dict):
     o = _find_offer(args.get('offer_id'))
     if not o:
@@ -312,6 +428,46 @@ TOOLS = [
      'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
     {'name': 'get_status', 'handler': t_get_status, 'write': False,
      'description': 'Zustand von TUIWatch: Version, Anzahl Angebote, letzte Preisprüfung, laufende Aufgaben.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'get_problems', 'handler': t_get_problems, 'write': False,
+     'description': 'Offene Störungen: Angebot nicht mehr verfügbar, Abruf schlägt wiederholt fehl, '
+                    'Messreihe oder Suchabo gestört — mit Schwere, Anzahl Fehlversuche und Zeitraum.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'get_api_status', 'handler': t_get_api_status, 'write': False,
+     'description': 'Letzter Selbsttest der TUI-Schnittstellen: erreichbar ja/nein, welche Einzelprüfung '
+                    'scheitert, wann geprüft. Erklärt z. B., warum keine neuen Preise kommen.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'search_flights', 'handler': t_search_flights, 'write': False,
+     'description': 'Abflüge zu einem Ziel laut Flugplan der eingeschalteten Heimatflughäfen '
+                    '(Stuttgart, Frankfurt, München, Karlsruhe) mit Wochentagen, Zeiten, Airline.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'destination': {'type': 'string', 'description': 'Ziel: Stadt, Land oder IATA-Code, z. B. Heraklion oder HER'},
+         'date_from': {'type': 'string', 'description': 'Optional, JJJJ-MM-TT'},
+         'date_till': {'type': 'string', 'description': 'Optional, JJJJ-MM-TT'}},
+         'required': ['destination'], 'additionalProperties': False}},
+    {'name': 'list_flight_destinations', 'handler': t_list_flight_destinations, 'write': False,
+     'description': 'Alle Ziele, die ab den eingeschalteten Heimatflughäfen angeflogen werden.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'filter': {'type': 'string', 'description': 'Optional: Teil von Name/Land oder IATA-Code'}},
+         'additionalProperties': False}},
+    {'name': 'get_notifications', 'handler': t_get_notifications, 'write': False,
+     'description': 'Zuletzt gesendete Benachrichtigungen: Preisänderungen, Wunschpreis erreicht, '
+                    'günstigerer Termin, Flugzeiten geändert usw., neueste zuerst.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'limit': {'type': 'integer', 'default': 30}}, 'additionalProperties': False}},
+    {'name': 'get_price_calendar', 'handler': t_get_price_calendar, 'write': False,
+     'description': 'Preiskalender eines Angebots: Preis pro Person je Abreisetag rund um den '
+                    'gebuchten Termin, günstigster und teuerster Tag.',
+     'inputSchema': {'type': 'object', 'properties': {'offer_id': _ID},
+                     'required': ['offer_id'], 'additionalProperties': False}},
+    {'name': 'get_market_trend', 'handler': t_get_market_trend, 'write': False,
+     'description': 'Markttrend (14 Tage) und Preisindex, global und je Region, dazu Preisbarometer '
+                    'mit Buchungsampel (jetzt buchen oder warten).',
+     'inputSchema': {'type': 'object', 'properties': {
+         'region': {'type': 'string', 'description': 'Optional: nur Regionen, die das enthalten'}},
+         'additionalProperties': False}},
+    {'name': 'get_promo_codes', 'handler': t_get_promo_codes, 'write': False,
+     'description': 'Aktuelle TUI-Aktionscodes (Gutscheine) mit Wert und Bedingungen.',
      'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
     {'name': 'check_offer', 'handler': t_check_offer, 'write': True,
      'description': 'Preis eines Angebots jetzt neu abfragen (läuft im Hintergrund).',
