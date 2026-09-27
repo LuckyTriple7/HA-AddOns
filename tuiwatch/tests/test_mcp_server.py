@@ -242,3 +242,14 @@ def test_calendar_market_promo(m):
     assert cal["status"] == "idle"
     assert "global" in call(c, "get_market_trend")["structuredContent"]
     assert "codes" in call(c, "get_promo_codes")["structuredContent"]
+
+
+def test_missing_token_does_not_lock_out_and_valid_token_always_wins(m):
+    c = m.app.test_client()
+    for _ in range(10):                          # Erreichbarkeits-Tests ohne Token
+        assert rpc(c, "ping", headers={}).status_code == 401
+    assert rpc(c, "ping").status_code == 200     # nicht gesperrt
+    for _ in range(10):                          # echtes Raten sperrt die IP …
+        rpc(c, "ping", headers={"Authorization": "Bearer falsch"})
+    assert rpc(c, "ping", headers={"Authorization": "Bearer falsch"}).status_code == 429
+    assert rpc(c, "ping").status_code == 200     # … das richtige Token gilt trotzdem

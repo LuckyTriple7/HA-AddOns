@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.120.1
+
+- 🐛 **MCP: Ein Client konnte ausgesperrt werden, obwohl sein Token stimmte.** Jede Anfrage ohne gültiges Token zählte als Fehlversuch, nach 5 davon war die Absender-IP 15 Minuten gesperrt, auch für den echten Client mit richtigem Token. Mehrere Container im selben Docker-Netz teilen sich dabei eine Adresse. Jetzt wird ein gültiges Token immer angenommen, auch bei gesperrter IP. Anfragen ganz ohne Token (Erreichbarkeits- und Health-Checks) zählen nicht mehr als Fehlversuch, nur falsche Tokens.
+- 📝 Eine MCP-Sperre steht jetzt deutlich im Log („Anfrage von gesperrter IP … abgewiesen“).
+
 ## 0.120.0
 
 - 🤖 **MCP-Server kann mehr** (alles nur lesend):

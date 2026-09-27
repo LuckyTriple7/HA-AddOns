@@ -573,19 +573,30 @@ def _auth_error():
     if origin and urlparse(origin).netloc != request.host:
         return jsonify({'error': 'forbidden_origin'}), 403
     ip = A.get_client_ip(request)
-    if A.is_rate_limited(ip):
-        return jsonify({'error': 'rate_limited'}), 429
     auth = request.headers.get('Authorization') or ''
     given = auth[7:].strip() if auth.lower().startswith('bearer ') else \
         (request.headers.get('X-API-Key') or '').strip()
-    if not given or not secrets.compare_digest(given, token):
+    # Gültiges Token zuerst und unabhängig von einer IP-Sperre annehmen: die Sperre
+    # soll Raten bremsen, und ein zufälliges 64-Zeichen-Token ist nicht zu raten.
+    # Andersherum sperrte jeder mit derselben Absender-IP (z. B. ein anderer
+    # Container im selben Docker-Netz) den echten Client gleich mit aus.
+    if given and secrets.compare_digest(given, token):
+        return None
+    if A.is_rate_limited(ip):
+        A.log.warning("MCP: Anfrage von gesperrter IP %s abgewiesen (zu viele falsche Tokens)",
+                      A.log_safe(ip))
+        return jsonify({'error': 'rate_limited'}), 429
+    if given:
+        # Nur ein FALSCHES Token zählt als Fehlversuch. Ganz ohne Token ist es
+        # eher ein Erreichbarkeits- oder Health-Check als ein Rateversuch.
         A.record_failed_attempt(ip)
         A.log.warning("MCP: Anfrage mit falschem Token abgelehnt (IP %s)", A.log_safe(ip))
-        resp = jsonify({'error': 'unauthorized'})
-        resp.status_code = 401
-        resp.headers['WWW-Authenticate'] = 'Bearer'
-        return resp
-    return None
+    else:
+        A.log.info("MCP: Anfrage ohne Token abgelehnt (IP %s)", A.log_safe(ip))
+    resp = jsonify({'error': 'unauthorized'})
+    resp.status_code = 401
+    resp.headers['WWW-Authenticate'] = 'Bearer'
+    return resp
 
 
 @bp.route('/api/mcp/status', methods=['GET'])
