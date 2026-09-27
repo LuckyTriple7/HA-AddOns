@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.117.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.118.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -5743,13 +5743,20 @@ def _muc_flights_worker() -> None:
     wird nur dann. Der erste Lauf direkt nach dem Start wärmt den Speicher vor,
     damit die erste Suche im Fenster nicht auf das Parsen warten muss."""
     import muc_flights_client
+    # Den ersten Lauf nach dem Start macht _startup_sequence (nacheinander statt
+    # gleichzeitig mit den anderen Start-Jobs) — die Schleife wartet deshalb zuerst.
     while True:
+        time.sleep(muc_flights_client.CHECK_INTERVAL)
         try:
             if bool(load_config().get('enable_muc_flights', False)):
-                muc_flights_client.refresh(verbose=_verbose())
+                _refresh_muc_flights()
         except Exception as e:
             log.warning("MUC-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(muc_flights_client.CHECK_INTERVAL)
+
+
+def _refresh_muc_flights() -> None:
+    import muc_flights_client
+    muc_flights_client.refresh(verbose=_verbose())
 
 
 def _str_flights_worker() -> None:
@@ -5759,26 +5766,36 @@ def _str_flights_worker() -> None:
     (vorher lief der Cache rein lazy beim ersten Request an, ohne eigenen
     Poller — tauchte deshalb auch nicht unter „Nächste Läufe" auf)."""
     import str_flights_client
-    while True:
+    while True:                       # erster Lauf: _startup_sequence
+        time.sleep(str_flights_client.CACHE_TTL)
         try:
             if bool(load_config().get('enable_str_flights', False)):
-                str_flights_client.list_destinations(verbose=_verbose())
+                _refresh_str_flights()
         except Exception as e:
             log.warning("STR-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(str_flights_client.CACHE_TTL)
+
+
+def _refresh_str_flights() -> None:
+    import str_flights_client
+    str_flights_client.list_destinations(verbose=_verbose())
 
 
 def _fkb_flights_worker() -> None:
     """Hält den Saisonflugplan von Karlsruhe/Baden-Baden warm (nur bei
     `enable_fkb_flights`) — analog zu `_str_flights_worker`."""
     import fkb_flights_client
-    while True:
+    while True:                       # erster Lauf: _startup_sequence
+        time.sleep(fkb_flights_client.CACHE_TTL)
         try:
             if bool(load_config().get('enable_fkb_flights', False)):
-                fkb_flights_client.list_destinations(verbose=_verbose())
+                _refresh_fkb_flights()
         except Exception as e:
             log.warning("FKB-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(fkb_flights_client.CACHE_TTL)
+
+
+def _refresh_fkb_flights() -> None:
+    import fkb_flights_client
+    fkb_flights_client.list_destinations(verbose=_verbose())
 
 
 def _fra_board_worker() -> None:
@@ -5788,13 +5805,103 @@ def _fra_board_worker() -> None:
     fra_flights_client.py, ohne eigenen Warm-Poller (Anfragen sind dort immer
     ziel-gefiltert, kein teurer Gesamtabruf zum Vorwärmen)."""
     import fra_board_client
-    while True:
+    while True:                       # erster Lauf: _startup_sequence
+        time.sleep(fra_board_client.REFRESH_INTERVAL)
         try:
             if bool(load_config().get('enable_fra_flights', False)):
-                fra_board_client.refresh(verbose=_verbose())
+                _refresh_fra_board()
         except Exception as e:
             log.warning("FRA-Board-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(fra_board_client.REFRESH_INTERVAL)
+
+
+def _refresh_fra_board() -> None:
+    import fra_board_client
+    fra_board_client.refresh(verbose=_verbose())
+
+
+# ── Start-Ablauf ───────────────────────────────────────────────────────────────
+# Bis 0.117.5 liefen die Start-Jobs alle gleichzeitig los (je eigener Thread):
+# Reiseziel-Index, Selbsttest, vier Flugplan-Abrufe, dazu die erste Prüfrunde.
+# Das trieb den Speicher auf über 1,4 GB, von dem nach dem Start ~1 GB frei
+# herumstand. Jetzt nacheinander, nach jedem Job wird aufgeräumt, und erst danach
+# starten Preis-Poller und Flugplan-Schleifen. Den Stand zeigt die Oberfläche
+# als Banner (/api/startup, ohne Datenbankzugriff).
+
+_startup_lock = threading.Lock()
+_startup_state: dict = {'active': False, 'started': 0.0, 'finished': 0.0, 'jobs': []}
+
+
+def _startup_jobs() -> list:
+    """(Beschriftung, Funktion, aktiv) in Ausführungsreihenfolge. Die Funktionen
+    werden über die Globals geholt, damit Test-Patches greifen."""
+    cfg = load_config()
+    g = globals()
+    return [
+        ('HA-Sensoren melden', lambda: g['push_ha_sensors'](), True),
+        ('Startmeldung senden', lambda: g['_notify_startup'](), True),
+        ('API-Selbsttest', lambda: g['_run_healthcheck'](), True),
+        ('Reiseziel-Index', lambda: g['_ensure_dest_index'](), True),
+        ('Flugplan Stuttgart', lambda: g['_refresh_str_flights'](),
+         bool(cfg.get('enable_str_flights', False))),
+        ('Flugplan Frankfurt', lambda: g['_refresh_fra_board'](),
+         bool(cfg.get('enable_fra_flights', False))),
+        ('Flugplan München', lambda: g['_refresh_muc_flights'](),
+         bool(cfg.get('enable_muc_flights', False))),
+        ('Flugplan Karlsruhe', lambda: g['_refresh_fkb_flights'](),
+         bool(cfg.get('enable_fkb_flights', False))),
+    ]
+
+
+def _startup_set(i: int, **kw) -> None:
+    with _startup_lock:
+        _startup_state['jobs'][i].update(kw)
+
+
+def _startup_sequence(after=()) -> None:
+    """Start-Jobs nacheinander, danach die Dauer-Threads aus `after` starten."""
+    jobs = _startup_jobs()
+    with _startup_lock:
+        _startup_state.update(active=True, started=time.time(), finished=0.0, jobs=[
+            {'label': label, 'state': 'wait' if on else 'skip', 'secs': None}
+            for label, _fn, on in jobs])
+    try:
+        for i, (label, fn, on) in enumerate(jobs):
+            if not on:
+                continue
+            _startup_set(i, state='run', since=time.time())
+            t0 = time.time()
+            try:
+                fn()
+                state = 'done'
+            except Exception as e:
+                log.warning("Start-Job „%s“ fehlgeschlagen: %s", label, type(e).__name__)
+                state = 'error'
+            _startup_set(i, state=state, secs=round(time.time() - t0, 1))
+            try:
+                _trim_once(auto=True)      # vor dem nächsten Job zurückgeben
+            except Exception:
+                pass
+    finally:
+        for target in after:
+            threading.Thread(target=target, daemon=True).start()
+        with _startup_lock:
+            _startup_state.update(active=False, finished=time.time())
+        log.info("Start abgeschlossen nach %.0f s (Speicher %.0f MB)",
+                 _startup_state['finished'] - _startup_state['started'], _rss_mb())
+
+
+@app.route('/api/startup', methods=['GET'])
+def api_startup():
+    """Stand des Start-Ablaufs fürs Banner — wie /api/busy ohne Datenbankzugriff."""
+    if (err := _require_api()):
+        return err
+    with _startup_lock:
+        st = {'active': _startup_state['active'],
+              'jobs': [{'label': j['label'], 'state': j['state'], 'secs': j['secs'],
+                        'running_s': (round(time.time() - j['since'])
+                                      if j['state'] == 'run' and j.get('since') else None)}
+                       for j in _startup_state['jobs']]}
+    return jsonify(st)
 
 
 def _handle_sigterm(signum, frame) -> None:
@@ -5841,11 +5948,11 @@ def main() -> None:
     # /config/trippilot einrichten: eigene questions.json bleibt unangetastet,
     # questions.default.json/README werden auf den Auslieferungsstand gebracht
     trippilot_questions.ensure_user_copy()
-    _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
-    _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
-    _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
-    _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
-    threading.Thread(target=_poll_worker, daemon=True).start()
+    # Sensoren, Startmeldung, Selbsttest, Reiseziel-Index und Flugpläne laufen
+    # nacheinander (siehe _startup_sequence); erst danach Preis-Poller und die
+    # Flugplan-Schleifen, deren erster Lauf damit schon erledigt ist.
+    _spawn(_startup_sequence, (_poll_worker, _muc_flights_worker, _str_flights_worker,
+                               _fra_board_worker, _fkb_flights_worker))
     threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
@@ -5853,10 +5960,6 @@ def main() -> None:
     threading.Thread(target=_db_optimize_worker, daemon=True).start()
     threading.Thread(target=maintenance.compact_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
-    threading.Thread(target=_muc_flights_worker, daemon=True).start()
-    threading.Thread(target=_str_flights_worker, daemon=True).start()
-    threading.Thread(target=_fra_board_worker, daemon=True).start()
-    threading.Thread(target=_fkb_flights_worker, daemon=True).start()
     _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

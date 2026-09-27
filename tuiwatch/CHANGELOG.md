@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.118.0
+
+- 🚦 **Start-Jobs laufen nacheinander statt gleichzeitig.** HA-Sensoren, Startmeldung, API-Selbsttest, Reiseziel-Index und die eingeschalteten Flugpläne (Stuttgart, Frankfurt, München, Karlsruhe) kommen jetzt einer nach dem anderen dran. Nach jedem Job wird Speicher zurückgegeben, erst danach starten die Preis-Checks. Die Spitze beim Start (bisher über 1,4 GB) fällt dadurch deutlich niedriger aus.
+- 📋 **Neue Start-Leiste unten:** Solange der Start läuft, zeigt sie alle Jobs mit Stand (⏳ wartet, ▶ läuft mit Sekundenzähler, ✓ fertig mit Dauer, ✕ Fehler) und „x/y“ erledigt. Danach kurz „Start abgeschlossen“, dann verschwindet sie. Sie blockiert nichts, die Oberfläche bleibt bedienbar.
+- 📝 Im Log steht am Ende „Start abgeschlossen nach … s (Speicher … MB)“.
+
 ## 0.117.5
 
 - 🧠 **Nach dem Start gibt TUIWatch den Speicher schneller zurück.** Beim Hochfahren laufen Reiseziel-Index, Selbsttest und die Flugplan-Abrufe gleichzeitig an und belegen kurz weit über 1 GB. Der Aufräumer schaute bisher nur alle 5 Minuten nach, der freie Speicher (rund 1 GB) blieb so lange stehen. In den ersten 15 Minuten nach dem Start räumt er jetzt jede Minute auf, danach wie gewohnt alle 5 Minuten.

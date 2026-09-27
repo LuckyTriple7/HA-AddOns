@@ -1041,6 +1041,13 @@
       table.hist, .split-table { font-size:var(--fs-xs); }
     }
     /* ── Offline Banner ── */
+    /* Start-Ablauf: schmale Leiste unten, blockiert nichts */
+    #startup-bar { display:none; position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:8000; max-width:min(760px, calc(100vw - 24px)); background:var(--surf); border:1px solid var(--border); border-radius:var(--r-ui); box-shadow:0 6px 24px rgba(0,0,0,.35); padding:9px 14px; font-size:12.5px; color:var(--muted); }
+    #startup-bar .sb-title { color:var(--text); font-weight:600; margin-right:8px; }
+    #startup-bar .sb-jobs { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:4px; }
+    #startup-bar .sb-job.run { color:var(--accent); font-weight:600; }
+    #startup-bar .sb-job.done { opacity:.75; }
+    #startup-bar .sb-job.error { color:var(--red); }
     #offline-banner { display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
     .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
     .ob-title { font-size:16px; font-weight:600; color:var(--text); }
@@ -1141,6 +1148,10 @@
     <symbol id="i-list" viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.6" cy="6" r="1.3"/><circle cx="4.6" cy="12" r="1.3"/><circle cx="4.6" cy="18" r="1.3"/></symbol>
     <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/><circle cx="5.5" cy="12" r="1.7"/></symbol>
   </defs></svg>
+  <div id="startup-bar" role="status" aria-live="polite">
+    <span class="sb-title" id="sb-title">TUIWatch startet</span><span id="sb-now"></span>
+    <div class="sb-jobs" id="sb-jobs"></div>
+  </div>
   <div id="offline-banner">
     <div class="ob-icon"><svg class="i"><use href="#i-signal"/></svg></div>
     <div class="ob-title">Verbindung unterbrochen</div>

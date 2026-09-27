@@ -483,6 +483,42 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       bootTick();
     }
 
+    // ── Start-Ablauf (Leiste unten) ────────────────────────────────────────────
+    // Nach einem (Neu-)Start arbeitet TUIWatch seine Start-Jobs nacheinander ab
+    // (siehe _startup_sequence in app.py). Die Leiste zeigt alle Jobs mit Stand,
+    // der laufende hervorgehoben; danach kurz „abgeschlossen“ und weg.
+    let startupTimer = null;
+    const SB_ICON = {wait: '⏳', run: '▶', done: '✓', error: '✕'};
+    async function startupTick(){
+      let d;
+      try { d = await fetch(api('/api/startup')).then(r=>r.json()); } catch(e){ return; }
+      const bar = $('#startup-bar'); if(!bar) return;
+      const jobs = (d.jobs || []).filter(j => j.state !== 'skip');
+      const renderJobs = () => { $('#sb-jobs').innerHTML = jobs.map(j =>
+        `<span class="sb-job ${esc(j.state)}">${SB_ICON[j.state] || ''} ${esc(j.label)}`
+        + (j.secs != null ? ` <small>${esc(String(j.secs))} s</small>` : '') + '</span>').join(''); };
+      if(!d.active){
+        if(startupTimer){ clearInterval(startupTimer); startupTimer = null; }
+        if(bar.style.display === 'block'){       // lief gerade noch → kurz Abschluss zeigen
+          $('#sb-title').textContent = '✓ Start abgeschlossen';
+          $('#sb-now').textContent = '';
+          renderJobs();
+          setTimeout(() => { bar.style.display = 'none'; }, 4000);
+        }
+        return;
+      }
+      const cur = jobs.find(j => j.state === 'run');
+      const done = jobs.filter(j => j.state === 'done' || j.state === 'error').length;
+      $('#sb-title').textContent = `TUIWatch startet (${done}/${jobs.length})`;
+      $('#sb-now').textContent = cur ? `— ${cur.label}${cur.running_s ? ' · ' + cur.running_s + ' s' : ''}` : '';
+      renderJobs();
+      bar.style.display = 'block';
+    }
+    function startStartupWatch(){
+      startupTick();
+      startupTimer = setInterval(whenVisible(startupTick), 2000);
+    }
+
     // ── Verbindungsabbruch-Erkennung ───────────────────────────────────────────
     let _offlineFails = 0;
     function showOfflineBanner(){ $('#offline-banner').style.display = 'flex'; }
@@ -8775,6 +8811,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
 
     loadOffers();
     startBootWatch();
+    startStartupWatch();
     // Nicht pollen, solange der Tab im Hintergrund liegt: niemand sieht die Liste,
     // und beim Zurueckwechseln laedt der visibilitychange-Handler sie ohnehin sofort
     // neu. Der Timer laeuft weiter, er schickt nur keine Anfragen.
