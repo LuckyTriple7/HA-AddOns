@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.118.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.119.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -5593,6 +5593,8 @@ app.register_blueprint(flight_watch.bp)
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
+import mcp_server  # noqa: E402  — MCP-Endpunkt /mcp (enable_mcp)
+app.register_blueprint(mcp_server.bp)
 app.register_blueprint(check24_routes.bp)
 app.register_blueprint(maintenance.bp)
 app.register_blueprint(str_flights_routes.bp)

@@ -57,6 +57,7 @@ GROUPS: tuple = (
     ('share',     '🌍 Öffentliche Angebots-Links'),
     ('backup',    '💾 Backup'),
     ('security',  '🔐 Anmeldung'),
+    ('mcp',       '🤖 MCP-Server'),
     ('misc',      '⚙️ Sonstiges'),
 )
 
@@ -277,6 +278,16 @@ FIELDS: dict = {
     "history_compact_months": ("int", 0, (0, 120), "backup",
         "Alten Verlauf verdichten (Monate, 0 = aus)",
         "Dünnt Verlaufsdaten aus, die älter sind als die angegebene Zahl Monate — täglich im Hintergrund. Behalten werden je Angebot und Tag die erste, letzte, günstigste und teuerste Preismessung; beim Preiskalender je Reisetag und Kalenderwoche der letzte beobachtete Preis, dazu immer die älteste und die jüngste Beobachtung. Preisverlauf, niedrigster/höchster Preis, Kalender-Trend und Vorjahresvergleich bleiben damit erhalten, nur die zeitliche Auflösung alter Daten sinkt; lediglich Tagesdurchschnitte können sich minimal verschieben. Standard 0: aus — Verlaufsdaten sind der eigentliche Wert des Add-ons, und eine 25-MB-Datenbank ist für SQLite völlig unkritisch. Sinnvoll erst bei sehr vielen Angeboten über Jahre. Minimum 3 Monate. Der frei gewordene Platz wird erst durch „Speicher freigeben\" im Datenbank-Dialog an das Dateisystem zurückgegeben."),
+    # ── mcp ──
+    "enable_mcp": ("bool", False, None, "mcp",
+        "MCP-Server einschalten",
+        "Stellt TUIWatch als MCP-Server (Model Context Protocol) unter /mcp bereit — für KI-Clients wie LiteLLM, Claude Desktop oder Claude Code. Erreichbar über den direkten Port (nicht über Home Assistant), Anmeldung nur mit dem Token unten. Standard aus."),
+    "mcp_token": ("str", "", 200, "mcp",
+        "MCP-Token",
+        "Wird nur über „Neues Token erzeugen“ gesetzt (siehe UI_HIDDEN_KEYS)."),
+    "mcp_allow_actions": ("bool", False, None, "mcp",
+        "Aktionen erlauben",
+        "Erlaubt dem KI-Client neben dem Lesen auch Änderungen: Preis jetzt prüfen, Wunschpreis setzen, Angebot pausieren/fortsetzen. Aus = nur lesen. Standard aus."),
     # ── security ──
     "trusted_proxies": ("str", "", 400, "security",
         "Eigene Reverse-Proxys",
@@ -299,7 +310,7 @@ FIELDS: dict = {
 # Verschlüsselt gespeichert und nie an den Browser zurückgegeben.
 SECRET_KEYS = frozenset({
     'telegram_bot_token', 'smtp_password', 'nc_app_password',
-    'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key', 'ha_token',
+    'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key', 'ha_token', 'mcp_token',
 })
 
 # Zieladresse → Geheimnis, das dorthin geschickt wird. Ändert sich die Adresse,
@@ -316,6 +327,10 @@ BOUND_SECRETS = (
 # wirkungslos — und ein wirkungsloser Schalter in den Einstellungen ist schlimmer
 # als gar keiner. Sie werden dort deshalb ausgeblendet (siehe public_view).
 HA_ONLY_KEYS = frozenset({'ha_sensors', 'notify_ha', 'ha_notify_service'})
+
+# Nicht als Eingabefeld im Dialog: das MCP-Token erzeugt der Server selbst und
+# zeigt es genau einmal (POST /api/mcp/token) — kein Abtippen, kein Wiederanzeigen.
+UI_HIDDEN_KEYS = frozenset({'mcp_token'})
 
 # Zugang zu einem externen Home Assistant — nur außerhalb des Add-ons sinnvoll
 # (als Add-on spricht TUIWatch immer den Supervisor), dort also ausgeblendet.
@@ -689,6 +704,8 @@ def public_view(effective: dict, ha: bool = True, supervisor: bool = True) -> di
             if key in HA_ONLY_KEYS and not ha:
                 continue
             if key in HA_EXTERNAL_KEYS and supervisor:
+                continue
+            if key in UI_HIDDEN_KEYS:
                 continue
             kind, default, extra = spec[0], spec[1], spec[2]
             item = {'key': key, 'kind': kind, 'label': spec[4], 'hint': spec[5],

@@ -917,6 +917,29 @@ Ankunft) über alle veröffentlichten Saisons und liegt sechs Stunden im Speiche
 Quelle nicht — in der Gesamtliste „Alle Flugziele" füllt es sich aus den anderen
 Flugplänen, sofern das Ziel dort ebenfalls vorkommt.
 
+## MCP-Server (seit 0.119.0)
+
+TUIWatch kann sich KI-Clients als MCP-Server anbieten (Model Context Protocol,
+Transport „Streamable HTTP“). Einrichten unter Zahnrad → Einstellungen →
+**🤖 MCP-Server** → **Neues Token erzeugen**. Das Token erscheint genau einmal,
+zusammen mit dem Eintrag für LiteLLM:
+
+```yaml
+mcp_servers:
+  tuiwatch:
+    url: "http://<adresse>:17794/mcp"
+    transport: "http"
+    auth_type: "bearer_token"
+    auth_value: "<token>"
+```
+
+- Adresse ist immer der **direkte Port** (17794), nicht die HA-Ingress-Adresse;
+  aus dem Internet nur hinter dem eigenen Reverse-Proxy mit HTTPS.
+- Werkzeuge: `list_offers`, `get_offer` (mit Preisverlauf), `list_trips`,
+  `get_trip`, `next_trip`, `get_status`; mit **Aktionen erlauben** zusätzlich
+  `check_offer`, `set_target_price`, `pause_offer`.
+- Neues Token erzeugen macht das alte sofort ungültig.
+
 ## Home-Assistant-Sensoren
 
 **Ohne HA OS (eigener Docker-Host):** Als Add-on spricht TUIWatch Home Assistant

@@ -6216,9 +6216,12 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       $('#set-2fa-off').querySelector('button').hidden = false;
       loadTwofaState();
       loadConnInfo();
+      mcpShowUrl();
+      mcpHideToken();
+      loadMcpState();
       return false;
     }
-    function closeSettings(){ $('#settings-bg').classList.remove('show'); }
+    function closeSettings(){ $('#settings-bg').classList.remove('show'); mcpHideToken(); }
 
     // Erklaertext eingeklappt hinter ⓘ: die 67 Hinweise (Ø 234 Zeichen) machten
     // rund 70 % der Dialoghoehe aus. Der Text bleibt vollstaendig erhalten, steht
@@ -6481,6 +6484,57 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
         loadAiProviderFooter();
       }
       renderAll(curOffers || []);   // Prüfintervall-Anzeige, Check24-Klick am Preis
+    }
+
+    // ── MCP-Server (Einstellungen → MCP-Server) ───────────────────────────────
+    function mcpUrl(){
+      // Über HA-Ingress geöffnet: die Adresse im Browser ist die von HA, der MCP-
+      // Endpunkt liegt aber am direkten Port des Add-ons.
+      return G.base ? 'http://<HA-Adresse>:17794/mcp' : location.origin + '/mcp';
+    }
+    function mcpShowUrl(){ const el = $('#set-mcp-url'); if(el) el.textContent = mcpUrl(); }
+    async function loadMcpState(){
+      const el = $('#set-mcp-state'); if(!el) return;
+      try {
+        const d = await fetch(api('/api/mcp/status')).then(r=>r.json());
+        el.textContent = (d.enabled ? '✅ MCP-Server an' : '⏸ MCP-Server aus')
+          + (d.token_set ? ' · Token gesetzt' : ' · noch kein Token')
+          + (d.actions ? ' · Aktionen erlaubt' : ' · nur lesen');
+      } catch(e){ el.textContent = ''; }
+    }
+    function mcpHideToken(){
+      const box = $('#set-mcp-snippet'); if(!box) return;
+      box.hidden = true;
+      $('#set-mcp-yaml').textContent = '';          // Token nicht im DOM stehen lassen
+    }
+    async function mcpGenerateToken(btn){
+      if(!confirm('Neues Token erzeugen? Ein bisheriges Token wird sofort ungültig — '
+                + 'dort, wo es eingetragen ist (z. B. LiteLLM), muss das neue hinein.')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/mcp/token'), {method:'POST'});
+        const d = await r.json().catch(()=>({}));
+        if(!r.ok || !d.token){ toast(d.error === 'crypto_unavailable'
+          ? 'Verschlüsselung nicht verfügbar — Token kann nicht gespeichert werden'
+          : 'Token konnte nicht erzeugt werden'); return; }
+        $('#set-mcp-yaml').textContent =
+          'mcp_servers:\n'
+          + '  tuiwatch:\n'
+          + '    url: "' + mcpUrl() + '"\n'
+          + '    transport: "http"\n'
+          + '    auth_type: "bearer_token"\n'
+          + '    auth_value: "' + d.token + '"';
+        $('#set-mcp-snippet').hidden = false;
+        await loadSettings();           // Schalter „MCP-Server einschalten“ ist jetzt an
+        loadMcpState();
+      } catch(e){ toast('Token konnte nicht erzeugt werden'); }
+      finally { btn.disabled = false; }
+    }
+    async function mcpCopy(){
+      const txt = $('#set-mcp-yaml').textContent;
+      try { await navigator.clipboard.writeText(txt); toast('Kopiert'); }
+      catch(e){ toast('Kopieren nicht möglich — Text markieren und von Hand kopieren'); return; }
+      mcpHideToken();
     }
 
     // ── Diese Verbindung (Hilfe für „Eigene Reverse-Proxys“) ──────────────────

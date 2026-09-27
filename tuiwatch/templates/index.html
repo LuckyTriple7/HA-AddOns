@@ -1903,6 +1903,25 @@
           <button class="btn sec" type="button" onclick="testHaConnection(this)">Verbindung testen</button>
         </div>
       </div>
+      <div class="set-group" id="set-mcp-group" data-cat="mcp" hidden>
+        <h3>🔌 Verbindung für KI-Clients</h3>
+        <div class="set-row">
+          <div class="hint">Adresse des MCP-Servers: <code id="set-mcp-url" style="user-select:all"></code><br>
+            Werkzeuge: Angebote, Preisverlauf, „Meine Reisen“ (Liste und Details), nächste Reise, Status —
+            mit „Aktionen erlauben“ zusätzlich Preis prüfen, Wunschpreis, Pausieren.</div>
+        </div>
+        <div class="set-row">
+          <div class="hint" id="set-mcp-state"></div>
+          <button class="btn sec" type="button" style="margin-top:6px" onclick="mcpGenerateToken(this)">Neues Token erzeugen</button>
+          <div id="set-mcp-snippet" hidden style="margin-top:10px">
+            <div class="hint"><b>Nur jetzt sichtbar</b> — kopieren und in LiteLLM eintragen. TUIWatch speichert
+              das Token verschlüsselt und zeigt es nie wieder an; vergessen = neues erzeugen.
+              Eintrag für die <code>config.yaml</code> von LiteLLM:</div>
+            <pre id="set-mcp-yaml" style="user-select:all;margin-top:6px;white-space:pre-wrap"></pre>
+            <button class="btn" type="button" onclick="mcpCopy()">Kopieren &amp; ausblenden</button>
+          </div>
+        </div>
+      </div>
       <div class="set-group" id="set-conn-group" data-cat="security" hidden>
         <h3>🌐 Diese Verbindung</h3>
         <div class="set-row">

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.119.0
+
+- 🤖 **Neu: MCP-Server.** TUIWatch lässt sich jetzt als MCP-Server (Model Context Protocol) in KI-Clients einbinden, z. B. LiteLLM, Claude Desktop oder Claude Code. Einrichten unter Einstellungen → 🤖 MCP-Server → **Neues Token erzeugen**: Das Token wird einmal angezeigt, zusammen mit dem fertigen Eintrag für die `config.yaml` von LiteLLM. Danach speichert TUIWatch es nur noch verschlüsselt, vergessen heißt neues erzeugen.
+- 🔎 Werkzeuge zum Lesen: Angebote mit Preisen und Trend, Details mit Preisverlauf, **Meine Reisen** (Liste mit Summen, auf Wunsch auch vergangene, und alle Details einer Reise inklusive Flügen, Zahlungen, Flugzeiten-Abgleich und offener Packliste), nächste Reise, Status.
+- ✋ Aktionen (Preis jetzt prüfen, Wunschpreis setzen, pausieren) nur mit dem Schalter **Aktionen erlauben**, Standard aus.
+- 🔒 Erreichbar unter `/mcp` am direkten Port (nicht über Home Assistant), nur mit Token (`Authorization: Bearer` oder `X-API-Key`). Fehlversuche laufen in dieselbe Sperre wie der Login. Standard: aus.
+
 ## 0.118.0
 
 - 🚦 **Start-Jobs laufen nacheinander statt gleichzeitig.** HA-Sensoren, Startmeldung, API-Selbsttest, Reiseziel-Index und die eingeschalteten Flugpläne (Stuttgart, Frankfurt, München, Karlsruhe) kommen jetzt einer nach dem anderen dran. Nach jedem Job wird Speicher zurückgegeben, erst danach starten die Preis-Checks. Die Spitze beim Start (bisher über 1,4 GB) fällt dadurch deutlich niedriger aus.
