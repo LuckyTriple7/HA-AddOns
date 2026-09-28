@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.68] - 2026-09-28
+
+chore(deps): bump google-genai from 2.24.0 to 2.25.0 in /mypage
+
+
 ## [0.11.67] - 2026-09-26
 
 - 🔒 **Besucherarchiv (CSV) ohne Formel-Einschleusung.** Referrer, User-Agent und Pfad kommen vom Besucher und landeten ungeprüft in `visits-JJJJ-MM.csv`. Ein Wert wie `=HYPERLINK(...)` wurde beim Öffnen in Excel/LibreOffice als Formel ausgeführt. Zellen, die mit `= + - @` (oder Tab/Zeilenumbruch) beginnen, bekommen jetzt ein `'` vorangestellt. Bestehende Dateien werden bei der nächsten GeoIP-Nachpflege mit entschärft; der Besucher-Explorer zeigt die Werte weiter ohne das Zeichen.
