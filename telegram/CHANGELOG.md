@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.12] - 2026-09-29
+
+chore(deps): bump ip-address from 10.3.1 to 10.7.2 in /telegram
+
+
 ## [1.7.11] - 2026-09-24
 - Abhaengigkeiten: **express 4 → 5.2.1**, **express-rate-limit 7 → 8.7.0**, multer 2.3.0 → 2.4.0
 - Express 5: Catch-all-Route von `'*'` auf `'/{*splat}'` umgestellt (neue Pfadsyntax); `req.body` ohne JSON-Body wird wie unter Express 4 zu `{}`
