@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.50] - 2026-09-29
+
+chore(deps): bump ip-address from 10.3.1 to 10.7.2 in /whatsapp
+
+
 ## [1.8.49] - 2026-09-26
 
 - **Haenger bei "Verbinde mit WhatsApp…" behoben.** Die Diagnose aus 1.8.48 zeigte die Ursache: `Protocol error (Runtime.addBinding): Target closed`. Nach dem Login meldet whatsapp-web.js rund 20 Rueckruf-Funktionen an, Puppeteer traegt jede in alle Frames der Seite ein. Schliesst WhatsApp Web waehrenddessen einen Neben-Frame, bricht das ab und `ready` kommt nie — deshalb hing der Start mal und mal nicht, unabhaengig vom Medien-Patch
