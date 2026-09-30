@@ -1,3 +1,11 @@
+## [1.8.90] - 2026-09-30
+
+### Aktualisiert
+
+- GitHub CLI: 2.101.0 → 2.102.0
+- Firefox: 156.0.1 → 157.0
+- Claude Desktop: 3.3.0+claude2.9939.4 → 3.3.2+claude2.9939.4
+
 ## [1.8.89] - 2026-09-29
 
 ### Aktualisiert
