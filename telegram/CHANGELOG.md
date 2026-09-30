@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.13] - 2026-09-30
+- Feature: **„tippt …" im Chat-Kopf.** Tippt jemand im offenen Chat (auch Bots per `sendChatAction`), zeigt der Kopf statt der Statistikzeile „tippt …" mit animierten Punkten, in Gruppen mit Namen („Max tippt …", „Max und Anna tippen …"). Ausgewertet werden `UpdateUserTyping`, `UpdateChatUserTyping` und `UpdateChannelUserTyping`; die Anzeige verschwindet bei Abbruch oder 6 s nach dem letzten Update
+- Neuer Endpoint `GET /api/typing/:chatId` (liefert `{ typing, names }`)
+
 ## [1.7.12] - 2026-09-29
 
 chore(deps): bump ip-address from 10.3.1 to 10.7.2 in /telegram

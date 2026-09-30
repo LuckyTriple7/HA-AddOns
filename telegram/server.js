@@ -136,6 +136,52 @@ const messagesByChatId = new Map();
 const seenMsgIds = new Set();
 const peerMap = new Map(); // chatId (str) -> entity (in-memory, lost on restart)
 
+// ── Tipp-Anzeige ("tippt …") ──────────────────────────────────────────────────
+// Telegram wiederholt die Aktion etwa alle 5 s, solange jemand tippt; ohne
+// neues Update gilt sie nach TYPING_TTL als beendet (wie in der App).
+const TYPING_TTL = 6000;
+const typingByChatId = new Map(); // chatId -> Map(userId -> expiresAt)
+const typingNames = new Map();    // userId -> Anzeigename (für Gruppen)
+
+function setTyping(chatId, userId, active) {
+  let users = typingByChatId.get(chatId);
+  if (!active) {
+    if (users) { users.delete(userId); if (!users.size) typingByChatId.delete(chatId); }
+    return;
+  }
+  if (!users) { users = new Map(); typingByChatId.set(chatId, users); }
+  users.set(userId, Date.now() + TYPING_TTL);
+}
+
+async function resolveTypingName(userId, peer) {
+  if (typingNames.has(userId) || !client) return;
+  const known = chatMap.get(userId);
+  if (known?.name) { typingNames.set(userId, known.name); return; }
+  typingNames.set(userId, '');
+  try {
+    typingNames.set(userId, getEntityName(await client.getEntity(peer)));
+  } catch (e) { dbg(`typing: Name fuer ${userId} nicht aufloesbar: ${e.message}`); }
+}
+
+function handleTypingUpdate(update) {
+  let chatId, userId;
+  if (update.className === 'UpdateUserTyping') {
+    chatId = userId = String(update.userId || '');
+  } else if (update.className === 'UpdateChatUserTyping' || update.className === 'UpdateChannelUserTyping') {
+    chatId = String(update.chatId || update.channelId || '');
+    userId = String(update.fromId?.userId || '');
+  } else return false;
+  if (!chatId || !userId) return true;
+  const action = update.action?.className;
+  if (action === 'SendMessageTypingAction') {
+    setTyping(chatId, userId, true);
+    if (chatId !== userId) resolveTypingName(userId, update.fromId);
+  } else if (action === 'SendMessageCancelAction') {
+    setTyping(chatId, userId, false);
+  }
+  return true;
+}
+
 // ── Persistence ───────────────────────────────────────────────────────────────
 
 function loadFromDisk() {
@@ -540,6 +586,7 @@ async function startClient() {
     }, new NewMessage({}));
 
     client.addEventHandler((update) => {
+      if (handleTypingUpdate(update)) return;
       const peer = update.peer;
       const chatId = String(peer?.userId || peer?.chatId || peer?.channelId || '');
       if (!chatId) return;
@@ -647,6 +694,21 @@ app.post('/api/refresh-all', mutatingRateLimit, async (req, res) => {
 app.get('/api/chats', (req, res) => {
   const chats = Array.from(chatMap.values()).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(chats);
+});
+
+app.get('/api/typing/:chatId', (req, res) => {
+  const chatId = String(req.params.chatId);
+  const users = typingByChatId.get(chatId);
+  const now = Date.now();
+  const names = [];
+  if (users) {
+    for (const [userId, expiresAt] of users) {
+      if (expiresAt <= now) { users.delete(userId); continue; }
+      names.push(userId === chatId ? '' : (typingNames.get(userId) || ''));
+    }
+    if (!users.size) typingByChatId.delete(chatId);
+  }
+  res.json({ typing: names.length > 0, names: names.filter(Boolean) });
 });
 
 app.get('/api/stats', (req, res) => {
@@ -1447,6 +1509,14 @@ html.light #chat-header { background: #517DA2; }
 #back-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 4px 8px 4px 0; align-items: center; justify-content: center; }
 #ch-name { font-size: 16px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #ch-stats { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ch-typing { display: none; font-size: 12px; color: #8FD3FF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.light #ch-typing { color: #fff; }
+#chat-header.typing #ch-stats { display: none; }
+#chat-header.typing #ch-typing { display: block; }
+.typing-dots span { animation: typing-dot 1.2s infinite; }
+.typing-dots span:nth-child(2) { animation-delay: .2s; }
+.typing-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes typing-dot { 0%,60%,100%{opacity:.25} 30%{opacity:1} }
 #messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; display: none; }
 .bubble { max-width: 100%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; }
 .bubble.in { border-bottom-left-radius: 2px; }
@@ -1736,6 +1806,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <div style="flex:1;overflow:hidden">
         <div id="ch-name">–</div>
         <div id="ch-stats"></div>
+        <div id="ch-typing"><span id="ch-typing-text"></span><span class="typing-dots"><span>.</span><span>.</span><span>.</span></span></div>
       </div>
       <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
@@ -1816,6 +1887,7 @@ const LANG = {
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
+    typing: 'tippt', typingOne: 'tippt', typingMany: 'tippen', typingAnd: 'und',
     offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
     msgSearchTitle: 'In Nachrichten suchen', msgSearchPlaceholder: 'Nachrichten durchsuchen…',
   },
@@ -1845,6 +1917,7 @@ const LANG = {
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
+    typing: 'typing', typingOne: 'is typing', typingMany: 'are typing', typingAnd: 'and',
     offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
     msgSearchTitle: 'Search in messages', msgSearchPlaceholder: 'Search messages…',
   },
@@ -2356,6 +2429,8 @@ function openChat(chat) {
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
+  document.getElementById('chat-header').classList.remove('typing');
+  pollTyping();
   const av = document.getElementById('ch-avatar');
   av.onclick = null; av.style.cursor = '';
   av.querySelectorAll('img[data-avatar]').forEach(i => i.remove());
@@ -2516,6 +2591,26 @@ async function loadOlder() {
     renderMessages(_view[chatId], { preserveScroll: true });
   } catch(e) {} finally { _loadingOlder = false; }
 }
+
+// "tippt …" im Chat-Kopf — eigener kurzer Poll nur für den offenen Chat
+let _typingBusy = false;
+async function pollTyping() {
+  const chatId = selectedChatId;
+  const header = document.getElementById('chat-header');
+  if (!chatId) { header.classList.remove('typing'); return; }
+  if (_typingBusy) return;
+  _typingBusy = true;
+  try {
+    const d = await fetch(api('/api/typing/'+encodeURIComponent(chatId))).then(r=>r.json());
+    if (chatId !== selectedChatId) return;
+    let text = t('typing');
+    if (d.names && d.names.length === 1) text = d.names[0] + ' ' + t('typingOne');
+    else if (d.names && d.names.length > 1) text = d.names.slice(0, 2).join(' ' + t('typingAnd') + ' ') + ' ' + t('typingMany');
+    document.getElementById('ch-typing-text').textContent = text;
+    header.classList.toggle('typing', !!d.typing);
+  } catch(e) {} finally { _typingBusy = false; }
+}
+setInterval(() => { if (!document.hidden) pollTyping(); }, 1500);
 
 async function updateChatStats(chatId) {
   if (chatId !== selectedChatId) return;
