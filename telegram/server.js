@@ -468,6 +468,9 @@ async function loadDialogs() {
         });
       } else {
         const c = chatMap.get(chatId);
+        // Umbenennungen (Bots, Kontakte, Gruppen) aus Telegram übernehmen,
+        // sonst bleibt der gespeicherte alte Name dauerhaft stehen.
+        if (name) c.name = name;
         c.isBot = isBot;
         c.chatType = chatType;
       }

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.15] - 2026-09-30
+- Fix: **Umbenannte Chats behalten nicht mehr den alten Namen.** Bereits bekannte Chats (Bots, Kontakte, Gruppen, Kanaele) uebernehmen beim Dialog-Abgleich nach Start oder Reconnect den aktuellen Namen aus Telegram; bisher blieb der gespeicherte alte Name in der Chatliste dauerhaft stehen
+
 ## [1.7.14] - 2026-09-30
 - Feature: **Bot-Befehle wie in der Telegram-App.** In Chats mit Bots (und in Gruppen mit Bots) erscheint links neben dem Eingabefeld ein `/`-Knopf. Er oder ein `/` am Anfang der Eingabe oeffnet die Liste der Befehle mit Beschreibung; weiteres Tippen filtert. Klick oder Enter sendet den Befehl sofort, Tab uebernimmt ihn ins Eingabefeld (fuer Befehle mit Parametern), Pfeiltasten waehlen, Esc schliesst
 - Neuer Endpoint `GET /api/bot-commands/:chatId` (liefert `{ commands: [{ command, description }] }`, 10 Minuten gecacht)
