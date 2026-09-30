@@ -78,6 +78,7 @@ GET  /api/last-received?chat=<id> → Letzte empfangene Nachricht eines bestimmt
 POST /api/send                    → Nachricht senden  { to, message }
 POST /api/send-media              → Bild/Dokument senden
 GET  /api/export/:id              → Chat als HTML exportieren
+POST /api/clear-chat/:id          → Chat leeren (alle Nachrichten außer der letzten, auch in Telegram)
 POST /api/logout                  → Abmelden
 ```
 
@@ -265,6 +266,7 @@ GET  /api/last-received?chat=<id> → Last received message of a specific chat
 POST /api/send                    → Send a message  { to, message }
 POST /api/send-media              → Send image/document
 GET  /api/export/:id              → Export chat as HTML
+POST /api/clear-chat/:id          → Clear chat (all messages except the last, also in Telegram)
 POST /api/logout                  → Log out
 ```
 

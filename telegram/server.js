@@ -1027,6 +1027,58 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
   }
 });
 
+// Leert einen Chat dauerhaft (auch auf Telegram-Seite): löscht alle Nachrichten
+// außer der neuesten. In Kanälen/Supergruppen ohne Adminrechte nur eigene.
+app.post('/api/clear-chat/:chatId', deleteRateLimit, async (req, res) => {
+  const { chatId } = req.params;
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const onlyOwn = entity.className === 'Channel' && !entity.creator && !entity.adminRights;
+    const ids = [];
+    let keepId = 0;
+    let offsetId = 0;
+    for (;;) {
+      const batch = await client.getMessages(entity, { limit: 100, offsetId });
+      if (!batch.length) break;
+      for (const m of batch) {
+        if (!keepId) { keepId = m.id; continue; }
+        if (onlyOwn && !m.out) continue;
+        ids.push(m.id);
+      }
+      offsetId = batch[batch.length - 1].id;
+      if (batch.length < 100) break;
+    }
+    dbg(`clear-chat ${chatId}: keep=${keepId} delete=${ids.length} onlyOwn=${onlyOwn}`);
+    for (let i = 0; i < ids.length; i += 100) {
+      await client.deleteMessages(entity, ids.slice(i, i + 100), { revoke: true });
+    }
+    const keepKey = `${chatId}_${keepId}`;
+    const deleted = new Set(ids.map(id => `${chatId}_${id}`));
+    const msgs = messagesByChatId.get(chatId);
+    if (msgs) {
+      const remain = [];
+      for (const m of msgs) {
+        const gone = onlyOwn ? deleted.has(m.id) : m.id !== keepKey;
+        if (!gone) { remain.push(m); continue; }
+        seenMsgIds.delete(m.id);
+        if (m.mediaFile) {
+          const fp = path.resolve(MEDIA_DIR, m.mediaFile);
+          if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep)) { try { fs.unlinkSync(fp); } catch (e) {} }
+        }
+      }
+      messagesByChatId.set(chatId, remain);
+      scheduleSave();
+    }
+    res.json({ success: true, deleted: ids.length, onlyOwn });
+  } catch (e) {
+    console.error('[ERROR] clear-chat:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/react', async (req, res) => {
   const { msgId, reaction } = req.body;
   if (!msgId) return res.status(400).json({ error: 'msgId erforderlich' });
@@ -1608,9 +1660,10 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .bubble-doc .doc-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 .photo-caption { padding: 4px 10px 4px; }
-#export-btn, #delete-mode-btn { background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.65); padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
+#export-btn, #clear-chat-btn, #delete-mode-btn { background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.65); padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
 #export-btn:hover { border-color: rgba(255,255,255,0.8); color: #fff; }
-#delete-mode-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+#delete-mode-btn:hover, #clear-chat-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+#clear-chat-btn:disabled { opacity: 0.4; cursor: wait; }
 #delete-mode-btn.active { border-color: #e74c3c; color: #e74c3c; }
 #messages.delete-mode .bubble-row { cursor: pointer; }
 #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
@@ -1877,6 +1930,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       </div>
       <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
+      <button id="clear-chat-btn" onclick="clearChat()" data-i18n-title="clearChat" title="Chat leeren">${_SVG.trash}</button>
       <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">${_SVG.x}</button>
     </div>
     <div id="msg-search-bar">
@@ -1951,6 +2005,10 @@ const LANG = {
     emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen', cmdTitle: 'Bot-Befehle',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
     btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
+    clearChat: 'Chat leeren (alles außer letzter Nachricht)',
+    clearChatConfirm: (name) => 'Alle Nachrichten in „' + name + '" außer der letzten dauerhaft löschen?\\n\\nDas löscht sie auch in Telegram (soweit möglich für beide Seiten) und lässt sich nicht rückgängig machen.',
+    clearChatDone: (n, own) => n + (n===1?' Nachricht':' Nachrichten') + ' gelöscht.' + (own ? '\\nOhne Adminrechte nur eigene Nachrichten.' : ''),
+    clearChatError: 'Chat leeren fehlgeschlagen: ',
     deleteMode: 'Nachrichten löschen', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
@@ -1981,6 +2039,10 @@ const LANG = {
     emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file', cmdTitle: 'Bot commands',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
     btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
+    clearChat: 'Clear chat (all but the last message)',
+    clearChatConfirm: (name) => 'Permanently delete all messages in "' + name + '" except the last one?\\n\\nThis also deletes them in Telegram (for both sides where possible) and cannot be undone.',
+    clearChatDone: (n, own) => n + ' message' + (n===1?'':'s') + ' deleted.' + (own ? '\\nWithout admin rights only your own messages.' : ''),
+    clearChatError: 'Clearing chat failed: ',
     deleteMode: 'Delete messages', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
@@ -2545,6 +2607,25 @@ function closeChat() {
 function exportChat() {
   if (!selectedChatId) return;
   window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId) + '?lang=' + lang);
+}
+
+async function clearChat() {
+  if (!selectedChatId) return;
+  var chatId = selectedChatId;
+  var name = document.getElementById('ch-name').textContent || chatId;
+  if (!confirm(tf('clearChatConfirm', name))) return;
+  var btn = document.getElementById('clear-chat-btn');
+  btn.disabled = true;
+  try {
+    var r = await fetch(api('/api/clear-chat/' + encodeURIComponent(chatId)), { method: 'POST' });
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) { alert(t('clearChatError') + (d.error || r.status)); return; }
+    delete _view[chatId]; delete _historyMode[chatId];
+    await loadMessages(chatId, true);
+    alert(tf('clearChatDone', d.deleted || 0, d.onlyOwn));
+  } catch (e) {
+    alert(t('clearChatError') + e.message);
+  } finally { btn.disabled = false; }
 }
 
 async function refreshChat() {

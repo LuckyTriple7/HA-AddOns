@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.16] - 2026-09-30
+- Feature: **Chat leeren.** Neuer Papierkorb-Knopf im Chat-Kopf loescht nach Rueckfrage dauerhaft alle Nachrichten des Chats ausser der neuesten, auch in Telegram (`revoke`, also soweit Telegram es zulaesst fuer beide Seiten). In Kanaelen und Supergruppen ohne Adminrechte werden nur die eigenen Nachrichten geloescht. Lokale Medien der geloeschten Nachrichten werden mit entfernt
+- Neuer Endpoint `POST /api/clear-chat/:chatId` (liefert `{ success, deleted, onlyOwn }`)
+
 ## [1.7.15] - 2026-09-30
 - Fix: **Umbenannte Chats behalten nicht mehr den alten Namen.** Bereits bekannte Chats (Bots, Kontakte, Gruppen, Kanaele) uebernehmen beim Dialog-Abgleich nach Start oder Reconnect den aktuellen Namen aus Telegram; bisher blieb der gespeicherte alte Name in der Chatliste dauerhaft stehen
 
