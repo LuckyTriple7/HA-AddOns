@@ -1300,6 +1300,54 @@ app.get('/api/avatar/:chatId', async (req, res) => {
   }
 });
 
+// Bot-Befehle (/start, /help …) eines Chats — bei Bots direkt, in Gruppen von
+// allen Bots der Gruppe. Kurz gecacht, weil sich die Liste selten ändert.
+const BOT_CMD_TTL = 10 * 60 * 1000;
+const botCommandsCache = new Map(); // chatId -> { at, commands }
+
+async function fetchBotCommands(entity) {
+  let infos = [];
+  if (entity.className === 'User') {
+    if (!entity.bot) return [];
+    const full = await client.invoke(new Api.users.GetFullUser({ id: entity }));
+    if (full.fullUser?.botInfo) infos = [full.fullUser.botInfo];
+  } else if (entity.className === 'Channel') {
+    const full = await client.invoke(new Api.channels.GetFullChannel({ channel: entity }));
+    infos = full.fullChat?.botInfo || [];
+  } else if (entity.className === 'Chat') {
+    const full = await client.invoke(new Api.messages.GetFullChat({ chatId: entity.id }));
+    infos = full.fullChat?.botInfo || [];
+  }
+  const seen = new Set();
+  const commands = [];
+  for (const info of infos) {
+    for (const c of (info.commands || [])) {
+      if (!c.command || seen.has(c.command)) continue;
+      seen.add(c.command);
+      commands.push({ command: c.command, description: c.description || '' });
+    }
+  }
+  return commands;
+}
+
+app.get('/api/bot-commands/:chatId', async (req, res) => {
+  const chatId = String(req.params.chatId);
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const cached = botCommandsCache.get(chatId);
+  if (cached && Date.now() - cached.at < BOT_CMD_TTL) return res.json({ commands: cached.commands });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.json({ commands: [] });
+    const commands = await fetchBotCommands(entity);
+    botCommandsCache.set(chatId, { at: Date.now(), commands });
+    res.json({ commands });
+  } catch (e) {
+    dbg(`bot-commands ${chatId}: ${e.message}`);
+    res.json({ commands: [] });
+  }
+});
+
 app.get('/api/contact/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1659,6 +1707,22 @@ html.light .emoji-tab.active { background: #E7E7E7; }
 #input-bar .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; width: auto; height: auto; line-height: 1; }
 html.dark #input-bar .emoji-btn:hover { background: rgba(255,255,255,0.06); }
 html.light #input-bar .emoji-btn:hover { background: #F1F1F1; }
+#cmd-toggle { display: none; background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 50%; font-size: 18px; font-weight: 700; line-height: 1; flex-shrink: 0; }
+#cmd-toggle.has-cmds { display: inline-flex; }
+html.dark #cmd-toggle { color: #6B7B8D; }
+html.light #cmd-toggle { color: #888; }
+#cmd-toggle:hover { background: rgba(0,0,0,0.08); }
+#cmd-list { display: none; position: absolute; bottom: 100%; left: 0; right: 0; max-height: 260px; overflow-y: auto; z-index: 21; }
+#cmd-list.open { display: block; }
+html.dark #cmd-list { background: #17212B; border-top: 1px solid #1A2432; }
+html.light #cmd-list { background: #fff; border-top: 1px solid #e0e0e0; }
+.cmd-item { display: flex; gap: 12px; align-items: baseline; padding: 8px 16px; cursor: pointer; }
+.cmd-item .cmd-name { font-weight: 600; white-space: nowrap; }
+.cmd-item .cmd-desc { font-size: 13px; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.dark .cmd-item { color: #C1C9D4; }
+html.light .cmd-item { color: #222; }
+html.dark .cmd-item.active, html.dark .cmd-item:hover { background: #2B5278; }
+html.light .cmd-item.active, html.light .cmd-item:hover { background: #E3EEF7; }
 #emoji-toggle { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 html.dark #emoji-toggle { color: #6B7B8D; }
 html.light #emoji-toggle { color: #888; }
@@ -1838,10 +1902,12 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
         <div id="emoji-tabs"></div>
         <div class="emoji-grid" id="emoji-grid"></div>
       </div>
+      <div id="cmd-list"></div>
       <input type="file" id="file-input" onchange="onFileSelected(this)">
+      <button id="cmd-toggle" onclick="toggleCmdList(event)" data-i18n-title="cmdTitle" title="Bot-Befehle">/</button>
       <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">${_SVG.smile}</button>
       <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">${_SVG.paperclip}</button>
-      <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this);onCmdInput()"></textarea>
       <button id="send-btn" onclick="sendMsg()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
@@ -1879,7 +1945,7 @@ const LANG = {
     btnLogout: 'Abmelden', logoutConfirmMsg: 'Möchtest du dich wirklich abmelden?', btnYes: 'Ja', btnNo: 'Nein',
     searchPlaceholder: 'Suchen…',
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen', cmdTitle: 'Bot-Befehle',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
     btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
     deleteMode: 'Nachrichten löschen', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
@@ -1909,7 +1975,7 @@ const LANG = {
     btnLogout: 'Log out', logoutConfirmMsg: 'Do you really want to log out?', btnYes: 'Yes', btnNo: 'No',
     searchPlaceholder: 'Search…',
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file', cmdTitle: 'Bot commands',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
     btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
     deleteMode: 'Delete messages', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
@@ -2431,6 +2497,7 @@ function openChat(chat) {
   document.getElementById('ch-stats').textContent = '';
   document.getElementById('chat-header').classList.remove('typing');
   pollTyping();
+  loadBotCommands(chat.id);
   const av = document.getElementById('ch-avatar');
   av.onclick = null; av.style.cursor = '';
   av.querySelectorAll('img[data-avatar]').forEach(i => i.remove());
@@ -2953,7 +3020,81 @@ async function sendMsg() {
   }
 }
 
-function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} }
+function handleKey(e) {
+  if (cmdListKey(e)) return;
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
+}
+
+// Bot-Befehle: Liste über dem Eingabefeld, wie in der Telegram-App.
+// Erscheint beim Tippen von "/" am Anfang oder über den "/"-Knopf.
+let _cmds = [], _cmdsChat = null, _cmdShown = [], _cmdActive = 0;
+async function loadBotCommands(chatId) {
+  _cmds = []; _cmdsChat = chatId; closeCmdList();
+  document.getElementById('cmd-toggle').classList.remove('has-cmds');
+  try {
+    const d = await fetch(api('/api/bot-commands/'+encodeURIComponent(chatId))).then(r=>r.json());
+    if (chatId !== selectedChatId) return;
+    _cmds = d.commands || [];
+    document.getElementById('cmd-toggle').classList.toggle('has-cmds', _cmds.length > 0);
+  } catch(e) {}
+}
+function renderCmdList(filter) {
+  const list = document.getElementById('cmd-list');
+  const f = (filter || '').toLowerCase();
+  _cmdShown = _cmds.filter(c => c.command.toLowerCase().startsWith(f));
+  if (!_cmdShown.length) { closeCmdList(); return; }
+  if (_cmdActive >= _cmdShown.length) _cmdActive = 0;
+  list.innerHTML = _cmdShown.map((c, i) =>
+    '<div class="cmd-item'+(i===_cmdActive?' active':'')+'" data-idx="'+i+'"><span class="cmd-name">/'+escHtml(c.command)+'</span><span class="cmd-desc">'+escHtml(c.description)+'</span></div>'
+  ).join('');
+  list.classList.add('open');
+}
+function closeCmdList() { document.getElementById('cmd-list').classList.remove('open'); _cmdShown = []; _cmdActive = 0; }
+function onCmdInput() {
+  if (!_cmds.length) return;
+  const v = document.getElementById('msg-input').value;
+  const m = /^\\/(\\S*)$/.exec(v);
+  if (m) renderCmdList(m[1]); else closeCmdList();
+}
+function toggleCmdList(e) {
+  if (e) e.stopPropagation();
+  if (document.getElementById('cmd-list').classList.contains('open')) { closeCmdList(); return; }
+  _cmdActive = 0;
+  renderCmdList('');
+}
+function pickCmd(idx) {
+  const c = _cmdShown[idx];
+  if (!c) return;
+  closeCmdList();
+  const inp = document.getElementById('msg-input');
+  inp.value = '/' + c.command;
+  sendMsg();
+}
+function cmdListKey(e) {
+  if (!document.getElementById('cmd-list').classList.contains('open')) return false;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    _cmdActive = (_cmdActive + (e.key === 'ArrowDown' ? 1 : -1) + _cmdShown.length) % _cmdShown.length;
+    renderCmdList(document.getElementById('msg-input').value.replace(/^\\//, ''));
+    return true;
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const c = _cmdShown[_cmdActive];
+    if (c) { const inp = document.getElementById('msg-input'); inp.value = '/' + c.command + ' '; closeCmdList(); }
+    return true;
+  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pickCmd(_cmdActive); return true; }
+  if (e.key === 'Escape') { closeCmdList(); return true; }
+  return false;
+}
+document.getElementById('cmd-list').addEventListener('click', function(e) {
+  const it = e.target.closest('.cmd-item');
+  if (it) pickCmd(parseInt(it.dataset.idx, 10));
+});
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#cmd-list') && !e.target.closest('#cmd-toggle')) closeCmdList();
+});
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
 
 async function deleteMsg(chatId, msgId) {

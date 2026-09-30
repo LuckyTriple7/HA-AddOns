@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.14] - 2026-09-30
+- Feature: **Bot-Befehle wie in der Telegram-App.** In Chats mit Bots (und in Gruppen mit Bots) erscheint links neben dem Eingabefeld ein `/`-Knopf. Er oder ein `/` am Anfang der Eingabe oeffnet die Liste der Befehle mit Beschreibung; weiteres Tippen filtert. Klick oder Enter sendet den Befehl sofort, Tab uebernimmt ihn ins Eingabefeld (fuer Befehle mit Parametern), Pfeiltasten waehlen, Esc schliesst
+- Neuer Endpoint `GET /api/bot-commands/:chatId` (liefert `{ commands: [{ command, description }] }`, 10 Minuten gecacht)
+
 ## [1.7.13] - 2026-09-30
 - Feature: **„tippt …" im Chat-Kopf.** Tippt jemand im offenen Chat (auch Bots per `sendChatAction`), zeigt der Kopf statt der Statistikzeile „tippt …" mit animierten Punkten, in Gruppen mit Namen („Max tippt …", „Max und Anna tippen …"). Ausgewertet werden `UpdateUserTyping`, `UpdateChatUserTyping` und `UpdateChannelUserTyping`; die Anzeige verschwindet bei Abbruch oder 6 s nach dem letzten Update
 - Neuer Endpoint `GET /api/typing/:chatId` (liefert `{ typing, names }`)
