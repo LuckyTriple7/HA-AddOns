@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.18] - 2026-10-01
+- Fix: **Bot-Buttons waren ausgegraut und nicht klickbar.** teleproto liefert Inline-Buttons im neuen Layer-Format (`KeyboardInlineButton` mit Untertyp `InlineButtonTypeCallback`/`InlineButtonTypeUrl`), 1.7.17 erkannte nur die alten Klassennamen. Jetzt werden beide Formate ausgewertet; zusaetzlich werden Kopier-Buttons (`InlineButtonTypeCopy`) unterstuetzt
+- Bereits gespeicherte Nachrichten bekommen ihre Buttons beim Nachladen (Knopf „Alle Chats nachladen") neu zugeordnet
+
 ## [1.7.17] - 2026-10-01
 - Feature: **Bot-Buttons unter Nachrichten.** Inline-Tastaturen von Bots (z. B. Freigabe-Abfragen von Hermes mit „Approve", „Approve Always", „Deny") werden jetzt unter der Nachricht angezeigt und sind klickbar; der Klick geht als Callback an den Bot, eine Antwort des Bots erscheint als Hinweis. URL-Buttons oeffnen den Link in einem neuen Tab, Antwort-Tastaturen senden den Button-Text. Nicht unterstuetzte Button-Typen werden ausgegraut angezeigt
 - Fix: **Bearbeitete Nachrichten werden uebernommen.** `UpdateEditMessage`/`UpdateEditChannelMessage` aktualisieren Text und Buttons im Cache; bisher blieb bei Bots, die ihre Antwort schrittweise per Bearbeiten aufbauen oder Buttons nachtraeglich einfuegen/entfernen, der erste Stand stehen

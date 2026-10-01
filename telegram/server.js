@@ -350,10 +350,15 @@ function extractButtons(rawMsg) {
   const inline = rm.className === 'ReplyInlineMarkup';
   const rows = (rm.rows || []).map(r => (r.buttons || []).map(b => {
     const btn = { text: b.text || '' };
+    // teleproto liefert Buttons als KeyboardInlineButton { text, type } mit
+    // InlineButtonType*-Untertyp; ältere Layer direkt als KeyboardButton*
+    const ty = b.type && typeof b.type === 'object' ? b.type : b;
+    const cls = (ty.className || '').replace(/^(InlineButtonType|KeyboardButton)/, '');
     if (!inline) btn.kind = 'reply';
-    else if (b.className === 'KeyboardButtonCallback') { btn.kind = 'callback'; btn.data = b.data ? Buffer.from(b.data).toString('base64') : ''; }
-    else if (b.className === 'KeyboardButtonUrl' || b.className === 'KeyboardButtonUrlAuth') { btn.kind = 'url'; btn.url = b.url || ''; }
-    else btn.kind = 'unsupported';
+    else if (cls === 'Callback') { btn.kind = 'callback'; btn.data = ty.data ? Buffer.from(ty.data).toString('base64') : ''; }
+    else if (cls === 'Url' || cls === 'UrlAuth') { btn.kind = 'url'; btn.url = ty.url || ''; }
+    else if (cls === 'Copy') { btn.kind = 'copy'; btn.copy = ty.copyText || ''; }
+    else { btn.kind = 'unsupported'; dbg(`extractButtons: nicht unterstützter Button-Typ ${ty.className || '?'}`); }
     return btn;
   })).filter(r => r.length);
   return rows.length ? rows : undefined;
@@ -388,7 +393,21 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   const ts = (rawMsg.date || 0) * 1000;
   const msgId = `${chatId}_${rawMsg.id}`;
 
-  if (seenMsgIds.has(msgId)) { dbg(`processMessage [${source}]: duplicate skipped ${msgId}`); return; }
+  if (seenMsgIds.has(msgId)) {
+    // Buttons trotzdem auffrischen (Bot hat sie evtl. getauscht oder ältere
+    // Cache-Einträge kennen sie noch nicht)
+    const stored = messagesByChatId.get(chatId)?.find(m => m.id === msgId);
+    if (stored) {
+      const buttons = extractButtons(rawMsg);
+      if (JSON.stringify(buttons) !== JSON.stringify(stored.buttons)) {
+        if (buttons) stored.buttons = buttons; else delete stored.buttons;
+        stored.editTs = Date.now();
+        scheduleSave();
+      }
+    }
+    dbg(`processMessage [${source}]: duplicate skipped ${msgId}`);
+    return;
+  }
   seenMsgIds.add(msgId);
 
   let type = 'text';
@@ -3307,6 +3326,7 @@ async function pressBotButton(el) {
   const b = m && m.buttons && m.buttons[r] && m.buttons[r][c];
   if (!b) return;
   if (b.kind === 'url') { if (/^https?:/i.test(b.url || '')) window.open(b.url, '_blank', 'noopener'); return; }
+  if (b.kind === 'copy') { try { await navigator.clipboard.writeText(b.copy || ''); } catch(err) {} return; }
   if (b.kind === 'reply') {
     const inp = document.getElementById('msg-input');
     inp.value = b.text || '';
