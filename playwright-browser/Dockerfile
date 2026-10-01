@@ -11,7 +11,7 @@ RUN npm install --omit=dev --no-audit --no-fund "@playwright/mcp@${PLAYWRIGHT_MC
 FROM debian:bookworm-slim
 
 LABEL \
-    io.hass.version="1.0.16" \
+    io.hass.version="1.0.17" \
     io.hass.type="addon" \
     io.hass.arch="amd64|aarch64"
 

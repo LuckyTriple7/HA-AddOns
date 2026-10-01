@@ -27,7 +27,10 @@ MIN_TOKEN_LENGTH = 16
 # Hop-by-hop headers and the ones the proxy sets itself
 _SKIP_REQUEST = {'host', 'authorization', 'connection', 'content-length', 'keep-alive',
                  'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade'}
-_SKIP_RESPONSE = {'connection', 'content-length', 'keep-alive', 'transfer-encoding'}
+# Response headers passed back to the client; everything else is dropped.
+# Names come from this list, never from the upstream response.
+_PASS_RESPONSE = ('Content-Type', 'Cache-Control', 'Mcp-Session-Id', 'Mcp-Protocol-Version',
+                  'WWW-Authenticate', 'Allow')
 
 _log = print
 _stopping = False
@@ -115,10 +118,11 @@ class McpHandler(http.server.BaseHTTPRequestHandler):
         try:
             conn.request(self.command, self.path, body=body, headers=headers)
             resp = conn.getresponse()
-            self.send_response(resp.status, resp.reason)
-            for name, value in resp.getheaders():
-                if name.lower() not in _SKIP_RESPONSE:
-                    self.send_header(name, value)
+            self.send_response(resp.status)
+            for name in _PASS_RESPONSE:
+                value = resp.getheader(name)
+                if value is not None:
+                    self.send_header(name, value.replace('\r', '').replace('\n', ''))
             self.send_header('Connection', 'close')
             self.end_headers()
             while True:

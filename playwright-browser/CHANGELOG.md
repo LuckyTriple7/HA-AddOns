@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.17] - 2026-10-01
+
+### Sicherheit
+- MCP-Proxy reicht nur noch eine feste Liste von Antwort-Headern durch (Content-Type, Cache-Control, Mcp-Session-Id, Mcp-Protocol-Version, WWW-Authenticate, Allow), Zeilenumbrüche in Header-Werten werden entfernt (CodeQL: HTTP Response Splitting)
+
 ## [1.0.16] - 2026-10-01
 
 ### Neu
