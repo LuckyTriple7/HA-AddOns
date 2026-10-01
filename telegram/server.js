@@ -121,6 +121,7 @@ const SESSION_FILE = '/config/session.txt';
 const CHATS_FILE = '/config/chats.json';
 const MESSAGES_FILE = '/config/messages.json';
 const MEDIA_DIR = '/config/media';
+const AUTO_RELOAD_FILE = '/config/auto_reload.json';
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let status = 'starting'; // starting | awaiting_code | awaiting_password | connected | error
@@ -1140,6 +1141,29 @@ app.post('/api/clear-chat/:chatId', deleteRateLimit, async (req, res) => {
     console.error('[ERROR] clear-chat:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// Auto-Neuladen pro Chat: Zustand serverseitig, damit alle Geräte denselben sehen
+let autoReloadChats = new Set();
+try {
+  if (fs.existsSync(AUTO_RELOAD_FILE)) {
+    const arr = JSON.parse(fs.readFileSync(AUTO_RELOAD_FILE, 'utf8'));
+    if (Array.isArray(arr)) autoReloadChats = new Set(arr.map(String));
+  }
+} catch (e) { console.warn('[WARN] auto_reload.json nicht lesbar'); }
+
+app.get('/api/auto-reload', (req, res) => {
+  res.json({ chats: [...autoReloadChats] });
+});
+
+app.post('/api/auto-reload/:chatId', mutatingRateLimit, (req, res) => {
+  const chatId = String(req.params.chatId || '');
+  if (!/^-?[0-9]{1,20}$/.test(chatId)) return res.status(400).json({ error: 'Ungueltige Chat-ID' });
+  const on = req.body?.on === true;
+  if (on) autoReloadChats.add(chatId); else autoReloadChats.delete(chatId);
+  try { fs.writeFileSync(AUTO_RELOAD_FILE, JSON.stringify([...autoReloadChats])); }
+  catch (e) { return res.status(500).json({ error: 'Speichern fehlgeschlagen' }); }
+  res.json({ chats: [...autoReloadChats] });
 });
 
 app.post('/api/react', async (req, res) => {
@@ -2734,12 +2758,25 @@ async function clearChat() {
 }
 
 // Auto-Neuladen pro Chat: Rechtsklick (Handy: lange drücken) auf den
-// Neu-laden-Knopf rastet ihn ein; gemerkt wird das pro Browser
-const AUTO_RELOAD_KEY = 'tg_auto_reload';
+// Neu-laden-Knopf rastet ihn ein; der Zustand liegt auf dem Server und gilt
+// damit auf allen Geräten
 const AUTO_RELOAD_MS = 10000;
 let _autoReload = {};
-try { _autoReload = JSON.parse(localStorage.getItem(AUTO_RELOAD_KEY) || '{}') || {}; } catch(e) {}
 let _autoReloadBusy = false;
+try { localStorage.removeItem('tg_auto_reload'); } catch(e) {} // Altlast aus 1.7.19
+
+function _setAutoReloadList(list) {
+  _autoReload = {};
+  (list || []).forEach(id => { _autoReload[id] = true; });
+  updateAutoReloadBtn();
+}
+
+async function syncAutoReload() {
+  try {
+    const r = await fetch(api('/api/auto-reload'));
+    if (r.ok) _setAutoReloadList((await r.json()).chats);
+  } catch(e) {}
+}
 
 function updateAutoReloadBtn() {
   const btn = document.getElementById('refresh-btn');
@@ -2748,19 +2785,32 @@ function updateAutoReloadBtn() {
   btn.title = t(on ? 'btnReloadAutoOn' : 'btnReload') + ' — ' + t('btnReloadAutoHint');
 }
 
-function toggleAutoReload(e) {
+async function toggleAutoReload(e) {
   e.preventDefault();
-  if (!selectedChatId) return;
-  if (_autoReload[selectedChatId]) delete _autoReload[selectedChatId];
-  else _autoReload[selectedChatId] = true;
-  try { localStorage.setItem(AUTO_RELOAD_KEY, JSON.stringify(_autoReload)); } catch(err) {}
+  const cid = selectedChatId;
+  if (!cid) return;
+  const on = !_autoReload[cid];
+  // Sofort umschalten, Server-Antwort gleicht danach ab
+  if (on) _autoReload[cid] = true; else delete _autoReload[cid];
   updateAutoReloadBtn();
-  if (_autoReload[selectedChatId]) refreshChat(true);
+  try {
+    const r = await fetch(api('/api/auto-reload/' + encodeURIComponent(cid)), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on })
+    });
+    if (r.ok) _setAutoReloadList((await r.json()).chats);
+    else await syncAutoReload();
+  } catch(err) { await syncAutoReload(); }
+  if (on && _autoReload[cid] && selectedChatId === cid) refreshChat(true);
 }
 
-setInterval(() => {
+syncAutoReload();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAutoReload(); });
+
+setInterval(async () => {
+  if (document.hidden) return;
+  await syncAutoReload(); // Änderungen von anderen Geräten übernehmen
   const cid = selectedChatId;
-  if (!cid || !_autoReload[cid] || document.hidden || isDeleteMode || _historyMode[cid] || _autoReloadBusy) return;
+  if (!cid || !_autoReload[cid] || isDeleteMode || _historyMode[cid] || _autoReloadBusy) return;
   // Nicht neu laden, solange weiter oben im Verlauf gelesen wird
   const el = document.getElementById('messages');
   if (el.scrollHeight - el.scrollTop - el.clientHeight > 120) return;
