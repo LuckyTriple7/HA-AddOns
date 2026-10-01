@@ -1,6 +1,6 @@
 name: Playwright Browser
-description: Headless Chromium browser with CDP endpoint for Claude Code browser automation
-version: "1.0.15"
+description: Headless Chromium browser with CDP endpoint and optional Playwright MCP server
+version: "1.0.16"
 image: "ghcr.io/luckytriple7/playwright-browser"
 slug: playwright-browser
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -16,10 +16,16 @@ panel_title: Playwright Browser
 options:
   cdp_port: 9222
   idle_timeout: 5
+  enable_mcp: false
+  mcp_token: ""
 schema:
   cdp_port: port
   idle_timeout: int
+  enable_mcp: bool
+  mcp_token: password?
 ports:
   9222/tcp: null
+  17799/tcp: 17799
 ports_description:
   9222/tcp: Chrome DevTools Protocol (CDP) endpoint
+  17799/tcp: Playwright MCP endpoint (/mcp, bearer token)

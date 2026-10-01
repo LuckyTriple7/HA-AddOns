@@ -16,6 +16,8 @@ import sys
 import threading
 import time
 
+import mcp_proxy
+
 INTERNAL_HOST = '127.0.0.1'
 INTERNAL_PORT = int(os.environ.get('INTERNAL_PORT', '9223'))
 EXTERNAL_PORT = int(os.environ.get('EXTERNAL_PORT', '9222'))
@@ -23,12 +25,15 @@ EXTERNAL_HOST = socket.gethostname()
 CHROMIUM_BIN = os.environ.get('CHROMIUM_BIN', 'chromium')
 TMPDIR = os.environ.get('CHROMIUM_TMPDIR', '/tmp/chromium-profile')
 IDLE_TIMEOUT = int(os.environ.get('IDLE_TIMEOUT_MINUTES', '5')) * 60
+# Loopback-only CDP port for the built-in Playwright MCP. Unlike the external
+# port, requests here may start Chromium (the external port ignores loopback
+# requests so the Supervisor health check never wakes Chromium up).
+LOCAL_PORT = int(os.environ.get('LOCAL_CDP_PORT', '0'))
 
 _SRCS = [
     f'localhost:{INTERNAL_PORT}'.encode(),
     f'127.0.0.1:{INTERNAL_PORT}'.encode(),
 ]
-_DST = f'{EXTERNAL_HOST}:{EXTERNAL_PORT}'.encode()
 
 # State (protected by _lock)
 _lock = threading.Lock()
@@ -41,9 +46,9 @@ def log(level, msg):
     print(f'[{level}] [{time.strftime("%Y-%m-%d %H:%M:%S")}] {msg}', flush=True)
 
 
-def rewrite(body: bytes) -> bytes:
+def rewrite(body: bytes, dst: bytes) -> bytes:
     for src in _SRCS:
-        body = body.replace(src, _DST)
+        body = body.replace(src, dst)
     return body
 
 
@@ -142,6 +147,10 @@ def _handle_sigterm(signum, frame):
     zurück, wenn der Python-Prozess mit os._exit(0) sofort verschwindet."""
     log('INFO', 'SIGTERM empfangen, beende sauber...')
     try:
+        mcp_proxy.stop()
+    except Exception as e:
+        log('ERROR', f'Fehler beim Stoppen des Playwright MCP bei SIGTERM: {e}')
+    try:
         stop_chromium()
     except Exception as e:
         log('ERROR', f'Fehler beim Stoppen von Chromium bei SIGTERM: {e}')
@@ -161,6 +170,9 @@ def _idle_watcher():
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    local_start = False
+    dst = f'{EXTERNAL_HOST}:{EXTERNAL_PORT}'.encode()
+
     def log_message(self, *args):
         pass
 
@@ -176,7 +188,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             running = _chromium_proc is not None and _chromium_proc.poll() is None
         # Loopback requests (HA supervisor / Watchdog) never start Chromium —
         # but always respond 200 so the Watchdog does not restart the add-on
-        if not running and client_ip in ('127.0.0.1', '::1'):
+        if not running and not self.local_start and client_ip in ('127.0.0.1', '::1'):
             try:
                 body = b'{"status":"idle","message":"Chromium not running"}'
                 self.send_response(200)
@@ -196,10 +208,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             conn = http.client.HTTPConnection(INTERNAL_HOST, INTERNAL_PORT, timeout=30)
             headers = dict(self.headers)
-            headers['Host'] = 'localhost'
+            headers['Host'] = f'localhost:{INTERNAL_PORT}'
             conn.request('GET', self.path, headers=headers)
             resp = conn.getresponse()
-            body = rewrite(resp.read())
+            body = rewrite(resp.read(), self.dst)
             self.send_response(resp.status)
             for name, value in resp.getheaders():
                 if name.lower() not in ('transfer-encoding', 'content-length', 'content-encoding'):
@@ -269,10 +281,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     pass
 
 
+class LocalHandler(Handler):
+    local_start = True
+    dst = f'127.0.0.1:{LOCAL_PORT}'.encode()
+
+
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, _handle_sigterm)
     os.makedirs(TMPDIR, exist_ok=True)
     threading.Thread(target=_idle_watcher, daemon=True).start()
+    if LOCAL_PORT:
+        local_srv = http.server.ThreadingHTTPServer(('127.0.0.1', LOCAL_PORT), LocalHandler)
+        threading.Thread(target=local_srv.serve_forever, daemon=True).start()
+        mcp_proxy.start(f'http://127.0.0.1:{LOCAL_PORT}', log)
     srv = http.server.ThreadingHTTPServer(('0.0.0.0', EXTERNAL_PORT), Handler)
     log('INFO', f'CDP proxy :{EXTERNAL_PORT} -> {INTERNAL_HOST}:{INTERNAL_PORT} (lazy start, idle={IDLE_TIMEOUT}s, hostname={EXTERNAL_HOST})')
     srv.serve_forever()
