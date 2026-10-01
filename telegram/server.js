@@ -1618,6 +1618,7 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; align-items: center; justify-content: center; opacity: 0.55; }
 #refresh-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
+#refresh-btn.auto { opacity: 1; background: rgba(42,171,238,0.35); border-color: #2AABEE; box-shadow: inset 0 1px 3px rgba(0,0,0,0.35); }
 #refresh-all-btn.busy svg { animation: spin 0.7s linear infinite; }
 #refresh-all-btn.busy { opacity: 1; pointer-events: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -1998,7 +1999,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
   ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
-  <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">${_SVG.refresh}</button>
+  <button id="refresh-btn" onclick="refreshChat()" oncontextmenu="toggleAutoReload(event)" title="Chat neu laden">${_SVG.refresh}</button>
   <button id="refresh-all-btn" class="scroll-btn" onclick="refreshAllChats()" data-i18n-title="btnReloadAll" title="Alle Chats nachladen">${_SVG.refresh}<span style="font-size:11px;font-weight:600;margin-left:3px">*</span></button>
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
@@ -2096,7 +2097,7 @@ const LANG = {
     photosOn: 'Medien AN', photosOff: 'Medien AUS',
     videoDownload: '⬇ Video herunterladen', videoTooBig: '📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
-    btnReload: 'Chat neu laden', btnReloadAll: 'Alle Chats nachladen',
+    btnReload: 'Chat neu laden', btnReloadAutoOn: 'Automatisches Neuladen AN (alle 10 s)', btnReloadAutoHint: 'Rechtsklick: automatisch neu laden ein/aus', btnReloadAll: 'Alle Chats nachladen',
     reloadAllDone: (n, c) => n + ' neue Nachricht(en) aus ' + c + ' Chats nachgeladen.',
     reloadAllError: (e) => 'Nachladen fehlgeschlagen: ' + e,
     btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
@@ -2130,7 +2131,7 @@ const LANG = {
     photosOn: 'Media ON', photosOff: 'Media OFF',
     videoDownload: '⬇ Download video', videoTooBig: '📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Delete orphaned media files',
-    btnReload: 'Reload chat', btnReloadAll: 'Reload all chats',
+    btnReload: 'Reload chat', btnReloadAutoOn: 'Auto reload ON (every 10 s)', btnReloadAutoHint: 'Right-click: toggle auto reload', btnReloadAll: 'Reload all chats',
     reloadAllDone: (n, c) => n + ' new message(s) loaded from ' + c + ' chats.',
     reloadAllError: (e) => 'Reload failed: ' + e,
     btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
@@ -2325,6 +2326,7 @@ function applyLang() {
   if (lb) lb.innerHTML = '${_SVG.globe} ' + (lang === 'de' ? 'DE' : 'EN');
   const ptb = document.getElementById('photo-toggle');
   if (ptb) ptb.title = ptb.classList.contains('active') ? t('photosOn') : t('photosOff');
+  try { updateAutoReloadBtn(); } catch(e) {} // läuft beim Start vor der Initialisierung
 }
 function switchLang() {
   lang = lang === 'de' ? 'en' : 'de';
@@ -2659,6 +2661,7 @@ function openChat(chat) {
   document.getElementById('messages').style.display = 'flex';
   document.getElementById('input-bar').style.display = 'flex';
   document.getElementById('refresh-btn').style.display = 'inline-flex';
+  updateAutoReloadBtn();
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
@@ -2730,19 +2733,57 @@ async function clearChat() {
   } finally { btn.disabled = false; }
 }
 
-async function refreshChat() {
+// Auto-Neuladen pro Chat: Rechtsklick (Handy: lange drücken) auf den
+// Neu-laden-Knopf rastet ihn ein; gemerkt wird das pro Browser
+const AUTO_RELOAD_KEY = 'tg_auto_reload';
+const AUTO_RELOAD_MS = 10000;
+let _autoReload = {};
+try { _autoReload = JSON.parse(localStorage.getItem(AUTO_RELOAD_KEY) || '{}') || {}; } catch(e) {}
+let _autoReloadBusy = false;
+
+function updateAutoReloadBtn() {
+  const btn = document.getElementById('refresh-btn');
+  const on = !!(selectedChatId && _autoReload[selectedChatId]);
+  btn.classList.toggle('auto', on);
+  btn.title = t(on ? 'btnReloadAutoOn' : 'btnReload') + ' — ' + t('btnReloadAutoHint');
+}
+
+function toggleAutoReload(e) {
+  e.preventDefault();
+  if (!selectedChatId) return;
+  if (_autoReload[selectedChatId]) delete _autoReload[selectedChatId];
+  else _autoReload[selectedChatId] = true;
+  try { localStorage.setItem(AUTO_RELOAD_KEY, JSON.stringify(_autoReload)); } catch(err) {}
+  updateAutoReloadBtn();
+  if (_autoReload[selectedChatId]) refreshChat(true);
+}
+
+setInterval(() => {
+  const cid = selectedChatId;
+  if (!cid || !_autoReload[cid] || document.hidden || isDeleteMode || _historyMode[cid] || _autoReloadBusy) return;
+  // Nicht neu laden, solange weiter oben im Verlauf gelesen wird
+  const el = document.getElementById('messages');
+  if (el.scrollHeight - el.scrollTop - el.clientHeight > 120) return;
+  _autoReloadBusy = true;
+  refreshChat(true).finally(() => { _autoReloadBusy = false; });
+}, AUTO_RELOAD_MS);
+
+async function refreshChat(silent) {
   if (!selectedChatId) return;
   const btn = document.getElementById('refresh-btn');
-  btn.classList.add('spinning');
+  const cid = selectedChatId;
+  if (silent !== true) btn.classList.add('spinning');
   try {
-    const msgs = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?refresh=1')).then(r=>r.json());
+    const msgs = await fetch(api('/api/messages/'+encodeURIComponent(cid)+'?refresh=1')).then(r=>r.json());
+    if (cid !== selectedChatId) return; // Chat zwischenzeitlich gewechselt
     _lastMsgFingerprint[selectedChatId] = '';
     _view[selectedChatId] = msgs;
     _oldestTs[selectedChatId] = msgs.length ? msgs[0].timestamp : null;
     _noMoreOlder[selectedChatId] = false;
     renderMessages(msgs);
-  } catch(e) {}
-  btn.classList.remove('spinning');
+  } catch(e) {} finally {
+    btn.classList.remove('spinning');
+  }
 }
 
 async function refreshAllChats() {

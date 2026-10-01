@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.19] - 2026-10-01
+- Feature: **Automatisches Neuladen pro Chat.** Rechtsklick (am Handy: lange druecken) auf den Knopf „Chat neu laden" rastet ihn ein: der offene Chat wird dann alle 10 Sekunden komplett neu von Telegram geladen. Erneuter Rechtsklick schaltet es wieder aus. Die Einstellung gilt pro Chat und wird im Browser gemerkt. Pausiert, solange der Tab im Hintergrund ist, der Loeschmodus aktiv ist oder weiter oben im Verlauf gelesen wird
+
 ## [1.7.18] - 2026-10-01
 - Fix: **Bot-Buttons waren ausgegraut und nicht klickbar.** teleproto liefert Inline-Buttons im neuen Layer-Format (`KeyboardInlineButton` mit Untertyp `InlineButtonTypeCallback`/`InlineButtonTypeUrl`), 1.7.17 erkannte nur die alten Klassennamen. Jetzt werden beide Formate ausgewertet; zusaetzlich werden Kopier-Buttons (`InlineButtonTypeCopy`) unterstuetzt
 - Bereits gespeicherte Nachrichten bekommen ihre Buttons beim Nachladen (Knopf „Alle Chats nachladen") neu zugeordnet
