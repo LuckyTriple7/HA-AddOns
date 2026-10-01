@@ -26,6 +26,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 
 - Ein aktives Signal-Konto auf deinem Handy
 - amd64 oder aarch64 Hardware
+- Mindestens **2 GB RAM** (z. B. Raspberry Pi 4/5 mit 2 GB+ oder x86). Auf einem Raspberry Pi 3 (1 GB) reicht der Speicher neben Home Assistant nicht: Das System lagert auf die SD-Karte aus und reagiert beim Start des Add-ons minutenlang nicht mehr, auch per SSH nicht.
 
 ## Einrichtung
 
@@ -200,6 +201,7 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 
 - An active Signal account on your phone
 - amd64 or aarch64 hardware
+- At least **2 GB of RAM** (e.g. Raspberry Pi 4/5 with 2 GB+ or x86). A Raspberry Pi 3 (1 GB) does not have enough memory next to Home Assistant: the system starts swapping to the SD card and stops responding for minutes when the add-on starts, SSH included.
 
 ## Setup
 

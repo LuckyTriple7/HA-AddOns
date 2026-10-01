@@ -2,6 +2,10 @@
 
 Signal Messenger direkt in Home Assistant — bestehendes Konto verknüpfen, Nachrichten senden und empfangen, Webhook für Automatisierungen.
 
+## Voraussetzungen
+
+- Mindestens **2 GB RAM** (z. B. Raspberry Pi 4/5 mit 2 GB+ oder x86). Auf einem Raspberry Pi 3 (1 GB) reicht der Speicher neben Home Assistant nicht: Das System lagert auf die SD-Karte aus und reagiert beim Start des Add-ons minutenlang nicht mehr, auch per SSH nicht.
+
 ## Einrichtung
 
 1. Add-on installieren und starten
@@ -177,6 +181,10 @@ Falls Signal nach einem Update nicht mehr funktioniert:
 # Signal Messenger (English)
 
 Signal Messenger directly in Home Assistant — link your existing account, send and receive messages, webhook for automations.
+
+## Requirements
+
+- At least **2 GB of RAM** (e.g. Raspberry Pi 4/5 with 2 GB+ or x86). A Raspberry Pi 3 (1 GB) does not have enough memory next to Home Assistant: the system starts swapping to the SD card and stops responding for minutes when the add-on starts, SSH included.
 
 ## Setup
 
