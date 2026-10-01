@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.17] - 2026-10-01
+- Feature: **Bot-Buttons unter Nachrichten.** Inline-Tastaturen von Bots (z. B. Freigabe-Abfragen von Hermes mit „Approve", „Approve Always", „Deny") werden jetzt unter der Nachricht angezeigt und sind klickbar; der Klick geht als Callback an den Bot, eine Antwort des Bots erscheint als Hinweis. URL-Buttons oeffnen den Link in einem neuen Tab, Antwort-Tastaturen senden den Button-Text. Nicht unterstuetzte Button-Typen werden ausgegraut angezeigt
+- Fix: **Bearbeitete Nachrichten werden uebernommen.** `UpdateEditMessage`/`UpdateEditChannelMessage` aktualisieren Text und Buttons im Cache; bisher blieb bei Bots, die ihre Antwort schrittweise per Bearbeiten aufbauen oder Buttons nachtraeglich einfuegen/entfernen, der erste Stand stehen
+- Neuer Endpoint `POST /api/bot-callback` (`{ msgId, row, col }`, liefert `{ success, message, alert, url }`)
+
 ## [1.7.16] - 2026-09-30
 - Feature: **Chat leeren.** Neuer Papierkorb-Knopf im Chat-Kopf loescht nach Rueckfrage dauerhaft alle Nachrichten des Chats ausser der neuesten, auch in Telegram (`revoke`, also soweit Telegram es zulaesst fuer beide Seiten). In Kanaelen und Supergruppen ohne Adminrechte werden nur die eigenen Nachrichten geloescht. Lokale Medien der geloeschten Nachrichten werden mit entfernt
 - Neuer Endpoint `POST /api/clear-chat/:chatId` (liefert `{ success, deleted, onlyOwn }`)
