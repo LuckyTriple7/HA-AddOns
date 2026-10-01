@@ -1,3 +1,12 @@
+## [1.8.91] - 2026-10-01
+
+### Aktualisiert
+
+- VS Code: 1.139.1 → 1.140.0
+- Thunderbird: 156.0.1 → 157.0
+- Claude Desktop: 3.3.2+claude2.9939.4 → 3.3.3+claude2.9939.4
+- OpenCode: 1.18.33 → 1.18.34
+
 ## [1.8.90] - 2026-09-30
 
 ### Aktualisiert
