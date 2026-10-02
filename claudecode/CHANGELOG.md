@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.29] - 2026-10-02
+## [1.4.0] - 2026-10-02
 
 ### Added
 - Option enable_context7_mcp: bindet den Remote-MCP-Server von Context7 (aktuelle Doku zu Bibliotheken/APIs) an; optionaler CONTEXT7_API_KEY über die .env, die Werkzeuge resolve-library-id und query-docs sind vorab freigegeben
