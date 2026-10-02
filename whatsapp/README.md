@@ -32,6 +32,8 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 | `initial_chats` | `30` | Anzahl Chats die beim Start geladen werden |
 | `initial_messages` | `20` | Nachrichten pro Chat die beim Start geladen werden |
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
+| `api_enabled` | `false` | REST-API auf eigenem Port 17786 starten (nur mit `api_token`) |
+| `api_token` | — | Token für Port 17786, Aufrufe brauchen `Authorization: Bearer <Token>` |
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 | `ha_notifications_privacy` | `false` | Nur „WhatsApp / Neue Nachricht" anzeigen — kein Absender, kein Inhalt |
 
@@ -48,6 +50,15 @@ Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automat
 
 ## REST-API
 
+Die REST-API für Skripte und Automatisierungen läuft auf Port **17786** und verlangt einen Token:
+
+1. Option `api_enabled` einschalten und `api_token` setzen (z. B. `openssl rand -hex 32`) — ohne Token startet der Port nicht
+2. Port 17786 unter *Netzwerk* freigeben, wenn er aus dem LAN erreichbar sein soll
+
+Jeder Aufruf braucht die Kopfzeile `Authorization: Bearer <Token>`, sonst antwortet der Port mit `401`.
+
+> **Port 17776** (Weboberfläche samt API) ist seit 1.8.30 **nicht mehr freigegeben**: er kennt keine Anmeldung. Die Oberfläche läuft über HA-Ingress oder das MessengerPortal. Details in der Dokumentation des Add-ons.
+
 ```
 GET  /api/status                     → { status, phone }
 GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
@@ -63,7 +74,8 @@ POST /api/reset                      → Session zurücksetzen (neuer QR-Code)
 ### Nachricht senden
 
 ```bash
-curl -X POST http://<HA-IP>:17776/api/send \
+curl -X POST http://<HA-IP>:17786/api/send \
+  -H "Authorization: Bearer <Token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "4915123456789", "message": "Hallo aus HA!"}'
 ```
@@ -89,7 +101,9 @@ curl -X POST http://<HA-IP>:17776/api/send \
 ```yaml
 rest_command:
   whatsapp_send:
-    url: http://localhost:17776/api/send
+    url: http://localhost:17786/api/send
+    headers:
+      Authorization: !secret whatsapp_api_token
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
@@ -102,6 +116,11 @@ action:
     data:
       to: "4915123456789"
       message: "Bewegung erkannt!"
+```
+
+`secrets.yaml`:
+```yaml
+whatsapp_api_token: "Bearer <Token>"
 ```
 
 ### Webhook — auf eingehende Nachrichten reagieren
@@ -208,6 +227,8 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 | `initial_chats` | `30` | Number of chats loaded on startup |
 | `initial_messages` | `20` | Messages per chat loaded on startup |
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
+| `api_enabled` | `false` | Start the REST API on its own port 17786 (only with `api_token`) |
+| `api_token` | — | Token for port 17786, calls need `Authorization: Bearer <token>` |
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 | `ha_notifications_privacy` | `false` | Show only "WhatsApp / New message" — no sender name, no content |
 
@@ -224,6 +245,15 @@ Just enable `ha_notifications` — nothing else. The add-on automatically uses t
 
 ## REST API
 
+The REST API for scripts and automations runs on port **17786** and requires a token:
+
+1. Turn on `api_enabled` and set `api_token` (e.g. `openssl rand -hex 32`) — without a token the port does not start
+2. Publish port 17786 under *Network* if it should be reachable from the LAN
+
+Every call needs the header `Authorization: Bearer <token>`, otherwise the port answers `401`.
+
+> **Port 17776** (web interface including the API) is **no longer published** since 1.8.30: it has no login. The interface is reached through HA Ingress or the MessengerPortal. Details in the add-on documentation.
+
 ```
 GET  /api/status                     → { status, phone }
 GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
@@ -239,7 +269,8 @@ POST /api/reset                      → Reset session (new QR code)
 ### Send a message
 
 ```bash
-curl -X POST http://<HA-IP>:17776/api/send \
+curl -X POST http://<HA-IP>:17786/api/send \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "4915123456789", "message": "Hello from HA!"}'
 ```
@@ -265,7 +296,9 @@ curl -X POST http://<HA-IP>:17776/api/send \
 ```yaml
 rest_command:
   whatsapp_send:
-    url: http://localhost:17776/api/send
+    url: http://localhost:17786/api/send
+    headers:
+      Authorization: !secret whatsapp_api_token
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
@@ -278,6 +311,11 @@ action:
     data:
       to: "4915123456789"
       message: "Motion detected!"
+```
+
+`secrets.yaml`:
+```yaml
+whatsapp_api_token: "Bearer <token>"
 ```
 
 ### Webhook — react to incoming messages

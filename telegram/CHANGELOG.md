@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.21] - 2026-10-02
+- README: REST-API-Beispiele auf Port **17788** mit Token umgestellt (`curl`, `rest_command` samt `secrets.yaml`), Optionen `api_enabled` und `api_token` in der Konfigurationstabelle ergaenzt. Die README zeigte noch den seit 1.7.7 geschlossenen Port 17778 ohne Anmeldung
+
 ## [1.7.20] - 2026-10-01
 - Fix: **Automatisches Neuladen gilt jetzt auf allen Geraeten.** Der eingerastete Zustand des Knopfs „Chat neu laden" wurde in 1.7.19 nur im jeweiligen Browser gemerkt; auf einem anderen Geraet (oder in der HA-App) war der Knopf nicht eingedrueckt. Der Zustand liegt jetzt auf dem Server (`/config/auto_reload.json`) und wird alle 10 Sekunden sowie beim Zurueckholen des Tabs abgeglichen. Das Neuladen selbst laeuft weiterhin in jedem Geraet, das den Chat gerade offen hat. Im Browser gemerkte Einstellungen aus 1.7.19 werden verworfen und muessen einmal neu eingerastet werden
 

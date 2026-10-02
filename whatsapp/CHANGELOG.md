@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.51] - 2026-10-02
+- README: REST-API-Beispiele auf Port **17786** mit Token umgestellt (`curl`, `rest_command` samt `secrets.yaml`), Optionen `api_enabled` und `api_token` in der Konfigurationstabelle ergaenzt. Die README zeigte noch den seit 1.8.30 geschlossenen Port 17776 ohne Anmeldung
+
 ## [1.8.50] - 2026-09-29
 
 chore(deps): bump ip-address from 10.3.1 to 10.7.2 in /whatsapp

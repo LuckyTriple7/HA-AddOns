@@ -51,6 +51,8 @@ Bei aktivierter 2-Faktor-Authentifizierung wird danach das Cloud-Passwort abgefr
 | `fetch_messages_limit` | `50` | Nachrichten die beim ersten Öffnen eines Chats geladen werden (max. 300) |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
+| `api_enabled` | `false` | REST-API auf eigenem Port 17788 starten (nur mit `api_token`) |
+| `api_token` | — | Token für Port 17788, Aufrufe brauchen `Authorization: Bearer <Token>` |
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 | `ha_notifications_privacy` | `false` | Nur „Telegram / Neue Nachricht" anzeigen — kein Absender, kein Inhalt |
 | `ha_notifications_skip_bots` | `false` | Keine HA-Benachrichtigung für Nachrichten von Bots |
@@ -60,6 +62,15 @@ Bei aktivierter 2-Faktor-Authentifizierung wird danach das Cloud-Passwort abgefr
 Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automatisch den vom Supervisor bereitgestellten Zugriff auf die Home-Assistant-API (`homeassistant_api`); ein manuell erstellter Access Token ist nicht mehr nötig.
 
 ## REST-API
+
+Die REST-API für Skripte und Automatisierungen läuft auf Port **17788** und verlangt einen Token:
+
+1. Option `api_enabled` einschalten und `api_token` setzen (z. B. `openssl rand -hex 32`) — ohne Token startet der Port nicht
+2. Port 17788 unter *Netzwerk* freigeben, wenn er aus dem LAN erreichbar sein soll
+
+Jeder Aufruf braucht die Kopfzeile `Authorization: Bearer <Token>`, sonst antwortet der Port mit `401`.
+
+> **Port 17778** (Weboberfläche samt API) ist seit 1.7.7 **nicht mehr freigegeben**: er kennt keine Anmeldung. Die Oberfläche läuft über HA-Ingress oder das MessengerPortal. Details in der Dokumentation des Add-ons.
 
 ```
 GET  /api/status                     → { status, name, id }
@@ -77,7 +88,8 @@ POST /api/logout                     → Abmelden und Session löschen
 ### Nachricht senden
 
 ```bash
-curl -X POST http://<HA-IP>:17778/api/send \
+curl -X POST http://<HA-IP>:17788/api/send \
+  -H "Authorization: Bearer <Token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "123456789", "message": "Hallo aus HA!"}'
 ```
@@ -103,7 +115,9 @@ curl -X POST http://<HA-IP>:17778/api/send \
 ```yaml
 rest_command:
   telegram_send:
-    url: http://localhost:17778/api/send
+    url: http://localhost:17788/api/send
+    headers:
+      Authorization: !secret telegram_api_token
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
@@ -116,6 +130,11 @@ action:
     data:
       to: "123456789"
       message: "Bewegung erkannt!"
+```
+
+`secrets.yaml`:
+```yaml
+telegram_api_token: "Bearer <Token>"
 ```
 
 ### Webhook — auf eingehende Nachrichten reagieren
@@ -242,6 +261,8 @@ If two-factor authentication is enabled, the cloud password will be requested af
 | `fetch_messages_limit` | `50` | Messages loaded when a chat is first opened (max. 300) |
 | `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
+| `api_enabled` | `false` | Start the REST API on its own port 17788 (only with `api_token`) |
+| `api_token` | — | Token for port 17788, calls need `Authorization: Bearer <token>` |
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 | `ha_notifications_privacy` | `false` | Show only "Telegram / New message" — no sender name, no content |
 | `ha_notifications_skip_bots` | `false` | Skip HA notifications for messages from bots |
@@ -251,6 +272,15 @@ If two-factor authentication is enabled, the cloud password will be requested af
 Just enable `ha_notifications` — nothing else. The add-on automatically uses the Home Assistant API access provided by the Supervisor (`homeassistant_api`); a manually created access token is no longer required.
 
 ## REST API
+
+The REST API for scripts and automations runs on port **17788** and requires a token:
+
+1. Turn on `api_enabled` and set `api_token` (e.g. `openssl rand -hex 32`) — without a token the port does not start
+2. Publish port 17788 under *Network* if it should be reachable from the LAN
+
+Every call needs the header `Authorization: Bearer <token>`, otherwise the port answers `401`.
+
+> **Port 17778** (web interface including the API) is **no longer published** since 1.7.7: it has no login. The interface is reached through HA Ingress or the MessengerPortal. Details in the add-on documentation.
 
 ```
 GET  /api/status                     → { status, name, id }
@@ -268,7 +298,8 @@ POST /api/logout                     → Log out and delete session
 ### Send a message
 
 ```bash
-curl -X POST http://<HA-IP>:17778/api/send \
+curl -X POST http://<HA-IP>:17788/api/send \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "123456789", "message": "Hello from HA!"}'
 ```
@@ -294,7 +325,9 @@ curl -X POST http://<HA-IP>:17778/api/send \
 ```yaml
 rest_command:
   telegram_send:
-    url: http://localhost:17778/api/send
+    url: http://localhost:17788/api/send
+    headers:
+      Authorization: !secret telegram_api_token
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
@@ -307,6 +340,11 @@ action:
     data:
       to: "123456789"
       message: "Motion detected!"
+```
+
+`secrets.yaml`:
+```yaml
+telegram_api_token: "Bearer <token>"
 ```
 
 ### Webhook — react to incoming messages
