@@ -10,3 +10,6 @@ configuration:
   session_hours:
     name: Session-Dauer (Stunden)
     description: Wie viele Stunden eine Login-Session gültig bleibt. Standard 24.
+  twofa_reset:
+    name: Zwei-Faktor-Abfrage überspringen (Notzugang)
+    description: Nur einschalten, wenn Handy und Backup-Codes weg sind. Solange an, fragt der Login keinen Code ab. Danach in TUIWatch unter Einstellungen → Anmeldung die Zwei-Faktor-Anmeldung abschalten oder neu einrichten und diese Option wieder ausschalten.

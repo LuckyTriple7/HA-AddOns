@@ -16,6 +16,9 @@ Das Add-on wird vom **Claude Code Add-on** automatisch erkannt und als Browser-B
 | Option | Standard | Beschreibung |
 |--------|----------|--------------|
 | `cdp_port` | `9222` | Port für den Chrome DevTools Protocol Endpoint |
+| `idle_timeout` | `5` | Minuten ohne Verbindung, nach denen Chromium beendet wird |
+| `enable_mcp` | `false` | Eigenen Playwright MCP-Server starten (Port 17799, Pfad `/mcp`) |
+| `mcp_token` | leer | Pflicht-Token für den MCP (`Authorization: Bearer …`), mindestens 16 Zeichen |
 
 ## Funktionsweise
 
@@ -23,6 +26,7 @@ Das Add-on wird vom **Claude Code Add-on** automatisch erkannt und als Browser-B
 2. Ein Python-CDP-Proxy leitet den konfigurierten CDP-Port auf den internen Port weiter
 3. Der Proxy rewritet `localhost`-Adressen in den HTTP-Antworten, damit WebSocket-Verbindungen von außerhalb des Containers funktionieren
 4. Das Claude Code Add-on findet dieses Add-on automatisch über die Supervisor API und registriert `@playwright/mcp` als MCP-Server
+5. Optional (`enable_mcp`): Im Add-on läuft selbst ein Playwright MCP-Server hinter einer Token-Prüfung. So können auch LiteLLM, Hermes oder andere MCP-Clients den Browser nutzen. Chromium startet auch dann erst bei der ersten Browser-Aktion und stoppt nach dem Leerlauf-Timeout wieder
 
 ## Voraussetzungen
 

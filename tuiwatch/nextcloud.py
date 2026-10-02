@@ -68,7 +68,7 @@ def fetch_contacts(addressbook_url: str, user: str, app_password: str,
         resp = requests.request(
             "REPORT", addressbook_url, auth=(user, app_password), data=_REPORT_BODY,
             headers={"Content-Type": "application/xml; charset=utf-8", "Depth": "1"},
-            timeout=20)
+            timeout=20, allow_redirects=False)  # Zugangsdaten nie an ein Umleitungsziel
         if resp.status_code not in (200, 207):
             if verbose:
                 log.warning("Nextcloud-Kontakte: HTTP %s", resp.status_code)
@@ -97,7 +97,7 @@ def check_addressbook(addressbook_url: str, user: str, app_password: str,
         resp = requests.request(
             "PROPFIND", addressbook_url, auth=(user, app_password), data=_PROPFIND_BODY,
             headers={"Content-Type": "application/xml; charset=utf-8", "Depth": "0"},
-            timeout=20)
+            timeout=20, allow_redirects=False)  # Zugangsdaten nie an ein Umleitungsziel
     except Exception as e:
         if verbose:
             log.warning("Nextcloud-Selbsttest: %s: %s", type(e).__name__, e)

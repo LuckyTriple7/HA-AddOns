@@ -198,6 +198,13 @@ def _parse_ts(s: str) -> float:
                     int(s[11:13]), int(s[14:16]), int(s[17:19])).timestamp()
 
 
+def _unguard(v: str) -> str:
+    """Den Formel-Schutz aus `app._csv_guard` fuer die Anzeige wieder abnehmen."""
+    if len(v) > 1 and v[0] == "'" and v[1] in '=+-@\t\r':
+        return v[1:]
+    return v
+
+
 def parse_month(path) -> tuple:
     """Eine Monatsdatei einlesen → `(rows, meta)`.
 
@@ -229,9 +236,9 @@ def parse_month(path) -> tuple:
                 rows.append((
                     _parse_ts(raw[_C_DATUM]),
                     raw[_C_IP],
-                    raw[_C_UA],
-                    raw[_C_PFAD],
-                    raw[_C_REF],
+                    _unguard(raw[_C_UA]),
+                    _unguard(raw[_C_PFAD]),
+                    _unguard(raw[_C_REF]),
                     _pooled(raw[_C_LANG]),
                     _pooled(raw[_C_LAND]),
                     raw[_C_BOT] == '1',

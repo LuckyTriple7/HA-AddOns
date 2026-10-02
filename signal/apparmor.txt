@@ -19,7 +19,8 @@ profile signal_addon flags=(attach_disconnected,mediate_deleted) {
   network unix dgram,
 
   # Debian-Basis (bbernhard/signal-cli-rest-api): ENTRYPOINT /run.sh startet
-  # /entrypoint.sh, signal-cli (Java) liegt unter /opt, die JRE unter /usr/lib.
+  # signal-cli-rest-api per setpriv (bis 0.100 ueber /entrypoint.sh),
+  # signal-cli (Java) liegt unter /opt, die JRE unter /usr/lib.
   /run.sh ix,
   /entrypoint.sh ix,
   /run/{,**} rwk,

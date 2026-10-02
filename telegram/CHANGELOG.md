@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.7.21] - 2026-10-02
+- README: REST-API-Beispiele auf Port **17788** mit Token umgestellt (`curl`, `rest_command` samt `secrets.yaml`), Optionen `api_enabled` und `api_token` in der Konfigurationstabelle ergaenzt. Die README zeigte noch den seit 1.7.7 geschlossenen Port 17778 ohne Anmeldung
+
+## [1.7.20] - 2026-10-01
+- Fix: **Automatisches Neuladen gilt jetzt auf allen Geraeten.** Der eingerastete Zustand des Knopfs „Chat neu laden" wurde in 1.7.19 nur im jeweiligen Browser gemerkt; auf einem anderen Geraet (oder in der HA-App) war der Knopf nicht eingedrueckt. Der Zustand liegt jetzt auf dem Server (`/config/auto_reload.json`) und wird alle 10 Sekunden sowie beim Zurueckholen des Tabs abgeglichen. Das Neuladen selbst laeuft weiterhin in jedem Geraet, das den Chat gerade offen hat. Im Browser gemerkte Einstellungen aus 1.7.19 werden verworfen und muessen einmal neu eingerastet werden
+
+## [1.7.19] - 2026-10-01
+- Feature: **Automatisches Neuladen pro Chat.** Rechtsklick (am Handy: lange druecken) auf den Knopf „Chat neu laden" rastet ihn ein: der offene Chat wird dann alle 10 Sekunden komplett neu von Telegram geladen. Erneuter Rechtsklick schaltet es wieder aus. Die Einstellung gilt pro Chat und wird im Browser gemerkt. Pausiert, solange der Tab im Hintergrund ist, der Loeschmodus aktiv ist oder weiter oben im Verlauf gelesen wird
+
+## [1.7.18] - 2026-10-01
+- Fix: **Bot-Buttons waren ausgegraut und nicht klickbar.** teleproto liefert Inline-Buttons im neuen Layer-Format (`KeyboardInlineButton` mit Untertyp `InlineButtonTypeCallback`/`InlineButtonTypeUrl`), 1.7.17 erkannte nur die alten Klassennamen. Jetzt werden beide Formate ausgewertet; zusaetzlich werden Kopier-Buttons (`InlineButtonTypeCopy`) unterstuetzt
+- Bereits gespeicherte Nachrichten bekommen ihre Buttons beim Nachladen (Knopf „Alle Chats nachladen") neu zugeordnet
+
+## [1.7.17] - 2026-10-01
+- Feature: **Bot-Buttons unter Nachrichten.** Inline-Tastaturen von Bots (z. B. Freigabe-Abfragen von Hermes mit „Approve", „Approve Always", „Deny") werden jetzt unter der Nachricht angezeigt und sind klickbar; der Klick geht als Callback an den Bot, eine Antwort des Bots erscheint als Hinweis. URL-Buttons oeffnen den Link in einem neuen Tab, Antwort-Tastaturen senden den Button-Text. Nicht unterstuetzte Button-Typen werden ausgegraut angezeigt
+- Fix: **Bearbeitete Nachrichten werden uebernommen.** `UpdateEditMessage`/`UpdateEditChannelMessage` aktualisieren Text und Buttons im Cache; bisher blieb bei Bots, die ihre Antwort schrittweise per Bearbeiten aufbauen oder Buttons nachtraeglich einfuegen/entfernen, der erste Stand stehen
+- Neuer Endpoint `POST /api/bot-callback` (`{ msgId, row, col }`, liefert `{ success, message, alert, url }`)
+
+## [1.7.16] - 2026-09-30
+- Feature: **Chat leeren.** Neuer Papierkorb-Knopf im Chat-Kopf loescht nach Rueckfrage dauerhaft alle Nachrichten des Chats ausser der neuesten, auch in Telegram (`revoke`, also soweit Telegram es zulaesst fuer beide Seiten). In Kanaelen und Supergruppen ohne Adminrechte werden nur die eigenen Nachrichten geloescht. Lokale Medien der geloeschten Nachrichten werden mit entfernt
+- Neuer Endpoint `POST /api/clear-chat/:chatId` (liefert `{ success, deleted, onlyOwn }`)
+
+## [1.7.15] - 2026-09-30
+- Fix: **Umbenannte Chats behalten nicht mehr den alten Namen.** Bereits bekannte Chats (Bots, Kontakte, Gruppen, Kanaele) uebernehmen beim Dialog-Abgleich nach Start oder Reconnect den aktuellen Namen aus Telegram; bisher blieb der gespeicherte alte Name in der Chatliste dauerhaft stehen
+
+## [1.7.14] - 2026-09-30
+- Feature: **Bot-Befehle wie in der Telegram-App.** In Chats mit Bots (und in Gruppen mit Bots) erscheint links neben dem Eingabefeld ein `/`-Knopf. Er oder ein `/` am Anfang der Eingabe oeffnet die Liste der Befehle mit Beschreibung; weiteres Tippen filtert. Klick oder Enter sendet den Befehl sofort, Tab uebernimmt ihn ins Eingabefeld (fuer Befehle mit Parametern), Pfeiltasten waehlen, Esc schliesst
+- Neuer Endpoint `GET /api/bot-commands/:chatId` (liefert `{ commands: [{ command, description }] }`, 10 Minuten gecacht)
+
+## [1.7.13] - 2026-09-30
+- Feature: **„tippt …" im Chat-Kopf.** Tippt jemand im offenen Chat (auch Bots per `sendChatAction`), zeigt der Kopf statt der Statistikzeile „tippt …" mit animierten Punkten, in Gruppen mit Namen („Max tippt …", „Max und Anna tippen …"). Ausgewertet werden `UpdateUserTyping`, `UpdateChatUserTyping` und `UpdateChannelUserTyping`; die Anzeige verschwindet bei Abbruch oder 6 s nach dem letzten Update
+- Neuer Endpoint `GET /api/typing/:chatId` (liefert `{ typing, names }`)
+
+## [1.7.12] - 2026-09-29
+
+chore(deps): bump ip-address from 10.3.1 to 10.7.2 in /telegram
+
+
 ## [1.7.11] - 2026-09-24
 - Abhaengigkeiten: **express 4 → 5.2.1**, **express-rate-limit 7 → 8.7.0**, multer 2.3.0 → 2.4.0
 - Express 5: Catch-all-Route von `'*'` auf `'/{*splat}'` umgestellt (neue Pfadsyntax); `req.body` ohne JSON-Body wird wie unter Express 4 zu `{}`

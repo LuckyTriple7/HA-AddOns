@@ -4,8 +4,10 @@ Für Entwicklung/Test auf einem separaten Docker-PC, ohne HA-Supervisor.
 
 ## Was HA-spezifisch ist (und wie es umgangen wird)
 
-- `homeassistant_api` + `SUPERVISOR_TOKEN` → nur für `ha_sensors`/`notify_ha` genutzt
-  ([app.py:485](app.py#L485)). Kein Token vorhanden → Feature bleibt inaktiv, kein Crash.
+- `homeassistant_api` + `SUPERVISOR_TOKEN` → nur für `ha_sensors`/`notify_ha` genutzt.
+  Ohne Supervisor lässt sich ein Home Assistant im Netz über die Einstellungen
+  `ha_url` + `ha_token` (langlebiges Zugriffstoken) anbinden, siehe `_ha_api()` in
+  app.py. Weder das eine noch das andere → Feature bleibt inaktiv, kein Crash.
 - `ingress: true` → nicht nötig, Port 17794 ist eh direkt exposed.
 - `map: addon_config:rw` → wird zu normalem Docker-Volume-Mount.
 

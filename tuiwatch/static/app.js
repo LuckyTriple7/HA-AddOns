@@ -483,6 +483,42 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       bootTick();
     }
 
+    // ── Start-Ablauf (Leiste unten) ────────────────────────────────────────────
+    // Nach einem (Neu-)Start arbeitet TUIWatch seine Start-Jobs nacheinander ab
+    // (siehe _startup_sequence in app.py). Die Leiste zeigt alle Jobs mit Stand,
+    // der laufende hervorgehoben; danach kurz „abgeschlossen“ und weg.
+    let startupTimer = null;
+    const SB_ICON = {wait: '⏳', run: '▶', done: '✓', error: '✕'};
+    async function startupTick(){
+      let d;
+      try { d = await fetch(api('/api/startup')).then(r=>r.json()); } catch(e){ return; }
+      const bar = $('#startup-bar'); if(!bar) return;
+      const jobs = (d.jobs || []).filter(j => j.state !== 'skip');
+      const renderJobs = () => { $('#sb-jobs').innerHTML = jobs.map(j =>
+        `<span class="sb-job ${esc(j.state)}">${SB_ICON[j.state] || ''} ${esc(j.label)}`
+        + (j.secs != null ? ` <small>${esc(String(j.secs))} s</small>` : '') + '</span>').join(''); };
+      if(!d.active){
+        if(startupTimer){ clearInterval(startupTimer); startupTimer = null; }
+        if(bar.style.display === 'block'){       // lief gerade noch → kurz Abschluss zeigen
+          $('#sb-title').textContent = '✓ Start abgeschlossen';
+          $('#sb-now').textContent = '';
+          renderJobs();
+          setTimeout(() => { bar.style.display = 'none'; }, 4000);
+        }
+        return;
+      }
+      const cur = jobs.find(j => j.state === 'run');
+      const done = jobs.filter(j => j.state === 'done' || j.state === 'error').length;
+      $('#sb-title').textContent = `TUIWatch startet (${done}/${jobs.length})`;
+      $('#sb-now').textContent = cur ? `— ${cur.label}${cur.running_s ? ' · ' + cur.running_s + ' s' : ''}` : '';
+      renderJobs();
+      bar.style.display = 'block';
+    }
+    function startStartupWatch(){
+      startupTick();
+      startupTimer = setInterval(whenVisible(startupTick), 2000);
+    }
+
     // ── Verbindungsabbruch-Erkennung ───────────────────────────────────────────
     let _offlineFails = 0;
     function showOfflineBanner(){ $('#offline-banner').style.display = 'flex'; }
@@ -6175,9 +6211,17 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       loadSettings();
       loadKeyState();
       loadAiUsageState();
+      const hs = $('#set-hatest-state'); if(hs) hs.textContent = '';
+      $('#set-2fa-backup').hidden = true;
+      $('#set-2fa-off').querySelector('button').hidden = false;
+      loadTwofaState();
+      loadConnInfo();
+      mcpShowUrl();
+      mcpHideToken();
+      loadMcpState();
       return false;
     }
-    function closeSettings(){ $('#settings-bg').classList.remove('show'); }
+    function closeSettings(){ $('#settings-bg').classList.remove('show'); mcpHideToken(); }
 
     // Erklaertext eingeklappt hinter ⓘ: die 67 Hinweise (Ø 234 Zeichen) machten
     // rund 70 % der Dialoghoehe aus. Der Text bleibt vollstaendig erhalten, steht
@@ -6243,6 +6287,12 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
 
     async function loadSettings(){
       const body = $('#settings-body');
+      // Die fest im HTML stehenden Blöcke hängen nach dem ersten Laden in den
+      // Kategorien — vor dem Neuaufbau zurück an ihren Ursprungsort, sonst
+      // zerstört das innerHTML unten sie (nach „Speichern" fehlten die Knöpfe).
+      body.querySelectorAll('.set-group[data-cat][id]').forEach(b => {
+        if(b._home){ b.hidden = true; b._home.appendChild(b); }
+      });
       body.innerHTML = '<div class="cmp-load">lädt…</div>';
       SET_CLEAR.clear();
       let d;
@@ -6262,6 +6312,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       // IDs und Ereignisbehandler unveraendert weiterarbeiten.
       document.querySelectorAll('#settings-bg [data-cat][id]').forEach(block => {
         const ziel = body.querySelector(`.set-pane[data-cat="${block.dataset.cat}"]`);
+        if(!block._home) block._home = block.parentNode;
         if(ziel){ block.hidden = false; ziel.appendChild(block); }
       });
       body.querySelectorAll('[data-clear]').forEach(b =>
@@ -6400,13 +6451,237 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
         if(!r.ok){ toast('Speichern fehlgeschlagen'); return; }
         const d = await r.json();
         toast(!d.changed.length ? 'Nichts geändert'
+              : (d.cleared || []).length ? 'Gespeichert — Adresse geändert, deshalb Token/Passwort bitte neu eintragen'
               : d.restart ? 'Gespeichert — für die öffentlichen Angebots-Links das Add-on neu starten'
               : 'Gespeichert');
         await loadSettings();
+        // Anzeigen, die von gespeicherten Werten abhängen, gleich mit auffrischen —
+        // nicht erst beim Neuöffnen des Dialogs bzw. Neuladen der Seite
+        loadConnInfo();
+        loadTwofaState();
+        loadKeyState();          // erstes Geheimfeld legt den Schlüssel an
+        if((d.changed || []).some(k => k === 'ha_url' || k === 'ha_token')){
+          const hs = $('#set-hatest-state'); if(hs) hs.textContent = '';   // altes Testergebnis gilt nicht mehr
+        }
+        if(d.ui) applyUiFlags(d.ui);
       } catch(e){ toast('Speichern fehlgeschlagen'); }
       finally { btn.disabled = false; }
     }
 
+
+    // Seitenwerte nach dem Speichern übernehmen (dieselben wie beim Seitenaufbau,
+    // siehe _ui_flags in app.py): Module/KI ein- und ausblenden, Liste neu zeichnen.
+    function applyUiFlags(ui){
+      const aiWasOff = !G.ai;
+      Object.assign(G, ui);
+      document.body.classList.toggle('ai-disabled', !G.ai);
+      document.body.classList.toggle('check24-disabled', !G.check24);
+      document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights && !G.fkbFlights);
+      document.body.classList.toggle('share-disabled', !G.share);
+      if(G.ai){
+        if(aiWasOff) loadAiUsageFooter();
+        _aiActiveProvider = null; _aiProviderLoadPromise = null;   // Anbieter evtl. neu
+        loadAiProviderFooter();
+      }
+      renderAll(curOffers || []);   // Prüfintervall-Anzeige, Check24-Klick am Preis
+    }
+
+    // ── MCP-Server (Einstellungen → MCP-Server) ───────────────────────────────
+    function mcpUrl(){
+      // Über HA-Ingress geöffnet: die Adresse im Browser ist die von HA, der MCP-
+      // Endpunkt liegt aber am direkten Port des Add-ons.
+      return G.base ? 'http://<HA-Adresse>:17794/mcp' : location.origin + '/mcp';
+    }
+    function mcpShowUrl(){ const el = $('#set-mcp-url'); if(el) el.textContent = mcpUrl(); }
+    async function loadMcpState(){
+      const el = $('#set-mcp-state'); if(!el) return;
+      try {
+        const d = await fetch(api('/api/mcp/status')).then(r=>r.json());
+        el.textContent = (d.enabled ? '✅ MCP-Server an' : '⏸ MCP-Server aus')
+          + (d.token_set ? ' · Token gesetzt' : ' · noch kein Token')
+          + (d.actions ? ' · Aktionen erlaubt' : ' · nur lesen');
+      } catch(e){ el.textContent = ''; }
+    }
+    function mcpHideToken(){
+      const box = $('#set-mcp-snippet'); if(!box) return;
+      box.hidden = true;
+      $('#set-mcp-yaml').textContent = '';          // Token nicht im DOM stehen lassen
+    }
+    async function mcpGenerateToken(btn){
+      if(!confirm('Neues Token erzeugen? Ein bisheriges Token wird sofort ungültig — '
+                + 'dort, wo es eingetragen ist (z. B. LiteLLM), muss das neue hinein.')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/mcp/token'), {method:'POST'});
+        const d = await r.json().catch(()=>({}));
+        if(!r.ok || !d.token){ toast(d.error === 'crypto_unavailable'
+          ? 'Verschlüsselung nicht verfügbar — Token kann nicht gespeichert werden'
+          : 'Token konnte nicht erzeugt werden'); return; }
+        $('#set-mcp-yaml').textContent =
+          'mcp_servers:\n'
+          + '  tuiwatch:\n'
+          + '    url: "' + mcpUrl() + '"\n'
+          + '    transport: "http"\n'
+          + '    auth_type: "bearer_token"\n'
+          + '    auth_value: "' + d.token + '"';
+        $('#set-mcp-snippet').hidden = false;
+        await loadSettings();           // Schalter „MCP-Server einschalten“ ist jetzt an
+        loadMcpState();
+      } catch(e){ toast('Token konnte nicht erzeugt werden'); }
+      finally { btn.disabled = false; }
+    }
+    async function mcpCopy(){
+      const txt = $('#set-mcp-yaml').textContent;
+      try { await navigator.clipboard.writeText(txt); toast('Kopiert'); }
+      catch(e){ toast('Kopieren nicht möglich — Text markieren und von Hand kopieren'); return; }
+      mcpHideToken();
+    }
+
+    // ── Diese Verbindung (Hilfe für „Eigene Reverse-Proxys“) ──────────────────
+    let CONN_SUGGESTION = '';
+    async function loadConnInfo(){
+      const st = $('#set-conn-state'); if(!st) return;
+      let d;
+      try { d = await fetch(api('/api/connection-info')).then(r=>r.json()); }
+      catch(e){ st.textContent = ''; return; }
+      CONN_SUGGESTION = d.suggestion || '';
+      const lines = [];
+      if(d.ingress) lines.push('ℹ️ Gerade über Home Assistant geöffnet — für diese Einstellung TUIWatch über die öffentliche Adresse öffnen.');
+      lines.push('Verbindung kommt von: ' + d.peer);
+      if((d.forwarded || []).length){
+        lines.push('Der Absender meldet als Besucher: ' + d.forwarded.join(', '));
+        lines.push(d.trusted
+          ? '✅ Absender ist als eigener Proxy eingetragen — erkannte Besucher-Adresse: ' + d.detected
+          : '⚠️ Absender ist (noch) nicht als eigener Proxy eingetragen — TUIWatch rechnet mit ' + d.detected
+            + (CONN_SUGGESTION ? '.\nVorschlag zum Eintragen: ' + CONN_SUGGESTION : ''));
+      } else {
+        lines.push('Kein Proxy erkannt (keine Weiterleitungs-Angabe) — für diesen Weg muss nichts eingetragen werden.');
+      }
+      st.textContent = lines.join('\n');
+      $('#set-conn-apply').hidden = !CONN_SUGGESTION;
+    }
+    function connApplySuggestion(){
+      const inp = $('#settings-body [data-set="trusted_proxies"]');
+      if(!inp || !CONN_SUGGESTION) return;
+      const parts = inp.value.split(/[\s,]+/).filter(Boolean);
+      if(!parts.includes(CONN_SUGGESTION)) parts.push(CONN_SUGGESTION);
+      inp.value = parts.join(', ');
+      setDirtyCount();
+      toast('Eingetragen — jetzt unten speichern');
+    }
+
+    // ── Zwei-Faktor-Anmeldung (Einstellungen → Anmeldung) ─────────────────────
+    async function loadTwofaState(){
+      const st = $('#set-2fa-state'); if(!st) return;
+      let d;
+      try { d = await fetch(api('/api/2fa')).then(r=>r.json()); }
+      catch(e){ st.textContent = ''; return; }
+      $('#set-2fa-on').hidden = !d.enabled;
+      $('#set-2fa-off').hidden = !!d.enabled;
+      $('#set-2fa-setup').hidden = true;
+      if(d.enabled){
+        st.textContent = `✅ Aktiv — ${d.backup_remaining} Backup-Code${d.backup_remaining === 1 ? '' : 's'} übrig`
+          + (d.remember_days ? `, ${d.trusted_devices} gemerkte${d.trusted_devices === 1 ? 's Gerät' : ' Geräte'}` : '')
+          + (d.backup_remaining < 3 ? ' — ⚠️ bald neu einrichten, um frische Backup-Codes zu bekommen' : '')
+          + (d.corrupt ? ' — ⚠️ twofa.json ist unlesbar: Login über den Port geht nur mit dem Notzugang. Abschalten und neu einrichten (kein Code nötig).' : '')
+          + (d.bypassed ? ' — ⚠️ Notzugang „Zwei-Faktor-Abfrage überspringen" ist an, der Login fragt gerade KEINEN Code ab' : '');
+      } else {
+        st.textContent = 'Nicht eingerichtet.';
+      }
+    }
+    async function twofaSetup(btn){
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/setup'), {method:'POST'});
+        if(!r.ok){ toast('Einrichten fehlgeschlagen'); return; }
+        const d = await r.json();
+        // Das SVG erzeugt der eigene Server (qrcode-Bibliothek), kein Fremdinhalt.
+        $('#set-2fa-qr').innerHTML = d.qr || '<span style="color:#000">QR nicht verfügbar — Schlüssel von Hand eingeben</span>';
+        $('#set-2fa-secret').textContent = d.secret;
+        $('#set-2fa-code').value = '';
+        $('#set-2fa-setup').hidden = false;
+        $('#set-2fa-backup').hidden = true;
+        $('#set-2fa-code').focus();
+      } catch(e){ toast('Einrichten fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function twofaEnable(btn){
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/enable'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({code: $('#set-2fa-code').value})});
+        const d = await r.json().catch(()=>({}));
+        if(!r.ok){ toast(d.error === 'bad_code' ? 'Code falsch — Uhrzeit am Handy prüfen' : 'Aktivieren fehlgeschlagen'); return; }
+        await loadTwofaState();
+        // Backup-Codes einmalig zeigen: der Block liegt im Aus-Zweig, also sichtbar lassen
+        $('#set-2fa-off').hidden = false;
+        $('#set-2fa-off').querySelector('button').hidden = true;
+        $('#set-2fa-backup-list').textContent = (d.backup_codes || []).join('\n');
+        $('#set-2fa-backup').hidden = false;
+        toast('Zwei-Faktor-Anmeldung aktiv');
+      } catch(e){ toast('Aktivieren fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function twofaDisable(btn){
+      if(!confirm('Zwei-Faktor-Anmeldung wirklich abschalten?')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/disable'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({code: $('#set-2fa-off-code').value})});
+        if(!r.ok){ toast('Code falsch'); return; }
+        $('#set-2fa-off-code').value = '';
+        toast('Zwei-Faktor-Anmeldung abgeschaltet');
+        $('#set-2fa-off').querySelector('button').hidden = false;
+        $('#set-2fa-backup').hidden = true;
+        await loadTwofaState();
+      } catch(e){ toast('Abschalten fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function twofaForget(btn){
+      if(!confirm('Alle gemerkten Geräte vergessen? Dort wird beim nächsten Login wieder ein Code verlangt.')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/2fa/forget-devices'), {method:'POST'});
+        toast(r.ok ? 'Gemerkte Geräte vergessen' : 'Fehlgeschlagen');
+        await loadTwofaState();
+      } catch(e){ toast('Fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+
+    // HA-Verbindung testen: prüft den gespeicherten Stand, nicht die Felder im
+    // Formular — ungespeicherte Änderungen würden sonst still ignoriert.
+    const HA_TEST_ERR = {
+      not_configured: 'Keine Verbindung eingerichtet — Adresse und Token eintragen und speichern.',
+      no_url: 'Keine Home-Assistant-Adresse eingetragen.',
+      bad_url: 'Adresse ungültig — mit http:// oder https:// davor eintragen, z. B. https://ha.example.de oder http://192.168.178.10:8123.',
+      no_token: 'Kein Token gespeichert — langlebiges Zugriffstoken eintragen und speichern.',
+      unreachable: 'Home Assistant nicht erreichbar — Adresse und Port prüfen.',
+      auth: 'Home Assistant lehnt das Token ab — neues langlebiges Zugriffstoken erstellen.',
+      bad_response: 'Unerwartete Antwort — ist die Adresse wirklich Home Assistant?',
+    };
+    async function testHaConnection(btn){
+      const el = $('#set-hatest-state');
+      if(setDirtyCount() > 0){ el.textContent = '⚠️ Erst speichern, dann testen.'; return; }
+      btn.disabled = true;
+      el.textContent = 'prüfe…';
+      try {
+        const r = await fetch(api('/api/settings/ha-test'), {method:'POST'});
+        const d = await r.json();
+        const weg = d.mode === 'supervisor' ? 'über den Supervisor' : 'über Adresse und Token';
+        if(d.ok){
+          el.textContent = `✅ Verbunden ${weg}` + (d.version ? ` — Home Assistant ${d.version}` : '')
+            + (d.location ? ` („${d.location}“)` : '')
+            + (d.notified ? ' — Test-Benachrichtigung in HA gesendet.'
+                          : ' — ⚠️ Test-Benachrichtigung konnte nicht gesendet werden (Rechte des Tokens prüfen).');
+        } else {
+          el.textContent = '❌ ' + (HA_TEST_ERR[d.error] || 'Test fehlgeschlagen')
+            + (d.error === 'bad_response' && d.status ? ` (HTTP ${d.status})` : '');
+        }
+      } catch(e){ el.textContent = '❌ Test fehlgeschlagen'; }
+      finally { btn.disabled = false; }
+    }
 
     // Schlüssel sichern: verlaesst das Add-on nur mit einer Passphrase verpackt,
     // und erst nach erneuter Eingabe des Login-Passworts.
@@ -8420,8 +8695,12 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       }
       if(d.options_skipped && extra.replace_settings !== '1'){
         if(confirm('Das Backup enthält Einstellungen, auf diesem System liegen aber schon welche. '
-                 + 'Sollen die gespeicherten Einstellungen durch die aus dem Backup ersetzt werden?'))
-          return postRestore(f, Object.assign({}, extra, {replace_settings:'1'}));
+                 + 'Sollen die gespeicherten Einstellungen durch die aus dem Backup ersetzt werden?')){
+          // Ersetzt auch die gespeicherten Zugangsdaten — deshalb Passwort bestätigen
+          const pw = extra.password || prompt('Zur Bestätigung das Login-Passwort von TUIWatch eingeben:');
+          if(!pw) return;
+          return postRestore(f, Object.assign({}, extra, {replace_settings:'1', password: pw}));
+        }
       }
     }
 
@@ -8586,6 +8865,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
 
     loadOffers();
     startBootWatch();
+    startStartupWatch();
     // Nicht pollen, solange der Tab im Hintergrund liegt: niemand sieht die Liste,
     // und beim Zurueckwechseln laedt der visibilitychange-Handler sie ohnehin sofort
     // neu. Der Timer laeuft weiter, er schickt nur keine Anfragen.

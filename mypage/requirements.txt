@@ -2,6 +2,8 @@ flask==3.1.3
 waitress==3.0.2
 requests==2.34.2
 markdown==3.10.3
+# Bereinigt das Markdown-HTML vor der Ausgabe mit |safe (Skripte, on*-Attribute).
+nh3==0.3.7
 pillow==12.3.0
 cryptography==50.0.1
 qrcode==8.2
@@ -13,4 +15,4 @@ pdfplumber==0.11.10
 weasyprint==70.0
 # KI-Bilderzeugung (Google Gemini) für Bibliothek-Titelbilder. Fehlt das Paket oder
 # der API-Key, bleibt der Knopf im Admin einfach aus (siehe _HAS_GENAI).
-google-genai==2.24.0
+google-genai==2.25.0

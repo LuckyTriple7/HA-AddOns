@@ -37,6 +37,7 @@ import urllib3.util.connection
 
 import atomic_io
 import settings as settings_store
+import twofa
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
@@ -101,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.115.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.120.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -109,6 +110,7 @@ _DATA = os.environ.get('TUIWATCH_DATA', '/data')
 CONFIG_PATH = _DATA + '/options.json'   # Home Assistant: Login-Notzugang
 # Alles Weitere pflegt der Nutzer selbst (settings.json + settings.key)
 settings_store.init(_DATA)
+twofa.init(_DATA)
 SETTINGS_PATH = settings_store.path()
 SESSIONS_PATH = _DATA + '/sessions.json'
 DB_PATH = _DATA + '/tuiwatch.db'
@@ -183,7 +185,12 @@ class _IngressMiddleware:
         return self._app(environ, start_response)
 
 
-app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1))
+# Nur das Protokoll übernehmen (für das Secure-Flag der Cookies). x_for bleibt
+# aus: remote_addr ist der echte Absender, get_client_ip wertet Forwarding-Header
+# selbst und nur von eigenen Proxys aus. x_host/x_prefix aus, weil beides
+# Client-Header wären, die URL-Aufbau und Pfadpräfix verändern könnten.
+app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=0, x_proto=1,
+                                           x_host=0, x_prefix=0))
 
 # ── State ──────────────────────────────────────────────────────────────────────
 sessions: dict[str, float] = {}
@@ -333,9 +340,8 @@ def _push_cooldown_sensor() -> None:
     attrs = {'friendly_name': 'TUIWatch Cooldown aktiv', 'icon': 'mdi:timer-sand',
              'retry_after': remaining}
     try:
-        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_cooldown_active',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': 'on' if remaining else 'off', 'attributes': attrs})
+        _ha_post('states/binary_sensor.tuiwatch_cooldown_active',
+                 {'state': 'on' if remaining else 'off', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Cooldown-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -547,34 +553,71 @@ def log_safe(value, limit: int = 120) -> str:
     return text[:limit] + ('…' if len(text) > limit else '')
 
 
+def _trusted_proxy_nets() -> list:
+    """Netze der eigenen Reverse-Proxys aus der Einstellung `trusted_proxies`."""
+    nets = []
+    for part in re.split(r'[,\s]+', str(load_config().get('trusted_proxies') or '')):
+        if part:
+            try:
+                nets.append(ipaddress.ip_network(part, strict=False))
+            except ValueError:
+                continue
+    return nets
+
+
+def _in_nets(value: str, nets: list) -> bool:
+    try:
+        addr = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return any(addr in n for n in nets)
+
+
+# waitress entfernt X-Forwarded-For/-Proto von sich aus, solange kein eigenes
+# `trusted_proxy` gesetzt ist (gemessen) — dann kam die Kette nie an, und das
+# Secure-Flag hinter einem Proxy griff nie. `trusted_proxy` selbst wäre keine
+# Lösung: waitress schriebe dann REMOTE_ADDR um und bräuchte die genaue Zahl der
+# Proxy-Ebenen. Deshalb Header durchreichen und in get_client_ip entscheiden.
+_WAITRESS_PROXY_KW = {'clear_untrusted_proxy_headers': False}
+
+
+def _peer_addr(req) -> str:
+    """Absender der TCP-Verbindung — nie aus einem Header."""
+    return req.remote_addr or 'unknown'
+
+
 def get_client_ip(req) -> str:
-    """Beste bekannte Client-Adresse.
+    """Beste bekannte Client-Adresse — für Login-Sperre, Share-Kommentare, Log.
 
-    Läuft die Seite hinter mehreren Ebenen (Cloudflare → Reverse Proxy → HA), ist
-    `remote_addr` die Docker-Bridge (172.30.32.1) und ProxyFix greift nur einen
-    Hop tief. Deshalb der Reihe nach: die eindeutigen Proxy-Header, dann der
-    erste öffentliche Eintrag der X-Forwarded-For-Kette (links = Client), erst
-    zum Schluss der direkte Absender.
-
-    Verlassen kann man sich darauf nur so weit wie auf den eigenen Proxy: einen
-    X-Forwarded-For-Kopf kann jeder mitschicken. Cloudflare und die üblichen
-    Reverse Proxies überschreiben ihn, ein direkt erreichbarer Port nicht.
-    Zurück kommt deshalb immer nur ein geprüftes IP-Literal oder `remote_addr`
-    aus der Verbindung — nie roher Header-Text, der später in Log, Datenbank
-    oder Oberfläche landen würde.
+    Forwarding-Header (X-Forwarded-For, X-Real-IP) kann jeder mitschicken. Sie
+    zählen deshalb nur, wenn die Verbindung von einem eigenen Reverse-Proxy
+    kommt (Einstellung `trusted_proxies`). Dann wird die X-Forwarded-For-Kette
+    von rechts gelesen — dort hängt jeder Proxy den Absender an, links kann der
+    Client beliebiges vorgeben — und der erste Eintrag, der kein eigener Proxy
+    ist, ist der Client. Hinter Cloudflare dessen Netze mit eintragen.
+    Ohne Eintrag gilt immer der direkte Absender: mit wechselnden gefälschten
+    Headern landete sonst jeder Loginversuch in einer neuen Sperr-Schublade.
+    Zurück kommt nur ein geprüftes IP-Literal oder `remote_addr`.
     """
-    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
-        val = (req.headers.get(header) or '').strip()
-        if val and _is_valid_ip(val) and not _is_internal_ip(val):
-            return val
+    peer = _peer_addr(req)
+    nets = _trusted_proxy_nets()
+    if not nets or not _in_nets(peer, nets):
+        return peer
     chain = [p.strip() for p in (req.headers.get('X-Forwarded-For') or '').split(',')]
-    for val in chain:
-        if val and _is_valid_ip(val) and not _is_internal_ip(val):
+    chain = [p for p in chain if p and _is_valid_ip(p)]
+    # X-Real-IP setzt der letzte Proxy auf seinen Absender — gehört ans Ende der Kette
+    real = (req.headers.get('X-Real-IP') or '').strip()
+    if real and _is_valid_ip(real) and (not chain or chain[-1] != real):
+        chain.append(real)
+    for val in reversed(chain):
+        if not _in_nets(val, nets):
             return val
-    # Nichts Öffentliches dabei: der erste gültige Eintrag der Kette (LAN-Zugriff),
-    # sonst der direkte Absender.
-    first_valid = next((v for v in chain if v and _is_valid_ip(v)), None)
-    return first_valid or req.remote_addr or 'unknown'
+    # Ganzer Weg aus eigenen Proxys (z. B. Cloudflare-Netze eingetragen): dann
+    # darf der Kopf des vordersten Proxys gelten.
+    cf = (req.headers.get('CF-Connecting-IP') or '').strip()
+    if cf and _is_valid_ip(cf):
+        return cf
+    return peer
 
 
 def is_rate_limited(ip: str) -> bool:
@@ -1362,8 +1405,50 @@ SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
 HA_BASE = 'http://supervisor/core/api'
 
 
+def _ha_external_base(raw: str) -> str:
+    """Adresse aus der Einstellung `ha_url` auf die REST-Basis bringen:
+    nur http/https, Pfad und Query verworfen, `/api` angehängt. Leer = ungültig.
+    Ein mit eingetragenes `/api` am Ende stört so nicht."""
+    try:
+        p = urlparse((raw or '').strip())
+    except ValueError:
+        return ''
+    if p.scheme not in ('http', 'https') or not p.hostname:
+        return ''
+    return f'{p.scheme}://{p.netloc}/api'
+
+
+def _ha_api() -> tuple[str, dict] | None:
+    """(REST-Basis, Header) für Home Assistant — oder None ohne Verbindung.
+
+    Als Add-on immer über den Supervisor. Außerhalb (eigener Docker-Host) über
+    die Einstellungen `ha_url` + `ha_token` (langlebiges Zugriffstoken). Der
+    externe Token schaltet ausschließlich diese Aufrufe frei — die Ingress-
+    Anmeldung (`_trust_ingress_header`) hängt weiter nur am echten SUPERVISOR_TOKEN,
+    sonst wäre der fälschbare X-Ingress-Path-Header ein Login-Bypass."""
+    if SUPERVISOR_TOKEN:
+        return HA_BASE, {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    cfg = load_config()
+    base = _ha_external_base(cfg.get('ha_url') or '')
+    token = (cfg.get('ha_token') or '').strip()
+    if base and token:
+        return base, {'Authorization': f'Bearer {token}'}
+    return None
+
+
+def _ha_post(path: str, payload: dict) -> None:
+    """POST an die HA-REST-API (`path` ohne führenden Schrägstrich). Wirft bei
+    Netzfehlern wie `http.post` — die Aufrufer loggen selbst mit eigenem Text."""
+    conn = _ha_api()
+    if not conn:
+        return
+    base, headers = conn
+    http.post(f'{base}/{path}', headers=headers, timeout=10, json=payload,
+              allow_redirects=False)
+
+
 def _ha_enabled() -> bool:
-    return bool(SUPERVISOR_TOKEN) and bool(load_config().get('ha_sensors', True))
+    return _ha_api() is not None and bool(load_config().get('ha_sensors', True))
 
 
 def _slug(s: str) -> str:
@@ -1403,9 +1488,10 @@ def push_ha_sensors(only: int | None = None) -> None:
     die Entity-Zuordnung seit dem letzten Vollabgleich geändert (z. B. Hotelname
     erstmals ermittelt → neue entity_id), läuft trotzdem der volle Abgleich."""
     global _ha_last_mapping
-    if not _ha_enabled():
+    conn = _ha_api()
+    if not conn or not _ha_enabled():
         return
-    headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    base, headers = conn
     mapping = _entity_ids()
     full = only is None or mapping != _ha_last_mapping
     targets = mapping if full else {only: mapping[only]} if only in mapping else {}
@@ -1482,7 +1568,7 @@ def push_ha_sensors(only: int | None = None) -> None:
                             attrs['avg_price_30d'] = int(round(s30['av']))
                 if last and last['ts']:
                     attrs['last_checked'] = datetime.fromtimestamp(last['ts']).isoformat()
-                http.post(f'{HA_BASE}/states/{eid}', headers=headers, timeout=10,
+                http.post(f'{base}/states/{eid}', headers=headers, timeout=10, allow_redirects=False,
                           json={'state': state, 'attributes': attrs})
         # Übersichts-Sensor (günstigstes Angebot, Anzahl unter Wunschpreis …)
         summary_eid = 'sensor.tuiwatch_uebersicht'
@@ -1504,18 +1590,20 @@ def push_ha_sensors(only: int | None = None) -> None:
             s_state = int(round(cheapest['price']))
         else:
             s_state = 'unknown'
-        http.post(f'{HA_BASE}/states/{summary_eid}', headers=headers, timeout=10,
+        http.post(f'{base}/states/{summary_eid}', headers=headers, timeout=10, allow_redirects=False,
                   json={'state': s_state, 'attributes': s_attrs})
         if not full:
             return
 
         # Verwaiste tuiwatch-Sensoren entfernen (z. B. nach Löschen/Umbenennen)
         valid = set(mapping.values()) | {summary_eid}
-        states = http.get(f'{HA_BASE}/states', headers=headers, timeout=10).json()
+        states = http.get(f'{base}/states', headers=headers, timeout=10,
+                          allow_redirects=False).json()
         for st in states:
             ent = st.get('entity_id', '')
             if ent.startswith('sensor.tuiwatch_') and ent not in valid:
-                http.delete(f'{HA_BASE}/states/{ent}', headers=headers, timeout=10)
+                http.delete(f'{base}/states/{ent}', headers=headers, timeout=10,
+                            allow_redirects=False)
         _ha_last_mapping = mapping
     except Exception as e:
         log.warning("HA-Sensoren aktualisieren fehlgeschlagen: %s", e)
@@ -1545,13 +1633,12 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
         _log_notification('ha', title, message, tag, True)
         return
     cfg = load_config()
-    if not (SUPERVISOR_TOKEN and cfg.get('notify_ha', True)):
+    if not (_ha_api() and cfg.get('notify_ha', True)):
         return
     ok = True
     try:
-        http.post(f'{HA_BASE}/services/persistent_notification/create',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'title': title, 'message': message, 'notification_id': f'tuiwatch_{tag}'})
+        _ha_post('services/persistent_notification/create',
+                 {'title': title, 'message': message, 'notification_id': f'tuiwatch_{tag}'})
     except Exception as e:
         ok = False
         log.error("HA-Benachrichtigung fehlgeschlagen: %s", e)
@@ -1562,9 +1649,8 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
         if not svc:
             continue
         try:
-            http.post(f'{HA_BASE}/services/notify/{svc}',
-                      headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                      json={'title': title, 'message': message})
+            _ha_post(f'services/notify/{svc}',
+                     {'title': title, 'message': message})
         except Exception as e:
             ok = False
             log.error("HA-Notify-Dienst %s fehlgeschlagen: %s", svc, e)
@@ -1588,7 +1674,9 @@ def _notify_telegram(text: str, muted: bool = False) -> None:
                         'disable_web_page_preview': True})
     except Exception as e:
         ok = False
-        log.error("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+        # Nur den Typ: die Ausnahme enthält die URL samt Bot-Token, und der
+        # Log-Puffer ist über /api/logs in der Oberfläche lesbar.
+        log.error("Telegram-Benachrichtigung fehlgeschlagen: %s", type(e).__name__)
     _log_notification('telegram', '', text, '', ok)
 
 
@@ -2799,9 +2887,8 @@ def _push_aktionscodes_sensor(codes: list, info: dict) -> None:
     if info.get('travel_period'):
         attrs['travel_period'] = info['travel_period']
     try:
-        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_aktionscodes',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': 'on' if codes else 'off', 'attributes': attrs})
+        _ha_post('states/binary_sensor.tuiwatch_aktionscodes',
+                 {'state': 'on' if codes else 'off', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Aktionscode-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -3235,9 +3322,8 @@ def _push_health_sensor(res: dict) -> None:
     if res.get('ts'):
         attrs['checked_at'] = datetime.fromtimestamp(res['ts']).isoformat()
     try:
-        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_api_available',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': 'off' if bad else 'on', 'attributes': attrs})
+        _ha_post('states/binary_sensor.tuiwatch_api_available',
+                 {'state': 'off' if bad else 'on', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-API-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -3362,9 +3448,8 @@ def _push_market_trend_sensor() -> None:
         log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
                      type(e).__name__, e)
     try:
-        http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
-                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
-                  json={'state': state, 'attributes': attrs})
+        _ha_post('states/sensor.tuiwatch_markttrend',
+                 {'state': state, 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
 
@@ -3671,7 +3756,7 @@ def _slide_session(resp):
         if token and is_valid_session(token):
             hours = int(load_config().get('session_hours', 24))
             touch_session(token, hours)
-            resp.set_cookie('session', token, httponly=True, samesite='Lax',
+            resp.set_cookie('session', token, httponly=True, samesite='Lax', secure=request.is_secure,
                             max_age=hours * 3600)
     return resp
 
@@ -3712,9 +3797,75 @@ def api_settings_get():
     """
     if (err := _require_api()):
         return err
-    # Ohne Supervisor sind die drei HA-Felder wirkungslos (kein Token, keine
-    # Sensoren, keine persistenten Benachrichtigungen) — dann gar nicht erst zeigen.
-    return jsonify(settings_store.public_view(load_config(), ha=bool(SUPERVISOR_TOKEN)))
+    # Ohne HA-Verbindung (weder Supervisor noch ha_url+ha_token) sind die HA-Felder
+    # wirkungslos — dann gar nicht erst zeigen. Die Felder für die externe
+    # Verbindung nur außerhalb des Add-ons: dort spricht TUIWatch den Supervisor.
+    return jsonify(settings_store.public_view(load_config(), ha=_ha_api() is not None,
+                                              supervisor=bool(SUPERVISOR_TOKEN)))
+
+
+@app.route('/api/settings/ha-test', methods=['POST'])
+def api_settings_ha_test():
+    """Prüft die gespeicherte HA-Verbindung mit GET /api/config. Antwortet nur
+    mit festen Fehlercodes, nie mit Ausnahmetext (CodeQL: information exposure).
+    Getestet wird bewusst der gespeicherte Stand, keine Adresse aus dem Request —
+    sonst könnte der Endpunkt beliebige Ziele im Netz abfragen (SSRF)."""
+    if (err := _require_api()):
+        return err
+    mode = 'supervisor' if SUPERVISOR_TOKEN else 'external'
+    conn = _ha_api()
+    if not conn:
+        # Genau sagen, was fehlt — eine Adresse ohne http(s):// sah vorher aus
+        # wie „nichts eingetragen".
+        cfg = load_config()
+        raw_url = (cfg.get('ha_url') or '').strip()
+        if not raw_url:
+            error = 'no_url'
+        elif not _ha_external_base(raw_url):
+            error = 'bad_url'
+        elif not (cfg.get('ha_token') or '').strip():
+            error = 'no_token'
+        else:
+            error = 'not_configured'
+        return jsonify({'ok': False, 'mode': mode, 'error': error})
+    base, headers = conn
+    try:
+        r = http.get(f'{base}/config', headers=headers, timeout=10, allow_redirects=False)
+    except http.exceptions.RequestException as e:
+        log.warning("HA-Verbindungstest: nicht erreichbar (%s)", type(e).__name__)
+        return jsonify({'ok': False, 'mode': mode, 'error': 'unreachable'})
+    if r.status_code in (401, 403):
+        return jsonify({'ok': False, 'mode': mode, 'error': 'auth'})
+    if r.status_code != 200:
+        log.warning("HA-Verbindungstest: HTTP %s", r.status_code)
+        return jsonify({'ok': False, 'mode': mode, 'error': 'bad_response',
+                        'status': int(r.status_code)})
+    try:
+        info = r.json()
+    except ValueError:
+        return jsonify({'ok': False, 'mode': mode, 'error': 'bad_response',
+                        'status': 200})
+    if not isinstance(info, dict):
+        info = {}
+    # Zusätzlich eine sichtbare Probe in HA: bestätigt auch, dass das Token
+    # Dienste aufrufen darf (GET /config allein prüft nur das Lesen). Immer an
+    # dieselbe ID, damit wiederholtes Testen nicht stapelt.
+    notified = True
+    try:
+        n = http.post(f'{base}/services/persistent_notification/create', headers=headers,
+                      timeout=10, allow_redirects=False, json={
+                          'title': 'TUIWatch',
+                          'message': 'Verbindungstest erfolgreich — TUIWatch kann '
+                                     'Home Assistant erreichen und Benachrichtigungen senden.',
+                          'notification_id': 'tuiwatch_verbindungstest'})
+        notified = n.status_code < 400
+    except http.exceptions.RequestException as e:
+        log.warning("HA-Verbindungstest: Benachrichtigung fehlgeschlagen (%s)",
+                    type(e).__name__)
+        notified = False
+    return jsonify({'ok': True, 'mode': mode, 'notified': notified,
+                    'version': str(info.get('version') or '')[:40],
+                    'location': str(info.get('location_name') or '')[:100]})
 
 
 @app.route('/api/settings', methods=['POST'])
@@ -3734,10 +3885,23 @@ def api_settings_save():
         return jsonify({'error': 'write failed'}), 500
     _settings_changed()
     restart = any(k in settings_store.RESTART_KEYS for k in changed)
+    # Wegen geänderter Adresse verworfene Geheimnisse (siehe settings.save)
+    cleared = [s for _u, s in settings_store.BOUND_SECRETS
+               if s in changed and not values.get(s)]
     if changed:
-        # Nur die Feldnamen ins Log, niemals die Werte
-        log.info("Einstellungen geändert: %s", ', '.join(sorted(changed)))
-    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
+        # Nur Namen normaler Felder ins Log, aus der festen Feldliste statt aus
+        # der Anfrage abgeleitet; Zugangsdaten nur als Anzahl (CodeQL: clear-text
+        # logging of sensitive information)
+        # Zugangsdaten nur als fester Satz — nichts, was aus ihren Namen oder ihrer
+        # Anzahl abgeleitet ist, landet im Log.
+        plain = [k for k in settings_store.FIELDS
+                 if k in changed and k not in settings_store.SECRET_KEYS]
+        if plain:
+            log.info("Einstellungen geändert: %s", ', '.join(plain))
+        if len(plain) != len(changed):
+            log.info("Zugangsdaten geändert")
+    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart,
+                    'cleared': cleared, 'ui': _ui_flags(load_config())})
 
 
 # Schlüssel-Export ist die einzige Stelle, an der ein Geheimnis TUIWatch
@@ -3748,12 +3912,18 @@ _KEY_GATE_MAX = 5
 _KEY_GATE_LOCK_S = 300
 
 
+def _login_password(cfg: dict | None = None) -> str:
+    """Login-Passwort mit demselben Standard wie /login — das Passwort-Tor für
+    Schlüssel und Restore darf nicht von einem anderen Default ausgehen."""
+    return str((cfg or load_config()).get('password', 'secret'))
+
+
 def _key_gate_check(password: str):
     """None = freigegeben, sonst die fertige Fehlerantwort."""
     now = time.time()
     if _key_gate['until'] > now:
         return jsonify({'error': 'locked', 'retry_after': int(_key_gate['until'] - now)}), 429
-    if not secrets.compare_digest(str(password or ''), str(load_config().get('password', ''))):
+    if not secrets.compare_digest(str(password or ''), _login_password()):
         _key_gate['fails'] += 1
         if _key_gate['fails'] >= _KEY_GATE_MAX:
             _key_gate['until'] = now + _KEY_GATE_LOCK_S
@@ -3856,6 +4026,10 @@ def api_giata_images(giata):
     nur Links (i.giatamedia.com), Bilder werden nicht heruntergeladen/gespeichert."""
     if (err := _require_api()):
         return err
+    # GIATA-IDs sind rein numerisch; alles andere ginge roh in die ausgehende
+    # Anfrage und als neuer Schlüssel in den Cache.
+    if not (giata.isdigit() and len(giata) <= 12):
+        return jsonify({'images': []}), 400
     cached = _giata_images_cache.get(giata)
     if cached and time.time() - cached['ts'] < _GIATA_IMAGES_TTL:
         return jsonify({'images': cached['images']})
@@ -3957,23 +4131,171 @@ def login():
     if _is_ingress() or is_valid_session(request.cookies.get('session')):
         return redirect(url_for('index'))
     error = None
+    step = 'password'
+    remember_days = _twofa_remember_days(cfg)
+
+    def _grant(ip):
+        clear_failed_attempts(ip)
+        hours = int(cfg.get('session_hours', 24))
+        token = create_session(hours)
+        resp = make_response(redirect(url_for('index')))
+        resp.set_cookie('session', token, httponly=True, samesite='Lax', secure=request.is_secure,
+                        max_age=hours * 3600)
+        resp.delete_cookie(twofa.PENDING_COOKIE)
+        return resp
+
     if request.method == 'POST':
         ip = get_client_ip(request)
         if is_rate_limited(ip):
             error = 'Zu viele Fehlversuche. Bitte 15 Minuten warten.'
-        elif (request.form.get('username', '') == cfg.get('username', 'admin') and
-              request.form.get('password', '') == cfg.get('password', 'secret')):
-            clear_failed_attempts(ip)
-            token = create_session(int(cfg.get('session_hours', 24)))
-            resp = make_response(redirect(url_for('index')))
-            resp.set_cookie('session', token, httponly=True, samesite='Lax',
-                            max_age=int(cfg.get('session_hours', 24)) * 3600)
-            return resp
+        elif request.form.get('step') == 'code':
+            # Schritt 2: nur mit gültiger Vormerkung aus Schritt 1 (Passwort)
+            pre = request.cookies.get(twofa.PENDING_COOKIE)
+            if not twofa.pending_valid(pre):
+                return redirect(url_for('login'))
+            if twofa.check_code(request.form.get('code', '')):
+                twofa.pending_drop(pre)
+                resp = _grant(ip)
+                if remember_days and request.form.get('remember_device'):
+                    resp.set_cookie(twofa.TRUST_COOKIE, twofa.trust_device(),
+                                    httponly=True, samesite='Lax', secure=request.is_secure,
+                                    max_age=remember_days * 86400)
+                log.info("Anmeldung mit Zwei-Faktor-Code")
+                return resp
+            record_failed_attempt(ip)
+            log.warning("Zwei-Faktor-Code falsch (IP %s)", log_safe(ip))
+            error = 'Ungültiger Code.'
+            step = 'code'
+        elif (secrets.compare_digest(request.form.get('username', ''),
+                                     str(cfg.get('username', 'admin')))
+              and secrets.compare_digest(request.form.get('password', ''),
+                                         _login_password(cfg))):
+            if _twofa_required() and not twofa.device_trusted(
+                    request.cookies.get(twofa.TRUST_COOKIE), remember_days):
+                resp = make_response(render_template(
+                    'login.html', error=None, step='code', remember_days=remember_days,
+                    script_root=request.script_root))
+                resp.set_cookie(twofa.PENDING_COOKIE, twofa.pending_new(), httponly=True,
+                                samesite='Lax', secure=request.is_secure, max_age=twofa.PENDING_TTL)
+                return resp
+            return _grant(ip)
         else:
             record_failed_attempt(ip)
             error = 'Ungültige Anmeldedaten.'
-    return make_response(render_template('login.html', error=error,
+    return make_response(render_template('login.html', error=error, step=step,
+                                         remember_days=remember_days,
                                          script_root=request.script_root))
+
+
+def _twofa_bypassed() -> bool:
+    """Notzugang: Add-on-Option `twofa_reset` (HA → Add-on → Konfiguration)
+    überspringt die Zwei-Faktor-Abfrage, solange sie an ist — für den Fall, dass
+    Handy und Backup-Codes weg sind. Sie löscht bewusst nichts: nach dem Login
+    lässt sich die 2FA in den Einstellungen abschalten oder neu einrichten."""
+    return bool(load_options().get('twofa_reset'))
+
+
+def _twofa_required() -> bool:
+    if not twofa.enabled():
+        return False
+    if _twofa_bypassed():
+        log.warning("Zwei-Faktor-Abfrage übersprungen: Add-on-Option twofa_reset ist an "
+                    "— nach dem Login wieder ausschalten")
+        return False
+    return True
+
+
+def _twofa_remember_days(cfg: dict | None = None) -> int:
+    try:
+        days = int((cfg or load_config()).get('twofa_remember_days', 30))
+    except (TypeError, ValueError):
+        days = 30
+    return max(0, min(days, twofa.MAX_TRUST_DAYS))
+
+
+# ── Zwei-Faktor-Anmeldung einrichten (Einstellungen → Anmeldung) ──────────────
+# Die Routen hängen an der normalen API-Anmeldung, also auch über Ingress
+# erreichbar — dort hat HA angemeldet. Abschalten verlangt einen gültigen Code,
+# damit eine offen gelassene Sitzung allein die 2FA nicht entfernen kann.
+
+@app.route('/api/connection-info', methods=['GET'])
+def api_connection_info():
+    """Was TUIWatch über die aktuelle Verbindung sieht — als Hilfe für die
+    Einstellung „Eigene Reverse-Proxys“. Nur geprüfte IP-Literale gehen zurück."""
+    if (err := _require_api()):
+        return err
+    peer = _peer_addr(request)
+    chain = [p.strip() for p in (request.headers.get('X-Forwarded-For') or '').split(',')]
+    chain = [p for p in chain if p and _is_valid_ip(p)][:10]
+    nets = _trusted_proxy_nets()
+    trusted = bool(nets) and _in_nets(peer, nets)
+    suggestion = ''
+    if chain and not trusted and _is_valid_ip(peer):
+        addr = ipaddress.ip_address(peer)
+        if addr.version == 4 and addr in ipaddress.ip_network('172.16.0.0/12'):
+            # Docker-Netz: Container-IPs wechseln, das Netz bleibt → /16
+            suggestion = str(ipaddress.ip_network(f'{peer}/16', strict=False))
+        else:
+            suggestion = peer
+    return jsonify({'peer': peer, 'forwarded': chain, 'detected': get_client_ip(request),
+                    'trusted': trusted, 'suggestion': suggestion,
+                    'ingress': _is_ingress()})
+
+
+@app.route('/api/2fa', methods=['GET'])
+def api_2fa_status():
+    if (err := _require_api()):
+        return err
+    return jsonify(dict(twofa.status(_twofa_remember_days()), ingress=_is_ingress(),
+                        remember_days=_twofa_remember_days(), bypassed=_twofa_bypassed()))
+
+
+@app.route('/api/2fa/setup', methods=['POST'])
+def api_2fa_setup():
+    if (err := _require_api()):
+        return err
+    if twofa.enabled():
+        return jsonify({'error': 'already_enabled'}), 400
+    secret = twofa.start_setup()
+    account = str(load_config().get('username', 'admin'))[:64]
+    uri = twofa.otpauth_uri(secret, account)
+    return jsonify({'secret': secret, 'uri': uri, 'qr': twofa.qr_svg(uri)})
+
+
+@app.route('/api/2fa/enable', methods=['POST'])
+def api_2fa_enable():
+    if (err := _require_api()):
+        return err
+    codes = twofa.confirm_setup((request.get_json(silent=True) or {}).get('code', ''))
+    if codes is None:
+        return jsonify({'error': 'bad_code'}), 400
+    log.info("Zwei-Faktor-Anmeldung aktiviert")
+    return jsonify({'ok': True, 'backup_codes': codes})
+
+
+@app.route('/api/2fa/disable', methods=['POST'])
+def api_2fa_disable():
+    if (err := _require_api()):
+        return err
+    if not twofa.enabled():
+        return jsonify({'ok': True})
+    # Kaputte twofa.json: kein Code kann mehr passen — Abschalten ohne Code, sonst
+    # käme man aus dem fail-closed-Zustand nicht mehr heraus.
+    if not twofa.corrupt() and not twofa.check_code(
+            (request.get_json(silent=True) or {}).get('code', '')):
+        return jsonify({'error': 'bad_code'}), 400
+    twofa.disable()
+    log.info("Zwei-Faktor-Anmeldung deaktiviert")
+    return jsonify({'ok': True})
+
+
+@app.route('/api/2fa/forget-devices', methods=['POST'])
+def api_2fa_forget_devices():
+    if (err := _require_api()):
+        return err
+    twofa.forget_devices()
+    log.info("Gemerkte Geräte der Zwei-Faktor-Anmeldung vergessen")
+    return jsonify({'ok': True})
 
 
 @app.route('/logout')
@@ -3987,24 +4309,38 @@ def logout():
     return resp
 
 
+def _ui_flags(cfg: dict) -> dict:
+    """Einstellungen, die die Hauptseite beim Aufbau als `G` übernimmt. Dieselbe
+    Quelle für den Seitenaufbau und für die Antwort auf „Speichern" — so zieht
+    die Seite nach dem Speichern ohne Neuladen nach."""
+    return {
+        'iv': int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
+        # jeder konfigurierte Anbieter zählt — bis 0.117.2 fehlte Perplexity hier,
+        # mit nur einem Perplexity-Key blieben alle KI-Knöpfe ausgeblendet
+        'ai': bool(ai_routes._configured_ai_providers(cfg)),
+        'homeLoc': (cfg.get('trippilot_home_location') or '').strip(),
+        'check24': bool(cfg.get('enable_check24_compare', False)),
+        'strFlights': bool(cfg.get('enable_str_flights', False)),
+        'fraFlights': bool(cfg.get('enable_fra_flights', False)),
+        'mucFlights': bool(cfg.get('enable_muc_flights', False)),
+        'fkbFlights': bool(cfg.get('enable_fkb_flights', False)),
+        'share': bool(cfg.get('enable_public_share', False)),
+    }
+
+
 @app.route('/')
 def index():
     if not _auth_ok(request):
         return redirect(url_for('login'))
-    cfg = load_config()
+    ui = _ui_flags(load_config())
     return make_response(render_template(
         'index.html', script_root=request.script_root,
-        poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
-        ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip()
-                        or (cfg.get('gemini_api_key') or '').strip()),
-        trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
+        poll_interval=ui['iv'], ai_enabled=ui['ai'],
+        trippilot_home_location=ui['homeLoc'],
         is_ingress=_is_ingress(),
-        check24_enabled=bool(cfg.get('enable_check24_compare', False)),
-        str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
-        fra_flights_enabled=bool(cfg.get('enable_fra_flights', False)),
-        muc_flights_enabled=bool(cfg.get('enable_muc_flights', False)),
-        fkb_flights_enabled=bool(cfg.get('enable_fkb_flights', False)),
-        share_enabled=bool(cfg.get('enable_public_share', False)),
+        check24_enabled=ui['check24'], str_flights_enabled=ui['strFlights'],
+        fra_flights_enabled=ui['fraFlights'], muc_flights_enabled=ui['mucFlights'],
+        fkb_flights_enabled=ui['fkbFlights'], share_enabled=ui['share'],
         app_version=APP_VERSION))
 
 
@@ -4258,6 +4594,11 @@ def api_market_trend():
     statt nur der eigenen getrackten Angebote."""
     if (err := _require_api()):
         return err
+    return jsonify(market_trend_payload())
+
+
+def market_trend_payload() -> dict:
+    """Daten für /api/market-trend — auch vom MCP-Server genutzt."""
     with db() as con:
         regions = [r['region'] for r in con.execute(
             "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
@@ -4267,8 +4608,8 @@ def api_market_trend():
             t, i = _market_trend(con, region=r), _market_index(con, region=r)
             if t or i:
                 by_region.append({'region': r, 'trend': t, 'index': i})
-    return jsonify({'global': glob, 'by_region': by_region,
-                    'basket': market_basket.basket_payload()})
+    return {'global': glob, 'by_region': by_region,
+            'basket': market_basket.basket_payload()}
 
 
 @app.route('/api/market-trend/recompute', methods=['POST'])
@@ -5257,6 +5598,8 @@ app.register_blueprint(flight_watch.bp)
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
+import mcp_server  # noqa: E402  — MCP-Endpunkt /mcp (enable_mcp)
+app.register_blueprint(mcp_server.bp)
 app.register_blueprint(check24_routes.bp)
 app.register_blueprint(maintenance.bp)
 app.register_blueprint(str_flights_routes.bp)
@@ -5322,6 +5665,8 @@ def _health_sensor_worker() -> None:
 # waitress-Thread mit eigener Arena. Bis zur naechsten Runde stand die Anzeige
 # deshalb hoch, obwohl Python die Daten laengst losgelassen hatte.
 MEMORY_TRIM_INTERVAL = 300
+MEMORY_TRIM_STARTUP_S = 900      # Startphase: die ersten 15 Minuten …
+MEMORY_TRIM_STARTUP_TICK = 60    # … jede Minute aufraeumen
 
 # Letztes Aufraeumen, fuer die Anzeige im Speicher-Tab: ohne das laesst sich von
 # aussen nicht unterscheiden, ob der Aufraeumer laeuft und nichts findet oder ob
@@ -5342,10 +5687,17 @@ def _trim_once(auto: bool = True) -> float:
 
 
 def _memory_janitor() -> None:
-    """Raeumt alle `MEMORY_TRIM_INTERVAL` Sekunden auf.
+    """Raeumt alle `MEMORY_TRIM_INTERVAL` Sekunden auf, in der Startphase jede Minute.
+
+    Beim Start laufen Reiseziel-Index, Selbsttest und vier Flugplan-Worker
+    gleichzeitig an und treiben den Speicher auf weit ueber 1 GB. Enden sie nach
+    der ersten Runde, stand der freie Speicher bis zur naechsten fuenf Minuten
+    herum (gemessen: ~1 GB, den „Speicher freigeben" sofort zurueckgab). Deshalb
+    in den ersten `MEMORY_TRIM_STARTUP_S` Sekunden im Minutentakt.
 
     Geloggt wird nur, wenn es sich lohnt (ab 50 MB): sonst stuende alle fuenf
     Minuten dieselbe Zeile im Log."""
+    started = time.time()
     time.sleep(60)          # erst hochlaufen lassen
     while True:
         try:
@@ -5356,7 +5708,9 @@ def _memory_janitor() -> None:
                          freed, before, before - freed)
         except Exception as e:
             log.warning("Speicher-Aufraeumer: %s", e)
-        time.sleep(MEMORY_TRIM_INTERVAL)
+        time.sleep(MEMORY_TRIM_STARTUP_TICK
+                   if time.time() - started < MEMORY_TRIM_STARTUP_S
+                   else MEMORY_TRIM_INTERVAL)
 
 
 def _cooldown_sensor_worker() -> None:
@@ -5396,13 +5750,20 @@ def _muc_flights_worker() -> None:
     wird nur dann. Der erste Lauf direkt nach dem Start wärmt den Speicher vor,
     damit die erste Suche im Fenster nicht auf das Parsen warten muss."""
     import muc_flights_client
+    # Den ersten Lauf nach dem Start macht _startup_sequence (nacheinander statt
+    # gleichzeitig mit den anderen Start-Jobs) — die Schleife wartet deshalb zuerst.
     while True:
+        time.sleep(muc_flights_client.CHECK_INTERVAL)
         try:
             if bool(load_config().get('enable_muc_flights', False)):
-                muc_flights_client.refresh(verbose=_verbose())
+                _refresh_muc_flights()
         except Exception as e:
             log.warning("MUC-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(muc_flights_client.CHECK_INTERVAL)
+
+
+def _refresh_muc_flights() -> None:
+    import muc_flights_client
+    muc_flights_client.refresh(verbose=_verbose())
 
 
 def _str_flights_worker() -> None:
@@ -5412,26 +5773,36 @@ def _str_flights_worker() -> None:
     (vorher lief der Cache rein lazy beim ersten Request an, ohne eigenen
     Poller — tauchte deshalb auch nicht unter „Nächste Läufe" auf)."""
     import str_flights_client
-    while True:
+    while True:                       # erster Lauf: _startup_sequence
+        time.sleep(str_flights_client.CACHE_TTL)
         try:
             if bool(load_config().get('enable_str_flights', False)):
-                str_flights_client.list_destinations(verbose=_verbose())
+                _refresh_str_flights()
         except Exception as e:
             log.warning("STR-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(str_flights_client.CACHE_TTL)
+
+
+def _refresh_str_flights() -> None:
+    import str_flights_client
+    str_flights_client.list_destinations(verbose=_verbose())
 
 
 def _fkb_flights_worker() -> None:
     """Hält den Saisonflugplan von Karlsruhe/Baden-Baden warm (nur bei
     `enable_fkb_flights`) — analog zu `_str_flights_worker`."""
     import fkb_flights_client
-    while True:
+    while True:                       # erster Lauf: _startup_sequence
+        time.sleep(fkb_flights_client.CACHE_TTL)
         try:
             if bool(load_config().get('enable_fkb_flights', False)):
-                fkb_flights_client.list_destinations(verbose=_verbose())
+                _refresh_fkb_flights()
         except Exception as e:
             log.warning("FKB-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(fkb_flights_client.CACHE_TTL)
+
+
+def _refresh_fkb_flights() -> None:
+    import fkb_flights_client
+    fkb_flights_client.list_destinations(verbose=_verbose())
 
 
 def _fra_board_worker() -> None:
@@ -5441,13 +5812,103 @@ def _fra_board_worker() -> None:
     fra_flights_client.py, ohne eigenen Warm-Poller (Anfragen sind dort immer
     ziel-gefiltert, kein teurer Gesamtabruf zum Vorwärmen)."""
     import fra_board_client
-    while True:
+    while True:                       # erster Lauf: _startup_sequence
+        time.sleep(fra_board_client.REFRESH_INTERVAL)
         try:
             if bool(load_config().get('enable_fra_flights', False)):
-                fra_board_client.refresh(verbose=_verbose())
+                _refresh_fra_board()
         except Exception as e:
             log.warning("FRA-Board-Aktualisierung fehlgeschlagen: %s", e)
-        time.sleep(fra_board_client.REFRESH_INTERVAL)
+
+
+def _refresh_fra_board() -> None:
+    import fra_board_client
+    fra_board_client.refresh(verbose=_verbose())
+
+
+# ── Start-Ablauf ───────────────────────────────────────────────────────────────
+# Bis 0.117.5 liefen die Start-Jobs alle gleichzeitig los (je eigener Thread):
+# Reiseziel-Index, Selbsttest, vier Flugplan-Abrufe, dazu die erste Prüfrunde.
+# Das trieb den Speicher auf über 1,4 GB, von dem nach dem Start ~1 GB frei
+# herumstand. Jetzt nacheinander, nach jedem Job wird aufgeräumt, und erst danach
+# starten Preis-Poller und Flugplan-Schleifen. Den Stand zeigt die Oberfläche
+# als Banner (/api/startup, ohne Datenbankzugriff).
+
+_startup_lock = threading.Lock()
+_startup_state: dict = {'active': False, 'started': 0.0, 'finished': 0.0, 'jobs': []}
+
+
+def _startup_jobs() -> list:
+    """(Beschriftung, Funktion, aktiv) in Ausführungsreihenfolge. Die Funktionen
+    werden über die Globals geholt, damit Test-Patches greifen."""
+    cfg = load_config()
+    g = globals()
+    return [
+        ('HA-Sensoren melden', lambda: g['push_ha_sensors'](), True),
+        ('Startmeldung senden', lambda: g['_notify_startup'](), True),
+        ('API-Selbsttest', lambda: g['_run_healthcheck'](), True),
+        ('Reiseziel-Index', lambda: g['_ensure_dest_index'](), True),
+        ('Flugplan Stuttgart', lambda: g['_refresh_str_flights'](),
+         bool(cfg.get('enable_str_flights', False))),
+        ('Flugplan Frankfurt', lambda: g['_refresh_fra_board'](),
+         bool(cfg.get('enable_fra_flights', False))),
+        ('Flugplan München', lambda: g['_refresh_muc_flights'](),
+         bool(cfg.get('enable_muc_flights', False))),
+        ('Flugplan Karlsruhe', lambda: g['_refresh_fkb_flights'](),
+         bool(cfg.get('enable_fkb_flights', False))),
+    ]
+
+
+def _startup_set(i: int, **kw) -> None:
+    with _startup_lock:
+        _startup_state['jobs'][i].update(kw)
+
+
+def _startup_sequence(after=()) -> None:
+    """Start-Jobs nacheinander, danach die Dauer-Threads aus `after` starten."""
+    jobs = _startup_jobs()
+    with _startup_lock:
+        _startup_state.update(active=True, started=time.time(), finished=0.0, jobs=[
+            {'label': label, 'state': 'wait' if on else 'skip', 'secs': None}
+            for label, _fn, on in jobs])
+    try:
+        for i, (label, fn, on) in enumerate(jobs):
+            if not on:
+                continue
+            _startup_set(i, state='run', since=time.time())
+            t0 = time.time()
+            try:
+                fn()
+                state = 'done'
+            except Exception as e:
+                log.warning("Start-Job „%s“ fehlgeschlagen: %s", label, type(e).__name__)
+                state = 'error'
+            _startup_set(i, state=state, secs=round(time.time() - t0, 1))
+            try:
+                _trim_once(auto=True)      # vor dem nächsten Job zurückgeben
+            except Exception:
+                pass
+    finally:
+        for target in after:
+            threading.Thread(target=target, daemon=True).start()
+        with _startup_lock:
+            _startup_state.update(active=False, finished=time.time())
+        log.info("Start abgeschlossen nach %.0f s (Speicher %.0f MB)",
+                 _startup_state['finished'] - _startup_state['started'], _rss_mb())
+
+
+@app.route('/api/startup', methods=['GET'])
+def api_startup():
+    """Stand des Start-Ablaufs fürs Banner — wie /api/busy ohne Datenbankzugriff."""
+    if (err := _require_api()):
+        return err
+    with _startup_lock:
+        st = {'active': _startup_state['active'],
+              'jobs': [{'label': j['label'], 'state': j['state'], 'secs': j['secs'],
+                        'running_s': (round(time.time() - j['since'])
+                                      if j['state'] == 'run' and j.get('since') else None)}
+                       for j in _startup_state['jobs']]}
+    return jsonify(st)
 
 
 def _handle_sigterm(signum, frame) -> None:
@@ -5476,17 +5937,11 @@ def _start_public_server() -> None:
         return
     port = int(cfg.get('public_port') or 17796)
     log.info("Öffentliche Angebots-Seiten aktiv auf Port %d (nur /s/<token>)", port)
-    # Zur Client-IP hinter dem Reverse Proxy (Kommentare zeigen sie an):
-    # waitress verwirft X-Forwarded-For, solange kein `trusted_proxy` gesetzt
-    # ist — `X-Real-IP` und `CF-Connecting-IP` reicht es dagegen durch (gemessen).
-    # Genau die wertet get_client_ip aus. `trusted_proxy` wäre die Alternative,
-    # verlangt aber die exakte Zahl der Proxy-Ebenen (trusted_proxy_count); rät
-    # man daneben, steht am Ende wieder die Adresse eines Zwischenhops da.
-    # Deshalb bleibt es bei den Standardeinstellungen; fehlt die echte IP, sagt
-    # eine Warnung im Log, welcher Header im Proxy zu setzen ist.
+    # Proxy-Header ungefiltert durchreichen (siehe _WAITRESS_PROXY_KW); welcher
+    # Absender ihnen trauen darf, entscheidet get_client_ip anhand trusted_proxies.
     threading.Thread(
         target=lambda: serve(share_routes.share_app, host='0.0.0.0', port=port,
-                             threads=8),
+                             threads=8, **_WAITRESS_PROXY_KW),
         daemon=True).start()
 
 
@@ -5500,11 +5955,11 @@ def main() -> None:
     # /config/trippilot einrichten: eigene questions.json bleibt unangetastet,
     # questions.default.json/README werden auf den Auslieferungsstand gebracht
     trippilot_questions.ensure_user_copy()
-    _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
-    _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
-    _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
-    _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
-    threading.Thread(target=_poll_worker, daemon=True).start()
+    # Sensoren, Startmeldung, Selbsttest, Reiseziel-Index und Flugpläne laufen
+    # nacheinander (siehe _startup_sequence); erst danach Preis-Poller und die
+    # Flugplan-Schleifen, deren erster Lauf damit schon erledigt ist.
+    _spawn(_startup_sequence, (_poll_worker, _muc_flights_worker, _str_flights_worker,
+                               _fra_board_worker, _fkb_flights_worker))
     threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
@@ -5512,10 +5967,6 @@ def main() -> None:
     threading.Thread(target=_db_optimize_worker, daemon=True).start()
     threading.Thread(target=maintenance.compact_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
-    threading.Thread(target=_muc_flights_worker, daemon=True).start()
-    threading.Thread(target=_str_flights_worker, daemon=True).start()
-    threading.Thread(target=_fra_board_worker, daemon=True).start()
-    threading.Thread(target=_fkb_flights_worker, daemon=True).start()
     _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
@@ -5528,7 +5979,7 @@ def main() -> None:
     # fetch_price ueber Poller UND manuelle UI-Aktionen (Zimmer-/Naechte-Vergleich)
     # hinweg, mehrere gleichzeitige Lock-Waits konnten alle Threads belegen und
     # neue Verbindungen (inkl. Docker-HEALTHCHECK) blockieren.
-    serve(app, host='0.0.0.0', port=port, threads=32)
+    serve(app, host='0.0.0.0', port=port, threads=32, **_WAITRESS_PROXY_KW)
 
 
 if __name__ == '__main__':

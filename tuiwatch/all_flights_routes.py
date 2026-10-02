@@ -32,10 +32,33 @@ bp = Blueprint('all_flights_routes', __name__)
 # Quellen — fra_board_client wird dort bewusst NICHT verwendet.
 
 
+def _enabled_sources() -> dict:
+    cfg = A.load_config()
+    return {
+        'str': bool(cfg.get('enable_str_flights', False)),
+        'fra': bool(cfg.get('enable_fra_flights', False)),
+        'muc': bool(cfg.get('enable_muc_flights', False)),
+        'fkb': bool(cfg.get('enable_fkb_flights', False)),
+    }
+
+
 @bp.route('/api/flights/search', methods=['GET'])
 def api_flights_search():
     if (err := A._require_api()):
         return err
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({'error': 'bad_request'}), 400
+    out = search_all(q, (request.args.get('from') or '').strip(),
+                     (request.args.get('till') or '').strip())
+    if out is None:
+        return jsonify({'error': 'disabled'}), 404
+    return jsonify(out)
+
+
+def search_all(q: str, date_from: str = '', date_till: str = '') -> dict | None:
+    """Abflüge zu `q` an allen eingeschalteten Flughäfen — None, wenn keiner an
+    ist. Auch vom MCP-Server genutzt (mcp_server.search_flights)."""
     cfg = A.load_config()
     enabled = {
         'str': bool(cfg.get('enable_str_flights', False)),
@@ -44,12 +67,7 @@ def api_flights_search():
         'fkb': bool(cfg.get('enable_fkb_flights', False)),
     }
     if not any(enabled.values()):
-        return jsonify({'error': 'disabled'}), 404
-    q = (request.args.get('q') or '').strip()
-    if len(q) < 2:
-        return jsonify({'error': 'bad_request'}), 400
-    date_from = (request.args.get('from') or '').strip()
-    date_till = (request.args.get('till') or '').strip()
+        return None
     verbose = A._verbose()
 
     # Parallel statt nacheinander: die Quellen sind unabhängig (Azure-API,
@@ -87,7 +105,7 @@ def api_flights_search():
             out[k] = {'rows': res}  # search_connections liefert nackte Liste
         else:
             out[k] = res            # search_flights/search liefern schon dict
-    return jsonify(out)
+    return out
 
 
 @bp.route('/api/flights/destinations', methods=['GET'])
@@ -106,13 +124,22 @@ def api_flights_destinations():
     unverändert."""
     if (err := A._require_api()):
         return err
+    out = destinations_all()
+    if out is None:
+        return jsonify({'error': 'disabled'}), 404
+    return jsonify({'destinations': out})
+
+
+def destinations_all() -> list | None:
+    """Alle angeflogenen Ziele der eingeschalteten Flughäfen, zusammengeführt
+    über den IATA-Code — None, wenn keiner an ist."""
     cfg = A.load_config()
     enabled_str = bool(cfg.get('enable_str_flights', False))
     enabled_fra = bool(cfg.get('enable_fra_flights', False))
     enabled_muc = bool(cfg.get('enable_muc_flights', False))
     enabled_fkb = bool(cfg.get('enable_fkb_flights', False))
     if not (enabled_str or enabled_fra or enabled_muc or enabled_fkb):
-        return jsonify({'error': 'disabled'}), 404
+        return None
     verbose = A._verbose()
 
     with ThreadPoolExecutor(max_workers=4) as ex:
@@ -143,4 +170,4 @@ def api_flights_destinations():
             if not entry['country']:
                 entry['country'] = d['country']
             entry['airports'].append(src)
-    return jsonify({'destinations': sorted(merged.values(), key=lambda d: d['name'])})
+    return sorted(merged.values(), key=lambda d: d['name'])

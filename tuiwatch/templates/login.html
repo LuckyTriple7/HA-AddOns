@@ -28,6 +28,9 @@
     .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
     .icon-moon { display: block; } .icon-sun { display: none; }
     [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+    .remember { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; color: var(--text); margin: -4px 0 16px; cursor: pointer; }
+    .hint2 { text-align: center; margin-top: 12px; font-size: 0.8rem; }
+    .hint2 a { color: var(--muted); }
     footer { text-align: center; margin-top: 20px; font-size: 0.72rem; color: var(--muted); }
   </style>
 </head>
@@ -45,6 +48,20 @@
     </div>
     <p class="subtitle">Reisepreis-Tracker</p>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    {% if step == 'code' %}
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="step" value="code">
+      <label for="code">Code aus der Authenticator-App</label>
+      <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code"
+             placeholder="123456 oder Backup-Code" autofocus required>
+      {% if remember_days %}
+      <label class="remember"><input type="checkbox" name="remember_device" value="1">
+        Dieses Gerät {{ remember_days }} Tage merken</label>
+      {% endif %}
+      <button type="submit">Bestätigen</button>
+    </form>
+    <p class="hint2"><a href="login">Abbrechen</a></p>
+    {% else %}
     <form method="post" autocomplete="on">
       <label for="username">Benutzername</label>
       <input type="text" id="username" name="username" autocomplete="username" autofocus required>
@@ -52,6 +69,7 @@
       <input type="password" id="password" name="password" autocomplete="current-password" required>
       <button type="submit">Anmelden</button>
     </form>
+    {% endif %}
     <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise</footer>
   </div>
   <script>

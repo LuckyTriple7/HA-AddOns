@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.120.1
+
+- 🐛 **MCP: Ein Client konnte ausgesperrt werden, obwohl sein Token stimmte.** Jede Anfrage ohne gültiges Token zählte als Fehlversuch, nach 5 davon war die Absender-IP 15 Minuten gesperrt, auch für den echten Client mit richtigem Token. Mehrere Container im selben Docker-Netz teilen sich dabei eine Adresse. Jetzt wird ein gültiges Token immer angenommen, auch bei gesperrter IP. Anfragen ganz ohne Token (Erreichbarkeits- und Health-Checks) zählen nicht mehr als Fehlversuch, nur falsche Tokens.
+- 📝 Eine MCP-Sperre steht jetzt deutlich im Log („Anfrage von gesperrter IP … abgewiesen“).
+
+## 0.120.0
+
+- 🤖 **MCP-Server kann mehr** (alles nur lesend):
+  - **Probleme:** Angebot nicht mehr verfügbar, Abruf schlägt wiederholt fehl, Messreihe oder Suchabo gestört.
+  - **API-Status:** letzter Selbsttest der TUI-Schnittstellen, welche Prüfung scheitert. Erklärt z. B., warum keine neuen Preise kommen.
+  - **Flugpläne:** Abflüge zu einem Ziel ab den eingeschalteten Heimatflughäfen und die Liste aller Ziele.
+  - **Benachrichtigungen:** zuletzt gemeldete Preisänderungen, erreichte Wunschpreise, günstigere Termine usw. Kommentare zu öffentlichen Links fehlen bewusst (Name und IP des Schreibenden).
+  - **Preiskalender** eines Angebots, **Markttrend mit Buchungsampel** und **Aktionscodes**.
+
+## 0.119.1
+
+- 🔒 **MCP gibt keine Personendaten mehr heraus.** Aus den Reise-Details gehen nur noch freigegebene Felder an das KI-Modell: Termine, Hotel, Zimmer, Verpflegung, Flüge, Preise, Zahlungen und Fristen, Anzahl der Reisenden samt Preis je Person. Nicht mehr enthalten: Namen und Geburtsdaten der Reisenden, Sonderwünsche (Freitext) und die Buchungsnummer. Die Auswahl läuft über eine Liste erlaubter Felder, ein neues Feld aus dem PDF-Parser gelangt so nicht versehentlich nach außen.
+- 📝 **MCP-Anfragen im Log (INFO):** „MCP: Verbindung von <IP> (<Client>)“ beim Verbinden und „MCP: get_trip(trip_id=3) von <IP>“ je Werkzeug-Aufruf. Argumente nur als Zahlen, kein Freitext.
+
+## 0.119.0
+
+- 🤖 **Neu: MCP-Server.** TUIWatch lässt sich jetzt als MCP-Server (Model Context Protocol) in KI-Clients einbinden, z. B. LiteLLM, Claude Desktop oder Claude Code. Einrichten unter Einstellungen → 🤖 MCP-Server → **Neues Token erzeugen**: Das Token wird einmal angezeigt, zusammen mit dem fertigen Eintrag für die `config.yaml` von LiteLLM. Danach speichert TUIWatch es nur noch verschlüsselt, vergessen heißt neues erzeugen.
+- 🔎 Werkzeuge zum Lesen: Angebote mit Preisen und Trend, Details mit Preisverlauf, **Meine Reisen** (Liste mit Summen, auf Wunsch auch vergangene, und alle Details einer Reise inklusive Flügen, Zahlungen, Flugzeiten-Abgleich und offener Packliste), nächste Reise, Status.
+- ✋ Aktionen (Preis jetzt prüfen, Wunschpreis setzen, pausieren) nur mit dem Schalter **Aktionen erlauben**, Standard aus.
+- 🔒 Erreichbar unter `/mcp` am direkten Port (nicht über Home Assistant), nur mit Token (`Authorization: Bearer` oder `X-API-Key`). Fehlversuche laufen in dieselbe Sperre wie der Login. Standard: aus.
+
+## 0.118.0
+
+- 🚦 **Start-Jobs laufen nacheinander statt gleichzeitig.** HA-Sensoren, Startmeldung, API-Selbsttest, Reiseziel-Index und die eingeschalteten Flugpläne (Stuttgart, Frankfurt, München, Karlsruhe) kommen jetzt einer nach dem anderen dran. Nach jedem Job wird Speicher zurückgegeben, erst danach starten die Preis-Checks. Die Spitze beim Start (bisher über 1,4 GB) fällt dadurch deutlich niedriger aus.
+- 📋 **Neue Start-Leiste unten:** Solange der Start läuft, zeigt sie alle Jobs mit Stand (⏳ wartet, ▶ läuft mit Sekundenzähler, ✓ fertig mit Dauer, ✕ Fehler) und „x/y“ erledigt. Danach kurz „Start abgeschlossen“, dann verschwindet sie. Sie blockiert nichts, die Oberfläche bleibt bedienbar.
+- 📝 Im Log steht am Ende „Start abgeschlossen nach … s (Speicher … MB)“.
+
+## 0.117.5
+
+- 🧠 **Nach dem Start gibt TUIWatch den Speicher schneller zurück.** Beim Hochfahren laufen Reiseziel-Index, Selbsttest und die Flugplan-Abrufe gleichzeitig an und belegen kurz weit über 1 GB. Der Aufräumer schaute bisher nur alle 5 Minuten nach, der freie Speicher (rund 1 GB) blieb so lange stehen. In den ersten 15 Minuten nach dem Start räumt er jetzt jede Minute auf, danach wie gewohnt alle 5 Minuten.
+
+## 0.117.4
+
+- 🔒 Log beim Speichern der Einstellungen: geänderte Zugangsdaten erscheinen nur noch als fester Satz „Zugangsdaten geändert“, ohne Anzahl (zweiter CodeQL-Hinweis).
+
+## 0.117.3
+
+- 🔄 **Einstellungen wirken sofort, ohne Neuladen der Seite:** KI an/aus, Zusatzmodule (Check24, Flugpläne, öffentliche Links), Prüfintervall und Heimatort. Bisher las die Seite diese Werte nur beim Laden.
+- 🔄 Im Einstellungsdialog aktualisieren sich nach dem Speichern auch die Schlüssel-Anzeige (Backup), und ein altes HA-Testergebnis verschwindet, sobald sich Adresse oder Token ändern.
+- 🐛 **Nur Perplexity eingerichtet → KI-Knöpfe fehlten.** Die Oberfläche zählte nur Claude- und Gemini-Keys als „KI vorhanden“.
+
+## 0.117.2
+
+- 🐛 **„Diese Verbindung“ und der 2FA-Status aktualisieren sich jetzt direkt nach dem Speichern**, nicht erst nach Schließen und erneutem Öffnen der Einstellungen.
+- 🔒 Das Log nennt beim Speichern der Einstellungen nur noch die Namen normaler Felder; geänderte Zugangsdaten erscheinen nur als Anzahl (CodeQL-Hinweis).
+
+## 0.117.1
+
+Sicherheitsprüfung abgearbeitet:
+
+- 🛡 **Login-Sperre nicht mehr per gefälschtem Header umgehbar.** `X-Forwarded-For` & Co. zählen nur noch, wenn die Anfrage von einem eigenen Reverse-Proxy kommt. Neue Einstellung **Anmeldung → Eigene Reverse-Proxys**: IP oder Netz des Proxys eintragen (hinter Cloudflare dessen Netze mit). ⚠️ Wer öffentliche Angebots-Links hinter einem Proxy betreibt: ohne Eintrag teilen sich alle Besucher eine Adresse und damit die Kommentar-Bremse.
+- 🌐 **Neu: „Diese Verbindung“** unter Einstellungen → Anmeldung zeigt, von welcher Adresse dein Aufruf kommt und welche Besucher-Adresse der Proxy meldet, samt Vorschlag und Knopf **„Vorschlag übernehmen“**. Einfach TUIWatch einmal über die öffentliche Adresse öffnen, übernehmen, speichern.
+- 🐛 Der Webserver (waitress) hat `X-Forwarded-For` und `X-Forwarded-Proto` bisher still verworfen. Jetzt kommen sie an, die Entscheidung trifft TUIWatch anhand der eingetragenen Proxys. Damit greift hinter einem HTTPS-Proxy auch das `Secure`-Flag der Cookies.
+- 🔑 **Zieladresse geändert → Token/Passwort muss neu eingegeben werden** (Home Assistant, Nextcloud, SMTP). Eine übernommene Sitzung kann sich gespeicherte Zugangsdaten so nicht an einen eigenen Server schicken lassen. Verbindungen zu HA und Nextcloud folgen außerdem keinen Umleitungen mehr.
+- 🔒 **Einstellungen aus einem Backup ersetzen** verlangt jetzt das Login-Passwort (wie Schlüssel sichern/einspielen).
+- 🔐 **Zwei-Faktor-Anmeldung gehärtet:** Jeder App-Code gilt nur einmal, Backup-Codes lassen sich nicht doppelt einlösen, und eine unlesbare `twofa.json` schaltet die zweite Stufe nicht mehr still ab. Dann geht es über den Notzugang, und in den Einstellungen lässt sich die 2FA ohne Code abschalten und neu einrichten.
+- 🙈 Telegram-Fehler schreiben den Bot-Token nicht mehr ins Log.
+- 🍪 Anmelde-Cookies bekommen bei HTTPS das `Secure`-Flag.
+- 🧹 Kleinkram: Schlüssel- und Restore-Passwort nutzen denselben Standard wie der Login, GIATA-IDs müssen numerisch sein, Kommentare auf öffentlichen Links nur noch von der Seite selbst (Origin-Prüfung), Bild-Links dort nur per https, Token-Prüfung ohne Zeilenende-Lücke, Rate-Limit-Listen begrenzt, ProxyFix übernimmt nur noch das Protokoll, Werkzeug gepinnt.
+
+## 0.117.0
+
+- 🔐 **Zwei-Faktor-Anmeldung** für den direkten Login über den Port: Einstellungen → Anmeldung → Einrichten, QR-Code mit einer Authenticator-App scannen, Code bestätigen. Dazu 10 einmal nutzbare Backup-Codes. Über Home Assistant ändert sich nichts.
+- 📱 **Gerät merken:** Beim Code-Schritt lässt sich das Gerät merken, dann reichen dort Benutzername und Passwort. Die Dauer ist einstellbar (Standard 30 Tage, 0 = nie), „Gemerkte Geräte vergessen“ setzt alle zurück.
+- 🆘 **Notzugang** über die neue Add-on-Option `twofa_reset`: überspringt die Code-Abfrage, solange sie an ist, und löscht nichts.
+- 🔒 Benutzername und Passwort werden beim Login jetzt in konstanter Zeit verglichen.
+- 🐛 **Knöpfe im Einstellungsdialog verschwanden nach dem Speichern** („Verbindung testen“, KI-Kosten zurücksetzen, Schlüssel sichern) und kamen erst nach Neuladen der Seite wieder. Behoben.
+- 🏠 **HA-Verbindungstest nennt genau, was fehlt:** Adresse ohne `http://`/`https://` davor, fehlendes Token oder fehlende Adresse. Vorher hieß alles „Keine Verbindung eingerichtet“.
+- 🔔 **„Verbindung testen“ schickt jetzt eine persistente Benachrichtigung an HA.** So ist sofort sichtbar, dass auch Benachrichtigungen ankommen. Wiederholte Tests ersetzen die Meldung, statt sie zu stapeln.
+
+## 0.116.0
+
+- 🏠 **Home Assistant auch ohne HA OS anbinden.** Läuft TUIWatch als eigener Docker-Container, lassen sich unter Einstellungen → Benachrichtigungen jetzt **Home-Assistant-Adresse** und **Token** (langlebiges Zugriffstoken) eintragen. Sensoren, HA-Benachrichtigungen und zusätzliche notify-Dienste funktionieren dann wie im Add-on. Als Add-on ändert sich nichts, die beiden Felder sind dort ausgeblendet.
+- 🔌 Neuer Knopf **„Verbindung testen“**: prüft die gespeicherte Verbindung und zeigt HA-Version und Standortnamen, bei Fehlern den Grund (nicht erreichbar, Token abgelehnt, keine HA-Antwort).
+- 🔒 Das Token wird verschlüsselt gespeichert und öffnet nur die HA-Aufrufe. Die Ingress-Anmeldung bleibt an den echten Supervisor gebunden.
+
 ## 0.115.3
 
 - 🤖 **KI-Modelle aktualisiert.** Claude: neu **Opus 5.5** (Nachfolger von Opus 5, etwas günstiger) und **Fable 5.1** statt Fable 5. Gemini: neu **3.8 Flash** und **3.7 Flash**; 3.5 Flash und 2.5 Flash sind aus der Auswahl (2.5 Flash gibt Google nur noch Bestandsnutzern frei, 3.5 Flash ist teurer als 3.8 Flash).

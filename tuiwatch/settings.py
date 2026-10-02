@@ -56,6 +56,8 @@ GROUPS: tuple = (
     ('modules',   '🧩 Zusatzmodule'),
     ('share',     '🌍 Öffentliche Angebots-Links'),
     ('backup',    '💾 Backup'),
+    ('security',  '🔐 Anmeldung'),
+    ('mcp',       '🤖 MCP-Server'),
     ('misc',      '⚙️ Sonstiges'),
 )
 
@@ -96,6 +98,12 @@ FIELDS: dict = {
         "Buchungszeitpunkt-Ampel",
         "Wertet die Tagesbewegungen des Preisbarometers zusätzlich nach Vorlaufzeit aus (Booking-Kurve) und leitet daraus eine Ampel ab: grün = guter Buchungszeitpunkt, rot = eher warten. Verrechnet den 14-Tage-Trend, die Lage im bisherigen Verlauf und die bis zur Abreise erwartete Preisbewegung. Braucht das Preisbarometer und einige Wochen Daten. Standard an."),
     # ── notify ──
+    "ha_url": ("str", "", 300, "notify",
+        "Home-Assistant-Adresse",
+        "Nur nötig, wenn TUIWatch nicht als Home-Assistant-Add-on läuft (eigener Docker-Host). Adresse von Home Assistant mit http:// bzw. https:// davor und ggf. Port, z. B. http://192.168.178.10:8123 oder https://ha.example.de. Zusammen mit dem Token unten werden Sensoren und HA-Benachrichtigungen darüber gemeldet. Nach dem Speichern mit „Verbindung testen\" prüfen."),
+    "ha_token": ("str", "", 400, "notify",
+        "Home-Assistant-Token",
+        "Langlebiges Zugriffstoken aus Home Assistant: Profil → Sicherheit → „Langlebige Zugriffstoken\" → Token erstellen. Wird verschlüsselt gespeichert. Das Token hat die Rechte des HA-Benutzers, der es erstellt hat — am besten einen eigenen Benutzer dafür anlegen."),
     "ha_sensors": ("bool", True, None, "notify",
         "Home-Assistant-Sensoren",
         "Je verfolgtem Angebot einen Sensor (sensor.tuiwatch_<hotelname>) in Home Assistant anlegen. Wert = aktueller Preis in €, bei Fehler 'unknown'; Reise-Eckdaten stehen im Attribut 'description'. Standard an."),
@@ -270,6 +278,23 @@ FIELDS: dict = {
     "history_compact_months": ("int", 0, (0, 120), "backup",
         "Alten Verlauf verdichten (Monate, 0 = aus)",
         "Dünnt Verlaufsdaten aus, die älter sind als die angegebene Zahl Monate — täglich im Hintergrund. Behalten werden je Angebot und Tag die erste, letzte, günstigste und teuerste Preismessung; beim Preiskalender je Reisetag und Kalenderwoche der letzte beobachtete Preis, dazu immer die älteste und die jüngste Beobachtung. Preisverlauf, niedrigster/höchster Preis, Kalender-Trend und Vorjahresvergleich bleiben damit erhalten, nur die zeitliche Auflösung alter Daten sinkt; lediglich Tagesdurchschnitte können sich minimal verschieben. Standard 0: aus — Verlaufsdaten sind der eigentliche Wert des Add-ons, und eine 25-MB-Datenbank ist für SQLite völlig unkritisch. Sinnvoll erst bei sehr vielen Angeboten über Jahre. Minimum 3 Monate. Der frei gewordene Platz wird erst durch „Speicher freigeben\" im Datenbank-Dialog an das Dateisystem zurückgegeben."),
+    # ── mcp ──
+    "enable_mcp": ("bool", False, None, "mcp",
+        "MCP-Server einschalten",
+        "Stellt TUIWatch als MCP-Server (Model Context Protocol) unter /mcp bereit — für KI-Clients wie LiteLLM, Claude Desktop oder Claude Code. Erreichbar über den direkten Port (nicht über Home Assistant), Anmeldung nur mit dem Token unten. Standard aus."),
+    "mcp_token": ("str", "", 200, "mcp",
+        "MCP-Token",
+        "Wird nur über „Neues Token erzeugen“ gesetzt (siehe UI_HIDDEN_KEYS)."),
+    "mcp_allow_actions": ("bool", False, None, "mcp",
+        "Aktionen erlauben",
+        "Erlaubt dem KI-Client neben dem Lesen auch Änderungen: Preis jetzt prüfen, Wunschpreis setzen, Angebot pausieren/fortsetzen. Aus = nur lesen. Standard aus."),
+    # ── security ──
+    "trusted_proxies": ("str", "", 400, "security",
+        "Eigene Reverse-Proxys",
+        "IP-Adressen oder Netze der eigenen Reverse-Proxys vor TUIWatch, mit Komma getrennt, z. B. 192.168.178.200 oder 172.30.32.0/23. Nur Anfragen von dort dürfen per X-Forwarded-For die echte Besucher-Adresse mitteilen — für die Login-Sperre nach Fehlversuchen und die Begrenzung der Kommentare auf öffentlichen Angebots-Links. Leer = immer der direkte Absender (sicher, aber hinter einem Proxy teilen sich dann alle Besucher eine Adresse). Hinter Cloudflare dessen Netze mit eintragen."),
+    "twofa_remember_days": ("int", 30, (0, 90), "security",
+        "Gerät merken (Tage)",
+        "Wie lange ein Gerät nach der Zwei-Faktor-Anmeldung gemerkt werden darf, wenn beim Code „Dieses Gerät merken\" angehakt ist — so lange fragt TUIWatch dort nur Benutzername und Passwort ab. 0 = nie merken, jedes Mal Code. Ein Verkürzen gilt sofort auch für schon gemerkte Geräte. Standard 30. Wirkt nur beim direkten Login über den Port, nicht über Home Assistant."),
     # ── misc ──
     "trippilot_home_location": ("str", "", 400, "misc",
         "TripPilot Heimatort (PLZ/Ort)",
@@ -285,16 +310,31 @@ FIELDS: dict = {
 # Verschlüsselt gespeichert und nie an den Browser zurückgegeben.
 SECRET_KEYS = frozenset({
     'telegram_bot_token', 'smtp_password', 'nc_app_password',
-    'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key',
+    'anthropic_api_key', 'gemini_api_key', 'perplexity_api_key', 'ha_token', 'mcp_token',
 })
 
-# Felder, die ohne Home Assistant nichts bewirken: die Sensoren und die
-# persistenten Benachrichtigungen laufen ausschliesslich ueber die Supervisor-API.
-# Laeuft TUIWatch als eigener Container (Docker-Host, Server im Netz), fehlt das
-# SUPERVISOR_TOKEN, die drei Schalter waeren wirkungslos — und ein wirkungsloser
-# Schalter in den Einstellungen ist schlimmer als gar keiner. Sie werden dort
-# deshalb ausgeblendet (siehe public_view).
+# Zieladresse → Geheimnis, das dorthin geschickt wird. Ändert sich die Adresse,
+# muss das Geheimnis neu eingegeben werden (siehe save).
+BOUND_SECRETS = (
+    ('ha_url', 'ha_token'),
+    ('nc_addressbook_url', 'nc_app_password'),
+    ('smtp_host', 'smtp_password'),
+)
+
+# Felder, die ohne Home-Assistant-Verbindung nichts bewirken: Sensoren und
+# persistente Benachrichtigungen laufen über die HA-REST-API — als Add-on über den
+# Supervisor, sonst über ha_url + ha_token. Fehlt beides, wären die drei Schalter
+# wirkungslos — und ein wirkungsloser Schalter in den Einstellungen ist schlimmer
+# als gar keiner. Sie werden dort deshalb ausgeblendet (siehe public_view).
 HA_ONLY_KEYS = frozenset({'ha_sensors', 'notify_ha', 'ha_notify_service'})
+
+# Nicht als Eingabefeld im Dialog: das MCP-Token erzeugt der Server selbst und
+# zeigt es genau einmal (POST /api/mcp/token) — kein Abtippen, kein Wiederanzeigen.
+UI_HIDDEN_KEYS = frozenset({'mcp_token'})
+
+# Zugang zu einem externen Home Assistant — nur außerhalb des Add-ons sinnvoll
+# (als Add-on spricht TUIWatch immer den Supervisor), dort also ausgeblendet.
+HA_EXTERNAL_KEYS = frozenset({'ha_url', 'ha_token'})
 
 # Diese Werte liest TUIWatch nur beim Start: der zweite Webserver für die
 # öffentlichen Angebots-Seiten wird einmalig gebunden (_start_public_server).
@@ -484,6 +524,14 @@ def save(values: dict, clear=()) -> list:
             if raw.get(key) != new:
                 raw[key] = new
                 changed.append(key)
+        # Ziel geändert, Geheimnis nicht neu eingegeben → Geheimnis verwerfen.
+        # Sonst könnte eine übernommene Sitzung die Adresse auf einen eigenen
+        # Server umbiegen und sich das gespeicherte Token schicken lassen.
+        for url_key, secret_key in BOUND_SECRETS:
+            if (url_key in changed and secret_key not in changed
+                    and raw.get(secret_key) not in (None, '')):
+                raw[secret_key] = ''
+                changed.append(secret_key)
         if not changed:
             return []
         _write(raw)   # OSError meldet der Aufrufer als Fehler an die Oberfläche
@@ -641,10 +689,11 @@ def migrate(options: dict) -> bool:
     return True
 
 
-def public_view(effective: dict, ha: bool = True) -> dict:
+def public_view(effective: dict, ha: bool = True, supervisor: bool = True) -> dict:
     """Ansicht für die Oberfläche: Feldbeschreibung + Werte.
 
     Geheime Felder kommen nie im Klartext zurück, sondern nur als „gesetzt".
+    `ha` = eine HA-Verbindung besteht, `supervisor` = läuft als Add-on.
     """
     fields = []
     for group, title in GROUPS:
@@ -653,6 +702,10 @@ def public_view(effective: dict, ha: bool = True) -> dict:
             if spec[3] != group:
                 continue
             if key in HA_ONLY_KEYS and not ha:
+                continue
+            if key in HA_EXTERNAL_KEYS and supervisor:
+                continue
+            if key in UI_HIDDEN_KEYS:
                 continue
             kind, default, extra = spec[0], spec[1], spec[2]
             item = {'key': key, 'kind': kind, 'label': spec[4], 'hint': spec[5],

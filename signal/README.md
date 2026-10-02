@@ -26,6 +26,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 
 - Ein aktives Signal-Konto auf deinem Handy
 - amd64 oder aarch64 Hardware
+- Mindestens **2 GB RAM** (z. B. Raspberry Pi 4/5 mit 2 GB+ oder x86). Auf einem Raspberry Pi 3 (1 GB) reicht der Speicher neben Home Assistant nicht: Das System lagert auf die SD-Karte aus und reagiert beim Start des Add-ons minutenlang nicht mehr, auch per SSH nicht.
 
 ## Einrichtung
 
@@ -43,8 +44,19 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 | `native_mode` | `true` | `true` = nativer Modus (niedrige CPU-Last), `false` = Java-Modus |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `debug_mode` | `false` | Ausführliches Logging inkl. GIN-Access-Logs für die Fehlersuche |
+| `api_enabled` | `false` | REST-API auf eigenem Port 17787 starten (nur mit `api_token`) |
+| `api_token` | — | Token für Port 17787, Aufrufe brauchen `Authorization: Bearer <Token>` |
 
 ## REST-API
+
+Die REST-API für Skripte und Automatisierungen läuft auf Port **17787** und verlangt einen Token:
+
+1. Option `api_enabled` einschalten und `api_token` setzen (z. B. `openssl rand -hex 32`) — ohne Token startet der Port nicht
+2. Port 17787 unter *Netzwerk* freigeben, wenn er aus dem LAN erreichbar sein soll
+
+Jeder Aufruf braucht die Kopfzeile `Authorization: Bearer <Token>`, sonst antwortet der Port mit `401`.
+
+> **Port 17777** (Weboberfläche samt API) ist seit 1.6.29 **nicht mehr freigegeben**: er kennt keine Anmeldung. Die Oberfläche läuft über HA-Ingress oder das MessengerPortal. Details in der Dokumentation des Add-ons.
 
 ```
 GET  /api/status                     → { status, phone }
@@ -60,7 +72,8 @@ POST /api/logout                     → Abmelden
 ### Nachricht senden
 
 ```bash
-curl -X POST http://<HA-IP>:17777/api/send \
+curl -X POST http://<HA-IP>:17787/api/send \
+  -H "Authorization: Bearer <Token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "+4915123456789", "message": "Hallo aus HA!"}'
 ```
@@ -86,7 +99,9 @@ curl -X POST http://<HA-IP>:17777/api/send \
 ```yaml
 rest_command:
   signal_send:
-    url: http://localhost:17777/api/send
+    url: http://localhost:17787/api/send
+    headers:
+      Authorization: !secret signal_api_token
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
@@ -99,6 +114,11 @@ action:
     data:
       to: "+4915123456789"
       message: "Bewegung erkannt!"
+```
+
+`secrets.yaml`:
+```yaml
+signal_api_token: "Bearer <Token>"
 ```
 
 ### Webhook — auf eingehende Nachrichten reagieren
@@ -200,6 +220,7 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 
 - An active Signal account on your phone
 - amd64 or aarch64 hardware
+- At least **2 GB of RAM** (e.g. Raspberry Pi 4/5 with 2 GB+ or x86). A Raspberry Pi 3 (1 GB) does not have enough memory next to Home Assistant: the system starts swapping to the SD card and stops responding for minutes when the add-on starts, SSH included.
 
 ## Setup
 
@@ -217,8 +238,19 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 | `native_mode` | `true` | `true` = native mode (low CPU usage), `false` = Java mode |
 | `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
 | `debug_mode` | `false` | Verbose logging including GIN access logs for troubleshooting |
+| `api_enabled` | `false` | Start the REST API on its own port 17787 (only with `api_token`) |
+| `api_token` | — | Token for port 17787, calls need `Authorization: Bearer <token>` |
 
 ## REST API
+
+The REST API for scripts and automations runs on port **17787** and requires a token:
+
+1. Turn on `api_enabled` and set `api_token` (e.g. `openssl rand -hex 32`) — without a token the port does not start
+2. Publish port 17787 under *Network* if it should be reachable from the LAN
+
+Every call needs the header `Authorization: Bearer <token>`, otherwise the port answers `401`.
+
+> **Port 17777** (web interface including the API) is **no longer published** since 1.6.29: it has no login. The interface is reached through HA Ingress or the MessengerPortal. Details in the add-on documentation.
 
 ```
 GET  /api/status                     → { status, phone }
@@ -234,7 +266,8 @@ POST /api/logout                     → Log out
 ### Send a message
 
 ```bash
-curl -X POST http://<HA-IP>:17777/api/send \
+curl -X POST http://<HA-IP>:17787/api/send \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"to": "+4915123456789", "message": "Hello from HA!"}'
 ```
@@ -260,7 +293,9 @@ curl -X POST http://<HA-IP>:17777/api/send \
 ```yaml
 rest_command:
   signal_send:
-    url: http://localhost:17777/api/send
+    url: http://localhost:17787/api/send
+    headers:
+      Authorization: !secret signal_api_token
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
@@ -273,6 +308,11 @@ action:
     data:
       to: "+4915123456789"
       message: "Motion detected!"
+```
+
+`secrets.yaml`:
+```yaml
+signal_api_token: "Bearer <token>"
 ```
 
 ### Webhook — react to incoming messages

@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.1] - 2026-10-02
+
+### Added
+- Option context7_api_key: Context7-API-Schlüssel direkt in den Add-on-Optionen eintragen (Passwortfeld); hat Vorrang vor CONTEXT7_API_KEY in der .env, landet weiterhin nur als Platzhalter in der MCP-Konfiguration
+
+
+## [1.4.0] - 2026-10-02
+
+### Added
+- Option enable_context7_mcp: bindet den Remote-MCP-Server von Context7 (aktuelle Doku zu Bibliotheken/APIs) an; optionaler CONTEXT7_API_KEY über die .env, die Werkzeuge resolve-library-id und query-docs sind vorab freigegeben
+
+### Changed
+- Modell-Auswahl: claude-sonnet-5-5 (Sonnet 5.5) statt claude-sonnet-5 und neuer Standard; claude-sonnet-5 bleibt als Legacy-Eintrag wählbar, damit bestehende Konfigurationen weiter starten
+
+
+## [1.3.28] - 2026-09-28
+
+### Changed
+- Rebuild für Claude Code 2.1.274
+
+
 ## [1.3.27] - 2026-09-24
 
 ### Changed

@@ -1041,6 +1041,13 @@
       table.hist, .split-table { font-size:var(--fs-xs); }
     }
     /* ── Offline Banner ── */
+    /* Start-Ablauf: schmale Leiste unten, blockiert nichts */
+    #startup-bar { display:none; position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:8000; max-width:min(760px, calc(100vw - 24px)); background:var(--surf); border:1px solid var(--border); border-radius:var(--r-ui); box-shadow:0 6px 24px rgba(0,0,0,.35); padding:9px 14px; font-size:12.5px; color:var(--muted); }
+    #startup-bar .sb-title { color:var(--text); font-weight:600; margin-right:8px; }
+    #startup-bar .sb-jobs { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:4px; }
+    #startup-bar .sb-job.run { color:var(--accent); font-weight:600; }
+    #startup-bar .sb-job.done { opacity:.75; }
+    #startup-bar .sb-job.error { color:var(--red); }
     #offline-banner { display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
     .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
     .ob-title { font-size:16px; font-weight:600; color:var(--text); }
@@ -1141,6 +1148,10 @@
     <symbol id="i-list" viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.6" cy="6" r="1.3"/><circle cx="4.6" cy="12" r="1.3"/><circle cx="4.6" cy="18" r="1.3"/></symbol>
     <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/><circle cx="5.5" cy="12" r="1.7"/></symbol>
   </defs></svg>
+  <div id="startup-bar" role="status" aria-live="polite">
+    <span class="sb-title" id="sb-title">TUIWatch startet</span><span id="sb-now"></span>
+    <div class="sb-jobs" id="sb-jobs"></div>
+  </div>
   <div id="offline-banner">
     <div class="ob-icon"><svg class="i"><use href="#i-signal"/></svg></div>
     <div class="ob-title">Verbindung unterbrochen</div>
@@ -1879,6 +1890,83 @@
         </div>
         <div class="set-row">
           <button class="btn sec" type="button" onclick="resetAiUsage(this)">KI-Kosten zurücksetzen</button>
+        </div>
+      </div>
+      <div class="set-group" id="set-hatest-group" data-cat="notify" hidden>
+        <h3>🏠 Home-Assistant-Verbindung</h3>
+        <div class="set-row">
+          <div class="hint">Prüft die gespeicherte Verbindung zu Home Assistant — als Add-on über den
+            Supervisor, sonst über Adresse und Token oben. Geänderte Werte vorher speichern.</div>
+          <div class="hint" id="set-hatest-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row">
+          <button class="btn sec" type="button" onclick="testHaConnection(this)">Verbindung testen</button>
+        </div>
+      </div>
+      <div class="set-group" id="set-mcp-group" data-cat="mcp" hidden>
+        <h3>🔌 Verbindung für KI-Clients</h3>
+        <div class="set-row">
+          <div class="hint">Adresse des MCP-Servers: <code id="set-mcp-url" style="user-select:all"></code><br>
+            Werkzeuge: Angebote, Preisverlauf, „Meine Reisen“ (Liste und Details), nächste Reise, Status —
+            mit „Aktionen erlauben“ zusätzlich Preis prüfen, Wunschpreis, Pausieren.</div>
+        </div>
+        <div class="set-row">
+          <div class="hint" id="set-mcp-state"></div>
+          <button class="btn sec" type="button" style="margin-top:6px" onclick="mcpGenerateToken(this)">Neues Token erzeugen</button>
+          <div id="set-mcp-snippet" hidden style="margin-top:10px">
+            <div class="hint"><b>Nur jetzt sichtbar</b> — kopieren und in LiteLLM eintragen. TUIWatch speichert
+              das Token verschlüsselt und zeigt es nie wieder an; vergessen = neues erzeugen.
+              Eintrag für die <code>config.yaml</code> von LiteLLM:</div>
+            <pre id="set-mcp-yaml" style="user-select:all;margin-top:6px;white-space:pre-wrap"></pre>
+            <button class="btn" type="button" onclick="mcpCopy()">Kopieren &amp; ausblenden</button>
+          </div>
+        </div>
+      </div>
+      <div class="set-group" id="set-conn-group" data-cat="security" hidden>
+        <h3>🌐 Diese Verbindung</h3>
+        <div class="set-row">
+          <div class="hint">Hilfe für „Eigene Reverse-Proxys“: So sieht TUIWatch deinen Aufruf gerade.
+            Aussagekräftig ist das nur, wenn du TUIWatch über dieselbe Adresse geöffnet hast wie
+            Besucher deiner öffentlichen Links (also über den Proxy).</div>
+          <div class="hint" id="set-conn-state" style="margin-top:6px;white-space:pre-line"></div>
+        </div>
+        <div class="set-row" id="set-conn-apply" hidden>
+          <button class="btn sec" type="button" onclick="connApplySuggestion()">Vorschlag übernehmen</button>
+        </div>
+      </div>
+      <div class="set-group" id="set-2fa-group" data-cat="security" hidden>
+        <h3>🔐 Zwei-Faktor-Anmeldung</h3>
+        <div class="set-row">
+          <div class="hint">Fragt beim direkten Login über den Port nach Passwort zusätzlich einen Code aus
+            einer Authenticator-App (Google Authenticator, Aegis, 2FAS, 1Password …). Über Home Assistant
+            angemeldet bleibt alles wie bisher. Notzugang, falls Handy und Backup-Codes weg sind: in Home
+            Assistant beim Add-on unter Konfiguration „Zwei-Faktor-Abfrage überspringen" einschalten
+            (ohne HA: <code>"twofa_reset": true</code> in <code>options.json</code>).</div>
+          <div class="hint" id="set-2fa-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row" id="set-2fa-off" hidden>
+          <button class="btn sec" type="button" onclick="twofaSetup(this)">Einrichten</button>
+          <div id="set-2fa-setup" hidden style="margin-top:10px">
+            <div class="hint">1. QR-Code mit der App scannen (oder den Schlüssel von Hand eingeben):</div>
+            <div id="set-2fa-qr" style="background:#fff;display:inline-block;padding:6px;border-radius:8px;margin:8px 0;max-width:220px"></div>
+            <div class="hint">Schlüssel: <code id="set-2fa-secret" style="user-select:all;word-break:break-all"></code></div>
+            <div class="hint" style="margin-top:8px">2. Den angezeigten 6-stelligen Code eingeben:</div>
+            <input type="text" id="set-2fa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="max-width:140px">
+            <button class="btn" type="button" onclick="twofaEnable(this)">Aktivieren</button>
+          </div>
+          <div id="set-2fa-backup" hidden style="margin-top:10px">
+            <div class="hint"><b>Backup-Codes — jetzt sichern, sie werden nur dieses eine Mal angezeigt.</b>
+              Jeder Code funktioniert einmal anstelle des App-Codes.</div>
+            <pre id="set-2fa-backup-list" style="user-select:all;margin-top:6px"></pre>
+          </div>
+        </div>
+        <div class="set-row" id="set-2fa-on" hidden>
+          <button class="btn sec" type="button" onclick="twofaForget(this)">Gemerkte Geräte vergessen</button>
+          <div style="margin-top:10px">
+            <div class="hint">Abschalten — aktuellen Code oder einen Backup-Code eingeben:</div>
+            <input type="text" id="set-2fa-off-code" autocomplete="one-time-code" style="max-width:180px">
+            <button class="btn danger" type="button" onclick="twofaDisable(this)">Abschalten</button>
+          </div>
         </div>
       </div>
       <div class="set-group" id="set-key-group" data-cat="backup" hidden>

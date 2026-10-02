@@ -37,13 +37,25 @@ else
   echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Mode: default (Java pro API-Aufruf)"
 fi
 
+# Seit bbernhard 0.101 gibt es kein /entrypoint.sh mehr (s6-overlay statt dessen).
+# Wie das alte entrypoint.sh: Datenordner an signal-api (1000) geben und die API
+# ohne Capabilities als dieser Benutzer starten.
+run_signal_api() {
+  chown -R 1000:1000 "$SIGNAL_CLI_CONFIG_DIR"
+  local caps
+  caps="-cap_$(seq -s ',-cap_' 0 "$(cat /proc/sys/kernel/cap_last_cap)")"
+  export HOST_IP=$(hostname -I | awk '{print $1}')
+  exec setpriv --reuid=1000 --regid=1000 --init-groups --inh-caps="$caps" \
+    signal-cli-rest-api -signal-cli-config="$SIGNAL_CLI_CONFIG_DIR"
+}
+
 start_signal_api() {
   if [ "$DEBUG_MODE" = "true" ]; then
     # Debug-Modus: ungefilterte Ausgabe inkl. GIN-Access-Logs
-    /entrypoint.sh &
+    run_signal_api &
   else
     # Normal: GIN-Access-Logs und signal-cli-Info-Meldungen unterdrücken
-    /entrypoint.sh 2>&1 | grep -Ev '^\[GIN\] |level=info' &
+    run_signal_api 2>&1 | grep -Ev '^\[GIN\] |level=info' &
   fi
   echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Waiting for signal-cli-rest-api on :8080..."
   for i in $(seq 1 60); do

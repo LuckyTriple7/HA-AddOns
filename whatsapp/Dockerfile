@@ -26,6 +26,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-fund --no-audit
 
+COPY patches/ ./patches/
+RUN for f in patches/*.js; do node "$f" || exit 1; done
+
 COPY server.js .
 COPY run.sh /run.sh
 RUN chmod +x /run.sh

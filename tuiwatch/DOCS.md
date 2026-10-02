@@ -23,7 +23,36 @@ Hier stehen nur noch die Login-Daten. Sie bleiben bewusst in Home Assistant: Dam
 username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
+twofa_reset: false       # Notzugang: Zwei-Faktor-Abfrage überspringen
 ```
+
+### Zwei-Faktor-Anmeldung (seit 0.117.0)
+
+Unter Zahnrad → Einstellungen → **🔐 Anmeldung** → **Einrichten**: QR-Code mit
+einer Authenticator-App scannen (Google Authenticator, Aegis, 2FAS, 1Password …),
+angezeigten Code eingeben, **Aktivieren**. Danach erscheinen einmalig
+**10 Backup-Codes** — sichern, jeder funktioniert einmal anstelle des App-Codes.
+
+- Gilt nur für den **direkten Login** über Port 17794. Über Home Assistant
+  (Ingress) hat HA bereits angemeldet, dort ändert sich nichts.
+- **Gerät merken:** Beim Code lässt sich „Dieses Gerät … Tage merken" anhaken,
+  dann fragt TUIWatch dort nur noch Benutzername und Passwort. Die Dauer stellt
+  die Option **Gerät merken (Tage)** ein (Standard 30, 0 = nie merken); ein
+  Verkürzen gilt sofort auch für schon gemerkte Geräte. **Gemerkte Geräte
+  vergessen** setzt alle zurück.
+- **Abschalten** verlangt einen aktuellen Code oder Backup-Code.
+- **Eigene Reverse-Proxys** (Einstellung `trusted_proxies`): Nur von dort
+  eingetragenen Adressen werden `X-Forwarded-For`/`X-Real-IP` geglaubt — für die
+  Login-Sperre und die Kommentar-Bremse der öffentlichen Links. Leer = immer
+  der direkte Absender. Hinter Cloudflare dessen Netze mit eintragen.
+- Ändert sich die Adresse von Home Assistant, Nextcloud oder dem SMTP-Server,
+  verfällt das dazu gespeicherte Token bzw. Passwort und muss neu eingetragen
+  werden.
+- **Notzugang**, falls Handy und Backup-Codes weg sind: in Home Assistant beim
+  Add-on unter Konfiguration **twofa_reset** einschalten (ohne HA:
+  `"twofa_reset": true` in `options.json`). Solange sie an ist, fragt der Login
+  keinen Code ab — gelöscht wird nichts. Danach die 2FA in den Einstellungen
+  abschalten oder neu einrichten und die Option wieder ausschalten.
 
 Die übrigen Optionen sind seit **0.104.1** aus dem Schema entfernt und tauchen in der HA-Konfigurationsseite nicht mehr auf. Beim Update auf 0.104.0 wurden ihre Werte bereits einmalig nach `settings.json` übernommen.
 
@@ -888,7 +917,45 @@ Ankunft) über alle veröffentlichten Saisons und liegt sechs Stunden im Speiche
 Quelle nicht — in der Gesamtliste „Alle Flugziele" füllt es sich aus den anderen
 Flugplänen, sofern das Ziel dort ebenfalls vorkommt.
 
+## MCP-Server (seit 0.119.0)
+
+TUIWatch kann sich KI-Clients als MCP-Server anbieten (Model Context Protocol,
+Transport „Streamable HTTP“). Einrichten unter Zahnrad → Einstellungen →
+**🤖 MCP-Server** → **Neues Token erzeugen**. Das Token erscheint genau einmal,
+zusammen mit dem Eintrag für LiteLLM:
+
+```yaml
+mcp_servers:
+  tuiwatch:
+    url: "http://<adresse>:17794/mcp"
+    transport: "http"
+    auth_type: "bearer_token"
+    auth_value: "<token>"
+```
+
+- Adresse ist immer der **direkte Port** (17794), nicht die HA-Ingress-Adresse;
+  aus dem Internet nur hinter dem eigenen Reverse-Proxy mit HTTPS.
+- Werkzeuge: `list_offers`, `get_offer` (mit Preisverlauf), `list_trips`,
+  `get_trip`, `next_trip`, `get_status`, `get_problems`, `get_api_status`,
+  `search_flights`, `list_flight_destinations`, `get_notifications`,
+  `get_price_calendar`, `get_market_trend`, `get_promo_codes`; mit **Aktionen erlauben** zusätzlich
+  `check_offer`, `set_target_price`, `pause_offer`.
+- Neues Token erzeugen macht das alte sofort ungültig.
+- Keine Personendaten: Namen und Geburtsdaten der Reisenden, Sonderwünsche und
+  die Buchungsnummer gehen nicht an das KI-Modell.
+- Jede Anfrage steht im Log (INFO): Verbindung und Werkzeug-Aufruf mit IP.
+
 ## Home-Assistant-Sensoren
+
+**Ohne HA OS (eigener Docker-Host):** Als Add-on spricht TUIWatch Home Assistant
+über den Supervisor. Läuft es als eigener Container, unter Zahnrad →
+Einstellungen → Benachrichtigungen die **Home-Assistant-Adresse** (z. B.
+`http://192.168.178.10:8123`) und ein **Home-Assistant-Token** (HA → Profil →
+Sicherheit → Langlebige Zugriffstoken) eintragen und speichern. Danach stehen
+Sensoren, HA-Benachrichtigungen und `ha_notify_service` wie im Add-on zur
+Verfügung; **Verbindung testen** zeigt, ob Adresse und Token passen. Das Token
+hat die Rechte des HA-Benutzers, der es erstellt hat — am besten einen eigenen
+Benutzer anlegen.
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 `sensor.tuiwatch_<hotelname>` an (bei gleichem Hotel `_2`, `_3` …):

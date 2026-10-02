@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.8.51] - 2026-10-02
+- README: REST-API-Beispiele auf Port **17786** mit Token umgestellt (`curl`, `rest_command` samt `secrets.yaml`), Optionen `api_enabled` und `api_token` in der Konfigurationstabelle ergaenzt. Die README zeigte noch den seit 1.8.30 geschlossenen Port 17776 ohne Anmeldung
+
+## [1.8.50] - 2026-09-29
+
+chore(deps): bump ip-address from 10.3.1 to 10.7.2 in /whatsapp
+
+
+## [1.8.49] - 2026-09-26
+
+- **Haenger bei "Verbinde mit WhatsApp…" behoben.** Die Diagnose aus 1.8.48 zeigte die Ursache: `Protocol error (Runtime.addBinding): Target closed`. Nach dem Login meldet whatsapp-web.js rund 20 Rueckruf-Funktionen an, Puppeteer traegt jede in alle Frames der Seite ein. Schliesst WhatsApp Web waehrenddessen einen Neben-Frame, bricht das ab und `ready` kommt nie — deshalb hing der Start mal und mal nicht, unabhaengig vom Medien-Patch
+- Der Docker-Build patcht puppeteer-core so, dass dieser Fehler bei Neben-Frames ignoriert wird, wie Puppeteer es beim Frame-Aufbau selbst schon tut
+- Der Build fuehrt jetzt alle Skripte unter `patches/` aus
+
+## [1.8.48] - 2026-09-26
+
+- **Diagnose fuer den Haenger bei `authenticated`.** Nach dem Login laedt whatsapp-web.js seinen Hilfscode in die Seite und meldet erst dann `ready`; scheitert das, verschluckt die Bibliothek den Fehler und das Add-on bleibt ohne Meldung bei "Verbinde mit WhatsApp…" stehen
+- Fehler der WhatsApp-Web-Seite (`pageerror`, `console.error`) landen jetzt im Add-on-Log, hoechstens 50 pro Start
+- Steht der Status 90 s nach `authenticated` noch dort, prueft das Add-on, ob der Hilfscode geladen ist, laedt ihn notfalls selbst und schreibt das Ergebnis samt Fehlertext ins Log und nach `/api/status` (`error`)
+
+## [1.8.47] - 2026-09-26
+
+- **Medien-Patch aus 1.8.45 wieder drin.** Der Haenger nach dem Update (Status blieb auf `authenticated`, Oberflaeche mit 503) kam nicht vom Patch — ein erneuter Neustart des Add-ons hat ihn behoben. Bilder und Dateien senden sollte damit wieder gehen
+
+## [1.8.46] - 2026-09-26
+
+- 1.8.45 zurueckgenommen: nach dem Update lud die Oberflaeche nicht mehr (`/api/me` und `/api/selfcheck` mit 503). Stand wieder wie 1.8.44, Bilder senden bleibt vorerst kaputt
+
 ## [1.8.44] - 2026-09-24
 
 - Abhaengigkeiten: **express 4 → 5.2.1**, **express-rate-limit 7 → 8.7.0**, **archiver 7 → 8.0.0**, multer 2.3.0 → 2.4.0

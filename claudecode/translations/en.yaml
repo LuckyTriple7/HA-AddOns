@@ -17,6 +17,19 @@
       Hostname of the Playwright Browser add-on for CDP connection. Leave empty
       for default (playwright-browser). If connection fails, check the Playwright
       Browser container hostname (e.g., 1016f397-playwright-browser).
+  enable_context7_mcp:
+    name: Enable Context7 MCP
+    description: >-
+      Connect the remote Context7 MCP server (mcp.context7.com), which gives
+      Claude current documentation for libraries, frameworks and APIs. Works
+      without a key; an optional CONTEXT7_API_KEY in .env raises the rate limit.
+      Queries go to an external service. Default: disabled.
+  context7_api_key:
+    name: Context7 API key
+    description: >-
+      Optional key from context7.com/dashboard, raises the rate limit. Only
+      used when Context7 MCP is enabled. Takes precedence over CONTEXT7_API_KEY
+      in .env. Empty = no key.
   terminal_font_size:
     name: Terminal Font Size
     description: >-
@@ -74,7 +87,7 @@
   model:
     name: Claude Model
     description: >-
-      The Claude model to use. claude-sonnet-5 is the newest model and offers the
+      The Claude model to use. claude-sonnet-5-5 is the newest model and offers the
       best balance of speed and capability. claude-fable-5-1 is very powerful,
       claude-opus-5-5 very capable for complex tasks. claude-haiku-4-5-20251001 is the fastest.
       Auto-update Claude Code (above) ensures new models become available

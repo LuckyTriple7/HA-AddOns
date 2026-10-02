@@ -1,0 +1,27 @@
+configuration:
+  cdp_port:
+    name: CDP-Port
+    description: >-
+      Port für den Chrome DevTools Protocol Endpoint (Standard 9222).
+  idle_timeout:
+    name: Leerlauf-Timeout
+    description: >-
+      Minuten ohne Verbindung, nach denen Chromium beendet wird. Gilt auch für
+      den Playwright MCP: Er trennt sich nach dieser Zeit vom Browser, danach
+      läuft der Timeout von Chromium.
+  enable_mcp:
+    name: Playwright MCP aktivieren
+    description: >-
+      Startet einen eigenen Playwright MCP-Server im Add-on (Port 17799, Pfad
+      /mcp), z. B. für LiteLLM oder Hermes. Chromium startet weiterhin erst bei
+      der ersten Browser-Aktion. Erfordert ein MCP-Token.
+  mcp_token:
+    name: MCP-Token
+    description: >-
+      Pflicht für den Playwright MCP, mindestens 16 Zeichen. Clients senden ihn
+      als Header "Authorization: Bearer <Token>". Ohne gültigen Token startet
+      der MCP nicht. Der Port ist im ganzen Heimnetz erreichbar, daher einen
+      langen Zufallswert verwenden.
+network:
+  9222/tcp: Chrome DevTools Protocol (CDP) Endpoint
+  17799/tcp: Playwright MCP Endpoint (/mcp, Bearer-Token)

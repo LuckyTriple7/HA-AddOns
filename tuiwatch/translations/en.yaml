@@ -10,3 +10,6 @@ configuration:
   session_hours:
     name: Session duration (hours)
     description: How many hours a login session stays valid. Default 24.
+  twofa_reset:
+    name: Skip two-factor prompt (emergency access)
+    description: Only turn on if your phone and backup codes are lost. While on, login does not ask for a code. Afterwards disable or re-set up two-factor login in TUIWatch under Settings → Login, then turn this option off again.

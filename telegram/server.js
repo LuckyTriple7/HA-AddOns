@@ -121,6 +121,7 @@ const SESSION_FILE = '/config/session.txt';
 const CHATS_FILE = '/config/chats.json';
 const MESSAGES_FILE = '/config/messages.json';
 const MEDIA_DIR = '/config/media';
+const AUTO_RELOAD_FILE = '/config/auto_reload.json';
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let status = 'starting'; // starting | awaiting_code | awaiting_password | connected | error
@@ -135,6 +136,52 @@ const chatMap = new Map();
 const messagesByChatId = new Map();
 const seenMsgIds = new Set();
 const peerMap = new Map(); // chatId (str) -> entity (in-memory, lost on restart)
+
+// ── Tipp-Anzeige ("tippt …") ──────────────────────────────────────────────────
+// Telegram wiederholt die Aktion etwa alle 5 s, solange jemand tippt; ohne
+// neues Update gilt sie nach TYPING_TTL als beendet (wie in der App).
+const TYPING_TTL = 6000;
+const typingByChatId = new Map(); // chatId -> Map(userId -> expiresAt)
+const typingNames = new Map();    // userId -> Anzeigename (für Gruppen)
+
+function setTyping(chatId, userId, active) {
+  let users = typingByChatId.get(chatId);
+  if (!active) {
+    if (users) { users.delete(userId); if (!users.size) typingByChatId.delete(chatId); }
+    return;
+  }
+  if (!users) { users = new Map(); typingByChatId.set(chatId, users); }
+  users.set(userId, Date.now() + TYPING_TTL);
+}
+
+async function resolveTypingName(userId, peer) {
+  if (typingNames.has(userId) || !client) return;
+  const known = chatMap.get(userId);
+  if (known?.name) { typingNames.set(userId, known.name); return; }
+  typingNames.set(userId, '');
+  try {
+    typingNames.set(userId, getEntityName(await client.getEntity(peer)));
+  } catch (e) { dbg(`typing: Name fuer ${userId} nicht aufloesbar: ${e.message}`); }
+}
+
+function handleTypingUpdate(update) {
+  let chatId, userId;
+  if (update.className === 'UpdateUserTyping') {
+    chatId = userId = String(update.userId || '');
+  } else if (update.className === 'UpdateChatUserTyping' || update.className === 'UpdateChannelUserTyping') {
+    chatId = String(update.chatId || update.channelId || '');
+    userId = String(update.fromId?.userId || '');
+  } else return false;
+  if (!chatId || !userId) return true;
+  const action = update.action?.className;
+  if (action === 'SendMessageTypingAction') {
+    setTyping(chatId, userId, true);
+    if (chatId !== userId) resolveTypingName(userId, update.fromId);
+  } else if (action === 'SendMessageCancelAction') {
+    setTyping(chatId, userId, false);
+  }
+  return true;
+}
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 
@@ -295,6 +342,48 @@ function sendHANotification(chatId, senderName, body) {
   req.end();
 }
 
+// Bot-Tastaturen (Inline-Buttons unter der Nachricht, z. B. „Approve / Deny",
+// und Antwort-Tastaturen) in ein speicherbares Format bringen. Callback-Daten
+// werden base64-kodiert abgelegt und beim Klick an den Bot zurückgeschickt.
+function extractButtons(rawMsg) {
+  const rm = rawMsg.replyMarkup;
+  if (!rm || (rm.className !== 'ReplyInlineMarkup' && rm.className !== 'ReplyKeyboardMarkup')) return undefined;
+  const inline = rm.className === 'ReplyInlineMarkup';
+  const rows = (rm.rows || []).map(r => (r.buttons || []).map(b => {
+    const btn = { text: b.text || '' };
+    // teleproto liefert Buttons als KeyboardInlineButton { text, type } mit
+    // InlineButtonType*-Untertyp; ältere Layer direkt als KeyboardButton*
+    const ty = b.type && typeof b.type === 'object' ? b.type : b;
+    const cls = (ty.className || '').replace(/^(InlineButtonType|KeyboardButton)/, '');
+    if (!inline) btn.kind = 'reply';
+    else if (cls === 'Callback') { btn.kind = 'callback'; btn.data = ty.data ? Buffer.from(ty.data).toString('base64') : ''; }
+    else if (cls === 'Url' || cls === 'UrlAuth') { btn.kind = 'url'; btn.url = ty.url || ''; }
+    else if (cls === 'Copy') { btn.kind = 'copy'; btn.copy = ty.copyText || ''; }
+    else { btn.kind = 'unsupported'; dbg(`extractButtons: nicht unterstützter Button-Typ ${ty.className || '?'}`); }
+    return btn;
+  })).filter(r => r.length);
+  return rows.length ? rows : undefined;
+}
+
+// Bearbeitete Nachricht (Bots streamen Antworten oder tauschen Buttons aus) im
+// Cache nachziehen
+function applyMessageEdit(rawMsg) {
+  const peer = rawMsg.peerId;
+  const chatId = String(peer?.userId || peer?.chatId || peer?.channelId || '');
+  if (!chatId) return;
+  const stored = messagesByChatId.get(chatId)?.find(m => m.id === `${chatId}_${rawMsg.id}`);
+  if (!stored) return;
+  if (typeof rawMsg.message === 'string' && (rawMsg.message || stored.type === 'text')) stored.body = rawMsg.message;
+  const buttons = extractButtons(rawMsg);
+  if (buttons) stored.buttons = buttons; else delete stored.buttons;
+  stored.editTs = (rawMsg.editDate || Math.floor(Date.now() / 1000)) * 1000;
+  const chat = chatMap.get(chatId);
+  const all = messagesByChatId.get(chatId);
+  if (chat && all[all.length - 1] === stored && stored.body) chat.lastMsg = stored.body;
+  scheduleSave();
+  dbg(`Message edit: ${stored.id} buttons=${buttons ? buttons.flat().length : 0} body="${(stored.body || '').slice(0, 60)}"`);
+}
+
 async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   const hasText = !!(rawMsg.message);
   const hasMedia = rawMsg.media && rawMsg.media.className && rawMsg.media.className !== 'MessageMediaEmpty';
@@ -305,7 +394,21 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   const ts = (rawMsg.date || 0) * 1000;
   const msgId = `${chatId}_${rawMsg.id}`;
 
-  if (seenMsgIds.has(msgId)) { dbg(`processMessage [${source}]: duplicate skipped ${msgId}`); return; }
+  if (seenMsgIds.has(msgId)) {
+    // Buttons trotzdem auffrischen (Bot hat sie evtl. getauscht oder ältere
+    // Cache-Einträge kennen sie noch nicht)
+    const stored = messagesByChatId.get(chatId)?.find(m => m.id === msgId);
+    if (stored) {
+      const buttons = extractButtons(rawMsg);
+      if (JSON.stringify(buttons) !== JSON.stringify(stored.buttons)) {
+        if (buttons) stored.buttons = buttons; else delete stored.buttons;
+        stored.editTs = Date.now();
+        scheduleSave();
+      }
+    }
+    dbg(`processMessage [${source}]: duplicate skipped ${msgId}`);
+    return;
+  }
   seenMsgIds.add(msgId);
 
   let type = 'text';
@@ -358,6 +461,9 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, videoSize: videoSize || undefined, timestamp: ts, fromMe, ack: fromMe ? 1 : 0, quotedMsg, groupedId: rawMsg.groupedId ? rawMsg.groupedId.toString() : undefined };
   if (Object.keys(msgReactions).length) msgObj.reactions = msgReactions;
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
+  const buttons = extractButtons(rawMsg);
+  if (buttons) msgObj.buttons = buttons;
+  if (rawMsg.editDate) msgObj.editTs = rawMsg.editDate * 1000;
   msgs.push(msgObj);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   _logSilent('DEBUG', `teleproto msg [${source}]: id=${rawMsg.id} from=${chatName} type=${type} fromMe=${fromMe}${body?' "'+body.slice(0,60)+'"':''}`);
@@ -422,6 +528,9 @@ async function loadDialogs() {
         });
       } else {
         const c = chatMap.get(chatId);
+        // Umbenennungen (Bots, Kontakte, Gruppen) aus Telegram übernehmen,
+        // sonst bleibt der gespeicherte alte Name dauerhaft stehen.
+        if (name) c.name = name;
         c.isBot = isBot;
         c.chatType = chatType;
       }
@@ -540,6 +649,11 @@ async function startClient() {
     }, new NewMessage({}));
 
     client.addEventHandler((update) => {
+      if (handleTypingUpdate(update)) return;
+      if (update.className === 'UpdateEditMessage' || update.className === 'UpdateEditChannelMessage') {
+        if (update.message) applyMessageEdit(update.message);
+        return;
+      }
       const peer = update.peer;
       const chatId = String(peer?.userId || peer?.chatId || peer?.channelId || '');
       if (!chatId) return;
@@ -647,6 +761,21 @@ app.post('/api/refresh-all', mutatingRateLimit, async (req, res) => {
 app.get('/api/chats', (req, res) => {
   const chats = Array.from(chatMap.values()).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(chats);
+});
+
+app.get('/api/typing/:chatId', (req, res) => {
+  const chatId = String(req.params.chatId);
+  const users = typingByChatId.get(chatId);
+  const now = Date.now();
+  const names = [];
+  if (users) {
+    for (const [userId, expiresAt] of users) {
+      if (expiresAt <= now) { users.delete(userId); continue; }
+      names.push(userId === chatId ? '' : (typingNames.get(userId) || ''));
+    }
+    if (!users.size) typingByChatId.delete(chatId);
+  }
+  res.json({ typing: names.length > 0, names: names.filter(Boolean) });
 });
 
 app.get('/api/stats', (req, res) => {
@@ -962,6 +1091,81 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
   }
 });
 
+// Leert einen Chat dauerhaft (auch auf Telegram-Seite): löscht alle Nachrichten
+// außer der neuesten. In Kanälen/Supergruppen ohne Adminrechte nur eigene.
+app.post('/api/clear-chat/:chatId', deleteRateLimit, async (req, res) => {
+  const { chatId } = req.params;
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const onlyOwn = entity.className === 'Channel' && !entity.creator && !entity.adminRights;
+    const ids = [];
+    let keepId = 0;
+    let offsetId = 0;
+    for (;;) {
+      const batch = await client.getMessages(entity, { limit: 100, offsetId });
+      if (!batch.length) break;
+      for (const m of batch) {
+        if (!keepId) { keepId = m.id; continue; }
+        if (onlyOwn && !m.out) continue;
+        ids.push(m.id);
+      }
+      offsetId = batch[batch.length - 1].id;
+      if (batch.length < 100) break;
+    }
+    dbg(`clear-chat ${chatId}: keep=${keepId} delete=${ids.length} onlyOwn=${onlyOwn}`);
+    for (let i = 0; i < ids.length; i += 100) {
+      await client.deleteMessages(entity, ids.slice(i, i + 100), { revoke: true });
+    }
+    const keepKey = `${chatId}_${keepId}`;
+    const deleted = new Set(ids.map(id => `${chatId}_${id}`));
+    const msgs = messagesByChatId.get(chatId);
+    if (msgs) {
+      const remain = [];
+      for (const m of msgs) {
+        const gone = onlyOwn ? deleted.has(m.id) : m.id !== keepKey;
+        if (!gone) { remain.push(m); continue; }
+        seenMsgIds.delete(m.id);
+        if (m.mediaFile) {
+          const fp = path.resolve(MEDIA_DIR, m.mediaFile);
+          if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep)) { try { fs.unlinkSync(fp); } catch (e) {} }
+        }
+      }
+      messagesByChatId.set(chatId, remain);
+      scheduleSave();
+    }
+    res.json({ success: true, deleted: ids.length, onlyOwn });
+  } catch (e) {
+    console.error('[ERROR] clear-chat:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Auto-Neuladen pro Chat: Zustand serverseitig, damit alle Geräte denselben sehen
+let autoReloadChats = new Set();
+try {
+  if (fs.existsSync(AUTO_RELOAD_FILE)) {
+    const arr = JSON.parse(fs.readFileSync(AUTO_RELOAD_FILE, 'utf8'));
+    if (Array.isArray(arr)) autoReloadChats = new Set(arr.map(String));
+  }
+} catch (e) { console.warn('[WARN] auto_reload.json nicht lesbar'); }
+
+app.get('/api/auto-reload', (req, res) => {
+  res.json({ chats: [...autoReloadChats] });
+});
+
+app.post('/api/auto-reload/:chatId', mutatingRateLimit, (req, res) => {
+  const chatId = String(req.params.chatId || '');
+  if (!/^-?[0-9]{1,20}$/.test(chatId)) return res.status(400).json({ error: 'Ungueltige Chat-ID' });
+  const on = req.body?.on === true;
+  if (on) autoReloadChats.add(chatId); else autoReloadChats.delete(chatId);
+  try { fs.writeFileSync(AUTO_RELOAD_FILE, JSON.stringify([...autoReloadChats])); }
+  catch (e) { return res.status(500).json({ error: 'Speichern fehlgeschlagen' }); }
+  res.json({ chats: [...autoReloadChats] });
+});
+
 app.post('/api/react', async (req, res) => {
   const { msgId, reaction } = req.body;
   if (!msgId) return res.status(400).json({ error: 'msgId erforderlich' });
@@ -989,6 +1193,36 @@ app.post('/api/react', async (req, res) => {
     }
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Inline-Button einer Bot-Nachricht drücken (Callback an den Bot)
+app.post('/api/bot-callback', mutatingRateLimit, async (req, res) => {
+  const { msgId } = req.body || {};
+  const row = parseInt(req.body?.row, 10), col = parseInt(req.body?.col, 10);
+  if (!msgId || !Number.isInteger(row) || !Number.isInteger(col)) return res.status(400).json({ error: 'msgId, row, col erforderlich' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  const parts = String(msgId).split('_');
+  const rawId = parseInt(parts[parts.length - 1], 10);
+  const chatId = parts.slice(0, -1).join('_');
+  const stored = messagesByChatId.get(chatId)?.find(m => m.id === msgId);
+  const btn = stored?.buttons?.[row]?.[col];
+  if (!btn || btn.kind !== 'callback') return res.status(404).json({ error: 'Button nicht gefunden' });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const answer = await client.invoke(new Api.messages.GetBotCallbackAnswer({
+      peer: entity, msgId: rawId, data: Buffer.from(btn.data || '', 'base64'),
+    }));
+    dbg(`bot-callback: ${msgId} [${row},${col}] "${btn.text}" → alert=${!!answer?.alert} msg="${answer?.message || ''}"`);
+    res.json({ success: true, message: answer?.message || '', alert: !!answer?.alert, url: answer?.url || '' });
+  } catch (e) {
+    // Bots, die den Callback nicht beantworten, liefern nach einigen Sekunden
+    // BOT_RESPONSE_TIMEOUT — die Aktion selbst ist dann trotzdem angekommen.
+    if (/BOT_RESPONSE_TIMEOUT/.test(e.message || '')) return res.json({ success: true, message: '' });
+    console.error('[ERROR] bot-callback:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('/api/reactions/:chatId', (req, res) => {
@@ -1238,6 +1472,54 @@ app.get('/api/avatar/:chatId', async (req, res) => {
   }
 });
 
+// Bot-Befehle (/start, /help …) eines Chats — bei Bots direkt, in Gruppen von
+// allen Bots der Gruppe. Kurz gecacht, weil sich die Liste selten ändert.
+const BOT_CMD_TTL = 10 * 60 * 1000;
+const botCommandsCache = new Map(); // chatId -> { at, commands }
+
+async function fetchBotCommands(entity) {
+  let infos = [];
+  if (entity.className === 'User') {
+    if (!entity.bot) return [];
+    const full = await client.invoke(new Api.users.GetFullUser({ id: entity }));
+    if (full.fullUser?.botInfo) infos = [full.fullUser.botInfo];
+  } else if (entity.className === 'Channel') {
+    const full = await client.invoke(new Api.channels.GetFullChannel({ channel: entity }));
+    infos = full.fullChat?.botInfo || [];
+  } else if (entity.className === 'Chat') {
+    const full = await client.invoke(new Api.messages.GetFullChat({ chatId: entity.id }));
+    infos = full.fullChat?.botInfo || [];
+  }
+  const seen = new Set();
+  const commands = [];
+  for (const info of infos) {
+    for (const c of (info.commands || [])) {
+      if (!c.command || seen.has(c.command)) continue;
+      seen.add(c.command);
+      commands.push({ command: c.command, description: c.description || '' });
+    }
+  }
+  return commands;
+}
+
+app.get('/api/bot-commands/:chatId', async (req, res) => {
+  const chatId = String(req.params.chatId);
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const cached = botCommandsCache.get(chatId);
+  if (cached && Date.now() - cached.at < BOT_CMD_TTL) return res.json({ commands: cached.commands });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.json({ commands: [] });
+    const commands = await fetchBotCommands(entity);
+    botCommandsCache.set(chatId, { at: Date.now(), commands });
+    res.json({ commands });
+  } catch (e) {
+    dbg(`bot-commands ${chatId}: ${e.message}`);
+    res.json({ commands: [] });
+  }
+});
+
 app.get('/api/contact/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1360,6 +1642,7 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; align-items: center; justify-content: center; opacity: 0.55; }
 #refresh-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
+#refresh-btn.auto { opacity: 1; background: rgba(42,171,238,0.35); border-color: #2AABEE; box-shadow: inset 0 1px 3px rgba(0,0,0,0.35); }
 #refresh-all-btn.busy svg { animation: spin 0.7s linear infinite; }
 #refresh-all-btn.busy { opacity: 1; pointer-events: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -1447,6 +1730,14 @@ html.light #chat-header { background: #517DA2; }
 #back-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 4px 8px 4px 0; align-items: center; justify-content: center; }
 #ch-name { font-size: 16px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #ch-stats { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ch-typing { display: none; font-size: 12px; color: #8FD3FF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.light #ch-typing { color: #fff; }
+#chat-header.typing #ch-stats { display: none; }
+#chat-header.typing #ch-typing { display: block; }
+.typing-dots span { animation: typing-dot 1.2s infinite; }
+.typing-dots span:nth-child(2) { animation-delay: .2s; }
+.typing-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes typing-dot { 0%,60%,100%{opacity:.25} 30%{opacity:1} }
 #messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; display: none; }
 .bubble { max-width: 100%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; }
 .bubble.in { border-bottom-left-radius: 2px; }
@@ -1471,6 +1762,15 @@ html.dark .react-btn { color: rgba(193,201,212,0.5); }
 html.light .react-btn { color: rgba(0,0,0,0.35); }
 html.dark .react-btn:hover { color: #C1C9D4; }
 html.light .react-btn:hover { color: #111; }
+.bot-kb { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.bot-kb-row { display: flex; gap: 4px; }
+.bot-kb-btn { flex: 1; min-width: 0; padding: 7px 10px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background .15s; }
+html.dark .bot-kb-btn { background: rgba(43,171,238,0.18); color: #C1C9D4; }
+html.light .bot-kb-btn { background: rgba(42,171,238,0.14); color: #1d6fa5; }
+html.dark .bot-kb-btn:hover { background: rgba(43,171,238,0.32); }
+html.light .bot-kb-btn:hover { background: rgba(42,171,238,0.26); }
+.bot-kb-btn.busy { opacity: 0.5; cursor: progress; }
+.bot-kb-btn.disabled { opacity: 0.45; cursor: not-allowed; }
 .reactions-bar { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px 2px 0; }
 .reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 2px 7px; font-size: 13px; cursor: pointer; border: 1px solid transparent; user-select: none; line-height: 1.5; }
 html.dark .reaction-badge { background: #1A2432; border-color: #2B3A4A; color: #C1C9D4; }
@@ -1487,9 +1787,10 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .bubble-doc .doc-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 .photo-caption { padding: 4px 10px 4px; }
-#export-btn, #delete-mode-btn { background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.65); padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
+#export-btn, #clear-chat-btn, #delete-mode-btn { background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.65); padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
 #export-btn:hover { border-color: rgba(255,255,255,0.8); color: #fff; }
-#delete-mode-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+#delete-mode-btn:hover, #clear-chat-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+#clear-chat-btn:disabled { opacity: 0.4; cursor: wait; }
 #delete-mode-btn.active { border-color: #e74c3c; color: #e74c3c; }
 #messages.delete-mode .bubble-row { cursor: pointer; }
 #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
@@ -1589,6 +1890,22 @@ html.light .emoji-tab.active { background: #E7E7E7; }
 #input-bar .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; width: auto; height: auto; line-height: 1; }
 html.dark #input-bar .emoji-btn:hover { background: rgba(255,255,255,0.06); }
 html.light #input-bar .emoji-btn:hover { background: #F1F1F1; }
+#cmd-toggle { display: none; background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 50%; font-size: 18px; font-weight: 700; line-height: 1; flex-shrink: 0; }
+#cmd-toggle.has-cmds { display: inline-flex; }
+html.dark #cmd-toggle { color: #6B7B8D; }
+html.light #cmd-toggle { color: #888; }
+#cmd-toggle:hover { background: rgba(0,0,0,0.08); }
+#cmd-list { display: none; position: absolute; bottom: 100%; left: 0; right: 0; max-height: 260px; overflow-y: auto; z-index: 21; }
+#cmd-list.open { display: block; }
+html.dark #cmd-list { background: #17212B; border-top: 1px solid #1A2432; }
+html.light #cmd-list { background: #fff; border-top: 1px solid #e0e0e0; }
+.cmd-item { display: flex; gap: 12px; align-items: baseline; padding: 8px 16px; cursor: pointer; }
+.cmd-item .cmd-name { font-weight: 600; white-space: nowrap; }
+.cmd-item .cmd-desc { font-size: 13px; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.dark .cmd-item { color: #C1C9D4; }
+html.light .cmd-item { color: #222; }
+html.dark .cmd-item.active, html.dark .cmd-item:hover { background: #2B5278; }
+html.light .cmd-item.active, html.light .cmd-item:hover { background: #E3EEF7; }
 #emoji-toggle { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 html.dark #emoji-toggle { color: #6B7B8D; }
 html.light #emoji-toggle { color: #888; }
@@ -1706,7 +2023,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
   ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
-  <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">${_SVG.refresh}</button>
+  <button id="refresh-btn" onclick="refreshChat()" oncontextmenu="toggleAutoReload(event)" title="Chat neu laden">${_SVG.refresh}</button>
   <button id="refresh-all-btn" class="scroll-btn" onclick="refreshAllChats()" data-i18n-title="btnReloadAll" title="Alle Chats nachladen">${_SVG.refresh}<span style="font-size:11px;font-weight:600;margin-left:3px">*</span></button>
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
@@ -1736,9 +2053,11 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <div style="flex:1;overflow:hidden">
         <div id="ch-name">–</div>
         <div id="ch-stats"></div>
+        <div id="ch-typing"><span id="ch-typing-text"></span><span class="typing-dots"><span>.</span><span>.</span><span>.</span></span></div>
       </div>
       <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
+      <button id="clear-chat-btn" onclick="clearChat()" data-i18n-title="clearChat" title="Chat leeren">${_SVG.trash}</button>
       <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">${_SVG.x}</button>
     </div>
     <div id="msg-search-bar">
@@ -1767,10 +2086,12 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
         <div id="emoji-tabs"></div>
         <div class="emoji-grid" id="emoji-grid"></div>
       </div>
+      <div id="cmd-list"></div>
       <input type="file" id="file-input" onchange="onFileSelected(this)">
+      <button id="cmd-toggle" onclick="toggleCmdList(event)" data-i18n-title="cmdTitle" title="Bot-Befehle">/</button>
       <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">${_SVG.smile}</button>
       <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">${_SVG.paperclip}</button>
-      <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this);onCmdInput()"></textarea>
       <button id="send-btn" onclick="sendMsg()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
@@ -1800,7 +2121,7 @@ const LANG = {
     photosOn: 'Medien AN', photosOff: 'Medien AUS',
     videoDownload: '⬇ Video herunterladen', videoTooBig: '📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
-    btnReload: 'Chat neu laden', btnReloadAll: 'Alle Chats nachladen',
+    btnReload: 'Chat neu laden', btnReloadAutoOn: 'Automatisches Neuladen AN (alle 10 s)', btnReloadAutoHint: 'Rechtsklick: automatisch neu laden ein/aus', btnReloadAll: 'Alle Chats nachladen',
     reloadAllDone: (n, c) => n + ' neue Nachricht(en) aus ' + c + ' Chats nachgeladen.',
     reloadAllError: (e) => 'Nachladen fehlgeschlagen: ' + e,
     btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
@@ -1808,14 +2129,19 @@ const LANG = {
     btnLogout: 'Abmelden', logoutConfirmMsg: 'Möchtest du dich wirklich abmelden?', btnYes: 'Ja', btnNo: 'Nein',
     searchPlaceholder: 'Suchen…',
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen', cmdTitle: 'Bot-Befehle',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
-    btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
+    btnDelete: 'Löschen', btnReact: 'Reagieren', kbError: 'Button fehlgeschlagen: ', kbUnsupported: 'Dieser Button-Typ wird hier nicht unterstützt', reactionRemove: 'Klicken zum Entfernen',
+    clearChat: 'Chat leeren (alles außer letzter Nachricht)',
+    clearChatConfirm: (name) => 'Alle Nachrichten in „' + name + '" außer der letzten dauerhaft löschen?\\n\\nDas löscht sie auch in Telegram (soweit möglich für beide Seiten) und lässt sich nicht rückgängig machen.',
+    clearChatDone: (n, own) => n + (n===1?' Nachricht':' Nachrichten') + ' gelöscht.' + (own ? '\\nOhne Adminrechte nur eigene Nachrichten.' : ''),
+    clearChatError: 'Chat leeren fehlgeschlagen: ',
     deleteMode: 'Nachrichten löschen', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
+    typing: 'tippt', typingOne: 'tippt', typingMany: 'tippen', typingAnd: 'und',
     offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
     msgSearchTitle: 'In Nachrichten suchen', msgSearchPlaceholder: 'Nachrichten durchsuchen…',
   },
@@ -1829,7 +2155,7 @@ const LANG = {
     photosOn: 'Media ON', photosOff: 'Media OFF',
     videoDownload: '⬇ Download video', videoTooBig: '📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Delete orphaned media files',
-    btnReload: 'Reload chat', btnReloadAll: 'Reload all chats',
+    btnReload: 'Reload chat', btnReloadAutoOn: 'Auto reload ON (every 10 s)', btnReloadAutoHint: 'Right-click: toggle auto reload', btnReloadAll: 'Reload all chats',
     reloadAllDone: (n, c) => n + ' new message(s) loaded from ' + c + ' chats.',
     reloadAllError: (e) => 'Reload failed: ' + e,
     btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
@@ -1837,14 +2163,19 @@ const LANG = {
     btnLogout: 'Log out', logoutConfirmMsg: 'Do you really want to log out?', btnYes: 'Yes', btnNo: 'No',
     searchPlaceholder: 'Search…',
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file', cmdTitle: 'Bot commands',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
-    btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
+    btnDelete: 'Delete', btnReact: 'React', kbError: 'Button failed: ', kbUnsupported: 'This button type is not supported here', reactionRemove: 'Click to remove',
+    clearChat: 'Clear chat (all but the last message)',
+    clearChatConfirm: (name) => 'Permanently delete all messages in "' + name + '" except the last one?\\n\\nThis also deletes them in Telegram (for both sides where possible) and cannot be undone.',
+    clearChatDone: (n, own) => n + ' message' + (n===1?'':'s') + ' deleted.' + (own ? '\\nWithout admin rights only your own messages.' : ''),
+    clearChatError: 'Clearing chat failed: ',
     deleteMode: 'Delete messages', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
+    typing: 'typing', typingOne: 'is typing', typingMany: 'are typing', typingAnd: 'and',
     offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
     msgSearchTitle: 'Search in messages', msgSearchPlaceholder: 'Search messages…',
   },
@@ -2019,6 +2350,7 @@ function applyLang() {
   if (lb) lb.innerHTML = '${_SVG.globe} ' + (lang === 'de' ? 'DE' : 'EN');
   const ptb = document.getElementById('photo-toggle');
   if (ptb) ptb.title = ptb.classList.contains('active') ? t('photosOn') : t('photosOff');
+  try { updateAutoReloadBtn(); } catch(e) {} // läuft beim Start vor der Initialisierung
 }
 function switchLang() {
   lang = lang === 'de' ? 'en' : 'de';
@@ -2353,9 +2685,13 @@ function openChat(chat) {
   document.getElementById('messages').style.display = 'flex';
   document.getElementById('input-bar').style.display = 'flex';
   document.getElementById('refresh-btn').style.display = 'inline-flex';
+  updateAutoReloadBtn();
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
+  document.getElementById('chat-header').classList.remove('typing');
+  pollTyping();
+  loadBotCommands(chat.id);
   const av = document.getElementById('ch-avatar');
   av.onclick = null; av.style.cursor = '';
   av.querySelectorAll('img[data-avatar]').forEach(i => i.remove());
@@ -2402,19 +2738,102 @@ function exportChat() {
   window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId) + '?lang=' + lang);
 }
 
-async function refreshChat() {
+async function clearChat() {
+  if (!selectedChatId) return;
+  var chatId = selectedChatId;
+  var name = document.getElementById('ch-name').textContent || chatId;
+  if (!confirm(tf('clearChatConfirm', name))) return;
+  var btn = document.getElementById('clear-chat-btn');
+  btn.disabled = true;
+  try {
+    var r = await fetch(api('/api/clear-chat/' + encodeURIComponent(chatId)), { method: 'POST' });
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) { alert(t('clearChatError') + (d.error || r.status)); return; }
+    delete _view[chatId]; delete _historyMode[chatId];
+    await loadMessages(chatId, true);
+    alert(tf('clearChatDone', d.deleted || 0, d.onlyOwn));
+  } catch (e) {
+    alert(t('clearChatError') + e.message);
+  } finally { btn.disabled = false; }
+}
+
+// Auto-Neuladen pro Chat: Rechtsklick (Handy: lange drücken) auf den
+// Neu-laden-Knopf rastet ihn ein; der Zustand liegt auf dem Server und gilt
+// damit auf allen Geräten
+const AUTO_RELOAD_MS = 10000;
+let _autoReload = {};
+let _autoReloadBusy = false;
+try { localStorage.removeItem('tg_auto_reload'); } catch(e) {} // Altlast aus 1.7.19
+
+function _setAutoReloadList(list) {
+  _autoReload = {};
+  (list || []).forEach(id => { _autoReload[id] = true; });
+  updateAutoReloadBtn();
+}
+
+async function syncAutoReload() {
+  try {
+    const r = await fetch(api('/api/auto-reload'));
+    if (r.ok) _setAutoReloadList((await r.json()).chats);
+  } catch(e) {}
+}
+
+function updateAutoReloadBtn() {
+  const btn = document.getElementById('refresh-btn');
+  const on = !!(selectedChatId && _autoReload[selectedChatId]);
+  btn.classList.toggle('auto', on);
+  btn.title = t(on ? 'btnReloadAutoOn' : 'btnReload') + ' — ' + t('btnReloadAutoHint');
+}
+
+async function toggleAutoReload(e) {
+  e.preventDefault();
+  const cid = selectedChatId;
+  if (!cid) return;
+  const on = !_autoReload[cid];
+  // Sofort umschalten, Server-Antwort gleicht danach ab
+  if (on) _autoReload[cid] = true; else delete _autoReload[cid];
+  updateAutoReloadBtn();
+  try {
+    const r = await fetch(api('/api/auto-reload/' + encodeURIComponent(cid)), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on })
+    });
+    if (r.ok) _setAutoReloadList((await r.json()).chats);
+    else await syncAutoReload();
+  } catch(err) { await syncAutoReload(); }
+  if (on && _autoReload[cid] && selectedChatId === cid) refreshChat(true);
+}
+
+syncAutoReload();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAutoReload(); });
+
+setInterval(async () => {
+  if (document.hidden) return;
+  await syncAutoReload(); // Änderungen von anderen Geräten übernehmen
+  const cid = selectedChatId;
+  if (!cid || !_autoReload[cid] || isDeleteMode || _historyMode[cid] || _autoReloadBusy) return;
+  // Nicht neu laden, solange weiter oben im Verlauf gelesen wird
+  const el = document.getElementById('messages');
+  if (el.scrollHeight - el.scrollTop - el.clientHeight > 120) return;
+  _autoReloadBusy = true;
+  refreshChat(true).finally(() => { _autoReloadBusy = false; });
+}, AUTO_RELOAD_MS);
+
+async function refreshChat(silent) {
   if (!selectedChatId) return;
   const btn = document.getElementById('refresh-btn');
-  btn.classList.add('spinning');
+  const cid = selectedChatId;
+  if (silent !== true) btn.classList.add('spinning');
   try {
-    const msgs = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?refresh=1')).then(r=>r.json());
+    const msgs = await fetch(api('/api/messages/'+encodeURIComponent(cid)+'?refresh=1')).then(r=>r.json());
+    if (cid !== selectedChatId) return; // Chat zwischenzeitlich gewechselt
     _lastMsgFingerprint[selectedChatId] = '';
     _view[selectedChatId] = msgs;
     _oldestTs[selectedChatId] = msgs.length ? msgs[0].timestamp : null;
     _noMoreOlder[selectedChatId] = false;
     renderMessages(msgs);
-  } catch(e) {}
-  btn.classList.remove('spinning');
+  } catch(e) {} finally {
+    btn.classList.remove('spinning');
+  }
 }
 
 async function refreshAllChats() {
@@ -2447,7 +2866,9 @@ function msgFingerprint(msgs) {
   // Anzahl + letzte ID + Video-mediaFile + ACK-Summe (für sofortige Häkchen-Updates)
   const videoKey = msgs.filter(m => m.type === 'video').map(m => m.id + ':' + (m.mediaFile || '0')).join('|');
   const ackKey = msgs.filter(m => m.fromMe).reduce((s, m) => s + (m.ack || 0), 0);
-  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + ackKey;
+  // Bearbeitungen (Bot-Streaming, ausgetauschte Buttons) müssen neu rendern
+  const editKey = msgs.reduce((s, m) => s + (m.editTs || 0) + (m.buttons ? 1 : 0), 0);
+  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + editKey + ':' + ackKey;
 }
 
 function updateAckMarksInPlace(msgs) {
@@ -2516,6 +2937,26 @@ async function loadOlder() {
     renderMessages(_view[chatId], { preserveScroll: true });
   } catch(e) {} finally { _loadingOlder = false; }
 }
+
+// "tippt …" im Chat-Kopf — eigener kurzer Poll nur für den offenen Chat
+let _typingBusy = false;
+async function pollTyping() {
+  const chatId = selectedChatId;
+  const header = document.getElementById('chat-header');
+  if (!chatId) { header.classList.remove('typing'); return; }
+  if (_typingBusy) return;
+  _typingBusy = true;
+  try {
+    const d = await fetch(api('/api/typing/'+encodeURIComponent(chatId))).then(r=>r.json());
+    if (chatId !== selectedChatId) return;
+    let text = t('typing');
+    if (d.names && d.names.length === 1) text = d.names[0] + ' ' + t('typingOne');
+    else if (d.names && d.names.length > 1) text = d.names.slice(0, 2).join(' ' + t('typingAnd') + ' ') + ' ' + t('typingMany');
+    document.getElementById('ch-typing-text').textContent = text;
+    header.classList.toggle('typing', !!d.typing);
+  } catch(e) {} finally { _typingBusy = false; }
+}
+setInterval(() => { if (!document.hidden) pollTyping(); }, 1500);
 
 async function updateChatStats(chatId) {
   if (chatId !== selectedChatId) return;
@@ -2628,6 +3069,13 @@ function renderMessages(msgs, opts) {
     }
     const reactBadges = _reactSrc ? Object.entries(_reactSrc).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=_myReactSrc===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
+    const kbHtml = (!item.isAlbum && m.buttons && m.buttons.length) ? '<div class="bot-kb">' + m.buttons.map(function(r, ri){
+      return '<div class="bot-kb-row">' + r.map(function(b, ci){
+        var cls = 'bot-kb-btn' + (b.kind === 'unsupported' ? ' disabled' : '');
+        var tip = b.kind === 'url' ? escHtml(b.url || '') : b.kind === 'unsupported' ? t('kbUnsupported') : '';
+        return '<button class="' + cls + '" data-kind="' + escHtml(b.kind || '') + '" data-row="' + ri + '" data-col="' + ci + '"' + (tip ? ' title="' + tip + '"' : '') + '>' + escHtml(b.text || '') + (b.kind === 'url' ? ' ↗' : '') + '</button>';
+      }).join('') + '</div>';
+    }).join('') + '</div>' : '';
     const chatForReply = allChats.find(c=>c.id===selectedChatId);
     const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name||selectedChatId||'');
     const replyPreview = escHtml((m.body||(m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':m.type==='video'?'📹 Video':'')).slice(0,60));
@@ -2636,7 +3084,7 @@ function renderMessages(msgs, opts) {
       ? \`<div class="voice-wrap \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`
       : \`<div class="bubble \${m.fromMe?'out':'in'}\${(isPhoto&&!item.isAlbum)?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`;
     var _albumAttr = item.isAlbum ? ' data-albumids="'+item.albumMsgs.map(function(am){return escHtml(am.id);}).join(',')+'"' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">${_SVG.smile}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">${_SVG.reply}</button></div></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${kbHtml}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">${_SVG.smile}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">${_SVG.reply}</button></div></div>\`;
   }).join('');
   // Noch nicht bestätigte eigene Nachrichten ganz unten anhängen (ausgegraut)
   let _pendHtml = '';
@@ -2858,7 +3306,81 @@ async function sendMsg() {
   }
 }
 
-function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} }
+function handleKey(e) {
+  if (cmdListKey(e)) return;
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
+}
+
+// Bot-Befehle: Liste über dem Eingabefeld, wie in der Telegram-App.
+// Erscheint beim Tippen von "/" am Anfang oder über den "/"-Knopf.
+let _cmds = [], _cmdsChat = null, _cmdShown = [], _cmdActive = 0;
+async function loadBotCommands(chatId) {
+  _cmds = []; _cmdsChat = chatId; closeCmdList();
+  document.getElementById('cmd-toggle').classList.remove('has-cmds');
+  try {
+    const d = await fetch(api('/api/bot-commands/'+encodeURIComponent(chatId))).then(r=>r.json());
+    if (chatId !== selectedChatId) return;
+    _cmds = d.commands || [];
+    document.getElementById('cmd-toggle').classList.toggle('has-cmds', _cmds.length > 0);
+  } catch(e) {}
+}
+function renderCmdList(filter) {
+  const list = document.getElementById('cmd-list');
+  const f = (filter || '').toLowerCase();
+  _cmdShown = _cmds.filter(c => c.command.toLowerCase().startsWith(f));
+  if (!_cmdShown.length) { closeCmdList(); return; }
+  if (_cmdActive >= _cmdShown.length) _cmdActive = 0;
+  list.innerHTML = _cmdShown.map((c, i) =>
+    '<div class="cmd-item'+(i===_cmdActive?' active':'')+'" data-idx="'+i+'"><span class="cmd-name">/'+escHtml(c.command)+'</span><span class="cmd-desc">'+escHtml(c.description)+'</span></div>'
+  ).join('');
+  list.classList.add('open');
+}
+function closeCmdList() { document.getElementById('cmd-list').classList.remove('open'); _cmdShown = []; _cmdActive = 0; }
+function onCmdInput() {
+  if (!_cmds.length) return;
+  const v = document.getElementById('msg-input').value;
+  const m = /^\\/(\\S*)$/.exec(v);
+  if (m) renderCmdList(m[1]); else closeCmdList();
+}
+function toggleCmdList(e) {
+  if (e) e.stopPropagation();
+  if (document.getElementById('cmd-list').classList.contains('open')) { closeCmdList(); return; }
+  _cmdActive = 0;
+  renderCmdList('');
+}
+function pickCmd(idx) {
+  const c = _cmdShown[idx];
+  if (!c) return;
+  closeCmdList();
+  const inp = document.getElementById('msg-input');
+  inp.value = '/' + c.command;
+  sendMsg();
+}
+function cmdListKey(e) {
+  if (!document.getElementById('cmd-list').classList.contains('open')) return false;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    _cmdActive = (_cmdActive + (e.key === 'ArrowDown' ? 1 : -1) + _cmdShown.length) % _cmdShown.length;
+    renderCmdList(document.getElementById('msg-input').value.replace(/^\\//, ''));
+    return true;
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const c = _cmdShown[_cmdActive];
+    if (c) { const inp = document.getElementById('msg-input'); inp.value = '/' + c.command + ' '; closeCmdList(); }
+    return true;
+  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pickCmd(_cmdActive); return true; }
+  if (e.key === 'Escape') { closeCmdList(); return true; }
+  return false;
+}
+document.getElementById('cmd-list').addEventListener('click', function(e) {
+  const it = e.target.closest('.cmd-item');
+  if (it) pickCmd(parseInt(it.dataset.idx, 10));
+});
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#cmd-list') && !e.target.closest('#cmd-toggle')) closeCmdList();
+});
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
 
 async function deleteMsg(chatId, msgId) {
@@ -2882,7 +3404,45 @@ document.getElementById('messages').addEventListener('click', e => {
   if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
   const rpl = e.target.closest('.reply-btn');
   if (rpl) { setReply(rpl.dataset.msgid, rpl.dataset.contact, rpl.dataset.preview, rpl.dataset.tgid); return; }
+  const kb = e.target.closest('.bot-kb-btn');
+  if (kb) { pressBotButton(kb); return; }
 });
+
+async function pressBotButton(el) {
+  const row = el.closest('.bubble-row');
+  const msgId = row && row.dataset.msgid;
+  if (!msgId || el.classList.contains('disabled') || el.classList.contains('busy')) return;
+  const r = +el.dataset.row, c = +el.dataset.col;
+  const m = (_view[selectedChatId] || []).find(function(x){ return x.id === msgId; });
+  const b = m && m.buttons && m.buttons[r] && m.buttons[r][c];
+  if (!b) return;
+  if (b.kind === 'url') { if (/^https?:/i.test(b.url || '')) window.open(b.url, '_blank', 'noopener'); return; }
+  if (b.kind === 'copy') { try { await navigator.clipboard.writeText(b.copy || ''); } catch(err) {} return; }
+  if (b.kind === 'reply') {
+    const inp = document.getElementById('msg-input');
+    inp.value = b.text || '';
+    sendMsg();
+    return;
+  }
+  if (b.kind !== 'callback') return;
+  el.classList.add('busy');
+  try {
+    const res = await fetch(api('/api/bot-callback'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msgId: msgId, row: r, col: c })
+    });
+    const d = await res.json().catch(function(){ return {}; });
+    if (!res.ok || !d.success) { alert(t('kbError') + (d.error || res.status)); return; }
+    if (d.message) alert(d.message);
+    if (d.url && /^https?:/i.test(d.url)) window.open(d.url, '_blank', 'noopener');
+    _lastMsgFingerprint[selectedChatId] = '';
+    await loadMessages(selectedChatId);
+  } catch(err) {
+    alert(t('kbError') + err.message);
+  } finally {
+    el.classList.remove('busy');
+  }
+}
 
 // ── Emoji picker ───────────────────────────────────────────────────────────────
 const EMOJI_RECENT_KEY = 'tg_emoji_recent';

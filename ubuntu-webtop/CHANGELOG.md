@@ -1,3 +1,44 @@
+## [1.8.91] - 2026-10-01
+
+### Aktualisiert
+
+- VS Code: 1.139.1 → 1.140.0
+- Thunderbird: 156.0.1 → 157.0
+- Claude Desktop: 3.3.2+claude2.9939.4 → 3.3.3+claude2.9939.4
+- OpenCode: 1.18.33 → 1.18.34
+
+## [1.8.90] - 2026-09-30
+
+### Aktualisiert
+
+- GitHub CLI: 2.101.0 → 2.102.0
+- Firefox: 156.0.1 → 157.0
+- Claude Desktop: 3.3.0+claude2.9939.4 → 3.3.2+claude2.9939.4
+
+## [1.8.89] - 2026-09-29
+
+### Aktualisiert
+
+- Claude Desktop: 3.3.0+claude2.7032.0 → 3.3.0+claude2.9939.4
+
+## [1.8.88] - 2026-09-28
+
+### Aktualisiert
+
+- OpenCode: 1.18.32 → 1.18.33
+
+## [1.8.87] - 2026-09-27
+
+### Aktualisiert
+
+- Claude Desktop: 3.2.4+claude2.7032.0 → 3.3.0+claude2.7032.0
+
+## [1.8.86] - 2026-09-26
+
+### Aktualisiert
+
+- VS Code: 1.139.0 → 1.139.1
+
 ## [1.8.85] - 2026-09-24
 
 ### Aktualisiert

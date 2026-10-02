@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.17] - 2026-10-01
+
+### Sicherheit
+- MCP-Proxy reicht nur noch eine feste Liste von Antwort-Headern durch (Content-Type, Cache-Control, Mcp-Session-Id, Mcp-Protocol-Version, WWW-Authenticate, Allow), Zeilenumbrüche in Header-Werten werden entfernt (CodeQL: HTTP Response Splitting)
+
+## [1.0.16] - 2026-10-01
+
+### Neu
+- Eingebauter Playwright MCP-Server (Option `enable_mcp`, Port 17799, Pfad `/mcp`) für LiteLLM, Hermes und andere MCP-Clients. Abgesichert über Pflicht-Token `mcp_token` (Header `Authorization: Bearer …`, mindestens 16 Zeichen), da Add-on-Ports im ganzen Heimnetz erreichbar sind
+- Chromium startet weiterhin erst bei der ersten Browser-Aktion; der MCP trennt sich nach `idle_timeout` vom Browser, danach stoppt Chromium wie bisher
+- Übersetzungen der Optionen (DE/EN)
+
+### Behoben
+- `/json/version` lieferte eine WebSocket-URL ohne Port (`ws://localhost/devtools/...`), weil der Proxy den Host-Header ohne Port weitergab; Clients, die `webSocketDebuggerUrl` nutzen, konnten sich nicht verbinden
+
 ## [1.0.15] - 2026-07-09
 
 ### Behoben

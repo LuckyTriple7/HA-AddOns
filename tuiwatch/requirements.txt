@@ -1,4 +1,6 @@
 flask==3.1.3
+# gepinnt: ProxyFix-Verhalten (x_prefix/x_host) hängt an der Werkzeug-Version
+werkzeug==3.1.8
 playwright==1.60.0
 requests==2.34.2
 pdfplumber==0.11.7
@@ -7,3 +9,5 @@ google-genai==2.10.0
 waitress==3.0.2
 # Verschlüsselt die geheimen Felder in settings.json (Fernet, siehe settings.py)
 cryptography==50.0.0
+# QR-Code für die Einrichtung der Zwei-Faktor-Anmeldung (twofa.py)
+qrcode==8.2
