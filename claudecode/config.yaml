@@ -1,6 +1,6 @@
 ﻿name: Claude Code
 description: KI-Coding-Assistent Claude Code direkt in Home Assistant – Automationen erstellen, Konfiguration verwalten und Fehler beheben
-version: "1.3.28"
+version: "1.3.29"
 image: "ghcr.io/luckytriple7/claudecode"
 slug: claudecode
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -41,6 +41,7 @@ options:
   enable_mcp: true
   enable_playwright_mcp: false
   playwright_cdp_host: ""
+  enable_context7_mcp: false
   terminal_font_size: 14
   terminal_theme: dark
   working_directory: /homeassistant
@@ -50,7 +51,7 @@ options:
   claude_autostart: false
   auto_update_claude: true
   notify_on_update: true
-  model: claude-sonnet-5
+  model: claude-sonnet-5-5
   export_memory: false
   export_memory_interval: 60
   enable_caveman_skill: false
@@ -62,6 +63,7 @@ schema:
   enable_mcp: bool
   enable_playwright_mcp: bool
   playwright_cdp_host: str?
+  enable_context7_mcp: bool
   terminal_font_size: int(10,24)
   terminal_theme: list(dark|light)
   working_directory: str
@@ -71,7 +73,7 @@ schema:
   claude_autostart: bool
   auto_update_claude: bool
   notify_on_update: bool
-  model: list(claude-sonnet-5|claude-fable-5-1|claude-opus-5-5|claude-haiku-4-5-20251001|claude-fable-5|claude-opus-5)
+  model: list(claude-sonnet-5-5|claude-fable-5-1|claude-opus-5-5|claude-haiku-4-5-20251001|claude-fable-5|claude-opus-5|claude-sonnet-5)
   export_memory: bool
   export_memory_interval: int(0,1440)
   enable_caveman_skill: bool

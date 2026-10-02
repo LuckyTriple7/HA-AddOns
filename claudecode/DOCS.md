@@ -30,8 +30,9 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `mobile_scroll_ui` | `true` | Wisch-Scrollen und Scroll-Knöpfe auf Touch-Geräten (Handy/Tablet/HA App) |
 | `claude_autostart` | `false` | Claude beim Öffnen des Terminals automatisch starten |
 | `auto_update_claude` | `true` | Claude Code beim Start automatisch aktualisieren |
-| `model` | `claude-sonnet-5` | Zu verwendendes Claude-Modell |
+| `model` | `claude-sonnet-5-5` | Zu verwendendes Claude-Modell |
 | `enable_playwright_mcp` | `false` | Playwright Browser-MCP aktivieren (benötigt Playwright Browser Add-on) |
+| `enable_context7_mcp` | `false` | Context7-MCP für aktuelle Bibliotheks-/API-Doku anbinden ([Details](#context7-mcp)) |
 | `export_memory` | `false` | Claude-Speicher in `/config/memory/` exportieren |
 | `export_memory_interval` | `60` | Export-Intervall in Minuten |
 | `enable_caveman_skill` | `false` | Optionale "Caveman"-Skills (knappe Antworten) installieren — 7 Skills + 3 Subagenten |
@@ -43,7 +44,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 
 | Modell | Für was |
 |--------|---------|
-| `claude-sonnet-5` | Beste Balance (Standard) |
+| `claude-sonnet-5-5` | Beste Balance (Standard) |
 | `claude-fable-5-1` | Leistungsstärkstes Modell, für die schwierigsten Aufgaben |
 | `claude-opus-5-5` | Sehr stark, für komplexe Aufgaben |
 | `claude-haiku-4-5-20251001` | Schnellstes Modell, für einfache Anfragen |
@@ -155,11 +156,23 @@ claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/
 
 `${GITHUB_PERSONAL_ACCESS_TOKEN}` bleibt dabei **genau so stehen**. Claude Code setzt den Wert beim Verbinden aus der Umgebung ein — Dein Token landet dadurch in keiner Konfigurationsdatei. Danach `claude` neu starten, `/mcp` zeigt `github` als verbundenen Server.
 
-Der Eintrag liegt in `/root/.claude.json` und bleibt erhalten; das Add-on setzt beim Start nur `homeassistant` und `playwright` neu. Alternativ geht auch der Weg über `/plugin` → Marketplace → GitHub-Plugin; dessen `.mcp.json` verwendet dieselbe Variable.
+Der Eintrag liegt in `/root/.claude.json` und bleibt erhalten; das Add-on setzt beim Start nur `homeassistant`, `playwright` und `context7` neu. Alternativ geht auch der Weg über `/plugin` → Marketplace → GitHub-Plugin; dessen `.mcp.json` verwendet dieselbe Variable.
 
 Ignoriert werden `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` und `HA_URL`; sie zu überschreiben würde das Add-on lahmlegen. Im Log erscheinen nur die Namen der geladenen Variablen, nie deren Werte.
 
 **Wo die Datei liegt, ist relevant:** `/homeassistant` steckt in jedem Home-Assistant-Backup, das Token damit auch. Vergib nur die nötigen Rechte (bei GitHub: fine-grained Token, minimaler Scope) und widerrufe es, wenn du es nicht mehr brauchst. Solange `protect_internal_config` aktiv ist, kann Claude die `.env` selbst nicht lesen — die Werte stehen ohnehin schon in seiner Umgebung.
+
+### Context7-MCP
+
+Mit `enable_context7_mcp: true` registriert das Add-on beim Start den Remote-Server von [Context7](https://context7.com) (`https://mcp.context7.com/mcp`). Claude holt sich darüber aktuelle Dokumentation zu Bibliotheken, Frameworks und APIs, statt sich auf sein Trainingswissen zu verlassen. Die Werkzeuge `resolve-library-id` und `query-docs` sind vorab freigegeben, es kommt also keine Rückfrage.
+
+Ein Schlüssel ist nicht nötig, ohne ihn gilt aber ein niedrigeres Abfragelimit. Wer einen hat (kostenlos unter context7.com/dashboard), trägt ihn in die `.env` ein:
+
+```
+CONTEXT7_API_KEY=ctx7sk-…
+```
+
+Das Add-on schreibt in die Server-Konfiguration nur den Platzhalter `${CONTEXT7_API_KEY}`, der Schlüssel selbst landet in keiner Konfigurationsdatei. Suchanfragen gehen an einen externen Dienst — keine Geheimnisse oder internen Daten danach fragen.
 
 ## Git — Identität und Zugangsdaten
 
@@ -266,8 +279,9 @@ claude --continue   # continue last conversation
 | `mobile_scroll_ui` | `true` | Swipe scrolling and scroll buttons on touch devices (phone/tablet/HA app) |
 | `claude_autostart` | `false` | Auto-start Claude when the terminal opens |
 | `auto_update_claude` | `true` | Auto-update Claude Code on startup |
-| `model` | `claude-sonnet-5` | Claude model to use |
+| `model` | `claude-sonnet-5-5` | Claude model to use |
 | `enable_playwright_mcp` | `false` | Enable Playwright browser MCP (requires Playwright Browser add-on) |
+| `enable_context7_mcp` | `false` | Connect Context7 MCP for current library/API docs ([details](#context7-mcp-1)) |
 | `export_memory` | `false` | Export Claude memory to `/config/memory/` |
 | `export_memory_interval` | `60` | Export interval in minutes |
 | `enable_caveman_skill` | `false` | Install the optional "Caveman" skills (terse responses) — 7 skills + 3 subagents |
@@ -279,7 +293,7 @@ claude --continue   # continue last conversation
 
 | Model | Best for |
 |-------|----------|
-| `claude-sonnet-5` | Best balance (default) |
+| `claude-sonnet-5-5` | Best balance (default) |
 | `claude-fable-5-1` | Most powerful, for the hardest tasks |
 | `claude-opus-5-5` | Very capable, for complex tasks |
 | `claude-haiku-4-5-20251001` | Fastest, for simple queries |
@@ -391,11 +405,23 @@ claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/
 
 Leave `${GITHUB_PERSONAL_ACCESS_TOKEN}` in there **exactly as written**. Claude Code substitutes the value from the environment when connecting, so your token never ends up in a config file. Then restart `claude` and `/mcp` lists `github` as connected.
 
-The entry lives in `/root/.claude.json` and persists; the add-on only re-creates `homeassistant` and `playwright` on start. The `/plugin` → marketplace → GitHub plugin route works as well; its `.mcp.json` uses the same variable.
+The entry lives in `/root/.claude.json` and persists; the add-on only re-creates `homeassistant`, `playwright` and `context7` on start. The `/plugin` → marketplace → GitHub plugin route works as well; its `.mcp.json` uses the same variable.
 
 Ignored are `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` and `HA_URL`; overwriting those would break the add-on. The log lists only the names of the loaded variables, never their values.
 
 **Where the file lives matters:** `/homeassistant` is part of every Home Assistant backup, and so is the token. Grant only the permissions you need (on GitHub: a fine-grained token with minimal scope) and revoke it once you are done. While `protect_internal_config` is on, Claude cannot read the `.env` itself — the values are already in its environment anyway.
+
+### Context7 MCP
+
+With `enable_context7_mcp: true` the add-on registers the remote [Context7](https://context7.com) server (`https://mcp.context7.com/mcp`) on start. Claude uses it to fetch current documentation for libraries, frameworks and APIs instead of relying on its training data. The tools `resolve-library-id` and `query-docs` are pre-approved, so there is no permission prompt.
+
+No key is required, but without one a lower rate limit applies. If you have one (free at context7.com/dashboard), put it in `.env`:
+
+```
+CONTEXT7_API_KEY=ctx7sk-…
+```
+
+The add-on only writes the `${CONTEXT7_API_KEY}` placeholder into the server config; the key itself never ends up in a config file. Queries go to an external service — do not search for secrets or internal data.
 
 ## Git — Identity and Credentials
 
