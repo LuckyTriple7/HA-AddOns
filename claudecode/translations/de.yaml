@@ -26,6 +26,12 @@ configuration:
       liefert. Funktioniert ohne Schlüssel; ein optionaler CONTEXT7_API_KEY in
       der .env hebt das Abfragelimit an. Anfragen gehen an einen externen
       Dienst. Standard: deaktiviert.
+  context7_api_key:
+    name: Context7-API-Schlüssel
+    description: >-
+      Optionaler Schlüssel von context7.com/dashboard, hebt das Abfragelimit
+      an. Wird nur bei aktiviertem Context7 MCP genutzt und hat Vorrang vor
+      CONTEXT7_API_KEY in der .env. Leer = ohne Schlüssel.
   terminal_font_size:
     name: Terminal-Schriftgröße
     description: >-

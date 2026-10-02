@@ -273,6 +273,7 @@ cat > "$PERSIST_DIR/.env.example" << 'ENVEXAMPLE'
 
 # Optional, only with the add-on option enable_context7_mcp: a Context7 API key
 # (context7.com/dashboard) raises the rate limit. Without it Context7 still works.
+# Simpler: enter it in the add-on option context7_api_key, which wins over this.
 #CONTEXT7_API_KEY=ctx7sk-your-key-here
 
 # Paste the token exactly as GitHub shows it. Its prefix (ghp_, github_pat_, …)
@@ -361,6 +362,7 @@ ENABLE_MCP=$(jq -r 'if .enable_mcp == false then "false" else "true" end' /data/
 ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json)
 PLAYWRIGHT_HOST=$(jq -r --arg d '' '.playwright_cdp_host // $d' /data/options.json)
 ENABLE_CONTEXT7=$(jq -r '.enable_context7_mcp // false' /data/options.json)
+CONTEXT7_KEY_OPT=$(jq -r --arg d '' '.context7_api_key // $d' /data/options.json)
 AUTO_UPDATE=$(jq -r 'if .auto_update_claude == false then "false" else "true" end' /data/options.json)
 NOTIFY_ON_UPDATE=$(jq -r 'if .notify_on_update == false then "false" else "true" end' /data/options.json)
 MODEL=$(jq -r --arg d claude-sonnet-5-5 '.model // $d' /data/options.json)
@@ -580,14 +582,20 @@ fi
 
 if [ "$ENABLE_CONTEXT7" = "true" ]; then
     # Remote Context7 server (current library docs). Works without a key at a
-    # lower rate limit. With CONTEXT7_API_KEY in .env the header keeps the
-    # literal ${CONTEXT7_API_KEY} placeholder, so the key never lands in
-    # /root/.claude.json; Claude Code fills it in from its environment.
+    # lower rate limit. The key comes from the add-on option context7_api_key,
+    # or from CONTEXT7_API_KEY in .env; the option wins when both are set. The
+    # header keeps the literal ${CONTEXT7_API_KEY} placeholder, so the key never
+    # lands in /root/.claude.json; Claude Code fills it in from its environment.
+    C7_SOURCE=".env"
+    if [ -n "$CONTEXT7_KEY_OPT" ]; then
+        export CONTEXT7_API_KEY="$CONTEXT7_KEY_OPT"
+        C7_SOURCE="add-on options"
+    fi
     if [ -n "${CONTEXT7_API_KEY:-}" ]; then
         claude mcp add-json context7 \
             '{"type":"http","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"${CONTEXT7_API_KEY}"}}' \
             -s user
-        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Context7 MCP enabled (with API key from .env)"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Context7 MCP enabled (with API key from $C7_SOURCE)"
     else
         claude mcp add-json context7 \
             '{"type":"http","url":"https://mcp.context7.com/mcp"}' \

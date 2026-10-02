@@ -24,6 +24,12 @@
       Claude current documentation for libraries, frameworks and APIs. Works
       without a key; an optional CONTEXT7_API_KEY in .env raises the rate limit.
       Queries go to an external service. Default: disabled.
+  context7_api_key:
+    name: Context7 API key
+    description: >-
+      Optional key from context7.com/dashboard, raises the rate limit. Only
+      used when Context7 MCP is enabled. Takes precedence over CONTEXT7_API_KEY
+      in .env. Empty = no key.
   terminal_font_size:
     name: Terminal Font Size
     description: >-

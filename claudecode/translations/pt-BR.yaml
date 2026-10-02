@@ -25,6 +25,12 @@
       ao Claude documentação atual de bibliotecas, frameworks e APIs. Funciona
       sem chave; um CONTEXT7_API_KEY opcional no .env aumenta o limite de
       consultas. As consultas vão para um serviço externo. Padrão: desativado.
+  context7_api_key:
+    name: Chave de API do Context7
+    description: >-
+      Chave opcional de context7.com/dashboard, aumenta o limite de consultas.
+      Usada apenas com o MCP Context7 habilitado. Tem prioridade sobre
+      CONTEXT7_API_KEY no .env. Vazio = sem chave.
   terminal_font_size:
     name: Tamanho da Fonte do Terminal
     description: >-

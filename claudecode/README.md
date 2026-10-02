@@ -112,7 +112,8 @@ claude --continue
 | `claude_autostart` | Claude beim Öffnen des Terminals automatisch starten | false |
 | `auto_update_claude` | Claude Code beim Start automatisch aktualisieren | true |
 | `model` | Zu verwendendes Claude-Modell | claude-sonnet-5-5 |
-| `enable_context7_mcp` | Context7-MCP für aktuelle Bibliotheks-/API-Doku anbinden (optional CONTEXT7_API_KEY in .env) | false |
+| `enable_context7_mcp` | Context7-MCP für aktuelle Bibliotheks-/API-Doku anbinden | false |
+| `context7_api_key` | Optionaler Context7-API-Schlüssel (hebt das Abfragelimit an, Alternative: CONTEXT7_API_KEY in .env) | — |
 
 ### Modellauswahl
 
@@ -371,7 +372,8 @@ claude --continue
 | `claude_autostart` | Auto-start Claude when terminal opens | false |
 | `auto_update_claude` | Auto-update Claude Code on startup | true |
 | `model` | Claude model to use | claude-sonnet-5-5 |
-| `enable_context7_mcp` | Connect Context7 MCP for current library/API docs (optional CONTEXT7_API_KEY in .env) | false |
+| `enable_context7_mcp` | Connect Context7 MCP for current library/API docs | false |
+| `context7_api_key` | Optional Context7 API key (raises the rate limit, alternative: CONTEXT7_API_KEY in .env) | — |
 
 ### Model Selection
 

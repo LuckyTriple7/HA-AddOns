@@ -33,6 +33,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `model` | `claude-sonnet-5-5` | Zu verwendendes Claude-Modell |
 | `enable_playwright_mcp` | `false` | Playwright Browser-MCP aktivieren (benötigt Playwright Browser Add-on) |
 | `enable_context7_mcp` | `false` | Context7-MCP für aktuelle Bibliotheks-/API-Doku anbinden ([Details](#context7-mcp)) |
+| `context7_api_key` | — | Optionaler Context7-API-Schlüssel (hebt das Abfragelimit an) |
 | `export_memory` | `false` | Claude-Speicher in `/config/memory/` exportieren |
 | `export_memory_interval` | `60` | Export-Intervall in Minuten |
 | `enable_caveman_skill` | `false` | Optionale "Caveman"-Skills (knappe Antworten) installieren — 7 Skills + 3 Subagenten |
@@ -166,11 +167,13 @@ Ignoriert werden `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERV
 
 Mit `enable_context7_mcp: true` registriert das Add-on beim Start den Remote-Server von [Context7](https://context7.com) (`https://mcp.context7.com/mcp`). Claude holt sich darüber aktuelle Dokumentation zu Bibliotheken, Frameworks und APIs, statt sich auf sein Trainingswissen zu verlassen. Die Werkzeuge `resolve-library-id` und `query-docs` sind vorab freigegeben, es kommt also keine Rückfrage.
 
-Ein Schlüssel ist nicht nötig, ohne ihn gilt aber ein niedrigeres Abfragelimit. Wer einen hat (kostenlos unter context7.com/dashboard), trägt ihn in die `.env` ein:
+Ein Schlüssel ist nicht nötig, ohne ihn gilt aber ein niedrigeres Abfragelimit. Wer einen hat (kostenlos unter context7.com/dashboard), trägt ihn in den Add-on-Optionen unter `context7_api_key` ein. Alternativ geht auch die `.env`:
 
 ```
 CONTEXT7_API_KEY=ctx7sk-…
 ```
+
+Sind beide gesetzt, gewinnt die Add-on-Option. Im Log steht, woher der Schlüssel kam (`with API key from add-on options` bzw. `from .env`).
 
 Das Add-on schreibt in die Server-Konfiguration nur den Platzhalter `${CONTEXT7_API_KEY}`, der Schlüssel selbst landet in keiner Konfigurationsdatei. Suchanfragen gehen an einen externen Dienst — keine Geheimnisse oder internen Daten danach fragen.
 
@@ -282,6 +285,7 @@ claude --continue   # continue last conversation
 | `model` | `claude-sonnet-5-5` | Claude model to use |
 | `enable_playwright_mcp` | `false` | Enable Playwright browser MCP (requires Playwright Browser add-on) |
 | `enable_context7_mcp` | `false` | Connect Context7 MCP for current library/API docs ([details](#context7-mcp-1)) |
+| `context7_api_key` | — | Optional Context7 API key (raises the rate limit) |
 | `export_memory` | `false` | Export Claude memory to `/config/memory/` |
 | `export_memory_interval` | `60` | Export interval in minutes |
 | `enable_caveman_skill` | `false` | Install the optional "Caveman" skills (terse responses) — 7 skills + 3 subagents |
@@ -415,11 +419,13 @@ Ignored are `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_
 
 With `enable_context7_mcp: true` the add-on registers the remote [Context7](https://context7.com) server (`https://mcp.context7.com/mcp`) on start. Claude uses it to fetch current documentation for libraries, frameworks and APIs instead of relying on its training data. The tools `resolve-library-id` and `query-docs` are pre-approved, so there is no permission prompt.
 
-No key is required, but without one a lower rate limit applies. If you have one (free at context7.com/dashboard), put it in `.env`:
+No key is required, but without one a lower rate limit applies. If you have one (free at context7.com/dashboard), enter it in the add-on option `context7_api_key`. `.env` works as well:
 
 ```
 CONTEXT7_API_KEY=ctx7sk-…
 ```
+
+If both are set, the add-on option wins. The log says where the key came from (`with API key from add-on options` or `from .env`).
 
 The add-on only writes the `${CONTEXT7_API_KEY}` placeholder into the server config; the key itself never ends up in a config file. Queries go to an external service — do not search for secrets or internal data.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2026-10-02
+
+### Added
+- Option context7_api_key: Context7-API-Schlüssel direkt in den Add-on-Optionen eintragen (Passwortfeld); hat Vorrang vor CONTEXT7_API_KEY in der .env, landet weiterhin nur als Platzhalter in der MCP-Konfiguration
+
+
 ## [1.4.0] - 2026-10-02
 
 ### Added

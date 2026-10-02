@@ -1,6 +1,6 @@
 ﻿name: Claude Code
 description: KI-Coding-Assistent Claude Code direkt in Home Assistant – Automationen erstellen, Konfiguration verwalten und Fehler beheben
-version: "1.4.0"
+version: "1.4.1"
 image: "ghcr.io/luckytriple7/claudecode"
 slug: claudecode
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -42,6 +42,7 @@ options:
   enable_playwright_mcp: false
   playwright_cdp_host: ""
   enable_context7_mcp: false
+  context7_api_key: ""
   terminal_font_size: 14
   terminal_theme: dark
   working_directory: /homeassistant
@@ -64,6 +65,7 @@ schema:
   enable_playwright_mcp: bool
   playwright_cdp_host: str?
   enable_context7_mcp: bool
+  context7_api_key: password?
   terminal_font_size: int(10,24)
   terminal_theme: list(dark|light)
   working_directory: str
