@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.32] - 2026-10-02
+- README: REST-API-Beispiele auf Port **17787** mit Token umgestellt (`curl`, `rest_command` samt `secrets.yaml`), Optionen `api_enabled` und `api_token` in der Konfigurationstabelle ergaenzt. Die README zeigte noch den seit 1.6.29 geschlossenen Port 17777 ohne Anmeldung
+
 ## [1.6.31] - 2026-10-02
 - **Basis-Image bbernhard/signal-cli-rest-api 0.101** (signal-cli **0.14.8**). Upstream: Fehlerbehandlung in `/v2/send` und im json-rpc-Modus verbessert, `/v2/send` meldet Teil-Fehlschlaege bei mehreren Empfaengern oder Gruppen in einem zusaetzlichen `errors`-Objekt, `/v1/groups` liefert die Gruppenmitgliedschaft
 - Anpassung an das umgebaute Basis-Image: es laeuft seit 0.101 als Benutzer `signal-api` mit s6-overlay, `/entrypoint.sh` gibt es nicht mehr. Das Dockerfile wechselt fuer die Paketinstallation wieder auf `root`, `run.sh` startet die API selbst — wie bisher als Benutzer 1000 ohne Capabilities, der Datenordner wird beim Start an ihn uebergeben
