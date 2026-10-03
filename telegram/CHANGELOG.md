@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.24] - 2026-10-03
+- Neu: **Eigene Befehle pro Chat.** Das `/`-Menü zeigt jetzt drei Abschnitte: **★ eigene Befehle**, **↺ zuletzt gesendete Befehle** und wie bisher die Befehle, die der Bot selbst meldet. Eigene Befehle dürfen Parameter enthalten (z. B. `/update litellm -y`), haben eine Beschreibung und werden entweder sofort gesendet oder nur ins Eingabefeld eingefügt, damit du vor dem Senden noch etwas ergänzen kannst. Anlegen über „＋ Eigenen Befehl anlegen…“ am Ende der Liste oder über ☆ an einem zuletzt gesendeten Befehl; bearbeiten und löschen über ✎. Die Suche beim Tippen findet auch Treffer in der Beschreibung
+- Der Verlauf merkt sich automatisch die zuletzt gesendeten Befehle (auch aus der Telegram-App am Handy) und zeigt bis zu 8 davon. Befehle, die der Bot schon selbst im Menü anbietet, und angeheftete Befehle erscheinen dort nicht doppelt; ✕ entfernt einen Eintrag
+- Gespeichert wird auf dem Server in `/config/custom_commands.json`, damit alle Geräte dieselben Befehle sehen. Der `/`-Knopf ist jetzt in jedem Chat sichtbar (blass, solange es noch keine Befehle gibt)
+
 ## [1.7.23] - 2026-10-03
 - Neu: **Telegram-Formatierung wird angezeigt.** Codeblöcke erscheinen wie in der Telegram-App als abgesetzter Kasten in Monospace-Schrift, mit Sprache in der Kopfzeile (z. B. „Bash") und einem Knopf „Code kopieren". Außerdem werden Inline-Code, **fett**, *kursiv*, unterstrichen, durchgestrichen, Textlinks, Zitate und Spoiler (Antippen zum Aufdecken) dargestellt. Bisher kam nur der reine Text an. Gilt für neu empfangene oder neu geladene Nachrichten; ältere Nachrichten im Cache erhalten die Formatierung nach „Chat neu laden"
 
