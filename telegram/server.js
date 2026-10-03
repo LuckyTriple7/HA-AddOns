@@ -135,6 +135,31 @@ let passwordResolver = null;
 const chatMap = new Map();
 const messagesByChatId = new Map();
 const seenMsgIds = new Set();
+// Kürzlich gelöschte Nachrichten je Chat (msgId → Zeitpunkt). Ein Neuladen,
+// das vor dem Löschen bei Telegram angefragt wurde, liefert sie sonst zurück
+// und schreibt sie wieder in den Cache
+const recentDeletes = new Map();
+const RECENT_DELETE_MS = 120000;
+function noteDeleted(chatId, msgIds) {
+  let m = recentDeletes.get(chatId);
+  if (!m) { m = new Map(); recentDeletes.set(chatId, m); }
+  const now = Date.now();
+  for (const id of msgIds) m.set(id, now);
+}
+function purgeRecentDeletes(chatId) {
+  const m = recentDeletes.get(chatId);
+  if (!m) return;
+  const now = Date.now();
+  for (const [id, ts] of m) if (now - ts > RECENT_DELETE_MS) m.delete(id);
+  if (!m.size) { recentDeletes.delete(chatId); return; }
+  const msgs = messagesByChatId.get(chatId);
+  if (!msgs) return;
+  const remain = msgs.filter(x => !m.has(x.id));
+  if (remain.length === msgs.length) return;
+  msgs.forEach(x => { if (m.has(x.id)) seenMsgIds.delete(x.id); });
+  messagesByChatId.set(chatId, remain);
+  scheduleSave();
+}
 const peerMap = new Map(); // chatId (str) -> entity (in-memory, lost on restart)
 
 // ── Tipp-Anzeige ("tippt …") ──────────────────────────────────────────────────
@@ -820,6 +845,7 @@ app.get('/api/messages/:chatId', async (req, res) => {
     prevMsgs.forEach(m => seenMsgIds.delete(m.id));
     messagesByChatId.delete(chatId);
     await fetchMessages(chatId);
+    purgeRecentDeletes(chatId);
     for (const m of (messagesByChatId.get(chatId) || [])) {
       const saved = savedData.get(m.id);
       if (!saved) continue;
@@ -833,6 +859,7 @@ app.get('/api/messages/:chatId', async (req, res) => {
   const existing = messagesByChatId.get(chatId) || [];
   if (!messagesByChatId.has(chatId) && status === 'connected') {
     await fetchMessages(chatId);
+    purgeRecentDeletes(chatId);
     return res.json((messagesByChatId.get(chatId) || []).slice(-limit));
   }
   res.json(existing.slice(-limit));
@@ -1080,6 +1107,7 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
     const rawId = parseInt(msgId.split('_').pop(), 10);
     dbg(`Deleting message ${msgId} (rawId=${rawId}) in chat ${chatId}`);
     await client.deleteMessages(entity, [rawId], { revoke: true });
+    noteDeleted(chatId, [msgId]);
     const msgs = messagesByChatId.get(chatId);
     if (msgs) {
       const idx = msgs.findIndex(m => m.id === msgId);
@@ -1121,6 +1149,7 @@ app.post('/api/clear-chat/:chatId', deleteRateLimit, async (req, res) => {
     }
     const keepKey = `${chatId}_${keepId}`;
     const deleted = new Set(ids.map(id => `${chatId}_${id}`));
+    noteDeleted(chatId, deleted);
     const msgs = messagesByChatId.get(chatId);
     if (msgs) {
       const remain = [];
@@ -2184,6 +2213,9 @@ const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ?
 let lang = localStorage.getItem('tg_lang') || _browserLang;
 let isDeleteMode = false;
 const selectedMsgs = new Set();
+// Laufende Löschvorgänge: Auto-Neuladen pausiert, und ein Neuladen, das schon
+// unterwegs war, verwirft sein (veraltetes) Ergebnis
+let _deleting = 0, _deleteGen = 0;
 function toggleDeleteMode() {
   if (!isDeleteMode) { enterDeleteMode(); return; }
   if (selectedMsgs.size > 0) confirmDeleteSelected(); else exitDeleteMode();
@@ -2212,8 +2244,11 @@ async function confirmDeleteSelected() {
   var chatId = selectedChatId;
   var ids = Array.from(selectedMsgs);
   exitDeleteMode();
-  await Promise.all(ids.map(function(id){ return fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(id)), {method:'DELETE'}); }));
-  await loadMessages(chatId);
+  _deleting++; _deleteGen++;
+  try {
+    await Promise.all(ids.map(function(id){ return fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(id)), {method:'DELETE'}); }));
+    await loadMessages(chatId);
+  } finally { _deleting--; }
 }
 // ── Nachrichtensuche ──────────────────────────────────────────────────────────
 // _msgSearchMatches: serverseitige Treffer [{id, timestamp}] (neueste zuerst)
@@ -2745,6 +2780,7 @@ async function clearChat() {
   if (!confirm(tf('clearChatConfirm', name))) return;
   var btn = document.getElementById('clear-chat-btn');
   btn.disabled = true;
+  _deleting++; _deleteGen++;
   try {
     var r = await fetch(api('/api/clear-chat/' + encodeURIComponent(chatId)), { method: 'POST' });
     var d = await r.json().catch(function(){ return {}; });
@@ -2754,7 +2790,7 @@ async function clearChat() {
     alert(tf('clearChatDone', d.deleted || 0, d.onlyOwn));
   } catch (e) {
     alert(t('clearChatError') + e.message);
-  } finally { btn.disabled = false; }
+  } finally { btn.disabled = false; _deleting--; }
 }
 
 // Auto-Neuladen pro Chat: Rechtsklick (Handy: lange drücken) auf den
@@ -2810,7 +2846,7 @@ setInterval(async () => {
   if (document.hidden) return;
   await syncAutoReload(); // Änderungen von anderen Geräten übernehmen
   const cid = selectedChatId;
-  if (!cid || !_autoReload[cid] || isDeleteMode || _historyMode[cid] || _autoReloadBusy) return;
+  if (!cid || !_autoReload[cid] || isDeleteMode || _deleting || _historyMode[cid] || _autoReloadBusy) return;
   // Nicht neu laden, solange weiter oben im Verlauf gelesen wird
   const el = document.getElementById('messages');
   if (el.scrollHeight - el.scrollTop - el.clientHeight > 120) return;
@@ -2822,10 +2858,12 @@ async function refreshChat(silent) {
   if (!selectedChatId) return;
   const btn = document.getElementById('refresh-btn');
   const cid = selectedChatId;
+  const gen = _deleteGen;
   if (silent !== true) btn.classList.add('spinning');
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(cid)+'?refresh=1')).then(r=>r.json());
     if (cid !== selectedChatId) return; // Chat zwischenzeitlich gewechselt
+    if (gen !== _deleteGen || _deleting) return; // währenddessen gelöscht: Stand veraltet
     _lastMsgFingerprint[selectedChatId] = '';
     _view[selectedChatId] = msgs;
     _oldestTs[selectedChatId] = msgs.length ? msgs[0].timestamp : null;

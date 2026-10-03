@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.22] - 2026-10-03
+- Fix: **Gelöschte Nachrichten tauchen bei aktivem Auto-Neuladen nicht mehr wieder auf.** Lief das automatische Neuladen gerade, während Nachrichten gelöscht wurden (Löschmodus oder „Chat leeren"), konnte die Antwort von Telegram noch den Stand vor dem Löschen enthalten. Die gelöschten Nachrichten erschienen dann wieder im Chat und blieben im Cache, obwohl sie in Telegram schon weg waren. Jetzt pausiert das Auto-Neuladen während des Löschens, ein bereits laufendes Neuladen verwirft sein veraltetes Ergebnis, und der Server filtert kürzlich gelöschte Nachrichten aus jedem Neuladen heraus
+
 ## [1.7.21] - 2026-10-02
 - README: REST-API-Beispiele auf Port **17788** mit Token umgestellt (`curl`, `rest_command` samt `secrets.yaml`), Optionen `api_enabled` und `api_token` in der Konfigurationstabelle ergaenzt. Die README zeigte noch den seit 1.7.7 geschlossenen Port 17778 ohne Anmeldung
 
