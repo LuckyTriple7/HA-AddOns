@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.23] - 2026-10-03
+- Neu: **Telegram-Formatierung wird angezeigt.** Codeblöcke erscheinen wie in der Telegram-App als abgesetzter Kasten in Monospace-Schrift, mit Sprache in der Kopfzeile (z. B. „Bash") und einem Knopf „Code kopieren". Außerdem werden Inline-Code, **fett**, *kursiv*, unterstrichen, durchgestrichen, Textlinks, Zitate und Spoiler (Antippen zum Aufdecken) dargestellt. Bisher kam nur der reine Text an. Gilt für neu empfangene oder neu geladene Nachrichten; ältere Nachrichten im Cache erhalten die Formatierung nach „Chat neu laden"
+
 ## [1.7.22] - 2026-10-03
 - Fix: **Gelöschte Nachrichten tauchen bei aktivem Auto-Neuladen nicht mehr wieder auf.** Lief das automatische Neuladen gerade, während Nachrichten gelöscht wurden (Löschmodus oder „Chat leeren"), konnte die Antwort von Telegram noch den Stand vor dem Löschen enthalten. Die gelöschten Nachrichten erschienen dann wieder im Chat und blieben im Cache, obwohl sie in Telegram schon weg waren. Jetzt pausiert das Auto-Neuladen während des Löschens, ein bereits laufendes Neuladen verwirft sein veraltetes Ergebnis, und der Server filtert kürzlich gelöschte Nachrichten aus jedem Neuladen heraus
 

@@ -390,6 +390,26 @@ function extractButtons(rawMsg) {
   return rows.length ? rows : undefined;
 }
 
+// Telegram liefert Formatierung getrennt vom Text als Entities (Offset/Länge in
+// UTF-16-Einheiten, passt 1:1 zu JS-Strings); kompakt für den Client ablegen
+const _ENT_TYPES = {
+  MessageEntityBold: 'b', MessageEntityItalic: 'i', MessageEntityUnderline: 'u', MessageEntityStrike: 's',
+  MessageEntityCode: 'code', MessageEntityPre: 'pre', MessageEntityTextUrl: 'url',
+  MessageEntitySpoiler: 'spoiler', MessageEntityBlockquote: 'quote',
+};
+function extractEntities(rawMsg) {
+  const out = [];
+  for (const e of (rawMsg.entities || [])) {
+    const t = _ENT_TYPES[e.className];
+    if (!t || !(e.length > 0)) continue;
+    const ent = { t, o: e.offset, l: e.length };
+    if (t === 'pre' && e.language) ent.lang = String(e.language).slice(0, 40);
+    if (t === 'url' && e.url) ent.url = String(e.url);
+    out.push(ent);
+  }
+  return out.length ? out : undefined;
+}
+
 // Bearbeitete Nachricht (Bots streamen Antworten oder tauschen Buttons aus) im
 // Cache nachziehen
 function applyMessageEdit(rawMsg) {
@@ -399,6 +419,7 @@ function applyMessageEdit(rawMsg) {
   const stored = messagesByChatId.get(chatId)?.find(m => m.id === `${chatId}_${rawMsg.id}`);
   if (!stored) return;
   if (typeof rawMsg.message === 'string' && (rawMsg.message || stored.type === 'text')) stored.body = rawMsg.message;
+  if (typeof rawMsg.message === 'string') { const ents = extractEntities(rawMsg); if (ents) stored.ents = ents; else delete stored.ents; }
   const buttons = extractButtons(rawMsg);
   if (buttons) stored.buttons = buttons; else delete stored.buttons;
   stored.editTs = (rawMsg.editDate || Math.floor(Date.now() / 1000)) * 1000;
@@ -488,6 +509,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   const buttons = extractButtons(rawMsg);
   if (buttons) msgObj.buttons = buttons;
+  if (rawMsg.message) { const ents = extractEntities(rawMsg); if (ents) msgObj.ents = ents; }
   if (rawMsg.editDate) msgObj.editTs = rawMsg.editDate * 1000;
   msgs.push(msgObj);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
@@ -1595,6 +1617,7 @@ const _SVG = {
   disk:      '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
   imageOn:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
   imageOff:  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+  copy:      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   trash:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
   chevUp:    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
   chevDown:  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
@@ -1880,6 +1903,18 @@ html.light .bubble.out { background: #EEFFDE; color: #222; }
 .bubble-time { font-size: 11px; float: right; margin-left: 8px; margin-top: 2px; white-space: nowrap; }
 html.dark .bubble-time { color: rgba(193,201,212,0.6); }
 html.light .bubble-time { color: rgba(0,0,0,0.35); }
+.code-block { margin: 4px 0; border-left: 3px solid #6c8ba8; border-radius: 6px; background: rgba(0,0,0,0.22); overflow: hidden; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #8fb3d4; background: rgba(0,0,0,0.15); }
+.code-copy { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: inherit; font: inherit; cursor: pointer; opacity: 0.8; padding: 0; }
+.code-copy:hover { opacity: 1; }
+.code-block pre { margin: 0; padding: 8px 10px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.45; white-space: pre; word-break: normal; }
+.code-inline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: rgba(0,0,0,0.22); padding: 1px 4px; border-radius: 4px; }
+.tg-quote { margin: 4px 0; padding: 2px 8px; border-left: 3px solid #53bdeb; background: rgba(83,189,235,0.10); border-radius: 4px; }
+.tg-spoiler { background: currentColor; border-radius: 3px; cursor: pointer; transition: background .2s; }
+.tg-spoiler.revealed { background: rgba(127,127,127,0.18); }
+html.light .code-block { background: #f1f4f7; border-left-color: #517DA2; }
+html.light .code-head { background: #e4eaf0; color: #517DA2; }
+html.light .code-inline { background: rgba(0,0,0,0.07); }
 .msg-ack { font-size: 11px; margin-left: 2px; }
 .ack-1 { color: rgba(193,201,212,0.6); }
 .ack-3 { color: #2AABEE; }
@@ -2148,6 +2183,7 @@ const LANG = {
     btnConfirm: 'Bestätigen', overlayErrorTitle: 'Fehler', btnReconnect: 'Erneut verbinden',
     unknownError: 'Unbekannter Fehler',
     photosOn: 'Medien AN', photosOff: 'Medien AUS',
+    copyCode: 'Code kopieren', copied: 'Kopiert ✓',
     videoDownload: '⬇ Video herunterladen', videoTooBig: '📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnReload: 'Chat neu laden', btnReloadAutoOn: 'Automatisches Neuladen AN (alle 10 s)', btnReloadAutoHint: 'Rechtsklick: automatisch neu laden ein/aus', btnReloadAll: 'Alle Chats nachladen',
@@ -2182,6 +2218,7 @@ const LANG = {
     btnConfirm: 'Confirm', overlayErrorTitle: 'Error', btnReconnect: 'Reconnect',
     unknownError: 'Unknown error',
     photosOn: 'Media ON', photosOff: 'Media OFF',
+    copyCode: 'Copy code', copied: 'Copied ✓',
     videoDownload: '⬇ Download video', videoTooBig: '📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Delete orphaned media files',
     btnReload: 'Reload chat', btnReloadAutoOn: 'Auto reload ON (every 10 s)', btnReloadAutoHint: 'Right-click: toggle auto reload', btnReloadAll: 'Reload all chats',
@@ -2472,7 +2509,7 @@ function formatTime(ts) {
   return d.toLocaleDateString(locale(),{day:'2-digit',month:'2-digit'});
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function formatText(s) {
+function _plainFmt(s) {
   let html = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
   html = html.replace(/((https?:\\/\\/|www\\.)[^\\s<>"&]+)/gi, function(m) {
     let url = m.replace(/[.,!?;:)]+$/, '');
@@ -2481,6 +2518,62 @@ function formatText(s) {
     return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + url + '</a>' + trail;
   });
   return html;
+}
+
+function escAttr(s) { return escHtml(s).replace(/"/g,'&quot;'); }
+function _wrapEnt(e, raw, inner) {
+  if (e.t === 'pre') {
+    const code = raw.replace(/^\\n+|\\n+$/g, '');
+    return '<div class="code-block"><div class="code-head"><span>' + escHtml(e.lang || 'Code') + '</span>'
+      + '<button type="button" class="code-copy" onclick="copyCode(this,event)">${_SVG.copy}<span>' + t('copyCode') + '</span></button></div>'
+      + '<pre><code>' + escHtml(code) + '</code></pre></div>';
+  }
+  if (e.t === 'code') return '<code class="code-inline">' + escHtml(raw) + '</code>';
+  if (e.t === 'url') {
+    const ok = /^(https?:|tg:|mailto:)/i.test(e.url || '');
+    const txt = escHtml(raw).replace(/\\n/g,'<br>');
+    return ok ? '<a href="' + escAttr(e.url) + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + txt + '</a>' : txt;
+  }
+  const tags = { b: 'b', i: 'i', u: 'u', s: 's' };
+  if (tags[e.t]) return '<' + tags[e.t] + '>' + inner() + '</' + tags[e.t] + '>';
+  if (e.t === 'spoiler') return '<span class="tg-spoiler" onclick="this.classList.add(&quot;revealed&quot;);event.stopPropagation()">' + inner() + '</span>';
+  if (e.t === 'quote') return '<blockquote class="tg-quote">' + inner() + '</blockquote>';
+  return inner();
+}
+function formatText(s, ents) {
+  s = String(s == null ? '' : s);
+  if (!ents || !ents.length) return _plainFmt(s);
+  const list = ents.filter(e => e && e.l > 0 && e.o >= 0 && e.o + e.l <= s.length)
+    .sort((a, b) => a.o - b.o || b.l - a.l);
+  function render(from, to, items) {
+    let out = '', pos = from, i = 0;
+    while (i < items.length) {
+      const e = items[i];
+      if (e.o < pos) { i++; continue; }
+      const end = e.o + e.l, inner = [];
+      let j = i + 1;
+      while (j < items.length && items[j].o < end) { if (items[j].o + items[j].l <= end) inner.push(items[j]); j++; }
+      // Blöcke bringen ihren eigenen Umbruch mit: angrenzenden Zeilenumbruch schlucken
+      const block = e.t === 'pre' || e.t === 'quote';
+      let before = s.slice(pos, e.o);
+      if (block) before = before.replace(/\\n$/, '');
+      out += _plainFmt(before) + _wrapEnt(e, s.slice(e.o, end), () => render(e.o, end, inner));
+      pos = end; i = j;
+      if (block && s[pos] === '\\n') pos++;
+    }
+    return out + _plainFmt(s.slice(pos, to));
+  }
+  return render(0, s.length, list);
+}
+function copyCode(btn, ev) {
+  if (ev) ev.stopPropagation();
+  const code = btn.closest('.code-block').querySelector('code').textContent;
+  const done = () => { const sp = btn.querySelector('span'); sp.textContent = t('copied'); setTimeout(() => { sp.textContent = t('copyCode'); }, 1500); };
+  if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(code).then(done, () => {}); return; }
+  const ta = document.createElement('textarea'); ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (err) {}
+  ta.remove();
 }
 
 function scrollMsgs(dir) {
@@ -3065,8 +3158,8 @@ function renderMessages(msgs, opts) {
         return '<img class="msg-img" src="'+BASE+'/api/media/'+encodeURIComponent(am.mediaFile)+'" style="width:140px;height:140px;object-fit:cover;border-radius:6px;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">';
       }).join('');
       content = '<div style="display:flex;flex-wrap:wrap;gap:3px;padding:2px">'+_grid+'</div>';
-      var _cap = ''; for (var _ci=item.albumMsgs.length-1;_ci>=0;_ci--){ if(item.albumMsgs[_ci].body){_cap=item.albumMsgs[_ci].body;break;} }
-      if (_cap) content += '<div class="photo-caption">'+formatText(_cap)+'</div>';
+      var _cap = '', _capEnts; for (var _ci=item.albumMsgs.length-1;_ci>=0;_ci--){ if(item.albumMsgs[_ci].body){_cap=item.albumMsgs[_ci].body;_capEnts=item.albumMsgs[_ci].ents;break;} }
+      if (_cap) content += '<div class="photo-caption">'+formatText(_cap,_capEnts)+'</div>';
     } else if(isVoice){
       content = m.mediaFile
         ? \`<audio controls style="width:260px;max-width:calc(80vw - 80px);display:block" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
@@ -3082,15 +3175,15 @@ function renderMessages(msgs, opts) {
               ? \`<span style="opacity:0.5;cursor:default" title="\${t('videoTooBig')}\${mb}">\${t('videoTooBig')}\${mb}</span>\`
               : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.85;user-select:none;text-decoration:underline" title="\${t('videoDownload')}">\${t('videoDownload')}\${mb}</span>\`;
           })()
-      if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
+      if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body,m.ents)}</div>\`;
     } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
-      if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
+      if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body,m.ents)}</div>\`;
     } else if(isDoc){
       content=\`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
-      if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
+      if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body,m.ents)}</div>\`;
     } else {
-      content=formatText(m.body);
+      content=formatText(m.body,m.ents);
     }
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     // Album: Reactions aller Fotos zusammenführen
