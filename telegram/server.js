@@ -451,6 +451,13 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
         stored.editTs = Date.now();
         scheduleSave();
       }
+      // Formatierung nachziehen (Cache-Einträge vor 1.7.23 kennen sie noch nicht)
+      const ents = rawMsg.message ? extractEntities(rawMsg) : undefined;
+      if (JSON.stringify(ents) !== JSON.stringify(stored.ents)) {
+        if (ents) stored.ents = ents; else delete stored.ents;
+        stored.editTs = Date.now();
+        scheduleSave();
+      }
     }
     dbg(`processMessage [${source}]: duplicate skipped ${msgId}`);
     return;
