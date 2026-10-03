@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.52] - 2026-10-02
+- Sicherheit: **basic-ftp 5.3.1 → 6.2.1** per `overrides` (Dependabot-Alarm #54, GHSA-c475-qrg2-pj4r, hoch). Der Parser fuer FTP-Verzeichnislisten konnte mit einer praeparierten Zeile die CPU quadratisch auslasten; behoben erst in 6.2.1. basic-ftp kommt indirekt ueber puppeteer → proxy-agent → get-uri und wird nur fuer `ftp://`-Adressen benutzt. get-uri verlangt `^5`, nutzt aber nur `access`, `lastMod`, `list` und `downloadTo` — deren Schnittstelle ist in 6.x unveraendert
+
 ## [1.8.51] - 2026-10-02
 - README: REST-API-Beispiele auf Port **17786** mit Token umgestellt (`curl`, `rest_command` samt `secrets.yaml`), Optionen `api_enabled` und `api_token` in der Konfigurationstabelle ergaenzt. Die README zeigte noch den seit 1.8.30 geschlossenen Port 17776 ohne Anmeldung
 
