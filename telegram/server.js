@@ -1940,6 +1940,7 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 #messages.delete-mode .bubble-row { cursor: pointer; }
 #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
 .bubble-row.selected .bubble, .bubble-row.selected .voice-wrap { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 10px; }
+.bubble-row.deleting { opacity: .35; pointer-events: none; transition: opacity .2s; }
 /* Optimistisch gerenderte Bubble: sofort sichtbar, ausgegraut bis der Server bestätigt */
 .bubble-row.pending .bubble { opacity: 0.55; }
 .bubble-row.pending .fwd-btn, .bubble-row.pending .reply-btn, .bubble-row.pending .react-btn { display: none; }
@@ -2320,7 +2321,7 @@ const LANG = {
     clearChatConfirm: (name) => 'Alle Nachrichten in „' + name + '" außer der letzten dauerhaft löschen?\\n\\nDas löscht sie auch in Telegram (soweit möglich für beide Seiten) und lässt sich nicht rückgängig machen.',
     clearChatDone: (n, own) => n + (n===1?' Nachricht':' Nachrichten') + ' gelöscht.' + (own ? '\\nOhne Adminrechte nur eigene Nachrichten.' : ''),
     clearChatError: 'Chat leeren fehlgeschlagen: ',
-    deleteMode: 'Nachrichten löschen', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
+    deleteMode: 'Nachrichten löschen (einzeln: Shift+Rechtsklick)', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
@@ -2359,7 +2360,7 @@ const LANG = {
     clearChatConfirm: (name) => 'Permanently delete all messages in "' + name + '" except the last one?\\n\\nThis also deletes them in Telegram (for both sides where possible) and cannot be undone.',
     clearChatDone: (n, own) => n + ' message' + (n===1?'':'s') + ' deleted.' + (own ? '\\nWithout admin rights only your own messages.' : ''),
     clearChatError: 'Clearing chat failed: ',
-    deleteMode: 'Delete messages', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
+    deleteMode: 'Delete messages (single: Shift+right-click)', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
@@ -3755,11 +3756,22 @@ document.addEventListener('click', function(e) {
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
 
 async function deleteMsg(chatId, msgId) {
+  _deleting++; _deleteGen++;
   try {
     await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'});
     await loadMessages(chatId);
-  } catch(e) {}
+  } catch(e) {} finally { _deleting--; }
 }
+// Shift+Rechtsklick auf eine Nachricht löscht sie sofort (ohne Rückfrage);
+// ein normaler Rechtsklick behält das Browsermenü
+document.getElementById('messages').addEventListener('contextmenu', e => {
+  if (!e.shiftKey || isDeleteMode) return;
+  const row = e.target.closest('.bubble-row');
+  if (!row || !row.dataset.msgid || row.classList.contains('deleting')) return;
+  e.preventDefault();
+  row.classList.add('deleting');
+  deleteMsg(row.dataset.chatid || selectedChatId, row.dataset.msgid);
+});
 document.getElementById('messages').addEventListener('click', e => {
   if (isDeleteMode) {
     var row = e.target.closest('.bubble-row');
