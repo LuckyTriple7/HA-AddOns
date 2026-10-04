@@ -1146,6 +1146,13 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
       const idx = msgs.findIndex(m => m.id === msgId);
       if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
     }
+    // Vorschau in der Chatliste auf die jetzt letzte Nachricht zurücksetzen
+    const chat = chatMap.get(chatId);
+    if (chat) {
+      const last = msgs && msgs[msgs.length - 1];
+      chat.lastMsg = last ? (last.body || (last.type === 'photo' ? '📷 Foto' : '[Medien]')) : '';
+      if (last) chat.lastTime = last.timestamp;
+    }
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -2409,6 +2416,7 @@ async function confirmDeleteSelected() {
   try {
     await Promise.all(ids.map(function(id){ return fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(id)), {method:'DELETE'}); }));
     await loadMessages(chatId);
+    loadChats();
   } finally { _deleting--; }
 }
 // ── Nachrichtensuche ──────────────────────────────────────────────────────────
@@ -3764,6 +3772,7 @@ async function deleteMsg(chatId, msgId, row) {
     ]);
     if (!ok && chatId === selectedChatId) { renderMessages(_view[chatId] || []); return; } // fehlgeschlagen: Nachricht wieder zeigen
     await loadMessages(chatId);
+    loadChats();
   } finally { _deleting--; }
 }
 // Löscheffekt wie in der Telegram-App: die Blase zerfällt von links nach

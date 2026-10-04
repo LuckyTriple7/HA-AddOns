@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.27] - 2026-10-04
+- Fix: **Chatliste zeigt nach dem Löschen der letzten Nachricht nicht mehr deren Text an.** Die Vorschau blieb auf der gelöschten Nachricht stehen. Jetzt springt sie auf die Nachricht, die danach die letzte ist, samt deren Uhrzeit. Gilt für Strg+Rechtsklick und den Löschmodus
+
 ## [1.7.26] - 2026-10-04
 - Geändert: **Schnelles Löschen jetzt mit Strg+Rechtsklick statt Shift+Rechtsklick.** Mit Shift hat der Browser dabei jedes Mal Text markiert. Auf dem Mac geht auch Cmd+Rechtsklick
 - Neu: **Löscheffekt wie in der Telegram-App.** Die Nachricht zerfällt von links nach rechts zu Staub, danach schließt sich die Lücke im Verlauf weich. Mit der Systemeinstellung „Bewegung reduzieren“ wird sie nur kurz ausgeblendet. Schlägt das Löschen fehl, erscheint die Nachricht wieder
