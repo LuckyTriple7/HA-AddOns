@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.26] - 2026-10-04
+- Geändert: **Schnelles Löschen jetzt mit Strg+Rechtsklick statt Shift+Rechtsklick.** Mit Shift hat der Browser dabei jedes Mal Text markiert. Auf dem Mac geht auch Cmd+Rechtsklick
+- Neu: **Löscheffekt wie in der Telegram-App.** Die Nachricht zerfällt von links nach rechts zu Staub, danach schließt sich die Lücke im Verlauf weich. Mit der Systemeinstellung „Bewegung reduzieren“ wird sie nur kurz ausgeblendet. Schlägt das Löschen fehl, erscheint die Nachricht wieder
+
 ## [1.7.25] - 2026-10-04
 - Neu: **Einzelne Nachricht per Shift+Rechtsklick löschen.** Shift gedrückt halten und mit der rechten Maustaste auf eine Nachricht klicken löscht sie sofort, ohne Löschmodus und ohne Rückfrage. Die Nachricht wird während des Löschens blass dargestellt. Ein normaler Rechtsklick öffnet weiterhin das Browsermenü (z. B. zum Kopieren)
 

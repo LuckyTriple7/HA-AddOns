@@ -20,7 +20,7 @@ Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-
 - **Ungelesene-Badge**: Blauer Punkt in der Sidebar bei neuen Nachrichten
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
 - **Formatierung**: Codeblöcke (mit Sprache und Kopieren-Knopf), Inline-Code, fett/kursiv, Zitate, Spoiler und Textlinks wie in der Telegram-App
-- **Nachricht schnell löschen**: Shift+Rechtsklick auf eine Nachricht löscht sie sofort (mehrere auf einmal weiterhin über den Löschmodus)
+- **Nachricht schnell löschen**: Strg+Rechtsklick auf eine Nachricht löscht sie sofort mit Zerfall-Effekt wie in der Telegram-App (mehrere auf einmal weiterhin über den Löschmodus)
 - **Befehlsmenü pro Chat**: `/`-Knopf oder `/` tippen zeigt eigene Befehle (★, auch mit Parametern, sofort senden oder nur einfügen), die zuletzt gesendeten Befehle (↺, automatisch) und die vom Bot gemeldeten Befehle. Gespeichert auf dem Server (`/config/custom_commands.json`), also auf jedem Gerät gleich
 - **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
 - **Persistente Session**: Kein erneutes Anmelden nach Neustart

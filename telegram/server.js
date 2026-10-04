@@ -1940,7 +1940,7 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 #messages.delete-mode .bubble-row { cursor: pointer; }
 #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
 .bubble-row.selected .bubble, .bubble-row.selected .voice-wrap { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 10px; }
-.bubble-row.deleting { opacity: .35; pointer-events: none; transition: opacity .2s; }
+.bubble-row.deleting { pointer-events: none; }
 /* Optimistisch gerenderte Bubble: sofort sichtbar, ausgegraut bis der Server bestätigt */
 .bubble-row.pending .bubble { opacity: 0.55; }
 .bubble-row.pending .fwd-btn, .bubble-row.pending .reply-btn, .bubble-row.pending .react-btn { display: none; }
@@ -2321,7 +2321,7 @@ const LANG = {
     clearChatConfirm: (name) => 'Alle Nachrichten in „' + name + '" außer der letzten dauerhaft löschen?\\n\\nDas löscht sie auch in Telegram (soweit möglich für beide Seiten) und lässt sich nicht rückgängig machen.',
     clearChatDone: (n, own) => n + (n===1?' Nachricht':' Nachrichten') + ' gelöscht.' + (own ? '\\nOhne Adminrechte nur eigene Nachrichten.' : ''),
     clearChatError: 'Chat leeren fehlgeschlagen: ',
-    deleteMode: 'Nachrichten löschen (einzeln: Shift+Rechtsklick)', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
+    deleteMode: 'Nachrichten löschen (einzeln: Strg+Rechtsklick)', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
@@ -2360,7 +2360,7 @@ const LANG = {
     clearChatConfirm: (name) => 'Permanently delete all messages in "' + name + '" except the last one?\\n\\nThis also deletes them in Telegram (for both sides where possible) and cannot be undone.',
     clearChatDone: (n, own) => n + ' message' + (n===1?'':'s') + ' deleted.' + (own ? '\\nWithout admin rights only your own messages.' : ''),
     clearChatError: 'Clearing chat failed: ',
-    deleteMode: 'Delete messages (single: Shift+right-click)', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
+    deleteMode: 'Delete messages (single: Ctrl+right-click)', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
@@ -3755,22 +3755,78 @@ document.addEventListener('click', function(e) {
 });
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
 
-async function deleteMsg(chatId, msgId) {
+async function deleteMsg(chatId, msgId, row) {
   _deleting++; _deleteGen++;
   try {
-    await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'});
+    const [ok] = await Promise.all([
+      fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'}).then(r => r.ok).catch(() => false),
+      row ? _vanishRow(row) : null,
+    ]);
+    if (!ok && chatId === selectedChatId) { renderMessages(_view[chatId] || []); return; } // fehlgeschlagen: Nachricht wieder zeigen
     await loadMessages(chatId);
-  } catch(e) {} finally { _deleting--; }
+  } finally { _deleting--; }
 }
-// Shift+Rechtsklick auf eine Nachricht löscht sie sofort (ohne Rückfrage);
+// Löscheffekt wie in der Telegram-App: die Blase zerfällt von links nach
+// rechts in Staub, danach schließt sich die Lücke
+function _vanishRow(row) {
+  const bubble = row.querySelector('.bubble, .voice-wrap') || row;
+  const r = bubble.getBoundingClientRect();
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  row.querySelectorAll('button').forEach(b => { b.style.visibility = 'hidden'; });
+  const collapse = () => new Promise(res => {
+    const h = row.offsetHeight;
+    row.style.overflow = 'hidden';
+    const a = row.animate([{ height: h + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 220, easing: 'ease-in', fill: 'forwards' });
+    a.onfinish = res; a.oncancel = res;
+  });
+  if (reduce || !r.width || !r.height || !bubble.animate) {
+    if (!bubble.animate) return Promise.resolve();
+    return bubble.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: 'forwards' }).finished.then(collapse, collapse);
+  }
+  const SWEEP = 420;
+  const cs = getComputedStyle(bubble);
+  const rgb = v => { const m = (v || '').match(/[0-9.]+/g); return m && (m.length < 4 || +m[3] > 0) ? m.slice(0, 3).map(Number) : null; };
+  const bg = rgb(cs.backgroundColor) || [140, 150, 160], fg = rgb(cs.color) || bg;
+  const cv = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  cv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:500';
+  document.body.appendChild(cv);
+  const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+  const step = Math.max(3, Math.sqrt(r.width * r.height / 900));
+  const parts = [];
+  for (let x = 0; x < r.width; x += step) for (let y = 0; y < r.height; y += step) {
+    const c = Math.random() < 0.25 ? fg : bg;
+    parts.push({ x: r.left + x, y: r.top + y, d: x / r.width * SWEEP + Math.random() * 60,
+      vx: 0.02 + Math.random() * 0.07, vy: -(0.015 + Math.random() * 0.06), life: 450 + Math.random() * 400,
+      s: 1.5 + Math.random() * 1.5, c: 'rgb(' + c.join(',') + ')' });
+  }
+  const t0 = performance.now();
+  (function frame(now) {
+    const el = now - t0; let alive = false;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of parts) {
+      const t = el - p.d;
+      if (t < 0) { alive = true; continue; }
+      if (t > p.life) continue;
+      alive = true;
+      ctx.globalAlpha = 1 - t / p.life; ctx.fillStyle = p.c;
+      ctx.fillRect(p.x + p.vx * t, p.y + p.vy * t - 0.00003 * t * t, p.s, p.s);
+    }
+    if (alive) requestAnimationFrame(frame); else cv.remove();
+  })(t0);
+  return bubble.animate([{ clipPath: 'inset(0 0 0 0)' }, { clipPath: 'inset(0 0 0 100%)' }], { duration: SWEEP, easing: 'linear', fill: 'forwards' })
+    .finished.then(collapse, collapse);
+}
+// Strg+Rechtsklick auf eine Nachricht löscht sie sofort (ohne Rückfrage);
 // ein normaler Rechtsklick behält das Browsermenü
 document.getElementById('messages').addEventListener('contextmenu', e => {
-  if (!e.shiftKey || isDeleteMode) return;
+  if (!(e.ctrlKey || e.metaKey) || isDeleteMode) return;
   const row = e.target.closest('.bubble-row');
   if (!row || !row.dataset.msgid || row.classList.contains('deleting')) return;
   e.preventDefault();
   row.classList.add('deleting');
-  deleteMsg(row.dataset.chatid || selectedChatId, row.dataset.msgid);
+  deleteMsg(row.dataset.chatid || selectedChatId, row.dataset.msgid, row);
 });
 document.getElementById('messages').addEventListener('click', e => {
   if (isDeleteMode) {
