@@ -1,6 +1,6 @@
 # Playwright MCP needs Node.js 20+, Debian bookworm only ships 18.
 # Install it in the official Node image and copy node + the package over.
-FROM node:22-bookworm-slim AS mcp
+FROM node:26-bookworm-slim AS mcp
 
 ARG PLAYWRIGHT_MCP_VERSION=0.0.83
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
