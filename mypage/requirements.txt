@@ -5,7 +5,7 @@ markdown==3.10.3
 # Bereinigt das Markdown-HTML vor der Ausgabe mit |safe (Skripte, on*-Attribute).
 nh3==0.3.7
 pillow==12.3.0
-cryptography==50.0.1
+cryptography==50.0.2
 qrcode==8.2
 # PDF-Import der Rechtstexte (Impressum/Datenschutz aus einem Generator-PDF).
 # Reines Python, bringt pdfminer.six mit — keine zusätzlichen Systempakete.
