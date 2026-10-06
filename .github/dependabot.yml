@@ -230,6 +230,11 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 3
+    # Node bleibt auf der LTS-Linie; Major-Wechsel (z. B. auf ungerade/noch
+    # nicht LTS gewordene Versionen) werden von Hand gemacht.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/ubuntu-webtop"

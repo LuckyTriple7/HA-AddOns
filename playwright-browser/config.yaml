@@ -1,6 +1,6 @@
 name: Playwright Browser
 description: Headless Chromium browser with CDP endpoint and optional Playwright MCP server
-version: "1.0.17"
+version: "1.0.17.1"
 image: "ghcr.io/luckytriple7/playwright-browser"
 slug: playwright-browser
 url: https://github.com/LuckyTriple7/HA-AddOns

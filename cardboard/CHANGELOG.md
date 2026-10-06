@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.12.1] - 2026-10-06
+- Abhängigkeiten aktualisiert: fastapi 0.141.1 → 0.142.2, uvicorn 0.53.0 → 0.54.0
+
 ## [1.0.12] - 2026-09-21
 
 chore(deps): bump uvicorn from 0.52.4 to 0.53.0 in /cardboard/rootfs/app

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.27.1] - 2026-10-06
+- Abhängigkeit aktualisiert: teleproto 1.229.0 → 1.229.1
+
 ## [1.7.27] - 2026-10-04
 - Fix: **Chatliste zeigt nach dem Löschen der letzten Nachricht nicht mehr deren Text an.** Die Vorschau blieb auf der gelöschten Nachricht stehen. Jetzt springt sie auf die Nachricht, die danach die letzte ist, samt deren Uhrzeit. Gilt für Strg+Rechtsklick und den Löschmodus
 

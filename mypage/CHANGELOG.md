@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.68.1] - 2026-10-06
+- Abhängigkeiten aktualisiert: markdown 3.10.3 → 3.11, google-genai 2.25.0 → 2.27.0, cryptography 50.0.1 → 50.0.2
+
 ## [0.11.68] - 2026-09-28
 
 chore(deps): bump google-genai from 2.24.0 to 2.25.0 in /mypage
