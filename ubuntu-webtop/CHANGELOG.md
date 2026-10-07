@@ -1,3 +1,11 @@
+## [1.8.94] - 2026-10-07
+
+### Aktualisiert
+
+- Firefox: 157.0 → 157.0.1
+- Claude Desktop: 3.3.4+claude2.9939.4 → 3.3.6+claude2.26454.0
+- OpenCode: 1.18.34 → 1.18.35
+
 ## [1.8.93] - 2026-10-06
 
 ### Aktualisiert
