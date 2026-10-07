@@ -1,3 +1,10 @@
+## [1.8.93] - 2026-10-06
+
+### Aktualisiert
+
+- Claude Desktop: 3.3.3+claude2.9939.4 → 3.3.4+claude2.9939.4
+- Tailscale: 1.102.4 → 1.102.5
+
 ## [1.8.92] - 2026-10-02
 
 ### Aktualisiert
