@@ -253,3 +253,36 @@ def test_missing_token_does_not_lock_out_and_valid_token_always_wins(m):
         rpc(c, "ping", headers={"Authorization": "Bearer falsch"})
     assert rpc(c, "ping", headers={"Authorization": "Bearer falsch"}).status_code == 429
     assert rpc(c, "ping").status_code == 200     # … das richtige Token gilt trotzdem
+
+
+def test_packing_list_next_trip_and_check(m):
+    with m.db() as con:
+        later = con.execute(
+            "INSERT INTO trips (booking_code, destination, start_date, end_date, data, created) "
+            "VALUES ('L', 'Mallorca', '2099-09-01', '2099-09-08', '{}', 1)").lastrowid
+        nxt = con.execute(
+            "INSERT INTO trips (booking_code, destination, start_date, end_date, data, created) "
+            "VALUES ('N', 'Kreta', '2099-06-01', '2099-06-08', '{}', 1)").lastrowid
+        con.execute("INSERT INTO trips (booking_code, destination, start_date, end_date, data, created) "
+                    "VALUES ('A', 'Alt', '2020-05-01', '2020-05-08', '{}', 1)")
+    c = m.app.test_client()
+    pl = call(c, "get_packing_list")["structuredContent"]
+    assert pl["trip_id"] == nxt and pl["total"] > 0 and pl["open"] == pl["total"]
+    assert "check_packing_items" not in {t["name"] for t in rpc(c, "tools/list").get_json()["result"]["tools"]}
+    m._cfg["mcp_allow_actions"] = True
+    first = pl["items"][0]
+    res = call(c, "check_packing_items", {"item_ids": [first["id"]], "labels": ["gibtsnicht"]})["structuredContent"]
+    assert res["trip_id"] == nxt and len(res["changed"]) == 1 and res["not_found"] == ["gibtsnicht"]
+    assert res["open_left"] == pl["total"] - 1
+    # Bezeichnung (ohne Groß/Klein) trifft genau den Eintrag
+    second = pl["items"][1]
+    res = call(c, "check_packing_items", {"labels": [second["label"].upper()]})["structuredContent"]
+    assert res["changed"] == [f"{second['category']}: {second['label']}"]
+    # Andere Reise bleibt unberührt, ID einer fremden Reise zählt als nicht gefunden
+    other = call(c, "get_packing_list", {"trip_id": later})["structuredContent"]
+    assert other["open"] == other["total"]
+    res = call(c, "check_packing_items", {"trip_id": later, "item_ids": [first["id"]]})["structuredContent"]
+    assert res["changed"] == [] and res["not_found"] == [first["id"]]
+    # Wieder öffnen
+    call(c, "check_packing_items", {"item_ids": [first["id"]], "checked": False})
+    assert call(c, "get_packing_list", {"only_open": True})["structuredContent"]["open"] == pl["total"] - 1

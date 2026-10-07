@@ -936,10 +936,13 @@ mcp_servers:
 - Adresse ist immer der **direkte Port** (17794), nicht die HA-Ingress-Adresse;
   aus dem Internet nur hinter dem eigenen Reverse-Proxy mit HTTPS.
 - Werkzeuge: `list_offers`, `get_offer` (mit Preisverlauf), `list_trips`,
-  `get_trip`, `next_trip`, `get_status`, `get_problems`, `get_api_status`,
+  `get_trip`, `get_packing_list`, `next_trip`, `get_status`, `get_problems`, `get_api_status`,
   `search_flights`, `list_flight_destinations`, `get_notifications`,
   `get_price_calendar`, `get_market_trend`, `get_promo_codes`; mit **Aktionen erlauben** zusätzlich
-  `check_offer`, `set_target_price`, `pause_offer`.
+  `check_offer`, `set_target_price`, `pause_offer`, `check_packing_items`.
+- Packliste: ohne `trip_id` gilt immer die **nächste Reise**; abhaken geht per
+  ID oder Bezeichnung („Sonnencreme“), mehrdeutige Bezeichnungen bleiben
+  unverändert und kommen mit Kandidaten zurück.
 - Neues Token erzeugen macht das alte sofort ungültig.
 - Keine Personendaten: Namen und Geburtsdaten der Reisenden, Sonderwünsche und
   die Buchungsnummer gehen nicht an das KI-Modell.

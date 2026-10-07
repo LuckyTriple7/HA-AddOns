@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.2
+
+- 🧳 **MCP: Packliste abhaken.** Neues Werkzeug `get_packing_list` liefert die Packliste mit IDs, `check_packing_items` hakt Einträge ab (oder öffnet sie wieder), per ID oder Bezeichnung wie „Sonnencreme“. Ohne Angabe einer Reise gilt immer die nächste. Ist eine Bezeichnung mehrdeutig, wird nichts geändert und die passenden Einträge kommen zur Auswahl zurück. Abhaken ist eine Aktion und braucht **Aktionen erlauben**.
+
 ## 0.120.1
 
 - 🐛 **MCP: Ein Client konnte ausgesperrt werden, obwohl sein Token stimmte.** Jede Anfrage ohne gültiges Token zählte als Fehlversuch, nach 5 davon war die Absender-IP 15 Minuten gesperrt, auch für den echten Client mit richtigem Token. Mehrere Container im selben Docker-Netz teilen sich dabei eine Adresse. Jetzt wird ein gültiges Token immer angenommen, auch bei gesperrter IP. Anfragen ganz ohne Token (Erreichbarkeits- und Health-Checks) zählen nicht mehr als Fehlversuch, nur falsche Tokens.

@@ -105,11 +105,7 @@ def api_trip_detail(tid):
             'SELECT id, orig_name, created FROM trip_attachments WHERE trip_id=? ORDER BY id',
             (tid,)).fetchall()
         if not row['packing_seeded']:
-            con.executemany(
-                'INSERT INTO trip_packing_items '
-                '(trip_id, category, label, checked, created) VALUES (?,?,?,?,?)',
-                [(tid,) + r for r in A.default_packing_rows(int(time.time()), _packing_template())])
-            con.execute('UPDATE trips SET packing_seeded=1 WHERE id=?', (tid,))
+            seed_packing(con, tid)
         packing = con.execute(
             'SELECT id, category, label, checked FROM trip_packing_items '
             'WHERE trip_id=? ORDER BY id', (tid,)).fetchall()
@@ -803,6 +799,15 @@ def api_trip_attachment_delete(tid, aid):
 # gedruckte A4-Seite zweispaltig bereits gut; 70 lässt ein paar eigene Ergänzungen zu,
 # ohne dass das Druckblatt umbricht.
 MAX_PACKING_ITEMS = 70
+
+
+def seed_packing(con, tid):
+    """Packliste einer Reise einmalig aus der Vorlage füllen (beim ersten Öffnen)."""
+    con.executemany(
+        'INSERT INTO trip_packing_items '
+        '(trip_id, category, label, checked, created) VALUES (?,?,?,?,?)',
+        [(tid,) + r for r in A.default_packing_rows(int(time.time()), _packing_template())])
+    con.execute('UPDATE trips SET packing_seeded=1 WHERE id=?', (tid,))
 
 
 def _packing_item_owned(con, tid, iid):
