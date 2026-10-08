@@ -1,3 +1,11 @@
+## [1.8.95] - 2026-10-08
+
+### Aktualisiert
+
+- VS Code: 1.140.0 → 1.141.0
+- Claude Desktop: 3.3.6+claude2.26454.0 → 3.3.6+claude2.26454.2
+- Tailscale: 1.102.5 → 1.104.1
+
 ## [1.8.94] - 2026-10-07
 
 ### Aktualisiert
