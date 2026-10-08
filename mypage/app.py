@@ -7588,8 +7588,12 @@ def api_pages_reorder():
 # unter /uploads/ — nie als Fremd-URL im Eintrag, sonst scheitert die
 # PDF-Erzeugung an `_lib_pdf_fetcher` (die lässt bewusst nur lokale Dateien zu).
 
-GEMINI_IMAGE_MODELS = ('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image',
+GEMINI_IMAGE_MODELS = ('gemini-nano-banana-2.1', 'gemini-3.1-flash-lite-image',
                        'gemini-3-pro-image', 'gemini-2.5-flash-image')
+# Abgekündigte Modelle → Nachfolger. Ein im Admin gespeicherter alter Name würde
+# sonst nach der Abschaltung bei Google jede Anfrage scheitern lassen.
+# gemini-3.1-flash-image: abgekündigt am 06.10.2026, Abschaltung 29.10.2026.
+GEMINI_RETIRED_MODELS = {'gemini-3.1-flash-image': 'gemini-nano-banana-2.1'}
 # Rückfall für die Textmodelle: die Auswahl im KI-Studio kommt normalerweise
 # live von `client.models.list()`, weil Google die Namen laufend ändert. Nur
 # wenn dieser Aufruf scheitert, greift diese Liste — Reihenfolge = Vorauswahl.
@@ -7705,7 +7709,7 @@ def _ai_settings(site: dict | None = None) -> dict:
 
 
 def _ai_model_or(candidate: str, fallback: str) -> str:
-    c = (candidate or '').strip()
+    c = GEMINI_RETIRED_MODELS.get((candidate or '').strip(), (candidate or '').strip())
     return c if _AI_MODEL_RE.match(c) else fallback
 
 
@@ -10214,6 +10218,8 @@ GEMINI_DEFAULT_PRICES = {
     'gemini-2.5-flash-lite':       {'in': 0.1,  'out': 0.4},
     # Bildmodelle: USD je erzeugtem Bild in 1K-Auflösung. Ein Eingabepreis steht
     # hier bewusst nicht — Google weist ihn für diese Modelle nicht getrennt aus.
+    'gemini-nano-banana-2.1':      {'image': 0.0336},
+    # abgekündigt, bleibt für die Kosten älterer Bilder
     'gemini-3.1-flash-image':      {'image': 0.067},
     'gemini-3.1-flash-lite-image': {'image': 0.0336},
     'gemini-3-pro-image':          {'image': 0.134},

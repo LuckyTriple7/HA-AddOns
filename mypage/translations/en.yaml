@@ -154,8 +154,8 @@ configuration:
   gemini_image_model:
     name: Model used for image generation
     description: >-
-      gemini-3.1-flash-image is the all-rounder, gemini-3.1-flash-lite-image the
-      fastest and cheapest, gemini-3-pro-image the premium option.
+      gemini-nano-banana-2.1 is the all-rounder, gemini-3.1-flash-lite-image the
+      fastest, gemini-3-pro-image the premium option.
   gemini_image_ratio:
     name: Aspect ratio of generated images
     description: 16:9 matches the cover images of the library.

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.69] - 2026-10-08
+- **Bilderzeugung auf Gemini Nano Banana 2.1 umgestellt.** Google schaltet `gemini-3.1-flash-image` am 29.10.2026 ab. Neuer Standard ist der offizielle Nachfolger `gemini-nano-banana-2.1` (Flash-Geschwindigkeit, ca. 0,034 $ pro Bild). Wer im Tab **KI** oder in den Add-on-Optionen noch das alte Modell gewählt hat, bekommt automatisch das neue, ohne etwas umzustellen.
+
 ## [0.11.68.1] - 2026-10-06
 - Abhängigkeiten aktualisiert: markdown 3.10.3 → 3.11, google-genai 2.25.0 → 2.27.0, cryptography 50.0.1 → 50.0.2
 
