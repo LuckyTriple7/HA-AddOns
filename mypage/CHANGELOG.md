@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.69.1] - 2026-10-08
+- **Tab KI: `gemini-nano-banana-2.1` erscheint wieder als Bildmodell.** Die live bei Google abgefragte Liste sortierte nur Modelle mit „image“ im Namen zu den Bildmodellen. Nano Banana 2.1 landete deshalb bei den Textmodellen, und die Auswahl meldete „nicht in Googles Liste“.
+
 ## [0.11.69] - 2026-10-08
 - **Bilderzeugung auf Gemini Nano Banana 2.1 umgestellt.** Google schaltet `gemini-3.1-flash-image` am 29.10.2026 ab. Neuer Standard ist der offizielle Nachfolger `gemini-nano-banana-2.1` (Flash-Geschwindigkeit, ca. 0,034 $ pro Bild). Wer im Tab **KI** oder in den Add-on-Optionen noch das alte Modell gewählt hat, bekommt automatisch das neue, ohne etwas umzustellen.
 

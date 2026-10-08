@@ -7987,7 +7987,10 @@ def _ai_model_lists() -> dict:
                 if any(x in short for x in ('embedding', 'aqa', 'tts', 'audio',
                                             'veo', 'imagen', 'learnlm')):
                     continue
-                (img if 'image' in short else txt).append(short)
+                # Bildmodelle heißen nicht mehr durchgehend *-image
+                # (gemini-nano-banana-2.1), daher auch am Namen „banana“ erkennen
+                is_img = 'image' in short or 'banana' in short
+                (img if is_img else txt).append(short)
             if img or txt:
                 out = {'image': sorted(set(img), reverse=True),
                        'text': sorted(set(txt), reverse=True)}
