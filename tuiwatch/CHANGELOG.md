@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.3
+
+- 🤖 **Claude-Modelle auf die 5.5-Generation.** Zur Auswahl stehen jetzt Opus 5.5 (neuer Standard), Sonnet 5.5, Haiku 5.5 und Fable 5.1. Eine gespeicherte Auswahl von Opus 5, Sonnet 5 oder Haiku 4.5 läuft automatisch auf den Nachfolger weiter, ebenso Wiederholen und Folgefragen alter Verlaufseinträge. Die Kostenschätzung kennt die neuen Preise; Haiku 5.5 kostet rund ein Zehntel von Haiku 4.5.
+
 ## 0.120.2
 
 - 🧳 **MCP: Packliste abhaken.** Neues Werkzeug `get_packing_list` liefert die Packliste mit IDs, `check_packing_items` hakt Einträge ab (oder öffnet sie wieder), per ID oder Bezeichnung wie „Sonnencreme“. Ohne Angabe einer Reise gilt immer die nächste. Ist eine Bezeichnung mehrdeutig, wird nichts geändert und die passenden Einträge kommen zur Auswahl zurück. Abhaken ist eine Aktion und braucht **Aktionen erlauben**.

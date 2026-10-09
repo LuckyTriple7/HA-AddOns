@@ -102,7 +102,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.120.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.120.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -228,8 +228,7 @@ _region_outlook_cache: dict = {}          # region → {result, usage, ts}
 _calendar_outlook_cache: dict = {}        # offer_id → {summary, usage, ts}
 _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
 _CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
-_AI_MODELS = ('claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5', 'claude-haiku-4-5',
-              'claude-fable-5-1')
+_AI_MODELS = ('claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1')
 _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash')
 # Aus der Auswahl genommene Modelle → Nachfolger. Greift für die gespeicherte
 # Einstellung und für KI-Verlaufseinträge (Wiederholen/Folgefrage), die noch den
@@ -237,8 +236,13 @@ _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gem
 # _GEMINI_MODELS heraus und landete im Dispatcher beim Claude-Zweig.
 # gemini-2.5-flash gibt Google nur noch Bestandsnutzern frei, 3.5-flash ist teurer
 # als 3.8-flash; claude-fable-5 hat claude-fable-5-1 als Nachfolger (gleicher Preis).
+# Opus, Sonnet und Haiku laufen auf die 5.5-Generation: Opus 5.5 ist günstiger als
+# Opus 5, Sonnet 5.5 kostet dasselbe wie Sonnet 5, Haiku 5.5 deutlich weniger als 4.5.
 _MODEL_SUCCESSOR = {
     'claude-fable-5': 'claude-fable-5-1',
+    'claude-opus-5': 'claude-opus-5-5',
+    'claude-sonnet-5': 'claude-sonnet-5-5',
+    'claude-haiku-4-5': 'claude-haiku-5-5',
     'gemini-3.5-flash': 'gemini-3.8-flash',
     'gemini-2.5-flash': 'gemini-3.8-flash',
 }

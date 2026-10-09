@@ -300,10 +300,11 @@ sie komplett ausgeblendet).
 
 `ai_provider` schaltet **global für alle KI-Features** zwischen Anthropic
 (Standard), Google Gemini und Perplexity um:
-- **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-5`; auch
-  `claude-opus-5-5`, `claude-sonnet-5`, `claude-haiku-4-5`,
-  `claude-fable-5-1` wählbar — schneller/günstiger bzw. teurer; eine alte
-  Auswahl `claude-fable-5` läuft automatisch auf `claude-fable-5-1`). Websuche über Anthropics
+- **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-5-5`; auch
+  `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-1` wählbar —
+  schneller/günstiger bzw. teurer; eine alte Auswahl `claude-opus-5`,
+  `claude-sonnet-5`, `claude-haiku-4-5` oder `claude-fable-5` läuft automatisch
+  auf den jeweiligen Nachfolger). Websuche über Anthropics
   `web_search`-Tool, per `ai_max_web_searches` (Standard 12, 1-50)
   gedeckelt — niedriger spart Input-Tokens/Kosten, höher liefert
   gründlichere Antworten bei mehreren Zielen/Hotels.
