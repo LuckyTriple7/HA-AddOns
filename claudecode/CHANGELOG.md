@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.3] - 2026-10-09
+
+### Changed
+- Modell-Auswahl: claude-haiku-5-5 ersetzt claude-haiku-4-5-20251001 als schnellstes Modell; der alte Eintrag bleibt als Legacy-Option am Listenende, damit bestehende Konfigurationen weiter starten
+
+
 ## [1.4.2] - 2026-10-05
 
 ### Changed
