@@ -239,8 +239,11 @@ RUN apt-get update \
     && mv /usr/bin/code /usr/bin/code.orig \
     && printf '#!/bin/sh\nexec /usr/bin/code.orig --no-sandbox --disable-gpu "$@"\n' > /usr/bin/code \
     && chmod +x /usr/bin/code \
-    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox --disable-gpu |g' /usr/share/applications/code.desktop \
-    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox --disable-gpu |g' /usr/share/applications/code-url-handler.desktop 2>/dev/null || true
+    && for f in /usr/share/applications/code*.desktop /usr/share/applications/com.microsoft.VSCode*.desktop; do \
+        [ -f "$f" ] && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox --disable-gpu |g' "$f"; \
+    done; \
+    grep -q -- '--disable-gpu' /usr/share/applications/*VSCode*.desktop /usr/share/applications/code*.desktop 2>/dev/null \
+        || { echo "VS Code .desktop nicht gepatcht"; exit 1; }
 
 # GitHub CLI aus offiziellem GitHub-Repo installieren
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \

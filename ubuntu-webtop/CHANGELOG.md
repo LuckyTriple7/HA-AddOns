@@ -1,3 +1,9 @@
+## [1.8.96] - 2026-10-09
+
+### Behoben
+
+- VS Code flutete das HA-Log mit `eglGetMscRateANGLE: glXGetMscRateOML failed`: Microsoft hat die Desktop-Dateien in `com.microsoft.VSCode*.desktop` umbenannt, der `--disable-gpu`-Patch lief ins Leere. Patch greift jetzt auf beide Namen (Build bricht ab, wenn nichts gepatcht wurde), zusätzlich setzt der Start `disable-hardware-acceleration` in `/config/.vscode/argv.json`.
+
 ## [1.8.95] - 2026-10-08
 
 ### Aktualisiert
