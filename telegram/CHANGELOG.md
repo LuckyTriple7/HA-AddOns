@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.28.1] - 2026-10-10
+- Abhängigkeiten aktualisiert: teleproto 1.229.1 → 1.229.2, express-rate-limit 8.7.0 → 8.7.1
+
 ## [1.7.28] - 2026-10-10
 - Sicherheit: **proxy-addr 2.0.7 → 2.0.8** (Dependabot-Alarm #55, kritisch). Über ein IPv4-in-IPv6-Vertrauensnetz ließ sich die Absender-IP fälschen. proxy-addr kommt indirekt über express
 

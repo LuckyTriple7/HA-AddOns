@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.53.1] - 2026-10-10
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.0 → 8.7.1
+
 ## [1.8.53] - 2026-10-10
 - Sicherheit: **proxy-addr 2.0.7 → 2.0.8** (Dependabot-Alarm #57, kritisch). Über ein IPv4-in-IPv6-Vertrauensnetz ließ sich die Absender-IP fälschen. proxy-addr kommt indirekt über express
 
