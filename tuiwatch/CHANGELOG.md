@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.4
+
+- 🖨️ **Packliste: Ausdruck wieder lesbar.** Überschriften standen als weiße Schrift auf farbigem Balken; da Browser Hintergründe beim Drucken meist weglassen, blieb davon nur blasses Grau. Jetzt farbige Schrift ohne Hintergrund: Titel „TUIWatch — Packliste“ rot, Flugzeiten grün, Kategorie-Überschriften blau.
+
 ## 0.120.3
 
 - 🤖 **Claude-Modelle auf die 5.5-Generation.** Zur Auswahl stehen jetzt Opus 5.5 (neuer Standard), Sonnet 5.5, Haiku 5.5 und Fable 5.1. Eine gespeicherte Auswahl von Opus 5, Sonnet 5 oder Haiku 4.5 läuft automatisch auf den Nachfolger weiter, ebenso Wiederholen und Folgefragen alter Verlaufseinträge. Die Kostenschätzung kennt die neuen Preise; Haiku 5.5 kostet rund ein Zehntel von Haiku 4.5.

@@ -971,14 +971,16 @@
       body { background:#fff !important; }
       body > *:not(#pack-print-area) { display:none !important; }
       #pack-print-area { display:block !important; background:#fff; color:#111; }
-      #pack-print-area .pp-head { background:var(--accent); color:#fff; padding:14px 18px; border-radius:var(--r-ui); margin-bottom:14px; }
-      #pack-print-area .pp-head h1 { margin:0 0 4px; font-size:var(--fs-xl); }
-      #pack-print-area .pp-meta { font-size:var(--fs-sm); opacity:.92; }
-      #pack-print-area .pp-flights { font-size:var(--fs-sm); opacity:.92; margin-top:4px; }
+      /* Farbe nur über die Schrift, nie über Hintergründe: Browser drucken
+         Hintergrundgrafiken standardmäßig nicht, weiße Schrift bliebe unlesbar. */
+      #pack-print-area .pp-head { padding:0 0 8px; border-bottom:2px solid #c8102e; margin-bottom:14px; }
+      #pack-print-area .pp-head h1 { margin:0 0 4px; font-size:var(--fs-xl); color:#c8102e; }
+      #pack-print-area .pp-meta { font-size:var(--fs-sm); color:#111; }
+      #pack-print-area .pp-flights { font-size:var(--fs-sm); color:#1b7a3d; font-weight:600; margin-top:4px; }
       #pack-print-area .pp-wrap { display:flex; gap:26px; align-items:flex-start; }
       #pack-print-area .pp-col { flex:1; min-width:0; }
       #pack-print-area .pp-cat { break-inside:avoid; margin-bottom:10px; }
-      #pack-print-area .pp-cat h4 { background:var(--accent); color:#fff; padding:3px 8px; border-radius:3px; font-size:var(--fs-sm); margin:0 0 4px; }
+      #pack-print-area .pp-cat h4 { color:#0b4f9e; border-bottom:1px solid #0b4f9e; padding:0 0 2px; font-size:var(--fs-sm); margin:0 0 4px; }
       #pack-print-area .pp-item { font-size:var(--fs-sm); padding:1px 0; }
     }
     .dbg-fields { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
