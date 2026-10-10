@@ -67,7 +67,7 @@ Im Reiter **Einstellungen** ganz unten. Der Export verpackt `settings.key` mit e
 | `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
 | `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
 | `gemini_api_key` | Optional: Google-Gemini-Key — schaltet den Tab **KI** und im Bibliothek-Editor den Knopf **Bild generieren** frei. Key auf [aistudio.google.com](https://aistudio.google.com) holen. **Bild- und Texterzeugung sind je nach Modell kostenpflichtig** |
-| `gemini_image_model` | Startwert für die Bilderzeugung: `gemini-3.1-flash-image` (Allrounder, Standard), `gemini-3.1-flash-lite-image` (am schnellsten und günstigsten), `gemini-3-pro-image` (Premium), `gemini-2.5-flash-image` (älter). Im Tab **KI** überschreibbar |
+| `gemini_image_model` | Startwert für die Bilderzeugung: `gemini-nano-banana-2.1` (Allrounder, Standard), `gemini-3.1-flash-lite-image` (am schnellsten), `gemini-3-pro-image` (Premium), `gemini-2.5-flash-image` (älter). Im Tab **KI** überschreibbar |
 | `gemini_image_ratio` | Startwert für das Seitenverhältnis der erzeugten Bilder (Standard `16:9`). Im Tab **KI** überschreibbar |
 
 ## Ports

@@ -88,8 +88,8 @@ FIELDS: dict = {
     # KI (Google Gemini)
     'gemini_api_key':     ('str',    '',    200),
     'gemini_billing_key': ('str',    '',    200),
-    'gemini_image_model': ('choice', 'gemini-3.1-flash-image',
-                           ('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image',
+    'gemini_image_model': ('choice', 'gemini-nano-banana-2.1',
+                           ('gemini-nano-banana-2.1', 'gemini-3.1-flash-lite-image',
                             'gemini-3-pro-image', 'gemini-2.5-flash-image')),
     'gemini_image_ratio': ('choice', '16:9',
                            ('16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16', '21:9')),

@@ -574,7 +574,11 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
     'claude-opus-5':    {'input': 5.0,  'output': 25.0},
     'claude-opus-5-5':  {'input': 4.0,  'output': 20.0},
     'claude-opus-4-8':  {'input': 5.0,  'output': 25.0},
+    'claude-sonnet-5-5': {'input': 2.0, 'output': 10.0},
     'claude-sonnet-5':  {'input': 2.0,  'output': 10.0},
+    # Haiku 5.5: Preis bis 100k Prompt-Tokens; darüber 0.50/2.50 — für die
+    # grobe Schätzung reicht die Standardstufe.
+    'claude-haiku-5-5': {'input': 0.1,  'output': 0.5},
     'claude-haiku-4-5': {'input': 1.0,  'output': 5.0},
     'claude-fable-5-1': {'input': 10.0, 'output': 50.0},
     'claude-fable-5':   {'input': 10.0, 'output': 50.0},   # nur noch für alte Verlaufseinträge
@@ -620,7 +624,7 @@ def _ai_estimated_call_cost(model: str, input_tokens: int, output_tokens: int,
     """Kostenschätzung (USD) aus Preistabelle und pauschaler Request-Gebühr —
     der Weg für alles, was keine echten Kosten mitliefert (Claude, Gemini, und
     Perplexity-Aufrufe von vor der Agent-API-Umstellung)."""
-    price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
+    price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5-5'])
     cost = input_tokens / 1_000_000 * price['input']
     cost += output_tokens / 1_000_000 * price['output']
     cost += cache_read / 1_000_000 * price['input'] * 0.1
@@ -984,10 +988,10 @@ def _ai_config_for(provider: str) -> tuple[str, str]:
             model = 'pplx-low'
         return api_key, model
     api_key = (cfg.get('anthropic_api_key') or '').strip()
-    model = cfg.get('anthropic_model') or 'claude-opus-5'
+    model = cfg.get('anthropic_model') or 'claude-opus-5-5'
     model = A._MODEL_SUCCESSOR.get(model, model)
     if model not in A._AI_MODELS:
-        model = 'claude-opus-5'
+        model = 'claude-opus-5-5'
     return api_key, model
 
 

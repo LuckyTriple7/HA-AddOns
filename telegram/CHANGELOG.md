@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.27.1] - 2026-10-06
+- Abhängigkeit aktualisiert: teleproto 1.229.0 → 1.229.1
+
+## [1.7.27] - 2026-10-04
+- Fix: **Chatliste zeigt nach dem Löschen der letzten Nachricht nicht mehr deren Text an.** Die Vorschau blieb auf der gelöschten Nachricht stehen. Jetzt springt sie auf die Nachricht, die danach die letzte ist, samt deren Uhrzeit. Gilt für Strg+Rechtsklick und den Löschmodus
+
+## [1.7.26] - 2026-10-04
+- Geändert: **Schnelles Löschen jetzt mit Strg+Rechtsklick statt Shift+Rechtsklick.** Mit Shift hat der Browser dabei jedes Mal Text markiert. Auf dem Mac geht auch Cmd+Rechtsklick
+- Neu: **Löscheffekt wie in der Telegram-App.** Die Nachricht zerfällt von links nach rechts zu Staub, danach schließt sich die Lücke im Verlauf weich. Mit der Systemeinstellung „Bewegung reduzieren“ wird sie nur kurz ausgeblendet. Schlägt das Löschen fehl, erscheint die Nachricht wieder
+
+## [1.7.25] - 2026-10-04
+- Neu: **Einzelne Nachricht per Shift+Rechtsklick löschen.** Shift gedrückt halten und mit der rechten Maustaste auf eine Nachricht klicken löscht sie sofort, ohne Löschmodus und ohne Rückfrage. Die Nachricht wird während des Löschens blass dargestellt. Ein normaler Rechtsklick öffnet weiterhin das Browsermenü (z. B. zum Kopieren)
+
+## [1.7.24] - 2026-10-03
+- Neu: **Eigene Befehle pro Chat.** Das `/`-Menü zeigt jetzt drei Abschnitte: **★ eigene Befehle**, **↺ zuletzt gesendete Befehle** und wie bisher die Befehle, die der Bot selbst meldet. Eigene Befehle dürfen Parameter enthalten (z. B. `/update litellm -y`), haben eine Beschreibung und werden entweder sofort gesendet oder nur ins Eingabefeld eingefügt, damit du vor dem Senden noch etwas ergänzen kannst. Anlegen über „＋ Eigenen Befehl anlegen…“ am Ende der Liste oder über ☆ an einem zuletzt gesendeten Befehl; bearbeiten und löschen über ✎. Die Suche beim Tippen findet auch Treffer in der Beschreibung
+- Der Verlauf merkt sich automatisch die zuletzt gesendeten Befehle (auch aus der Telegram-App am Handy) und zeigt bis zu 8 davon. Befehle, die der Bot schon selbst im Menü anbietet, und angeheftete Befehle erscheinen dort nicht doppelt; ✕ entfernt einen Eintrag
+- Gespeichert wird auf dem Server in `/config/custom_commands.json`, damit alle Geräte dieselben Befehle sehen. Der `/`-Knopf ist jetzt in jedem Chat sichtbar (blass, solange es noch keine Befehle gibt)
+
+## [1.7.23] - 2026-10-03
+- Neu: **Telegram-Formatierung wird angezeigt.** Codeblöcke erscheinen wie in der Telegram-App als abgesetzter Kasten in Monospace-Schrift, mit Sprache in der Kopfzeile (z. B. „Bash") und einem Knopf „Code kopieren". Außerdem werden Inline-Code, **fett**, *kursiv*, unterstrichen, durchgestrichen, Textlinks, Zitate und Spoiler (Antippen zum Aufdecken) dargestellt. Bisher kam nur der reine Text an. Gilt für neu empfangene oder neu geladene Nachrichten; ältere Nachrichten im Cache erhalten die Formatierung nach „Chat neu laden"
+
 ## [1.7.22] - 2026-10-03
 - Fix: **Gelöschte Nachrichten tauchen bei aktivem Auto-Neuladen nicht mehr wieder auf.** Lief das automatische Neuladen gerade, während Nachrichten gelöscht wurden (Löschmodus oder „Chat leeren"), konnte die Antwort von Telegram noch den Stand vor dem Löschen enthalten. Die gelöschten Nachrichten erschienen dann wieder im Chat und blieben im Cache, obwohl sie in Telegram schon weg waren. Jetzt pausiert das Auto-Neuladen während des Löschens, ein bereits laufendes Neuladen verwirft sein veraltetes Ergebnis, und der Server filtert kürzlich gelöschte Nachrichten aus jedem Neuladen heraus
 

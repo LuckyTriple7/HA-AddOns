@@ -102,12 +102,16 @@ def test_retired_models_move_to_successor(app_mod):
     assert app_mod._ai_config() == ("g-key", "gemini-3.8-flash")
     _write_options(app_mod, anthropic_api_key="a-key", anthropic_model="claude-fable-5")
     assert app_mod._ai_config() == ("a-key", "claude-fable-5-1")
+    for old, new in (("claude-opus-5", "claude-opus-5-5"), ("claude-sonnet-5", "claude-sonnet-5-5"),
+                     ("claude-haiku-4-5", "claude-haiku-5-5")):
+        _write_options(app_mod, anthropic_api_key="a-key", anthropic_model=old)
+        assert app_mod._ai_config() == ("a-key", new)
     assert ai_routes._provider_for_model("gemini-3.5-flash") == "gemini"
 
 
 def test_ai_config_defaults_to_anthropic(app_mod):
     api_key, model = app_mod._ai_config()
-    assert model == "claude-opus-5"
+    assert model == "claude-opus-5-5"
     assert api_key == ""
 
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.120.5
+
+- 🧳 **Meine Reisen: Sortierung wählbar.** Über der Liste steht eine Auswahl: nächste Abreise zuerst (neuer Standard, vergangene Reisen dahinter), Abreise auf- oder absteigend, zuletzt hinzugefügt, Preis oder Name. Die Auswahl bleibt je Gerät gemerkt.
+- 🧳 **Meine Reisen: Koffer-Symbol führt direkt zur Packliste.** Es ersetzt den PDF-Knopf in der Zeile, öffnet die Reise und springt zur aufgeklappten Packliste. Die PDF bleibt über „Details“ → „PDF öffnen“ erreichbar.
+
+## 0.120.4
+
+- 🖨️ **Packliste: Ausdruck wieder lesbar.** Überschriften standen als weiße Schrift auf farbigem Balken; da Browser Hintergründe beim Drucken meist weglassen, blieb davon nur blasses Grau. Jetzt farbige Schrift ohne Hintergrund: Titel „TUIWatch — Packliste“ rot, Flugzeiten grün, Kategorie-Überschriften blau.
+
+## 0.120.3
+
+- 🤖 **Claude-Modelle auf die 5.5-Generation.** Zur Auswahl stehen jetzt Opus 5.5 (neuer Standard), Sonnet 5.5, Haiku 5.5 und Fable 5.1. Eine gespeicherte Auswahl von Opus 5, Sonnet 5 oder Haiku 4.5 läuft automatisch auf den Nachfolger weiter, ebenso Wiederholen und Folgefragen alter Verlaufseinträge. Die Kostenschätzung kennt die neuen Preise; Haiku 5.5 kostet rund ein Zehntel von Haiku 4.5.
+
+## 0.120.2
+
+- 🧳 **MCP: Packliste abhaken.** Neues Werkzeug `get_packing_list` liefert die Packliste mit IDs, `check_packing_items` hakt Einträge ab (oder öffnet sie wieder), per ID oder Bezeichnung wie „Sonnencreme“. Ohne Angabe einer Reise gilt immer die nächste. Ist eine Bezeichnung mehrdeutig, wird nichts geändert und die passenden Einträge kommen zur Auswahl zurück. Abhaken ist eine Aktion und braucht **Aktionen erlauben**.
+
 ## 0.120.1
 
 - 🐛 **MCP: Ein Client konnte ausgesperrt werden, obwohl sein Token stimmte.** Jede Anfrage ohne gültiges Token zählte als Fehlversuch, nach 5 davon war die Absender-IP 15 Minuten gesperrt, auch für den echten Client mit richtigem Token. Mehrere Container im selben Docker-Netz teilen sich dabei eine Adresse. Jetzt wird ein gültiges Token immer angenommen, auch bei gesperrter IP. Anfragen ganz ohne Token (Erreichbarkeits- und Health-Checks) zählen nicht mehr als Fehlversuch, nur falsche Tokens.

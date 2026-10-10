@@ -13,7 +13,7 @@ Absicherung, bewusst getrennt vom Login der Oberfläche:
   dieselbe Sperre wie der Login.
 - Browser-Anfragen von fremden Seiten (Origin ≠ eigener Host) werden abgelehnt.
 - Standardmäßig nur lesende Werkzeuge; Aktionen (prüfen, Wunschpreis,
-  pausieren) nur mit `mcp_allow_actions`.
+  pausieren, Packliste abhaken) nur mit `mcp_allow_actions`.
 """
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ INSTRUCTIONS = (
     "Preise sind pro Person in Euro, total_price ist der Gesamtpreis aller Reisenden. "
     "Zuerst list_offers aufrufen, Details und Preisverlauf dann mit get_offer. "
     "Gebuchte Reisen („Meine Reisen“) mit list_trips und get_trip. "
+    "Packliste der nächsten Reise mit get_packing_list, abhaken mit check_packing_items. "
     "Bei Fragen zu fehlenden Preisen zuerst get_problems und get_api_status.")
 
 
@@ -220,6 +221,108 @@ def t_get_trip(args: dict):
                        'open_items': open_items[:100]}
     trip['attachments'] = [a['orig_name'] for a in atts]
     return trip
+
+
+# ── Packliste ─────────────────────────────────────────────────────────────────
+# Jede Reise hat ihre eigene Packliste. Ohne trip_id gilt immer die nächste
+# Reise (Abreise heute oder später), damit das Modell nicht versehentlich eine
+# alte oder spätere Liste abhakt.
+
+_PACKING_TRIP_COLS = 'SELECT id, title, destination, hotel, start_date, packing_seeded FROM trips '
+
+
+def _packing_trip(con, args: dict):
+    raw = args.get('trip_id')
+    if raw is None:
+        row = con.execute(_PACKING_TRIP_COLS + 'WHERE start_date >= ? ORDER BY start_date ASC '
+                          'LIMIT 1', (date.today().isoformat(),)).fetchone()
+        if not row:
+            raise ToolError('Keine bevorstehende Reise gefunden')
+    else:
+        try:
+            tid = int(raw)
+        except (TypeError, ValueError):
+            raise ToolError('trip_id ist keine Zahl')
+        row = con.execute(_PACKING_TRIP_COLS + 'WHERE id=?', (tid,)).fetchone()
+        if not row:
+            raise ToolError('Reise nicht gefunden')
+    if not row['packing_seeded']:
+        import trips_routes
+        trips_routes.seed_packing(con, row['id'])
+    return row
+
+
+def _packing_payload(con, trip) -> dict:
+    items = [dict(r) for r in con.execute(
+        'SELECT id, category, label, checked FROM trip_packing_items WHERE trip_id=? '
+        'ORDER BY id', (trip['id'],)).fetchall()]
+    for i in items:
+        i['checked'] = bool(i['checked'])
+    return {'trip_id': trip['id'],
+            'trip': trip['destination'] or trip['title'] or trip['hotel'] or '',
+            'start_date': trip['start_date'],
+            'total': len(items), 'open': sum(1 for i in items if not i['checked']),
+            'items': items}
+
+
+def t_get_packing_list(args: dict):
+    with A.db() as con:
+        out = _packing_payload(con, _packing_trip(con, args))
+    if args.get('only_open', False):
+        out['items'] = [i for i in out['items'] if not i['checked']]
+    return out
+
+
+def _match_packing(items: list, wanted: str) -> list:
+    """Bezeichnung → passende Einträge: erst genau (auch „Kategorie: Bezeichnung“),
+    sonst als Teilwort."""
+    w = wanted.strip().casefold()
+    exact = [i for i in items if i['label'].casefold() == w
+             or f"{i['category']}: {i['label']}".casefold() == w]
+    return exact or [i for i in items if w in i['label'].casefold()]
+
+
+def t_check_packing_items(args: dict):
+    checked = bool(args.get('checked', True))
+    ids = args.get('item_ids') or []
+    labels = args.get('labels') or []
+    if not isinstance(ids, list) or not isinstance(labels, list) or not (ids or labels):
+        raise ToolError('item_ids oder labels angeben')
+    if len(ids) + len(labels) > 100:
+        raise ToolError('Höchstens 100 Einträge auf einmal')
+    with A.db() as con:
+        trip = _packing_trip(con, args)
+        items = _packing_payload(con, trip)['items']
+        by_id = {i['id']: i for i in items}
+        hit, not_found, ambiguous = {}, [], []
+        for raw in ids:
+            try:
+                i = by_id.get(int(raw))
+            except (TypeError, ValueError):
+                i = None
+            if i:
+                hit[i['id']] = i
+            else:
+                not_found.append(raw)
+        for lab in labels:
+            found = _match_packing(items, str(lab)) if str(lab).strip() else []
+            if len(found) == 1:
+                hit[found[0]['id']] = found[0]
+            elif not found:
+                not_found.append(lab)
+            else:
+                ambiguous.append({'label': lab, 'candidates': [
+                    {'id': f['id'], 'category': f['category'], 'label': f['label']}
+                    for f in found[:10]]})
+        con.executemany('UPDATE trip_packing_items SET checked=? WHERE id=? AND trip_id=?',
+                        [(1 if checked else 0, iid, trip['id']) for iid in hit])
+        left = con.execute('SELECT COUNT(*) c FROM trip_packing_items WHERE trip_id=? '
+                           'AND checked=0', (trip['id'],)).fetchone()['c']
+    A.log.info("MCP: Packliste Reise #%d: %d Einträge %s", trip['id'], len(hit),
+               "abgehakt" if checked else "wieder offen")
+    return {'trip_id': trip['id'], 'checked': checked,
+            'changed': [f"{i['category']}: {i['label']}" for i in hit.values()],
+            'not_found': not_found, 'ambiguous': ambiguous, 'open_left': left}
 
 
 def t_next_trip(args: dict):
@@ -423,6 +526,13 @@ TOOLS = [
      'inputSchema': {'type': 'object', 'properties': {
          'trip_id': {'type': 'integer', 'description': 'ID der Reise (aus list_trips)'}},
          'required': ['trip_id'], 'additionalProperties': False}},
+    {'name': 'get_packing_list', 'handler': t_get_packing_list, 'write': False,
+     'description': 'Packliste einer Reise mit IDs, Kategorie und Haken. Ohne trip_id die '
+                    'nächste bevorstehende Reise (jede Reise hat ihre eigene Liste).',
+     'inputSchema': {'type': 'object', 'properties': {
+         'trip_id': {'type': 'integer', 'description': 'Optional, sonst die nächste Reise'},
+         'only_open': {'type': 'boolean', 'description': 'Nur noch nicht abgehakte Einträge', 'default': False}},
+         'additionalProperties': False}},
     {'name': 'next_trip', 'handler': t_next_trip, 'write': False,
      'description': 'Die nächste gebuchte Reise mit Abflugzeitpunkt.',
      'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
@@ -478,6 +588,18 @@ TOOLS = [
      'inputSchema': {'type': 'object', 'properties': {
          'offer_id': _ID, 'price': {'type': ['number', 'null']}},
          'required': ['offer_id', 'price'], 'additionalProperties': False}},
+    {'name': 'check_packing_items', 'handler': t_check_packing_items, 'write': True,
+     'description': 'Einträge der Packliste abhaken (oder mit checked=false wieder öffnen). '
+                    'Per ID aus get_packing_list oder per Bezeichnung (genau, sonst Teilwort). '
+                    'Ohne trip_id gilt die nächste Reise. Mehrdeutige Bezeichnungen werden '
+                    'nicht geändert, sondern mit Kandidaten zurückgemeldet.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'item_ids': {'type': 'array', 'items': {'type': 'integer'}},
+         'labels': {'type': 'array', 'items': {'type': 'string'},
+                    'description': 'z. B. ["Sonnencreme", "Reisepass"]'},
+         'checked': {'type': 'boolean', 'default': True},
+         'trip_id': {'type': 'integer', 'description': 'Optional, sonst die nächste Reise'}},
+         'additionalProperties': False}},
     {'name': 'pause_offer', 'handler': t_pause_offer, 'write': True,
      'description': 'Angebot pausieren (keine Preisprüfungen mehr) oder mit paused=false fortsetzen.',
      'inputSchema': {'type': 'object', 'properties': {

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.9] - 2026-10-09
+- Collabora auf Upstream-Version 26.04.5.1.1 aktualisiert
+
 ## [1.1.8] - 2026-09-24
 - Collabora auf Upstream-Version 26.04.4.2.1 aktualisiert
 

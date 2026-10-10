@@ -156,8 +156,8 @@ configuration:
   gemini_image_model:
     name: Modell für die Bilderzeugung
     description: >-
-      gemini-3.1-flash-image ist der Allrounder, gemini-3.1-flash-lite-image das
-      schnellste und günstigste, gemini-3-pro-image die Premium-Variante.
+      gemini-nano-banana-2.1 ist der Allrounder, gemini-3.1-flash-lite-image das
+      schnellste, gemini-3-pro-image die Premium-Variante.
   gemini_image_ratio:
     name: Seitenverhältnis der erzeugten Bilder
     description: 16:9 passt zu den Titelbildern der Bibliothek.

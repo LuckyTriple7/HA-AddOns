@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.17.1] - 2026-10-06
+- Node.js für Playwright MCP von 22 auf 24 LTS angehoben (Build-Stage `node:24-bookworm-slim`)
+
 ## [1.0.17] - 2026-10-01
 
 ### Sicherheit

@@ -122,6 +122,7 @@ const CHATS_FILE = '/config/chats.json';
 const MESSAGES_FILE = '/config/messages.json';
 const MEDIA_DIR = '/config/media';
 const AUTO_RELOAD_FILE = '/config/auto_reload.json';
+const CUSTOM_CMD_FILE = '/config/custom_commands.json';
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let status = 'starting'; // starting | awaiting_code | awaiting_password | connected | error
@@ -390,6 +391,26 @@ function extractButtons(rawMsg) {
   return rows.length ? rows : undefined;
 }
 
+// Telegram liefert Formatierung getrennt vom Text als Entities (Offset/Länge in
+// UTF-16-Einheiten, passt 1:1 zu JS-Strings); kompakt für den Client ablegen
+const _ENT_TYPES = {
+  MessageEntityBold: 'b', MessageEntityItalic: 'i', MessageEntityUnderline: 'u', MessageEntityStrike: 's',
+  MessageEntityCode: 'code', MessageEntityPre: 'pre', MessageEntityTextUrl: 'url',
+  MessageEntitySpoiler: 'spoiler', MessageEntityBlockquote: 'quote',
+};
+function extractEntities(rawMsg) {
+  const out = [];
+  for (const e of (rawMsg.entities || [])) {
+    const t = _ENT_TYPES[e.className];
+    if (!t || !(e.length > 0)) continue;
+    const ent = { t, o: e.offset, l: e.length };
+    if (t === 'pre' && e.language) ent.lang = String(e.language).slice(0, 40);
+    if (t === 'url' && e.url) ent.url = String(e.url);
+    out.push(ent);
+  }
+  return out.length ? out : undefined;
+}
+
 // Bearbeitete Nachricht (Bots streamen Antworten oder tauschen Buttons aus) im
 // Cache nachziehen
 function applyMessageEdit(rawMsg) {
@@ -399,6 +420,7 @@ function applyMessageEdit(rawMsg) {
   const stored = messagesByChatId.get(chatId)?.find(m => m.id === `${chatId}_${rawMsg.id}`);
   if (!stored) return;
   if (typeof rawMsg.message === 'string' && (rawMsg.message || stored.type === 'text')) stored.body = rawMsg.message;
+  if (typeof rawMsg.message === 'string') { const ents = extractEntities(rawMsg); if (ents) stored.ents = ents; else delete stored.ents; }
   const buttons = extractButtons(rawMsg);
   if (buttons) stored.buttons = buttons; else delete stored.buttons;
   stored.editTs = (rawMsg.editDate || Math.floor(Date.now() / 1000)) * 1000;
@@ -427,6 +449,13 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
       const buttons = extractButtons(rawMsg);
       if (JSON.stringify(buttons) !== JSON.stringify(stored.buttons)) {
         if (buttons) stored.buttons = buttons; else delete stored.buttons;
+        stored.editTs = Date.now();
+        scheduleSave();
+      }
+      // Formatierung nachziehen (Cache-Einträge vor 1.7.23 kennen sie noch nicht)
+      const ents = rawMsg.message ? extractEntities(rawMsg) : undefined;
+      if (JSON.stringify(ents) !== JSON.stringify(stored.ents)) {
+        if (ents) stored.ents = ents; else delete stored.ents;
         stored.editTs = Date.now();
         scheduleSave();
       }
@@ -488,7 +517,9 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   const buttons = extractButtons(rawMsg);
   if (buttons) msgObj.buttons = buttons;
+  if (rawMsg.message) { const ents = extractEntities(rawMsg); if (ents) msgObj.ents = ents; }
   if (rawMsg.editDate) msgObj.editTs = rawMsg.editDate * 1000;
+  if (fromMe && source === 'NewMessage') recordRecentCmd(chatId, rawMsg.message);
   msgs.push(msgObj);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   _logSilent('DEBUG', `teleproto msg [${source}]: id=${rawMsg.id} from=${chatName} type=${type} fromMe=${fromMe}${body?' "'+body.slice(0,60)+'"':''}`);
@@ -939,6 +970,7 @@ app.post('/api/send', async (req, res) => {
 
     dbg(`Sending message to ${to}: "${message.slice(0,60)}${message.length>60?'…':''}"`);
     const result = await client.sendMessage(entity, { message });
+    recordRecentCmd(to, message);
     const msgId = `${to}_${result.id}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -963,6 +995,7 @@ app.post('/api/reply', async (req, res) => {
     if (!entity) { await loadDialogs(); entity = peerMap.get(to); }
     if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
     const result = await client.sendMessage(entity, { message, replyTo: replyToTgId ? Number(replyToTgId) : undefined });
+    recordRecentCmd(to, message);
     const msgId = `${to}_${result.id}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -1113,6 +1146,13 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
       const idx = msgs.findIndex(m => m.id === msgId);
       if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
     }
+    // Vorschau in der Chatliste auf die jetzt letzte Nachricht zurücksetzen
+    const chat = chatMap.get(chatId);
+    if (chat) {
+      const last = msgs && msgs[msgs.length - 1];
+      chat.lastMsg = last ? (last.body || (last.type === 'photo' ? '📷 Foto' : '[Medien]')) : '';
+      if (last) chat.lastTime = last.timestamp;
+    }
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1193,6 +1233,88 @@ app.post('/api/auto-reload/:chatId', mutatingRateLimit, (req, res) => {
   try { fs.writeFileSync(AUTO_RELOAD_FILE, JSON.stringify([...autoReloadChats])); }
   catch (e) { return res.status(500).json({ error: 'Speichern fehlgeschlagen' }); }
   res.json({ chats: [...autoReloadChats] });
+});
+
+// Eigene Befehle pro Chat: angeheftete (vom Nutzer gepflegt) und zuletzt
+// gesendete (automatisch). Serverseitig, damit alle Geräte dieselben sehen
+const RECENT_CMD_MAX = 20;
+const customCmds = new Map(); // chatId -> { pinned: [{ text, desc, insert }], recent: [text] }
+const isChatId = id => /^-?[0-9]{1,20}$/.test(id);
+function cleanCmdText(s) {
+  if (typeof s !== 'string') return '';
+  s = s.trim();
+  return s.length > 1 && s.length <= 300 && s.startsWith('/') && !s.includes('\n') ? s : '';
+}
+function sanitizePinned(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const p of arr.slice(0, 100)) {
+    const text = cleanCmdText(p?.text);
+    if (!text || out.some(o => o.text === text)) continue;
+    out.push({ text, desc: typeof p.desc === 'string' ? p.desc.trim().slice(0, 100) : '', insert: p.insert === true });
+  }
+  return out;
+}
+function sanitizeRecent(arr) {
+  return Array.isArray(arr) ? [...new Set(arr.map(cleanCmdText).filter(Boolean))].slice(0, RECENT_CMD_MAX) : [];
+}
+try {
+  if (fs.existsSync(CUSTOM_CMD_FILE)) {
+    const obj = JSON.parse(fs.readFileSync(CUSTOM_CMD_FILE, 'utf8')) || {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (isChatId(k) && v && typeof v === 'object') customCmds.set(k, { pinned: sanitizePinned(v.pinned), recent: sanitizeRecent(v.recent) });
+    }
+  }
+} catch (e) { console.warn('[WARN] custom_commands.json nicht lesbar'); }
+function saveCustomCmds() {
+  try { fs.writeFileSync(CUSTOM_CMD_FILE, JSON.stringify(Object.fromEntries(customCmds))); return true; }
+  catch (e) { console.warn('[WARN] custom_commands.json nicht schreibbar'); return false; }
+}
+function cmdEntry(chatId) {
+  let entry = customCmds.get(chatId);
+  if (!entry) { entry = { pinned: [], recent: [] }; customCmds.set(chatId, entry); }
+  return entry;
+}
+// Gesendeten Befehl im Verlauf nach vorne holen (auch aus der Telegram-App)
+function recordRecentCmd(chatId, message) {
+  const text = cleanCmdText(message);
+  if (!text || !isChatId(String(chatId))) return;
+  const entry = cmdEntry(String(chatId));
+  entry.recent = [text, ...entry.recent.filter(r => r !== text)].slice(0, RECENT_CMD_MAX);
+  saveCustomCmds();
+}
+
+app.get('/api/custom-commands/:chatId', (req, res) => {
+  const chatId = String(req.params.chatId || '');
+  if (!isChatId(chatId)) return res.status(400).json({ error: 'Ungueltige Chat-ID' });
+  if (!customCmds.has(chatId)) {
+    // Erstaufruf: Verlauf aus den bereits geladenen eigenen Nachrichten vorbelegen
+    const own = (messagesByChatId.get(chatId) || []).filter(m => m.fromMe).sort((a, b) => b.timestamp - a.timestamp);
+    const recent = sanitizeRecent(own.map(m => m.body));
+    if (!recent.length) return res.json({ pinned: [], recent: [] });
+    cmdEntry(chatId).recent = recent;
+    saveCustomCmds();
+  }
+  res.json(customCmds.get(chatId));
+});
+
+app.put('/api/custom-commands/:chatId/pinned', mutatingRateLimit, (req, res) => {
+  const chatId = String(req.params.chatId || '');
+  if (!isChatId(chatId)) return res.status(400).json({ error: 'Ungueltige Chat-ID' });
+  const entry = cmdEntry(chatId);
+  entry.pinned = sanitizePinned(req.body?.pinned);
+  if (!saveCustomCmds()) return res.status(500).json({ error: 'Speichern fehlgeschlagen' });
+  res.json(entry);
+});
+
+app.post('/api/custom-commands/:chatId/recent/remove', mutatingRateLimit, (req, res) => {
+  const chatId = String(req.params.chatId || '');
+  if (!isChatId(chatId)) return res.status(400).json({ error: 'Ungueltige Chat-ID' });
+  const entry = cmdEntry(chatId);
+  const text = String(req.body?.text || '');
+  entry.recent = entry.recent.filter(r => r !== text);
+  if (!saveCustomCmds()) return res.status(500).json({ error: 'Speichern fehlgeschlagen' });
+  res.json(entry);
 });
 
 app.post('/api/react', async (req, res) => {
@@ -1595,6 +1717,7 @@ const _SVG = {
   disk:      '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
   imageOn:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
   imageOff:  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+  copy:      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   trash:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
   chevUp:    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
   chevDown:  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
@@ -1824,6 +1947,7 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 #messages.delete-mode .bubble-row { cursor: pointer; }
 #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
 .bubble-row.selected .bubble, .bubble-row.selected .voice-wrap { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 10px; }
+.bubble-row.deleting { pointer-events: none; }
 /* Optimistisch gerenderte Bubble: sofort sichtbar, ausgegraut bis der Server bestätigt */
 .bubble-row.pending .bubble { opacity: 0.55; }
 .bubble-row.pending .fwd-btn, .bubble-row.pending .reply-btn, .bubble-row.pending .react-btn { display: none; }
@@ -1880,6 +2004,18 @@ html.light .bubble.out { background: #EEFFDE; color: #222; }
 .bubble-time { font-size: 11px; float: right; margin-left: 8px; margin-top: 2px; white-space: nowrap; }
 html.dark .bubble-time { color: rgba(193,201,212,0.6); }
 html.light .bubble-time { color: rgba(0,0,0,0.35); }
+.code-block { margin: 4px 0; border-left: 3px solid #6c8ba8; border-radius: 6px; background: rgba(0,0,0,0.22); overflow: hidden; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #8fb3d4; background: rgba(0,0,0,0.15); }
+.code-copy { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: inherit; font: inherit; cursor: pointer; opacity: 0.8; padding: 0; }
+.code-copy:hover { opacity: 1; }
+.code-block pre { margin: 0; padding: 8px 10px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.45; white-space: pre; word-break: normal; }
+.code-inline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: rgba(0,0,0,0.22); padding: 1px 4px; border-radius: 4px; }
+.tg-quote { margin: 4px 0; padding: 2px 8px; border-left: 3px solid #53bdeb; background: rgba(83,189,235,0.10); border-radius: 4px; }
+.tg-spoiler { background: currentColor; border-radius: 3px; cursor: pointer; transition: background .2s; }
+.tg-spoiler.revealed { background: rgba(127,127,127,0.18); }
+html.light .code-block { background: #f1f4f7; border-left-color: #517DA2; }
+html.light .code-head { background: #e4eaf0; color: #517DA2; }
+html.light .code-inline { background: rgba(0,0,0,0.07); }
 .msg-ack { font-size: 11px; margin-left: 2px; }
 .ack-1 { color: rgba(193,201,212,0.6); }
 .ack-3 { color: #2AABEE; }
@@ -1919,8 +2055,8 @@ html.light .emoji-tab.active { background: #E7E7E7; }
 #input-bar .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; width: auto; height: auto; line-height: 1; }
 html.dark #input-bar .emoji-btn:hover { background: rgba(255,255,255,0.06); }
 html.light #input-bar .emoji-btn:hover { background: #F1F1F1; }
-#cmd-toggle { display: none; background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 50%; font-size: 18px; font-weight: 700; line-height: 1; flex-shrink: 0; }
-#cmd-toggle.has-cmds { display: inline-flex; }
+#cmd-toggle { display: inline-flex; opacity: .55; background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 50%; font-size: 18px; font-weight: 700; line-height: 1; flex-shrink: 0; }
+#cmd-toggle.has-cmds { opacity: 1; }
 html.dark #cmd-toggle { color: #6B7B8D; }
 html.light #cmd-toggle { color: #888; }
 #cmd-toggle:hover { background: rgba(0,0,0,0.08); }
@@ -1935,6 +2071,28 @@ html.dark .cmd-item { color: #C1C9D4; }
 html.light .cmd-item { color: #222; }
 html.dark .cmd-item.active, html.dark .cmd-item:hover { background: #2B5278; }
 html.light .cmd-item.active, html.light .cmd-item:hover { background: #E3EEF7; }
+.cmd-item { align-items: center; }
+.cmd-item .cmd-kind { width: 14px; flex-shrink: 0; text-align: center; opacity: .7; }
+.cmd-item .cmd-desc { flex: 1; min-width: 0; }
+.cmd-act { background: none; border: none; color: inherit; cursor: pointer; opacity: .5; font-size: 15px; padding: 2px 6px; flex-shrink: 0; }
+.cmd-act:hover { opacity: 1; }
+.cmd-item.cmd-add { opacity: .7; }
+#cmd-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+#cmd-modal.open { display: flex; }
+html.dark #cmd-modal { color: #C1C9D4; }
+html.light #cmd-modal { color: #111; }
+.cmd-field { display: block; margin-bottom: 10px; font-size: 13px; }
+.cmd-field span { display: block; margin-bottom: 4px; opacity: .75; }
+.cmd-field input { width: 100%; border: none; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; }
+html.dark .cmd-field input { background: #17212B; color: #C1C9D4; }
+html.light .cmd-field input { background: #f0f2f5; color: #111; }
+.cmd-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.cmd-error { color: #e53935; font-size: 13px; min-height: 18px; margin-top: 6px; }
+.cmd-modal-btns { display: flex; gap: 8px; margin-top: 6px; }
+.cmd-modal-btns .cmd-btn { flex: 1; margin-top: 0; border: none; border-radius: 8px; padding: 8px 10px; font-size: 14px; cursor: pointer; }
+.cmd-btn-save { background: #2AABEE; color: #fff; }
+.cmd-btn-del { background: #e53935; color: #fff; }
+.cmd-btn:hover { opacity: .85; }
 #emoji-toggle { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 html.dark #emoji-toggle { color: #6B7B8D; }
 html.light #emoji-toggle { color: #888; }
@@ -2117,7 +2275,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       </div>
       <div id="cmd-list"></div>
       <input type="file" id="file-input" onchange="onFileSelected(this)">
-      <button id="cmd-toggle" onclick="toggleCmdList(event)" data-i18n-title="cmdTitle" title="Bot-Befehle">/</button>
+      <button id="cmd-toggle" onclick="toggleCmdList(event)" data-i18n-title="cmdTitle" title="Befehle">/</button>
       <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">${_SVG.smile}</button>
       <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">${_SVG.paperclip}</button>
       <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this);onCmdInput()"></textarea>
@@ -2148,6 +2306,7 @@ const LANG = {
     btnConfirm: 'Bestätigen', overlayErrorTitle: 'Fehler', btnReconnect: 'Erneut verbinden',
     unknownError: 'Unbekannter Fehler',
     photosOn: 'Medien AN', photosOff: 'Medien AUS',
+    copyCode: 'Code kopieren', copied: 'Kopiert ✓',
     videoDownload: '⬇ Video herunterladen', videoTooBig: '📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnReload: 'Chat neu laden', btnReloadAutoOn: 'Automatisches Neuladen AN (alle 10 s)', btnReloadAutoHint: 'Rechtsklick: automatisch neu laden ein/aus', btnReloadAll: 'Alle Chats nachladen',
@@ -2158,14 +2317,18 @@ const LANG = {
     btnLogout: 'Abmelden', logoutConfirmMsg: 'Möchtest du dich wirklich abmelden?', btnYes: 'Ja', btnNo: 'Nein',
     searchPlaceholder: 'Suchen…',
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen', cmdTitle: 'Bot-Befehle',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen', cmdTitle: 'Befehle',
+    cmdAdd: 'Eigenen Befehl anlegen…', cmdEdit: 'Bearbeiten', cmdPin: 'Als eigenen Befehl merken', cmdForget: 'Aus dem Verlauf entfernen',
+    cmdAddTitle: '★ Eigener Befehl', cmdEditTitle: '★ Befehl bearbeiten', cmdFieldText: 'Befehl (Parameter erlaubt)', cmdFieldDesc: 'Beschreibung',
+    cmdFieldInsert: 'Nur ins Eingabefeld einfügen, nicht sofort senden', cmdSave: 'Speichern', cmdCancel: 'Abbrechen',
+    cmdErrSlash: 'Der Befehl muss mit / beginnen', cmdErrDup: 'Diesen Befehl gibt es schon', cmdErrSave: 'Speichern fehlgeschlagen',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
     btnDelete: 'Löschen', btnReact: 'Reagieren', kbError: 'Button fehlgeschlagen: ', kbUnsupported: 'Dieser Button-Typ wird hier nicht unterstützt', reactionRemove: 'Klicken zum Entfernen',
     clearChat: 'Chat leeren (alles außer letzter Nachricht)',
     clearChatConfirm: (name) => 'Alle Nachrichten in „' + name + '" außer der letzten dauerhaft löschen?\\n\\nDas löscht sie auch in Telegram (soweit möglich für beide Seiten) und lässt sich nicht rückgängig machen.',
     clearChatDone: (n, own) => n + (n===1?' Nachricht':' Nachrichten') + ' gelöscht.' + (own ? '\\nOhne Adminrechte nur eigene Nachrichten.' : ''),
     clearChatError: 'Chat leeren fehlgeschlagen: ',
-    deleteMode: 'Nachrichten löschen', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
+    deleteMode: 'Nachrichten löschen (einzeln: Strg+Rechtsklick)', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
@@ -2182,6 +2345,7 @@ const LANG = {
     btnConfirm: 'Confirm', overlayErrorTitle: 'Error', btnReconnect: 'Reconnect',
     unknownError: 'Unknown error',
     photosOn: 'Media ON', photosOff: 'Media OFF',
+    copyCode: 'Copy code', copied: 'Copied ✓',
     videoDownload: '⬇ Download video', videoTooBig: '📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Delete orphaned media files',
     btnReload: 'Reload chat', btnReloadAutoOn: 'Auto reload ON (every 10 s)', btnReloadAutoHint: 'Right-click: toggle auto reload', btnReloadAll: 'Reload all chats',
@@ -2192,14 +2356,18 @@ const LANG = {
     btnLogout: 'Log out', logoutConfirmMsg: 'Do you really want to log out?', btnYes: 'Yes', btnNo: 'No',
     searchPlaceholder: 'Search…',
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file', cmdTitle: 'Bot commands',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file', cmdTitle: 'Commands',
+    cmdAdd: 'Add custom command…', cmdEdit: 'Edit', cmdPin: 'Save as custom command', cmdForget: 'Remove from history',
+    cmdAddTitle: '★ Custom command', cmdEditTitle: '★ Edit command', cmdFieldText: 'Command (parameters allowed)', cmdFieldDesc: 'Description',
+    cmdFieldInsert: 'Only insert into the input field, do not send right away', cmdSave: 'Save', cmdCancel: 'Cancel',
+    cmdErrSlash: 'The command must start with /', cmdErrDup: 'This command already exists', cmdErrSave: 'Saving failed',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
     btnDelete: 'Delete', btnReact: 'React', kbError: 'Button failed: ', kbUnsupported: 'This button type is not supported here', reactionRemove: 'Click to remove',
     clearChat: 'Clear chat (all but the last message)',
     clearChatConfirm: (name) => 'Permanently delete all messages in "' + name + '" except the last one?\\n\\nThis also deletes them in Telegram (for both sides where possible) and cannot be undone.',
     clearChatDone: (n, own) => n + ' message' + (n===1?'':'s') + ' deleted.' + (own ? '\\nWithout admin rights only your own messages.' : ''),
     clearChatError: 'Clearing chat failed: ',
-    deleteMode: 'Delete messages', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
+    deleteMode: 'Delete messages (single: Ctrl+right-click)', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
@@ -2248,6 +2416,7 @@ async function confirmDeleteSelected() {
   try {
     await Promise.all(ids.map(function(id){ return fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(id)), {method:'DELETE'}); }));
     await loadMessages(chatId);
+    loadChats();
   } finally { _deleting--; }
 }
 // ── Nachrichtensuche ──────────────────────────────────────────────────────────
@@ -2472,7 +2641,7 @@ function formatTime(ts) {
   return d.toLocaleDateString(locale(),{day:'2-digit',month:'2-digit'});
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function formatText(s) {
+function _plainFmt(s) {
   let html = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
   html = html.replace(/((https?:\\/\\/|www\\.)[^\\s<>"&]+)/gi, function(m) {
     let url = m.replace(/[.,!?;:)]+$/, '');
@@ -2481,6 +2650,62 @@ function formatText(s) {
     return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + url + '</a>' + trail;
   });
   return html;
+}
+
+function escAttr(s) { return escHtml(s).replace(/"/g,'&quot;'); }
+function _wrapEnt(e, raw, inner) {
+  if (e.t === 'pre') {
+    const code = raw.replace(/^\\n+|\\n+$/g, '');
+    return '<div class="code-block"><div class="code-head"><span>' + escHtml(e.lang || 'Code') + '</span>'
+      + '<button type="button" class="code-copy" onclick="copyCode(this,event)">${_SVG.copy}<span>' + t('copyCode') + '</span></button></div>'
+      + '<pre><code>' + escHtml(code) + '</code></pre></div>';
+  }
+  if (e.t === 'code') return '<code class="code-inline">' + escHtml(raw) + '</code>';
+  if (e.t === 'url') {
+    const ok = /^(https?:|tg:|mailto:)/i.test(e.url || '');
+    const txt = escHtml(raw).replace(/\\n/g,'<br>');
+    return ok ? '<a href="' + escAttr(e.url) + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + txt + '</a>' : txt;
+  }
+  const tags = { b: 'b', i: 'i', u: 'u', s: 's' };
+  if (tags[e.t]) return '<' + tags[e.t] + '>' + inner() + '</' + tags[e.t] + '>';
+  if (e.t === 'spoiler') return '<span class="tg-spoiler" onclick="this.classList.add(&quot;revealed&quot;);event.stopPropagation()">' + inner() + '</span>';
+  if (e.t === 'quote') return '<blockquote class="tg-quote">' + inner() + '</blockquote>';
+  return inner();
+}
+function formatText(s, ents) {
+  s = String(s == null ? '' : s);
+  if (!ents || !ents.length) return _plainFmt(s);
+  const list = ents.filter(e => e && e.l > 0 && e.o >= 0 && e.o + e.l <= s.length)
+    .sort((a, b) => a.o - b.o || b.l - a.l);
+  function render(from, to, items) {
+    let out = '', pos = from, i = 0;
+    while (i < items.length) {
+      const e = items[i];
+      if (e.o < pos) { i++; continue; }
+      const end = e.o + e.l, inner = [];
+      let j = i + 1;
+      while (j < items.length && items[j].o < end) { if (items[j].o + items[j].l <= end) inner.push(items[j]); j++; }
+      // Blöcke bringen ihren eigenen Umbruch mit: angrenzenden Zeilenumbruch schlucken
+      const block = e.t === 'pre' || e.t === 'quote';
+      let before = s.slice(pos, e.o);
+      if (block) before = before.replace(/\\n$/, '');
+      out += _plainFmt(before) + _wrapEnt(e, s.slice(e.o, end), () => render(e.o, end, inner));
+      pos = end; i = j;
+      if (block && s[pos] === '\\n') pos++;
+    }
+    return out + _plainFmt(s.slice(pos, to));
+  }
+  return render(0, s.length, list);
+}
+function copyCode(btn, ev) {
+  if (ev) ev.stopPropagation();
+  const code = btn.closest('.code-block').querySelector('code').textContent;
+  const done = () => { const sp = btn.querySelector('span'); sp.textContent = t('copied'); setTimeout(() => { sp.textContent = t('copyCode'); }, 1500); };
+  if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(code).then(done, () => {}); return; }
+  const ta = document.createElement('textarea'); ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (err) {}
+  ta.remove();
 }
 
 function scrollMsgs(dir) {
@@ -3065,8 +3290,8 @@ function renderMessages(msgs, opts) {
         return '<img class="msg-img" src="'+BASE+'/api/media/'+encodeURIComponent(am.mediaFile)+'" style="width:140px;height:140px;object-fit:cover;border-radius:6px;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">';
       }).join('');
       content = '<div style="display:flex;flex-wrap:wrap;gap:3px;padding:2px">'+_grid+'</div>';
-      var _cap = ''; for (var _ci=item.albumMsgs.length-1;_ci>=0;_ci--){ if(item.albumMsgs[_ci].body){_cap=item.albumMsgs[_ci].body;break;} }
-      if (_cap) content += '<div class="photo-caption">'+formatText(_cap)+'</div>';
+      var _cap = '', _capEnts; for (var _ci=item.albumMsgs.length-1;_ci>=0;_ci--){ if(item.albumMsgs[_ci].body){_cap=item.albumMsgs[_ci].body;_capEnts=item.albumMsgs[_ci].ents;break;} }
+      if (_cap) content += '<div class="photo-caption">'+formatText(_cap,_capEnts)+'</div>';
     } else if(isVoice){
       content = m.mediaFile
         ? \`<audio controls style="width:260px;max-width:calc(80vw - 80px);display:block" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
@@ -3082,15 +3307,15 @@ function renderMessages(msgs, opts) {
               ? \`<span style="opacity:0.5;cursor:default" title="\${t('videoTooBig')}\${mb}">\${t('videoTooBig')}\${mb}</span>\`
               : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.85;user-select:none;text-decoration:underline" title="\${t('videoDownload')}">\${t('videoDownload')}\${mb}</span>\`;
           })()
-      if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
+      if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body,m.ents)}</div>\`;
     } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
-      if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
+      if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body,m.ents)}</div>\`;
     } else if(isDoc){
       content=\`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
-      if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
+      if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body,m.ents)}</div>\`;
     } else {
-      content=formatText(m.body);
+      content=formatText(m.body,m.ents);
     }
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     // Album: Reactions aller Fotos zusammenführen
@@ -3336,6 +3561,7 @@ async function sendMsg() {
       if (chatId === selectedChatId) { inp.value = text; autoResize(inp); renderMessages(_view[chatId] || []); }
       return;
     }
+    if (text.startsWith('/')) loadCustomCmds(chatId);
     await loadMessages(chatId, true);
     await loadChats();
   } catch(e) {
@@ -3349,33 +3575,69 @@ function handleKey(e) {
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}
 }
 
-// Bot-Befehle: Liste über dem Eingabefeld, wie in der Telegram-App.
+// Befehlsmenü über dem Eingabefeld, wie in der Telegram-App: eigene Befehle
+// (★, pro Chat auf dem Server), zuletzt gesendete (↺) und vom Bot gemeldete.
 // Erscheint beim Tippen von "/" am Anfang oder über den "/"-Knopf.
+const RECENT_CMD_SHOWN = 8;
 let _cmds = [], _cmdsChat = null, _cmdShown = [], _cmdActive = 0;
+let _pinned = [], _recent = [];
 async function loadBotCommands(chatId) {
-  _cmds = []; _cmdsChat = chatId; closeCmdList();
-  document.getElementById('cmd-toggle').classList.remove('has-cmds');
+  _cmds = []; _pinned = []; _recent = []; _cmdsChat = chatId; closeCmdList();
+  const enc = encodeURIComponent(chatId);
+  const [b, c] = await Promise.all([
+    fetch(api('/api/bot-commands/'+enc)).then(r=>r.json()).catch(()=>({})),
+    fetch(api('/api/custom-commands/'+enc)).then(r=>r.json()).catch(()=>({})),
+  ]);
+  if (chatId !== selectedChatId) return;
+  _cmds = b.commands || [];
+  _applyCustom(c);
+}
+async function loadCustomCmds(chatId) {
   try {
-    const d = await fetch(api('/api/bot-commands/'+encodeURIComponent(chatId))).then(r=>r.json());
-    if (chatId !== selectedChatId) return;
-    _cmds = d.commands || [];
-    document.getElementById('cmd-toggle').classList.toggle('has-cmds', _cmds.length > 0);
+    const c = await fetch(api('/api/custom-commands/'+encodeURIComponent(chatId))).then(r=>r.json());
+    if (chatId === selectedChatId) _applyCustom(c);
   } catch(e) {}
 }
+function _applyCustom(c) {
+  _pinned = (c && c.pinned) || []; _recent = (c && c.recent) || [];
+  document.getElementById('cmd-toggle').classList.toggle('has-cmds', _cmds.length + _pinned.length + _recent.length > 0);
+}
+function _cmdEntries(filter) {
+  const f = (filter || '').toLowerCase();
+  const hit = (text, desc) => !f || text.slice(1).toLowerCase().includes(f) || (desc || '').toLowerCase().includes(f);
+  const out = [];
+  _pinned.forEach((p, i) => { if (hit(p.text, p.desc)) out.push({ kind: 'pin', idx: i, text: p.text, desc: p.desc || '', insert: p.insert }); });
+  // Was der Bot schon selbst im Menü anbietet oder angeheftet ist, nicht doppelt zeigen
+  const botSet = new Set(_cmds.map(c => '/' + c.command.toLowerCase()));
+  const pinSet = new Set(_pinned.map(p => p.text));
+  let n = 0;
+  for (const r of _recent) {
+    if (n >= RECENT_CMD_SHOWN) break;
+    if (pinSet.has(r) || (!r.includes(' ') && botSet.has(r.split('@')[0].toLowerCase()))) continue;
+    n++;
+    if (hit(r, '')) out.push({ kind: 'recent', text: r, desc: '' });
+  }
+  _cmds.forEach(c => { if (hit('/' + c.command, c.description)) out.push({ kind: 'bot', text: '/' + c.command, desc: c.description || '' }); });
+  return out;
+}
+function _cmdFilter() { return document.getElementById('msg-input').value.replace(/^\\//, ''); }
 function renderCmdList(filter) {
   const list = document.getElementById('cmd-list');
-  const f = (filter || '').toLowerCase();
-  _cmdShown = _cmds.filter(c => c.command.toLowerCase().startsWith(f));
-  if (!_cmdShown.length) { closeCmdList(); return; }
+  _cmdShown = _cmdEntries(filter);
   if (_cmdActive >= _cmdShown.length) _cmdActive = 0;
-  list.innerHTML = _cmdShown.map((c, i) =>
-    '<div class="cmd-item'+(i===_cmdActive?' active':'')+'" data-idx="'+i+'"><span class="cmd-name">/'+escHtml(c.command)+'</span><span class="cmd-desc">'+escHtml(c.description)+'</span></div>'
-  ).join('');
+  const kind = { pin: '★', recent: '↺', bot: '' };
+  list.innerHTML = _cmdShown.map((c, i) => {
+    const acts = c.kind === 'pin'
+      ? '<button type="button" class="cmd-act" data-act="edit" title="'+escAttr(t('cmdEdit'))+'">✎</button>'
+      : c.kind === 'recent'
+        ? '<button type="button" class="cmd-act" data-act="pin" title="'+escAttr(t('cmdPin'))+'">☆</button><button type="button" class="cmd-act" data-act="forget" title="'+escAttr(t('cmdForget'))+'">✕</button>'
+        : '';
+    return '<div class="cmd-item'+(i===_cmdActive?' active':'')+'" data-idx="'+i+'"><span class="cmd-kind">'+kind[c.kind]+'</span><span class="cmd-name">'+escHtml(c.text)+'</span><span class="cmd-desc">'+escHtml(c.desc)+'</span>'+acts+'</div>';
+  }).join('') + '<div class="cmd-item cmd-add" data-act="add"><span class="cmd-kind">＋</span><span class="cmd-name">'+escHtml(t('cmdAdd'))+'</span></div>';
   list.classList.add('open');
 }
 function closeCmdList() { document.getElementById('cmd-list').classList.remove('open'); _cmdShown = []; _cmdActive = 0; }
 function onCmdInput() {
-  if (!_cmds.length) return;
   const v = document.getElementById('msg-input').value;
   const m = /^\\/(\\S*)$/.exec(v);
   if (m) renderCmdList(m[1]); else closeCmdList();
@@ -3385,48 +3647,196 @@ function toggleCmdList(e) {
   if (document.getElementById('cmd-list').classList.contains('open')) { closeCmdList(); return; }
   _cmdActive = 0;
   renderCmdList('');
+  // Änderungen von anderen Geräten nachziehen
+  const chatId = selectedChatId;
+  loadCustomCmds(chatId).then(() => { if (chatId === selectedChatId && document.getElementById('cmd-list').classList.contains('open')) renderCmdList(''); });
 }
 function pickCmd(idx) {
   const c = _cmdShown[idx];
   if (!c) return;
   closeCmdList();
   const inp = document.getElementById('msg-input');
-  inp.value = '/' + c.command;
+  if (c.insert) { inp.value = c.text.endsWith(' ') ? c.text : c.text + ' '; autoResize(inp); inp.focus(); return; }
+  inp.value = c.text;
   sendMsg();
 }
 function cmdListKey(e) {
   if (!document.getElementById('cmd-list').classList.contains('open')) return false;
+  if (e.key === 'Escape') { closeCmdList(); return true; }
+  if (!_cmdShown.length) { if (e.key === 'Enter') closeCmdList(); return false; }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
     _cmdActive = (_cmdActive + (e.key === 'ArrowDown' ? 1 : -1) + _cmdShown.length) % _cmdShown.length;
-    renderCmdList(document.getElementById('msg-input').value.replace(/^\\//, ''));
+    renderCmdList(_cmdFilter());
     return true;
   }
   if (e.key === 'Tab') {
     e.preventDefault();
     const c = _cmdShown[_cmdActive];
-    if (c) { const inp = document.getElementById('msg-input'); inp.value = '/' + c.command + ' '; closeCmdList(); }
+    if (c) { const inp = document.getElementById('msg-input'); inp.value = c.text + ' '; closeCmdList(); }
     return true;
   }
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pickCmd(_cmdActive); return true; }
-  if (e.key === 'Escape') { closeCmdList(); return true; }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    // Exakt getippter Befehl geht vor, solange nicht mit den Pfeiltasten gewählt wurde
+    const typed = document.getElementById('msg-input').value.trim().toLowerCase();
+    const exact = _cmdShown.findIndex(c => c.text.toLowerCase() === typed);
+    pickCmd(_cmdActive === 0 && exact >= 0 ? exact : _cmdActive);
+    return true;
+  }
   return false;
 }
 document.getElementById('cmd-list').addEventListener('click', function(e) {
   const it = e.target.closest('.cmd-item');
-  if (it) pickCmd(parseInt(it.dataset.idx, 10));
+  if (!it) return;
+  const act = e.target.closest('[data-act]');
+  if (act && act.dataset.act === 'add') {
+    const v = document.getElementById('msg-input').value.trim();
+    openCmdDialog(-1, v.startsWith('/') ? v : '/');
+    return;
+  }
+  const c = _cmdShown[parseInt(it.dataset.idx, 10)];
+  if (!c) return;
+  if (act) {
+    e.stopPropagation();
+    if (act.dataset.act === 'edit') openCmdDialog(c.idx);
+    else if (act.dataset.act === 'pin') openCmdDialog(-1, c.text);
+    else if (act.dataset.act === 'forget') forgetRecentCmd(c.text);
+    return;
+  }
+  pickCmd(parseInt(it.dataset.idx, 10));
 });
+
+// Dialog für eigene Befehle
+let _cmdEditIdx = -1;
+function openCmdDialog(idx, text) {
+  closeCmdList();
+  _cmdEditIdx = idx;
+  const p = idx >= 0 ? _pinned[idx] : null;
+  document.getElementById('cmd-modal-title').textContent = t(p ? 'cmdEditTitle' : 'cmdAddTitle');
+  document.getElementById('cmd-f-text').value = p ? p.text : (text || '/');
+  document.getElementById('cmd-f-desc').value = p ? (p.desc || '') : '';
+  document.getElementById('cmd-f-insert').checked = p ? !!p.insert : false;
+  document.getElementById('cmd-f-error').textContent = '';
+  document.getElementById('cmd-f-del').style.display = p ? '' : 'none';
+  document.getElementById('cmd-modal').classList.add('open');
+  setTimeout(() => document.getElementById(p || (text && text.length > 1) ? 'cmd-f-desc' : 'cmd-f-text').focus(), 50);
+}
+function closeCmdDialog() { document.getElementById('cmd-modal').classList.remove('open'); }
+async function _savePinned(list) {
+  const chatId = selectedChatId;
+  const r = await fetch(api('/api/custom-commands/'+encodeURIComponent(chatId)+'/pinned'), {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned: list })
+  }).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!r) return false;
+  if (chatId === selectedChatId) _applyCustom(r);
+  return true;
+}
+async function saveCmdDialog() {
+  const err = document.getElementById('cmd-f-error');
+  const text = document.getElementById('cmd-f-text').value.trim();
+  if (text.length < 2 || !text.startsWith('/')) { err.textContent = t('cmdErrSlash'); return; }
+  const list = _pinned.slice();
+  if (list.some((p, i) => p.text === text && i !== _cmdEditIdx)) { err.textContent = t('cmdErrDup'); return; }
+  const item = { text, desc: document.getElementById('cmd-f-desc').value.trim(), insert: document.getElementById('cmd-f-insert').checked };
+  if (_cmdEditIdx >= 0) list[_cmdEditIdx] = item; else list.push(item);
+  if (await _savePinned(list)) closeCmdDialog(); else err.textContent = t('cmdErrSave');
+}
+async function deleteCmdDialog() {
+  if (_cmdEditIdx < 0) return;
+  if (await _savePinned(_pinned.filter((p, i) => i !== _cmdEditIdx))) closeCmdDialog();
+  else document.getElementById('cmd-f-error').textContent = t('cmdErrSave');
+}
+function cmdDialogKey(e) {
+  if (e.key === 'Enter') { e.preventDefault(); saveCmdDialog(); }
+  else if (e.key === 'Escape') closeCmdDialog();
+}
+async function forgetRecentCmd(text) {
+  const chatId = selectedChatId;
+  const r = await fetch(api('/api/custom-commands/'+encodeURIComponent(chatId)+'/recent/remove'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
+  }).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (r && chatId === selectedChatId) { _applyCustom(r); renderCmdList(_cmdFilter()); }
+}
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#cmd-list') && !e.target.closest('#cmd-toggle')) closeCmdList();
 });
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
 
-async function deleteMsg(chatId, msgId) {
+async function deleteMsg(chatId, msgId, row) {
+  _deleting++; _deleteGen++;
   try {
-    await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'});
+    const [ok] = await Promise.all([
+      fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'}).then(r => r.ok).catch(() => false),
+      row ? _vanishRow(row) : null,
+    ]);
+    if (!ok && chatId === selectedChatId) { renderMessages(_view[chatId] || []); return; } // fehlgeschlagen: Nachricht wieder zeigen
     await loadMessages(chatId);
-  } catch(e) {}
+    loadChats();
+  } finally { _deleting--; }
 }
+// Löscheffekt wie in der Telegram-App: die Blase zerfällt von links nach
+// rechts in Staub, danach schließt sich die Lücke
+function _vanishRow(row) {
+  const bubble = row.querySelector('.bubble, .voice-wrap') || row;
+  const r = bubble.getBoundingClientRect();
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  row.querySelectorAll('button').forEach(b => { b.style.visibility = 'hidden'; });
+  const collapse = () => new Promise(res => {
+    const h = row.offsetHeight;
+    row.style.overflow = 'hidden';
+    const a = row.animate([{ height: h + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 220, easing: 'ease-in', fill: 'forwards' });
+    a.onfinish = res; a.oncancel = res;
+  });
+  if (reduce || !r.width || !r.height || !bubble.animate) {
+    if (!bubble.animate) return Promise.resolve();
+    return bubble.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: 'forwards' }).finished.then(collapse, collapse);
+  }
+  const SWEEP = 420;
+  const cs = getComputedStyle(bubble);
+  const rgb = v => { const m = (v || '').match(/[0-9.]+/g); return m && (m.length < 4 || +m[3] > 0) ? m.slice(0, 3).map(Number) : null; };
+  const bg = rgb(cs.backgroundColor) || [140, 150, 160], fg = rgb(cs.color) || bg;
+  const cv = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  cv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:500';
+  document.body.appendChild(cv);
+  const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+  const step = Math.max(3, Math.sqrt(r.width * r.height / 900));
+  const parts = [];
+  for (let x = 0; x < r.width; x += step) for (let y = 0; y < r.height; y += step) {
+    const c = Math.random() < 0.25 ? fg : bg;
+    parts.push({ x: r.left + x, y: r.top + y, d: x / r.width * SWEEP + Math.random() * 60,
+      vx: 0.02 + Math.random() * 0.07, vy: -(0.015 + Math.random() * 0.06), life: 450 + Math.random() * 400,
+      s: 1.5 + Math.random() * 1.5, c: 'rgb(' + c.join(',') + ')' });
+  }
+  const t0 = performance.now();
+  (function frame(now) {
+    const el = now - t0; let alive = false;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of parts) {
+      const t = el - p.d;
+      if (t < 0) { alive = true; continue; }
+      if (t > p.life) continue;
+      alive = true;
+      ctx.globalAlpha = 1 - t / p.life; ctx.fillStyle = p.c;
+      ctx.fillRect(p.x + p.vx * t, p.y + p.vy * t - 0.00003 * t * t, p.s, p.s);
+    }
+    if (alive) requestAnimationFrame(frame); else cv.remove();
+  })(t0);
+  return bubble.animate([{ clipPath: 'inset(0 0 0 0)' }, { clipPath: 'inset(0 0 0 100%)' }], { duration: SWEEP, easing: 'linear', fill: 'forwards' })
+    .finished.then(collapse, collapse);
+}
+// Strg+Rechtsklick auf eine Nachricht löscht sie sofort (ohne Rückfrage);
+// ein normaler Rechtsklick behält das Browsermenü
+document.getElementById('messages').addEventListener('contextmenu', e => {
+  if (!(e.ctrlKey || e.metaKey) || isDeleteMode) return;
+  const row = e.target.closest('.bubble-row');
+  if (!row || !row.dataset.msgid || row.classList.contains('deleting')) return;
+  e.preventDefault();
+  row.classList.add('deleting');
+  deleteMsg(row.dataset.chatid || selectedChatId, row.dataset.msgid, row);
+});
 document.getElementById('messages').addEventListener('click', e => {
   if (isDeleteMode) {
     var row = e.target.closest('.bubble-row');
@@ -3759,6 +4169,20 @@ applyLang();
     <div class="contact-modal-number" id="contact-modal-number"></div>
     <div class="contact-modal-about" id="contact-modal-about"></div>
     <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+  </div>
+</div>
+<div id="cmd-modal">
+  <div class="fwd-modal-box">
+    <h3 id="cmd-modal-title"></h3>
+    <label class="cmd-field"><span data-i18n="cmdFieldText">Befehl (Parameter erlaubt)</span><input type="text" id="cmd-f-text" maxlength="300" placeholder="/befehl parameter" onkeydown="cmdDialogKey(event)"></label>
+    <label class="cmd-field"><span data-i18n="cmdFieldDesc">Beschreibung</span><input type="text" id="cmd-f-desc" maxlength="100" onkeydown="cmdDialogKey(event)"></label>
+    <label class="cmd-check"><input type="checkbox" id="cmd-f-insert"><span data-i18n="cmdFieldInsert">Nur ins Eingabefeld einfügen, nicht sofort senden</span></label>
+    <div class="cmd-error" id="cmd-f-error"></div>
+    <div class="cmd-modal-btns">
+      <button type="button" class="cmd-btn cmd-btn-del" id="cmd-f-del" onclick="deleteCmdDialog()" data-i18n="btnDelete">Löschen</button>
+      <button type="button" class="cmd-btn fwd-modal-cancel" onclick="closeCmdDialog()" data-i18n="cmdCancel">Abbrechen</button>
+      <button type="button" class="cmd-btn cmd-btn-save" onclick="saveCmdDialog()" data-i18n="cmdSave">Speichern</button>
+    </div>
   </div>
 </div>
 <div id="fwd-modal">

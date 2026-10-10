@@ -1,3 +1,39 @@
+## [1.8.97] - 2026-10-10
+
+### Aktualisiert
+
+- rclone: 1.75.1 → 1.75.2
+- Claude Desktop: 3.3.6+claude2.26454.2 → 3.3.9+claude2.31226.1
+
+## [1.8.96] - 2026-10-09
+
+### Behoben
+
+- VS Code flutete das HA-Log mit `eglGetMscRateANGLE: glXGetMscRateOML failed`: Microsoft hat die Desktop-Dateien in `com.microsoft.VSCode*.desktop` umbenannt, der `--disable-gpu`-Patch lief ins Leere. Patch greift jetzt auf beide Namen (Build bricht ab, wenn nichts gepatcht wurde), zusätzlich setzt der Start `disable-hardware-acceleration` in `/config/.vscode/argv.json`.
+
+## [1.8.95] - 2026-10-08
+
+### Aktualisiert
+
+- VS Code: 1.140.0 → 1.141.0
+- Claude Desktop: 3.3.6+claude2.26454.0 → 3.3.6+claude2.26454.2
+- Tailscale: 1.102.5 → 1.104.1
+
+## [1.8.94] - 2026-10-07
+
+### Aktualisiert
+
+- Firefox: 157.0 → 157.0.1
+- Claude Desktop: 3.3.4+claude2.9939.4 → 3.3.6+claude2.26454.0
+- OpenCode: 1.18.34 → 1.18.35
+
+## [1.8.93] - 2026-10-06
+
+### Aktualisiert
+
+- Claude Desktop: 3.3.3+claude2.9939.4 → 3.3.4+claude2.9939.4
+- Tailscale: 1.102.4 → 1.102.5
+
 ## [1.8.92] - 2026-10-02
 
 ### Aktualisiert
