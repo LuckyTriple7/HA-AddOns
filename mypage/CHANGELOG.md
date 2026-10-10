@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.69.2] - 2026-10-10
+- Abhängigkeit aktualisiert: google-genai 2.27.0 → 2.28.0
+
 ## [0.11.69.1] - 2026-10-08
 - **Tab KI: `gemini-nano-banana-2.1` erscheint wieder als Bildmodell.** Die live bei Google abgefragte Liste sortierte nur Modelle mit „image“ im Namen zu den Bildmodellen. Nano Banana 2.1 landete deshalb bei den Textmodellen, und die Auswahl meldete „nicht in Googles Liste“.
 

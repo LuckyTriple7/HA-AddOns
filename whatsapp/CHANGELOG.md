@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.53.1] - 2026-10-10
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.0 → 8.7.1
+
+## [1.8.53] - 2026-10-10
+- Sicherheit: **proxy-addr 2.0.7 → 2.0.8** (Dependabot-Alarm #57, kritisch). Über ein IPv4-in-IPv6-Vertrauensnetz ließ sich die Absender-IP fälschen. proxy-addr kommt indirekt über express
+
 ## [1.8.52] - 2026-10-02
 - Sicherheit: **basic-ftp 5.3.1 → 6.2.1** per `overrides` (Dependabot-Alarm #54, GHSA-c475-qrg2-pj4r, hoch). Der Parser fuer FTP-Verzeichnislisten konnte mit einer praeparierten Zeile die CPU quadratisch auslasten; behoben erst in 6.2.1. basic-ftp kommt indirekt ueber puppeteer → proxy-agent → get-uri und wird nur fuer `ftp://`-Adressen benutzt. get-uri verlangt `^5`, nutzt aber nur `access`, `lastMod`, `list` und `downloadTo` — deren Schnittstelle ist in 6.x unveraendert
 
