@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.6
+
+- 🔒 **Sicherheit: Werkzeug 3.1.8 → 3.1.9** (Dependabot-Alarm #56, mittel). `safe_join()` ließ unter Windows besondere Gerätenamen durch. Das Add-on läuft unter Linux und war davon nicht betroffen.
+
 ## 0.120.5
 
 - 🧳 **Meine Reisen: Sortierung wählbar.** Über der Liste steht eine Auswahl: nächste Abreise zuerst (neuer Standard, vergangene Reisen dahinter), Abreise auf- oder absteigend, zuletzt hinzugefügt, Preis oder Name. Die Auswahl bleibt je Gerät gemerkt.
