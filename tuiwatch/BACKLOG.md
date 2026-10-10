@@ -95,6 +95,66 @@ fallen sie für dasselbe Hotel?
   frühestens Anfang 2027 ansehen.
 - _Besprochen am 25.09.2026, bewusst zurückgestellt._
 
+## 19. KI-Aufrufe über LiteLLM leiten
+TUIWatch läuft auf vserv01 in Docker, LiteLLM ebenfalls. Die KI-Aufrufe könnten
+über LiteLLM laufen (ein Ort für Keys, Budgets und Kostenübersicht). Stand
+10.10.2026: `tuiwatch` hängt nur an `tuiwatch_default`, `litellm` an
+`litellm-caveman_default` — die beiden sehen sich noch nicht.
+
+- **Netz.** TUIWatch-Stack zusätzlich in ein gemeinsames Netz mit `litellm`
+  hängen; Basis-URL ist dann `http://litellm:4000`, ohne Port-Binding und ohne
+  Tailscale. Im vorhandenen `litellm-caveman_default` erreicht TUIWatch auch
+  `litellm-db`, `litellm-redis` und alle MCPs — sauberer ist ein eigenes kleines
+  Netz nur für die beiden.
+- **Umsetzung.** Pro Anbieter eine optionale Basis-URL (leer = wie heute direkt
+  zum Anbieter) und die Passthrough-Endpunkte von LiteLLM nutzen
+  (`/anthropic`, `/gemini`), als Key ein virtueller LiteLLM-Key. So bleiben
+  native Websuche, Quellen und Schema-Output in `ai_client.py` unverändert; über
+  den OpenAI-kompatiblen Endpunkt gingen sie verloren.
+- **Perplexity.** Vorerst direkt lassen. Ob LiteLLM die Agent API (`/v1/agent`)
+  durchreicht, ist ungeprüft.
+- **Caveman-Plugin und Headroom.** Beide verändern Prompts und würden Berichte
+  und JSON-Antworten verfälschen. Key-Alias in `CAVEMAN_STYLE_SKIP_KEY_ALIASES`
+  eintragen oder die Header `x-caveman-style: off` und `x-headroom-bypass: true`
+  mitschicken.
+- **Eigener Key.** Virtueller Key mit Budget nur für TUIWatch.
+- **Ausfall.** Bei LiteLLM-Update oder -Neustart hat TUIWatch keine KI; deshalb
+  muss die leere Basis-URL als Rückweg erhalten bleiben.
+- **Datenschutz.** LiteLLM kann Prompts in seiner Datenbank mitschreiben —
+  Logging-Einstellung vorher prüfen.
+- **Kosten.** TUIWatch rechnet weiter mit der eigenen Preistabelle, LiteLLM bucht
+  zusätzlich. Ob Passthrough-Aufrufe dort sauber gebucht werden, nach dem ersten
+  Aufruf im LiteLLM-UI prüfen.
+- _Besprochen am 10.10.2026, zurückgestellt._
+
+## 20. Modell- und Preisliste nachziehen
+Abgleich der Modellauswahl und von `_AI_PRICING` mit den Anbieter-Seiten am
+10.10.2026. Claude stimmt vollständig, bei Gemini und Perplexity gibt es Abweichungen.
+
+- **`gemini-3.1-pro` (Standardmodell).** Googles Modell- und Preisseite führen
+  nur `gemini-3.1-pro-preview`, kein stabiles `gemini-3.1-pro` und keinen Alias.
+  Ob die API unsere ID annimmt, ist ungeprüft — im Container-Log der letzten 30
+  Tage steht kein einziger Gemini-Aufruf. Einmal testen; schlägt er fehl, ID
+  umstellen und die alte über `_MODEL_SUCCESSOR` umleiten.
+- **`gemini-3.7-flash` aus der Auswahl nehmen.** Google leitet Anfragen
+  automatisch auf `gemini-3.8-flash` um, das Modell steht nicht mehr in der
+  Modell- und Preisliste. Eintrag in `_MODEL_SUCCESSOR` auf 3.8-flash.
+- **Gemini-Flash-Preise ab 01.01.2027.** Bis 31.12.2026 kosten 3.8- und
+  3.6-flash die Hälfte (0,75/3,75 USD); in der Tabelle stehen die regulären
+  1,50/7,50 USD. Die Schätzung liegt bis Jahresende also um den Faktor 2 zu hoch.
+- **`pplx-high` / `pplx-xhigh`.** Dahinter steckt `openai/gpt-5.6-sol`, laut
+  Perplexity 4/20 USD (über 272k Input-Tokens 8/30). In der Tabelle stehen
+  5/30. Wirkt nur im Rückfallweg, wenn die Antwort keine Kosten mitliefert.
+- **Cache-Lesepreis.** Die Schätzung nimmt pauschal 10 % des Input-Preises.
+  Opus 5.5 kostet 0,20 USD (5 %), Fable 5.1 0,25 USD (2,5 %) — leichte
+  Überschätzung bei diesen beiden.
+- **Suchgebühren fehlen in der Schätzung.** Gemini-Grounding kostet nach 5.000
+  freien Suchen im Monat 14 USD je 1.000; für Claude und Gemini rechnet
+  `_ai_estimated_call_cost` keine Suchgebühr ein.
+- **Auslauftermine.** Kein Modell der aktuellen Auswahl hat ein Abschaltdatum
+  vor September 2027 (Claude) bzw. überhaupt eines (Gemini). `claude-haiku-4-5`
+  kann ab 15.10.2026 abgekündigt werden, ist aber schon auf Haiku 5.5 umgeleitet.
+
 ---
 
 ## Erledigt
