@@ -937,7 +937,8 @@
     .trip-row .ti .t { font-weight:600; color:var(--text); }
     .trip-row .ti .m { font-size:var(--fs-sm); color:var(--muted); }
     .trip-row .tp { font-weight:700; white-space:nowrap; }
-    .trip-row .ta { display:flex; gap:6px; flex-wrap:wrap; }
+    .trip-row .ta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .trips-sort { display:flex; align-items:center; gap:8px; margin:0 0 8px; font-size:var(--fs-sm); color:var(--muted); }
     .trips-empty { color:var(--muted); font-size:var(--fs-sm); padding:10px 2px; }
     .trip-detail { border:1px solid var(--border); border-radius:var(--r-card); padding:14px; margin-top:12px; background:var(--bg); }
     .trip-detail h3 { margin:0 0 4px; font-size:var(--fs-lg); }
@@ -2377,6 +2378,18 @@
         <span id="trip-imp-status" class="trips-imp-status"></span>
       </div>
 
+      <div class="trips-sort">
+        <label for="trips-sort">Sortieren nach</label>
+        <select id="trips-sort" onchange="setTripsSort(this.value)">
+          <option value="next">Nächste Abreise zuerst</option>
+          <option value="start_asc">Abreise (früheste zuerst)</option>
+          <option value="start_desc">Abreise (späteste zuerst)</option>
+          <option value="added">Zuletzt hinzugefügt</option>
+          <option value="price_desc">Preis (höchster zuerst)</option>
+          <option value="price_asc">Preis (niedrigster zuerst)</option>
+          <option value="title">Name</option>
+        </select>
+      </div>
       <div id="trips-list"></div>
       <div id="trip-detail" class="trip-detail" style="display:none"></div>
     </div>

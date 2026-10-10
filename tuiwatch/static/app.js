@@ -3000,22 +3000,66 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
     function renderTrips(){
       const el = $('#trips-list');
       if(!tripsData.length){ el.innerHTML = '<div class="trips-empty">Noch keine Reisen importiert. Lade oben eine TUI-Reisebestätigung als PDF hoch.</div>'; return; }
-      el.innerHTML = tripsData.map(t=>{
+      const sel = $('#trips-sort'); if(sel) sel.value = _tripsSortMode();
+      el.innerHTML = _sortedTrips().map(t=>{
         const zeit = (t.start_date||t.end_date)?`${deDate(t.start_date)} – ${deDate(t.end_date)}`:'';
         const meta = [t.hotel, t.destination, zeit,
           (t.nights?`${t.nights} Nächte`:''),
           (t.travellers?`${t.travellers} Reisende`:''),
           (t.net_per_night?`${eur(t.net_per_night)}/Nacht p.P.`:'')].filter(Boolean).join(' · ');
-        const pdf = t.has_pdf?`<a class="btn sec" href="${api('/api/trips/'+t.id+'/pdf')}" target="_blank" rel="noopener">PDF</a>`:'';
         return `<div class="trip-row">
           <div class="ti"><div class="t">${esc(t.title||('Reise #'+t.id))}</div><div class="m">${esc(meta)}</div></div>
           <div class="tp">${eur(t.total_price)}</div>
           <div class="ta">
             <button class="btn sec" onclick="showTripDetail(${t.id})">Details</button>
-            ${pdf}
+            <button class="icon-btn" onclick="showTripPacking(${t.id})" title="Packliste" aria-label="Packliste"><svg class="i"><use href="#i-luggage"/></svg></button>
             <button class="btn danger" onclick="delTrip(${t.id})">Löschen</button>
           </div></div>`;
       }).join('');
+    }
+    // — Sortierung der Reiseliste: rein im Browser, Auswahl bleibt je Gerät gemerkt.
+    //   „next" = kommende Reisen nach Abreise aufsteigend, vergangene dahinter
+    //   (jüngste zuerst). Reisen ohne Datum landen immer am Ende. —
+    const _TRIPS_SORT_MODES = ['next','start_asc','start_desc','added','price_desc','price_asc','title'];
+    function _tripsSortMode(){
+      let m = 'next';
+      try { m = localStorage.getItem('tuiwatch_trips_sort') || 'next'; } catch(e){}
+      return _TRIPS_SORT_MODES.includes(m) ? m : 'next';
+    }
+    function setTripsSort(mode){
+      try { localStorage.setItem('tuiwatch_trips_sort', mode); } catch(e){}
+      renderTrips();
+    }
+    function _sortedTrips(){
+      const mode = _tripsSortMode();
+      const today = new Date().toISOString().slice(0,10);
+      const byStart = dir => (a,b)=>{
+        if(!a.start_date || !b.start_date) return (a.start_date?0:1) - (b.start_date?0:1);
+        return dir * a.start_date.localeCompare(b.start_date);
+      };
+      const byPrice = dir => (a,b)=> dir * ((a.total_price||0) - (b.total_price||0));
+      const cmp = {
+        next: (a,b)=>{
+          const up = t => (t.end_date||t.start_date||'') >= today;
+          if(!a.start_date || !b.start_date) return (a.start_date?0:1) - (b.start_date?0:1);
+          if(up(a) !== up(b)) return up(a) ? -1 : 1;
+          return byStart(up(a)?1:-1)(a,b);
+        },
+        start_asc: byStart(1),
+        start_desc: byStart(-1),
+        added: (a,b)=> b.id - a.id,
+        price_desc: byPrice(-1),
+        price_asc: byPrice(1),
+        title: (a,b)=> (a.title||'').localeCompare(b.title||'', 'de'),
+      }[mode];
+      return tripsData.slice().sort(cmp);
+    }
+    // Details öffnen und direkt zur aufgeklappten Packliste springen.
+    async function showTripPacking(id){
+      _packOpenState[id] = true;
+      await showTripDetail(id);
+      const el = document.getElementById('pack-toggle-'+id);
+      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
     }
 
     // — Zusammenfassung zukünftiger Reisen: Datum+Wochentag, Zeitraum, Flugdaten —

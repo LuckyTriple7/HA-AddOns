@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.120.5
+
+- 🧳 **Meine Reisen: Sortierung wählbar.** Über der Liste steht eine Auswahl: nächste Abreise zuerst (neuer Standard, vergangene Reisen dahinter), Abreise auf- oder absteigend, zuletzt hinzugefügt, Preis oder Name. Die Auswahl bleibt je Gerät gemerkt.
+- 🧳 **Meine Reisen: Koffer-Symbol führt direkt zur Packliste.** Es ersetzt den PDF-Knopf in der Zeile, öffnet die Reise und springt zur aufgeklappten Packliste. Die PDF bleibt über „Details“ → „PDF öffnen“ erreichbar.
+
 ## 0.120.4
 
 - 🖨️ **Packliste: Ausdruck wieder lesbar.** Überschriften standen als weiße Schrift auf farbigem Balken; da Browser Hintergründe beim Drucken meist weglassen, blieb davon nur blasses Grau. Jetzt farbige Schrift ohne Hintergrund: Titel „TUIWatch — Packliste“ rot, Flugzeiten grün, Kategorie-Überschriften blau.
