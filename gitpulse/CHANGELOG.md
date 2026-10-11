@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4] - 2026-10-11
+
+### Fixed
+- **dev → main-Dialog: Schaltfläche heißt „OK“ statt „Abbrechen“,** sobald es
+  nichts mehr abzubrechen gibt — nach dem Anlegen des PR, bei bereits offenem
+  PR und wenn dev nichts Neues enthält.
+
 ## [0.5.3] - 2026-09-24
 
 ### Security
