@@ -27,6 +27,15 @@ Die Seite kann als Progressive Web App zum Home-Screen hinzugefügt werden:
 - **iOS/Safari**: Teilen → „Zum Home-Bildschirm"
 - **Android/Chrome**: Menü → „App installieren"
 
+## Teilen / Senden an
+
+Ist das Portal als App installiert, taucht es im Teilen-Menü des Geräts auf (Android mit Chrome, Windows mit Edge). Ablauf: Inhalt teilen → MessengerPortal → Messenger wählen → Chat wählen → senden.
+
+- Unterstützt: Text, Links, Bilder, Videos, Audio, PDF, Textdateien, Office-Dokumente, ZIP – bis 64 MB je Datei
+- Voraussetzung: Zugriff über HTTPS und installierte App. Über Home-Assistant-Ingress gibt es kein Teilen-Ziel
+- Nach einem Update, das das Teilen-Ziel ändert, die App einmal neu installieren
+- Der geteilte Inhalt liegt bis zum Senden nur im Browser, nicht auf dem Server
+
 ## Sicherheitshinweis
 
 Das Add-on läuft über HTTP. Für den Zugriff aus dem Internet wird ein vorgeschalteter NGINX-Reverse-Proxy mit HTTPS empfohlen.

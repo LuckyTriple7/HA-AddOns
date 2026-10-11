@@ -1,5 +1,13 @@
 # Changelog – MessengerPortal
 
+## [1.3.0] - 2026-10-11
+- **Neu: „Senden an“ / „Teilen“.** Ist das Portal als App installiert, erscheint es im Teilen-Menü von Android (Chrome) und Windows (Edge). Nach dem Antippen wählt man den Messenger (WhatsApp, Telegram, Signal), dann den Chat, und schickt den Inhalt ab – ohne den Messenger vorher zu öffnen
+- Geteilt werden können Text, Links und Dateien: Bilder, Videos, Audio, PDF, Textdateien, Office-Dokumente und ZIP. Mehrere Dateien auf einmal gehen; der Text hängt als Bildunterschrift an der ersten. Die Grenze liegt wie in den Messenger-Add-ons bei 64 MB je Datei
+- Der Text lässt sich vor dem Senden noch ändern, die Chatliste ist durchsuchbar. Nicht erreichbare Messenger sind in der Auswahl gesperrt
+- Der geteilte Inhalt bleibt bis zum Senden **im Browser** und wird nicht auf dem Portal zwischengespeichert. Kommt die Anmeldung dazwischen, geht es danach automatisch auf der Teilen-Seite weiter. Ein abgebrochener Vorgang verfällt nach 10 Minuten oder sofort über „Verwerfen“
+- Gesendet wird über die Schnittstellen der Messenger-Add-ons, die das Portal ohnehin durchreicht – an den drei Add-ons ändert sich nichts
+- **Nach dem Update die App einmal neu installieren** (deinstallieren, Portal im Browser öffnen, wieder installieren). Erst dann übernimmt das Betriebssystem das neue Teilen-Ziel. Voraussetzung ist HTTPS; über die Home-Assistant-App bzw. Ingress gibt es kein Teilen-Ziel
+
 ## [1.2.24] - 2026-08-29
 - **Der Ingress-Zugang nimmt jetzt nur noch vom Supervisor an.** Die Port-Trennung aus 1.2.21 sperrte das LAN aus, aber nicht das interne `hassio`-Netz: Port 8099 ist von dort erreichbar, und **jedes andere Add-on** haette mit einem selbstgesetzten `X-Ingress-Path` weiterhin ohne Portal-Passwort hereingekommen. Der Ingress-Block laesst jetzt nur `172.30.32.2/32` zu und weist alles andere ab
 - Neue Option **Vertrauenswuerdige Ingress-Adressen** (`ingress_trusted`) fuer den Ausnahmefall. Leer bedeutet: nur der Supervisor. Mehrere Eintraege durch Komma getrennt, CIDR erlaubt

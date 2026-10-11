@@ -547,6 +547,7 @@
     const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
     const LOGS_URL       = {{ url_for('api_logs') | tojson }};
     const MARK_READ_URL  = {{ url_for('api_mark_read') | tojson }};
+    const SHARE_URL      = {{ url_for('share') | tojson }};
 
     const PAGE_LOAD_TIME  = Date.now();
     let prevLastReceived  = null; // null = erster Poll, danach Map icon→timestamp
@@ -848,6 +849,19 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('{{ url_for("sw") }}').catch(function(){});
     }
+
+    // Wartet noch ein frisch geteilter Inhalt (z. B. weil erst die Anmeldung
+    // dazwischenkam), weiter zur Teilen-Seite. Aelteres wird verworfen, sonst
+    // spraenge das Portal nach einem abgebrochenen Teilen immer wieder dorthin.
+    (async function () {
+      try {
+        if (!('caches' in window) || !(await caches.has('mp-share'))) return;
+        const hit = await (await caches.open('mp-share')).match('/__share/meta');
+        const meta = hit ? await hit.json() : null;
+        if (meta && Date.now() - meta.ts < 10 * 60 * 1000) window.location.replace(SHARE_URL);
+        else await caches.delete('mp-share');
+      } catch (e) {}
+    })();
   </script>
   <style>
     #mp-console{display:none;position:fixed;bottom:80px;right:20px;width:560px;height:340px;background:#0d1117;border:1px solid #30363d;border-radius:8px;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);resize:both;overflow:hidden;min-width:320px;min-height:180px;}

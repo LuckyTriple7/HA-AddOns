@@ -552,6 +552,41 @@ def index():
                            poll_interval=poll_interval, ingress_mode=is_ingress())
 
 
+@app.route('/share')
+def share():
+    """Zielseite fuer "Teilen"/"Senden an": Messenger waehlen, Chat waehlen,
+    senden. Der geteilte Inhalt liegt im Browser (siehe sw.js); gesendet wird
+    ueber die ohnehin durchgereichten Messenger-APIs unter /proxy/<icon>/."""
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return redirect(url_for('login'))
+    lang = detect_language(request)
+    t = load_translations(lang)
+    messengers = [
+        {'icon': m['icon'], 'name': m.get('name') or m['icon'], 'svg': m['svg'],
+         'color': m['color'],
+         'proxy': f"{request.script_root}/proxy/{m['icon']}/"}
+        for m in enrich_messengers(
+            [{**m, 'icon': str(m['icon']).lower()}
+             for m in load_config().get('messengers', [])
+             if m.get('enabled', True) and m.get('icon') and m.get('port')])
+    ]
+    return render_template('share.html', messengers=messengers, t=t, lang=lang)
+
+
+@app.route('/share-target', methods=['GET', 'POST'])
+def share_target():
+    """Notnagel, falls der Service Worker den POST nicht abfaengt (noch nicht
+    aktiv): Text geht als Query an /share weiter, Dateien lassen sich auf
+    diesem Weg nicht halten — die Seite sagt das dann."""
+    if request.method == 'GET':
+        return redirect(url_for('share'))
+    args = {k: request.form.get(k, '')[:4000] for k in ('title', 'text', 'url')
+            if request.form.get(k)}
+    if any(f.filename for f in request.files.getlist('files')):
+        args['lost'] = '1'
+    return redirect(url_for('share', **args), code=303)
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if is_ingress():

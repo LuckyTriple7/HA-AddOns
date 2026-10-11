@@ -166,6 +166,7 @@ Zentrale, passwortgeschützte Startseite für WhatsApp, Telegram und Signal — 
 - Neue-Nachricht-Badge mit pulsierendem Farbrand
 - Messenger öffnen direkt im Portal (nginx-Proxy — externe Ports nicht nötig)
 - PWA — als App auf Android/iOS installierbar
+- „Senden an“ — Text, Links und Dateien aus dem Teilen-Menü an einen Chat schicken
 
 → [Dokumentation & Changelog](messenger-portal/README.md)
 
@@ -525,6 +526,7 @@ Central, password-protected start page for WhatsApp, Telegram and Signal — all
 - New message badge with pulsing color border
 - Messengers open directly in the portal (nginx proxy — no external ports needed)
 - PWA — installable as an app on Android/iOS
+- "Send to" — share text, links and files from the share menu straight into a chat
 
 → [Documentation & Changelog](messenger-portal/README.md)
 

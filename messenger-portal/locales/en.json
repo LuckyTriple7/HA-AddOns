@@ -42,5 +42,22 @@
   "banner_offline_reload": "Reload",
   "status_warn": "Online – with limitations",
   "status_warn_hint": "{name} is connected, but the self-check reports changes on the provider side. Affected: {what}. Everything else keeps running.",
-  "status_health_ok": "Connected – self-check clean ({n} internals, {s} response shapes checked)"
+  "status_health_ok": "Connected – self-check clean ({n} internals, {s} response shapes checked)",
+  "share_title": "Send to …",
+  "share_empty": "Nothing to share. Install the portal as an app, then pick it from your device's share menu.",
+  "share_text_ph": "Message",
+  "share_pick_messenger": "Choose messenger",
+  "share_search": "Search chat",
+  "share_loading": "Loading chats …",
+  "share_no_chats": "No chats found.",
+  "share_err_load": "{name} is unreachable.",
+  "share_send_to": "Send to {name}",
+  "share_sending": "Sending …",
+  "share_sent": "Sent to {name}",
+  "share_err_send": "Sending failed",
+  "share_discard": "Discard",
+  "share_open_messenger": "Open {name}",
+  "share_files_lost": "The shared files could not be taken over. Open the portal once, then share them again.",
+  "share_file_too_big": "{name} is larger than 64 MB and cannot be sent.",
+  "share_group": "Group"
 }

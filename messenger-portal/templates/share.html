@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" id="theme-color-meta" content="#0d1117">
+  <title>{{ t.share_title }} – {{ t.app_name }}</title>
+  <link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-hover: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #7d8590;
+      --accent: #58a6ff;
+      --danger: #f85149;
+      --ok: #3fb950;
+      --radius: 14px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    [data-theme="light"] {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface-hover: #f6f8fa;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-muted: #636c76;
+      --accent: #0969da;
+      --danger: #cf222e;
+      --ok: #1a7f37;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+    }
+    body { display: flex; flex-direction: column; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: .7rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      flex-shrink: 0;
+    }
+    .back-btn {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .back-btn:hover { color: var(--text); background: var(--surface-hover); }
+    .back-btn svg { width: 18px; height: 18px; fill: currentColor; }
+    h1 { font-size: 1.05rem; font-weight: 700; flex: 1; }
+    .text-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font: inherit; font-size: .85rem;
+      padding: .4rem .5rem; border-radius: 8px;
+    }
+    .text-btn:hover { color: var(--danger); background: var(--surface-hover); }
+
+    main {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: .9rem;
+    }
+
+    .note {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: .8rem 1rem;
+      font-size: .9rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+    .note.warn { border-color: var(--danger); color: var(--text); }
+    .note.ok   { border-color: var(--ok); color: var(--text); font-weight: 600; }
+
+    /* ── Geteilter Inhalt ────────────────────────────────── */
+    .payload {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: .7rem;
+      display: flex; flex-direction: column; gap: .6rem;
+      flex-shrink: 0;
+    }
+    textarea {
+      width: 100%;
+      min-height: 3.2rem;
+      max-height: 9rem;
+      resize: vertical;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .55rem .7rem;
+      font: inherit; font-size: .95rem;
+    }
+    textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+    .files { display: flex; gap: .5rem; overflow-x: auto; }
+    .files:empty { display: none; }
+    .file {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: .5rem;
+      max-width: 220px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .3rem .6rem .3rem .3rem;
+      font-size: .8rem;
+    }
+    .file img, .file .file-ico {
+      width: 40px; height: 40px; border-radius: 7px; object-fit: cover; flex-shrink: 0;
+    }
+    .file .file-ico {
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted);
+    }
+    .file .file-ico svg { width: 20px; height: 20px; fill: currentColor; }
+    .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { color: var(--text-muted); }
+
+    /* ── Messenger ───────────────────────────────────────── */
+    .label { font-size: .78rem; font-weight: 600; color: var(--text-muted);
+             text-transform: uppercase; letter-spacing: .05em; }
+    .messengers { display: flex; gap: .6rem; flex-shrink: 0; }
+    .messenger {
+      flex: 1;
+      min-width: 0;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: .7rem .4rem;
+      cursor: pointer;
+      color: var(--text);
+      font: inherit; font-size: .82rem; font-weight: 600;
+      display: flex; flex-direction: column; align-items: center; gap: .4rem;
+    }
+    .messenger svg { width: 28px; height: 28px; fill: var(--brand); }
+    .messenger span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .messenger:hover { background: var(--surface-hover); }
+    .messenger.active { border-color: var(--brand); }
+    .messenger:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Chats ───────────────────────────────────────────── */
+    .chat-box {
+      flex: 1;
+      min-height: 0;
+      display: flex; flex-direction: column; gap: .6rem;
+    }
+    input[type="search"] {
+      width: 100%;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .6rem .8rem;
+      font: inherit; font-size: .95rem;
+      flex-shrink: 0;
+    }
+    .chats {
+      flex: 1;
+      min-height: 8rem;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .chat {
+      width: 100%;
+      display: flex; align-items: center; gap: .7rem;
+      padding: .55rem .8rem;
+      background: none; border: none; border-bottom: 1px solid var(--border);
+      color: var(--text); font: inherit; text-align: left;
+      cursor: pointer;
+    }
+    .chat:last-child { border-bottom: none; }
+    .chat:hover { background: var(--surface-hover); }
+    .chat.active { background: var(--surface-hover); box-shadow: inset 3px 0 0 var(--accent); }
+    .avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--bg); color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .9rem; flex-shrink: 0;
+    }
+    .chat-main { min-width: 0; flex: 1; }
+    .chat-name { font-weight: 600; font-size: .95rem;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-sub  { font-size: .78rem; color: var(--text-muted);
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chats-msg { padding: 1.2rem; text-align: center; color: var(--text-muted); font-size: .9rem; }
+
+    .send-btn {
+      flex-shrink: 0;
+      width: 100%;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--accent);
+      color: #fff;
+      font: inherit; font-size: 1rem; font-weight: 700;
+      padding: .85rem 1rem;
+      cursor: pointer;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .send-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .done-actions { display: flex; gap: .6rem; }
+    .done-actions a {
+      flex: 1; text-align: center; text-decoration: none;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); color: var(--text);
+      padding: .75rem .5rem; font-weight: 600; font-size: .9rem;
+    }
+    .done-actions a:hover { background: var(--surface-hover); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="back-btn" href="{{ url_for('index') }}" id="back-link" aria-label="{{ t.back_to_portal }}">
+      <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </a>
+    <h1>{{ t.share_title }}</h1>
+    <button class="text-btn" id="discard-btn" type="button" hidden>{{ t.share_discard }}</button>
+  </header>
+
+  <main>
+    <div class="note" id="empty-note" hidden>{{ t.share_empty }}</div>
+    <div class="note warn" id="warn-note" hidden></div>
+    <div class="note ok" id="done-note" hidden></div>
+    <div class="done-actions" id="done-actions" hidden>
+      <a id="done-open" href="#"></a>
+      <a href="{{ url_for('index') }}">{{ t.back_to_portal }}</a>
+    </div>
+
+    <div class="payload" id="payload">
+      <div class="files" id="files"></div>
+      <textarea id="msg" placeholder="{{ t.share_text_ph }}"></textarea>
+    </div>
+
+    <div id="pick-area" style="display:contents">
+      <div class="label">{{ t.share_pick_messenger }}</div>
+      <div class="messengers" id="messengers">
+        {% for m in messengers %}
+        <button type="button" class="messenger" data-icon="{{ m.icon }}" style="--brand: {{ m.color }}">
+          <svg viewBox="0 0 24 24">{{ m.svg | safe }}</svg>
+          <span>{{ m.name }}</span>
+        </button>
+        {% else %}
+        <div class="note">{{ t.no_messengers }}</div>
+        {% endfor %}
+      </div>
+
+      <div class="chat-box" id="chat-box" hidden>
+        <input type="search" id="search" placeholder="{{ t.share_search }}" autocomplete="off">
+        <div class="chats" id="chats"></div>
+      </div>
+
+      <button type="button" class="send-btn" id="send-btn" hidden disabled></button>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem('mp-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      document.getElementById('theme-color-meta').content =
+        theme === 'dark' ? '#0d1117' : '#f0f2f5';
+    })();
+
+    const T = {
+      loading:  {{ t.share_loading | tojson }},
+      noChats:  {{ t.share_no_chats | tojson }},
+      errLoad:  {{ t.share_err_load | tojson }},
+      sendTo:   {{ t.share_send_to | tojson }},
+      sending:  {{ t.share_sending | tojson }},
+      sent:     {{ t.share_sent | tojson }},
+      errSend:  {{ t.share_err_send | tojson }},
+      open:     {{ t.share_open_messenger | tojson }},
+      lost:     {{ t.share_files_lost | tojson }},
+      tooBig:   {{ t.share_file_too_big | tojson }},
+      group:    {{ t.share_group | tojson }},
+    };
+    const MESSENGERS  = {{ messengers | tojson }};
+    const STATUS_URL  = {{ url_for('status') | tojson }};
+    const LOGIN_URL   = {{ url_for('login') | tojson }};
+    const SHARE_CACHE = 'mp-share';
+    const MAX_BYTES   = 64 * 1024 * 1024;   // Grenze der Messenger-Add-ons (multer)
+
+    const $ = id => document.getElementById(id);
+    const msgEl = $('msg'), filesEl = $('files'), chatsEl = $('chats');
+    const searchEl = $('search'), sendBtn = $('send-btn'), warnEl = $('warn-note');
+
+    let files = [];          // File-Objekte aus dem geteilten Inhalt
+    let messenger = null;    // gewaehlter Eintrag aus MESSENGERS
+    let chats = [];          // Chatliste des gewaehlten Messengers
+    let chat = null;         // gewaehlter Chat
+    let busy = false;
+
+    function warn(text) { warnEl.textContent = text; warnEl.hidden = !text; }
+
+    function fmtSize(n) {
+      if (n < 1024) return n + ' B';
+      if (n < 1048576) return (n / 1024).toFixed(0) + ' KB';
+      return (n / 1048576).toFixed(1) + ' MB';
+    }
+
+    // Titel, Text und Link zu einer Nachricht verbinden. Android legt den Link
+    // meist in "text" ab und liefert "url" leer — Doppeltes faellt weg.
+    function compose(title, text, url) {
+      const parts = [];
+      [title, text, url].forEach(p => {
+        p = (p || '').trim();
+        if (p && !parts.some(q => q.includes(p))) {
+          for (let i = parts.length - 1; i >= 0; i--) if (p.includes(parts[i])) parts.splice(i, 1);
+          parts.push(p);
+        }
+      });
+      return parts.join('\n');
+    }
+
+    async function loadPayload() {
+      const q = new URLSearchParams(location.search);
+      if (q.get('lost')) warn(T.lost);
+      let title = q.get('title') || '', text = q.get('text') || '', url = q.get('url') || '';
+      if (location.search) history.replaceState(null, '', location.pathname);
+
+      try {
+        if ('caches' in window && await caches.has(SHARE_CACHE)) {
+          const cache = await caches.open(SHARE_CACHE);
+          const hit = await cache.match('/__share/meta');
+          if (hit) {
+            const meta = await hit.json();
+            title = meta.title || title; text = meta.text || text; url = meta.url || url;
+            for (let i = 0; i < (meta.files || []).length; i++) {
+              const res = await cache.match('/__share/file/' + i);
+              if (!res) continue;
+              files.push(new File([await res.blob()], meta.files[i].name, { type: meta.files[i].type }));
+            }
+          }
+        }
+      } catch (e) {}
+
+      msgEl.value = compose(title, text, url);
+      renderFiles();
+      const empty = !files.length && !msgEl.value;
+      $('empty-note').hidden = !empty;
+      $('discard-btn').hidden = empty;
+      updateSend();
+    }
+
+    function renderFiles() {
+      filesEl.textContent = '';
+      files.forEach(f => {
+        const box = document.createElement('div');
+        box.className = 'file';
+        if (f.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(f);
+          img.alt = '';
+          box.appendChild(img);
+        } else {
+          const ico = document.createElement('div');
+          ico.className = 'file-ico';
+          ico.innerHTML = '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>';
+          box.appendChild(ico);
+        }
+        const info = document.createElement('div');
+        info.style.minWidth = '0';
+        const name = document.createElement('div');
+        name.className = 'file-name';
+        name.textContent = f.name;
+        const size = document.createElement('div');
+        size.className = 'file-size';
+        size.textContent = fmtSize(f.size);
+        info.append(name, size);
+        box.appendChild(info);
+        filesEl.appendChild(box);
+      });
+      const big = files.find(f => f.size > MAX_BYTES);
+      if (big) warn(T.tooBig.replace('{name}', big.name));
+    }
+
+    async function clearPayload() {
+      try { if ('caches' in window) await caches.delete(SHARE_CACHE); } catch (e) {}
+    }
+
+    function updateSend() {
+      const hasContent = files.length > 0 || msgEl.value.trim() !== '';
+      const tooBig = files.some(f => f.size > MAX_BYTES);
+      sendBtn.hidden = !chat;
+      sendBtn.disabled = busy || !chat || !hasContent || tooBig;
+      if (chat && !busy) sendBtn.textContent = T.sendTo.replace('{name}', chat.name || chat.id);
+    }
+
+    function renderChats() {
+      const needle = searchEl.value.trim().toLowerCase();
+      chatsEl.textContent = '';
+      const list = chats.filter(c =>
+        !needle || (c.name || '').toLowerCase().includes(needle)
+                || String(c.phone || '').includes(needle));
+      if (!list.length) {
+        const empty = document.createElement('div');
+        empty.className = 'chats-msg';
+        empty.textContent = T.noChats;
+        chatsEl.appendChild(empty);
+        return;
+      }
+      list.forEach(c => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chat' + (chat && chat.id === c.id ? ' active' : '');
+        const av = document.createElement('div');
+        av.className = 'avatar';
+        av.textContent = ((c.name || '?').trim()[0] || '?').toUpperCase();
+        const main = document.createElement('div');
+        main.className = 'chat-main';
+        const name = document.createElement('div');
+        name.className = 'chat-name';
+        name.textContent = c.name || c.id;
+        main.appendChild(name);
+        const subText = c.isGroup ? T.group : (c.phone && String(c.phone) !== c.name ? String(c.phone) : '');
+        if (subText) {
+          const sub = document.createElement('div');
+          sub.className = 'chat-sub';
+          sub.textContent = subText;
+          main.appendChild(sub);
+        }
+        btn.append(av, main);
+        btn.addEventListener('click', () => {
+          chat = c;
+          renderChats();
+          updateSend();
+        });
+        chatsEl.appendChild(btn);
+      });
+    }
+
+    function chatsMessage(text) {
+      chatsEl.textContent = '';
+      const el = document.createElement('div');
+      el.className = 'chats-msg';
+      el.textContent = text;
+      chatsEl.appendChild(el);
+    }
+
+    async function pickMessenger(m) {
+      if (busy) return;
+      messenger = m;
+      chat = null;
+      chats = [];
+      document.querySelectorAll('.messenger').forEach(b =>
+        b.classList.toggle('active', b.dataset.icon === m.icon));
+      $('chat-box').hidden = false;
+      searchEl.value = '';
+      chatsMessage(T.loading);
+      updateSend();
+      try {
+        const res = await fetch(m.proxy + 'api/chats', { cache: 'no-store' });
+        // Abgelaufene Anmeldung: nginx leitet auf die Login-Seite um
+        if (res.redirected && new URL(res.url).pathname.endsWith('/login')) {
+          window.location.href = LOGIN_URL;
+          return;
+        }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (messenger !== m) return;
+        chats = (Array.isArray(data) ? data : []).filter(c =>
+          c && c.id && !/@(broadcast|newsletter)$/.test(String(c.id)));
+        renderChats();
+      } catch (e) {
+        if (messenger === m) chatsMessage(T.errLoad.replace('{name}', m.name));
+      }
+    }
+
+    async function postJson(res) {
+      let data = null;
+      try { data = await res.json(); } catch (e) {}
+      if (!res.ok || !data || data.error) {
+        const err = data && data.error;
+        const detail = typeof err === 'string' ? err
+                     : err ? JSON.stringify(err) : 'HTTP ' + res.status;
+        throw new Error(detail);
+      }
+      return data;
+    }
+
+    async function send() {
+      if (busy || !chat || !messenger) return;
+      const text = msgEl.value.trim();
+      busy = true;
+      warn('');
+      sendBtn.disabled = true;
+      sendBtn.textContent = T.sending;
+      try {
+        if (files.length) {
+          // Text als Bildunterschrift an die erste Datei, der Rest ohne
+          for (let i = 0; i < files.length; i++) {
+            const fd = new FormData();
+            fd.append("to", String(chat.id));
+            if (i === 0 && text) fd.append('caption', text);
+            fd.append('file', files[i], files[i].name);
+            await postJson(await fetch(messenger.proxy + 'api/send-media', { method: 'POST', body: fd }));
+          }
+        } else {
+          await postJson(await fetch(messenger.proxy + 'api/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: String(chat.id), message: text }),
+          }));
+        }
+      } catch (e) {
+        busy = false;
+        warn(T.errSend + ': ' + e.message);
+        updateSend();
+        return;
+      }
+      await clearPayload();
+      $('pick-area').style.display = 'none';
+      $('payload').hidden = true;
+      $('discard-btn').hidden = true;
+      $('done-note').textContent = T.sent.replace('{name}', chat.name || chat.id);
+      $('done-note').hidden = false;
+      $('done-open').textContent = T.open.replace('{name}', messenger.name);
+      $('done-open').href = messenger.proxy;
+      $('done-actions').hidden = false;
+    }
+
+    document.querySelectorAll('.messenger').forEach(btn => {
+      const m = MESSENGERS.find(x => x.icon === btn.dataset.icon);
+      if (m) btn.addEventListener('click', () => pickMessenger(m));
+    });
+    searchEl.addEventListener('input', renderChats);
+    msgEl.addEventListener('input', updateSend);
+    sendBtn.addEventListener('click', send);
+    $('discard-btn').addEventListener('click', async () => {
+      await clearPayload();
+      window.location.href = $('back-link').href;
+    });
+
+    // Nicht erreichbare Messenger sperren, bevor jemand hineintippt
+    fetch(STATUS_URL).then(r => r.ok ? r.json() : []).then(list => {
+      list.forEach(s => {
+        const btn = document.querySelector('.messenger[data-icon="' + s.icon + '"]');
+        if (btn) btn.disabled = s.state === 'offline';
+      });
+    }).catch(() => {});
+
+    loadPayload().then(() => {
+      if (MESSENGERS.length === 1) pickMessenger(MESSENGERS[0]);
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('{{ url_for("sw") }}').catch(function(){});
+    }
+  </script>
+</body>
+</html>
