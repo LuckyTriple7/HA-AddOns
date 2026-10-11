@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.5] - 2026-10-11
+
+### Changed
+- **Branch-Sync: ↓ zählt keine Merge-Commits mehr.** Die Merge-Commits der
+  dev → main-PRs liegen nur auf main, bringen aber keinen Inhalt mit — bisher
+  wuchs die rote Zahl mit jedem PR um eins. Jetzt steht dort nur noch, was dev
+  wirklich fehlt (Kachel und dev → main-Dialog).
+
 ## [0.5.4] - 2026-10-11
 
 ### Fixed
