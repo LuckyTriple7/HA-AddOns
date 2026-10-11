@@ -41,7 +41,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 |--------|----------|--------------|
 | `phone_number` | — | Deine Signal-Nummer (optional, wird automatisch erkannt) |
 | `dark_mode` | `false` | `true` = dunkles Theme, `false` = helles Theme |
-| `native_mode` | `true` | `true` = nativer Modus (niedrige CPU-Last), `false` = Java-Modus |
+| `native_mode` | `true` | `true` = natives signal-cli-Binary (wenig RAM), `false` = Java (JVM). In beiden Fällen läuft signal-cli als Daemon |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `debug_mode` | `false` | Ausführliches Logging inkl. GIN-Access-Logs für die Fehlersuche |
 | `api_enabled` | `false` | REST-API auf eigenem Port 17787 starten (nur mit `api_token`) |
@@ -235,7 +235,7 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 |--------|---------|-------------|
 | `phone_number` | — | Your Signal number (optional, detected automatically) |
 | `dark_mode` | `false` | `true` = dark theme, `false` = light theme |
-| `native_mode` | `true` | `true` = native mode (low CPU usage), `false` = Java mode |
+| `native_mode` | `true` | `true` = native signal-cli binary (low memory), `false` = Java (JVM). signal-cli runs as a daemon either way |
 | `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
 | `debug_mode` | `false` | Verbose logging including GIN access logs for troubleshooting |
 | `api_enabled` | `false` | Start the REST API on its own port 17787 (only with `api_token`) |

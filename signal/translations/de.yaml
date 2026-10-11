@@ -10,7 +10,7 @@ configuration:
     description: Dunkles Theme in der Web-UI aktivieren.
   native_mode:
     name: Nativer Modus
-    description: "Nativen signal-cli-Binary verwenden (niedrige CPU-Last). Deaktivieren für Java-Modus — nur auf nicht unterstützter Hardware nötig. Empfehlung: aktiviert."
+    description: "Natives signal-cli-Binary verwenden (wenig RAM, schneller Start). Deaktivieren für Java (JVM) — nur nötig, wenn das native Binary Probleme macht. In beiden Fällen läuft signal-cli dauerhaft als Daemon. Empfehlung: aktiviert."
   download_media:
     name: Medien herunterladen
     description: Empfangene Fotos automatisch herunterladen und anzeigen. Funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten.
