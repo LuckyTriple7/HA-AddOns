@@ -32,7 +32,7 @@ ARG GH_CLI_VERSION=2.102.0
 ARG FIREFOX_VERSION=157.0.1
 ARG THUNDERBIRD_VERSION=157.0.1
 ARG RCLONE_VERSION=1.75.2
-ARG OPENCODE_VERSION=1.19.0
+ARG OPENCODE_VERSION=2.0.26
 ARG TAILSCALE_VERSION=1.104.1
 
 # XFCE Desktop-Umgebung + Anwendungen installieren
@@ -134,7 +134,8 @@ RUN ARCH=$(dpkg --print-architecture) \
     && install -m 755 "/tmp/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}/tailscaled" /usr/local/bin/tailscaled \
     && rm -rf /tmp/tailscale.tgz "/tmp/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}"
 
-# OpenCode CLI direkt installieren (wird von der OpenCode-VSCode-Extension benötigt)
+# OpenCode CLI direkt installieren (wird von der OpenCode-VSCode-Extension benötigt).
+# OpenCode 2 liegt auf opencode.ai, die GitHub-Releases führen nur noch Version 1.
 ARG OPENCODE_VERSION
 RUN ARCH=$(dpkg --print-architecture) \
     && case "$ARCH" in \
@@ -142,7 +143,7 @@ RUN ARCH=$(dpkg --print-architecture) \
         aarch64|arm64) OPENCODE_ARCH="linux-arm64" ;; \
         *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
     esac \
-    && curl -fsSL "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-${OPENCODE_ARCH}.tar.gz" -o /tmp/opencode.tar.gz \
+    && curl -fsSL "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-${OPENCODE_ARCH}.tar.gz" -o /tmp/opencode.tar.gz \
     && tar -xzf /tmp/opencode.tar.gz -C /tmp \
     && mv /tmp/opencode /usr/local/bin/opencode.orig \
     && chmod 755 /usr/local/bin/opencode.orig \

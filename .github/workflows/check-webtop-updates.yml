@@ -67,8 +67,9 @@ jobs:
             | jq -r '.tag_name' | sed 's/^v//')
           check_version "Claude Desktop" "$CLAUDE_DESKTOP"
 
-          OPENCODE=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/anomalyco/opencode/releases/latest" \
-            | jq -r '.tag_name' | sed 's/^v//')
+          # OpenCode 2: die GitHub-Releases führen nur Version 1, maßgeblich ist das npm-Paket
+          OPENCODE=$(curl -s "https://registry.npmjs.org/@opencode/cli/latest" \
+            | jq -r '.version')
           check_version "OpenCode" "$OPENCODE"
 
           TAILSCALE=$(curl -s "https://pkgs.tailscale.com/stable/?mode=json" \

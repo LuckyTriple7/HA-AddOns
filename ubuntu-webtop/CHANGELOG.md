@@ -1,3 +1,10 @@
+## [1.8.99] - 2026-10-11
+
+### Geändert
+
+- OpenCode: 1.19.0 → 2.0.26 (Umstieg auf OpenCode 2). Version 2 baut die Sitzungsdatenbank unter `/config/.local/share/opencode` beim ersten Start um, Version 1 läuft danach nicht mehr damit. Die VS-Code-Erweiterung `sst-dev.opencode` passt nicht mehr (startet `opencode --port`), Plugins von Version 1 laufen nicht mehr.
+- Update-Workflow: Die OpenCode-Version kommt jetzt vom npm-Paket `@opencode/cli`, der Download von opencode.ai.
+
 ## [1.8.98] - 2026-10-11
 
 ### Aktualisiert
