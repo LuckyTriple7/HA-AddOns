@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.3.2] - 2026-10-11
+- Fix: Beim Teilen über Edge unter Windows standen im Text Zeichenfolgen wie `%0A` und `%EF%B8%8F` statt Zeilenumbrüchen und Emoji-Zusätzen. Edge liefert diese Zeichen prozentkodiert an; die Teilen-Seite wandelt sie jetzt zurück. Kodierte Zeichen in Links (`%20` usw.) bleiben unverändert
+
 ## [1.3.1] - 2026-10-11
 - **„Senden an“ jetzt auch direkt im Portal.** Neuer Knopf in der Kopfzeile öffnet die Teilen-Seite ohne den Umweg über das Teilen-Menü: Text eintippen, Dateien über „Dateien hinzufügen“ wählen, ins Fenster ziehen oder aus der Zwischenablage einfügen, dann Messenger und Chat wählen
 - Anlass: Unter Windows trägt Chrome installierte Apps nicht in den „Freigeben“-Dialog ein – das Portal erscheint dort nur, wenn es über Edge installiert wurde. Mit dem neuen Weg geht es unter Windows auch mit Chrome. Android (Chrome) ist nicht betroffen

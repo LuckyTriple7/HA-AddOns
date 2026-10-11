@@ -357,6 +357,15 @@
       return parts.join('\n');
     }
 
+    // Edge unter Windows liefert Zeilenumbrueche und manche Sonderzeichen
+    // prozentkodiert (%0A, %EF%B8%8F). Nur Steuerzeichen und Nicht-ASCII
+    // zurueckwandeln — %20 & Co. in Links bleiben, wie sie sind.
+    function fixEncoding(s) {
+      return String(s || '').replace(/(?:%(?:[01]|[89A-Fa-f])[0-9A-Fa-f])+/g, m => {
+        try { return decodeURIComponent(m); } catch (e) { return m; }
+      }).replace(/\r\n?/g, '\n');
+    }
+
     async function loadPayload() {
       const q = new URLSearchParams(location.search);
       if (q.get('lost')) warn(T.lost);
@@ -379,7 +388,7 @@
         }
       } catch (e) {}
 
-      msgEl.value = compose(title, text, url);
+      msgEl.value = compose(fixEncoding(title), fixEncoding(text), url);
       renderFiles();
     }
 
