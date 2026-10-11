@@ -60,12 +60,19 @@ app.set('trust proxy', 1);
 app.use(express.json());
 // Express 5 laesst req.body ohne JSON-Body undefined (Express 4: {}); Routen destrukturieren es direkt.
 app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
+// Empfangs-Webhook von signal-cli-rest-api (siehe "Empfang" weiter unten)
+const RECEIVE_TOKEN = process.env.RECEIVE_TOKEN || '';
+const RECEIVE_PATH = '/internal/receive/' + RECEIVE_TOKEN;
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  // Nach einem Neustart liefert der Daemon den Rueckstau in einem Schwung —
+  // das Limit wuerde Nachrichten verwerfen
+  if (req.path.startsWith('/internal/receive/')) return next();
   return mutatingRateLimit(req, res, next);
 });
 app.use((req, res, next) => {
-  if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
+  // /internal/receive/ traegt das Geheimnis im Pfad und gehoert nicht in die Konsole
+  if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status' || req.path.startsWith('/internal/receive/')) return next();
   const t0 = Date.now();
   res.on('finish', () => _logSilent('DEBUG', `API ${req.method} ${req.path} → ${res.statusCode} (${Date.now()-t0}ms)`));
   next();
@@ -244,16 +251,20 @@ async function loadContacts() {
     if (!r.ok) return;
     const contacts = await r.json();
     if (!Array.isArray(contacts)) return;
+    let changed = false;
     for (const c of contacts) {
       const num = normPhone(c.number || c.phone);
       if (!num || num === PHONE_NUMBER) continue;
       if (!chatMap.has(num)) {
         chatMap.set(num, { id: num, name: c.name || num, phone: num, lastMsg: '', lastTime: 0 });
-      } else if (c.name) {
+        changed = true;
+      } else if (c.name && chatMap.get(num).name !== c.name) {
         chatMap.get(num).name = c.name;
+        changed = true;
       }
     }
-    scheduleSave();
+    // Laeuft alle 2 Minuten — nur schreiben, wenn sich etwas geaendert hat
+    if (changed) scheduleSave();
   } catch (e) {
     console.error('[ERROR] loadContacts:', e.message);
   }
@@ -266,14 +277,16 @@ async function loadGroups() {
     if (!r.ok) return;
     const groups = await r.json();
     if (!Array.isArray(groups)) return;
+    let changed = false;
     for (const g of groups) {
       const id = g.id || g.internal_id;
       if (!id) continue;
       if (!chatMap.has(id)) {
         chatMap.set(id, { id, name: g.name || 'Gruppe', phone: '', lastMsg: '', lastTime: 0, isGroup: true });
+        changed = true;
       }
     }
-    scheduleSave();
+    if (changed) scheduleSave();
   } catch (e) {
     console.error('[ERROR] loadGroups:', e.message);
   }
@@ -389,21 +402,38 @@ function processEnvelope(envelope) {
   }
 }
 
-let _pollCount = 0;
-async function pollMessages() {
-  if (status !== 'linked' || !PHONE_NUMBER) return;
-  try {
-    const r = await fetch(`${SIGNAL_API}/v1/receive/${encodeURIComponent(PHONE_NUMBER)}`, { signal: AbortSignal.timeout(5000) });
-    if (!r.ok) return;
-    _pollCount++;
-    if (_pollCount % 30 === 0) _logSilent('INFO', `signal-cli Keep-alive OK — API reachable chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
-    const messages = await r.json();
-    if (Array.isArray(messages) && messages.length > 0) {
-      dbg(`pollMessages: received ${messages.length} envelope(s)`);
-      _logSilent('INFO', `signal-cli /v1/receive: ${messages.length} envelope(s)`);
-      messages.forEach(processEnvelope);
+// ── Empfang ──────────────────────────────────────────────────────────
+// signal-cli laeuft als Daemon (json-rpc), signal-cli-rest-api schickt jede
+// empfangene Nachricht per POST hierher (RECEIVE_WEBHOOK_URL in run.sh).
+// Frueher fragte ein 10-Sekunden-Poll GET /v1/receive ab; im alten native-Modus
+// startete dafuer jedes Mal ein neuer signal-cli-Prozess, der seine
+// Bibliotheken nach /tmp entpackte und account.db schrieb — gemessen 26 MB/s
+// Schreiblast im Dauerbetrieb.
+//
+// Der UI-Port kennt keine Anmeldung, deshalb doppelt abgesichert: nur von
+// localhost und nur mit dem Geheimnis im Pfad, das run.sh bei jedem Start neu
+// wuerfelt. Ohne das koennte jeder mit Zugriff auf den Port Nachrichten
+// unterschieben.
+if (RECEIVE_TOKEN) {
+  const expectedPath = Buffer.from(RECEIVE_PATH);
+  const loopback = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+  app.post('/internal/receive/:token', (req, res) => {
+    const got = Buffer.from(req.path);
+    if (!loopback.has(req.socket.remoteAddress) || got.length !== expectedPath.length || !crypto.timingSafeEqual(got, expectedPath)) {
+      return res.status(404).json({ error: 'not_found' });
     }
-  } catch (e) {}
+    // Immer 200 — bei einem Fehlerstatus protokolliert signal-cli-rest-api nur
+    // einen Fehler, die Nachricht kaeme trotzdem kein zweites Mal
+    res.json({ ok: true });
+    try {
+      const envelope = req.body?.params || req.body;
+      if (!envelope || !envelope.envelope) return;
+      _logSilent('INFO', 'signal-cli receive: 1 envelope');
+      processEnvelope(envelope);
+    } catch (e) { console.error('[ERROR] receive:', e.message); }
+  });
+} else {
+  console.error('[ERROR] RECEIVE_TOKEN fehlt — es werden keine Nachrichten empfangen.');
 }
 
 async function downloadAttachment(attId, contentType, msgId) {
@@ -737,8 +767,9 @@ app.post('/api/fetch-media/:chatId', async (req, res) => {
   })();
 });
 
-app.post('/api/poll', async (req, res) => {
-  await pollMessages();
+// Nachrichten kommen seit 1.6.33 per Webhook; die Route bleibt fuer die
+// Oberflaeche und fremde Aufrufer bestehen
+app.post('/api/poll', (req, res) => {
   res.json({ ok: true });
 });
 
@@ -2592,7 +2623,6 @@ async function init() {
     if (status === 'linked') checkStatus(); // detect unexpected unlink
   }, 60000);
 
-  setInterval(pollMessages, 10000);  // receive is also signal-cli work — 10s is enough
   setInterval(() => { if (status === 'linked') { loadContacts(); loadGroups(); } }, 120000);
 }
 
