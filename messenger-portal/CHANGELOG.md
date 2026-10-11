@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.3.1] - 2026-10-11
+- **„Senden an“ jetzt auch direkt im Portal.** Neuer Knopf in der Kopfzeile öffnet die Teilen-Seite ohne den Umweg über das Teilen-Menü: Text eintippen, Dateien über „Dateien hinzufügen“ wählen, ins Fenster ziehen oder aus der Zwischenablage einfügen, dann Messenger und Chat wählen
+- Anlass: Unter Windows trägt Chrome installierte Apps nicht in den „Freigeben“-Dialog ein – das Portal erscheint dort nur, wenn es über Edge installiert wurde. Mit dem neuen Weg geht es unter Windows auch mit Chrome. Android (Chrome) ist nicht betroffen
+- Einzelne Dateien lassen sich vor dem Senden wieder entfernen
+
 ## [1.3.0] - 2026-10-11
 - **Neu: „Senden an“ / „Teilen“.** Ist das Portal als App installiert, erscheint es im Teilen-Menü von Android (Chrome) und Windows (Edge). Nach dem Antippen wählt man den Messenger (WhatsApp, Telegram, Signal), dann den Chat, und schickt den Inhalt ab – ohne den Messenger vorher zu öffnen
 - Geteilt werden können Text, Links und Dateien: Bilder, Videos, Audio, PDF, Textdateien, Office-Dokumente und ZIP. Mehrere Dateien auf einmal gehen; der Text hängt als Bildunterschrift an der ersten. Die Grenze liegt wie in den Messenger-Add-ons bei 64 MB je Datei

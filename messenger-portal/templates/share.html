@@ -139,6 +139,20 @@
     .file .file-ico svg { width: 20px; height: 20px; fill: currentColor; }
     .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .file-size { color: var(--text-muted); }
+    .file-del {
+      background: none; border: none; cursor: pointer; flex-shrink: 0;
+      color: var(--text-muted); font-size: 1rem; line-height: 1; padding: .2rem .3rem;
+    }
+    .file-del:hover { color: var(--danger); }
+    .add-btn {
+      align-self: flex-start;
+      background: none; cursor: pointer;
+      border: 1px dashed var(--border); border-radius: 10px;
+      color: var(--text-muted); font: inherit; font-size: .85rem;
+      padding: .4rem .7rem;
+    }
+    .add-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    body.dragging .payload { border-color: var(--accent); border-style: dashed; }
 
     /* ── Messenger ───────────────────────────────────────── */
     .label { font-size: .78rem; font-weight: 600; color: var(--text-muted);
@@ -255,6 +269,8 @@
     <div class="payload" id="payload">
       <div class="files" id="files"></div>
       <textarea id="msg" placeholder="{{ t.share_text_ph }}"></textarea>
+      <button type="button" class="add-btn" id="add-btn">+ {{ t.share_add_files }}</button>
+      <input type="file" id="file-input" multiple hidden>
     </div>
 
     <div id="pick-area" style="display:contents">
@@ -317,6 +333,7 @@
     let chats = [];          // Chatliste des gewaehlten Messengers
     let chat = null;         // gewaehlter Chat
     let busy = false;
+    let sizeWarn = false;    // steht gerade der Hinweis auf eine zu grosse Datei?
 
     function warn(text) { warnEl.textContent = text; warnEl.hidden = !text; }
 
@@ -364,10 +381,15 @@
 
       msgEl.value = compose(title, text, url);
       renderFiles();
-      const empty = !files.length && !msgEl.value;
-      $('empty-note').hidden = !empty;
-      $('discard-btn').hidden = empty;
-      updateSend();
+    }
+
+    // Dateien von Hand dazunehmen: Auswahl, Ziehen und Ablegen, Einfuegen.
+    // Der Weg fuer Geraete, auf denen das Portal nicht im Teilen-Menue steht.
+    function addFiles(list) {
+      const fresh = Array.from(list || []).filter(f => f && f.size > 0);
+      if (!fresh.length || busy) return;
+      files = files.concat(fresh);
+      renderFiles();
     }
 
     function renderFiles() {
@@ -396,10 +418,22 @@
         size.textContent = fmtSize(f.size);
         info.append(name, size);
         box.appendChild(info);
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'file-del';
+        del.textContent = '✕';
+        del.addEventListener('click', () => {
+          if (busy) return;
+          files = files.filter(x => x !== f);
+          renderFiles();
+        });
+        box.appendChild(del);
         filesEl.appendChild(box);
       });
       const big = files.find(f => f.size > MAX_BYTES);
-      if (big) warn(T.tooBig.replace('{name}', big.name));
+      if (big) { warn(T.tooBig.replace('{name}', big.name)); sizeWarn = true; }
+      else if (sizeWarn) { warn(''); sizeWarn = false; }
+      updateSend();
     }
 
     async function clearPayload() {
@@ -408,6 +442,8 @@
 
     function updateSend() {
       const hasContent = files.length > 0 || msgEl.value.trim() !== '';
+      $('empty-note').hidden = hasContent || busy;
+      $('discard-btn').hidden = !hasContent || busy;
       const tooBig = files.some(f => f.size > MAX_BYTES);
       sendBtn.hidden = !chat;
       sendBtn.disabled = busy || !chat || !hasContent || tooBig;
@@ -554,6 +590,28 @@
     searchEl.addEventListener('input', renderChats);
     msgEl.addEventListener('input', updateSend);
     sendBtn.addEventListener('click', send);
+    $('add-btn').addEventListener('click', () => $('file-input').click());
+    $('file-input').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+    document.addEventListener('paste', e => {
+      const pasted = e.clipboardData && e.clipboardData.files;
+      if (pasted && pasted.length) { e.preventDefault(); addFiles(pasted); }
+    });
+    let dragDepth = 0;
+    const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    document.addEventListener('dragenter', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); dragDepth++; document.body.classList.add('dragging');
+    });
+    document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+    document.addEventListener('dragleave', e => {
+      if (!hasFiles(e)) return;
+      if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); }
+    });
+    document.addEventListener('drop', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging');
+      addFiles(e.dataTransfer.files);
+    });
     $('discard-btn').addEventListener('click', async () => {
       await clearPayload();
       window.location.href = $('back-link').href;

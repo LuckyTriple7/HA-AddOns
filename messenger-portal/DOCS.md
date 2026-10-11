@@ -35,6 +35,8 @@ Ist das Portal als App installiert, taucht es im Teilen-Menü des Geräts auf (A
 - Voraussetzung: Zugriff über HTTPS und installierte App. Über Home-Assistant-Ingress gibt es kein Teilen-Ziel
 - Nach einem Update, das das Teilen-Ziel ändert, die App einmal neu installieren
 - Der geteilte Inhalt liegt bis zum Senden nur im Browser, nicht auf dem Server
+- Unter Windows erscheint das Portal im „Freigeben“-Dialog nur bei Installation über Edge, mit Chrome nicht
+- Ohne Teilen-Menü: Knopf „Senden an …“ in der Kopfzeile des Portals. Dort Text eintippen, Dateien wählen, hineinziehen oder aus der Zwischenablage einfügen
 
 ## Sicherheitshinweis
 

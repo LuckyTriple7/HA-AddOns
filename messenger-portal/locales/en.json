@@ -44,7 +44,7 @@
   "status_warn_hint": "{name} is connected, but the self-check reports changes on the provider side. Affected: {what}. Everything else keeps running.",
   "status_health_ok": "Connected – self-check clean ({n} internals, {s} response shapes checked)",
   "share_title": "Send to …",
-  "share_empty": "Nothing to share. Install the portal as an app, then pick it from your device's share menu.",
+  "share_empty": "Type a text, drop files here or paste from the clipboard. On Android the portal also shows up in the share menu once installed as an app.",
   "share_text_ph": "Message",
   "share_pick_messenger": "Choose messenger",
   "share_search": "Search chat",
@@ -59,5 +59,6 @@
   "share_open_messenger": "Open {name}",
   "share_files_lost": "The shared files could not be taken over. Open the portal once, then share them again.",
   "share_file_too_big": "{name} is larger than 64 MB and cannot be sent.",
-  "share_group": "Group"
+  "share_group": "Group",
+  "share_add_files": "Add files"
 }
