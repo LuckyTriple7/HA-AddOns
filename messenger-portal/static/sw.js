@@ -1,11 +1,12 @@
-const CACHE = 'mp-v1';
+// v2: der Cache haelt nur noch eigene statische Dateien. v1 legte jede
+// GET-Antwort ab — auch Status, Logs und alles unter /proxy/ (Chats, Medien
+// der Messenger). Der neue Name sorgt dafuer, dass activate den Altbestand
+// loescht.
+const CACHE = 'mp-v2';
 const SHARE_CACHE = 'mp-share';
-const PRECACHE = ['/', '/login'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
-  );
+  e.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', e => {
@@ -48,17 +49,28 @@ async function handleShare(request) {
   return Response.redirect(target, 303);
 }
 
+// Nur die eigenen Symbole unter /static/ — nichts, was eine Anmeldung
+// braucht, und nichts von den durchgereichten Messengern.
+function isOwnStatic(url) {
+  return url.origin === self.location.origin
+    && !url.pathname.includes('/proxy/')
+    && /\/static\/[^/]+$/.test(url.pathname);
+}
+
 self.addEventListener('fetch', e => {
-  if (e.request.method === 'POST' && new URL(e.request.url).pathname.endsWith('/share-target')) {
+  const url = new URL(e.request.url);
+  if (e.request.method === 'POST' && url.pathname.endsWith('/share-target')) {
     e.respondWith(handleShare(e.request));
     return;
   }
-  if (e.request.method !== 'GET') return;
+  if (e.request.method !== 'GET' || !isOwnStatic(url)) return;
   e.respondWith(
     fetch(e.request)
       .then(res => {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
         return res;
       })
       .catch(() => caches.match(e.request))

@@ -620,11 +620,21 @@
             else                     dateStr = T_DAYS.replace('{n}', diffDays);
             const sender   = m.last_received.contact || m.last_received.chatName || '';
             const msgType  = m.last_received.type || '';
-            const typeIcon = TYPE_ICONS[msgType]
-              ? '<span class="msg-type-icon">' + TYPE_ICONS[msgType] + '</span> '
-              : '';
-            msgEl.innerHTML = T_LAST_MSG + ' ' + dateStr
-              + (sender ? '<br>' + typeIcon + sender : (typeIcon ? '<br>' + typeIcon.trim() : ''));
+            // Der Absendername kommt von aussen (Anzeigename des Gegenuebers) —
+            // deshalb als Text einsetzen, nie als HTML.
+            const typeIcon = Object.prototype.hasOwnProperty.call(TYPE_ICONS, msgType)
+              ? TYPE_ICONS[msgType] : '';
+            msgEl.textContent = T_LAST_MSG + ' ' + dateStr;
+            if (sender || typeIcon) {
+              msgEl.appendChild(document.createElement('br'));
+              if (typeIcon) {
+                const ico = document.createElement('span');
+                ico.className = 'msg-type-icon';
+                ico.textContent = typeIcon;
+                msgEl.appendChild(ico);
+              }
+              if (sender) msgEl.appendChild(document.createTextNode((typeIcon ? ' ' : '') + sender));
+            }
 
             const lastReceived = date.getTime();
             currentLastReceived[m.icon] = lastReceived;

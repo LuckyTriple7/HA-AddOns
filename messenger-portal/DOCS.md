@@ -9,6 +9,7 @@ Zentrale, passwortgeschützte Startseite für deine Messenger-Add-ons (WhatsApp,
 | `username` | string | `admin` | Benutzername für den Login |
 | `password` | string | `secret` | Passwort für den Login |
 | `session_hours` | int | `24` | Gültigkeitsdauer der Session in Stunden |
+| `trusted_proxies` | string | – | Adresse des vorgeschalteten Reverse-Proxys (Komma-getrennt, CIDR erlaubt). Nur von dort übernimmt das Portal die echte Aufrufer-Adresse für die Anmeldesperre. Leer: es zählt die Adresse, die direkt ankommt |
 | `messengers[].name` | string | – | Anzeigename des Messengers |
 | `messengers[].icon` | string | – | Icon-Typ: `whatsapp`, `telegram` oder `signal` |
 | `messengers[].port` | int | – | Port des jeweiligen Messenger-Add-ons |

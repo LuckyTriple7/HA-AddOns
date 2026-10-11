@@ -1,5 +1,13 @@
 # Changelog – MessengerPortal
 
+## [1.3.3] - 2026-10-11
+- **Sicherheitsfix: Skript-Einschleusung über den Absendernamen.** Die Startseite setzte den Namen des letzten Absenders als HTML ein. Den Anzeigenamen bestimmt aber das Gegenüber – ein präparierter Name hätte im Portal Skript ausgeführt und über die durchgereichten Messenger in deinem Namen senden können. Der Name wird jetzt als reiner Text eingesetzt
+- **Sicherheitsfix: Der Browser-Zwischenspeicher hielt alles fest.** Der Service Worker legte jede abgerufene Antwort ab – auch Status, Log und alles unter `/proxy/`, also Inhalte der Messenger, ohne Obergrenze und über die Abmeldung hinaus. Er speichert jetzt nur noch die eigenen Symbole; der Altbestand wird beim Update gelöscht, beim Abmelden wird der Speicher geleert. Antworten hinter der Anmeldung tragen zusätzlich `Cache-Control: no-store`
+- **Sicherheitsfix: Die Anmeldesperre ließ sich umgehen.** Gezählt wurde auf die Kopfzeile `CF-Connecting-IP`, die jeder Aufrufer selbst setzen kann – mit einem neuen Wert je Versuch griff die Sperre nach fünf Fehlversuchen nie. Gezählt wird jetzt die Adresse, die tatsächlich beim Portal ankommt
+- Neue Option **Vertrauenswürdige Proxys** (`trusted_proxies`): Steht das Portal hinter einem Reverse-Proxy, kommen alle Aufrufer von dessen Adresse und teilen sich eine Sperre. Wer die Proxy-Adresse hier einträgt, bekommt wieder eine Sperre je echtem Aufrufer – nur von dort werden `X-Forwarded-For` und `CF-Connecting-IP` geglaubt. Die einzutragende Adresse steht im Log hinter „Login fehlgeschlagen: ip=“. Ein Eintrag wie `0.0.0.0/0` wird übergangen
+- Das Session-Cookie trägt jetzt `Secure`, wenn das Portal über HTTPS aufgerufen wird. Dazu reicht nginx die Angabe des vorgeschalteten Proxys (`X-Forwarded-Proto`) weiter; bisher sah das Portal immer nur das eigene `http`. Beim direkten Aufruf über `http://…:17770` ändert sich nichts
+- Benutzername und Passwort werden zeitkonstant verglichen. Steht das Passwort noch auf der Voreinstellung `secret`, steht beim Start eine Warnung im Log
+
 ## [1.3.2] - 2026-10-11
 - Fix: Beim Teilen über Edge unter Windows standen im Text Zeichenfolgen wie `%0A` und `%EF%B8%8F` statt Zeilenumbrüchen und Emoji-Zusätzen. Edge liefert diese Zeichen prozentkodiert an; die Teilen-Seite wandelt sie jetzt zurück. Kodierte Zeichen in Links (`%20` usw.) bleiben unverändert
 
