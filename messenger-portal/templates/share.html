@@ -128,7 +128,7 @@
       padding: .3rem .6rem .3rem .3rem;
       font-size: .8rem;
     }
-    .file img, .file .file-ico {
+    .file canvas, .file .file-ico {
       width: 40px; height: 40px; border-radius: 7px; object-fit: cover; flex-shrink: 0;
     }
     .file .file-ico {
@@ -406,16 +406,23 @@
       files.forEach(f => {
         const box = document.createElement('div');
         box.className = 'file';
-        if (f.type.startsWith('image/')) {
-          const img = document.createElement('img');
-          img.src = URL.createObjectURL(f);
-          img.alt = '';
-          box.appendChild(img);
-        } else {
-          const ico = document.createElement('div');
-          ico.className = 'file-ico';
-          ico.innerHTML = '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>';
-          box.appendChild(ico);
+        const ico = document.createElement('div');
+        ico.className = 'file-ico';
+        ico.innerHTML = '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>';
+        box.appendChild(ico);
+        // Vorschau auf eine Zeichenflaeche malen statt die Datei als Adresse
+        // in ein <img> zu haengen: so wird fremder Inhalt nie als Markup oder
+        // URL gedeutet. Klappt das Dekodieren nicht, bleibt das Symbol stehen.
+        if (f.type.startsWith('image/') && window.createImageBitmap) {
+          createImageBitmap(f).then(bmp => {
+            const cv = document.createElement('canvas');
+            cv.width = cv.height = 80;
+            const side = Math.min(bmp.width, bmp.height);
+            cv.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2,
+                                          side, side, 0, 0, 80, 80);
+            bmp.close();
+            ico.replaceWith(cv);
+          }).catch(() => {});
         }
         const info = document.createElement('div');
         info.style.minWidth = '0';

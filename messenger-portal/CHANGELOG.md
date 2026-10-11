@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.3.4] - 2026-10-11
+- CodeQL-Befund #263 (`js/xss-through-dom`) auf der Teilen-Seite behoben: Die Bildvorschau einer angehängten Datei wurde als Adresse in ein `<img>` gehängt. Sie wird jetzt auf eine Zeichenfläche gemalt, sodass der Dateiinhalt nie als Adresse oder Markup gedeutet wird. Lässt sich ein Bild nicht dekodieren, bleibt das Datei-Symbol stehen
+
 ## [1.3.3] - 2026-10-11
 - **Sicherheitsfix: Skript-Einschleusung über den Absendernamen.** Die Startseite setzte den Namen des letzten Absenders als HTML ein. Den Anzeigenamen bestimmt aber das Gegenüber – ein präparierter Name hätte im Portal Skript ausgeführt und über die durchgereichten Messenger in deinem Namen senden können. Der Name wird jetzt als reiner Text eingesetzt
 - **Sicherheitsfix: Der Browser-Zwischenspeicher hielt alles fest.** Der Service Worker legte jede abgerufene Antwort ab – auch Status, Log und alles unter `/proxy/`, also Inhalte der Messenger, ohne Obergrenze und über die Abmeldung hinaus. Er speichert jetzt nur noch die eigenen Symbole; der Altbestand wird beim Update gelöscht, beim Abmelden wird der Speicher geleert. Antworten hinter der Anmeldung tragen zusätzlich `Cache-Control: no-store`
