@@ -1,3 +1,9 @@
+## [1.8.100] - 2026-10-11
+
+### Hinzugefügt
+
+- OpenCode Desktop (Desktop-App zu OpenCode 2, gleiche Version wie die CLI). Start über das Anwendungsmenü oder `opencode-desktop`.
+
 ## [1.8.99] - 2026-10-11
 
 ### Geändert

@@ -47,6 +47,7 @@ Bei gesetztem Passwort: Benutzername `abc`, Passwort wie in der Konfiguration.
 - **PuTTY** — SSH-Client
 - **Tailscale** — VPN-Client für das eigene Tailnet
 - **Claude Desktop** — KI-Assistent (Desktop-App)
+- **OpenCode** — KI-Coding-Agent (CLI `opencode` und Desktop-App)
 - **rclone** — Cloud-Speicher (OneDrive, Google Drive, …)
 
 ## SMB-Netzlaufwerke
@@ -165,6 +166,7 @@ If a password is set: username `abc`, password as configured.
 - **PuTTY** — SSH client
 - **Tailscale** — VPN client for your own tailnet
 - **Claude Desktop** — AI assistant (desktop app)
+- **OpenCode** — AI coding agent (CLI `opencode` and desktop app)
 - **rclone** — cloud storage (OneDrive, Google Drive, …)
 
 ## SMB Network Drives

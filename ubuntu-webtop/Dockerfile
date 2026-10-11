@@ -299,6 +299,26 @@ RUN curl -fsSL https://pkg.claude-desktop-debian.dev/KEY.gpg \
     && sed -i 's|^Exec=.*claude-desktop.*|Exec=/usr/bin/claude-desktop %U|' \
         /usr/share/applications/claude-desktop.desktop 2>/dev/null || true
 
+# OpenCode Desktop (Electron), gleiche Version wie die OpenCode CLI.
+# Wrapper: --no-sandbox wie bei den anderen Electron-Apps, TMPDIR wie beim CLI-Wrapper (/tmp ist noexec).
+# Das Paket bringt zwei .desktop-Dateien mit, beide zeigen danach auf den Wrapper.
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL \
+        "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-desktop-linux-${ARCH}.deb" \
+        -o /tmp/opencode-desktop.deb \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/opencode-desktop.deb \
+    && rm -f /tmp/opencode-desktop.deb \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && printf '#!/bin/sh\nexport TMPDIR=/config/.cache/opencode-tmp\nmkdir -p "$TMPDIR"\nexec /opt/OpenCode/ai.opencode.desktop --no-sandbox --disable-gpu "$@"\n' \
+        > /usr/bin/opencode-desktop \
+    && chmod +x /usr/bin/opencode-desktop \
+    && sed -i 's|^Exec=.*|Exec=/usr/bin/opencode-desktop %U|' \
+        /usr/share/applications/opencode-desktop.desktop /usr/share/applications/ai.opencode.desktop.desktop \
+    && grep -q '^Exec=/usr/bin/opencode-desktop' /usr/share/applications/opencode-desktop.desktop \
+        || { echo "OpenCode Desktop .desktop nicht gepatcht"; exit 1; }
+
 # Totem als Standard-Videoplayer für alle gängigen Formate setzen
 RUN printf '[Default Applications]\nvideo/mp4=org.gnome.Totem.desktop\nvideo/x-msvideo=org.gnome.Totem.desktop\nvideo/x-matroska=org.gnome.Totem.desktop\nvideo/quicktime=org.gnome.Totem.desktop\nvideo/mpeg=org.gnome.Totem.desktop\nvideo/webm=org.gnome.Totem.desktop\nvideo/x-m4v=org.gnome.Totem.desktop\nvideo/3gpp=org.gnome.Totem.desktop\nvideo/x-flv=org.gnome.Totem.desktop\nvideo/x-ms-wmv=org.gnome.Totem.desktop\n' \
     > /usr/share/applications/mimeapps.list
