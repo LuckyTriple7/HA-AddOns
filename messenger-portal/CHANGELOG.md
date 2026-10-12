@@ -1,5 +1,32 @@
 # Changelog – MessengerPortal
 
+## [1.3.4] - 2026-10-11
+- CodeQL-Befund #263 (`js/xss-through-dom`) auf der Teilen-Seite behoben: Die Bildvorschau einer angehängten Datei wurde als Adresse in ein `<img>` gehängt. Sie wird jetzt auf eine Zeichenfläche gemalt, sodass der Dateiinhalt nie als Adresse oder Markup gedeutet wird. Lässt sich ein Bild nicht dekodieren, bleibt das Datei-Symbol stehen
+
+## [1.3.3] - 2026-10-11
+- **Sicherheitsfix: Skript-Einschleusung über den Absendernamen.** Die Startseite setzte den Namen des letzten Absenders als HTML ein. Den Anzeigenamen bestimmt aber das Gegenüber – ein präparierter Name hätte im Portal Skript ausgeführt und über die durchgereichten Messenger in deinem Namen senden können. Der Name wird jetzt als reiner Text eingesetzt
+- **Sicherheitsfix: Der Browser-Zwischenspeicher hielt alles fest.** Der Service Worker legte jede abgerufene Antwort ab – auch Status, Log und alles unter `/proxy/`, also Inhalte der Messenger, ohne Obergrenze und über die Abmeldung hinaus. Er speichert jetzt nur noch die eigenen Symbole; der Altbestand wird beim Update gelöscht, beim Abmelden wird der Speicher geleert. Antworten hinter der Anmeldung tragen zusätzlich `Cache-Control: no-store`
+- **Sicherheitsfix: Die Anmeldesperre ließ sich umgehen.** Gezählt wurde auf die Kopfzeile `CF-Connecting-IP`, die jeder Aufrufer selbst setzen kann – mit einem neuen Wert je Versuch griff die Sperre nach fünf Fehlversuchen nie. Gezählt wird jetzt die Adresse, die tatsächlich beim Portal ankommt
+- Neue Option **Vertrauenswürdige Proxys** (`trusted_proxies`): Steht das Portal hinter einem Reverse-Proxy, kommen alle Aufrufer von dessen Adresse und teilen sich eine Sperre. Wer die Proxy-Adresse hier einträgt, bekommt wieder eine Sperre je echtem Aufrufer – nur von dort werden `X-Forwarded-For` und `CF-Connecting-IP` geglaubt. Die einzutragende Adresse steht im Log hinter „Login fehlgeschlagen: ip=“. Ein Eintrag wie `0.0.0.0/0` wird übergangen
+- Das Session-Cookie trägt jetzt `Secure`, wenn das Portal über HTTPS aufgerufen wird. Dazu reicht nginx die Angabe des vorgeschalteten Proxys (`X-Forwarded-Proto`) weiter; bisher sah das Portal immer nur das eigene `http`. Beim direkten Aufruf über `http://…:17770` ändert sich nichts
+- Benutzername und Passwort werden zeitkonstant verglichen. Steht das Passwort noch auf der Voreinstellung `secret`, steht beim Start eine Warnung im Log
+
+## [1.3.2] - 2026-10-11
+- Fix: Beim Teilen über Edge unter Windows standen im Text Zeichenfolgen wie `%0A` und `%EF%B8%8F` statt Zeilenumbrüchen und Emoji-Zusätzen. Edge liefert diese Zeichen prozentkodiert an; die Teilen-Seite wandelt sie jetzt zurück. Kodierte Zeichen in Links (`%20` usw.) bleiben unverändert
+
+## [1.3.1] - 2026-10-11
+- **„Senden an“ jetzt auch direkt im Portal.** Neuer Knopf in der Kopfzeile öffnet die Teilen-Seite ohne den Umweg über das Teilen-Menü: Text eintippen, Dateien über „Dateien hinzufügen“ wählen, ins Fenster ziehen oder aus der Zwischenablage einfügen, dann Messenger und Chat wählen
+- Anlass: Unter Windows trägt Chrome installierte Apps nicht in den „Freigeben“-Dialog ein – das Portal erscheint dort nur, wenn es über Edge installiert wurde. Mit dem neuen Weg geht es unter Windows auch mit Chrome. Android (Chrome) ist nicht betroffen
+- Einzelne Dateien lassen sich vor dem Senden wieder entfernen
+
+## [1.3.0] - 2026-10-11
+- **Neu: „Senden an“ / „Teilen“.** Ist das Portal als App installiert, erscheint es im Teilen-Menü von Android (Chrome) und Windows (Edge). Nach dem Antippen wählt man den Messenger (WhatsApp, Telegram, Signal), dann den Chat, und schickt den Inhalt ab – ohne den Messenger vorher zu öffnen
+- Geteilt werden können Text, Links und Dateien: Bilder, Videos, Audio, PDF, Textdateien, Office-Dokumente und ZIP. Mehrere Dateien auf einmal gehen; der Text hängt als Bildunterschrift an der ersten. Die Grenze liegt wie in den Messenger-Add-ons bei 64 MB je Datei
+- Der Text lässt sich vor dem Senden noch ändern, die Chatliste ist durchsuchbar. Nicht erreichbare Messenger sind in der Auswahl gesperrt
+- Der geteilte Inhalt bleibt bis zum Senden **im Browser** und wird nicht auf dem Portal zwischengespeichert. Kommt die Anmeldung dazwischen, geht es danach automatisch auf der Teilen-Seite weiter. Ein abgebrochener Vorgang verfällt nach 10 Minuten oder sofort über „Verwerfen“
+- Gesendet wird über die Schnittstellen der Messenger-Add-ons, die das Portal ohnehin durchreicht – an den drei Add-ons ändert sich nichts
+- **Nach dem Update die App einmal neu installieren** (deinstallieren, Portal im Browser öffnen, wieder installieren). Erst dann übernimmt das Betriebssystem das neue Teilen-Ziel. Voraussetzung ist HTTPS; über die Home-Assistant-App bzw. Ingress gibt es kein Teilen-Ziel
+
 ## [1.2.24] - 2026-08-29
 - **Der Ingress-Zugang nimmt jetzt nur noch vom Supervisor an.** Die Port-Trennung aus 1.2.21 sperrte das LAN aus, aber nicht das interne `hassio`-Netz: Port 8099 ist von dort erreichbar, und **jedes andere Add-on** haette mit einem selbstgesetzten `X-Ingress-Path` weiterhin ohne Portal-Passwort hereingekommen. Der Ingress-Block laesst jetzt nur `172.30.32.2/32` zu und weist alles andere ab
 - Neue Option **Vertrauenswuerdige Ingress-Adressen** (`ingress_trusted`) fuer den Ausnahmefall. Leer bedeutet: nur der Supervisor. Mehrere Eintraege durch Komma getrennt, CIDR erlaubt

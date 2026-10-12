@@ -3044,6 +3044,21 @@ def api_gp_settings_post():
 
 _branch_sync_cache: dict = {}   # {cache_key: (timestamp, result)}
 
+
+def _behind_without_merges(repo: str, main_b: str, dev_b: str, token: str, behind_by: int) -> int:
+    """Wie viele Commits dev wirklich fehlen. Die Merge-Commits der dev → main-PRs
+    liegen nur auf main, bringen aber keinen Inhalt mit — sie zählen nicht.
+    Lässt sich die Liste nicht lesen, bleibt es bei der rohen Zahl."""
+    if not behind_by:
+        return 0
+    d = _gh_get(f'/repos/{repo}/compare/{dev_b}...{main_b}', token)
+    if not isinstance(d, dict) or 'commits' not in d:
+        return behind_by
+    commits = d.get('commits') or []
+    real    = sum(1 for c in commits if len(c.get('parents') or []) < 2)
+    # GitHub liefert höchstens 250 Commits — den Rest vorsichtshalber mitzählen
+    return real + max(0, (d.get('total_commits') or len(commits)) - len(commits))
+
 @app.route('/api/stat/branch-sync')
 def api_stat_branch_sync():
     redir = _auth_required(request)
@@ -3079,7 +3094,8 @@ def api_stat_branch_sync():
             if r.status_code != 200:
                 return None
             d = r.json()
-            return {'repo': repo, 'ahead_by': d.get('ahead_by', 0), 'behind_by': d.get('behind_by', 0)}
+            behind = _behind_without_merges(repo, main_b, dev_b, token, d.get('behind_by', 0))
+            return {'repo': repo, 'ahead_by': d.get('ahead_by', 0), 'behind_by': behind}
         except Exception:
             pass
         return None
@@ -4291,7 +4307,8 @@ def _addon_version_report(owner: str, repo: str, token: str, dev_b: str, main_b:
     return {
         'addons':          addons,
         'ahead_by':        cmp_data.get('ahead_by', 0),
-        'behind_by':       cmp_data.get('behind_by', 0),
+        'behind_by':       _behind_without_merges(f'{owner}/{repo}', main_b, dev_b, token,
+                                                  cmp_data.get('behind_by', 0)),
         'files_truncated': len(cmp_data.get('files') or []) >= 300,
         'commits':         cmp_data.get('commits') or [],
     }

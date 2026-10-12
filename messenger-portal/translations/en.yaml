@@ -17,6 +17,9 @@ configuration:
   ingress_trusted:
     name: Trusted ingress addresses
     description: "Leave empty. Requests from these addresses are accepted through Ingress without the portal password — the default is the Supervisor alone (172.30.32.2/32). Separate several entries with commas, CIDR allowed. An entry like 0.0.0.0/0 is rejected, it would drop the login for everyone. A wrong value makes the Ingress panel unreachable (403) — clear this field again if that happens."
+  trusted_proxies:
+    name: Trusted proxies
+    description: "Address of the reverse proxy in front of the portal (e.g. NPMplus), several separated by commas, CIDR allowed. Only from there does the portal take the caller's real address from X-Forwarded-For or CF-Connecting-IP – this matters for the login lockout after five failed attempts. Empty: the address that reaches the portal directly is counted; behind a proxy all callers then share one lockout. The address to enter is shown in the log after 'Login fehlgeschlagen: ip='."
   messengers:
     name: Messengers
     description: List of configured messengers with name, icon type, port and enabled state.

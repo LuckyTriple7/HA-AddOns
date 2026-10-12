@@ -252,6 +252,14 @@
         theme === 'dark' ? '#0d1117' : '#f0f2f5';
     })();
 
+    // Nach dem Abmelden nichts im Browser zuruecklassen (auch keinen
+    // wartenden geteilten Inhalt). Ohne out=1 bleibt der Cache stehen, damit
+    // ein geteilter Inhalt die Anmeldung uebersteht.
+    if (new URLSearchParams(location.search).get('out') && 'caches' in window) {
+      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).catch(() => {});
+      history.replaceState(null, '', location.pathname);
+    }
+
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme') || 'dark';
       const next = current === 'dark' ? 'light' : 'dark';

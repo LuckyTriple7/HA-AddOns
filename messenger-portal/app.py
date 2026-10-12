@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -264,13 +266,53 @@ def is_ingress() -> bool:
     return bool(request.environ.get('HTTP_X_INGRESS_PATH'))
 
 
+def trusted_proxies() -> list:
+    """Netze aus der Option trusted_proxies. Nur von dort werden
+    Weiterleitungs-Kopfzeilen als Auskunft ueber den echten Aufrufer geglaubt.
+    Ein Praefix der Laenge 0 wuerde jedem vertrauen und wird uebergangen."""
+    nets = []
+    raw = str(load_config().get('trusted_proxies') or '')
+    for part in raw.replace(',', ' ').split():
+        try:
+            net = ipaddress.ip_network(part, strict=False)
+        except ValueError:
+            continue
+        if net.prefixlen:
+            nets.append(net)
+    return nets
+
+
+def _parse_ip(value: str):
+    try:
+        return ipaddress.ip_address(value.strip())
+    except ValueError:
+        return None
+
+
 def get_client_ip(req) -> str:
-    # Cloudflare Tunnel sets CF-Connecting-IP with the real public IP
-    cf = req.headers.get('CF-Connecting-IP', '').strip()
-    if cf:
-        return cf
-    # Behind nginx: ProxyFix already resolved X-Forwarded-For into remote_addr
-    return req.remote_addr or 'unknown'
+    """Adresse fuer die Anmeldesperre.
+
+    remote_addr ist die Gegenstelle des Portal-nginx (ProxyFix, aus
+    $remote_addr) und nicht faelschbar. CF-Connecting-IP und X-Forwarded-For
+    setzt dagegen der Aufrufer: wer sie ungeprueft nimmt, laesst sich die
+    Sperre mit einer neuen Kopfzeile je Versuch umgehen. Geglaubt werden sie
+    deshalb nur, wenn die Gegenstelle ein eingetragener Proxy ist."""
+    peer = req.remote_addr or 'unknown'
+    nets = trusted_proxies()
+    peer_ip = _parse_ip(peer)
+    if not nets or peer_ip is None or not any(peer_ip in n for n in nets):
+        return peer
+    cf = _parse_ip(req.headers.get('CF-Connecting-IP', ''))
+    if cf is not None:
+        return str(cf)
+    # Von rechts nach links: der erste Eintrag, der kein eigener Proxy ist
+    for hop in reversed(req.headers.get('X-Forwarded-For', '').split(',')):
+        ip = _parse_ip(hop)
+        if ip is None:
+            break
+        if not any(ip in n for n in nets):
+            return str(ip)
+    return peer
 
 
 _gateway_cache: str = ''
@@ -444,6 +486,21 @@ def enrich_messengers(messengers: list) -> list:
     return result
 
 
+def _same(given, expected) -> bool:
+    """Vergleich ohne Laufzeitunterschied je nach Position des ersten Fehlers."""
+    return hmac.compare_digest(str(given or '').encode('utf-8'),
+                               str(expected or '').encode('utf-8'))
+
+
+@app.after_request
+def _no_store(resp):
+    # Seiten und Antworten hinter der Anmeldung gehoeren in keinen Cache.
+    # Die Symbole unter /static/ duerfen, manifest und sw setzen selbst.
+    if request.endpoint != 'static' and 'Cache-Control' not in resp.headers:
+        resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory('/app/static', 'icon-192.png', mimetype='image/png')
@@ -552,6 +609,41 @@ def index():
                            poll_interval=poll_interval, ingress_mode=is_ingress())
 
 
+@app.route('/share')
+def share():
+    """Zielseite fuer "Teilen"/"Senden an": Messenger waehlen, Chat waehlen,
+    senden. Der geteilte Inhalt liegt im Browser (siehe sw.js); gesendet wird
+    ueber die ohnehin durchgereichten Messenger-APIs unter /proxy/<icon>/."""
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return redirect(url_for('login'))
+    lang = detect_language(request)
+    t = load_translations(lang)
+    messengers = [
+        {'icon': m['icon'], 'name': m.get('name') or m['icon'], 'svg': m['svg'],
+         'color': m['color'],
+         'proxy': f"{request.script_root}/proxy/{m['icon']}/"}
+        for m in enrich_messengers(
+            [{**m, 'icon': str(m['icon']).lower()}
+             for m in load_config().get('messengers', [])
+             if m.get('enabled', True) and m.get('icon') and m.get('port')])
+    ]
+    return render_template('share.html', messengers=messengers, t=t, lang=lang)
+
+
+@app.route('/share-target', methods=['GET', 'POST'])
+def share_target():
+    """Notnagel, falls der Service Worker den POST nicht abfaengt (noch nicht
+    aktiv): Text geht als Query an /share weiter, Dateien lassen sich auf
+    diesem Weg nicht halten — die Seite sagt das dann."""
+    if request.method == 'GET':
+        return redirect(url_for('share'))
+    args = {k: request.form.get(k, '')[:4000] for k in ('title', 'text', 'url')
+            if request.form.get(k)}
+    if any(f.filename for f in request.files.getlist('files')):
+        args['lost'] = '1'
+    return redirect(url_for('share', **args), code=303)
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if is_ingress():
@@ -570,8 +662,8 @@ def login():
         if is_rate_limited(ip):
             log.warning("Login blockiert (Rate Limit): ip='%s'", ip)
             error = t.get('error_locked', 'Too many failed attempts. Please try again later.')
-        elif (request.form.get('username') == config.get('username') and
-                request.form.get('password') == config.get('password')):
+        elif (_same(request.form.get('username'), config.get('username')) and
+                _same(request.form.get('password'), config.get('password'))):
             clear_failed_attempts(ip)
             log.info("Login erfolgreich: ip='%s' user='%s'", ip, config.get('username'))
             hours = int(config.get('session_hours', 24))
@@ -580,7 +672,7 @@ def login():
             resp.set_cookie(
                 'mp_session', token,
                 expires=datetime.fromtimestamp(expires, tz=timezone.utc),
-                httponly=True, samesite='Lax',
+                httponly=True, samesite='Lax', secure=request.is_secure,
             )
             return resp
         else:
@@ -600,7 +692,8 @@ def logout():
     if token in sessions:
         del sessions[token]
         save_sessions()
-    resp = make_response(redirect(url_for('login')))
+    # out=1: die Login-Seite leert daraufhin die Browser-Caches des Portals
+    resp = make_response(redirect(url_for('login', out=1)))
     resp.delete_cookie('mp_session')
     return resp
 
@@ -616,7 +709,8 @@ def set_lang(lang: str):
     if parsed_ref.scheme or parsed_ref.netloc or not ref.startswith('/'):
         ref = '/'
     resp = make_response(redirect(ref))
-    resp.set_cookie('lang', cookie_lang, max_age=365 * 24 * 3600, samesite='Lax')
+    resp.set_cookie('lang', cookie_lang, max_age=365 * 24 * 3600, samesite='Lax',
+                    secure=request.is_secure)
     return resp
 
 
@@ -634,5 +728,8 @@ def _handle_sigterm(signum, frame) -> None:
 
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, _handle_sigterm)
+    if load_config().get('password') == 'secret':
+        log.warning("Das Passwort steht noch auf der Voreinstellung 'secret' - "
+                    "bitte in der Add-on-Konfiguration aendern")
     # Flask läuft intern auf 5000; nginx lauscht auf 17770 und proxyt dorthin
     app.run(host='127.0.0.1', port=5000, debug=False)

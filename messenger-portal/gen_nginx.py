@@ -238,6 +238,15 @@ map $http_upgrade $connection_upgrade {{
     default  upgrade;
     ''       close;
 }}
+
+# Meldet ein vorgeschalteter Proxy HTTPS, das an Flask weitergeben - sonst
+# saehe das Portal immer nur das eigene http und koennte das Session-Cookie
+# nie als "Secure" setzen. Luegt ein Aufrufer hier, schadet er nur sich
+# selbst: sein Browser schickt das Cookie dann ueber http nicht mehr mit.
+map $http_x_forwarded_proto $mp_proto {{
+    default  $scheme;
+    https    https;
+}}
 {server_block(INGRESS_PORT, '$http_x_ingress_path', proxy_blocks, resolvers, allow)}
 {server_block(LAN_PORT, '""', proxy_blocks, resolvers)}
 """
@@ -312,7 +321,7 @@ server {{
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   X-Forwarded-Proto $mp_proto;
         proxy_set_header   X-Ingress-Path    {ingress};
     }}
 {proxy_blocks}

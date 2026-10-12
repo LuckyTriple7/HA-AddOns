@@ -443,7 +443,7 @@
       </div>
       <div id="dm-err" class="modal-err" style="display:none"></div>
       <div class="modal-footer">
-        <button class="modal-btn modal-btn-cancel" onclick="closeModal('devmain-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-cancel" id="dm-close-btn" data-cancel="{{ t.btn_cancel }}" data-ok="{{ t.btn_ok }}" onclick="closeModal('devmain-modal')">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm" id="dm-create-btn" style="display:none" onclick="confirmDevMain()">{{ t.dm_create }}</button>
       </div>
     </div>
@@ -4427,6 +4427,9 @@
     el('dm-form').style.display  = 'none';
     el('dm-err').style.display   = 'none';
     el('dm-create-btn').style.display = 'none';
+    // Solange nichts anzulegen ist, gibt es auch nichts abzubrechen
+    const closeBtn = el('dm-close-btn');
+    closeBtn.textContent = closeBtn.dataset.ok;
     el('devmain-modal').classList.add('show');
     try {
       const r = await fetch(u('/api/dev-to-main/prepare?repo=' + encodeURIComponent(repo)));
@@ -4450,6 +4453,7 @@
       el('dm-body').value  = d.body || '';
       el('dm-form').style.display = '';
       el('dm-create-btn').style.display = '';
+      closeBtn.textContent = closeBtn.dataset.cancel;
     } catch (e) {
       if (_dmRepo !== repo) return;
       el('dm-status').textContent = '';
@@ -4473,6 +4477,7 @@
       if (!r.ok || d.error) throw new Error(d.error || T.error_unknown);
       el('dm-form').style.display = 'none';
       btn.style.display = 'none';
+      el('dm-close-btn').textContent = el('dm-close-btn').dataset.ok;
       el('dm-status').innerHTML = `✓ ${escHtml(T.dm_created)} <a href="${escHtml(d.url)}" target="_blank" rel="noopener noreferrer">#${d.number}</a>`;
       refreshBranchSync();
     } catch (e) {

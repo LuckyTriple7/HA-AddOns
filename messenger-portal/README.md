@@ -11,6 +11,7 @@ Zentrale, passwortgeschützte Startseite für WhatsApp-, Telegram- und Signal-Ad
 - 🌙 Dark / Light Mode (automatisch + manuell)
 - 🌍 Deutsch & Englisch (automatische Spracherkennung)
 - 📱 Responsive Design & PWA-fähig
+- 📤 „Senden an“: Inhalte aus dem Teilen-Menü direkt an einen WhatsApp-, Telegram- oder Signal-Chat schicken
 - ⚙️ Vollständig konfigurierbar über HA-Add-on-Optionen
 
 ## Port
