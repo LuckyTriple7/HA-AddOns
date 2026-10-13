@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.12.2] - 2026-10-13
+- Abhängigkeit aktualisiert: fastapi 0.142.2 → 0.143.0
+
 ## [1.0.12.1] - 2026-10-06
 - Abhängigkeiten aktualisiert: fastapi 0.141.1 → 0.142.2, uvicorn 0.53.0 → 0.54.0
 

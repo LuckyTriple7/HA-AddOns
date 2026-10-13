@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.28.2] - 2026-10-13
+- Abhängigkeiten aktualisiert: express 5.2.1 → 5.3.0, teleproto 1.229.2 → 1.230.0
+
 ## [1.7.28.1] - 2026-10-10
 - Abhängigkeiten aktualisiert: teleproto 1.229.1 → 1.229.2, express-rate-limit 8.7.0 → 8.7.1
 
