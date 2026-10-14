@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.69.3] - 2026-10-13
+- Abhängigkeit aktualisiert: google-genai 2.28.0 → 2.29.0
+
 ## [0.11.69.2] - 2026-10-10
 - Abhängigkeit aktualisiert: google-genai 2.27.0 → 2.28.0
 

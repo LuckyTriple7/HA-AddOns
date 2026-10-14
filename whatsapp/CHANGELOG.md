@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.53.2] - 2026-10-13
+- Abhängigkeit aktualisiert: express 5.2.1 → 5.3.0
+
 ## [1.8.53.1] - 2026-10-10
 - Abhängigkeit aktualisiert: express-rate-limit 8.7.0 → 8.7.1
 

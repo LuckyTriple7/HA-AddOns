@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.3] - 2026-10-14
+
+### Geändert
+- Anubis von v1.27.0 auf v1.28.1 angehoben. Darin zwei Sicherheitskorrekturen:
+  Wer die PTR-Einträge seiner IP kontrolliert, konnte sich mit mehreren
+  Einträgen als Suchmaschine ausgeben und die Challenge umgehen
+  (GHSA-5gwm-367w-7fgj); außerdem ließen sich `X-Anubis-*`-Header vom Client
+  fälschen.
+- Die mitgelieferte Policy (inklusive Suchmaschinen-, Monitoring-, KI-Bot- und
+  IP-Blöcken) lädt unverändert. Die Startwarnung zu
+  `USE_SIMPLIFIED_EXPLANATION` stammt von Anubis selbst und ist harmlos — das
+  Add-on setzt die Variable nicht.
+
 ## [0.1.2] - 2026-09-05
 
 ### Neu

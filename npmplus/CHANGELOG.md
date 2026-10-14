@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.39] - 2026-10-14
+
+### Geändert
+- NPMplus auf Upstream `2026-10-14-r1` angehoben. Einzige Änderung gegenüber
+  `2026-07-24-r1`: nginx-Update für die heute veröffentlichten CVEs. Der
+  GoAccess-Umzug nach `/goaccess` ist darin noch nicht enthalten, die Option
+  `goaccess_listen_localhost` bleibt deshalb unverändert gültig.
+
 ## [0.1.38] - 2026-08-30
 
 ### Behoben
