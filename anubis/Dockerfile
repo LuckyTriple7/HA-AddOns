@@ -8,7 +8,7 @@
 # wird hier nur das Binary aus dem Original-Image kopiert und auf ein
 # schlankes Alpine gesetzt, das run.sh als eigenen Entrypoint ausführt.
 ###############################################################################
-ARG ANUBIS_VERSION=v1.27.0
+ARG ANUBIS_VERSION=v1.28.1
 FROM ghcr.io/techarohq/anubis:${ANUBIS_VERSION} AS anubis-bin
 
 FROM alpine:3.24
