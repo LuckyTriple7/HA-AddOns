@@ -944,13 +944,15 @@ def _sync_packing_lists(old_tpl: dict, new_tpl: dict) -> int:
     übernehmen: Items, die aus der Vorlage entfernt wurden, fliegen raus, sofern
     sie nicht abgehakt sind; neu hinzugekommene Vorlagen-Items werden ergänzt
     (bis MAX_PACKING_ITEMS). Abgehakte und selbst ergänzte Items (nicht in der
-    alten Vorlage) bleiben unangetastet. Noch nie geöffnete Reisen
+    alten Vorlage) bleiben unangetastet; Items, die schon in der alten Vorlage
+    standen und in einer Reise gelöscht wurden, kommen nicht zurück. Noch nie geöffnete Reisen
     (packing_seeded=0) bekommen die neue Vorlage ohnehin beim ersten Öffnen.
     Vergangen = Rückreise (ersatzweise Abreise) vor heute; ohne Datum zählt die
     Reise als nicht vergangen. Rückgabe: Anzahl geänderter Reisen."""
     old_keys = {(c, l) for c, items in old_tpl.items() for l in items}
     new_rows = [(c, l) for c, items in new_tpl.items() for l in items]
     removed = old_keys - set(new_rows)
+    added = [k for k in new_rows if k not in old_keys]
     today = date.today().isoformat()
     now = int(time.time())
     changed = 0
@@ -968,7 +970,7 @@ def _sync_packing_lists(old_tpl: dict, new_tpl: dict) -> int:
                     if not r['checked'] and (r['category'], r['label']) in removed]
             have = {(r['category'], r['label']) for r in items}
             room = MAX_PACKING_ITEMS - (len(items) - len(drop))
-            add = [k for k in new_rows if k not in have][:max(room, 0)]
+            add = [k for k in added if k not in have][:max(room, 0)]
             if not drop and not add:
                 continue
             con.executemany('DELETE FROM trip_packing_items WHERE id=?',

@@ -332,6 +332,7 @@ def test_packing_template_syncs_existing_upcoming_trips(client):
                  json={"checked": True})
     client.post(f"/api/trips/{future}/packing", headers=ING,
                 json={"category": "Kleidung", "label": "Eigenes Item"})
+    client.delete(f"/api/trips/{future}/packing/{by_label['T-Shirts']}", headers=ING)
 
     # Shorts + Ladekabel raus, Kamera neu
     new = {"Kleidung": ["T-Shirts"], "Technik": ["Kamera"]}
@@ -340,8 +341,7 @@ def test_packing_template_syncs_existing_upcoming_trips(client):
 
     got = {(p["category"], p["label"], p["checked"]) for p in
            client.get(f"/api/trips/{future}", headers=ING).get_json()["packing"]}
-    assert got == {("Kleidung", "T-Shirts", 0),
-                   ("Kleidung", "Shorts", 1),        # abgehakt → bleibt
+    assert got == {("Kleidung", "Shorts", 1),        # T-Shirts gelöscht → kommt nicht zurück        # abgehakt → bleibt
                    ("Kleidung", "Eigenes Item", 0),  # eigenes → bleibt
                    ("Technik", "Kamera", 0)}         # neu aus Vorlage
     past_labels = [p["label"] for p in
