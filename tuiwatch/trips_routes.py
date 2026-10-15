@@ -939,26 +939,75 @@ def api_packing_template_get():
     return jsonify({'template': tpl, 'custom': tpl is not A.PACKING_TEMPLATE})
 
 
+def _sync_packing_lists(old_tpl: dict, new_tpl: dict) -> int:
+    """Vorlagen-Änderung in bestehende Packlisten nicht vergangener Reisen
+    übernehmen: Items, die aus der Vorlage entfernt wurden, fliegen raus, sofern
+    sie nicht abgehakt sind; neu hinzugekommene Vorlagen-Items werden ergänzt
+    (bis MAX_PACKING_ITEMS). Abgehakte und selbst ergänzte Items (nicht in der
+    alten Vorlage) bleiben unangetastet. Noch nie geöffnete Reisen
+    (packing_seeded=0) bekommen die neue Vorlage ohnehin beim ersten Öffnen.
+    Vergangen = Rückreise (ersatzweise Abreise) vor heute; ohne Datum zählt die
+    Reise als nicht vergangen. Rückgabe: Anzahl geänderter Reisen."""
+    old_keys = {(c, l) for c, items in old_tpl.items() for l in items}
+    new_rows = [(c, l) for c, items in new_tpl.items() for l in items]
+    removed = old_keys - set(new_rows)
+    today = date.today().isoformat()
+    now = int(time.time())
+    changed = 0
+    with A.db() as con:
+        trips = con.execute(
+            "SELECT id FROM trips WHERE packing_seeded=1 "
+            "AND COALESCE(NULLIF(end_date, ''), NULLIF(start_date, ''), '9999') >= ?",
+            (today,)).fetchall()
+        for t in trips:
+            tid = t['id']
+            items = con.execute(
+                'SELECT id, category, label, checked FROM trip_packing_items '
+                'WHERE trip_id=? ORDER BY id', (tid,)).fetchall()
+            drop = [r['id'] for r in items
+                    if not r['checked'] and (r['category'], r['label']) in removed]
+            have = {(r['category'], r['label']) for r in items}
+            room = MAX_PACKING_ITEMS - (len(items) - len(drop))
+            add = [k for k in new_rows if k not in have][:max(room, 0)]
+            if not drop and not add:
+                continue
+            con.executemany('DELETE FROM trip_packing_items WHERE id=?',
+                            [(i,) for i in drop])
+            con.executemany(
+                'INSERT INTO trip_packing_items '
+                '(trip_id, category, label, checked, created) VALUES (?,?,?,0,?)',
+                [(tid, c, l, now) for c, l in add])
+            changed += 1
+    if changed:
+        A.log.info("Packlisten-Vorlage in %d bestehende Reise(n) übernommen", changed)
+    return changed
+
+
 @bp.route('/api/packing-template', methods=['POST'])
 def api_packing_template_set():
-    """Nutzer-Vorlage speichern (gilt für neue Packlisten und „Zurücksetzen";
-    bestehende Reise-Packlisten bleiben unverändert). `template: null` stellt
-    die eingebaute Standard-Vorlage wieder her."""
+    """Nutzer-Vorlage speichern (gilt für neue Packlisten, „Zurücksetzen" und —
+    per Abgleich mit der bisherigen Vorlage — für bestehende Packlisten nicht
+    vergangener Reisen). `template: null` stellt die eingebaute Standard-Vorlage
+    wieder her."""
     if (err := A._require_api()):
         return err
     body = request.get_json(silent=True) or {}
     tpl = body.get('template')
+    old = _packing_template()
     if tpl is None:
         A._meta_set('packing_template', '')
         A.log.info("Packlisten-Vorlage auf Standard zurückgesetzt")
-        return jsonify({'ok': True, 'template': A.PACKING_TEMPLATE, 'custom': False})
+        synced = _sync_packing_lists(old, A.PACKING_TEMPLATE)
+        return jsonify({'ok': True, 'template': A.PACKING_TEMPLATE, 'custom': False,
+                        'synced_trips': synced})
     cleaned = _validate_packing_template(tpl)
     if cleaned is None:
         return jsonify({'error': 'invalid'}), 400
     A._meta_set('packing_template', json.dumps(cleaned, ensure_ascii=False))
     n = sum(len(v) for v in cleaned.values())
     A.log.info("Packlisten-Vorlage gespeichert: %d Kategorien, %d Items", len(cleaned), n)
-    return jsonify({'ok': True, 'template': cleaned, 'custom': True})
+    synced = _sync_packing_lists(old, cleaned)
+    return jsonify({'ok': True, 'template': cleaned, 'custom': True, 'synced_trips': synced})
 
 
 @bp.route('/api/trips/<int:tid>', methods=['DELETE'])

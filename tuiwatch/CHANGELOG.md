@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.7
+
+- 🧳 **Packlisten-Vorlage wirkt jetzt auch auf bestehende Reisen.** Beim Speichern der Vorlage werden die Packlisten aller kommenden Reisen abgeglichen: neue Vorlagen-Einträge kommen dazu, aus der Vorlage entfernte fallen weg. Abgehakte und selbst ergänzte Einträge bleiben stehen, vergangene Reisen bleiben unverändert. Die Meldung nach dem Speichern nennt, wie viele Reisen aktualisiert wurden.
+
 ## 0.120.6
 
 - 🔒 **Sicherheit: Werkzeug 3.1.8 → 3.1.9** (Dependabot-Alarm #56, mittel). `safe_join()` ließ unter Windows besondere Gerätenamen durch. Das Add-on läuft unter Linux und war davon nicht betroffen.
