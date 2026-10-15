@@ -375,6 +375,8 @@
   "am_loading": "Laden…",
   "am_no_addons": "Keine Add-ons gefunden",
   "am_error_load": "Fehler beim Laden",
+  "am_error_branch": "Branch „{branch}“ gibt es in diesem Repository nicht.",
+  "am_error_no_token": "Kein GitHub-Token konfiguriert.",
   "am_current_ver": "Aktuell",
   "am_next_ver": "Neue Version",
   "am_changelog_label": "CHANGELOG-Eintrag",

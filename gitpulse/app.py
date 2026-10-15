@@ -4472,6 +4472,8 @@ def api_addon_manager_addons():
     try:
         r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/contents/',
                      headers=_gh_headers(token), params={'ref': branch}, timeout=15)
+        if r.status_code == 404:
+            return jsonify({'error': 'branch_not_found', 'branch': branch}), 404
         if r.status_code != 200:
             return jsonify({'error': 'api_error', 'status': r.status_code}), 502
         entries = r.json()

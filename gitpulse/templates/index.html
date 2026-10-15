@@ -3758,8 +3758,17 @@
     list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_loading }}</div>';
     try {
       const r = await fetch(u(`/api/addon-manager/addons?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`));
-      const d = await r.json();
-      if (!r.ok || d.error) { list.innerHTML = `<div style="color:#f85149">${escHtml(d.error||'{{ t.am_error_load }}')}</div>`; return; }
+      let d = {};
+      try { d = await r.json(); } catch (e) { /* z. B. HTML-Fehlerseite vom Ingress */ }
+      if (!r.ok || d.error) {
+        let msg;
+        if (d.error === 'branch_not_found' || r.status === 404) msg = {{ t.am_error_branch|tojson }}.replace('{branch}', branch);
+        else if (d.error === 'no_token') msg = {{ t.am_error_no_token|tojson }};
+        else msg = `${ {{ t.am_error_load|tojson }} } (HTTP ${d.status || r.status})`;
+        list.innerHTML = `<div style="color:#f85149">${escHtml(msg)}</div>`;
+        document.getElementById('am-count-chip').style.display = 'none';
+        return;
+      }
       if (!d.addons || d.addons.length === 0) {
         list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_no_addons }}</div>';
         document.getElementById('am-count-chip').style.display = 'none';
