@@ -266,6 +266,13 @@ async function loadContacts() {
         // uuid braucht /api/avatar fuer das Profilbild
         if (c.uuid && chat.uuid !== c.uuid) { chat.uuid = c.uuid; changed = true; }
       }
+      // Fuer die Kontaktinfo (Klick aufs Profilbild): Signal-Profilname, Info-Text, Benutzername
+      const chat = chatMap.get(num);
+      const profileName = (c.profile_name || [c.profile?.given_name, c.profile?.lastname].filter(Boolean).join(' ')).trim();
+      const extra = { profileName, about: c.profile?.about || '', username: c.username || '' };
+      for (const [k, v] of Object.entries(extra)) {
+        if ((chat[k] || '') !== v) { if (v) chat[k] = v; else delete chat[k]; changed = true; }
+      }
     }
     // Laeuft alle 2 Minuten — nur schreiben, wenn sich etwas geaendert hat
     if (changed) scheduleSave();
@@ -287,6 +294,13 @@ async function loadGroups() {
       if (!id) continue;
       if (!chatMap.has(id)) {
         chatMap.set(id, { id, name: g.name || 'Gruppe', phone: '', lastMsg: '', lastTime: 0, isGroup: true });
+        changed = true;
+      }
+      // Umbenennung und Beschreibung uebernehmen (Kontaktinfo der Gruppe)
+      const chat = chatMap.get(id);
+      if (g.name && chat.name !== g.name) { chat.name = g.name; changed = true; }
+      if ((chat.description || '') !== (g.description || '')) {
+        if (g.description) chat.description = g.description; else delete chat.description;
         changed = true;
       }
     }
@@ -1107,6 +1121,27 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
   res.json({ success: true });
 });
 
+// ── Kontaktinfo (Klick aufs Profilbild) ──────────────────────────────
+// Nur Felder aus der zwischengespeicherten Kontakt-/Gruppenliste, kein eigener
+// Aufruf an signal-cli
+app.get('/api/contact/:chatId', (req, res) => {
+  const chat = chatMap.get(req.params.chatId);
+  if (!chat) return res.status(404).json({ error: 'not_found' });
+  const msgs = messagesByChatId.get(chat.id) || [];
+  res.json({
+    id: chat.id,
+    name: chat.name || chat.id,
+    isGroup: !!chat.isGroup,
+    number: chat.isGroup ? '' : (chat.phone || chat.id),
+    profileName: chat.profileName || '',
+    username: chat.username || '',
+    about: chat.about || '',
+    description: chat.description || '',
+    total: msgs.length,
+    first: msgs.length ? msgs[0].timestamp : null,
+  });
+});
+
 // ── Gruppenmitglieder und Erwaehnungen ───────────────────────────────
 // /v1/groups/{n}/{id} liefert members als Nummer oder, ohne bekannte Nummer, als
 // UUID. Namen kommen aus der Kontaktliste. 10 Minuten zwischengespeichert.
@@ -1475,6 +1510,19 @@ html.light #members-title { color: #111; }
 html.light .member-name { color: #111; }
 .member-num { font-size: 12px; opacity: 0.6; }
 .member-admin { font-size: 11px; color: #3a76f8; border: 1px solid #3a76f8; border-radius: 8px; padding: 0 6px; }
+.chat-item .avatar { cursor: pointer; }
+#contact-modal { display: none; position: fixed; inset: 0; z-index: 450; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
+#contact-modal.open { display: flex; }
+.contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; max-height: 80vh; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); background: #202c33; color: #e9edef; }
+html.light .contact-modal-box { background: #fff; color: #111; }
+.contact-modal-pic { position: relative; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.contact-modal-pic .avatar-img { cursor: zoom-in; }
+.contact-modal-name { font-size: 18px; font-weight: 600; text-align: center; }
+.contact-modal-number { font-size: 14px; color: #3a76f8; font-weight: 500; }
+.contact-modal-sub { font-size: 13px; opacity: 0.65; text-align: center; }
+.contact-modal-about { font-size: 13px; opacity: 0.8; text-align: center; max-width: 260px; word-break: break-word; white-space: pre-wrap; }
+#cm-members { width: 100%; }
+#cm-members:empty, .contact-modal-sub:empty, .contact-modal-about:empty, .contact-modal-number:empty { display: none; }
 #mention-dropdown { position: fixed; z-index: 300; display: none; max-height: 260px; overflow-y: auto; border-radius: 10px; background: #233138; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
 html.light #mention-dropdown { background: #fff; border-color: #ddd; }
 .mention-item { padding: 8px 12px; cursor: pointer; font-size: 14px; color: #e9edef; }
@@ -1718,7 +1766,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Fehlende Fotos herunterladen',
     fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
-    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen', deletedMsg: 'Diese Nachricht wurde gelöscht', deletedBadge: 'vom Absender gelöscht', edited: 'bearbeitet', membersTitle: 'Mitglieder', admin: 'Admin', noMembers: 'Keine Mitglieder gefunden', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', btnReact: 'Reagieren', signalName: 'Signal-Name', reactionRemove: 'Klicken zum Entfernen', deletedMsg: 'Diese Nachricht wurde gelöscht', deletedBadge: 'vom Absender gelöscht', edited: 'bearbeitet', membersTitle: 'Mitglieder', admin: 'Admin', noMembers: 'Keine Mitglieder gefunden', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
     errSend: (e) => 'Fehler: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
@@ -1745,7 +1793,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Download missing photos',
     fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
-    msgPlaceholder: 'Message…', btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove', deletedMsg: 'This message was deleted', deletedBadge: 'deleted by sender', edited: 'edited', membersTitle: 'Members', admin: 'Admin', noMembers: 'No members found', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', btnReact: 'React', signalName: 'Signal name', reactionRemove: 'Click to remove', deletedMsg: 'This message was deleted', deletedBadge: 'deleted by sender', edited: 'edited', membersTitle: 'Members', admin: 'Admin', noMembers: 'No members found', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
     errSend: (e) => 'Error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
@@ -2195,6 +2243,57 @@ async function showMembers() {
   modal.classList.add('open');
 }
 
+// ── Kontaktinfo: Klick aufs Profilbild (Chatliste und Chat-Kopf) ──
+async function openContactInfo(chatId) {
+  let modal = document.getElementById('contact-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'contact-modal';
+    modal.innerHTML = '<div class="contact-modal-box"><div class="contact-modal-pic" id="cm-pic"></div>'
+      + '<div class="contact-modal-name" id="cm-name"></div><div class="contact-modal-sub" id="cm-profile"></div>'
+      + '<div class="contact-modal-number" id="cm-number"></div><div class="contact-modal-sub" id="cm-username"></div>'
+      + '<div class="contact-modal-about" id="cm-about"></div><div class="contact-modal-sub" id="cm-stats"></div>'
+      + '<div id="cm-members"></div></div>';
+    modal.addEventListener('click', ev => { if (ev.target === modal) modal.classList.remove('open'); });
+    document.body.appendChild(modal);
+  }
+  const chat = allChats.find(c => c.id === chatId) || { id: chatId, name: chatId };
+  const pic = document.getElementById('cm-pic');
+  pic.style.background = chat.isGroup ? '#3a76f0' : avatarColor(chat.name || chat.id);
+  pic.innerHTML = (chat.isGroup ? '👥' : escHtml(avatarInitial(chat.name || chat.id))) + avatarImg(chatId);
+  const img = pic.querySelector('img');
+  if (img) img.addEventListener('click', () => openImg(img.src));
+  ['cm-profile', 'cm-number', 'cm-username', 'cm-about', 'cm-stats', 'cm-members'].forEach(id => { document.getElementById(id).textContent = ''; });
+  document.getElementById('cm-name').textContent = chat.name || chat.id;
+  modal.classList.add('open');
+  let d;
+  try { d = await fetch(api('/api/contact/' + encodeURIComponent(chatId))).then(r => r.json()); } catch (e) { return; }
+  if (!d || d.error) return;
+  document.getElementById('cm-name').textContent = d.name;
+  // Signal-Profilname nur zeigen, wenn er vom gespeicherten Namen abweicht
+  if (d.profileName && d.profileName !== d.name) document.getElementById('cm-profile').textContent = t('signalName') + ': ' + d.profileName;
+  if (d.number) document.getElementById('cm-number').textContent = d.number;
+  if (d.username) document.getElementById('cm-username').textContent = '@' + d.username;
+  document.getElementById('cm-about').textContent = d.isGroup ? d.description : d.about;
+  if (d.total) document.getElementById('cm-stats').textContent = d.total + ' ' + t('statsMsg')
+    + (d.first ? '  ·  ' + t('statsSince') + ' ' + new Date(Number(d.first)).toLocaleDateString(locale()) : '');
+  if (d.isGroup) {
+    const list = await getParticipants(chatId);
+    if (list.length) document.getElementById('cm-members').innerHTML = '<div class="member-num" style="margin:8px 0 4px">'
+      + escHtml(t('membersTitle')) + ' (' + (list.length + 1) + ')</div>'
+      + list.map(p => '<div class="member-item"><div class="member-name">' + escHtml(p.name) + '</div>'
+        + (p.admin ? '<span class="member-admin">' + escHtml(t('admin')) + '</span>' : '') + '</div>').join('');
+  }
+}
+// Avatar in der Chatliste: Kontaktinfo statt Chat oeffnen
+document.addEventListener('click', ev => {
+  const av = ev.target.closest('.chat-item .avatar');
+  if (!av) return;
+  ev.stopPropagation();
+  ev.preventDefault();
+  openContactInfo(av.closest('.chat-item').dataset.chatid);
+}, true);
+
 // @-Vorschlaege im Eingabefeld (nur Gruppen). Ausgewaehlte Namen werden gemerkt
 // und beim Senden zu mentions [{start, length, author}].
 let _mentionTracked = [], _mentionHits = [], _mentionAt = -1, _mentionSel = 0;
@@ -2339,6 +2438,8 @@ function openChat(chat) {
     av.style.fontSize = '14px';
   }
   av.insertAdjacentHTML('beforeend', avatarImg(chat.id));
+  av.onclick = () => openContactInfo(chat.id);
+  av.style.cursor = 'pointer';
   document.getElementById('members-btn').style.display = chat.isGroup ? '' : 'none';
   _mentionTracked = [];
   hideMentions();

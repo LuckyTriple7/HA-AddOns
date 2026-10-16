@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.4] - 2026-10-16
+- Neu: **Kontaktinfo per Klick aufs Profilbild** — in der Chatliste und im Chat-Kopf, wie bei WhatsApp. Zeigt großes Profilbild (Klick vergrößert es), Namen, abweichenden Signal-Profilnamen, Nummer, Signal-Benutzernamen, Info-Text und wie viele Nachrichten seit wann im Chat liegen. Bei Gruppen stattdessen Beschreibung und Mitglieder
+- Kontakt- und Gruppenliste übernehmen dafür Profilname, Info-Text, Benutzername und Gruppenbeschreibung; umbenannte Gruppen bekommen ihren neuen Namen
+
 ## [1.7.3] - 2026-10-16
 - Fix: Der Emoji-Button neben der Büroklammer war seit 1.7.1 kleiner als sonst. Das neue Icon für den Reaktions-Button trug denselben Namen und überschrieb das bisherige; es heißt jetzt eigenständig
 
