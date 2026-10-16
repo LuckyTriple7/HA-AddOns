@@ -87,9 +87,14 @@ curl -X POST http://<HA-IP>:17787/api/send \
   "from": "+4915123456789",
   "name": "Max Mustermann",
   "message": "Hallo!",
-  "timestamp": 1716123456789
+  "type": "text",
+  "timestamp": 1716123456789,
+  "chat": "group.UVVKRFJBPT0=",
+  "group": "Familie"
 }
 ```
+
+`from` ist immer der Absender. `chat` ist der Chat, in dem die Nachricht steht: bei Einzelchats die Nummer, bei Gruppen die Gruppen-ID. `group` (Gruppenname) gibt es nur bei Gruppennachrichten.
 
 ## HA-Automatisierung (Beispiel)
 
@@ -280,9 +285,14 @@ curl -X POST http://<HA-IP>:17787/api/send \
   "from": "+4915123456789",
   "name": "John Doe",
   "message": "Hello!",
-  "timestamp": 1716123456789
+  "type": "text",
+  "timestamp": 1716123456789,
+  "chat": "group.UVVKRFJBPT0=",
+  "group": "Family"
 }
 ```
+
+`from` is always the sender. `chat` is the chat the message belongs to: the number for direct chats, the group ID for groups. `group` (group name) is only present for group messages.
 
 ## HA Automation (example)
 

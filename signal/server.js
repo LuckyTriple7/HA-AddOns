@@ -292,6 +292,12 @@ async function loadGroups() {
   }
 }
 
+// Chat-ID einer Gruppe wie bei signal-cli-rest-api (/v1/groups liefert "id"):
+// "group." + Base64 der internen ID, die signal-cli selbst schon Base64 ausgibt
+function groupChatIdOf(internalId) {
+  return 'group.' + Buffer.from(String(internalId), 'utf8').toString('base64');
+}
+
 function processEnvelope(envelope) {
   const env = envelope.envelope || envelope;
 
@@ -310,19 +316,25 @@ function processEnvelope(envelope) {
   // Sync-Nachrichten: vom eigenen Gerät (Handy) gesendete Nachrichten
   const sm = env.syncMessage?.sentMessage;
 
-  let dm, chatId, isOwn, senderName;
+  // Gruppennachricht: Chat ist die Gruppe, nicht der Absender. Bis 1.6.x
+  // landeten Gruppennachrichten im Privatchat des Absenders.
+  const groupInfo = sm ? sm.groupInfo : env.dataMessage?.groupInfo;
+  const groupChatId = groupInfo && groupInfo.groupId ? groupChatIdOf(groupInfo.groupId) : '';
+
+  let dm, chatId, isOwn, senderName, source;
   if (sm) {
-    const dest = normPhone(sm.destinationNumber || sm.destination);
+    const dest = groupChatId || normPhone(sm.destinationNumber || sm.destination);
     if (!dest) { dbg('processEnvelope: syncMessage ohne Ziel, übersprungen'); return; }
-    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [] };
+    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [], quote: sm.quote };
     chatId = dest;
     isOwn = true;
+    source = PHONE_NUMBER;
     senderName = PHONE_NUMBER;
   } else {
     dm = env.dataMessage;
-    const source = normPhone(env.sourceNumber || env.source);
+    source = normPhone(env.sourceNumber || env.source);
     isOwn = source === PHONE_NUMBER;
-    chatId = source;
+    chatId = groupChatId || source;
     senderName = env.sourceName || source;
   }
 
@@ -331,7 +343,7 @@ function processEnvelope(envelope) {
   dbg(`processEnvelope: isOwn=${isOwn} hasDataMessage=${!!dm} hasText=${hasText} hasAttachments=${hasAttachments} body="${(dm?.message||'').slice(0,60)}"`);
   if (!dm || !chatId || (!hasText && !hasAttachments)) { dbg(`processEnvelope: skipping — no dataMessage, chatId, or content`); return; }
 
-  const msgId = `${isOwn ? PHONE_NUMBER : chatId}_${dm.timestamp}`;
+  const msgId = `${isOwn ? PHONE_NUMBER : source}_${dm.timestamp}`;
   if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
   const isVoice = hasAttachments && dm.attachments.some(a => (a.contentType || '').startsWith('audio/'));
@@ -342,7 +354,7 @@ function processEnvelope(envelope) {
   const attIds = hasAttachments
     ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
     : undefined;
-  const msgFrom = isOwn ? PHONE_NUMBER : chatId;
+  const msgFrom = isOwn ? PHONE_NUMBER : source;
   let quotedMsg = null;
   if (dm.quote) {
     quotedMsg = {
@@ -354,6 +366,8 @@ function processEnvelope(envelope) {
   const videoSize = videoAtt ? (videoAtt.size || 0) : undefined;
   const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds, videoSize, quotedMsg };
   if (isOwn) { msg.ack = 0; msg.signalTimestamp = dm.timestamp; }
+  // In Gruppen steht der Absender an jeder Nachricht, der Chat-Name ist die Gruppe
+  if (groupChatId && !isOwn) msg.author = senderName;
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
@@ -366,14 +380,18 @@ function processEnvelope(envelope) {
   messagesByChatId.get(chatId).push(msg);
 
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: senderName, phone: chatId, lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn });
+    chatMap.set(chatId, groupChatId
+      ? { id: chatId, name: groupInfo.groupName || 'Gruppe', phone: '', lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn, isGroup: true }
+      : { id: chatId, name: senderName, phone: chatId, lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn });
   } else {
     const chat = chatMap.get(chatId);
-    chat.lastMsg = previewText;
+    chat.lastMsg = groupChatId && !isOwn ? `${senderName}: ${previewText}` : previewText;
     chat.lastTime = dm.timestamp;
     chat.lastFromMe = isOwn;
-    if (senderName && senderName !== chatId) chat.name = senderName;
+    if (groupChatId) { if (groupInfo.groupName) chat.name = groupInfo.groupName; }
+    else if (senderName && senderName !== chatId) chat.name = senderName;
   }
+  const chatName = chatMap.get(chatId)?.name || senderName;
 
   scheduleSave();
 
@@ -384,12 +402,12 @@ function processEnvelope(envelope) {
       timestamp: dm.timestamp,
       iso: new Date(dm.timestamp).toISOString(),
       chatId,
-      chatName: chatMap.get(chatId)?.name || senderName,
+      chatName,
       contact: senderName,
       type: msgType,
       preview: previewText,
     };
-    sendHANotification(senderName, dm.message || previewText);
+    sendHANotification(groupChatId ? `${senderName} (${chatName})` : senderName, dm.message || previewText);
   }
 
   if (WEBHOOK_INCOMING && !isOwn) {
@@ -397,7 +415,10 @@ function processEnvelope(envelope) {
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: chatId, name: senderName, message: dm.message || previewText, type: msgType, timestamp: dm.timestamp }),
+      // from bleibt der Absender (so war es bei Gruppen schon immer); chat und
+      // group sagen, wohin die Nachricht gehoert
+      body: JSON.stringify({ from: source, name: senderName, message: dm.message || previewText, type: msgType, timestamp: dm.timestamp,
+        chat: chatId, ...(groupChatId ? { group: chatName } : {}) }),
     }).catch(() => {});
   }
 }
@@ -827,7 +848,9 @@ app.post('/api/reply', async (req, res) => {
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote: { id: quoteTimestamp, author: quoteAuthor, message: quoteBody || '' } }),
+      // Feldnamen laut signal-cli-rest-api; bis 1.6.x stand hier quote: {…}, das
+      // die API ignorierte — beim Empfaenger kam die Antwort ohne Zitat an
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote_timestamp: Number(quoteTimestamp), quote_author: quoteAuthor, quote_message: quoteBody || '' }),
       signal: AbortSignal.timeout(10000),
     });
     const result = await r.json();
@@ -1166,6 +1189,7 @@ html.light .fwd-chat-item-name { color: #111; }
 html.light .fwd-modal-cancel { background: #e0e0e0; color: #111; }
 .fwd-modal-cancel:hover { background: #3d5259; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
+.bubble-author { font-size: 12px; font-weight: 600; color: #3a76f8; margin-bottom: 2px; }
 .msg-ack { font-size: 11px; margin-left: 2px; vertical-align: middle; }
 .ack-1, .ack-2 { color: rgba(0,0,0,0.4); }
 .ack-3 { color: #3a76f8; }
@@ -2004,10 +2028,12 @@ function renderMessages(msgs, opts) {
     }
     const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
     const chatForReply = allChats.find(c => c.id === selectedChatId);
-    const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name || selectedChatId || '');
+    const replyContact = m.fromMe ? 'Ich' : (m.author || chatForReply?.name || selectedChatId || '');
+    // Gruppen: Absender ueber der Bubble, sonst weiss man nicht, wer schreibt
+    const authorHtml = (!m.fromMe && m.author) ? \`<div class="bubble-author">\${escHtml(m.author)}</div>\` : '';
     const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='video'?'📹 Video':m.type==='photo'?'📷 Foto':'')).slice(0,60));
     const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${authorHtml}\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
   // Noch nicht bestätigte eigene Nachrichten ausgegraut ans Ende hängen
   let _pendHtml = '';

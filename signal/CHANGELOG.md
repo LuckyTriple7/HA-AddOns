@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0] - 2026-10-16
+- Fix: **Gruppennachrichten landen in der Gruppe.** Bisher wurde `groupInfo` nicht ausgewertet: eine Nachricht aus einer Gruppe erschien im Privatchat des Absenders, die Gruppenchats aus der Gruppenliste blieben leer, und wer darin antwortete, schrieb dem Absender privat. Jetzt gehört jede Gruppennachricht in den Chat der Gruppe — auch die, die du am Handy in eine Gruppe schreibst (Sync-Nachrichten ohne Empfänger wurden bisher verworfen)
+- In Gruppen steht der Name des Absenders über jeder fremden Nachricht, die Chatliste zeigt „Name: Text". HA-Benachrichtigungen nennen Absender und Gruppe
+- Webhook: neue Felder `chat` (Chat-ID, bei Gruppen `group.…`) und `group` (Gruppenname, nur bei Gruppen). `from` ist wie bisher der Absender
+- Fix: **Antworten kamen beim Empfänger ohne Zitat an.** Die Oberfläche schickte `quote: {…}`, `/v2/send` erwartet aber `quote_timestamp`, `quote_author` und `quote_message` und ignorierte das Feld. Lokal sah die Antwort trotzdem richtig aus
+- Zitate in Nachrichten, die du am Handy schreibst, werden jetzt ebenfalls übernommen
+- Ältere Gruppennachrichten bleiben im Privatchat des Absenders, sie werden nicht umsortiert
+
 ## [1.6.35] - 2026-10-16
 - Fix: **„Für alle löschen" kam beim Empfänger nie an.** Die Oberfläche schickte `deleteForEveryone` an `/v2/send`, dieses Feld kennt signal-cli-rest-api aber nicht. Gelöscht wird jetzt über `DELETE /v1/remote-delete`, auch in Gruppen. Lokal verschwand die Nachricht schon immer
 - Nur noch eigene Nachrichten werden für alle gelöscht — fremde kann Signal ohnehin nicht beim Absender entfernen. Schlägt das Löschen fehl, steht eine Warnung im Log statt einer Debug-Zeile
