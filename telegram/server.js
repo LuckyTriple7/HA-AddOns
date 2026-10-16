@@ -563,6 +563,7 @@ async function loadDialogs() {
   if (status !== 'connected') return;
   const stale = [];
   try {
+    let changed = false;
     const dialogs = await Promise.race([
       client.getDialogs({ limit: 50 }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout after 15s')), 15000)),
@@ -582,13 +583,13 @@ async function loadDialogs() {
           lastTime: (dialog.message?.date || 0) * 1000,
           isBot, chatType,
         });
+        changed = true;
       } else {
         const c = chatMap.get(chatId);
         // Umbenennungen (Bots, Kontakte, Gruppen) aus Telegram übernehmen,
         // sonst bleibt der gespeicherte alte Name dauerhaft stehen.
-        if (name) c.name = name;
-        c.isBot = isBot;
-        c.chatType = chatType;
+        if (name && c.name !== name) { c.name = name; changed = true; }
+        if (c.isBot !== isBot || c.chatType !== chatType) { c.isBot = isBot; c.chatType = chatType; changed = true; }
       }
       // Nachrichten, die während eines Ausfalls oder Neustarts ankamen, liefert kein
       // Update-Event nach. Liegt die letzte Nachricht des Dialogs hinter dem Cache,
@@ -600,7 +601,10 @@ async function loadDialogs() {
         if (topId > maxCachedId) stale.push(chatId);
       }
     }
-    scheduleSave();
+    // Laeuft jede Minute — nur schreiben, wenn sich etwas geaendert hat. Bisher
+    // wurde messages.json (gemessen 3,7 MB) jedes Mal komplett neu geschrieben,
+    // rund 13 GB am Tag
+    if (changed) scheduleSave();
   } catch (e) { console.error('[ERROR] loadDialogs:', e.message); }
   if (stale.length) catchUpChats(stale);
 }

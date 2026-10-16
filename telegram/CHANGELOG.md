@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.29] - 2026-10-16
+- Fix: **Unnötige Schreiblast.** Die Chatliste wird jede Minute von Telegram abgeglichen, danach wurden `chats.json` und `messages.json` jedes Mal komplett neu geschrieben, auch ohne Änderung. Gemessen auf dem Produktivsystem: 18,6 MB in zwei Minuten bei 3,7 MB `messages.json`, rund 13 GB am Tag. Jetzt wird nur noch geschrieben, wenn sich Name oder Typ eines Chats geändert hat oder ein neuer dazukam
+
 ## [1.7.28.2] - 2026-10-13
 - Abhängigkeiten aktualisiert: express 5.2.1 → 5.3.0, teleproto 1.229.2 → 1.230.0
 
