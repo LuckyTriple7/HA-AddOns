@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.35] - 2026-10-16
+- Fix: **„Für alle löschen" kam beim Empfänger nie an.** Die Oberfläche schickte `deleteForEveryone` an `/v2/send`, dieses Feld kennt signal-cli-rest-api aber nicht. Gelöscht wird jetzt über `DELETE /v1/remote-delete`, auch in Gruppen. Lokal verschwand die Nachricht schon immer
+- Nur noch eigene Nachrichten werden für alle gelöscht — fremde kann Signal ohnehin nicht beim Absender entfernen. Schlägt das Löschen fehl, steht eine Warnung im Log statt einer Debug-Zeile
+- README: Hinweis auf eine „aktuelle signal-cli-rest-api" für das Löschen entfernt
+
 ## [1.6.34] - 2026-10-16
 - Fix: **Lese- und Zustellbestätigungen fehlten seit 1.6.33, es blieb bei einem Häkchen.** Im Daemon-Betrieb liefert `/v2/send` ein Array (`[{"timestamp":"…"}]`) statt eines Objekts. Der Zeitstempel wurde deshalb nicht erkannt, und die Oberfläche speicherte stattdessen die eigene Uhrzeit nach dem Versand. Die Bestätigungen tragen aber den echten Signal-Zeitstempel und fanden so keine Nachricht mehr. Gilt für Senden, Antworten, Weiterleiten und Medienversand
 - Nachrichten, die mit 1.6.33 gesendet wurden, behalten den falschen Zeitstempel: Sie bekommen keine Häkchen mehr, und „Für alle löschen" erreicht sie auf dem Handy des Empfängers nicht

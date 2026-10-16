@@ -952,27 +952,33 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
   dbg(`Deleting message ${msgId}`);
   // Always remove locally so the message disappears from the UI
   const msgs = messagesByChatId.get(chatId);
+  let deleted = null;
   if (msgs) {
     const idx = msgs.findIndex(m => m.id === msgId);
-    if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
+    if (idx !== -1) { deleted = msgs.splice(idx, 1)[0]; seenMsgIds.delete(msgId); scheduleSave(); }
   }
-  // Try platform delete in background (requires signal-cli-rest-api with deleteForEveryone support)
-  if (status === 'linked') {
+  // "Fuer alle loeschen" ueber DELETE /v1/remote-delete. Bis 1.6.34 ging das an
+  // /v2/send mit deleteForEveryone — das Feld kennt signal-cli-rest-api nicht,
+  // beim Empfaenger blieb die Nachricht stehen. Nur eigene Nachrichten: fremde
+  // kann Signal nicht fuer alle loeschen. Gruppen-IDs (group.…) erkennt die API selbst.
+  if (status === 'linked' && deleted && deleted.fromMe) {
     try {
-      const rawTs = parseInt(msgId.split('_').pop(), 10);
+      const rawTs = Number(deleted.signalTimestamp) || parseInt(msgId.split('_').pop(), 10);
       const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
-      const r = await fetch(`${SIGNAL_API}/v2/send`, {
-        method: 'POST',
+      const r = await fetch(`${SIGNAL_API}/v1/remote-delete/${encodeURIComponent(PHONE_NUMBER)}`, {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs }),
+        body: JSON.stringify({ recipient: chatId, timestamp: tsMs }),
         signal: AbortSignal.timeout(10000),
       });
-      if (!r.ok) {
+      if (r.ok) {
+        _logSilent('INFO', `remote-delete ok (ts=${tsMs})`);
+      } else {
         const t = await r.text().catch(() => '');
-        dbg(`delete-for-everyone not supported: ${t.trim()}`);
+        console.warn(`[WARN] Für alle löschen fehlgeschlagen: HTTP ${r.status} ${t.trim().slice(0, 200)}`);
       }
     } catch (e) {
-      dbg(`delete-for-everyone: ${e.message}`);
+      console.warn('[WARN] Für alle löschen fehlgeschlagen:', e.message);
     }
   }
   res.json({ success: true });

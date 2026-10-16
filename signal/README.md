@@ -11,7 +11,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 
 - **QR-Login**: Einmalig QR-Code scannen, Session bleibt dauerhaft erhalten
 - **Web-UI**: Chat-Liste, Konversationen, Nachrichten senden/empfangen direkt in der HA-Sidebar
-- **Nachrichten löschen**: Lokal sofort entfernt; platform-seitiges "Für alle löschen" wird im Hintergrund versucht (erfordert aktuelle signal-cli-rest-api)
+- **Nachrichten löschen**: Lokal sofort entfernt; eigene Nachrichten werden zusätzlich für alle gelöscht, auch beim Empfänger
 - **Ungelesene-Badge**: Grüner Punkt in der Sidebar bei neuen Nachrichten
 - **Datei-Upload**: 📎-Button zum Senden von Bildern und Dokumenten aus dem Browser (max. 64 MB)
 - **Chat-Filter**: Tabs „Alle / Privat / Gruppen" in der Sidebar; Gruppen mit 👥-Avatar
@@ -65,7 +65,7 @@ GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
 POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
 GET  /api/export/:chatId             → Chat als HTML-Datei herunterladen
-DELETE /api/messages/:chatId/:msgId  → Nachricht lokal löschen (+ Versuch "Für alle")
+DELETE /api/messages/:chatId/:msgId  → Nachricht lokal löschen (eigene auch für alle)
 POST /api/logout                     → Abmelden
 ```
 
@@ -188,7 +188,6 @@ Das reicht aus, um die aktuelle Version der Bibliothek zu laden.
 - Basiert auf [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
 - Das Konto wird als verknüpftes Gerät hinzugefügt, nicht als Primärgerät registriert
 - Zum Abmelden: Button "Abmelden" in der UI, danach auch in Signal unter Verknüpfte Geräte entfernen
-- "Für alle löschen" erfordert eine aktuelle Version von signal-cli-rest-api; ältere Versionen löschen nur lokal
 - Das Sidebar-Logo (`phu:signal`) erfordert [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
 
 → [Changelog](CHANGELOG.md)
@@ -205,7 +204,7 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 
 - **QR login**: Scan the QR code once, session persists permanently
 - **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
-- **Delete messages**: Removed locally immediately; platform-side "delete for everyone" is attempted in the background (requires a recent signal-cli-rest-api)
+- **Delete messages**: Removed locally immediately; your own messages are also deleted for everyone, including on the recipient's device
 - **Unread badge**: Green dot in the sidebar for new messages
 - **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
 - **Chat filter**: Tabs "All / Private / Groups" in the sidebar; groups with 👥 avatar
@@ -259,7 +258,7 @@ GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
 POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
 GET  /api/export/:chatId             → Download chat as HTML file
-DELETE /api/messages/:chatId/:msgId  → Delete message locally (+ attempt "for everyone")
+DELETE /api/messages/:chatId/:msgId  → Delete message locally (own ones also for everyone)
 POST /api/logout                     → Log out
 ```
 
@@ -382,7 +381,6 @@ That's all it takes to pull the current library version.
 - Based on [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
 - The account is added as a linked device, not registered as a primary device
 - To log out: use the "Log out" button in the UI, then also remove the device in Signal under Linked Devices
-- "Delete for everyone" requires a recent version of signal-cli-rest-api; older versions only delete locally
 - The sidebar icon (`phu:signal`) requires [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
 
 ## Lizenz
