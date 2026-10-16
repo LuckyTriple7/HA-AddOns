@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.34] - 2026-10-16
+- Fix: **Lese- und Zustellbestätigungen fehlten seit 1.6.33, es blieb bei einem Häkchen.** Im Daemon-Betrieb liefert `/v2/send` ein Array (`[{"timestamp":"…"}]`) statt eines Objekts. Der Zeitstempel wurde deshalb nicht erkannt, und die Oberfläche speicherte stattdessen die eigene Uhrzeit nach dem Versand. Die Bestätigungen tragen aber den echten Signal-Zeitstempel und fanden so keine Nachricht mehr. Gilt für Senden, Antworten, Weiterleiten und Medienversand
+- Nachrichten, die mit 1.6.33 gesendet wurden, behalten den falschen Zeitstempel: Sie bekommen keine Häkchen mehr, und „Für alle löschen" erreicht sie auf dem Handy des Empfängers nicht
+
 ## [1.6.33] - 2026-10-11
 - Fix: **Extreme Schreiblast auf dem Datenträger (gemessen 26 MB/s, rund 2,2 TB pro Tag).** signal-cli lief nicht als Daemon, wie der Eintrag zu 1.0.9 behauptete: der Modus `native` von signal-cli-rest-api startet für jeden REST-Aufruf einen neuen signal-cli-Prozess. Mit dem 10-Sekunden-Poll auf `/v1/receive` und den Abfragen von Konten, Kontakten und Gruppen waren das rund 10.000 Starts am Tag, und jeder entpackte `libsignal_jni` und `libsqlitejdbc` neu nach `/tmp` und schrieb `account.db`. Auf dem Produktivsystem standen nach neun Tagen 20,1 TB im Schreibzähler des Containers
 - **signal-cli läuft jetzt als Daemon** (`MODE=json-rpc-native`, mit `native_mode: false` `json-rpc` auf der JVM). `run.sh` startet Daemon und signal-cli-rest-api als Benutzer 1000 und startet beide neu, falls einer ausfällt

@@ -497,6 +497,16 @@ function sendHANotification(senderName, body) {
   console.log('[INFO] HA notification: Signal sent');
 }
 
+// Zeitstempel aus der Antwort von /v2/send. Im Daemon-Betrieb (json-rpc) kommt
+// ein Array [{"timestamp":"…"}], sonst ein Objekt. Lese- und Zustellbestaetigungen
+// tragen genau diesen Wert — mit dem Date.now()-Ersatz passten sie nie, und es
+// blieb bei einem Haekchen.
+function sendTimestamp(result) {
+  const entry = Array.isArray(result) ? result[0] : result;
+  const ts = Number(entry && entry.timestamp);
+  return ts > 0 ? ts : Date.now();
+}
+
 function updateMsgAck(signalTs, ackLevel) {
   for (const msgs of messagesByChatId.values()) {
     for (const msg of msgs) {
@@ -787,7 +797,7 @@ app.post('/api/send', async (req, res) => {
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
 
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -822,7 +832,7 @@ app.post('/api/reply', async (req, res) => {
     });
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -862,7 +872,7 @@ app.post('/api/forward', async (req, res) => {
     const r = await fetch(`${SIGNAL_API}/v2/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) });
     if (!r.ok) return res.status(500).json({ error: await r.json() });
     const result = await r.json();
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const newMsgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(newMsgId)) {
       seenMsgIds.add(newMsgId);
@@ -898,7 +908,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
 
     const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const isImg = mimetype.startsWith('image/');
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
