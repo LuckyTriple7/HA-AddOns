@@ -12,6 +12,8 @@ export DOWNLOAD_MEDIA=$(jq -r 'if .download_media == true then "true" else "fals
 export MEDIA_MAX_MB=$(jq -r '.media_max_mb // 500' /data/options.json)
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
+export SEND_READ_RECEIPTS=$(jq -r 'if .send_read_receipts == false then "false" else "true" end' /data/options.json)
+export KEEP_DELETED=$(jq -r 'if .keep_deleted == true then "true" else "false" end' /data/options.json)
 
 export SIGNAL_CLI_CONFIG_DIR=/config/signal-cli
 mkdir -p /config/signal-cli

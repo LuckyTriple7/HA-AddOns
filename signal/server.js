@@ -88,6 +88,8 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
+const SEND_READ_RECEIPTS = process.env.SEND_READ_RECEIPTS !== 'false';
+const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 // SUPERVISOR_TOKEN wird vom Supervisor automatisch injiziert (homeassistant_api: true) —
 // kein manuell eingetragener Token mehr nötig.
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
@@ -256,11 +258,20 @@ async function loadContacts() {
       const num = normPhone(c.number || c.phone);
       if (!num || num === PHONE_NUMBER) continue;
       if (!chatMap.has(num)) {
-        chatMap.set(num, { id: num, name: c.name || num, phone: num, lastMsg: '', lastTime: 0 });
+        chatMap.set(num, { id: num, name: c.name || num, phone: num, lastMsg: '', lastTime: 0, ...(c.uuid ? { uuid: c.uuid } : {}) });
         changed = true;
-      } else if (c.name && chatMap.get(num).name !== c.name) {
-        chatMap.get(num).name = c.name;
-        changed = true;
+      } else {
+        const chat = chatMap.get(num);
+        if (c.name && chat.name !== c.name) { chat.name = c.name; changed = true; }
+        // uuid braucht /api/avatar fuer das Profilbild
+        if (c.uuid && chat.uuid !== c.uuid) { chat.uuid = c.uuid; changed = true; }
+      }
+      // Fuer die Kontaktinfo (Klick aufs Profilbild): Signal-Profilname, Info-Text, Benutzername
+      const chat = chatMap.get(num);
+      const profileName = (c.profile_name || [c.profile?.given_name, c.profile?.lastname].filter(Boolean).join(' ')).trim();
+      const extra = { profileName, about: c.profile?.about || '', username: c.username || '' };
+      for (const [k, v] of Object.entries(extra)) {
+        if ((chat[k] || '') !== v) { if (v) chat[k] = v; else delete chat[k]; changed = true; }
       }
     }
     // Laeuft alle 2 Minuten — nur schreiben, wenn sich etwas geaendert hat
@@ -285,11 +296,104 @@ async function loadGroups() {
         chatMap.set(id, { id, name: g.name || 'Gruppe', phone: '', lastMsg: '', lastTime: 0, isGroup: true });
         changed = true;
       }
+      // Umbenennung und Beschreibung uebernehmen (Kontaktinfo der Gruppe)
+      const chat = chatMap.get(id);
+      if (g.name && chat.name !== g.name) { chat.name = g.name; changed = true; }
+      if ((chat.description || '') !== (g.description || '')) {
+        if (g.description) chat.description = g.description; else delete chat.description;
+        changed = true;
+      }
     }
     if (changed) scheduleSave();
   } catch (e) {
     console.error('[ERROR] loadGroups:', e.message);
   }
+}
+
+// Reaktionen: msg.reactions = { <Nummer des Reagierenden>: Emoji }. Signal
+// erlaubt pro Person genau eine Reaktion, eine neue ersetzt die alte.
+function findTargetMsg(chatId, ts, author) {
+  const msgs = messagesByChatId.get(chatId) || [];
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    const mTs = Number(m.fromMe ? (m.signalTimestamp || m.timestamp) : m.timestamp);
+    if (mTs === ts && (!author || normPhone(m.from) === author)) return m;
+  }
+  return null;
+}
+
+function applyReaction(chatId, reactor, r) {
+  const ts = Number(r.targetSentTimestamp);
+  const author = normPhone(r.targetAuthorNumber || r.targetAuthor || '');
+  const target = findTargetMsg(chatId, ts, author.startsWith('+') ? author : '');
+  if (!target) { dbg(`reaction: Zielnachricht ${ts} in ${chatId} nicht gefunden`); return; }
+  target.reactions = target.reactions || {};
+  if (r.isRemove) delete target.reactions[reactor];
+  else if (r.emoji) target.reactions[reactor] = r.emoji;
+  if (!Object.keys(target.reactions).length) delete target.reactions;
+  scheduleSave();
+}
+
+// Erwaehnungen: signal-cli liefert im Text U+FFFC als Platzhalter, dazu
+// mentions [{number, uuid, start, length}]. Hier wird daraus "@Name".
+function mentionName(number, uuid) {
+  const n = normPhone(number || '');
+  if (n === PHONE_NUMBER) return 'Ich';
+  const chat = (n && chatMap.get(n)) || (uuid && [...chatMap.values()].find(c => c.uuid === uuid));
+  return (chat && chat.name) || n || 'Unbekannt';
+}
+function applyMentions(text, mentions) {
+  let out = text;
+  // Von hinten ersetzen, damit die Positionen davor gueltig bleiben
+  for (const m of [...mentions].sort((a, b) => b.start - a.start)) {
+    if (typeof m.start !== 'number' || typeof m.length !== 'number') continue;
+    out = out.slice(0, m.start) + '@' + mentionName(m.number, m.uuid) + out.slice(m.start + m.length);
+  }
+  return out;
+}
+
+function applyEdit(chatId, author, ts, data) {
+  const target = findTargetMsg(chatId, Number(ts), author);
+  if (!target) { dbg(`edit: Zielnachricht ${ts} in ${chatId} nicht gefunden`); return; }
+  let text = data.message || '';
+  if (Array.isArray(data.mentions) && data.mentions.length) text = applyMentions(text, data.mentions);
+  target.body = text;
+  target.edited = true;
+  scheduleSave();
+}
+
+// "Fuer alle loeschen" durch den Absender. Mit keep_deleted bleibt der Inhalt
+// sichtbar und bekommt nur eine Markierung, sonst ersetzt ein Hinweis den Text.
+function applyRemoteDelete(chatId, author, ts) {
+  const target = findTargetMsg(chatId, Number(ts), author);
+  if (!target) { dbg(`remoteDelete: Zielnachricht ${ts} in ${chatId} nicht gefunden`); return; }
+  target.deleted = true;
+  if (!KEEP_DELETED) {
+    target.body = '';
+    delete target.attIds;
+    delete target.mediaFile;
+    delete target.quotedMsg;
+    delete target.reactions;
+  }
+  scheduleSave();
+}
+
+function markReadOnPhone(list) {
+  let changed = false;
+  for (const r of list) {
+    const author = normPhone(r.senderNumber || r.sender || '');
+    for (const msgs of messagesByChatId.values()) {
+      const m = msgs.find(x => !x.fromMe && Number(x.timestamp) === Number(r.timestamp) && (!author || normPhone(x.from) === author));
+      if (m && !m.readSent) { m.readSent = true; changed = true; break; }
+    }
+  }
+  if (changed) scheduleSave();
+}
+
+// Chat-ID einer Gruppe wie bei signal-cli-rest-api (/v1/groups liefert "id"):
+// "group." + Base64 der internen ID, die signal-cli selbst schon Base64 ausgibt
+function groupChatIdOf(internalId) {
+  return 'group.' + Buffer.from(String(internalId), 'utf8').toString('base64');
 }
 
 function processEnvelope(envelope) {
@@ -307,31 +411,51 @@ function processEnvelope(envelope) {
     return;
   }
 
+  // Am Handy gelesen: keine eigene Lesebestaetigung mehr fuer diese Nachrichten
+  const readOnPhone = env.syncMessage?.readMessages;
+  if (Array.isArray(readOnPhone) && readOnPhone.length) { markReadOnPhone(readOnPhone); return; }
+
   // Sync-Nachrichten: vom eigenen Gerät (Handy) gesendete Nachrichten
   const sm = env.syncMessage?.sentMessage;
 
-  let dm, chatId, isOwn, senderName;
+  // Gruppennachricht: Chat ist die Gruppe, nicht der Absender. Bis 1.6.x
+  // landeten Gruppennachrichten im Privatchat des Absenders.
+  // Bei Bearbeitungen steckt groupInfo in editMessage.dataMessage
+  const edit = sm ? sm.editMessage : env.editMessage;
+  const groupInfo = sm ? (sm.groupInfo || edit?.dataMessage?.groupInfo) : (env.dataMessage?.groupInfo || edit?.dataMessage?.groupInfo);
+  const groupChatId = groupInfo && groupInfo.groupId ? groupChatIdOf(groupInfo.groupId) : '';
+
+  let dm, chatId, isOwn, senderName, source;
   if (sm) {
-    const dest = normPhone(sm.destinationNumber || sm.destination);
+    const dest = groupChatId || normPhone(sm.destinationNumber || sm.destination);
     if (!dest) { dbg('processEnvelope: syncMessage ohne Ziel, übersprungen'); return; }
-    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [] };
+    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [], quote: sm.quote, reaction: sm.reaction,
+      remoteDelete: sm.remoteDelete, mentions: sm.mentions };
     chatId = dest;
     isOwn = true;
+    source = PHONE_NUMBER;
     senderName = PHONE_NUMBER;
   } else {
     dm = env.dataMessage;
-    const source = normPhone(env.sourceNumber || env.source);
+    source = normPhone(env.sourceNumber || env.source);
     isOwn = source === PHONE_NUMBER;
-    chatId = source;
+    chatId = groupChatId || source;
     senderName = env.sourceName || source;
   }
+
+  // Reaktion (auch eigene vom Handy): an die Zielnachricht haengen, keine eigene Bubble
+  if (dm && dm.reaction) { applyReaction(chatId, isOwn ? PHONE_NUMBER : source, dm.reaction); return; }
+  // Bearbeitung und "Fuer alle loeschen" durch den Absender (auch eigene vom Handy)
+  if (edit && edit.dataMessage) { applyEdit(chatId, source, edit.targetSentTimestamp, edit.dataMessage); return; }
+  if (dm && dm.remoteDelete) { applyRemoteDelete(chatId, source, dm.remoteDelete.targetTimestamp || dm.remoteDelete.timestamp); return; }
+  if (dm && dm.message && Array.isArray(dm.mentions) && dm.mentions.length) dm = { ...dm, message: applyMentions(dm.message, dm.mentions) };
 
   const hasText = !!(dm && dm.message);
   const hasAttachments = !!(dm && Array.isArray(dm.attachments) && dm.attachments.length > 0);
   dbg(`processEnvelope: isOwn=${isOwn} hasDataMessage=${!!dm} hasText=${hasText} hasAttachments=${hasAttachments} body="${(dm?.message||'').slice(0,60)}"`);
   if (!dm || !chatId || (!hasText && !hasAttachments)) { dbg(`processEnvelope: skipping — no dataMessage, chatId, or content`); return; }
 
-  const msgId = `${isOwn ? PHONE_NUMBER : chatId}_${dm.timestamp}`;
+  const msgId = `${isOwn ? PHONE_NUMBER : source}_${dm.timestamp}`;
   if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
   const isVoice = hasAttachments && dm.attachments.some(a => (a.contentType || '').startsWith('audio/'));
@@ -342,7 +466,7 @@ function processEnvelope(envelope) {
   const attIds = hasAttachments
     ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
     : undefined;
-  const msgFrom = isOwn ? PHONE_NUMBER : chatId;
+  const msgFrom = isOwn ? PHONE_NUMBER : source;
   let quotedMsg = null;
   if (dm.quote) {
     quotedMsg = {
@@ -354,6 +478,8 @@ function processEnvelope(envelope) {
   const videoSize = videoAtt ? (videoAtt.size || 0) : undefined;
   const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds, videoSize, quotedMsg };
   if (isOwn) { msg.ack = 0; msg.signalTimestamp = dm.timestamp; }
+  // In Gruppen steht der Absender an jeder Nachricht, der Chat-Name ist die Gruppe
+  if (groupChatId && !isOwn) msg.author = senderName;
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
@@ -366,14 +492,18 @@ function processEnvelope(envelope) {
   messagesByChatId.get(chatId).push(msg);
 
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: senderName, phone: chatId, lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn });
+    chatMap.set(chatId, groupChatId
+      ? { id: chatId, name: groupInfo.groupName || 'Gruppe', phone: '', lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn, isGroup: true }
+      : { id: chatId, name: senderName, phone: chatId, lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn });
   } else {
     const chat = chatMap.get(chatId);
-    chat.lastMsg = previewText;
+    chat.lastMsg = groupChatId && !isOwn ? `${senderName}: ${previewText}` : previewText;
     chat.lastTime = dm.timestamp;
     chat.lastFromMe = isOwn;
-    if (senderName && senderName !== chatId) chat.name = senderName;
+    if (groupChatId) { if (groupInfo.groupName) chat.name = groupInfo.groupName; }
+    else if (senderName && senderName !== chatId) chat.name = senderName;
   }
+  const chatName = chatMap.get(chatId)?.name || senderName;
 
   scheduleSave();
 
@@ -384,12 +514,12 @@ function processEnvelope(envelope) {
       timestamp: dm.timestamp,
       iso: new Date(dm.timestamp).toISOString(),
       chatId,
-      chatName: chatMap.get(chatId)?.name || senderName,
+      chatName,
       contact: senderName,
       type: msgType,
       preview: previewText,
     };
-    sendHANotification(senderName, dm.message || previewText);
+    sendHANotification(groupChatId ? `${senderName} (${chatName})` : senderName, dm.message || previewText);
   }
 
   if (WEBHOOK_INCOMING && !isOwn) {
@@ -397,7 +527,10 @@ function processEnvelope(envelope) {
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: chatId, name: senderName, message: dm.message || previewText, type: msgType, timestamp: dm.timestamp }),
+      // from bleibt der Absender (so war es bei Gruppen schon immer); chat und
+      // group sagen, wohin die Nachricht gehoert
+      body: JSON.stringify({ from: source, name: senderName, message: dm.message || previewText, type: msgType, timestamp: dm.timestamp,
+        chat: chatId, ...(groupChatId ? { group: chatName } : {}) }),
     }).catch(() => {});
   }
 }
@@ -495,6 +628,16 @@ function sendHANotification(senderName, body) {
   req.write(payload);
   req.end();
   console.log('[INFO] HA notification: Signal sent');
+}
+
+// Zeitstempel aus der Antwort von /v2/send. Im Daemon-Betrieb (json-rpc) kommt
+// ein Array [{"timestamp":"…"}], sonst ein Objekt. Lese- und Zustellbestaetigungen
+// tragen genau diesen Wert — mit dem Date.now()-Ersatz passten sie nie, und es
+// blieb bei einem Haekchen.
+function sendTimestamp(result) {
+  const entry = Array.isArray(result) ? result[0] : result;
+  const ts = Number(entry && entry.timestamp);
+  return ts > 0 ? ts : Date.now();
 }
 
 function updateMsgAck(signalTs, ackLevel) {
@@ -775,19 +918,20 @@ app.post('/api/poll', (req, res) => {
 
 app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
+  const mentions = cleanMentions(req.body.mentions, message);
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
   try {
     dbg(`Sending message: "${message.slice(0,60)}${message.length>60?'…':''}"`);
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to] }),
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], ...(mentions ? { mentions } : {}) }),
       signal: AbortSignal.timeout(10000),
     });
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
 
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -812,17 +956,20 @@ app.post('/api/send', async (req, res) => {
 
 app.post('/api/reply', async (req, res) => {
   const { to, message, quoteTimestamp, quoteAuthor, quoteBody } = req.body;
+  const mentions = cleanMentions(req.body.mentions, message);
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
   try {
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote: { id: quoteTimestamp, author: quoteAuthor, message: quoteBody || '' } }),
+      // Feldnamen laut signal-cli-rest-api; bis 1.6.x stand hier quote: {…}, das
+      // die API ignorierte — beim Empfaenger kam die Antwort ohne Zitat an
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote_timestamp: Number(quoteTimestamp), quote_author: quoteAuthor, quote_message: quoteBody || '', ...(mentions ? { mentions } : {}) }),
       signal: AbortSignal.timeout(10000),
     });
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -862,7 +1009,7 @@ app.post('/api/forward', async (req, res) => {
     const r = await fetch(`${SIGNAL_API}/v2/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) });
     if (!r.ok) return res.status(500).json({ error: await r.json() });
     const result = await r.json();
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const newMsgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(newMsgId)) {
       seenMsgIds.add(newMsgId);
@@ -898,7 +1045,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
 
     const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const isImg = mimetype.startsWith('image/');
-    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const signalTs = sendTimestamp(result);
     const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -942,30 +1089,212 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
   dbg(`Deleting message ${msgId}`);
   // Always remove locally so the message disappears from the UI
   const msgs = messagesByChatId.get(chatId);
+  let deleted = null;
   if (msgs) {
     const idx = msgs.findIndex(m => m.id === msgId);
-    if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
+    if (idx !== -1) { deleted = msgs.splice(idx, 1)[0]; seenMsgIds.delete(msgId); scheduleSave(); }
   }
-  // Try platform delete in background (requires signal-cli-rest-api with deleteForEveryone support)
-  if (status === 'linked') {
+  // "Fuer alle loeschen" ueber DELETE /v1/remote-delete. Bis 1.6.34 ging das an
+  // /v2/send mit deleteForEveryone — das Feld kennt signal-cli-rest-api nicht,
+  // beim Empfaenger blieb die Nachricht stehen. Nur eigene Nachrichten: fremde
+  // kann Signal nicht fuer alle loeschen. Gruppen-IDs (group.…) erkennt die API selbst.
+  if (status === 'linked' && deleted && deleted.fromMe) {
     try {
-      const rawTs = parseInt(msgId.split('_').pop(), 10);
+      const rawTs = Number(deleted.signalTimestamp) || parseInt(msgId.split('_').pop(), 10);
       const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
-      const r = await fetch(`${SIGNAL_API}/v2/send`, {
-        method: 'POST',
+      const r = await fetch(`${SIGNAL_API}/v1/remote-delete/${encodeURIComponent(PHONE_NUMBER)}`, {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs }),
+        body: JSON.stringify({ recipient: chatId, timestamp: tsMs }),
         signal: AbortSignal.timeout(10000),
       });
-      if (!r.ok) {
+      if (r.ok) {
+        _logSilent('INFO', `remote-delete ok (ts=${tsMs})`);
+      } else {
         const t = await r.text().catch(() => '');
-        dbg(`delete-for-everyone not supported: ${t.trim()}`);
+        console.warn(`[WARN] Für alle löschen fehlgeschlagen: HTTP ${r.status} ${t.trim().slice(0, 200)}`);
       }
     } catch (e) {
-      dbg(`delete-for-everyone: ${e.message}`);
+      console.warn('[WARN] Für alle löschen fehlgeschlagen:', e.message);
     }
   }
   res.json({ success: true });
+});
+
+// ── Kontaktinfo (Klick aufs Profilbild) ──────────────────────────────
+// Nur Felder aus der zwischengespeicherten Kontakt-/Gruppenliste, kein eigener
+// Aufruf an signal-cli
+app.get('/api/contact/:chatId', (req, res) => {
+  const chat = chatMap.get(req.params.chatId);
+  if (!chat) return res.status(404).json({ error: 'not_found' });
+  const msgs = messagesByChatId.get(chat.id) || [];
+  res.json({
+    id: chat.id,
+    name: chat.name || chat.id,
+    isGroup: !!chat.isGroup,
+    number: chat.isGroup ? '' : (chat.phone || chat.id),
+    profileName: chat.profileName || '',
+    username: chat.username || '',
+    about: chat.about || '',
+    description: chat.description || '',
+    total: msgs.length,
+    first: msgs.length ? msgs[0].timestamp : null,
+  });
+});
+
+// ── Gruppenmitglieder und Erwaehnungen ───────────────────────────────
+// /v1/groups/{n}/{id} liefert members als Nummer oder, ohne bekannte Nummer, als
+// UUID. Namen kommen aus der Kontaktliste. 10 Minuten zwischengespeichert.
+const _participantsCache = new Map();
+app.get('/api/participants/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  const chat = chatMap.get(chatId);
+  if (!chat || !chat.isGroup || !PHONE_NUMBER) return res.json([]);
+  const hit = _participantsCache.get(chatId);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return res.json(hit.list);
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/groups/${encodeURIComponent(PHONE_NUMBER)}/${encodeURIComponent(chatId)}`, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return res.json([]);
+    const g = await r.json();
+    const admins = new Set((g.admins || []).map(normPhone));
+    const list = (g.members || []).map(m => {
+      const isNum = /^\+?\d{6,15}$/.test(String(m));
+      const number = isNum ? normPhone(m) : '';
+      return { number, uuid: isNum ? '' : m, name: mentionName(number, isNum ? '' : m), admin: admins.has(normPhone(m)) };
+    }).filter(p => p.number !== PHONE_NUMBER)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    _participantsCache.set(chatId, { at: Date.now(), list });
+    res.json(list);
+  } catch (e) {
+    res.json([]);
+  }
+});
+
+// Von der Oberflaeche: [{start, length, author}]; nur gueltige Bereiche im Text
+function cleanMentions(list, text) {
+  if (!Array.isArray(list) || !list.length || typeof text !== 'string') return null;
+  const out = list.filter(m => m && Number.isInteger(m.start) && Number.isInteger(m.length) && m.start >= 0 && m.length > 0
+    && m.start + m.length <= text.length && typeof m.author === 'string' && m.author)
+    .slice(0, 50).map(m => ({ start: m.start, length: m.length, author: m.author }));
+  return out.length ? out : null;
+}
+
+// ── Reaktionen ───────────────────────────────────────────────────────
+// emoji leer = eigene Reaktion entfernen
+app.post('/api/react', async (req, res) => {
+  const { chatId, msgId, emoji } = req.body;
+  const msg = (messagesByChatId.get(chatId) || []).find(m => m.id === msgId);
+  if (!msg) return res.status(404).json({ error: 'not_found' });
+  const own = msg.reactions && msg.reactions[PHONE_NUMBER];
+  const remove = !emoji;
+  if (remove && !own) return res.json({ success: true });
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/reactions/${encodeURIComponent(PHONE_NUMBER)}`, {
+      method: remove ? 'DELETE' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: chatId,
+        reaction: remove ? own : emoji,
+        target_author: msg.fromMe ? PHONE_NUMBER : msg.from,
+        timestamp: Number(msg.fromMe ? (msg.signalTimestamp || msg.timestamp) : msg.timestamp),
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      console.warn(`[WARN] Reaktion fehlgeschlagen: HTTP ${r.status} ${t.trim().slice(0, 200)}`);
+      return res.status(500).json({ error: 'react_failed' });
+    }
+    msg.reactions = msg.reactions || {};
+    if (remove) delete msg.reactions[PHONE_NUMBER];
+    else msg.reactions[PHONE_NUMBER] = emoji;
+    if (!Object.keys(msg.reactions).length) delete msg.reactions;
+    scheduleSave();
+    res.json({ success: true });
+  } catch (e) {
+    console.warn('[WARN] Reaktion fehlgeschlagen:', e.message);
+    res.status(500).json({ error: 'react_failed' });
+  }
+});
+
+// ── Lesebestaetigungen senden ────────────────────────────────────────
+// Die Oberflaeche meldet, wenn ein Chat sichtbar offen ist. Bestaetigt werden
+// hoechstens die letzten 20 noch nicht bestaetigten fremden Nachrichten; aeltere
+// gelten als erledigt, damit nach dem Update keine Lawine an Quittungen rausgeht.
+const READ_RECEIPT_BATCH = 20;
+app.post('/api/read/:chatId', async (req, res) => {
+  res.json({ success: true });
+  if (!SEND_READ_RECEIPTS || status !== 'linked') return;
+  const msgs = messagesByChatId.get(req.params.chatId) || [];
+  const pending = msgs.filter(m => !m.fromMe && !m.readSent);
+  if (!pending.length) return;
+  pending.forEach(m => { m.readSent = true; });
+  scheduleSave();
+  for (const m of pending.slice(-READ_RECEIPT_BATCH)) {
+    try {
+      const r = await fetch(`${SIGNAL_API}/v1/receipts/${encodeURIComponent(PHONE_NUMBER)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient: m.from, receipt_type: 'read', timestamp: Number(m.timestamp) }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) dbg(`receipt ${m.id}: HTTP ${r.status}`);
+    } catch (e) { dbg(`receipt ${m.id}: ${e.message}`); }
+  }
+});
+
+// ── Profilbilder ─────────────────────────────────────────────────────
+// Zwischengespeichert unter /config/avatars, einmal am Tag neu geholt. Ohne
+// Bild antwortet die Route 404 und die Oberflaeche zeigt die Initiale.
+const AVATAR_DIR = '/config/avatars/';
+const AVATAR_TTL_MS = 24 * 60 * 60 * 1000;
+const _avatarInflight = new Map();
+function _imgType(buf) {
+  if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
+  if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png';
+  if (buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP') return 'image/webp';
+  if (buf.slice(0, 3).toString() === 'GIF') return 'image/gif';
+  return null;
+}
+async function fetchAvatar(chatId, file, noneFile) {
+  const chat = chatMap.get(chatId);
+  if (!chat || !PHONE_NUMBER) return;
+  const url = chat.isGroup
+    ? `${SIGNAL_API}/v1/groups/${encodeURIComponent(PHONE_NUMBER)}/${encodeURIComponent(chatId)}/avatar`
+    : `${SIGNAL_API}/v1/contacts/${encodeURIComponent(PHONE_NUMBER)}/${encodeURIComponent(chat.uuid || chatId)}/avatar`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const buf = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+    if (buf && buf.length && _imgType(buf)) {
+      fs.writeFileSync(file, buf);
+      try { fs.unlinkSync(noneFile); } catch (e) {}
+    } else {
+      fs.writeFileSync(noneFile, '');
+      try { fs.unlinkSync(file); } catch (e) {}
+    }
+  } catch (e) { dbg(`avatar ${chatId}: ${e.message}`); }
+}
+app.get('/api/avatar/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (!chatMap.has(chatId)) return res.status(404).end();
+  try { fs.mkdirSync(AVATAR_DIR, { recursive: true }); } catch (e) {}
+  const key = crypto.createHash('sha1').update(chatId).digest('hex');
+  const file = path.join(AVATAR_DIR, key + '.img');
+  const noneFile = path.join(AVATAR_DIR, key + '.none');
+  const age = (f) => { try { return Date.now() - fs.statSync(f).mtimeMs; } catch (e) { return Infinity; } };
+  if (Math.min(age(file), age(noneFile)) > AVATAR_TTL_MS) {
+    if (!_avatarInflight.has(chatId)) {
+      _avatarInflight.set(chatId, fetchAvatar(chatId, file, noneFile).finally(() => _avatarInflight.delete(chatId)));
+    }
+    await _avatarInflight.get(chatId);
+  }
+  try {
+    const buf = fs.readFileSync(file);
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.type(_imgType(buf) || 'application/octet-stream').send(buf);
+  } catch (e) {
+    res.status(404).end();
+  }
 });
 
 app.post('/api/logout', async (req, res) => {
@@ -1017,6 +1346,7 @@ const _SVG = {
   globe:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   doc:       '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
   fwd:       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>',
+  react:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
   reply:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
 };
 
@@ -1150,6 +1480,55 @@ html.light .fwd-chat-item-name { color: #111; }
 html.light .fwd-modal-cancel { background: #e0e0e0; color: #111; }
 .fwd-modal-cancel:hover { background: #3d5259; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
+.bubble-author { font-size: 12px; font-weight: 600; color: #3a76f8; margin-bottom: 2px; }
+.avatar { position: relative; overflow: hidden; }
+.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.react-btn { display: none; background: none; border: none; cursor: pointer; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; }
+.bubble-row:hover .react-btn { display: inline-flex; }
+html.dark .react-btn { color: rgba(134,150,160,0.85); }
+html.light .react-btn { color: rgba(0,0,0,0.4); }
+.react-btn:hover { color: #3a76f8 !important; }
+#reaction-picker { position: fixed; z-index: 300; border-radius: 28px; padding: 6px 10px; display: none; gap: 2px; box-shadow: 0 2px 16px rgba(0,0,0,0.3); background: #fff; border: 1px solid #d9dbdf; }
+html.dark #reaction-picker { background: #1f2c34; border-color: #2a3942; }
+#reaction-picker button { background: none; border: none; font-size: 24px; cursor: pointer; padding: 3px 4px; border-radius: 50%; line-height: 1; transition: transform .1s; }
+#reaction-picker button:hover { transform: scale(1.3); }
+.reactions-bar { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 1px 7px; font-size: 13px; cursor: pointer; border: 1px solid #d9dbdf; background: #f0f2f5; color: #111; }
+html.dark .reaction-badge { background: #1f2c34; border-color: #2a3942; color: #e9edef; }
+.reaction-badge.own { border-color: #3a76f8; }
+.deleted-msg { font-style: italic; opacity: 0.7; }
+.deleted-badge { font-size: 11px; opacity: 0.7; margin-top: 3px; }
+.edited-label { font-style: italic; }
+.bubble-row.deleted .react-btn, .bubble-row.deleted .reply-btn, .bubble-row.deleted .fwd-btn { display: none !important; }
+#members-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+#members-modal.open { display: flex; }
+#members-list { overflow-y: auto; }
+#members-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #e9edef; }
+html.light #members-title { color: #111; }
+.member-item { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
+.member-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e9edef; font-size: 14px; }
+html.light .member-name { color: #111; }
+.member-num { font-size: 12px; opacity: 0.6; }
+.member-admin { font-size: 11px; color: #3a76f8; border: 1px solid #3a76f8; border-radius: 8px; padding: 0 6px; }
+.chat-item .avatar { cursor: pointer; }
+#contact-modal { display: none; position: fixed; inset: 0; z-index: 450; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
+#contact-modal.open { display: flex; }
+.contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; max-height: 80vh; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); background: #202c33; color: #e9edef; }
+html.light .contact-modal-box { background: #fff; color: #111; }
+.contact-modal-pic { position: relative; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.contact-modal-pic .avatar-img { cursor: zoom-in; }
+.contact-modal-name { font-size: 18px; font-weight: 600; text-align: center; }
+.contact-modal-number { font-size: 14px; color: #3a76f8; font-weight: 500; }
+.contact-modal-sub { font-size: 13px; opacity: 0.65; text-align: center; }
+.contact-modal-about { font-size: 13px; opacity: 0.8; text-align: center; max-width: 260px; word-break: break-word; white-space: pre-wrap; }
+#cm-members { width: 100%; }
+#cm-members:empty, .contact-modal-sub:empty, .contact-modal-about:empty, .contact-modal-number:empty { display: none; }
+#mention-dropdown { position: fixed; z-index: 300; display: none; max-height: 260px; overflow-y: auto; border-radius: 10px; background: #233138; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+html.light #mention-dropdown { background: #fff; border-color: #ddd; }
+.mention-item { padding: 8px 12px; cursor: pointer; font-size: 14px; color: #e9edef; }
+html.light .mention-item { color: #111; }
+.mention-item.active, .mention-item:hover { background: #2a3942; }
+html.light .mention-item.active, html.light .mention-item:hover { background: #f0f2f5; }
 .msg-ack { font-size: 11px; margin-left: 2px; vertical-align: middle; }
 .ack-1, .ack-2 { color: rgba(0,0,0,0.4); }
 .ack-3 { color: #3a76f8; }
@@ -1318,6 +1697,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
         <div id="ch-stats"></div>
       </div>
       ${DOWNLOAD_MEDIA ? `<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="fetchMediaTitle" title="Fehlende Fotos herunterladen">${_SVG.download}</button>` : ''}
+      <button id="members-btn" onclick="showMembers()" data-i18n-title="membersTitle" title="Mitglieder" style="display:none">👥</button>
       <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.disk}</button>
     </div>
@@ -1386,7 +1766,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Fehlende Fotos herunterladen',
     fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
-    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', btnReact: 'Reagieren', signalName: 'Signal-Name', reactionRemove: 'Klicken zum Entfernen', deletedMsg: 'Diese Nachricht wurde gelöscht', deletedBadge: 'vom Absender gelöscht', edited: 'bearbeitet', membersTitle: 'Mitglieder', admin: 'Admin', noMembers: 'Keine Mitglieder gefunden', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
     errSend: (e) => 'Fehler: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
@@ -1413,7 +1793,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Download missing photos',
     fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
-    msgPlaceholder: 'Message…', btnDelete: 'Delete', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', btnReact: 'React', signalName: 'Signal name', reactionRemove: 'Click to remove', deletedMsg: 'This message was deleted', deletedBadge: 'deleted by sender', edited: 'edited', membersTitle: 'Members', admin: 'Admin', noMembers: 'No members found', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
     errSend: (e) => 'Error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
@@ -1624,7 +2004,9 @@ function showMain(phone) {
   document.getElementById('topbar').style.display = 'flex';
   document.getElementById('main').style.display = 'flex';
   document.getElementById('my-phone').textContent = phone || '';
+  if (phone) MY_NUMBER = phone;
 }
+let MY_NUMBER = '';
 
 let qrInterval = null;
 
@@ -1700,6 +2082,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   refresh();
   if (currentStatus === 'linked') loadChats(); // sofort nachziehen beim Zurückkehren
+  markChatRead(selectedChatId);
 });
 window.addEventListener('online', () => { _offlineFails = 0; refresh(); });
 window.addEventListener('offline', () => showOfflineBanner());
@@ -1764,10 +2147,235 @@ function setFilter(f) {
   renderChats(allChats);
 }
 
-function chatAvatar(c) {
-  if (c.isGroup) return \`<div class="avatar type-group" style="background:#3a76f0">👥</div>\`;
-  return \`<div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}</div>\`;
+// Profilbild ueber der Initiale; fehlt es (404), entfernt onerror das <img>
+function avatarImg(id) {
+  return '<img class="avatar-img" loading="lazy" alt="" src="' + api('/api/avatar/' + encodeURIComponent(id)) + '" onerror="this.remove()">';
 }
+function chatAvatar(c) {
+  if (c.isGroup) return \`<div class="avatar type-group" style="background:#3a76f0">👥\${avatarImg(c.id)}</div>\`;
+  return \`<div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}\${avatarImg(c.id)}</div>\`;
+}
+
+// ── Reaktionen ──
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+function reactionsBar(m) {
+  if (!m.reactions) return '';
+  const counts = {};
+  Object.values(m.reactions).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+  const own = m.reactions[MY_NUMBER];
+  const badges = Object.entries(counts).map(([e, n]) =>
+    '<span class="reaction-badge' + (own === e ? ' own' : '') + '" data-msgid="' + escHtml(m.id) + '" data-emoji="' + escHtml(e) + '"'
+    + (own === e ? ' title="' + escHtml(t('reactionRemove')) + '"' : '') + '>' + e + (n > 1 ? ' ' + n : '') + '</span>').join('');
+  return '<div class="reactions-bar">' + badges + '</div>';
+}
+async function sendReaction(msgId, emoji) {
+  const chatId = selectedChatId;
+  const msg = (_view[chatId] || []).find(x => x.id === msgId);
+  // Gleiches Emoji noch einmal = Reaktion zuruecknehmen
+  if (msg && msg.reactions && msg.reactions[MY_NUMBER] === emoji) emoji = '';
+  await fetch(api('/api/react'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId, msgId, emoji }) }).catch(() => null);
+  loadMessages(chatId, true);
+}
+function openReactionPicker(btn) {
+  let picker = document.getElementById('reaction-picker');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'reaction-picker';
+    picker.innerHTML = QUICK_REACTIONS.map(e => '<button data-emoji="' + e + '">' + e + '</button>').join('');
+    document.body.appendChild(picker);
+    picker.addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-emoji]');
+      if (!b) return;
+      picker.style.display = 'none';
+      sendReaction(picker.dataset.msgid, b.dataset.emoji);
+    });
+  }
+  picker.dataset.msgid = btn.dataset.msgid;
+  picker.style.display = 'flex';
+  const r = btn.getBoundingClientRect();
+  const w = picker.offsetWidth, h = picker.offsetHeight;
+  picker.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  picker.style.top = (r.top - h - 6 < 8 ? r.bottom + 6 : r.top - h - 6) + 'px';
+}
+document.addEventListener('click', ev => {
+  const picker = document.getElementById('reaction-picker');
+  if (picker && picker.style.display !== 'none' && !ev.target.closest('#reaction-picker') && !ev.target.closest('.react-btn')) picker.style.display = 'none';
+  const btn = ev.target.closest('.react-btn');
+  if (btn) { ev.stopPropagation(); openReactionPicker(btn); return; }
+  const badge = ev.target.closest('.reaction-badge[data-emoji]');
+  if (badge) sendReaction(badge.dataset.msgid, badge.dataset.emoji);
+});
+
+// Lesebestaetigungen: nur wenn der Chat wirklich sichtbar offen ist
+function markChatRead(chatId) {
+  if (!chatId || document.hidden || chatId !== selectedChatId) return;
+  fetch(api('/api/read/' + encodeURIComponent(chatId)), { method: 'POST' }).catch(() => {});
+}
+
+// ── Gruppenmitglieder & Erwaehnungen ──
+const _participants = {};
+async function getParticipants(chatId) {
+  if (_participants[chatId]) return _participants[chatId];
+  try {
+    const list = await fetch(api('/api/participants/' + encodeURIComponent(chatId))).then(r => r.json());
+    _participants[chatId] = Array.isArray(list) ? list : [];
+  } catch (e) { _participants[chatId] = []; }
+  return _participants[chatId];
+}
+async function showMembers() {
+  const chatId = selectedChatId;
+  let modal = document.getElementById('members-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'members-modal';
+    modal.innerHTML = '<div class="fwd-modal-box"><h3 id="members-title"></h3><div id="members-list"></div></div>';
+    modal.addEventListener('click', ev => { if (ev.target === modal) modal.classList.remove('open'); });
+    document.body.appendChild(modal);
+  }
+  const list = await getParticipants(chatId);
+  document.getElementById('members-title').textContent = t('membersTitle') + ' (' + (list.length + 1) + ')';
+  document.getElementById('members-list').innerHTML = list.length
+    ? list.map(p => '<div class="member-item"><div class="avatar" style="width:32px;height:32px;font-size:13px;background:' + avatarColor(p.name) + '">'
+        + escHtml(avatarInitial(p.name)) + (p.number ? avatarImg(p.number) : '') + '</div><div class="member-name">' + escHtml(p.name)
+        + (p.number && p.number !== p.name ? '<div class="member-num">' + escHtml(p.number) + '</div>' : '') + '</div>'
+        + (p.admin ? '<span class="member-admin">' + escHtml(t('admin')) + '</span>' : '') + '</div>').join('')
+    : '<div class="member-num">' + escHtml(t('noMembers')) + '</div>';
+  modal.classList.add('open');
+}
+
+// ── Kontaktinfo: Klick aufs Profilbild (Chatliste und Chat-Kopf) ──
+async function openContactInfo(chatId) {
+  let modal = document.getElementById('contact-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'contact-modal';
+    modal.innerHTML = '<div class="contact-modal-box"><div class="contact-modal-pic" id="cm-pic"></div>'
+      + '<div class="contact-modal-name" id="cm-name"></div><div class="contact-modal-sub" id="cm-profile"></div>'
+      + '<div class="contact-modal-number" id="cm-number"></div><div class="contact-modal-sub" id="cm-username"></div>'
+      + '<div class="contact-modal-about" id="cm-about"></div><div class="contact-modal-sub" id="cm-stats"></div>'
+      + '<div id="cm-members"></div></div>';
+    modal.addEventListener('click', ev => { if (ev.target === modal) modal.classList.remove('open'); });
+    document.body.appendChild(modal);
+  }
+  const chat = allChats.find(c => c.id === chatId) || { id: chatId, name: chatId };
+  const pic = document.getElementById('cm-pic');
+  pic.style.background = chat.isGroup ? '#3a76f0' : avatarColor(chat.name || chat.id);
+  pic.innerHTML = (chat.isGroup ? '👥' : escHtml(avatarInitial(chat.name || chat.id))) + avatarImg(chatId);
+  const img = pic.querySelector('img');
+  if (img) img.addEventListener('click', () => openImg(img.src));
+  ['cm-profile', 'cm-number', 'cm-username', 'cm-about', 'cm-stats', 'cm-members'].forEach(id => { document.getElementById(id).textContent = ''; });
+  document.getElementById('cm-name').textContent = chat.name || chat.id;
+  modal.classList.add('open');
+  let d;
+  try { d = await fetch(api('/api/contact/' + encodeURIComponent(chatId))).then(r => r.json()); } catch (e) { return; }
+  if (!d || d.error) return;
+  document.getElementById('cm-name').textContent = d.name;
+  // Signal-Profilname nur zeigen, wenn er vom gespeicherten Namen abweicht
+  if (d.profileName && d.profileName !== d.name) document.getElementById('cm-profile').textContent = t('signalName') + ': ' + d.profileName;
+  if (d.number) document.getElementById('cm-number').textContent = d.number;
+  if (d.username) document.getElementById('cm-username').textContent = '@' + d.username;
+  document.getElementById('cm-about').textContent = d.isGroup ? d.description : d.about;
+  if (d.total) document.getElementById('cm-stats').textContent = d.total + ' ' + t('statsMsg')
+    + (d.first ? '  ·  ' + t('statsSince') + ' ' + new Date(Number(d.first)).toLocaleDateString(locale()) : '');
+  if (d.isGroup) {
+    const list = await getParticipants(chatId);
+    if (list.length) document.getElementById('cm-members').innerHTML = '<div class="member-num" style="margin:8px 0 4px">'
+      + escHtml(t('membersTitle')) + ' (' + (list.length + 1) + ')</div>'
+      + list.map(p => '<div class="member-item"><div class="member-name">' + escHtml(p.name) + '</div>'
+        + (p.admin ? '<span class="member-admin">' + escHtml(t('admin')) + '</span>' : '') + '</div>').join('');
+  }
+}
+// Avatar in der Chatliste: Kontaktinfo statt Chat oeffnen
+document.addEventListener('click', ev => {
+  const av = ev.target.closest('.chat-item .avatar');
+  if (!av) return;
+  ev.stopPropagation();
+  ev.preventDefault();
+  openContactInfo(av.closest('.chat-item').dataset.chatid);
+}, true);
+
+// @-Vorschlaege im Eingabefeld (nur Gruppen). Ausgewaehlte Namen werden gemerkt
+// und beim Senden zu mentions [{start, length, author}].
+let _mentionTracked = [], _mentionHits = [], _mentionAt = -1, _mentionSel = 0;
+function hideMentions() {
+  const d = document.getElementById('mention-dropdown');
+  if (d) d.style.display = 'none';
+  _mentionHits = []; _mentionAt = -1;
+}
+async function onMentionInput(el) {
+  const chat = allChats.find(c => c.id === selectedChatId);
+  if (!chat || !chat.isGroup) return hideMentions();
+  const pos = el.selectionStart;
+  const before = el.value.slice(0, pos);
+  const at = before.lastIndexOf('@');
+  if (at < 0 || (at > 0 && before.charCodeAt(at - 1) > 32)) return hideMentions();
+  const q = before.slice(at + 1).toLowerCase();
+  for (let i = 0; i < q.length; i++) if (q.charCodeAt(i) <= 32) return hideMentions();
+  const list = await getParticipants(chat.id);
+  _mentionHits = list.filter(p => p.name.toLowerCase().includes(q) || (p.number || '').includes(q)).slice(0, 8);
+  if (!_mentionHits.length) return hideMentions();
+  _mentionAt = at; _mentionSel = 0;
+  let d = document.getElementById('mention-dropdown');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = 'mention-dropdown';
+    d.addEventListener('mousedown', ev => {
+      const it = ev.target.closest('.mention-item');
+      if (it) { ev.preventDefault(); pickMention(Number(it.dataset.i)); }
+    });
+    document.body.appendChild(d);
+  }
+  d.innerHTML = _mentionHits.map((p, i) => '<div class="mention-item' + (i === _mentionSel ? ' active' : '') + '" data-i="' + i + '">'
+    + escHtml(p.name) + (p.number ? ' <span class="member-num">' + escHtml(p.number) + '</span>' : '') + '</div>').join('');
+  const r = el.getBoundingClientRect();
+  d.style.display = 'block';
+  d.style.left = r.left + 'px';
+  d.style.width = Math.min(320, r.width) + 'px';
+  d.style.top = (r.top - d.offsetHeight - 6) + 'px';
+}
+function pickMention(i) {
+  const p = _mentionHits[i];
+  const el = document.getElementById('msg-input');
+  if (!p || _mentionAt < 0) return hideMentions();
+  const pos = el.selectionStart;
+  const ins = '@' + p.name + ' ';
+  el.value = el.value.slice(0, _mentionAt) + ins + el.value.slice(pos);
+  const caret = _mentionAt + ins.length;
+  el.setSelectionRange(caret, caret);
+  _mentionTracked.push({ name: p.name, author: p.number || p.uuid });
+  hideMentions();
+  el.focus();
+}
+function mentionKey(e) {
+  if (!_mentionHits.length) return false;
+  const d = document.getElementById('mention-dropdown');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    _mentionSel = (_mentionSel + (e.key === 'ArrowDown' ? 1 : _mentionHits.length - 1)) % _mentionHits.length;
+    d.querySelectorAll('.mention-item').forEach((n, i) => n.classList.toggle('active', i === _mentionSel));
+    return true;
+  }
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(_mentionSel); return true; }
+  if (e.key === 'Escape') { hideMentions(); return true; }
+  return false;
+}
+// Positionen im endgueltigen Text (UTF-16 wie bei Signal); jede gemerkte
+// Erwaehnung zaehlt nur einmal
+function buildMentions(text) {
+  const out = [];
+  const used = new Set();
+  for (const m of _mentionTracked) {
+    const needle = '@' + m.name;
+    let from = 0, idx;
+    while ((idx = text.indexOf(needle, from)) !== -1) {
+      if (!used.has(idx)) { used.add(idx); out.push({ start: idx, length: needle.length, author: m.author }); break; }
+      from = idx + 1;
+    }
+  }
+  return out.length ? out : undefined;
+}
+document.getElementById('msg-input').addEventListener('input', e => onMentionInput(e.target));
+document.getElementById('msg-input').addEventListener('blur', () => setTimeout(hideMentions, 150));
 
 function renderChats(chats) {
   const q = document.getElementById('search-input').value.toLowerCase();
@@ -1829,6 +2437,12 @@ function openChat(chat) {
     av.style.background = avatarColor(chat.name || chat.id);
     av.style.fontSize = '14px';
   }
+  av.insertAdjacentHTML('beforeend', avatarImg(chat.id));
+  av.onclick = () => openContactInfo(chat.id);
+  av.style.cursor = 'pointer';
+  document.getElementById('members-btn').style.display = chat.isGroup ? '' : 'none';
+  _mentionTracked = [];
+  hideMentions();
   renderChats(allChats);
   _lastMsgFingerprint[chat.id] = '';
   _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; _historyMode[chat.id] = false; // Pagination/Verlauf zurücksetzen
@@ -1847,7 +2461,9 @@ function msgFingerprint(msgs) {
   const last = msgs[msgs.length - 1];
   const videoKey = msgs.filter(m => m.type === 'video').map(m => m.id + ':' + (m.mediaFile || '0')).join('|');
   const ackKey = msgs.filter(m => m.fromMe).reduce((s, m) => s + (m.ack || 0), 0);
-  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + ackKey;
+  // Reaktionen vor ackKey: eine geaenderte Reaktion braucht ein volles Neuzeichnen
+  const reactKey = msgs.filter(m => m.reactions).map(m => m.id + '=' + Object.values(m.reactions).join('')).join('|');
+  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + reactKey + ':' + ackKey;
 }
 
 function updateAckMarksInPlace(msgs) {
@@ -1873,6 +2489,7 @@ async function loadMessages(chatId, forceRender = false) {
     if (!forceRender && _lastMsgFingerprint[chatId] === fp) return;
     const prev = _lastMsgFingerprint[chatId] || '';
     _lastMsgFingerprint[chatId] = fp;
+    markChatRead(chatId);
     // Nur ACK geändert? In-Place-Update statt Full-Re-Render
     if (!forceRender && prev && fp.slice(0, fp.lastIndexOf(':')) === prev.slice(0, prev.lastIndexOf(':'))) {
       updateAckMarksInPlace(recent);
@@ -1958,7 +2575,9 @@ function renderMessages(msgs, opts) {
     const time = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
     const ack = m.fromMe ? ackMark(m.ack ?? -1) : '';
     let content;
-    if (m.type === 'voice' && m.mediaFile) {
+    if (m.deleted && !m.body && !m.mediaFile) {
+      content = '<span class="deleted-msg">🚫 ' + escHtml(t('deletedMsg')) + '</span>';
+    } else if (m.type === 'voice' && m.mediaFile) {
       content = \`<audio controls style="min-width:220px;max-width:280px;width:100%" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></audio>\`;
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'voice') {
@@ -1988,10 +2607,16 @@ function renderMessages(msgs, opts) {
     }
     const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
     const chatForReply = allChats.find(c => c.id === selectedChatId);
-    const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name || selectedChatId || '');
+    const replyContact = m.fromMe ? 'Ich' : (m.author || chatForReply?.name || selectedChatId || '');
+    // Gruppen: Absender ueber der Bubble, sonst weiss man nicht, wer schreibt
+    const authorHtml = (!m.fromMe && m.author) ? \`<div class="bubble-author">\${escHtml(m.author)}</div>\` : '';
+    const reactHtml = reactionsBar(m);
     const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='video'?'📹 Video':m.type==='photo'?'📷 Foto':'')).slice(0,60));
     const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
+    // Vom Absender geloescht (mit keep_deleted bleibt der Inhalt, dazu eine Markierung)
+    const delBadge = (m.deleted && (m.body || m.mediaFile)) ? '<div class="deleted-badge">🚫 ' + escHtml(t('deletedBadge')) + '</div>' : '';
+    const editedLabel = m.edited ? '<span class="edited-label">' + escHtml(t('edited')) + '</span> ' : '';
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}\${m.deleted ? ' deleted' : ''}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${authorHtml}\${quotedHtml}\${content}\${delBadge}<div class="bubble-time">\${editedLabel}\${time}\${ack}</div>\${reactHtml}</div><button class="react-btn" data-msgid="\${escHtml(m.id)}" title="\${t('btnReact')}">${_SVG.react}</button><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
   // Noch nicht bestätigte eigene Nachrichten ausgegraut ans Ende hängen
   let _pendHtml = '';
@@ -2140,8 +2765,9 @@ async function sendMsg() {
   try {
     const endpoint = replyId ? api('/api/reply') : api('/api/send');
     const payload = replyId
-      ? { to: chatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody }
-      : { to: chatId, message: text };
+      ? { to: chatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody, mentions: buildMentions(text) }
+      : { to: chatId, message: text, mentions: buildMentions(text) };
+    _mentionTracked = [];
     const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()).catch(() => null);
     dropPending(chatId, tmpId);
     if (!r || !r.success) {
@@ -2265,6 +2891,7 @@ document.getElementById('messages').addEventListener('click', e => {
 });
 
 function handleKey(e) {
+  if (mentionKey(e)) return;
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
 }
 function autoResize(el) {

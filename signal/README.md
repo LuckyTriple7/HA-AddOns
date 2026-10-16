@@ -11,12 +11,18 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 
 - **QR-Login**: Einmalig QR-Code scannen, Session bleibt dauerhaft erhalten
 - **Web-UI**: Chat-Liste, Konversationen, Nachrichten senden/empfangen direkt in der HA-Sidebar
-- **Nachrichten löschen**: Lokal sofort entfernt; platform-seitiges "Für alle löschen" wird im Hintergrund versucht (erfordert aktuelle signal-cli-rest-api)
+- **Nachrichten löschen**: Lokal sofort entfernt; eigene Nachrichten werden zusätzlich für alle gelöscht, auch beim Empfänger
 - **Ungelesene-Badge**: Grüner Punkt in der Sidebar bei neuen Nachrichten
 - **Datei-Upload**: 📎-Button zum Senden von Bildern und Dokumenten aus dem Browser (max. 64 MB)
 - **Chat-Filter**: Tabs „Alle / Privat / Gruppen" in der Sidebar; Gruppen mit 👥-Avatar
 - **Chat-Export**: 💾-Button im Chat-Header — exportiert alle Nachrichten als HTML-Datei (Bilder inline eingebettet)
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
+- **Reaktionen**: Mit dem Smiley neben einer Nachricht reagieren; Reaktionen anderer erscheinen unter der Nachricht, ein Klick auf die eigene nimmt sie zurück
+- **Lesebestätigungen**: Absender sehen, dass du gelesen hast, sobald der Chat offen ist (abschaltbar mit `send_read_receipts`)
+- **Profilbilder**: Bilder von Kontakten und Gruppen in Chatliste und Chat-Kopf, einmal am Tag aktualisiert
+- **Gruppen**: Gruppennachrichten stehen im Gruppenchat, mit Absendername über jeder Nachricht; 👥-Button im Chat-Kopf zeigt die Mitglieder
+- **Erwähnungen**: In Gruppen schlägt `@` Mitglieder vor; empfangene Erwähnungen erscheinen als `@Name`
+- **Bearbeiten und Löschen durch den Absender**: Bearbeitete Nachrichten werden aktualisiert und als „bearbeitet" markiert, für alle gelöschte durch einen Hinweis ersetzt (oder mit `keep_deleted` behalten)
 - **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
 - **Persistente Session**: Kein erneutes Verknüpfen nach Neustart
 - **REST-API**: Nachrichten aus Automatisierungen heraus senden
@@ -65,7 +71,7 @@ GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
 POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
 GET  /api/export/:chatId             → Chat als HTML-Datei herunterladen
-DELETE /api/messages/:chatId/:msgId  → Nachricht lokal löschen (+ Versuch "Für alle")
+DELETE /api/messages/:chatId/:msgId  → Nachricht lokal löschen (eigene auch für alle)
 POST /api/logout                     → Abmelden
 ```
 
@@ -87,9 +93,14 @@ curl -X POST http://<HA-IP>:17787/api/send \
   "from": "+4915123456789",
   "name": "Max Mustermann",
   "message": "Hallo!",
-  "timestamp": 1716123456789
+  "type": "text",
+  "timestamp": 1716123456789,
+  "chat": "group.UVVKRFJBPT0=",
+  "group": "Familie"
 }
 ```
+
+`from` ist immer der Absender. `chat` ist der Chat, in dem die Nachricht steht: bei Einzelchats die Nummer, bei Gruppen die Gruppen-ID. `group` (Gruppenname) gibt es nur bei Gruppennachrichten.
 
 ## HA-Automatisierung (Beispiel)
 
@@ -188,7 +199,6 @@ Das reicht aus, um die aktuelle Version der Bibliothek zu laden.
 - Basiert auf [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
 - Das Konto wird als verknüpftes Gerät hinzugefügt, nicht als Primärgerät registriert
 - Zum Abmelden: Button "Abmelden" in der UI, danach auch in Signal unter Verknüpfte Geräte entfernen
-- "Für alle löschen" erfordert eine aktuelle Version von signal-cli-rest-api; ältere Versionen löschen nur lokal
 - Das Sidebar-Logo (`phu:signal`) erfordert [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
 
 → [Changelog](CHANGELOG.md)
@@ -205,11 +215,17 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 
 - **QR login**: Scan the QR code once, session persists permanently
 - **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
-- **Delete messages**: Removed locally immediately; platform-side "delete for everyone" is attempted in the background (requires a recent signal-cli-rest-api)
+- **Delete messages**: Removed locally immediately; your own messages are also deleted for everyone, including on the recipient's device
 - **Unread badge**: Green dot in the sidebar for new messages
 - **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
 - **Chat filter**: Tabs "All / Private / Groups" in the sidebar; groups with 👥 avatar
 - **Chat export**: 💾 button in the chat header — exports all messages as an HTML file (images embedded inline)
+- **Reactions**: React with the smiley next to a message; other people's reactions appear below it, clicking your own removes it
+- **Read receipts**: Senders see that you have read their message as soon as the chat is open (can be turned off with `send_read_receipts`)
+- **Profile pictures**: Contact and group pictures in the chat list and chat header, refreshed once a day
+- **Groups**: Group messages appear in the group chat, with the sender's name above each message; the 👥 button in the chat header shows the members
+- **Mentions**: In groups, `@` suggests members; received mentions show up as `@Name`
+- **Edits and deletes by the sender**: Edited messages are updated and marked "edited", messages deleted for everyone are replaced by a notice (or kept with `keep_deleted`)
 - **Emoji keyboard**: 😊 button in the input field
 - **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser
 - **Persistent session**: No re-linking after restart
@@ -259,7 +275,7 @@ GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
 POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
 GET  /api/export/:chatId             → Download chat as HTML file
-DELETE /api/messages/:chatId/:msgId  → Delete message locally (+ attempt "for everyone")
+DELETE /api/messages/:chatId/:msgId  → Delete message locally (own ones also for everyone)
 POST /api/logout                     → Log out
 ```
 
@@ -281,9 +297,14 @@ curl -X POST http://<HA-IP>:17787/api/send \
   "from": "+4915123456789",
   "name": "John Doe",
   "message": "Hello!",
-  "timestamp": 1716123456789
+  "type": "text",
+  "timestamp": 1716123456789,
+  "chat": "group.UVVKRFJBPT0=",
+  "group": "Family"
 }
 ```
+
+`from` is always the sender. `chat` is the chat the message belongs to: the number for direct chats, the group ID for groups. `group` (group name) is only present for group messages.
 
 ## HA Automation (example)
 
@@ -382,7 +403,6 @@ That's all it takes to pull the current library version.
 - Based on [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
 - The account is added as a linked device, not registered as a primary device
 - To log out: use the "Log out" button in the UI, then also remove the device in Signal under Linked Devices
-- "Delete for everyone" requires a recent version of signal-cli-rest-api; older versions only delete locally
 - The sidebar icon (`phu:signal`) requires [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
 
 ## Lizenz

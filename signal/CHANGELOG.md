@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.7.4] - 2026-10-16
+- Neu: **Kontaktinfo per Klick aufs Profilbild** — in der Chatliste und im Chat-Kopf, wie bei WhatsApp. Zeigt großes Profilbild (Klick vergrößert es), Namen, abweichenden Signal-Profilnamen, Nummer, Signal-Benutzernamen, Info-Text und wie viele Nachrichten seit wann im Chat liegen. Bei Gruppen stattdessen Beschreibung und Mitglieder
+- Kontakt- und Gruppenliste übernehmen dafür Profilname, Info-Text, Benutzername und Gruppenbeschreibung; umbenannte Gruppen bekommen ihren neuen Namen
+
+## [1.7.3] - 2026-10-16
+- Fix: Der Emoji-Button neben der Büroklammer war seit 1.7.1 kleiner als sonst. Das neue Icon für den Reaktions-Button trug denselben Namen und überschrieb das bisherige; es heißt jetzt eigenständig
+
+## [1.7.2] - 2026-10-16
+- Neu: **Bearbeitete Nachrichten** werden übernommen — der Text wird ersetzt und die Uhrzeit trägt „bearbeitet". Gilt auch für Nachrichten, die du am Handy bearbeitest
+- Neu: **„Für alle löschen" durch den Absender** wird übernommen: ein Hinweis ersetzt die Nachricht, Anhänge, Zitat und Reaktionen verschwinden. Neue Option `keep_deleted` (Standard: aus) behält stattdessen den Inhalt mit einer 🚫-Markierung. Antworten, Weiterleiten und Reagieren sind bei gelöschten Nachrichten ausgeblendet
+- Neu: **Erwähnungen.** Empfangene Erwähnungen erscheinen als `@Name` statt als unsichtbarer Platzhalter. In Gruppen schlägt `@` im Eingabefeld Mitglieder vor (Pfeiltasten, Enter oder Tab übernehmen); beim Senden wird daraus eine echte Signal-Erwähnung
+- Neu: **Mitgliederliste.** Der 👥-Button im Kopf eines Gruppenchats zeigt alle Mitglieder mit Profilbild und Admin-Kennzeichen
+- Liest du am Handy, schickt die Oberfläche für diese Nachrichten keine eigene Lesebestätigung mehr hinterher
+
+## [1.7.1] - 2026-10-16
+- Neu: **Reaktionen.** Ein Smiley-Button neben jeder Nachricht öffnet sechs Schnell-Reaktionen. Reaktionen erscheinen unter der Nachricht mit Anzahl, die eigene ist blau umrandet; ein Klick darauf nimmt sie zurück. Reaktionen von anderen und die, die du am Handy setzt, kommen über den Empfang mit. Wie in Signal hat jede Person höchstens eine Reaktion pro Nachricht
+- Neu: **Lesebestätigungen senden.** Ist ein Chat in der Oberfläche sichtbar offen, bekommen die Absender eine Lesebestätigung (in Gruppen jeder einzeln). Pro Aufruf höchstens die letzten 20 offenen Nachrichten; ältere gelten als erledigt, damit nach dem Update keine Flut an Quittungen rausgeht. Neue Option `send_read_receipts` (Standard: an)
+- Neu: **Profilbilder** von Kontakten und Gruppen in Chatliste und Chat-Kopf. Sie werden unter `/config/avatars/` zwischengespeichert und einmal am Tag neu geholt; ohne Bild bleibt die Initiale. Die Kontaktliste merkt sich dafür die Signal-UUID
+
+## [1.7.0] - 2026-10-16
+- Fix: **Gruppennachrichten landen in der Gruppe.** Bisher wurde `groupInfo` nicht ausgewertet: eine Nachricht aus einer Gruppe erschien im Privatchat des Absenders, die Gruppenchats aus der Gruppenliste blieben leer, und wer darin antwortete, schrieb dem Absender privat. Jetzt gehört jede Gruppennachricht in den Chat der Gruppe — auch die, die du am Handy in eine Gruppe schreibst (Sync-Nachrichten ohne Empfänger wurden bisher verworfen)
+- In Gruppen steht der Name des Absenders über jeder fremden Nachricht, die Chatliste zeigt „Name: Text". HA-Benachrichtigungen nennen Absender und Gruppe
+- Webhook: neue Felder `chat` (Chat-ID, bei Gruppen `group.…`) und `group` (Gruppenname, nur bei Gruppen). `from` ist wie bisher der Absender
+- Fix: **Antworten kamen beim Empfänger ohne Zitat an.** Die Oberfläche schickte `quote: {…}`, `/v2/send` erwartet aber `quote_timestamp`, `quote_author` und `quote_message` und ignorierte das Feld. Lokal sah die Antwort trotzdem richtig aus
+- Zitate in Nachrichten, die du am Handy schreibst, werden jetzt ebenfalls übernommen
+- Ältere Gruppennachrichten bleiben im Privatchat des Absenders, sie werden nicht umsortiert
+
+## [1.6.35] - 2026-10-16
+- Fix: **„Für alle löschen" kam beim Empfänger nie an.** Die Oberfläche schickte `deleteForEveryone` an `/v2/send`, dieses Feld kennt signal-cli-rest-api aber nicht. Gelöscht wird jetzt über `DELETE /v1/remote-delete`, auch in Gruppen. Lokal verschwand die Nachricht schon immer
+- Nur noch eigene Nachrichten werden für alle gelöscht — fremde kann Signal ohnehin nicht beim Absender entfernen. Schlägt das Löschen fehl, steht eine Warnung im Log statt einer Debug-Zeile
+- README: Hinweis auf eine „aktuelle signal-cli-rest-api" für das Löschen entfernt
+
+## [1.6.34] - 2026-10-16
+- Fix: **Lese- und Zustellbestätigungen fehlten seit 1.6.33, es blieb bei einem Häkchen.** Im Daemon-Betrieb liefert `/v2/send` ein Array (`[{"timestamp":"…"}]`) statt eines Objekts. Der Zeitstempel wurde deshalb nicht erkannt, und die Oberfläche speicherte stattdessen die eigene Uhrzeit nach dem Versand. Die Bestätigungen tragen aber den echten Signal-Zeitstempel und fanden so keine Nachricht mehr. Gilt für Senden, Antworten, Weiterleiten und Medienversand
+- Nachrichten, die mit 1.6.33 gesendet wurden, behalten den falschen Zeitstempel: Sie bekommen keine Häkchen mehr, und „Für alle löschen" erreicht sie auf dem Handy des Empfängers nicht
+
 ## [1.6.33] - 2026-10-11
 - Fix: **Extreme Schreiblast auf dem Datenträger (gemessen 26 MB/s, rund 2,2 TB pro Tag).** signal-cli lief nicht als Daemon, wie der Eintrag zu 1.0.9 behauptete: der Modus `native` von signal-cli-rest-api startet für jeden REST-Aufruf einen neuen signal-cli-Prozess. Mit dem 10-Sekunden-Poll auf `/v1/receive` und den Abfragen von Konten, Kontakten und Gruppen waren das rund 10.000 Starts am Tag, und jeder entpackte `libsignal_jni` und `libsqlitejdbc` neu nach `/tmp` und schrieb `account.db`. Auf dem Produktivsystem standen nach neun Tagen 20,1 TB im Schreibzähler des Containers
 - **signal-cli läuft jetzt als Daemon** (`MODE=json-rpc-native`, mit `native_mode: false` `json-rpc` auf der JVM). `run.sh` startet Daemon und signal-cli-rest-api als Benutzer 1000 und startet beide neu, falls einer ausfällt
