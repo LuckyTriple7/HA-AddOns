@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.3] - 2026-10-16
+- Fix: Der Emoji-Button neben der Büroklammer war seit 1.7.1 kleiner als sonst. Das neue Icon für den Reaktions-Button trug denselben Namen und überschrieb das bisherige; es heißt jetzt eigenständig
+
 ## [1.7.2] - 2026-10-16
 - Neu: **Bearbeitete Nachrichten** werden übernommen — der Text wird ersetzt und die Uhrzeit trägt „bearbeitet". Gilt auch für Nachrichten, die du am Handy bearbeitest
 - Neu: **„Für alle löschen" durch den Absender** wird übernommen: ein Hinweis ersetzt die Nachricht, Anhänge, Zitat und Reaktionen verschwinden. Neue Option `keep_deleted` (Standard: aus) behält stattdessen den Inhalt mit einer 🚫-Markierung. Antworten, Weiterleiten und Reagieren sind bei gelöschten Nachrichten ausgeblendet
