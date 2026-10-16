@@ -1,6 +1,6 @@
 name: Signal
 description: Signal Messenger mit persistenter Session, Web-UI, REST-API und Webhook für Home Assistant
-version: "1.7.1"
+version: "1.7.2"
 image: "ghcr.io/luckytriple7/signal"
 slug: signal
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -50,6 +50,7 @@ options:
   ha_notifications: false
   ha_notifications_privacy: false
   send_read_receipts: true
+  keep_deleted: false
 
 schema:
   api_enabled: bool
@@ -64,3 +65,4 @@ schema:
   ha_notifications: bool
   ha_notifications_privacy: bool
   send_read_receipts: bool
+  keep_deleted: bool

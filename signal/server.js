@@ -89,6 +89,7 @@ const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 5
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const SEND_READ_RECEIPTS = process.env.SEND_READ_RECEIPTS !== 'false';
+const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 // SUPERVISOR_TOKEN wird vom Supervisor automatisch injiziert (homeassistant_api: true) —
 // kein manuell eingetragener Token mehr nötig.
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
@@ -319,6 +320,62 @@ function applyReaction(chatId, reactor, r) {
   scheduleSave();
 }
 
+// Erwaehnungen: signal-cli liefert im Text U+FFFC als Platzhalter, dazu
+// mentions [{number, uuid, start, length}]. Hier wird daraus "@Name".
+function mentionName(number, uuid) {
+  const n = normPhone(number || '');
+  if (n === PHONE_NUMBER) return 'Ich';
+  const chat = (n && chatMap.get(n)) || (uuid && [...chatMap.values()].find(c => c.uuid === uuid));
+  return (chat && chat.name) || n || 'Unbekannt';
+}
+function applyMentions(text, mentions) {
+  let out = text;
+  // Von hinten ersetzen, damit die Positionen davor gueltig bleiben
+  for (const m of [...mentions].sort((a, b) => b.start - a.start)) {
+    if (typeof m.start !== 'number' || typeof m.length !== 'number') continue;
+    out = out.slice(0, m.start) + '@' + mentionName(m.number, m.uuid) + out.slice(m.start + m.length);
+  }
+  return out;
+}
+
+function applyEdit(chatId, author, ts, data) {
+  const target = findTargetMsg(chatId, Number(ts), author);
+  if (!target) { dbg(`edit: Zielnachricht ${ts} in ${chatId} nicht gefunden`); return; }
+  let text = data.message || '';
+  if (Array.isArray(data.mentions) && data.mentions.length) text = applyMentions(text, data.mentions);
+  target.body = text;
+  target.edited = true;
+  scheduleSave();
+}
+
+// "Fuer alle loeschen" durch den Absender. Mit keep_deleted bleibt der Inhalt
+// sichtbar und bekommt nur eine Markierung, sonst ersetzt ein Hinweis den Text.
+function applyRemoteDelete(chatId, author, ts) {
+  const target = findTargetMsg(chatId, Number(ts), author);
+  if (!target) { dbg(`remoteDelete: Zielnachricht ${ts} in ${chatId} nicht gefunden`); return; }
+  target.deleted = true;
+  if (!KEEP_DELETED) {
+    target.body = '';
+    delete target.attIds;
+    delete target.mediaFile;
+    delete target.quotedMsg;
+    delete target.reactions;
+  }
+  scheduleSave();
+}
+
+function markReadOnPhone(list) {
+  let changed = false;
+  for (const r of list) {
+    const author = normPhone(r.senderNumber || r.sender || '');
+    for (const msgs of messagesByChatId.values()) {
+      const m = msgs.find(x => !x.fromMe && Number(x.timestamp) === Number(r.timestamp) && (!author || normPhone(x.from) === author));
+      if (m && !m.readSent) { m.readSent = true; changed = true; break; }
+    }
+  }
+  if (changed) scheduleSave();
+}
+
 // Chat-ID einer Gruppe wie bei signal-cli-rest-api (/v1/groups liefert "id"):
 // "group." + Base64 der internen ID, die signal-cli selbst schon Base64 ausgibt
 function groupChatIdOf(internalId) {
@@ -340,19 +397,26 @@ function processEnvelope(envelope) {
     return;
   }
 
+  // Am Handy gelesen: keine eigene Lesebestaetigung mehr fuer diese Nachrichten
+  const readOnPhone = env.syncMessage?.readMessages;
+  if (Array.isArray(readOnPhone) && readOnPhone.length) { markReadOnPhone(readOnPhone); return; }
+
   // Sync-Nachrichten: vom eigenen Gerät (Handy) gesendete Nachrichten
   const sm = env.syncMessage?.sentMessage;
 
   // Gruppennachricht: Chat ist die Gruppe, nicht der Absender. Bis 1.6.x
   // landeten Gruppennachrichten im Privatchat des Absenders.
-  const groupInfo = sm ? sm.groupInfo : env.dataMessage?.groupInfo;
+  // Bei Bearbeitungen steckt groupInfo in editMessage.dataMessage
+  const edit = sm ? sm.editMessage : env.editMessage;
+  const groupInfo = sm ? (sm.groupInfo || edit?.dataMessage?.groupInfo) : (env.dataMessage?.groupInfo || edit?.dataMessage?.groupInfo);
   const groupChatId = groupInfo && groupInfo.groupId ? groupChatIdOf(groupInfo.groupId) : '';
 
   let dm, chatId, isOwn, senderName, source;
   if (sm) {
     const dest = groupChatId || normPhone(sm.destinationNumber || sm.destination);
     if (!dest) { dbg('processEnvelope: syncMessage ohne Ziel, übersprungen'); return; }
-    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [], quote: sm.quote, reaction: sm.reaction };
+    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [], quote: sm.quote, reaction: sm.reaction,
+      remoteDelete: sm.remoteDelete, mentions: sm.mentions };
     chatId = dest;
     isOwn = true;
     source = PHONE_NUMBER;
@@ -367,6 +431,10 @@ function processEnvelope(envelope) {
 
   // Reaktion (auch eigene vom Handy): an die Zielnachricht haengen, keine eigene Bubble
   if (dm && dm.reaction) { applyReaction(chatId, isOwn ? PHONE_NUMBER : source, dm.reaction); return; }
+  // Bearbeitung und "Fuer alle loeschen" durch den Absender (auch eigene vom Handy)
+  if (edit && edit.dataMessage) { applyEdit(chatId, source, edit.targetSentTimestamp, edit.dataMessage); return; }
+  if (dm && dm.remoteDelete) { applyRemoteDelete(chatId, source, dm.remoteDelete.targetTimestamp || dm.remoteDelete.timestamp); return; }
+  if (dm && dm.message && Array.isArray(dm.mentions) && dm.mentions.length) dm = { ...dm, message: applyMentions(dm.message, dm.mentions) };
 
   const hasText = !!(dm && dm.message);
   const hasAttachments = !!(dm && Array.isArray(dm.attachments) && dm.attachments.length > 0);
@@ -836,13 +904,14 @@ app.post('/api/poll', (req, res) => {
 
 app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
+  const mentions = cleanMentions(req.body.mentions, message);
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
   try {
     dbg(`Sending message: "${message.slice(0,60)}${message.length>60?'…':''}"`);
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to] }),
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], ...(mentions ? { mentions } : {}) }),
       signal: AbortSignal.timeout(10000),
     });
     const result = await r.json();
@@ -873,6 +942,7 @@ app.post('/api/send', async (req, res) => {
 
 app.post('/api/reply', async (req, res) => {
   const { to, message, quoteTimestamp, quoteAuthor, quoteBody } = req.body;
+  const mentions = cleanMentions(req.body.mentions, message);
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
   try {
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
@@ -880,7 +950,7 @@ app.post('/api/reply', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       // Feldnamen laut signal-cli-rest-api; bis 1.6.x stand hier quote: {…}, das
       // die API ignorierte — beim Empfaenger kam die Antwort ohne Zitat an
-      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote_timestamp: Number(quoteTimestamp), quote_author: quoteAuthor, quote_message: quoteBody || '' }),
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote_timestamp: Number(quoteTimestamp), quote_author: quoteAuthor, quote_message: quoteBody || '', ...(mentions ? { mentions } : {}) }),
       signal: AbortSignal.timeout(10000),
     });
     const result = await r.json();
@@ -1036,6 +1106,43 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
   }
   res.json({ success: true });
 });
+
+// ── Gruppenmitglieder und Erwaehnungen ───────────────────────────────
+// /v1/groups/{n}/{id} liefert members als Nummer oder, ohne bekannte Nummer, als
+// UUID. Namen kommen aus der Kontaktliste. 10 Minuten zwischengespeichert.
+const _participantsCache = new Map();
+app.get('/api/participants/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  const chat = chatMap.get(chatId);
+  if (!chat || !chat.isGroup || !PHONE_NUMBER) return res.json([]);
+  const hit = _participantsCache.get(chatId);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return res.json(hit.list);
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/groups/${encodeURIComponent(PHONE_NUMBER)}/${encodeURIComponent(chatId)}`, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return res.json([]);
+    const g = await r.json();
+    const admins = new Set((g.admins || []).map(normPhone));
+    const list = (g.members || []).map(m => {
+      const isNum = /^\+?\d{6,15}$/.test(String(m));
+      const number = isNum ? normPhone(m) : '';
+      return { number, uuid: isNum ? '' : m, name: mentionName(number, isNum ? '' : m), admin: admins.has(normPhone(m)) };
+    }).filter(p => p.number !== PHONE_NUMBER)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    _participantsCache.set(chatId, { at: Date.now(), list });
+    res.json(list);
+  } catch (e) {
+    res.json([]);
+  }
+});
+
+// Von der Oberflaeche: [{start, length, author}]; nur gueltige Bereiche im Text
+function cleanMentions(list, text) {
+  if (!Array.isArray(list) || !list.length || typeof text !== 'string') return null;
+  const out = list.filter(m => m && Number.isInteger(m.start) && Number.isInteger(m.length) && m.start >= 0 && m.length > 0
+    && m.start + m.length <= text.length && typeof m.author === 'string' && m.author)
+    .slice(0, 50).map(m => ({ start: m.start, length: m.length, author: m.author }));
+  return out.length ? out : null;
+}
 
 // ── Reaktionen ───────────────────────────────────────────────────────
 // emoji leer = eigene Reaktion entfernen
@@ -1354,6 +1461,26 @@ html.dark #reaction-picker { background: #1f2c34; border-color: #2a3942; }
 .reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 1px 7px; font-size: 13px; cursor: pointer; border: 1px solid #d9dbdf; background: #f0f2f5; color: #111; }
 html.dark .reaction-badge { background: #1f2c34; border-color: #2a3942; color: #e9edef; }
 .reaction-badge.own { border-color: #3a76f8; }
+.deleted-msg { font-style: italic; opacity: 0.7; }
+.deleted-badge { font-size: 11px; opacity: 0.7; margin-top: 3px; }
+.edited-label { font-style: italic; }
+.bubble-row.deleted .react-btn, .bubble-row.deleted .reply-btn, .bubble-row.deleted .fwd-btn { display: none !important; }
+#members-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+#members-modal.open { display: flex; }
+#members-list { overflow-y: auto; }
+#members-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #e9edef; }
+html.light #members-title { color: #111; }
+.member-item { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
+.member-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e9edef; font-size: 14px; }
+html.light .member-name { color: #111; }
+.member-num { font-size: 12px; opacity: 0.6; }
+.member-admin { font-size: 11px; color: #3a76f8; border: 1px solid #3a76f8; border-radius: 8px; padding: 0 6px; }
+#mention-dropdown { position: fixed; z-index: 300; display: none; max-height: 260px; overflow-y: auto; border-radius: 10px; background: #233138; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+html.light #mention-dropdown { background: #fff; border-color: #ddd; }
+.mention-item { padding: 8px 12px; cursor: pointer; font-size: 14px; color: #e9edef; }
+html.light .mention-item { color: #111; }
+.mention-item.active, .mention-item:hover { background: #2a3942; }
+html.light .mention-item.active, html.light .mention-item:hover { background: #f0f2f5; }
 .msg-ack { font-size: 11px; margin-left: 2px; vertical-align: middle; }
 .ack-1, .ack-2 { color: rgba(0,0,0,0.4); }
 .ack-3 { color: #3a76f8; }
@@ -1522,6 +1649,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
         <div id="ch-stats"></div>
       </div>
       ${DOWNLOAD_MEDIA ? `<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="fetchMediaTitle" title="Fehlende Fotos herunterladen">${_SVG.download}</button>` : ''}
+      <button id="members-btn" onclick="showMembers()" data-i18n-title="membersTitle" title="Mitglieder" style="display:none">👥</button>
       <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.disk}</button>
     </div>
@@ -1590,7 +1718,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Fehlende Fotos herunterladen',
     fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
-    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen', deletedMsg: 'Diese Nachricht wurde gelöscht', deletedBadge: 'vom Absender gelöscht', edited: 'bearbeitet', membersTitle: 'Mitglieder', admin: 'Admin', noMembers: 'Keine Mitglieder gefunden', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
     errSend: (e) => 'Fehler: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
@@ -1617,7 +1745,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Download missing photos',
     fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
-    msgPlaceholder: 'Message…', btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove', deletedMsg: 'This message was deleted', deletedBadge: 'deleted by sender', edited: 'edited', membersTitle: 'Members', admin: 'Admin', noMembers: 'No members found', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
     errSend: (e) => 'Error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
@@ -2036,6 +2164,120 @@ function markChatRead(chatId) {
   fetch(api('/api/read/' + encodeURIComponent(chatId)), { method: 'POST' }).catch(() => {});
 }
 
+// ── Gruppenmitglieder & Erwaehnungen ──
+const _participants = {};
+async function getParticipants(chatId) {
+  if (_participants[chatId]) return _participants[chatId];
+  try {
+    const list = await fetch(api('/api/participants/' + encodeURIComponent(chatId))).then(r => r.json());
+    _participants[chatId] = Array.isArray(list) ? list : [];
+  } catch (e) { _participants[chatId] = []; }
+  return _participants[chatId];
+}
+async function showMembers() {
+  const chatId = selectedChatId;
+  let modal = document.getElementById('members-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'members-modal';
+    modal.innerHTML = '<div class="fwd-modal-box"><h3 id="members-title"></h3><div id="members-list"></div></div>';
+    modal.addEventListener('click', ev => { if (ev.target === modal) modal.classList.remove('open'); });
+    document.body.appendChild(modal);
+  }
+  const list = await getParticipants(chatId);
+  document.getElementById('members-title').textContent = t('membersTitle') + ' (' + (list.length + 1) + ')';
+  document.getElementById('members-list').innerHTML = list.length
+    ? list.map(p => '<div class="member-item"><div class="avatar" style="width:32px;height:32px;font-size:13px;background:' + avatarColor(p.name) + '">'
+        + escHtml(avatarInitial(p.name)) + (p.number ? avatarImg(p.number) : '') + '</div><div class="member-name">' + escHtml(p.name)
+        + (p.number && p.number !== p.name ? '<div class="member-num">' + escHtml(p.number) + '</div>' : '') + '</div>'
+        + (p.admin ? '<span class="member-admin">' + escHtml(t('admin')) + '</span>' : '') + '</div>').join('')
+    : '<div class="member-num">' + escHtml(t('noMembers')) + '</div>';
+  modal.classList.add('open');
+}
+
+// @-Vorschlaege im Eingabefeld (nur Gruppen). Ausgewaehlte Namen werden gemerkt
+// und beim Senden zu mentions [{start, length, author}].
+let _mentionTracked = [], _mentionHits = [], _mentionAt = -1, _mentionSel = 0;
+function hideMentions() {
+  const d = document.getElementById('mention-dropdown');
+  if (d) d.style.display = 'none';
+  _mentionHits = []; _mentionAt = -1;
+}
+async function onMentionInput(el) {
+  const chat = allChats.find(c => c.id === selectedChatId);
+  if (!chat || !chat.isGroup) return hideMentions();
+  const pos = el.selectionStart;
+  const before = el.value.slice(0, pos);
+  const at = before.lastIndexOf('@');
+  if (at < 0 || (at > 0 && before.charCodeAt(at - 1) > 32)) return hideMentions();
+  const q = before.slice(at + 1).toLowerCase();
+  for (let i = 0; i < q.length; i++) if (q.charCodeAt(i) <= 32) return hideMentions();
+  const list = await getParticipants(chat.id);
+  _mentionHits = list.filter(p => p.name.toLowerCase().includes(q) || (p.number || '').includes(q)).slice(0, 8);
+  if (!_mentionHits.length) return hideMentions();
+  _mentionAt = at; _mentionSel = 0;
+  let d = document.getElementById('mention-dropdown');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = 'mention-dropdown';
+    d.addEventListener('mousedown', ev => {
+      const it = ev.target.closest('.mention-item');
+      if (it) { ev.preventDefault(); pickMention(Number(it.dataset.i)); }
+    });
+    document.body.appendChild(d);
+  }
+  d.innerHTML = _mentionHits.map((p, i) => '<div class="mention-item' + (i === _mentionSel ? ' active' : '') + '" data-i="' + i + '">'
+    + escHtml(p.name) + (p.number ? ' <span class="member-num">' + escHtml(p.number) + '</span>' : '') + '</div>').join('');
+  const r = el.getBoundingClientRect();
+  d.style.display = 'block';
+  d.style.left = r.left + 'px';
+  d.style.width = Math.min(320, r.width) + 'px';
+  d.style.top = (r.top - d.offsetHeight - 6) + 'px';
+}
+function pickMention(i) {
+  const p = _mentionHits[i];
+  const el = document.getElementById('msg-input');
+  if (!p || _mentionAt < 0) return hideMentions();
+  const pos = el.selectionStart;
+  const ins = '@' + p.name + ' ';
+  el.value = el.value.slice(0, _mentionAt) + ins + el.value.slice(pos);
+  const caret = _mentionAt + ins.length;
+  el.setSelectionRange(caret, caret);
+  _mentionTracked.push({ name: p.name, author: p.number || p.uuid });
+  hideMentions();
+  el.focus();
+}
+function mentionKey(e) {
+  if (!_mentionHits.length) return false;
+  const d = document.getElementById('mention-dropdown');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    _mentionSel = (_mentionSel + (e.key === 'ArrowDown' ? 1 : _mentionHits.length - 1)) % _mentionHits.length;
+    d.querySelectorAll('.mention-item').forEach((n, i) => n.classList.toggle('active', i === _mentionSel));
+    return true;
+  }
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(_mentionSel); return true; }
+  if (e.key === 'Escape') { hideMentions(); return true; }
+  return false;
+}
+// Positionen im endgueltigen Text (UTF-16 wie bei Signal); jede gemerkte
+// Erwaehnung zaehlt nur einmal
+function buildMentions(text) {
+  const out = [];
+  const used = new Set();
+  for (const m of _mentionTracked) {
+    const needle = '@' + m.name;
+    let from = 0, idx;
+    while ((idx = text.indexOf(needle, from)) !== -1) {
+      if (!used.has(idx)) { used.add(idx); out.push({ start: idx, length: needle.length, author: m.author }); break; }
+      from = idx + 1;
+    }
+  }
+  return out.length ? out : undefined;
+}
+document.getElementById('msg-input').addEventListener('input', e => onMentionInput(e.target));
+document.getElementById('msg-input').addEventListener('blur', () => setTimeout(hideMentions, 150));
+
 function renderChats(chats) {
   const q = document.getElementById('search-input').value.toLowerCase();
   let filtered = q ? chats.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : chats;
@@ -2097,6 +2339,9 @@ function openChat(chat) {
     av.style.fontSize = '14px';
   }
   av.insertAdjacentHTML('beforeend', avatarImg(chat.id));
+  document.getElementById('members-btn').style.display = chat.isGroup ? '' : 'none';
+  _mentionTracked = [];
+  hideMentions();
   renderChats(allChats);
   _lastMsgFingerprint[chat.id] = '';
   _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; _historyMode[chat.id] = false; // Pagination/Verlauf zurücksetzen
@@ -2229,7 +2474,9 @@ function renderMessages(msgs, opts) {
     const time = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
     const ack = m.fromMe ? ackMark(m.ack ?? -1) : '';
     let content;
-    if (m.type === 'voice' && m.mediaFile) {
+    if (m.deleted && !m.body && !m.mediaFile) {
+      content = '<span class="deleted-msg">🚫 ' + escHtml(t('deletedMsg')) + '</span>';
+    } else if (m.type === 'voice' && m.mediaFile) {
       content = \`<audio controls style="min-width:220px;max-width:280px;width:100%" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></audio>\`;
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'voice') {
@@ -2265,7 +2512,10 @@ function renderMessages(msgs, opts) {
     const reactHtml = reactionsBar(m);
     const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='video'?'📹 Video':m.type==='photo'?'📷 Foto':'')).slice(0,60));
     const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${authorHtml}\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div>\${reactHtml}</div><button class="react-btn" data-msgid="\${escHtml(m.id)}" title="\${t('btnReact')}">${_SVG.smile}</button><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
+    // Vom Absender geloescht (mit keep_deleted bleibt der Inhalt, dazu eine Markierung)
+    const delBadge = (m.deleted && (m.body || m.mediaFile)) ? '<div class="deleted-badge">🚫 ' + escHtml(t('deletedBadge')) + '</div>' : '';
+    const editedLabel = m.edited ? '<span class="edited-label">' + escHtml(t('edited')) + '</span> ' : '';
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}\${m.deleted ? ' deleted' : ''}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${authorHtml}\${quotedHtml}\${content}\${delBadge}<div class="bubble-time">\${editedLabel}\${time}\${ack}</div>\${reactHtml}</div><button class="react-btn" data-msgid="\${escHtml(m.id)}" title="\${t('btnReact')}">${_SVG.smile}</button><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
   // Noch nicht bestätigte eigene Nachrichten ausgegraut ans Ende hängen
   let _pendHtml = '';
@@ -2414,8 +2664,9 @@ async function sendMsg() {
   try {
     const endpoint = replyId ? api('/api/reply') : api('/api/send');
     const payload = replyId
-      ? { to: chatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody }
-      : { to: chatId, message: text };
+      ? { to: chatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody, mentions: buildMentions(text) }
+      : { to: chatId, message: text, mentions: buildMentions(text) };
+    _mentionTracked = [];
     const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()).catch(() => null);
     dropPending(chatId, tmpId);
     if (!r || !r.success) {
@@ -2539,6 +2790,7 @@ document.getElementById('messages').addEventListener('click', e => {
 });
 
 function handleKey(e) {
+  if (mentionKey(e)) return;
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
 }
 function autoResize(el) {

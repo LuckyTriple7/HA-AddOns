@@ -35,3 +35,6 @@ configuration:
   send_read_receipts:
     name: Send read receipts
     description: "Tells the sender you have read their message as soon as the chat is open in the web UI, just like on the phone. Off: only the phone sends read receipts. Default: on."
+  keep_deleted:
+    name: Keep deleted messages
+    description: "If the sender deletes a message for everyone, its content stays visible here with a 🚫 mark. Off: a notice replaces the message, as in Signal. Default: off."

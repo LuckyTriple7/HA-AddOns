@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2] - 2026-10-16
+- Neu: **Bearbeitete Nachrichten** werden übernommen — der Text wird ersetzt und die Uhrzeit trägt „bearbeitet". Gilt auch für Nachrichten, die du am Handy bearbeitest
+- Neu: **„Für alle löschen" durch den Absender** wird übernommen: ein Hinweis ersetzt die Nachricht, Anhänge, Zitat und Reaktionen verschwinden. Neue Option `keep_deleted` (Standard: aus) behält stattdessen den Inhalt mit einer 🚫-Markierung. Antworten, Weiterleiten und Reagieren sind bei gelöschten Nachrichten ausgeblendet
+- Neu: **Erwähnungen.** Empfangene Erwähnungen erscheinen als `@Name` statt als unsichtbarer Platzhalter. In Gruppen schlägt `@` im Eingabefeld Mitglieder vor (Pfeiltasten, Enter oder Tab übernehmen); beim Senden wird daraus eine echte Signal-Erwähnung
+- Neu: **Mitgliederliste.** Der 👥-Button im Kopf eines Gruppenchats zeigt alle Mitglieder mit Profilbild und Admin-Kennzeichen
+- Liest du am Handy, schickt die Oberfläche für diese Nachrichten keine eigene Lesebestätigung mehr hinterher
+
 ## [1.7.1] - 2026-10-16
 - Neu: **Reaktionen.** Ein Smiley-Button neben jeder Nachricht öffnet sechs Schnell-Reaktionen. Reaktionen erscheinen unter der Nachricht mit Anzahl, die eigene ist blau umrandet; ein Klick darauf nimmt sie zurück. Reaktionen von anderen und die, die du am Handy setzt, kommen über den Empfang mit. Wie in Signal hat jede Person höchstens eine Reaktion pro Nachricht
 - Neu: **Lesebestätigungen senden.** Ist ein Chat in der Oberfläche sichtbar offen, bekommen die Absender eine Lesebestätigung (in Gruppen jeder einzeln). Pro Aufruf höchstens die letzten 20 offenen Nachrichten; ältere gelten als erledigt, damit nach dem Update keine Flut an Quittungen rausgeht. Neue Option `send_read_receipts` (Standard: an)

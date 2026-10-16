@@ -35,3 +35,6 @@ configuration:
   send_read_receipts:
     name: Lesebestätigungen senden
     description: "Meldet dem Absender, dass du seine Nachricht gelesen hast, sobald der Chat in der Oberfläche offen ist — wie am Handy. Aus: nur das Handy sendet Lesebestätigungen. Standard: an."
+  keep_deleted:
+    name: Gelöschte Nachrichten behalten
+    description: "Löscht der Absender eine Nachricht für alle, bleibt ihr Inhalt hier sichtbar und bekommt eine 🚫-Markierung. Aus: ein Hinweis ersetzt die Nachricht, wie in Signal. Standard: aus."
