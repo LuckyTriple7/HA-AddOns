@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.6] - 2026-10-15
+
+### Fixed
+- **Add-on Versionen: klare Fehlermeldung statt „Fehler beim Laden“.** Fehlt
+  der gewählte Branch im Repository (z. B. `dev` bei Repos, die nur `main`
+  haben), steht das jetzt so da. Andere Fehler zeigen den HTTP-Status; auch
+  eine Fehlerseite ohne JSON (vom HA-Ingress) führt nicht mehr ins Leere.
+
 ## [0.5.5] - 2026-10-11
 
 ### Changed

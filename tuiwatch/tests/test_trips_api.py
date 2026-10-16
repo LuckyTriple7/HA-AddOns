@@ -309,6 +309,46 @@ def test_packing_template_default_and_custom_roundtrip(client):
     assert client.get("/api/packing-template", headers=ING).get_json()["template"] == m.PACKING_TEMPLATE
 
 
+def test_packing_template_syncs_existing_upcoming_trips(client):
+    import importlib
+    m = importlib.import_module("app")
+    old = {"Kleidung": ["T-Shirts", "Shorts"], "Technik": ["Ladekabel"]}
+    client.post("/api/packing-template", headers=ING, json={"template": old})
+
+    future = _import_pdf(client).get_json()["id"]
+    with m.db() as con:  # sonst landet der 2. Import per Buchungsnummer in derselben Reise
+        con.execute("UPDATE trips SET booking_code='11111111' WHERE id=?", (future,))
+    past = _import_pdf(client).get_json()["id"]
+    assert past != future
+    with m.db() as con:
+        con.execute("UPDATE trips SET end_date='2999-01-08' WHERE id=?", (future,))
+        con.execute("UPDATE trips SET end_date='2000-01-08' WHERE id=?", (past,))
+    for tid in (future, past):  # Seed beim ersten Öffnen
+        client.get(f"/api/trips/{tid}", headers=ING)
+
+    items = client.get(f"/api/trips/{future}", headers=ING).get_json()["packing"]
+    by_label = {p["label"]: p["id"] for p in items}
+    client.patch(f"/api/trips/{future}/packing/{by_label['Shorts']}", headers=ING,
+                 json={"checked": True})
+    client.post(f"/api/trips/{future}/packing", headers=ING,
+                json={"category": "Kleidung", "label": "Eigenes Item"})
+    client.delete(f"/api/trips/{future}/packing/{by_label['T-Shirts']}", headers=ING)
+
+    # Shorts + Ladekabel raus, Kamera neu
+    new = {"Kleidung": ["T-Shirts"], "Technik": ["Kamera"]}
+    r = client.post("/api/packing-template", headers=ING, json={"template": new})
+    assert r.get_json()["synced_trips"] == 1
+
+    got = {(p["category"], p["label"], p["checked"]) for p in
+           client.get(f"/api/trips/{future}", headers=ING).get_json()["packing"]}
+    assert got == {("Kleidung", "Shorts", 1),        # T-Shirts gelöscht → kommt nicht zurück        # abgehakt → bleibt
+                   ("Kleidung", "Eigenes Item", 0),  # eigenes → bleibt
+                   ("Technik", "Kamera", 0)}         # neu aus Vorlage
+    past_labels = [p["label"] for p in
+                   client.get(f"/api/trips/{past}", headers=ING).get_json()["packing"]]
+    assert past_labels == ["T-Shirts", "Shorts", "Ladekabel"]  # vergangen → unverändert
+
+
 def test_packing_template_validation(client):
     bad = [
         {},                                     # leer

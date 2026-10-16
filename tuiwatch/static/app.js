@@ -3427,7 +3427,8 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
 
     // — Packlisten-Vorlage bearbeiten: einfaches Textformat, eine Kategorie pro
     //   "# Name"-Zeile, darunter je Zeile ein Item. Gilt für neue Packlisten und
-    //   "Zurücksetzen"; bestehende Reise-Packlisten bleiben unverändert. —
+    //   "Zurücksetzen"; bestehende Packlisten nicht vergangener Reisen werden
+    //   abgeglichen (neue Items dazu, entfernte raus, Abgehaktes/Eigenes bleibt). —
     async function openPackTemplate(tripId){
       let d;
       try { const r = await fetch(api('/api/packing-template')); if(!r.ok) throw 0; d = await r.json(); }
@@ -3435,7 +3436,7 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       const text = Object.entries(d.template||{}).map(([cat,items])=>'# '+cat+'\n'+items.join('\n')).join('\n\n');
       const box = $('#trip-detail');
       box.innerHTML = `<h3><svg class="i"><use href="#i-pencil"/></svg> Packlisten-Vorlage${d.custom?' <span class="hint">(angepasst)</span>':''}</h3>
-        <div class="hint" style="margin:4px 0 8px">Eine Kategorie beginnt mit <code># Name</code>, darunter je Zeile ein Item (max. 70 gesamt, damit der Ausdruck auf eine A4-Seite passt). Die Vorlage gilt für Packlisten neuer Reisen und beim „↺ Zurücksetzen" — bestehende Listen bleiben unverändert.</div>
+        <div class="hint" style="margin:4px 0 8px">Eine Kategorie beginnt mit <code># Name</code>, darunter je Zeile ein Item (max. 70 gesamt, damit der Ausdruck auf eine A4-Seite passt). Die Vorlage gilt für Packlisten neuer Reisen und beim „↺ Zurücksetzen". Bestehende Listen kommender Reisen werden abgeglichen: neue Items kommen dazu, entfernte fallen weg — abgehakte und selbst ergänzte Items bleiben. Vergangene Reisen bleiben unverändert.</div>
         <textarea id="pack-tpl-text" class="reiseb-text" rows="18" spellcheck="false">${esc(text)}</textarea>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn" onclick="savePackTemplate(${tripId})"><svg class="i"><use href="#i-save"/></svg> Vorlage speichern</button>
@@ -3460,18 +3461,22 @@ function whenVisible(fn){ return function(...a){ if(!document.hidden) return fn.
       const n = Object.values(tpl).reduce((a,b)=>a+b.length,0);
       if(!n){ toast('Vorlage ist leer — mindestens eine Kategorie („# Name") mit einem Item'); return; }
       if(n>MAX_PACKING_ITEMS){ toast('Zu viele Items ('+n+') — max. '+MAX_PACKING_ITEMS+', damit der Ausdruck auf eine Seite passt'); return; }
-      let ok=false;
+      let d=null;
       try { const r = await fetch(api('/api/packing-template'), {method:'POST',
-        headers:{'Content-Type':'application/json'}, body:JSON.stringify({template: tpl})}); ok = r.ok; } catch(e){}
-      if(!ok){ toast('Speichern fehlgeschlagen'); return; }
-      toast('Vorlage gespeichert ✓ — gilt für neue Packlisten und „Zurücksetzen"');
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({template: tpl})}); if(r.ok) d = await r.json(); } catch(e){}
+      if(!d){ toast('Speichern fehlgeschlagen'); return; }
+      toast('Vorlage gespeichert ✓'+packSyncNote(d.synced_trips));
       showTripDetail(tripId);
+    }
+    function packSyncNote(n){
+      return n ? ' — '+n+' bestehende Reise'+(n===1?'':'n')+' aktualisiert' : '';
     }
     async function resetPackTemplate(tripId){
       if(!confirm('Eigene Vorlage verwerfen und die Standard-Vorlage verwenden?')) return;
-      try { await fetch(api('/api/packing-template'), {method:'POST',
-        headers:{'Content-Type':'application/json'}, body:JSON.stringify({template: null})}); } catch(e){}
-      toast('Standard-Vorlage aktiv');
+      let d=null;
+      try { const r = await fetch(api('/api/packing-template'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({template: null})}); if(r.ok) d = await r.json(); } catch(e){}
+      toast('Standard-Vorlage aktiv'+packSyncNote(d && d.synced_trips));
       openPackTemplate(tripId);
     }
 
