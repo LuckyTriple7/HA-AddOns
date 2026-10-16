@@ -2013,7 +2013,10 @@ html.light .bubble-time { color: rgba(0,0,0,0.35); }
 .code-copy { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: inherit; font: inherit; cursor: pointer; opacity: 0.8; padding: 0; }
 .code-copy:hover { opacity: 1; }
 .code-block pre { margin: 0; padding: 8px 10px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.45; white-space: pre; word-break: normal; }
-.code-inline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: rgba(0,0,0,0.22); padding: 1px 4px; border-radius: 4px; }
+.code-inline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: rgba(0,0,0,0.22); padding: 1px 4px; border-radius: 4px; cursor: copy; }
+.code-inline:hover { outline: 1px solid rgba(108,139,168,0.6); }
+.code-inline.copied { background: rgba(76,175,80,0.35); }
+.code-inline.copied::after { content: ' ✓'; }
 .tg-quote { margin: 4px 0; padding: 2px 8px; border-left: 3px solid #53bdeb; background: rgba(83,189,235,0.10); border-radius: 4px; }
 .tg-spoiler { background: currentColor; border-radius: 3px; cursor: pointer; transition: background .2s; }
 .tg-spoiler.revealed { background: rgba(127,127,127,0.18); }
@@ -2664,7 +2667,7 @@ function _wrapEnt(e, raw, inner) {
       + '<button type="button" class="code-copy" onclick="copyCode(this,event)">${_SVG.copy}<span>' + t('copyCode') + '</span></button></div>'
       + '<pre><code>' + escHtml(code) + '</code></pre></div>';
   }
-  if (e.t === 'code') return '<code class="code-inline">' + escHtml(raw) + '</code>';
+  if (e.t === 'code') return '<code class="code-inline" title="' + t('copyCode') + '" onclick="copyInline(this,event)">' + escHtml(raw) + '</code>';
   if (e.t === 'url') {
     const ok = /^(https?:|tg:|mailto:)/i.test(e.url || '');
     const txt = escHtml(raw).replace(/\\n/g,'<br>');
@@ -2701,15 +2704,26 @@ function formatText(s, ents) {
   }
   return render(0, s.length, list);
 }
-function copyCode(btn, ev) {
-  if (ev) ev.stopPropagation();
-  const code = btn.closest('.code-block').querySelector('code').textContent;
-  const done = () => { const sp = btn.querySelector('span'); sp.textContent = t('copied'); setTimeout(() => { sp.textContent = t('copyCode'); }, 1500); };
-  if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(code).then(done, () => {}); return; }
-  const ta = document.createElement('textarea'); ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+function writeClipboard(text, done) {
+  if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done, () => {}); return; }
+  const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
   document.body.appendChild(ta); ta.select();
   try { document.execCommand('copy'); done(); } catch (err) {}
   ta.remove();
+}
+function copyCode(btn, ev) {
+  if (ev) ev.stopPropagation();
+  const code = btn.closest('.code-block').querySelector('code').textContent;
+  writeClipboard(code, () => { const sp = btn.querySelector('span'); sp.textContent = t('copied'); setTimeout(() => { sp.textContent = t('copyCode'); }, 1500); });
+}
+// Inline-Code per Klick kopieren; kurz gruen mit Haken als Rueckmeldung
+function copyInline(el, ev) {
+  if (ev) ev.stopPropagation();
+  if (window.getSelection && String(window.getSelection()).length) return; // markierter Text: normal markieren lassen
+  writeClipboard(el.textContent, () => {
+    el.classList.add('copied');
+    setTimeout(() => el.classList.remove('copied'), 1200);
+  });
 }
 
 function scrollMsgs(dir) {

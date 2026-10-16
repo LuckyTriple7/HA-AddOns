@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.30] - 2026-10-16
+- Neu: **Inline-Code per Klick kopieren.** Ein Klick auf einen Befehl in einer Nachricht (Inline-Code) legt ihn in die Zwischenablage; er leuchtet kurz grün mit Haken. Ist im Text etwas markiert, wird nicht kopiert, damit Markieren weiter geht. Code-Blöcke hatten schon ihren Kopieren-Button
+
 ## [1.7.29] - 2026-10-16
 - Fix: **Unnötige Schreiblast.** Die Chatliste wird jede Minute von Telegram abgeglichen, danach wurden `chats.json` und `messages.json` jedes Mal komplett neu geschrieben, auch ohne Änderung. Gemessen auf dem Produktivsystem: 18,6 MB in zwei Minuten bei 3,7 MB `messages.json`, rund 13 GB am Tag. Jetzt wird nur noch geschrieben, wenn sich Name oder Typ eines Chats geändert hat oder ein neuer dazukam
 
