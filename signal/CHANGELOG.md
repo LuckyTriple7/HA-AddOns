@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.1] - 2026-10-16
+- Neu: **Reaktionen.** Ein Smiley-Button neben jeder Nachricht öffnet sechs Schnell-Reaktionen. Reaktionen erscheinen unter der Nachricht mit Anzahl, die eigene ist blau umrandet; ein Klick darauf nimmt sie zurück. Reaktionen von anderen und die, die du am Handy setzt, kommen über den Empfang mit. Wie in Signal hat jede Person höchstens eine Reaktion pro Nachricht
+- Neu: **Lesebestätigungen senden.** Ist ein Chat in der Oberfläche sichtbar offen, bekommen die Absender eine Lesebestätigung (in Gruppen jeder einzeln). Pro Aufruf höchstens die letzten 20 offenen Nachrichten; ältere gelten als erledigt, damit nach dem Update keine Flut an Quittungen rausgeht. Neue Option `send_read_receipts` (Standard: an)
+- Neu: **Profilbilder** von Kontakten und Gruppen in Chatliste und Chat-Kopf. Sie werden unter `/config/avatars/` zwischengespeichert und einmal am Tag neu geholt; ohne Bild bleibt die Initiale. Die Kontaktliste merkt sich dafür die Signal-UUID
+
 ## [1.7.0] - 2026-10-16
 - Fix: **Gruppennachrichten landen in der Gruppe.** Bisher wurde `groupInfo` nicht ausgewertet: eine Nachricht aus einer Gruppe erschien im Privatchat des Absenders, die Gruppenchats aus der Gruppenliste blieben leer, und wer darin antwortete, schrieb dem Absender privat. Jetzt gehört jede Gruppennachricht in den Chat der Gruppe — auch die, die du am Handy in eine Gruppe schreibst (Sync-Nachrichten ohne Empfänger wurden bisher verworfen)
 - In Gruppen steht der Name des Absenders über jeder fremden Nachricht, die Chatliste zeigt „Name: Text". HA-Benachrichtigungen nennen Absender und Gruppe

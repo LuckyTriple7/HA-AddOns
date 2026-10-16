@@ -32,3 +32,6 @@ configuration:
   ha_notifications_privacy:
     name: HA Notifications Privacy Mode
     description: When enabled, notifications only show "Signal / New message" — no sender name or message content.
+  send_read_receipts:
+    name: Send read receipts
+    description: "Tells the sender you have read their message as soon as the chat is open in the web UI, just like on the phone. Off: only the phone sends read receipts. Default: on."

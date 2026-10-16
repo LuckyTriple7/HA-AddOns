@@ -17,6 +17,10 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 - **Chat-Filter**: Tabs „Alle / Privat / Gruppen" in der Sidebar; Gruppen mit 👥-Avatar
 - **Chat-Export**: 💾-Button im Chat-Header — exportiert alle Nachrichten als HTML-Datei (Bilder inline eingebettet)
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
+- **Reaktionen**: Mit dem Smiley neben einer Nachricht reagieren; Reaktionen anderer erscheinen unter der Nachricht, ein Klick auf die eigene nimmt sie zurück
+- **Lesebestätigungen**: Absender sehen, dass du gelesen hast, sobald der Chat offen ist (abschaltbar mit `send_read_receipts`)
+- **Profilbilder**: Bilder von Kontakten und Gruppen in Chatliste und Chat-Kopf, einmal am Tag aktualisiert
+- **Gruppen**: Gruppennachrichten stehen im Gruppenchat, mit Absendername über jeder Nachricht
 - **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
 - **Persistente Session**: Kein erneutes Verknüpfen nach Neustart
 - **REST-API**: Nachrichten aus Automatisierungen heraus senden
@@ -214,6 +218,10 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 - **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
 - **Chat filter**: Tabs "All / Private / Groups" in the sidebar; groups with 👥 avatar
 - **Chat export**: 💾 button in the chat header — exports all messages as an HTML file (images embedded inline)
+- **Reactions**: React with the smiley next to a message; other people's reactions appear below it, clicking your own removes it
+- **Read receipts**: Senders see that you have read their message as soon as the chat is open (can be turned off with `send_read_receipts`)
+- **Profile pictures**: Contact and group pictures in the chat list and chat header, refreshed once a day
+- **Groups**: Group messages appear in the group chat, with the sender's name above each message
 - **Emoji keyboard**: 😊 button in the input field
 - **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser
 - **Persistent session**: No re-linking after restart

@@ -24,6 +24,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Konto verknüpfen, Nac
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten |
 | `ha_notifications_privacy` | `false` | Nur „Signal / Neue Nachricht" — kein Absender, kein Inhalt |
+| `send_read_receipts` | `true` | Lesebestätigung an den Absender, sobald der Chat in der Oberfläche offen ist |
 
 ### HA-Benachrichtigungen einrichten
 
@@ -204,6 +205,7 @@ Signal Messenger directly in Home Assistant — link your existing account, send
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages |
 | `ha_notifications_privacy` | `false` | Show only "Signal / New message" — no sender, no content |
+| `send_read_receipts` | `true` | Send a read receipt to the sender as soon as the chat is open in the web UI |
 
 ### Setting up HA Notifications
 

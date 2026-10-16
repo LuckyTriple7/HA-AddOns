@@ -88,6 +88,7 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
+const SEND_READ_RECEIPTS = process.env.SEND_READ_RECEIPTS !== 'false';
 // SUPERVISOR_TOKEN wird vom Supervisor automatisch injiziert (homeassistant_api: true) —
 // kein manuell eingetragener Token mehr nötig.
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
@@ -256,11 +257,13 @@ async function loadContacts() {
       const num = normPhone(c.number || c.phone);
       if (!num || num === PHONE_NUMBER) continue;
       if (!chatMap.has(num)) {
-        chatMap.set(num, { id: num, name: c.name || num, phone: num, lastMsg: '', lastTime: 0 });
+        chatMap.set(num, { id: num, name: c.name || num, phone: num, lastMsg: '', lastTime: 0, ...(c.uuid ? { uuid: c.uuid } : {}) });
         changed = true;
-      } else if (c.name && chatMap.get(num).name !== c.name) {
-        chatMap.get(num).name = c.name;
-        changed = true;
+      } else {
+        const chat = chatMap.get(num);
+        if (c.name && chat.name !== c.name) { chat.name = c.name; changed = true; }
+        // uuid braucht /api/avatar fuer das Profilbild
+        if (c.uuid && chat.uuid !== c.uuid) { chat.uuid = c.uuid; changed = true; }
       }
     }
     // Laeuft alle 2 Minuten — nur schreiben, wenn sich etwas geaendert hat
@@ -290,6 +293,30 @@ async function loadGroups() {
   } catch (e) {
     console.error('[ERROR] loadGroups:', e.message);
   }
+}
+
+// Reaktionen: msg.reactions = { <Nummer des Reagierenden>: Emoji }. Signal
+// erlaubt pro Person genau eine Reaktion, eine neue ersetzt die alte.
+function findTargetMsg(chatId, ts, author) {
+  const msgs = messagesByChatId.get(chatId) || [];
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    const mTs = Number(m.fromMe ? (m.signalTimestamp || m.timestamp) : m.timestamp);
+    if (mTs === ts && (!author || normPhone(m.from) === author)) return m;
+  }
+  return null;
+}
+
+function applyReaction(chatId, reactor, r) {
+  const ts = Number(r.targetSentTimestamp);
+  const author = normPhone(r.targetAuthorNumber || r.targetAuthor || '');
+  const target = findTargetMsg(chatId, ts, author.startsWith('+') ? author : '');
+  if (!target) { dbg(`reaction: Zielnachricht ${ts} in ${chatId} nicht gefunden`); return; }
+  target.reactions = target.reactions || {};
+  if (r.isRemove) delete target.reactions[reactor];
+  else if (r.emoji) target.reactions[reactor] = r.emoji;
+  if (!Object.keys(target.reactions).length) delete target.reactions;
+  scheduleSave();
 }
 
 // Chat-ID einer Gruppe wie bei signal-cli-rest-api (/v1/groups liefert "id"):
@@ -325,7 +352,7 @@ function processEnvelope(envelope) {
   if (sm) {
     const dest = groupChatId || normPhone(sm.destinationNumber || sm.destination);
     if (!dest) { dbg('processEnvelope: syncMessage ohne Ziel, übersprungen'); return; }
-    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [], quote: sm.quote };
+    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [], quote: sm.quote, reaction: sm.reaction };
     chatId = dest;
     isOwn = true;
     source = PHONE_NUMBER;
@@ -337,6 +364,9 @@ function processEnvelope(envelope) {
     chatId = groupChatId || source;
     senderName = env.sourceName || source;
   }
+
+  // Reaktion (auch eigene vom Handy): an die Zielnachricht haengen, keine eigene Bubble
+  if (dm && dm.reaction) { applyReaction(chatId, isOwn ? PHONE_NUMBER : source, dm.reaction); return; }
 
   const hasText = !!(dm && dm.message);
   const hasAttachments = !!(dm && Array.isArray(dm.attachments) && dm.attachments.length > 0);
@@ -1007,6 +1037,124 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
   res.json({ success: true });
 });
 
+// ── Reaktionen ───────────────────────────────────────────────────────
+// emoji leer = eigene Reaktion entfernen
+app.post('/api/react', async (req, res) => {
+  const { chatId, msgId, emoji } = req.body;
+  const msg = (messagesByChatId.get(chatId) || []).find(m => m.id === msgId);
+  if (!msg) return res.status(404).json({ error: 'not_found' });
+  const own = msg.reactions && msg.reactions[PHONE_NUMBER];
+  const remove = !emoji;
+  if (remove && !own) return res.json({ success: true });
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/reactions/${encodeURIComponent(PHONE_NUMBER)}`, {
+      method: remove ? 'DELETE' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: chatId,
+        reaction: remove ? own : emoji,
+        target_author: msg.fromMe ? PHONE_NUMBER : msg.from,
+        timestamp: Number(msg.fromMe ? (msg.signalTimestamp || msg.timestamp) : msg.timestamp),
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      console.warn(`[WARN] Reaktion fehlgeschlagen: HTTP ${r.status} ${t.trim().slice(0, 200)}`);
+      return res.status(500).json({ error: 'react_failed' });
+    }
+    msg.reactions = msg.reactions || {};
+    if (remove) delete msg.reactions[PHONE_NUMBER];
+    else msg.reactions[PHONE_NUMBER] = emoji;
+    if (!Object.keys(msg.reactions).length) delete msg.reactions;
+    scheduleSave();
+    res.json({ success: true });
+  } catch (e) {
+    console.warn('[WARN] Reaktion fehlgeschlagen:', e.message);
+    res.status(500).json({ error: 'react_failed' });
+  }
+});
+
+// ── Lesebestaetigungen senden ────────────────────────────────────────
+// Die Oberflaeche meldet, wenn ein Chat sichtbar offen ist. Bestaetigt werden
+// hoechstens die letzten 20 noch nicht bestaetigten fremden Nachrichten; aeltere
+// gelten als erledigt, damit nach dem Update keine Lawine an Quittungen rausgeht.
+const READ_RECEIPT_BATCH = 20;
+app.post('/api/read/:chatId', async (req, res) => {
+  res.json({ success: true });
+  if (!SEND_READ_RECEIPTS || status !== 'linked') return;
+  const msgs = messagesByChatId.get(req.params.chatId) || [];
+  const pending = msgs.filter(m => !m.fromMe && !m.readSent);
+  if (!pending.length) return;
+  pending.forEach(m => { m.readSent = true; });
+  scheduleSave();
+  for (const m of pending.slice(-READ_RECEIPT_BATCH)) {
+    try {
+      const r = await fetch(`${SIGNAL_API}/v1/receipts/${encodeURIComponent(PHONE_NUMBER)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient: m.from, receipt_type: 'read', timestamp: Number(m.timestamp) }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) dbg(`receipt ${m.id}: HTTP ${r.status}`);
+    } catch (e) { dbg(`receipt ${m.id}: ${e.message}`); }
+  }
+});
+
+// ── Profilbilder ─────────────────────────────────────────────────────
+// Zwischengespeichert unter /config/avatars, einmal am Tag neu geholt. Ohne
+// Bild antwortet die Route 404 und die Oberflaeche zeigt die Initiale.
+const AVATAR_DIR = '/config/avatars/';
+const AVATAR_TTL_MS = 24 * 60 * 60 * 1000;
+const _avatarInflight = new Map();
+function _imgType(buf) {
+  if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
+  if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png';
+  if (buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP') return 'image/webp';
+  if (buf.slice(0, 3).toString() === 'GIF') return 'image/gif';
+  return null;
+}
+async function fetchAvatar(chatId, file, noneFile) {
+  const chat = chatMap.get(chatId);
+  if (!chat || !PHONE_NUMBER) return;
+  const url = chat.isGroup
+    ? `${SIGNAL_API}/v1/groups/${encodeURIComponent(PHONE_NUMBER)}/${encodeURIComponent(chatId)}/avatar`
+    : `${SIGNAL_API}/v1/contacts/${encodeURIComponent(PHONE_NUMBER)}/${encodeURIComponent(chat.uuid || chatId)}/avatar`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const buf = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+    if (buf && buf.length && _imgType(buf)) {
+      fs.writeFileSync(file, buf);
+      try { fs.unlinkSync(noneFile); } catch (e) {}
+    } else {
+      fs.writeFileSync(noneFile, '');
+      try { fs.unlinkSync(file); } catch (e) {}
+    }
+  } catch (e) { dbg(`avatar ${chatId}: ${e.message}`); }
+}
+app.get('/api/avatar/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (!chatMap.has(chatId)) return res.status(404).end();
+  try { fs.mkdirSync(AVATAR_DIR, { recursive: true }); } catch (e) {}
+  const key = crypto.createHash('sha1').update(chatId).digest('hex');
+  const file = path.join(AVATAR_DIR, key + '.img');
+  const noneFile = path.join(AVATAR_DIR, key + '.none');
+  const age = (f) => { try { return Date.now() - fs.statSync(f).mtimeMs; } catch (e) { return Infinity; } };
+  if (Math.min(age(file), age(noneFile)) > AVATAR_TTL_MS) {
+    if (!_avatarInflight.has(chatId)) {
+      _avatarInflight.set(chatId, fetchAvatar(chatId, file, noneFile).finally(() => _avatarInflight.delete(chatId)));
+    }
+    await _avatarInflight.get(chatId);
+  }
+  try {
+    const buf = fs.readFileSync(file);
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.type(_imgType(buf) || 'application/octet-stream').send(buf);
+  } catch (e) {
+    res.status(404).end();
+  }
+});
+
 app.post('/api/logout', async (req, res) => {
   res.json({ success: true });
   try {
@@ -1056,6 +1204,7 @@ const _SVG = {
   globe:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   doc:       '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
   fwd:       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>',
+  smile:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
   reply:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
 };
 
@@ -1190,6 +1339,21 @@ html.light .fwd-modal-cancel { background: #e0e0e0; color: #111; }
 .fwd-modal-cancel:hover { background: #3d5259; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
 .bubble-author { font-size: 12px; font-weight: 600; color: #3a76f8; margin-bottom: 2px; }
+.avatar { position: relative; overflow: hidden; }
+.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.react-btn { display: none; background: none; border: none; cursor: pointer; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; }
+.bubble-row:hover .react-btn { display: inline-flex; }
+html.dark .react-btn { color: rgba(134,150,160,0.85); }
+html.light .react-btn { color: rgba(0,0,0,0.4); }
+.react-btn:hover { color: #3a76f8 !important; }
+#reaction-picker { position: fixed; z-index: 300; border-radius: 28px; padding: 6px 10px; display: none; gap: 2px; box-shadow: 0 2px 16px rgba(0,0,0,0.3); background: #fff; border: 1px solid #d9dbdf; }
+html.dark #reaction-picker { background: #1f2c34; border-color: #2a3942; }
+#reaction-picker button { background: none; border: none; font-size: 24px; cursor: pointer; padding: 3px 4px; border-radius: 50%; line-height: 1; transition: transform .1s; }
+#reaction-picker button:hover { transform: scale(1.3); }
+.reactions-bar { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 1px 7px; font-size: 13px; cursor: pointer; border: 1px solid #d9dbdf; background: #f0f2f5; color: #111; }
+html.dark .reaction-badge { background: #1f2c34; border-color: #2a3942; color: #e9edef; }
+.reaction-badge.own { border-color: #3a76f8; }
 .msg-ack { font-size: 11px; margin-left: 2px; vertical-align: middle; }
 .ack-1, .ack-2 { color: rgba(0,0,0,0.4); }
 .ack-3 { color: #3a76f8; }
@@ -1426,7 +1590,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Fehlende Fotos herunterladen',
     fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
-    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
     emojiSearch:'Suchen…', emojiNone:'Keine Treffer', emojiRecent:'Zuletzt', emojiCatSmileys:'Smileys & Personen', emojiCatAnimals:'Tiere & Natur', emojiCatFood:'Essen & Trinken', emojiCatActivity:'Aktivitäten', emojiCatTravel:'Reisen & Orte', emojiCatObjects:'Objekte', emojiCatSymbols:'Symbole', emojiCatFlags:'Flaggen',
     errSend: (e) => 'Fehler: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
@@ -1453,7 +1617,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Download missing photos',
     fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
-    msgPlaceholder: 'Message…', btnDelete: 'Delete', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
     emojiSearch:'Search…', emojiNone:'No results', emojiRecent:'Recent', emojiCatSmileys:'Smileys & People', emojiCatAnimals:'Animals & Nature', emojiCatFood:'Food & Drink', emojiCatActivity:'Activities', emojiCatTravel:'Travel & Places', emojiCatObjects:'Objects', emojiCatSymbols:'Symbols', emojiCatFlags:'Flags',
     errSend: (e) => 'Error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
@@ -1664,7 +1828,9 @@ function showMain(phone) {
   document.getElementById('topbar').style.display = 'flex';
   document.getElementById('main').style.display = 'flex';
   document.getElementById('my-phone').textContent = phone || '';
+  if (phone) MY_NUMBER = phone;
 }
+let MY_NUMBER = '';
 
 let qrInterval = null;
 
@@ -1740,6 +1906,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   refresh();
   if (currentStatus === 'linked') loadChats(); // sofort nachziehen beim Zurückkehren
+  markChatRead(selectedChatId);
 });
 window.addEventListener('online', () => { _offlineFails = 0; refresh(); });
 window.addEventListener('offline', () => showOfflineBanner());
@@ -1804,9 +1971,69 @@ function setFilter(f) {
   renderChats(allChats);
 }
 
+// Profilbild ueber der Initiale; fehlt es (404), entfernt onerror das <img>
+function avatarImg(id) {
+  return '<img class="avatar-img" loading="lazy" alt="" src="' + api('/api/avatar/' + encodeURIComponent(id)) + '" onerror="this.remove()">';
+}
 function chatAvatar(c) {
-  if (c.isGroup) return \`<div class="avatar type-group" style="background:#3a76f0">👥</div>\`;
-  return \`<div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}</div>\`;
+  if (c.isGroup) return \`<div class="avatar type-group" style="background:#3a76f0">👥\${avatarImg(c.id)}</div>\`;
+  return \`<div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}\${avatarImg(c.id)}</div>\`;
+}
+
+// ── Reaktionen ──
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+function reactionsBar(m) {
+  if (!m.reactions) return '';
+  const counts = {};
+  Object.values(m.reactions).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+  const own = m.reactions[MY_NUMBER];
+  const badges = Object.entries(counts).map(([e, n]) =>
+    '<span class="reaction-badge' + (own === e ? ' own' : '') + '" data-msgid="' + escHtml(m.id) + '" data-emoji="' + escHtml(e) + '"'
+    + (own === e ? ' title="' + escHtml(t('reactionRemove')) + '"' : '') + '>' + e + (n > 1 ? ' ' + n : '') + '</span>').join('');
+  return '<div class="reactions-bar">' + badges + '</div>';
+}
+async function sendReaction(msgId, emoji) {
+  const chatId = selectedChatId;
+  const msg = (_view[chatId] || []).find(x => x.id === msgId);
+  // Gleiches Emoji noch einmal = Reaktion zuruecknehmen
+  if (msg && msg.reactions && msg.reactions[MY_NUMBER] === emoji) emoji = '';
+  await fetch(api('/api/react'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId, msgId, emoji }) }).catch(() => null);
+  loadMessages(chatId, true);
+}
+function openReactionPicker(btn) {
+  let picker = document.getElementById('reaction-picker');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'reaction-picker';
+    picker.innerHTML = QUICK_REACTIONS.map(e => '<button data-emoji="' + e + '">' + e + '</button>').join('');
+    document.body.appendChild(picker);
+    picker.addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-emoji]');
+      if (!b) return;
+      picker.style.display = 'none';
+      sendReaction(picker.dataset.msgid, b.dataset.emoji);
+    });
+  }
+  picker.dataset.msgid = btn.dataset.msgid;
+  picker.style.display = 'flex';
+  const r = btn.getBoundingClientRect();
+  const w = picker.offsetWidth, h = picker.offsetHeight;
+  picker.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  picker.style.top = (r.top - h - 6 < 8 ? r.bottom + 6 : r.top - h - 6) + 'px';
+}
+document.addEventListener('click', ev => {
+  const picker = document.getElementById('reaction-picker');
+  if (picker && picker.style.display !== 'none' && !ev.target.closest('#reaction-picker') && !ev.target.closest('.react-btn')) picker.style.display = 'none';
+  const btn = ev.target.closest('.react-btn');
+  if (btn) { ev.stopPropagation(); openReactionPicker(btn); return; }
+  const badge = ev.target.closest('.reaction-badge[data-emoji]');
+  if (badge) sendReaction(badge.dataset.msgid, badge.dataset.emoji);
+});
+
+// Lesebestaetigungen: nur wenn der Chat wirklich sichtbar offen ist
+function markChatRead(chatId) {
+  if (!chatId || document.hidden || chatId !== selectedChatId) return;
+  fetch(api('/api/read/' + encodeURIComponent(chatId)), { method: 'POST' }).catch(() => {});
 }
 
 function renderChats(chats) {
@@ -1869,6 +2096,7 @@ function openChat(chat) {
     av.style.background = avatarColor(chat.name || chat.id);
     av.style.fontSize = '14px';
   }
+  av.insertAdjacentHTML('beforeend', avatarImg(chat.id));
   renderChats(allChats);
   _lastMsgFingerprint[chat.id] = '';
   _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; _historyMode[chat.id] = false; // Pagination/Verlauf zurücksetzen
@@ -1887,7 +2115,9 @@ function msgFingerprint(msgs) {
   const last = msgs[msgs.length - 1];
   const videoKey = msgs.filter(m => m.type === 'video').map(m => m.id + ':' + (m.mediaFile || '0')).join('|');
   const ackKey = msgs.filter(m => m.fromMe).reduce((s, m) => s + (m.ack || 0), 0);
-  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + ackKey;
+  // Reaktionen vor ackKey: eine geaenderte Reaktion braucht ein volles Neuzeichnen
+  const reactKey = msgs.filter(m => m.reactions).map(m => m.id + '=' + Object.values(m.reactions).join('')).join('|');
+  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + reactKey + ':' + ackKey;
 }
 
 function updateAckMarksInPlace(msgs) {
@@ -1913,6 +2143,7 @@ async function loadMessages(chatId, forceRender = false) {
     if (!forceRender && _lastMsgFingerprint[chatId] === fp) return;
     const prev = _lastMsgFingerprint[chatId] || '';
     _lastMsgFingerprint[chatId] = fp;
+    markChatRead(chatId);
     // Nur ACK geändert? In-Place-Update statt Full-Re-Render
     if (!forceRender && prev && fp.slice(0, fp.lastIndexOf(':')) === prev.slice(0, prev.lastIndexOf(':'))) {
       updateAckMarksInPlace(recent);
@@ -2031,9 +2262,10 @@ function renderMessages(msgs, opts) {
     const replyContact = m.fromMe ? 'Ich' : (m.author || chatForReply?.name || selectedChatId || '');
     // Gruppen: Absender ueber der Bubble, sonst weiss man nicht, wer schreibt
     const authorHtml = (!m.fromMe && m.author) ? \`<div class="bubble-author">\${escHtml(m.author)}</div>\` : '';
+    const reactHtml = reactionsBar(m);
     const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='video'?'📹 Video':m.type==='photo'?'📷 Foto':'')).slice(0,60));
     const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${authorHtml}\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${authorHtml}\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div>\${reactHtml}</div><button class="react-btn" data-msgid="\${escHtml(m.id)}" title="\${t('btnReact')}">${_SVG.smile}</button><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
   // Noch nicht bestätigte eigene Nachrichten ausgegraut ans Ende hängen
   let _pendHtml = '';
