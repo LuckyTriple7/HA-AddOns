@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.3.7] - 2026-10-17
+- Fix: Die Schalter für den Status-Spiegel waren in bestehenden Installationen nicht zu sehen, weil sie als optional angelegt waren. Sie stehen jetzt immer in der Konfiguration
+
 ## [1.3.6] - 2026-10-17
 - Neu: **Status-Spiegel.** Mit den Optionen `status_mirror_signal` und `status_mirror_telegram` (Standard: aus) postet das Portal neue eigene WhatsApp-Statusmeldungen alle 5 Minuten zusätzlich als Signal- bzw. Telegram-Story – auch die am Handy geposteten. Text-Status werden als Bild gerendert. Signal übernimmt Bilder und Videos ohne Bildunterschrift, Telegram Bilder mit Bildunterschrift. Bilder und Videos brauchen `download_media` im WhatsApp-Add-on. Was beim Einschalten schon läuft, bleibt außen vor
 - Image bringt dafür Pillow und die Schrift DejaVu mit
