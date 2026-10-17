@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [1.0.6] - 2026-10-17
+- Neue Option `innodb_buffer_pool_size` (Standard 512M, vorher fest 128M). Auf 2G gesetzt behebt sie die Warnung der Nextcloud-App Memories „innodb_buffer_pool_size … empfohlenes Minimum: 2.0 GiB“.
+
 ## [1.0.5] - 2026-09-26
 - `table_open_cache` auf 4000, `table_definition_cache` auf 2000. Behebt den Nextcloud-35-Hinweis „Table open cache hit rate“.
 
