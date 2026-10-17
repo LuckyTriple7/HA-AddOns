@@ -33,7 +33,7 @@
       liveDelete: 'Story löschen', liveDeleteConfirm: 'Diese Story löschen?', liveDeleted: 'Story gelöscht.',
       liveEdit: 'Text ändern', liveEditPrompt: 'Neuer Text zur Story:', liveEdited: 'Text geändert.',
       liveViews: '{0} Aufrufe', liveUntil: 'bis {0}',
-      liveLocalNote: 'Gezeigt werden nur Storys, die über dieses Add-on gepostet wurden. Löschen geht nur in der Signal-App.',
+      liveLocalNote: 'Gezeigt werden Storys, die das Add-on mitbekommen hat: hier gepostet oder am Handy, während das Add-on lief. Löschen geht nur in der Signal-App.',
       privTitle: 'Wer darf was sehen', privAll: 'Alle', privContacts: 'Meine Kontakte', privNobody: 'Niemand',
       privExceptions: '+ {0} Ausnahme(n)', privSaved: 'Gespeichert.',
       priv_phone: 'Telefonnummer', priv_lastSeen: 'Zuletzt online', priv_photo: 'Profilbild', priv_about: 'Bio',
@@ -65,7 +65,7 @@
       liveDelete: 'Delete story', liveDeleteConfirm: 'Delete this story?', liveDeleted: 'Story deleted.',
       liveEdit: 'Edit caption', liveEditPrompt: 'New caption:', liveEdited: 'Caption changed.',
       liveViews: '{0} views', liveUntil: 'until {0}',
-      liveLocalNote: 'Only stories posted through this add-on are shown. Deleting only works in the Signal app.',
+      liveLocalNote: 'Shows the stories the add-on noticed: posted here or on the phone while the add-on was running. Deleting only works in the Signal app.',
       privTitle: 'Who can see what', privAll: 'Everyone', privContacts: 'My contacts', privNobody: 'Nobody',
       privExceptions: '+ {0} exception(s)', privSaved: 'Saved.',
       priv_phone: 'Phone number', priv_lastSeen: 'Last seen', priv_photo: 'Profile photo', priv_about: 'Bio',
@@ -576,7 +576,7 @@ html.dark #mys-modal{--bg:#17212b;--fg:#e6edf3;--mut:#8b98a5;--bd:#2b3a4a;--in:#
       row.style.cursor = 'default';
       const th = document.createElement('div');
       th.className = 'mys-thumb';
-      th.textContent = s.type === 'video' ? '🎬' : '📷';
+      th.textContent = s.type === 'video' ? '🎬' : s.type === 'text' ? 'Aa' : '📷';
       if (s.thumb) {
         const i = document.createElement('img');
         i.onerror = () => i.remove();
@@ -588,7 +588,8 @@ html.dark #mys-modal{--bg:#17212b;--fg:#e6edf3;--mut:#8b98a5;--bd:#2b3a4a;--in:#
       const sub = [fmt(s.date)];
       if (s.expires) sub.push(tf('liveUntil', fmt(s.expires)));
       if (typeof s.views === 'number') sub.push(tf('liveViews', s.views));
-      info.innerHTML = '<div class="mys-name">' + esc(s.caption || (s.type === 'video' ? '🎬' : '📷')) + '</div><div class="mys-sub">' + esc(sub.join(' · ')) + '</div>';
+      const fallback = s.type === 'video' ? t('tplVideo') : s.type === 'text' ? t('tplText') : t('tplImage');
+      info.innerHTML = '<div class="mys-name">' + esc(s.caption || fallback) + '</div><div class="mys-sub">' + esc(sub.join(' · ')) + '</div>';
       row.append(th, info);
       if (CFG.liveEdit) {
         const ed = document.createElement('button');

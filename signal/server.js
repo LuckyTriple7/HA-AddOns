@@ -415,6 +415,11 @@ function processEnvelope(envelope) {
   const readOnPhone = env.syncMessage?.readMessages;
   if (Array.isArray(readOnPhone) && readOnPhone.length) { markReadOnPhone(readOnPhone); return; }
 
+  // Am Handy gepostete eigene Story: das Handy schickt sie verknuepften
+  // Geraeten als Sync-Nachricht — fuer die Liste "Meine laufenden Storys"
+  const sentStory = env.syncMessage?.sentStoryMessage;
+  if (sentStory) { noteSyncedStory(sentStory, env.timestamp); return; }
+
   // Sync-Nachrichten: vom eigenen Gerät (Handy) gesendete Nachrichten
   const sm = env.syncMessage?.sentMessage;
 
@@ -1086,6 +1091,39 @@ function saveMyStories(list) {
   catch (e) { console.error('[ERROR] my_stories speichern:', e.message); }
 }
 
+// Story vom Handy (syncMessage.sentStoryMessage) in die eigene Liste. Gruppen-
+// Storys bleiben aussen vor; Bilder werden fuer die Vorschau geladen
+async function noteSyncedStory(st, envTs) {
+  if (!st || st.groupId) return;
+  const ts = Number(envTs) || Date.now();
+  if (Date.now() - ts >= STORY_TTL_MS || loadMyStories().some(s => s.date === ts)) return;
+  const entry = { id: String(ts), date: ts, type: 'photo', file: null, caption: '' };
+  const text = st.textAttachment, att = st.fileAttachment;
+  if (text) {
+    entry.type = 'text';
+    entry.caption = String(text.text || '').slice(0, 300);
+  } else if (att) {
+    const ct = String(att.contentType || '');
+    entry.type = ct.startsWith('video/') ? 'video' : 'photo';
+    entry.caption = String(att.caption || '').slice(0, 300);
+    if (entry.type === 'photo' && att.id) {
+      try {
+        const r = await fetch(`${SIGNAL_API}/v1/attachments/${encodeURIComponent(att.id)}`, { signal: AbortSignal.timeout(30000) });
+        if (r.ok) {
+          const ext = ct.includes('png') ? '.png' : ct.includes('webp') ? '.webp' : '.jpg';
+          fs.mkdirSync(MY_STORIES_DIR, { recursive: true });
+          fs.writeFileSync(path.join(MY_STORIES_DIR, ts + ext), Buffer.from(await r.arrayBuffer()));
+          entry.file = ts + ext;
+        }
+      } catch (e) { dbg('Story-Vorschau laden:', e.message); }
+    }
+  } else return;
+  const list = loadMyStories();
+  if (list.some(s => s.date === ts)) return;
+  saveMyStories([...list, entry]);
+  _logSilent('INFO', `Eigene Story vom Handy übernommen (${entry.type})`);
+}
+
 app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   let f = req.file;
   if (!f && req.body?.templateFile) f = statusTemplates.readMedia(String(req.body.templateFile));
@@ -1121,7 +1159,7 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
 
 app.get('/api/my-status', (req, res) => {
   const stories = loadMyStories()
-    .map(s => ({ id: s.id, date: s.date, expires: s.date + STORY_TTL_MS, caption: '', type: s.type, thumb: !!s.file }))
+    .map(s => ({ id: s.id, date: s.date, expires: s.date + STORY_TTL_MS, caption: s.caption || '', type: s.type, thumb: !!s.file }))
     .sort((a, b) => b.date - a.date);
   res.json({ stories });
 });
@@ -1463,6 +1501,13 @@ app.post('/api/logout', async (req, res) => {
 
 // --- UI ---
 
+// Muss vor der Seiten-Route stehen: die leitet alles ausser / und /api um
+app.get('/mystatus.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.send(MYSTATUS_JS);
+});
+
 app.get('/{*splat}', (req, res) => {
   if (req.path !== '/' && !req.path.startsWith('/api')) {
     return res.redirect(req.baseUrl + '/');
@@ -1501,11 +1546,6 @@ const MS_CFG = {
   storyPrivacy: false, liveLocal: true, liveEdit: false, liveDelete: false, privacy: false,
   profile: { fields: ['givenName', 'familyName', 'about', 'aboutEmoji'], aboutMax: 140 },
 };
-app.get('/mystatus.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  res.send(MYSTATUS_JS);
-});
 
 function getHtml() {
   return `<!DOCTYPE html>

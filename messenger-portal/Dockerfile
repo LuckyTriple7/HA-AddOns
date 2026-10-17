@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.description="Central launcher for Messenger add-o
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache curl jq nginx font-dejavu
+RUN apk add --no-cache curl jq nginx font-dejavu ffmpeg
 
 # Remove default nginx config
 RUN rm -f /etc/nginx/http.d/default.conf
@@ -19,6 +19,7 @@ COPY app.py .
 COPY gen_nginx.py .
 COPY addon_hosts.py .
 COPY status_mirror.py .
+COPY status_queue.py .
 COPY templates/ templates/
 COPY static/ static/
 COPY icon-192.png static/icon-192.png

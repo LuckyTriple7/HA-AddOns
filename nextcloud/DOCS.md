@@ -34,6 +34,7 @@ Nach dem Start erreichbar unter: **`https://<HA-IP>:7443`**
 | `loglevel` | `3` | Log-Level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
 | `update_wopi_ip` | `false` | Externe IP automatisch in die WOPI-Allowlist eintragen (für Collabora hinter Reverse-Proxy mit dynamischer ISP-IP) |
 | `mariadb_discovery` | `false` | HA MariaDB Add-on automatisch erkennen (aus = SQLite) |
+| `ai_workers` | `0` | Anzahl KI-Worker (`occ taskprocessing:worker`); holen Assistent-Aufträge sofort ab statt alle 5 Minuten per Cron. Empfohlen 4, 0 = aus |
 | `smb_1_server` | — | IP/Hostname des SMB-Servers (Slot 1) |
 | `smb_1_share` | — | Name des SMB-Shares (Slot 1) |
 | `smb_1_user` | — | Benutzername (Slot 1) |
@@ -122,6 +123,7 @@ After startup, available at: **`https://<HA-IP>:7443`**
 | `loglevel` | `3` | Log level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
 | `update_wopi_ip` | `false` | Automatically update the WOPI allowlist with the current external IP (for Collabora behind a reverse proxy with dynamic ISP IP) |
 | `mariadb_discovery` | `false` | Auto-detect HA MariaDB add-on (off = SQLite) |
+| `ai_workers` | `0` | Number of AI workers (`occ taskprocessing:worker`); pick up Assistant tasks immediately instead of every 5 minutes via cron. Recommended 4, 0 = off |
 | `smb_1_server` | — | IP/hostname of SMB server (slot 1) |
 | `smb_1_share` | — | Share name (slot 1) |
 | `smb_1_user` | — | Username (slot 1) |

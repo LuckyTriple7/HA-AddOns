@@ -84,6 +84,12 @@
       align-items: center;
       gap: .5rem;
     }
+    /* Schmale Bildschirme: Knoepfe in eine zweite Zeile, statt die Seite
+       seitlich zu verschieben */
+    @media (max-width: 600px) {
+      header { flex-wrap: wrap; row-gap: .5rem; }
+      .header-actions { width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
+    }
     .icon-btn {
       background: none;
       border: 1px solid var(--border);
@@ -444,6 +450,12 @@
       <a href="{{ url_for('share') }}" class="icon-btn" aria-label="{{ t.share_title }}" title="{{ t.share_title }}">
         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
       </a>
+
+      {% if messengers %}
+      <a href="{{ url_for('status_queue_page') }}" class="icon-btn" aria-label="{{ t.sq_title }}" title="{{ t.sq_title }}">
+        <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
+      </a>
+      {% endif %}
 
       {% if mirror_targets %}
       <div class="notif-wrap" id="mirror-wrap">
@@ -821,7 +833,12 @@
 
     function toggleMirrorPanel() {
       _mirrorOpen = !_mirrorOpen;
-      document.getElementById('mirror-panel').hidden = !_mirrorOpen;
+      const panel = document.getElementById('mirror-panel');
+      // Auf dem Handy liegt das Fenster ueber die volle Breite unter der
+      // (dort zweizeiligen) Kopfzeile
+      panel.style.top = window.innerWidth <= 600
+        ? (document.querySelector('header').offsetHeight + 8) + 'px' : '';
+      panel.hidden = !_mirrorOpen;
       if (_mirrorOpen) loadMirror();
     }
 

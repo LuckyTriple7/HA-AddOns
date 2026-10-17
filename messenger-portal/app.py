@@ -8,6 +8,7 @@ import secrets
 import signal
 import socket
 import subprocess
+import tempfile
 import time
 import urllib.request
 from collections import defaultdict
@@ -20,6 +21,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import addon_hosts
 import status_mirror
+import status_queue
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
@@ -576,6 +578,132 @@ def api_mark_read():
     return jsonify({'icon': icon, 'last_opened': read_state[icon]})
 
 
+def _authed() -> bool:
+    return is_ingress() or is_valid_session(request.cookies.get('mp_session'))
+
+
+def _share_messengers() -> list:
+    """Eingeschaltete Messenger mit Symbol, Farbe und Proxy-Pfad fuer die Oberflaeche."""
+    return [
+        {'icon': m['icon'], 'name': m.get('name') or m['icon'], 'svg': m['svg'],
+         'color': m['color'],
+         'proxy': f"{request.script_root}/proxy/{m['icon']}/"}
+        for m in enrich_messengers(
+            [{**m, 'icon': str(m['icon']).lower()}
+             for m in load_config().get('messengers', [])
+             if m.get('enabled', True) and m.get('icon') and m.get('port')])
+    ]
+
+
+# ── Status-Ablage ─────────────────────────────────────────────────────────────
+@app.route('/status-queue')
+def status_queue_page():
+    if not _authed():
+        return redirect(url_for('login'))
+    lang = detect_language(request)
+    t = load_translations(lang)
+    messengers = [m for m in _share_messengers() if m['icon'] in status_queue.TARGETS]
+    return render_template('status_queue.html', messengers=messengers, t=t, lang=lang)
+
+
+@app.route('/api/status-queue')
+def api_status_queue():
+    if not _authed():
+        return '', 401
+    return _no_store(jsonify({'items': status_queue.list_items()}))
+
+
+@app.route('/api/status-queue/upload', methods=['POST'])
+def api_status_queue_upload():
+    if not _authed():
+        return '', 401
+    f = request.files.get('file')
+    mime = (f.mimetype or '') if f else ''
+    if not f or not (mime.startswith('image/') or mime.startswith('video/')):
+        return jsonify({'error': 'unsupported'}), 400
+    fd, tmp = tempfile.mkstemp(prefix='sq-', dir='/tmp')
+    os.close(fd)
+    f.save(tmp)
+    try:
+        item = status_queue.add_upload(tmp, mime, request.form.get('caption', ''))
+    except ValueError as e:
+        code = 'too_many' if str(e) == 'too_many' else 'unsupported'
+        return jsonify({'error': code}), 400
+    return jsonify({'item': item})
+
+
+@app.route('/api/status-queue/text', methods=['POST'])
+def api_status_queue_text():
+    if not _authed():
+        return '', 401
+    data = request.get_json(silent=True) or {}
+    try:
+        item = status_queue.add_text(str(data.get('text') or ''), str(data.get('color') or ''))
+    except ValueError as e:
+        code = 'too_many' if str(e) == 'too_many' else 'empty'
+        return jsonify({'error': code}), 400
+    return jsonify({'item': item})
+
+
+@app.route('/api/status-queue/reorder', methods=['POST'])
+def api_status_queue_reorder():
+    if not _authed():
+        return '', 401
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids')
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        return '', 400
+    status_queue.reorder(ids[:status_queue.MAX_ITEMS])
+    return jsonify({'ok': True})
+
+
+@app.route('/api/status-queue/<item_id>', methods=['POST'])
+def api_status_queue_update(item_id: str):
+    if not _authed():
+        return '', 401
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return '', 400
+    item = status_queue.update(item_id, data)
+    if item is None:
+        return jsonify({'error': 'busy'}), 409
+    return jsonify({'item': item})
+
+
+@app.route('/api/status-queue/<item_id>/post', methods=['POST'])
+def api_status_queue_post(item_id: str):
+    if not _authed():
+        return '', 401
+    data = request.get_json(silent=True) or {}
+    item = status_queue.post_now(item_id, bool(data.get('onlyFailed')))
+    if item is None:
+        return jsonify({'error': 'busy'}), 409
+    return jsonify({'item': item})
+
+
+@app.route('/api/status-queue/<item_id>/delete', methods=['POST'])
+def api_status_queue_delete(item_id: str):
+    if not _authed():
+        return '', 401
+    if not status_queue.delete(item_id):
+        return jsonify({'error': 'busy'}), 409
+    return jsonify({'ok': True})
+
+
+@app.route('/api/status-queue/<item_id>/<which>')
+def api_status_queue_media(item_id: str, which: str):
+    if not _authed():
+        return '', 401
+    if which not in ('thumb', 'file'):
+        abort(404)
+    p = status_queue.file_path(item_id, which)
+    if not p or not os.path.exists(p):
+        abort(404)
+    resp = send_from_directory(status_queue.QUEUE_DIR, os.path.basename(p), max_age=0)
+    resp.headers['Cache-Control'] = 'private, no-store'
+    return resp
+
+
 @app.route('/api/status-mirror', methods=['GET', 'POST'])
 def api_status_mirror():
     if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
@@ -634,16 +762,7 @@ def share():
         return redirect(url_for('login'))
     lang = detect_language(request)
     t = load_translations(lang)
-    messengers = [
-        {'icon': m['icon'], 'name': m.get('name') or m['icon'], 'svg': m['svg'],
-         'color': m['color'],
-         'proxy': f"{request.script_root}/proxy/{m['icon']}/"}
-        for m in enrich_messengers(
-            [{**m, 'icon': str(m['icon']).lower()}
-             for m in load_config().get('messengers', [])
-             if m.get('enabled', True) and m.get('icon') and m.get('port')])
-    ]
-    return render_template('share.html', messengers=messengers, t=t, lang=lang)
+    return render_template('share.html', messengers=_share_messengers(), t=t, lang=lang)
 
 
 @app.route('/share-target', methods=['GET', 'POST'])
@@ -748,5 +867,7 @@ if __name__ == '__main__':
                     "bitte in der Add-on-Konfiguration aendern")
     status_mirror.start(load_config,
                         lambda m: f"http://{messenger_host(m)}:{m['port']}/")
+    status_queue.start(load_config,
+                       lambda m: f"http://{messenger_host(m)}:{m['port']}/")
     # Flask läuft intern auf 5000; nginx lauscht auf 17770 und proxyt dorthin
     app.run(host='127.0.0.1', port=5000, debug=False)

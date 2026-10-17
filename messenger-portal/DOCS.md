@@ -53,6 +53,20 @@ Knopf mit den zwei Pfeilen in der Kopfzeile des Portals: Dort lässt sich je Zie
 - Zurückziehen in WhatsApp löscht die gespiegelte Story nicht; sie läuft nach 24 Stunden ab
 - Was passiert, steht im Portal-Log unter „Status-Spiegel“
 
+## Status-Ablage
+
+Knopf mit dem Stapel in der Kopfzeile. Hier sammelst du Bilder, Videos und Text-Status und postest sie später als Status bzw. Story – sofort oder zu einer Uhrzeit.
+
+- Vom Handy: Inhalt teilen → MessengerPortal → Kachel „Ablage“ → „In die Status-Ablage legen“
+- Am PC: „+ Bilder / Videos“, Dateien hineinziehen oder einfügen; „+ Text-Status“ für reinen Text mit Hintergrundfarbe
+- Je Eintrag die Ziel-Messenger anhaken, Bildunterschrift eintragen, dann „Jetzt posten“ oder Datum/Uhrzeit wählen und „Planen“
+- Mehrere Einträge über das Kästchen im Vorschaubild auswählen und gemeinsam posten, planen oder löschen
+- Mit ↑/↓ sortieren: In dieser Reihenfolge wird gepostet, auch wenn mehrere Einträge zur selben Uhrzeit geplant sind
+- Verkleinert wird beim Hochladen: Fotos auf höchstens 1920 px, Videos auf 720p und höchstens 60 s
+- Unterschiede je Messenger: Signal ohne Bildunterschrift und mit höchstens 30 s Video; Telegram und Signal bekommen Text-Status als Bild
+- Gepostete Einträge bleiben 7 Tage sichtbar und verschwinden dann
+- Geplantes wird vom Add-on gepostet, der Browser muss dafür nicht offen sein. Ist das Add-on zur geplanten Zeit aus, wird beim nächsten Start nachgeholt
+
 ## Sicherheitshinweis
 
 Das Add-on läuft über HTTP. Für den Zugriff aus dem Internet wird ein vorgeschalteter NGINX-Reverse-Proxy mit HTTPS empfohlen.

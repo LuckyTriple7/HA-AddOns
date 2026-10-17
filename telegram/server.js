@@ -210,6 +210,55 @@ function handleTypingUpdate(update) {
   return true;
 }
 
+// ── Zuletzt online ────────────────────────────────────────────────────────────
+// Telegram liefert den Status mit jedem User-Objekt (Dialogliste, getEntity) und
+// meldet Aenderungen als UpdateUserStatus. Wer die genaue Zeit verbirgt,
+// erscheint nur grob: kuerzlich / innerhalb einer Woche / eines Monats.
+const presenceByUser = new Map();   // userId -> { state, at, expires, seenAt }
+const _presenceFetching = new Set();
+const PRESENCE_REFRESH_MS = 60_000;
+
+function notePresence(userId, s) {
+  if (!userId) return;
+  let p;
+  switch (s && s.className) {
+    case 'UserStatusOnline':    p = { state: 'online', expires: (s.expires || 0) * 1000 }; break;
+    case 'UserStatusOffline':   p = { state: 'offline', at: (s.wasOnline || 0) * 1000 }; break;
+    case 'UserStatusRecently':  p = { state: 'recently' }; break;
+    case 'UserStatusLastWeek':  p = { state: 'lastWeek' }; break;
+    case 'UserStatusLastMonth': p = { state: 'lastMonth' }; break;
+    default:                    p = { state: 'longAgo' };
+  }
+  p.seenAt = Date.now();
+  presenceByUser.set(String(userId), p);
+}
+
+function currentPresence(userId) {
+  const p = presenceByUser.get(userId);
+  if (!p) return null;
+  // "online" laeuft ab, wenn Telegram nichts Neues meldet
+  if (p.state === 'online' && p.expires && p.expires < Date.now()) return { state: 'offline', at: p.expires };
+  return { state: p.state, at: p.at || null };
+}
+
+async function refreshPresence(chatId) {
+  if (_presenceFetching.has(chatId) || status !== 'connected') return;
+  _presenceFetching.add(chatId);
+  try {
+    const u = await client.getEntity(peerMap.get(chatId) || chatId);
+    if (u && u.className === 'User') notePresence(chatId, u.status);
+  } catch (e) { dbg(`presence ${chatId}: ${e.message}`); }
+  finally { _presenceFetching.delete(chatId); }
+}
+
+function isPersonChat(chatId) {
+  if (chatId === myId) return false;
+  const ent = peerMap.get(chatId);
+  if (ent) return ent.className === 'User' && !ent.bot && !ent.self;
+  const c = chatMap.get(chatId);
+  return !!c && c.chatType === 'private' && !c.isBot;
+}
+
 // ── Persistence ───────────────────────────────────────────────────────────────
 
 function loadFromDisk() {
@@ -575,6 +624,7 @@ async function loadDialogs() {
       const chatId = getEntityId(entity);
       const name = getEntityName(entity);
       peerMap.set(chatId, entity);
+      if (entity.className === 'User' && !entity.bot && !entity.self) notePresence(chatId, entity.status);
       const isBot = entity.bot === true;
       const chatType = getEntityType(entity);
       if (!chatMap.has(chatId) || !chatMap.get(chatId).lastTime) {
@@ -711,6 +761,10 @@ async function startClient() {
 
     client.addEventHandler((update) => {
       if (handleTypingUpdate(update)) return;
+      if (update.className === 'UpdateUserStatus') {
+        notePresence(String(update.userId), update.status);
+        return;
+      }
       if (update.className === 'UpdateEditMessage' || update.className === 'UpdateEditChannelMessage') {
         if (update.message) applyMessageEdit(update.message);
         return;
@@ -836,7 +890,15 @@ app.get('/api/typing/:chatId', (req, res) => {
     }
     if (!users.size) typingByChatId.delete(chatId);
   }
-  res.json({ typing: names.length > 0, names: names.filter(Boolean) });
+  // Online-Status nur bei Personen; laeuft mit der Tipp-Abfrage mit, solange
+  // der Chat offen ist. Spaetestens jede Minute frisch von Telegram holen
+  let presence = null;
+  if (isPersonChat(chatId)) {
+    const p = presenceByUser.get(chatId);
+    if (!p || now - p.seenAt > PRESENCE_REFRESH_MS) refreshPresence(chatId);
+    presence = currentPresence(chatId);
+  }
+  res.json({ typing: names.length > 0, names: names.filter(Boolean), presence });
 });
 
 app.get('/api/stats', (req, res) => {
@@ -1950,6 +2012,13 @@ app.get('/api/contact/:chatId', async (req, res) => {
 
 // ── UI ────────────────────────────────────────────────────────────────────────
 
+// Muss vor der Seiten-Route stehen: die leitet alles ausser / und /api um
+app.get('/mystatus.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.send(MYSTATUS_JS);
+});
+
 app.get('/{*splat}', (req, res) => {
   if (req.path !== '/' && !req.path.startsWith('/api')) return res.redirect(req.baseUrl + '/');
   res.send(getHtml());
@@ -1986,11 +2055,6 @@ const MS_CFG = {
   storyPrivacy: true, liveEdit: true, liveDelete: true, privacy: true,
   profile: { fields: ['firstName', 'lastName', 'about'], aboutMax: 140 },
 };
-app.get('/mystatus.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  res.send(MYSTATUS_JS);
-});
 
 function getHtml() {
   return `<!DOCTYPE html>
@@ -2143,6 +2207,10 @@ html.light #chat-header { background: #517DA2; }
 #ch-typing { display: none; font-size: 12px; color: #8FD3FF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html.light #ch-typing { color: #fff; }
 #chat-header.typing #ch-stats { display: none; }
+#ch-presence { font-size: 12px; color: rgba(255,255,255,0.75); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ch-presence:empty, #chat-header.typing #ch-presence { display: none; }
+#ch-presence.is-online { color: #8FD3FF; }
+html.light #ch-presence.is-online { color: #fff; font-weight: 600; }
 #chat-header.typing #ch-typing { display: block; }
 .typing-dots span { animation: typing-dot 1.2s infinite; }
 .typing-dots span:nth-child(2) { animation-delay: .2s; }
@@ -2500,6 +2568,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <div class="avatar" id="ch-avatar" style="width:36px;height:36px;font-size:14px;background:#2AABEE">?</div>
       <div style="flex:1;overflow:hidden">
         <div id="ch-name">–</div>
+        <div id="ch-presence"></div>
         <div id="ch-stats"></div>
         <div id="ch-typing"><span id="ch-typing-text"></span><span class="typing-dots"><span>.</span><span>.</span><span>.</span></span></div>
       </div>
@@ -2595,6 +2664,9 @@ const LANG = {
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
     typing: 'tippt', typingOne: 'tippt', typingMany: 'tippen', typingAnd: 'und',
+    presOnline: 'online', presToday: x => 'zuletzt online heute um ' + x, presYesterday: x => 'zuletzt online gestern um ' + x,
+    presDate: (d, x) => 'zuletzt online am ' + d + ' um ' + x, presRecently: 'zuletzt kürzlich online',
+    presLastWeek: 'zuletzt innerhalb einer Woche online', presLastMonth: 'zuletzt innerhalb eines Monats online', presLongAgo: 'zuletzt vor langer Zeit online',
     offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
     msgSearchTitle: 'In Nachrichten suchen', msgSearchPlaceholder: 'Nachrichten durchsuchen…',
   },
@@ -2634,6 +2706,9 @@ const LANG = {
     cleanupError: (e) => 'Cleanup error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
     typing: 'typing', typingOne: 'is typing', typingMany: 'are typing', typingAnd: 'and',
+    presOnline: 'online', presToday: x => 'last seen today at ' + x, presYesterday: x => 'last seen yesterday at ' + x,
+    presDate: (d, x) => 'last seen ' + d + ' at ' + x, presRecently: 'last seen recently',
+    presLastWeek: 'last seen within a week', presLastMonth: 'last seen within a month', presLongAgo: 'last seen a long time ago',
     offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
     msgSearchTitle: 'Search in messages', msgSearchPlaceholder: 'Search messages…',
   },
@@ -3221,6 +3296,7 @@ function openChat(chat) {
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
+  document.getElementById('ch-presence').textContent = '';
   document.getElementById('chat-header').classList.remove('typing');
   pollTyping();
   loadBotCommands(chat.id);
@@ -3489,9 +3565,27 @@ async function pollTyping() {
     else if (d.names && d.names.length > 1) text = d.names.slice(0, 2).join(' ' + t('typingAnd') + ' ') + ' ' + t('typingMany');
     document.getElementById('ch-typing-text').textContent = text;
     header.classList.toggle('typing', !!d.typing);
+    const pres = document.getElementById('ch-presence');
+    pres.textContent = presenceText(d.presence);
+    pres.classList.toggle('is-online', !!(d.presence && d.presence.state === 'online'));
   } catch(e) {} finally { _typingBusy = false; }
 }
 setInterval(() => { if (!document.hidden) pollTyping(); }, 1500);
+
+function presenceText(p) {
+  if (!p) return '';
+  if (p.state === 'online') return t('presOnline');
+  if (p.state === 'offline' && p.at) {
+    const d = new Date(p.at), now = new Date(), y = new Date(now);
+    y.setDate(now.getDate() - 1);
+    const time = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return tf('presToday', time);
+    if (d.toDateString() === y.toDateString()) return tf('presYesterday', time);
+    const opts = d.getFullYear() === now.getFullYear() ? { day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit', year: 'numeric' };
+    return tf('presDate', d.toLocaleDateString(locale(), opts), time);
+  }
+  return t({ recently: 'presRecently', lastWeek: 'presLastWeek', lastMonth: 'presLastMonth' }[p.state] || 'presLongAgo');
+}
 
 async function updateChatStats(chatId) {
   if (chatId !== selectedChatId) return;

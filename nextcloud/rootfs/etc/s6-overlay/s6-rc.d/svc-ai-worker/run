@@ -1,0 +1,33 @@
+#!/bin/sh
+# Holt KI-Aufträge (Assistent, Talk, Zusammenfassen) sofort ab statt nur alle
+# 5 Minuten per Cron. Empfehlung der Nextcloud-Doku: taskprocessing:worker, 4+ parallel.
+OPTIONS=/data/options.json
+OCC=/app/www/public/occ
+CONFIG_PHP=/config/www/nextcloud/config/config.php
+
+WORKERS=$(jq -r '.ai_workers // 0' "$OPTIONS" 2>/dev/null || echo 0)
+case "$WORKERS" in ''|*[!0-9]*) WORKERS=0 ;; esac
+if [ "$WORKERS" -eq 0 ]; then
+    exec sleep 2147483647
+fi
+
+echo "[ai-worker] ${WORKERS} worker(s) enabled — waiting for Nextcloud..."
+until grep -q "'installed' => true" "$CONFIG_PHP" 2>/dev/null; do
+    sleep 10
+done
+echo "[ai-worker] Nextcloud ready, starting ${WORKERS} worker(s)"
+
+# -t 60: Worker beendet sich nach 60 s und startet neu (übernimmt Config-Änderungen)
+worker() {
+    while true; do
+        s6-setuidgid abc php "$OCC" taskprocessing:worker -t 60 >/dev/null 2>&1
+        sleep 1
+    done
+}
+
+i=1
+while [ "$i" -lt "$WORKERS" ]; do
+    worker &
+    i=$((i + 1))
+done
+worker

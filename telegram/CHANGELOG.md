@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.3] - 2026-10-17
+- Story-Editor: gemeinsame Datei mit dem Signal-Add-on aktualisiert (Text-Storys in der Liste laufender Storys mit „Aa“ statt Kamera); für Telegram ohne sichtbare Änderung
+
+## [1.8.2] - 2026-10-17
+- Neu: **Zuletzt online** im Chat-Kopf unter dem Namen, wie beim WhatsApp-Add-on: „online“, „zuletzt online heute um 14:05“ bzw. gestern/Datum. Wer die genaue Zeit verbirgt, erscheint wie in der Telegram-App grob als „kürzlich“, „innerhalb einer Woche“ oder „innerhalb eines Monats“. Nur bei Personen, nicht bei Gruppen, Kanälen und Bots. Änderungen kommen live von Telegram, spätestens jede Minute wird nachgefragt, solange der Chat offen ist
+- Fix: Der Story-Knopf aus 1.8.0 erschien nicht. Die Seiten-Route leitete die Anfrage nach dem Editor-Skript (`mystatus.js`) auf die Startseite um; die Route steht jetzt davor
+
 ## [1.8.1] - 2026-10-17
 - CodeQL #269 behoben: Die Datenschutz- und Story-Sichtbarkeits-Auswahl schlug den Wert aus der Anfrage in einem gewöhnlichen Objekt nach – ein Wert wie `constructor` wäre durchgerutscht und hätte eine fremde Funktion aufgerufen. Jetzt über eine feste Liste (`Map`)
 - CodeQL #267/#268 behoben: Die Vorschau im Story-Editor hängte die gewählte Datei als Adresse an ein Bild-/Videoelement (CodeQL `js/xss-through-dom`). Bilder werden jetzt auf eine Zeichenfläche gemalt, Videos laufen über eine eigene Kopie mit festem Videotyp

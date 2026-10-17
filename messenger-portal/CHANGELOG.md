@@ -1,5 +1,25 @@
 # Changelog – MessengerPortal
 
+## [1.5.2] - 2026-10-17
+- Neu: **Reihenfolge in der Status-Ablage.** Jeder Eintrag hat ↑/↓ zum Umsortieren; Gepostetes steht unten
+- Gepostet wird jetzt nacheinander in dieser Reihenfolge – beim gemeinsamen „Jetzt posten“ ebenso wie bei Einträgen, die zur selben Uhrzeit geplant sind. Bisher liefen mehrere Einträge gleichzeitig los, und die Reihenfolge im Status war Zufall
+
+## [1.5.1] - 2026-10-17
+- Fix: Auf dem Handy war die Knopfleiste der Startseite breiter als der Bildschirm, beim Wischen verschob sich die ganze Seite. Die Knöpfe stehen auf schmalen Bildschirmen jetzt in einer zweiten Zeile
+- Status-Ablage: Die große Ansicht eines Bildes oder Videos schließt jetzt auch mit ESC
+
+## [1.5.0] - 2026-10-17
+- Neu: **Status-Ablage.** Bilder, Videos und Text-Status über den Tag sammeln und später als Status bzw. Story an WhatsApp, Telegram und Signal posten – sofort oder zu einer gewählten Uhrzeit
+  - Sammeln: auf „Senden an“ die neue Kachel „Ablage“ (also auch direkt aus dem Teilen-Menü des Handys), oder auf der Ablage-Seite hochladen, hineinziehen, einfügen
+  - Je Eintrag: Vorschau (Klick vergrößert), Bildunterschrift, Ziel-Messenger, jetzt posten, planen, Plan aufheben, löschen; bei Fehlern „Erneut versuchen“ nur für die fehlgeschlagenen Ziele
+  - Mehrere Einträge auswählen und gemeinsam posten, planen oder löschen
+  - Große Dateien werden beim Hochladen verkleinert: Fotos auf höchstens 1920 px als JPEG (nach Handy-Lage gedreht), Videos auf 720p/H.264 und höchstens 60 s. Signal bekommt die ersten 30 s, Telegram die Videodaten, die es braucht
+  - Text-Status: WhatsApp als echter Text-Status, Telegram und Signal als Bild in derselben Farbe
+  - Gepostete Einträge verschwinden nach 7 Tagen von selbst
+  - Postet die Ablage selbst nach WhatsApp und Signal/Telegram, spiegelt der Status-Spiegel denselben Status nicht noch einmal
+- Uploads in die Ablage dürfen bis 1 GB groß sein (sonst gilt weiter 64 MB). Das Image bringt dafür ffmpeg mit
+- Kopfzeile: neuer Knopf zur Status-Ablage
+
 ## [1.4.1] - 2026-10-17
 - CodeQL-Befund #264 (Fehlerdetails nach außen) behoben: Das Status-Spiegel-Fenster bekam bei Fehlern den Text der Ausnahme. Es bekommt jetzt nur noch feste Fehlercodes und zeigt „Senden fehlgeschlagen“ bzw. „WhatsApp nicht erreichbar“ mit Verweis aufs Portal-Log, wo die Details stehen
 

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" id="theme-color-meta" content="#0d1117">
+  <title>{{ t.sq_title }} – {{ t.app_name }}</title>
+  <link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surface: #161b22; --surface-hover: #1c2128; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff; --danger: #f85149; --ok: #3fb950; --warn: #d29922;
+      --radius: 14px; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    [data-theme="light"] {
+      --bg: #f0f2f5; --surface: #ffffff; --surface-hover: #f6f8fa; --border: #d0d7de;
+      --text: #1f2328; --text-muted: #636c76; --accent: #0969da; --danger: #cf222e; --ok: #1a7f37; --warn: #9a6700;
+    }
+    html, body { min-height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: .7rem 1rem; display: flex; align-items: center; gap: .75rem;
+    }
+    .back-btn {
+      width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0;
+    }
+    .back-btn:hover { color: var(--text); background: var(--surface-hover); }
+    .back-btn svg { width: 18px; height: 18px; fill: currentColor; }
+    h1 { font-size: 1.05rem; font-weight: 700; flex: 1; }
+    main { max-width: 760px; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: .9rem; }
+
+    .add-bar { display: flex; gap: .6rem; flex-wrap: wrap; }
+    .btn {
+      border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text);
+      font: inherit; font-size: .88rem; font-weight: 600; padding: .5rem .85rem; cursor: pointer;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.danger { color: var(--danger); }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn.small { font-size: .8rem; padding: .35rem .6rem; }
+    .btn.mv { min-width: 34px; font-size: .95rem; padding: .2rem .5rem; line-height: 1.2; }
+    .drop {
+      border: 2px dashed var(--border); border-radius: var(--radius); padding: 1rem;
+      text-align: center; color: var(--text-muted); font-size: .9rem;
+    }
+    body.dragging .drop { border-color: var(--accent); color: var(--text); }
+    .note { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+            padding: .7rem 1rem; font-size: .88rem; color: var(--text-muted); }
+    .note.warn { border-color: var(--danger); color: var(--text); }
+    .uploads:empty { display: none; }
+    .up { font-size: .82rem; color: var(--text-muted); display: flex; gap: .6rem; align-items: center; }
+    .up progress { flex: 1; height: 6px; }
+
+    .text-new { display: flex; flex-direction: column; gap: .5rem; border: 1px solid var(--border);
+                border-radius: var(--radius); background: var(--surface); padding: .7rem; }
+    textarea, input[type="datetime-local"] {
+      width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 10px; padding: .5rem .65rem; font: inherit; font-size: .9rem;
+    }
+    textarea { min-height: 2.6rem; resize: vertical; }
+    textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+    .swatches { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; }
+    .sw { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+    .sw.active { border-color: var(--text); }
+
+    .bulk { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; border: 1px solid var(--accent);
+            border-radius: var(--radius); padding: .6rem .8rem; background: var(--surface); }
+    .bulk span { font-size: .85rem; font-weight: 600; flex: 1; min-width: 7rem; }
+    .bulk input[type="datetime-local"] { width: auto; }
+
+    .item { display: flex; gap: .8rem; border: 1px solid var(--border); border-radius: var(--radius);
+            background: var(--surface); padding: .7rem; }
+    .item.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .thumb { width: 92px; height: 92px; border-radius: 10px; flex-shrink: 0; overflow: hidden; position: relative;
+             background: var(--bg); display: flex; align-items: center; justify-content: center;
+             color: #fff; font-size: .78rem; text-align: center; padding: 4px; word-break: break-word; cursor: pointer; }
+    .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .thumb .badge { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,.65); color: #fff;
+                    border-radius: 6px; padding: 1px 5px; font-size: .7rem; }
+    .thumb input { position: absolute; top: 6px; left: 6px; width: 18px; height: 18px; accent-color: var(--accent); }
+    .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .45rem; }
+    .row { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+    .state { font-size: .78rem; font-weight: 700; border-radius: 6px; padding: 2px 7px; border: 1px solid var(--border); color: var(--text-muted); }
+    .state.ready { color: var(--text); }
+    .state.scheduled { color: var(--accent); border-color: var(--accent); }
+    .state.posted { color: var(--ok); border-color: var(--ok); }
+    .state.failed, .state.error { color: var(--danger); border-color: var(--danger); }
+    .state.processing, .state.posting { color: var(--warn); border-color: var(--warn); }
+    .meta { font-size: .76rem; color: var(--text-muted); }
+    .tg { display: inline-flex; align-items: center; gap: .3rem; border: 1.5px solid var(--border); border-radius: 16px;
+          padding: .2rem .55rem; font-size: .8rem; cursor: pointer; background: none; color: var(--text-muted); font: inherit; font-size: .8rem; }
+    .tg svg { width: 14px; height: 14px; fill: var(--brand); }
+    .tg.on { border-color: var(--brand); color: var(--text); }
+    .tg .res { font-weight: 700; }
+    .tg .res.ok { color: var(--ok); } .tg .res.bad { color: var(--danger); }
+    .empty { text-align: center; color: var(--text-muted); padding: 2rem 1rem; font-size: .9rem; }
+    [hidden] { display: none !important; }
+
+    #viewer { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.85); display: flex;
+              align-items: center; justify-content: center; }
+    #viewer img, #viewer video { max-width: 96vw; max-height: 92vh; border-radius: 8px; }
+    @media (max-width: 520px) {
+      .thumb { width: 72px; height: 72px; }
+      main { padding: .75rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="back-btn" href="{{ url_for('index') }}" aria-label="{{ t.back_to_portal }}" title="{{ t.back_to_portal }}">
+      <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </a>
+    <h1>{{ t.sq_title }}</h1>
+  </header>
+
+  <main>
+    {% if not messengers %}<div class="note warn">{{ t.sq_no_targets }}</div>{% endif %}
+    <div class="note warn" id="warn" hidden></div>
+
+    <div class="add-bar">
+      <button class="btn primary" id="add-files">+ {{ t.sq_add_files }}</button>
+      <button class="btn" id="add-text">+ {{ t.sq_add_text }}</button>
+      <input type="file" id="file-input" accept="image/*,video/*" multiple hidden>
+    </div>
+    <div class="drop" id="drop">{{ t.sq_drop }}</div>
+    <div class="uploads" id="uploads"></div>
+
+    <div class="text-new" id="text-new" hidden>
+      <textarea id="text-input" maxlength="700" placeholder="{{ t.sq_text_ph }}"></textarea>
+      <div class="swatches" id="text-colors"></div>
+      <div class="row"><button class="btn primary small" id="text-save">{{ t.sq_text_save }}</button>
+        <button class="btn small" id="text-cancel">{{ t.sq_cancel }}</button></div>
+    </div>
+
+    <div class="bulk" id="bulk" hidden>
+      <span id="bulk-count"></span>
+      <button class="btn small" id="bulk-all"></button>
+      <button class="btn primary small" id="bulk-post">{{ t.sq_post_now }}</button>
+      <input type="datetime-local" id="bulk-at">
+      <button class="btn small" id="bulk-plan">{{ t.sq_schedule }}</button>
+      <button class="btn small danger" id="bulk-del">{{ t.sq_delete }}</button>
+    </div>
+
+    <div id="list"></div>
+  </main>
+
+  <div id="viewer" hidden></div>
+
+  <script>
+    (function () {
+      let saved = null;
+      try { saved = localStorage.getItem('mp-theme'); } catch (e) {}
+      const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      document.getElementById('theme-color-meta').content = theme === 'dark' ? '#0d1117' : '#f0f2f5';
+    })();
+
+    const T = {
+      state: {
+        processing: {{ t.sq_st_processing | tojson }}, ready: {{ t.sq_st_ready | tojson }},
+        scheduled: {{ t.sq_st_scheduled | tojson }}, posting: {{ t.sq_st_posting | tojson }},
+        posted: {{ t.sq_st_posted | tojson }}, failed: {{ t.sq_st_failed | tojson }}, error: {{ t.sq_st_error | tojson }},
+      },
+      code: {
+        unreachable: {{ t.sq_err_unreachable | tojson }}, rejected: {{ t.sq_err_rejected | tojson }},
+        not_configured: {{ t.sq_err_not_configured | tojson }},
+      },
+      captionPh: {{ t.sq_caption_ph | tojson }}, noCaption: {{ t.sq_no_caption_signal | tojson }},
+      postNow: {{ t.sq_post_now | tojson }}, retry: {{ t.sq_retry | tojson }}, schedule: {{ t.sq_schedule | tojson }},
+      unschedule: {{ t.sq_unschedule | tojson }}, del: {{ t.sq_delete | tojson }}, delConfirm: {{ t.sq_delete_confirm | tojson }},
+      delManyConfirm: {{ t.sq_delete_many_confirm | tojson }}, at: {{ t.sq_at | tojson }}, postedAt: {{ t.sq_posted_at | tojson }},
+      trimmed: {{ t.sq_trimmed | tojson }}, signalCut: {{ t.sq_signal_cut | tojson }}, empty: {{ t.sq_empty | tojson }},
+      selected: {{ t.sq_selected | tojson }}, selectAll: {{ t.sq_select_all | tojson }}, selectNone: {{ t.sq_select_none | tojson }},
+      needTarget: {{ t.sq_need_target | tojson }}, needTime: {{ t.sq_need_time | tojson }}, pastTime: {{ t.sq_past_time | tojson }},
+      uploadFailed: {{ t.sq_upload_failed | tojson }}, unsupported: {{ t.sq_unsupported | tojson }}, tooMany: {{ t.sq_too_many | tojson }},
+      text: {{ t.sq_kind_text | tojson }}, shrunk: {{ t.sq_shrunk | tojson }},
+      up: {{ t.sq_up | tojson }}, down: {{ t.sq_down | tojson }},
+    };
+    const MESSENGERS = {{ messengers | tojson }};
+    const API = {{ url_for('api_status_queue') | tojson }};
+    const LOGIN_URL = {{ url_for('login') | tojson }};
+    const COLORS = ['#0a5f55', '#128c7e', '#25d366', '#34b7f1', '#4a6cf7', '#7f5af0', '#b5179e', '#e63946',
+                    '#f4772b', '#f2b705', '#6d4c41', '#263238', '#1b1b1b'];
+
+    const $ = id => document.getElementById(id);
+    const loc = document.documentElement.lang === 'en' ? 'en-GB' : 'de-DE';
+    let items = [];
+    const selected = new Set();
+    let textColor = COLORS[0];
+    let editing = null;   // Eintrag, in dessen Textfeld gerade getippt wird
+
+    function warn(text) { $('warn').textContent = text || ''; $('warn').hidden = !text; }
+    const fmtTime = ms => new Date(ms).toLocaleString(loc, { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const fmtSize = n => n < 1048576 ? Math.round(n / 1024) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+    function toLocalInput(ms) {
+      const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000);
+      return d.toISOString().slice(0, 16);
+    }
+    function defaultTime() {
+      const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1);
+      if (d.getHours() < 19) d.setHours(19);
+      return toLocalInput(d.getTime());
+    }
+
+    async function api(path, body) {
+      const res = await fetch(API + path, body === undefined ? { cache: 'no-store' } : {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      if (res.redirected && new URL(res.url).pathname.endsWith('/login')) { location.href = LOGIN_URL; throw new Error('login'); }
+      if (res.status === 401) { location.href = LOGIN_URL; throw new Error('login'); }
+      let data = {};
+      try { data = await res.json(); } catch (e) {}
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      return data;
+    }
+
+    // ── Liste ───────────────────────────────────────────────
+    async function load() {
+      try {
+        items = (await api('')).items || [];
+        for (const id of [...selected]) if (!items.some(i => i.id === id)) selected.delete(id);
+        render();
+      } catch (e) { if (e.message !== 'login') warn(T.uploadFailed); }
+    }
+
+    function brandSvg(m) {
+      const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      s.setAttribute('viewBox', '0 0 24 24');
+      s.innerHTML = m.svg;   // eigene, feste Symbole aus app.py
+      return s;
+    }
+
+    function render() {
+      const list = $('list');
+      if (editing && list.contains(editing)) { renderBulk(); return; }   // Tippen nicht unterbrechen
+      list.textContent = '';
+      if (!items.length) {
+        const e = document.createElement('div');
+        e.className = 'empty'; e.textContent = T.empty;
+        list.appendChild(e);
+      }
+      // Deine Reihenfolge; Gepostetes rutscht nach unten
+      const sorted = ordered();
+      sorted.forEach((it, i) => list.appendChild(card(it, sorted[i - 1], sorted[i + 1])));
+      renderBulk();
+    }
+
+    const group = it => (it.state === 'posted' ? 1 : 0);
+    function ordered() {
+      return [...items].sort((a, b) => (group(a) - group(b)) || ((a.order || 0) - (b.order || 0)) || (a.created - b.created));
+    }
+
+    // Mit dem Nachbarn tauschen und die ganze sichtbare Folge speichern
+    async function move(it, other) {
+      if (!other || group(other) !== group(it)) return;
+      const ids = ordered().map(x => x.id);
+      const a = ids.indexOf(it.id), b = ids.indexOf(other.id);
+      [ids[a], ids[b]] = [ids[b], ids[a]];
+      ids.forEach((id, n) => { const x = items.find(i => i.id === id); if (x) x.order = n; });
+      render();
+      try { await api('/reorder', { ids }); } catch (e) { warn(T.uploadFailed); load(); }
+    }
+
+    function card(it, prev, next) {
+      const el = document.createElement('div');
+      el.className = 'item' + (selected.has(it.id) ? ' selected' : '');
+      const busy = it.state === 'processing' || it.state === 'posting';
+
+      const th = document.createElement('div');
+      th.className = 'thumb';
+      if (it.kind === 'text') {
+        th.style.background = it.color || COLORS[0];
+        th.textContent = (it.text || '').slice(0, 60);
+      } else if (it.hasThumb) {
+        const img = document.createElement('img');
+        img.alt = '';
+        img.src = API + '/' + encodeURIComponent(it.id) + '/thumb';
+        th.appendChild(img);
+      } else {
+        th.textContent = it.kind === 'video' ? '🎬' : '🖼';
+      }
+      if (it.kind === 'video' && it.duration) {
+        const b = document.createElement('span');
+        b.className = 'badge'; b.textContent = Math.round(it.duration) + ' s';
+        th.appendChild(b);
+      }
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = selected.has(it.id); cb.disabled = busy;
+      cb.onclick = e => { e.stopPropagation(); toggleSel(it.id, cb.checked); };
+      th.appendChild(cb);
+      th.onclick = () => view(it);
+      el.appendChild(th);
+
+      const body = document.createElement('div');
+      body.className = 'body';
+
+      const head = document.createElement('div');
+      head.className = 'row';
+      const st = document.createElement('span');
+      st.className = 'state ' + it.state;
+      st.textContent = T.state[it.state] || it.state;
+      head.appendChild(st);
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      const parts = [];
+      if (it.state === 'scheduled' && it.scheduledAt) parts.push(T.at.replace('{time}', fmtTime(it.scheduledAt)));
+      if ((it.state === 'posted' || it.state === 'failed') && it.postedAt) parts.push(T.postedAt.replace('{time}', fmtTime(it.postedAt)));
+      if (it.size) parts.push(fmtSize(it.size) + (it.origSize && it.origSize > it.size * 1.2 ? ' ' + T.shrunk.replace('{size}', fmtSize(it.origSize)) : ''));
+      if (it.trimmed) parts.push(T.trimmed);
+      meta.textContent = parts.join(' · ');
+      meta.style.flex = '1';
+      head.appendChild(meta);
+      // ︎: als Text zeichnen, nicht als farbiges Emoji
+      const up = button('↑︎', 'mv', () => move(it, prev), !prev || group(prev) !== group(it));
+      const down = button('↓︎', 'mv', () => move(it, next), !next || group(next) !== group(it));
+      up.title = T.up; down.title = T.down;
+      head.append(up, down);
+      body.appendChild(head);
+
+      const ta = document.createElement('textarea');
+      ta.maxLength = 700;
+      if (it.kind === 'text') { ta.value = it.text || ''; }
+      else { ta.value = it.caption || ''; ta.placeholder = T.captionPh; }
+      ta.disabled = busy;
+      ta.onfocus = () => { editing = ta; };
+      ta.onblur = async () => {
+        editing = null;
+        const key = it.kind === 'text' ? 'text' : 'caption';
+        if (ta.value !== (it[key] || '')) {
+          try { const d = await api('/' + it.id, { [key]: ta.value }); Object.assign(it, d.item); } catch (e) { warn(T.uploadFailed); }
+        }
+      };
+      body.appendChild(ta);
+
+      const tgs = document.createElement('div');
+      tgs.className = 'row';
+      for (const m of MESSENGERS) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tg' + (it.targets.includes(m.icon) ? ' on' : '');
+        b.style.setProperty('--brand', m.color);
+        b.disabled = busy;
+        b.appendChild(brandSvg(m));
+        b.appendChild(document.createTextNode(m.name));
+        const r = (it.results || {})[m.icon];
+        if (r) {
+          const s = document.createElement('span');
+          s.className = 'res ' + (r.ok ? 'ok' : 'bad');
+          s.textContent = r.ok ? '✓' : '✗';
+          if (!r.ok) b.title = T.code[r.code] || r.code;
+          b.appendChild(s);
+        }
+        b.onclick = async () => {
+          const targets = it.targets.includes(m.icon) ? it.targets.filter(x => x !== m.icon) : [...it.targets, m.icon];
+          try { const d = await api('/' + it.id, { targets }); Object.assign(it, d.item); render(); } catch (e) { warn(T.uploadFailed); }
+        };
+        tgs.appendChild(b);
+      }
+      body.appendChild(tgs);
+      const failed = Object.entries(it.results || {}).filter(([, r]) => !r.ok);
+      if (failed.length) {
+        const f = document.createElement('div');
+        f.className = 'meta';
+        f.style.color = 'var(--danger)';
+        f.textContent = failed.map(([k, r]) => (MESSENGERS.find(m => m.icon === k) || { name: k }).name + ': ' + (T.code[r.code] || r.code)).join(' · ');
+        body.appendChild(f);
+      }
+      const hints = [];
+      if (it.targets.includes('signal') && it.caption && it.kind !== 'text') hints.push(T.noCaption);
+      if (it.targets.includes('signal') && it.kind === 'video' && it.duration > 30.5) hints.push(T.signalCut);
+      if (hints.length) {
+        const h = document.createElement('div');
+        h.className = 'meta'; h.textContent = hints.join(' ');
+        body.appendChild(h);
+      }
+
+      const acts = document.createElement('div');
+      acts.className = 'row';
+      const canPost = !busy && it.state !== 'error';
+      if (it.state === 'failed') acts.appendChild(button(T.retry, 'primary', () => post([it.id], true), !canPost));
+      acts.appendChild(button(T.postNow, it.state === 'failed' ? '' : 'primary', () => post([it.id]), !canPost));
+      const at = document.createElement('input');
+      at.type = 'datetime-local';
+      at.value = it.scheduledAt ? toLocalInput(it.scheduledAt) : defaultTime();
+      at.disabled = !canPost;
+      at.style.width = 'auto';
+      acts.appendChild(at);
+      acts.appendChild(button(T.schedule, '', () => plan([it.id], at.value), !canPost));
+      if (it.state === 'scheduled') acts.appendChild(button(T.unschedule, '', () => unplan(it.id), busy));
+      acts.appendChild(button(T.del, 'danger', () => del([it.id]), it.state === 'posting'));
+      body.appendChild(acts);
+
+      el.appendChild(body);
+      return el;
+    }
+
+    function button(label, cls, fn, disabled) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn small ' + (cls || '');
+      b.textContent = label;
+      b.disabled = !!disabled;
+      b.onclick = fn;
+      return b;
+    }
+
+    function view(it) {
+      if (it.kind === 'text' || it.state === 'processing' || it.state === 'error') return;
+      const v = $('viewer');
+      v.textContent = '';
+      const src = API + '/' + encodeURIComponent(it.id) + '/file';
+      const el = document.createElement(it.kind === 'video' ? 'video' : 'img');
+      if (it.kind === 'video') { el.controls = true; el.autoplay = true; }
+      el.src = src;
+      el.onclick = e => e.stopPropagation();
+      v.appendChild(el);
+      v.hidden = false;
+    }
+    function closeViewer() { $('viewer').hidden = true; $('viewer').textContent = ''; }
+    $('viewer').onclick = closeViewer;
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('viewer').hidden) closeViewer(); });
+
+    // ── Aktionen ────────────────────────────────────────────
+    async function post(ids, onlyFailed) {
+      warn('');
+      for (const id of ids) {
+        const it = items.find(i => i.id === id);
+        if (it && !it.targets.length) { warn(T.needTarget); continue; }
+        try { await api('/' + id + '/post', { onlyFailed: !!onlyFailed }); } catch (e) { warn(T.uploadFailed); }
+      }
+      await load();
+    }
+
+    async function plan(ids, value) {
+      warn('');
+      if (!value) return warn(T.needTime);
+      const ms = new Date(value).getTime();
+      if (!(ms > Date.now() - 60000)) return warn(T.pastTime);
+      for (const id of ids) {
+        const it = items.find(i => i.id === id);
+        if (it && !it.targets.length) { warn(T.needTarget); continue; }
+        try { await api('/' + id, { scheduledAt: ms }); } catch (e) { warn(T.uploadFailed); }
+      }
+      await load();
+    }
+
+    async function unplan(id) {
+      try { await api('/' + id, { scheduledAt: null }); } catch (e) { warn(T.uploadFailed); }
+      await load();
+    }
+
+    async function del(ids) {
+      if (!confirm(ids.length > 1 ? T.delManyConfirm.replace('{n}', ids.length) : T.delConfirm)) return;
+      for (const id of ids) {
+        try { await api('/' + id + '/delete', {}); selected.delete(id); } catch (e) { warn(T.uploadFailed); }
+      }
+      await load();
+    }
+
+    // ── Auswahl ─────────────────────────────────────────────
+    function toggleSel(id, on) {
+      if (on) selected.add(id); else selected.delete(id);
+      render();
+    }
+    function renderBulk() {
+      const n = selected.size;
+      $('bulk').hidden = n === 0;
+      $('bulk-count').textContent = T.selected.replace('{n}', n);
+      const selectable = items.filter(i => i.state !== 'processing' && i.state !== 'posting');
+      $('bulk-all').textContent = n < selectable.length ? T.selectAll : T.selectNone;
+      if (!$('bulk-at').value) $('bulk-at').value = defaultTime();
+    }
+    $('bulk-all').onclick = () => {
+      const selectable = items.filter(i => i.state !== 'processing' && i.state !== 'posting' && i.state !== 'posted');
+      if (selected.size < selectable.length) selectable.forEach(i => selected.add(i.id)); else selected.clear();
+      render();
+    };
+    const selectedInOrder = () => ordered().map(i => i.id).filter(id => selected.has(id));
+    $('bulk-post').onclick = () => post(selectedInOrder());
+    $('bulk-plan').onclick = () => plan(selectedInOrder(), $('bulk-at').value);
+    $('bulk-del').onclick = () => del(selectedInOrder());
+
+    // ── Hochladen ───────────────────────────────────────────
+    function upload(file) {
+      return new Promise(resolve => {
+        const row = document.createElement('div');
+        row.className = 'up';
+        const name = document.createElement('span');
+        name.textContent = file.name;
+        const bar = document.createElement('progress');
+        bar.max = 100; bar.value = 0;
+        row.append(name, bar);
+        $('uploads').appendChild(row);
+        const fd = new FormData();
+        fd.append('file', file, file.name);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', API + '/upload');
+        xhr.upload.onprogress = e => { if (e.lengthComputable) bar.value = Math.round(e.loaded / e.total * 100); };
+        xhr.onload = () => {
+          row.remove();
+          if (xhr.status === 401) { location.href = LOGIN_URL; return; }
+          if (xhr.status !== 200) {
+            let code = '';
+            try { code = JSON.parse(xhr.responseText).error; } catch (e) {}
+            warn((code === 'unsupported' ? T.unsupported : code === 'too_many' ? T.tooMany : T.uploadFailed) + ' (' + file.name + ')');
+          }
+          resolve();
+        };
+        xhr.onerror = () => { row.remove(); warn(T.uploadFailed + ' (' + file.name + ')'); resolve(); };
+        xhr.send(fd);
+      });
+    }
+    async function addFiles(list) {
+      const files = Array.from(list || []).filter(f => f && f.size > 0);
+      if (!files.length) return;
+      warn('');
+      for (const f of files) await upload(f);
+      await load();
+    }
+    $('add-files').onclick = () => $('file-input').click();
+    $('file-input').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+    document.addEventListener('paste', e => {
+      const f = e.clipboardData && e.clipboardData.files;
+      if (f && f.length && !(e.target instanceof HTMLTextAreaElement)) { e.preventDefault(); addFiles(f); }
+    });
+    let depth = 0;
+    const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    document.addEventListener('dragenter', e => { if (hasFiles(e)) { e.preventDefault(); depth++; document.body.classList.add('dragging'); } });
+    document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+    document.addEventListener('dragleave', e => { if (hasFiles(e) && --depth <= 0) { depth = 0; document.body.classList.remove('dragging'); } });
+    document.addEventListener('drop', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); depth = 0; document.body.classList.remove('dragging');
+      addFiles(e.dataTransfer.files);
+    });
+
+    // ── Text-Status ─────────────────────────────────────────
+    function buildColors() {
+      const box = $('text-colors');
+      box.textContent = '';
+      for (const c of COLORS) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'sw' + (c === textColor ? ' active' : '');
+        b.style.background = c;
+        b.onclick = () => { textColor = c; buildColors(); };
+        box.appendChild(b);
+      }
+    }
+    $('add-text').onclick = () => { $('text-new').hidden = false; buildColors(); $('text-input').focus(); };
+    $('text-cancel').onclick = () => { $('text-new').hidden = true; $('text-input').value = ''; };
+    $('text-save').onclick = async () => {
+      const text = $('text-input').value.trim();
+      if (!text) return;
+      try {
+        await api('/text', { text, color: textColor });
+        $('text-input').value = '';
+        $('text-new').hidden = true;
+        await load();
+      } catch (e) { warn(e.message === 'too_many' ? T.tooMany : T.uploadFailed); }
+    };
+
+    // Solange etwas laeuft oder geplant ist, regelmaessig nachsehen
+    setInterval(() => {
+      if (document.hidden) return;
+      if (items.some(i => ['processing', 'posting', 'scheduled'].includes(i.state))) load();
+    }, 5000);
+    load();
+  </script>
+</body>
+</html>

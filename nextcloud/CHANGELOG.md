@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.34
+- Neue Option `ai_workers` (0–8, Standard 0): startet `occ taskprocessing:worker`-Prozesse, damit KI-Aufträge des Assistenten sofort statt erst nach bis zu 5 Minuten per Cron laufen. Nextcloud empfiehlt 4.
+
 ## 1.0.33
 - Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 35.0.2 (35.0.2-ls457)
 

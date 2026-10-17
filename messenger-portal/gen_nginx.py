@@ -315,6 +315,21 @@ server {{
         proxy_set_header   X-Ingress-Path {ingress};
     }}
 
+    # ── Status-Ablage: Handy-Videos sind oft groesser als 64 MB ──
+    location = /api/status-queue/upload {{
+        client_max_body_size 1024m;
+        proxy_request_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_pass         http://127.0.0.1:5000;
+        proxy_set_header   Host              $host;
+        proxy_set_header   Cookie            $http_cookie;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $mp_proto;
+        proxy_set_header   X-Ingress-Path    {ingress};
+    }}
+
     # ── Flask app (login, portal, static) ────────────────
     location / {{
         proxy_pass         http://127.0.0.1:5000;
