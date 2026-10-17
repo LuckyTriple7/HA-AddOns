@@ -16,6 +16,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 - **Datei-Upload**: 📎-Button zum Senden von Bildern und Dokumenten aus dem Browser (max. 64 MB)
 - **Chat-Filter**: Tabs „Alle / Privat / Gruppen" in der Sidebar; Gruppen mit 👥-Avatar
 - **Chat-Export**: 💾-Button im Chat-Header — exportiert alle Nachrichten als HTML-Datei (Bilder inline eingebettet)
+- **Meine Story**: Kreis-Knopf in der Kopfzeile — Story aus Text (wird als Bild gemalt), Bild oder Video (bis 30 s) posten; Vorlagen; Profil (Name, Info, Info-Emoji) bearbeiten; über das Add-on gepostete Storys der letzten 24 Stunden sehen
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
 - **Reaktionen**: Mit dem Smiley neben einer Nachricht reagieren; Reaktionen anderer erscheinen unter der Nachricht, ein Klick auf die eigene nimmt sie zurück
 - **Lesebestätigungen**: Absender sehen, dass du gelesen hast, sobald der Chat offen ist (abschaltbar mit `send_read_receipts`)
@@ -220,6 +221,7 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 - **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
 - **Chat filter**: Tabs "All / Private / Groups" in the sidebar; groups with 👥 avatar
 - **Chat export**: 💾 button in the chat header — exports all messages as an HTML file (images embedded inline)
+- **My story**: circle button in the top bar — post a story from text (drawn as an image), an image or a video (up to 30 s); templates; edit profile (name, about, about emoji); see stories posted through the add-on in the last 24 hours
 - **Reactions**: React with the smiley next to a message; other people's reactions appear below it, clicking your own removes it
 - **Read receipts**: Senders see that you have read their message as soon as the chat is open (can be turned off with `send_read_receipts`)
 - **Profile pictures**: Contact and group pictures in the chat list and chat header, refreshed once a day

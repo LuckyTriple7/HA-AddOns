@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.1] - 2026-10-17
+- CodeQL #269 behoben: Die Datenschutz- und Story-Sichtbarkeits-Auswahl schlug den Wert aus der Anfrage in einem gewöhnlichen Objekt nach – ein Wert wie `constructor` wäre durchgerutscht und hätte eine fremde Funktion aufgerufen. Jetzt über eine feste Liste (`Map`)
+- CodeQL #267/#268 behoben: Die Vorschau im Story-Editor hängte die gewählte Datei als Adresse an ein Bild-/Videoelement (CodeQL `js/xss-through-dom`). Bilder werden jetzt auf eine Zeichenfläche gemalt, Videos laufen über eine eigene Kopie mit festem Videotyp
+
+## [1.8.0] - 2026-10-17
+- Neu: **Meine Story** – Knopf mit dem Kreis in der Kopfzeile öffnet einen Editor wie beim WhatsApp-Add-on:
+  - **Text**: Text mit Hintergrundfarbe und Schrift; wird im Browser als Bild gemalt, weil Telegram keine reinen Text-Storys kennt
+  - **Bild / Video**: mit Bildunterschrift; Videos bis 60 Sekunden (Länge und Format liest der Browser aus)
+  - **Sichtbar für**: Meine Kontakte, Alle oder Enge Freunde
+  - **Vorlagen**: Entwürfe mit Text, Farbe, Schrift und Bild speichern und wieder laden
+  - **Profil**: Vor-, Nachname und Bio ändern; laufende Storys mit Aufrufen sehen, Text ändern, löschen
+  - **Datenschutz**: Telefonnummer, Zuletzt online, Profilbild, Bio, Weiterleitungen, Anrufe und Gruppen-Einladungen auf Alle / Kontakte / Niemand stellen. Ausnahmen für einzelne Personen oder Gruppen bleiben erhalten
+- Fehler von Telegram werden mit ihrem Code gemeldet (z. B. `STORIES_TOO_MUCH`), alles andere nur im Log
+
+## [1.7.31] - 2026-10-17
+- Neu: **Eigene Story posten** über `POST /api/my-status/media` (Bild, optional mit Bildunterschrift, sichtbar für Kontakte). Genutzt von „Senden an → Mein Status“ im MessengerPortal. Videos gehen noch nicht, weil Telegram dafür Länge und Abmessungen verlangt
+
 ## [1.7.30] - 2026-10-16
 - Neu: **Inline-Code per Klick kopieren.** Ein Klick auf einen Befehl in einer Nachricht (Inline-Code) legt ihn in die Zwischenablage; er leuchtet kurz grün mit Haken. Ist im Text etwas markiert, wird nicht kopiert, damit Markieren weiter geht. Code-Blöcke hatten schon ihren Kopieren-Button
 

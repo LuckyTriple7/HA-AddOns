@@ -15,6 +15,7 @@ Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-
 - **Datei-Upload**: 📎-Button zum Senden von Bildern und Dokumenten aus dem Browser (max. 64 MB)
 - **Chat-Filter**: Tabs „Alle / Privat / Gruppen / Kanäle / Bots" in der Sidebar; Typ-Avatare 👥 📢 🤖
 - **Chat-Export**: 💾-Button im Chat-Header — exportiert alle Nachrichten als HTML-Datei (Bilder inline eingebettet)
+- **Meine Story**: Kreis-Knopf in der Kopfzeile — Story aus Text (wird als Bild gemalt), Bild oder Video (bis 60 s) posten, sichtbar für Kontakte, alle oder enge Freunde; Vorlagen; Profil (Name, Bio) bearbeiten; laufende Storys mit Aufrufen sehen, Text ändern, löschen; Datenschutz (Telefonnummer, Zuletzt online, Profilbild, Bio, Weiterleitungen, Anrufe, Gruppen-Einladungen)
 - **Nachrichten löschen**: Nachricht für alle entfernen (Hover → ✕)
 - **Lesebestätigungen**: ✓ gesendet (grau), ✓✓ gelesen (blau) bei eigenen Nachrichten
 - **Ungelesene-Badge**: Blauer Punkt in der Sidebar bei neuen Nachrichten
@@ -228,6 +229,7 @@ Telegram as a full client directly in Home Assistant — with chat UI, REST API 
 - **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
 - **Chat filter**: Tabs "All / Private / Groups / Channels / Bots" in the sidebar; type avatars 👥 📢 🤖
 - **Chat export**: 💾 button in the chat header — exports all messages as an HTML file (images embedded inline)
+- **My story**: circle button in the top bar — post a story from text (drawn as an image), an image or a video (up to 60 s), visible to contacts, everyone or close friends; templates; edit profile (name, bio); see active stories with views, edit caption, delete; privacy (phone number, last seen, profile photo, bio, forwards, calls, group invites)
 - **Delete messages**: Remove a message for everyone (hover → ✕)
 - **Read receipts**: ✓ sent (grey), ✓✓ read (blue) on outgoing messages
 - **Unread badge**: Blue dot in the sidebar for new messages

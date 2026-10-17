@@ -19,6 +19,7 @@ from flask import (Flask, render_template, request, redirect,
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import addon_hosts
+import status_mirror
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
@@ -575,6 +576,18 @@ def api_mark_read():
     return jsonify({'icon': icon, 'last_opened': read_state[icon]})
 
 
+@app.route('/api/status-mirror', methods=['GET', 'POST'])
+def api_status_mirror():
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return '', 401
+    if request.method == 'POST':
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return '', 400
+        status_mirror.set_settings(data)
+    return jsonify(status_mirror.info())
+
+
 @app.route('/proxy-offline')
 def proxy_offline():
     name = request.headers.get('X-Messenger-Name', 'Messenger')
@@ -605,8 +618,11 @@ def index():
         [m for m in config.get('messengers', []) if m.get('enabled', True)]
     )
     poll_interval = max(5, int(config.get('poll_interval', 30)))
+    icons = {str(m.get('icon', '')).lower() for m in messengers}
+    mirror_targets = [i for i in status_mirror.TARGETS if i in icons] if 'whatsapp' in icons else []
     return render_template('index.html', messengers=messengers, t=t, lang=lang,
-                           poll_interval=poll_interval, ingress_mode=is_ingress())
+                           poll_interval=poll_interval, ingress_mode=is_ingress(),
+                           mirror_targets=mirror_targets)
 
 
 @app.route('/share')
@@ -717,11 +733,10 @@ def set_lang(lang: str):
 def _handle_sigterm(signum, frame) -> None:
     """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
     würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
-    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Diese App
-    startet keine Hintergrund-Threads (Flask läuft single-threaded, das
-    Status-Polling passiert clientseitig per JS gegen /status) und Sessions
-    werden bei jeder Änderung bereits synchron über save_sessions() persistiert
-    — ein harter os._exit(0) ist daher sicher, es gibt keinen offenen State."""
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Einziger
+    Hintergrund-Thread ist der Status-Spiegel, der seinen Stand nach jeder
+    Meldung atomar schreibt; Sessions werden bei jeder Änderung bereits synchron
+    über save_sessions() persistiert — ein harter os._exit(0) ist daher sicher."""
     log.info("SIGTERM empfangen, beende sauber…")
     os._exit(0)
 
@@ -731,5 +746,7 @@ if __name__ == '__main__':
     if load_config().get('password') == 'secret':
         log.warning("Das Passwort steht noch auf der Voreinstellung 'secret' - "
                     "bitte in der Add-on-Konfiguration aendern")
+    status_mirror.start(load_config,
+                        lambda m: f"http://{messenger_host(m)}:{m['port']}/")
     # Flask läuft intern auf 5000; nginx lauscht auf 17770 und proxyt dorthin
     app.run(host='127.0.0.1', port=5000, debug=False)

@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.1] - 2026-10-17
+- CodeQL #265/#266 behoben: Die Vorschau im Story-Editor hängte die gewählte Datei als Adresse an ein Bild-/Videoelement (CodeQL `js/xss-through-dom`). Bilder werden jetzt auf eine Zeichenfläche gemalt, Videos laufen über eine eigene Kopie mit festem Videotyp
+
+## [1.8.0] - 2026-10-17
+- Neu: **Meine Story** – Knopf mit dem Kreis in der Kopfzeile öffnet einen Editor wie beim WhatsApp-Add-on:
+  - **Text**: Text mit Hintergrundfarbe und Schrift; wird im Browser als Bild gemalt (signal-cli postet nur Bilder und Videos)
+  - **Bild / Video**: Videos bis 30 Sekunden. Signal-Storys tragen auf diesem Weg keinen Text zum Bild
+  - **Vorlagen**: Entwürfe mit Text, Farbe, Schrift und Bild speichern und wieder laden
+  - **Profil**: Vor-, Nachname, Info-Text und Info-Emoji ändern; dazu die Storys der letzten 24 Stunden, die über das Add-on (oder den Status-Spiegel des MessengerPortals) gepostet wurden
+- Nicht möglich, weil das Add-on ein verknüpftes Gerät ist bzw. signal-cli es nicht anbietet: Storys löschen, Datenschutz-Einstellungen ändern. Das geht nur in der Signal-App
+
+## [1.7.5] - 2026-10-17
+- Neu: **Eigene Story posten** („Meine Story“) über `POST /api/my-status/media` (Bild oder Video). signal-cli-rest-api hat dafür keinen Endpunkt; das Add-on spricht dazu direkt den signal-cli-Daemon per JSON-RPC an (`sendStory`, seit signal-cli 0.14.6). Genutzt von „Senden an → Mein Status“ im MessengerPortal
+
 ## [1.7.4] - 2026-10-16
 - Neu: **Kontaktinfo per Klick aufs Profilbild** — in der Chatliste und im Chat-Kopf, wie bei WhatsApp. Zeigt großes Profilbild (Klick vergrößert es), Namen, abweichenden Signal-Profilnamen, Nummer, Signal-Benutzernamen, Info-Text und wie viele Nachrichten seit wann im Chat liegen. Bei Gruppen stattdessen Beschreibung und Mitglieder
 - Kontakt- und Gruppenliste übernehmen dafür Profilname, Info-Text, Benutzername und Gruppenbeschreibung; umbenannte Gruppen bekommen ihren neuen Namen

@@ -19,7 +19,7 @@ COPY package.json ./
 RUN npm install --omit=dev --no-fund --no-audit \
     && apk del python3 make g++
 
-COPY server.js ./
+COPY server.js mystatus.js status_templates.js ./
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 

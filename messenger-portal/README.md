@@ -11,7 +11,8 @@ Zentrale, passwortgeschützte Startseite für WhatsApp-, Telegram- und Signal-Ad
 - 🌙 Dark / Light Mode (automatisch + manuell)
 - 🌍 Deutsch & Englisch (automatische Spracherkennung)
 - 📱 Responsive Design & PWA-fähig
-- 📤 „Senden an“: Inhalte aus dem Teilen-Menü direkt an einen WhatsApp-, Telegram- oder Signal-Chat schicken
+- 📤 „Senden an“: Inhalte aus dem Teilen-Menü direkt an einen WhatsApp-, Telegram- oder Signal-Chat schicken – oder in den eigenen Status/die eigene Story
+- 🪞 Status-Spiegel: eigene WhatsApp-Statusmeldungen automatisch als Signal- und/oder Telegram-Story übernehmen
 - ⚙️ Vollständig konfigurierbar über HA-Add-on-Optionen
 
 ## Port

@@ -1,5 +1,23 @@
 # Changelog – MessengerPortal
 
+## [1.4.1] - 2026-10-17
+- CodeQL-Befund #264 (Fehlerdetails nach außen) behoben: Das Status-Spiegel-Fenster bekam bei Fehlern den Text der Ausnahme. Es bekommt jetzt nur noch feste Fehlercodes und zeigt „Senden fehlgeschlagen“ bzw. „WhatsApp nicht erreichbar“ mit Verweis aufs Portal-Log, wo die Details stehen
+
+## [1.4.0] - 2026-10-17
+- Neu: **Status-Spiegel.** Neuer Knopf in der Kopfzeile: neue eigene WhatsApp-Statusmeldungen werden auf Wunsch zusätzlich als Signal- und/oder Telegram-Story gepostet – auch die am Handy geposteten. Eingeschaltet wird direkt im Portal, nicht in den Add-on-Optionen; das Fenster zeigt, wann zuletzt gespiegelt wurde und ob etwas schiefging. Abfrage alle 5 Minuten, beim Einschalten sofort. Text-Status werden als Bild gerendert. Signal übernimmt Bilder und Videos ohne Bildunterschrift (braucht Signal 1.7.5), Telegram Bilder mit Bildunterschrift (braucht Telegram 1.7.31). Bilder und Videos brauchen `download_media` im WhatsApp-Add-on. Was beim Einschalten schon läuft, bleibt außen vor
+- „Senden an …“ in der Kopfzeile zeigt nur noch das Symbol, die Beschriftung kommt beim Drüberfahren
+- 1.3.6 und 1.3.7 hatten den Spiegel noch als Add-on-Option; die ist wieder entfernt
+- Image bringt dafür Pillow und die Schrift DejaVu mit
+
+## [1.3.7] - 2026-10-17
+- Status-Spiegel-Schalter in den Add-on-Optionen immer sichtbar (in 1.4.0 durch den Knopf im Portal ersetzt)
+
+## [1.3.6] - 2026-10-17
+- Status-Spiegel als Add-on-Option (in 1.4.0 durch den Knopf im Portal ersetzt)
+
+## [1.3.5] - 2026-10-17
+- Neu: **„Senden an“ → Mein Status.** Ganz oben in der Chatliste steht jetzt „Mein Status“: postet in den eigenen WhatsApp-Status bzw. die eigene Telegram- oder Signal-Story. WhatsApp nimmt Text, Bilder und Videos; Telegram nur Bilder (Text wird Bildunterschrift); Signal Bilder oder Videos ohne Text. Passt der Inhalt nicht, erklärt ein Hinweis warum, und der Knopf bleibt gesperrt. Telegram braucht dafür 1.7.31, Signal 1.7.5
+
 ## [1.3.4] - 2026-10-11
 - CodeQL-Befund #263 (`js/xss-through-dom`) auf der Teilen-Seite behoben: Die Bildvorschau einer angehängten Datei wurde als Adresse in ein `<img>` gehängt. Sie wird jetzt auf eine Zeichenfläche gemalt, sodass der Dateiinhalt nie als Adresse oder Markup gedeutet wird. Lässt sich ein Bild nicht dekodieren, bleibt das Datei-Symbol stehen
 

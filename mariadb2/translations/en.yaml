@@ -14,6 +14,9 @@ configuration:
   slow_query_log:
     name: Slow query log
     description: Logs queries taking longer than 2 seconds to /data/slow-query.log (recommended by Nextcloud 35). Default true.
+  innodb_buffer_pool_size:
+    name: InnoDB buffer pool
+    description: Memory for the data and index cache, e.g. 512M or 2G. The Nextcloud Memories app recommends at least 2G. Only use as much as free RAM allows. Default 512M.
 
 network:
   3306/tcp: MariaDB 2 (accessible on host port 3307)
