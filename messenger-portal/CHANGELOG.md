@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.4.1] - 2026-10-17
+- CodeQL-Befund #264 (Fehlerdetails nach außen) behoben: Das Status-Spiegel-Fenster bekam bei Fehlern den Text der Ausnahme. Es bekommt jetzt nur noch feste Fehlercodes und zeigt „Senden fehlgeschlagen“ bzw. „WhatsApp nicht erreichbar“ mit Verweis aufs Portal-Log, wo die Details stehen
+
 ## [1.4.0] - 2026-10-17
 - Neu: **Status-Spiegel.** Neuer Knopf in der Kopfzeile: neue eigene WhatsApp-Statusmeldungen werden auf Wunsch zusätzlich als Signal- und/oder Telegram-Story gepostet – auch die am Handy geposteten. Eingeschaltet wird direkt im Portal, nicht in den Add-on-Optionen; das Fenster zeigt, wann zuletzt gespiegelt wurde und ob etwas schiefging. Abfrage alle 5 Minuten, beim Einschalten sofort. Text-Status werden als Bild gerendert. Signal übernimmt Bilder und Videos ohne Bildunterschrift (braucht Signal 1.7.5), Telegram Bilder mit Bildunterschrift (braucht Telegram 1.7.31). Bilder und Videos brauchen `download_media` im WhatsApp-Add-on. Was beim Einschalten schon läuft, bleibt außen vor
 - „Senden an …“ in der Kopfzeile zeigt nur noch das Symbol, die Beschriftung kommt beim Drüberfahren

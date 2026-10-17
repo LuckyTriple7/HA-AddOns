@@ -79,5 +79,6 @@
   "mirror_last_ok": "Last mirrored: {time}",
   "mirror_never": "Nothing mirrored yet",
   "mirror_no_media": "Image/video without file – enable download_media in the WhatsApp add-on",
-  "mirror_err": "Error: {msg}"
+  "mirror_err": "Sending failed – details in the portal log",
+  "mirror_wa_unreachable": "WhatsApp not reachable – details in the portal log"
 }

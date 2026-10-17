@@ -140,7 +140,8 @@ TARGETS = {
 }
 
 _wake = threading.Event()
-_last_error = ''   # letzter Fehler beim Abfragen von WhatsApp
+_last_error = ''   # Fehlercode beim Abfragen von WhatsApp; Details nur im Log
+ERROR_CODES = {'no_media', 'send_failed', 'wa_unreachable'}
 
 
 def get_settings() -> dict:
@@ -168,11 +169,21 @@ def set_settings(new: dict) -> dict:
 def info() -> dict:
     """Schalter und letzter Stand je Ziel, fuer die Oberflaeche."""
     settings, state = get_settings(), _load_state()
+
+    def code(value) -> str:
+        # Nur feste Codes nach aussen; Fehlertexte stehen im Log
+        # (aeltere Staende von 1.4.0 enthalten hier noch Exception-Text)
+        return value if value in ERROR_CODES else ('send_failed' if value else '')
+
+    def last_ok(icon):
+        v = (state.get(icon) or {}).get('last_ok')
+        return int(v) if isinstance(v, (int, float)) else None
+
     return {
-        'error': _last_error,
+        'error': 'wa_unreachable' if _last_error else '',
         'targets': {icon: {'enabled': settings[icon],
-                           'last_ok': (state.get(icon) or {}).get('last_ok'),
-                           'last_error': (state.get(icon) or {}).get('last_error', '')}
+                           'last_ok': last_ok(icon),
+                           'last_error': code((state.get(icon) or {}).get('last_error'))}
                     for icon in TARGETS},
     }
 
@@ -242,7 +253,7 @@ def _mirror_target(wa_base: str, icon: str, base: str, msgs: list, st: dict, now
         except Exception as e:
             n = tries.get(mid, 0) + 1
             tries[mid] = n
-            st['last_error'] = str(e)[:200]
+            st['last_error'] = 'send_failed'
             if n >= MAX_TRIES:
                 seen[mid] = ts
                 tries.pop(mid, None)
@@ -276,7 +287,7 @@ def start(get_config, base_url_for) -> None:
                         mirror_once(base_url_for(by_icon['whatsapp']), targets)
                 _last_error = ''
             except Exception as e:
-                _last_error = str(e)[:200]
+                _last_error = 'wa_unreachable'
                 log.warning('Status-Spiegel: Abfrage fehlgeschlagen: %s', e)
             _wake.wait(INTERVAL_S)
             _wake.clear()

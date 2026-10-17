@@ -786,6 +786,7 @@
       never:   {{ t.mirror_never | tojson }},
       noMedia: {{ t.mirror_no_media | tojson }},
       err:     {{ t.mirror_err | tojson }},
+      waDown:  {{ t.mirror_wa_unreachable | tojson }},
     };
     let _mirrorOpen = false;
 
@@ -799,7 +800,7 @@
         const last = document.querySelector('[data-mirror-last="' + cb.dataset.mirror + '"]');
         if (!last) return;
         const errText = st.last_error === 'no_media' ? T_MIRROR.noMedia
-                      : st.last_error ? T_MIRROR.err.replace('{msg}', st.last_error) : '';
+                      : st.last_error ? T_MIRROR.err : '';
         last.classList.toggle('is-err', !!(st.enabled && errText));
         last.textContent = !st.enabled ? ''
           : errText || (st.last_ok
@@ -807,7 +808,7 @@
               : T_MIRROR.never);
       });
       const err = document.getElementById('mirror-err');
-      err.textContent = anyOn && data.error ? T_MIRROR.err.replace('{msg}', data.error) : '';
+      err.textContent = anyOn && data.error ? T_MIRROR.waDown : '';
       err.hidden = !err.textContent;
       document.getElementById('mirror-btn').classList.toggle('mirror-on', anyOn);
     }

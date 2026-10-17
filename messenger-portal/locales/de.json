@@ -79,5 +79,6 @@
   "mirror_last_ok": "Zuletzt gespiegelt: {time}",
   "mirror_never": "Noch nichts gespiegelt",
   "mirror_no_media": "Bild/Video ohne Datei – download_media im WhatsApp-Add-on einschalten",
-  "mirror_err": "Fehler: {msg}"
+  "mirror_err": "Senden fehlgeschlagen – Details im Portal-Log",
+  "mirror_wa_unreachable": "WhatsApp nicht erreichbar – Details im Portal-Log"
 }
