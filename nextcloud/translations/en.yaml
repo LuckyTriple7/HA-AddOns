@@ -58,6 +58,9 @@ configuration:
   update_wopi_ip:
     name: Auto-update WOPI IP
     description: Automatically updates the Collabora WOPI IP on startup to the current container IP. Default false.
+  ai_workers:
+    name: AI workers
+    description: Number of background processes that pick up AI tasks (Assistant, Talk, summaries) immediately instead of every 5 minutes via cron. Nextcloud recommends 4. 0 = off. Default 0.
   mariadb_discovery:
     name: MariaDB Auto-Discovery
     description: Automatically detects a running MariaDB 2 instance and configures Nextcloud accordingly. Default false (SQLite).
