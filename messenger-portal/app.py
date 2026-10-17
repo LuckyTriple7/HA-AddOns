@@ -19,6 +19,7 @@ from flask import (Flask, render_template, request, redirect,
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import addon_hosts
+import status_mirror
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
@@ -717,11 +718,10 @@ def set_lang(lang: str):
 def _handle_sigterm(signum, frame) -> None:
     """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
     würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
-    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Diese App
-    startet keine Hintergrund-Threads (Flask läuft single-threaded, das
-    Status-Polling passiert clientseitig per JS gegen /status) und Sessions
-    werden bei jeder Änderung bereits synchron über save_sessions() persistiert
-    — ein harter os._exit(0) ist daher sicher, es gibt keinen offenen State."""
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Einziger
+    Hintergrund-Thread ist der Status-Spiegel, der seinen Stand nach jeder
+    Meldung atomar schreibt; Sessions werden bei jeder Änderung bereits synchron
+    über save_sessions() persistiert — ein harter os._exit(0) ist daher sicher."""
     log.info("SIGTERM empfangen, beende sauber…")
     os._exit(0)
 
@@ -731,5 +731,7 @@ if __name__ == '__main__':
     if load_config().get('password') == 'secret':
         log.warning("Das Passwort steht noch auf der Voreinstellung 'secret' - "
                     "bitte in der Add-on-Konfiguration aendern")
+    status_mirror.start(load_config,
+                        lambda m: f"http://{messenger_host(m)}:{m['port']}/")
     # Flask läuft intern auf 5000; nginx lauscht auf 17770 und proxyt dorthin
     app.run(host='127.0.0.1', port=5000, debug=False)

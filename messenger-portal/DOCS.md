@@ -40,6 +40,19 @@ Ist das Portal als App installiert, taucht es im Teilen-Menü des Geräts auf (A
 - **Mein Status**: Oberster Eintrag der Chatliste postet in den eigenen Status bzw. die eigene Story statt in einen Chat. WhatsApp: Text, Bilder und Videos. Telegram: nur Bilder, sichtbar für Kontakte (braucht Telegram 1.7.31). Signal: Bilder oder Videos ohne Text, „Meine Story“ (braucht Signal 1.7.5). Mehrere Dateien werden mehrere Statusmeldungen
 - Ohne Teilen-Menü: Knopf „Senden an …“ in der Kopfzeile des Portals. Dort Text eintippen, Dateien wählen, hineinziehen oder aus der Zwischenablage einfügen
 
+## Status-Spiegel (WhatsApp → Signal/Telegram)
+
+Mit `status_mirror_signal` bzw. `status_mirror_telegram` postet das Portal neue eigene WhatsApp-Statusmeldungen zusätzlich als Signal- bzw. Telegram-Story. Egal ob am Handy oder im Add-on gepostet.
+
+- Abfrage alle 5 Minuten, der Spiegel kommt also etwas später
+- Was beim Einschalten schon läuft, wird nicht gespiegelt
+- Text-Status kommen als Bild an (grüner Hintergrund, weiße Schrift). Emojis fallen dabei weg
+- Bilder und Videos brauchen im WhatsApp-Add-on `download_media: true`, sonst gibt es keine Datei zum Weiterreichen
+- Signal: Bilder und Videos, ohne Bildunterschrift. Braucht Signal 1.7.5
+- Telegram: Bilder mit Bildunterschrift, Videos werden übersprungen, sichtbar für Kontakte. Braucht Telegram 1.7.31
+- Zurückziehen in WhatsApp löscht die gespiegelte Story nicht; sie läuft nach 24 Stunden ab
+- Was passiert, steht im Portal-Log unter „Status-Spiegel“
+
 ## Sicherheitshinweis
 
 Das Add-on läuft über HTTP. Für den Zugriff aus dem Internet wird ein vorgeschalteter NGINX-Reverse-Proxy mit HTTPS empfohlen.

@@ -20,6 +20,12 @@ configuration:
   trusted_proxies:
     name: Trusted proxies
     description: "Address of the reverse proxy in front of the portal (e.g. NPMplus), several separated by commas, CIDR allowed. Only from there does the portal take the caller's real address from X-Forwarded-For or CF-Connecting-IP – this matters for the login lockout after five failed attempts. Empty: the address that reaches the portal directly is counted; behind a proxy all callers then share one lockout. The address to enter is shown in the log after 'Login fehlgeschlagen: ip='."
+  status_mirror_signal:
+    name: Mirror WhatsApp status to Signal
+    description: "New own WhatsApp status updates are posted as a Signal story every 5 minutes. Text statuses arrive as an image, captions are dropped. Images and videos need download_media in the WhatsApp add-on. What is already running when you switch this on is not mirrored; revoking in WhatsApp does not delete the Signal story. Requires Signal 1.7.5."
+  status_mirror_telegram:
+    name: Mirror WhatsApp status to Telegram
+    description: "Like the Signal mirror, but as a Telegram story (visible to contacts). Captions are kept, videos are skipped. Requires Telegram 1.7.31."
   messengers:
     name: Messengers
     description: List of configured messengers with name, icon type, port and enabled state.

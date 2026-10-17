@@ -20,6 +20,12 @@ configuration:
   trusted_proxies:
     name: Vertrauenswürdige Proxys
     description: "Adresse des vorgeschalteten Reverse-Proxys (z. B. NPMplus), mehrere durch Komma getrennt, CIDR erlaubt. Nur von dort übernimmt das Portal die echte Adresse des Aufrufers aus X-Forwarded-For bzw. CF-Connecting-IP – wichtig für die Anmeldesperre nach fünf Fehlversuchen. Leer: gezählt wird die Adresse, die direkt beim Portal ankommt; hinter einem Proxy teilen sich dann alle Aufrufer eine Sperre. Welche Adresse einzutragen ist, steht im Log hinter „Login fehlgeschlagen: ip=“."
+  status_mirror_signal:
+    name: WhatsApp-Status nach Signal spiegeln
+    description: "Neue eigene WhatsApp-Statusmeldungen werden alle 5 Minuten als Signal-Story gepostet. Text-Status kommen als Bild an, Bildunterschriften fallen weg. Bilder und Videos brauchen im WhatsApp-Add-on download_media. Was beim Einschalten schon läuft, wird nicht gespiegelt; Zurückziehen in WhatsApp löscht die Signal-Story nicht. Braucht Signal 1.7.5."
+  status_mirror_telegram:
+    name: WhatsApp-Status nach Telegram spiegeln
+    description: "Wie der Signal-Spiegel, nur als Telegram-Story (sichtbar für Kontakte). Bildunterschriften bleiben erhalten, Videos werden übersprungen. Braucht Telegram 1.7.31."
   messengers:
     name: Messenger
     description: Liste der konfigurierten Messenger mit Name, Icon-Typ, Port und Aktivierungsstatus.
