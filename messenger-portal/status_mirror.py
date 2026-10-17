@@ -23,7 +23,8 @@ from urllib.parse import quote
 
 log = logging.getLogger(__name__)
 
-STATE_PATH = '/data/status_mirror.json'   # {ziel: {initialized, seen, tries}}
+STATE_PATH = '/data/status_mirror.json'   # {ziel: {initialized, seen, tries, last_ok, last_error}}
+SETTINGS_PATH = '/data/status_mirror_settings.json'   # {ziel: an/aus}, gesetzt in der Oberflaeche
 INTERVAL_S = 300
 # Medien laedt das WhatsApp-Add-on erst beim Abfragen herunter; fehlt die Datei
 # so lange nach dem Posten noch, kommt sie nicht mehr (download_media aus)
@@ -132,11 +133,48 @@ def render_text(text: str) -> bytes:
     return buf.getvalue()
 
 
-# Ziele: Option, Name fuer das Log, nimmt Videos an?, uebernimmt Bildunterschrift?
+# Ziele: Name fuer das Log, nimmt Videos an?, uebernimmt Bildunterschrift?
 TARGETS = {
-    'signal':   {'option': 'status_mirror_signal',   'label': 'Signal',   'video': True,  'caption': False},
-    'telegram': {'option': 'status_mirror_telegram', 'label': 'Telegram', 'video': False, 'caption': True},
+    'signal':   {'label': 'Signal',   'video': True,  'caption': False},
+    'telegram': {'label': 'Telegram', 'video': False, 'caption': True},
 }
+
+_wake = threading.Event()
+_last_error = ''   # letzter Fehler beim Abfragen von WhatsApp
+
+
+def get_settings() -> dict:
+    try:
+        with open(SETTINGS_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+    return {icon: bool(data.get(icon)) for icon in TARGETS}
+
+
+def set_settings(new: dict) -> dict:
+    cur = get_settings()
+    cur.update({icon: bool(new[icon]) for icon in TARGETS if icon in new})
+    tmp = SETTINGS_PATH + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(cur, f)
+    os.replace(tmp, SETTINGS_PATH)
+    log.info('Status-Spiegel: %s', ', '.join(f"{TARGETS[i]['label']} {'an' if v else 'aus'}"
+                                             for i, v in cur.items()))
+    _wake.set()   # sofort einen Lauf anstossen statt bis zu 5 Minuten zu warten
+    return cur
+
+
+def info() -> dict:
+    """Schalter und letzter Stand je Ziel, fuer die Oberflaeche."""
+    settings, state = get_settings(), _load_state()
+    return {
+        'error': _last_error,
+        'targets': {icon: {'enabled': settings[icon],
+                           'last_ok': (state.get(icon) or {}).get('last_ok'),
+                           'last_error': (state.get(icon) or {}).get('last_error', '')}
+                    for icon in TARGETS},
+    }
 
 
 def mirror_once(wa_base: str, targets: dict) -> None:
@@ -189,6 +227,7 @@ def _mirror_target(wa_base: str, icon: str, base: str, msgs: list, st: dict, now
                         continue   # Datei kommt vielleicht noch
                     log.warning('Status-Spiegel %s: %s ohne Mediendatei übersprungen '
                                 '(download_media im WhatsApp-Add-on an?)', label, kind)
+                    st['last_error'] = 'no_media'
                     seen[mid] = ts
                     continue
                 ext = fname.rsplit('.', 1)[-1].lower()
@@ -197,10 +236,13 @@ def _mirror_target(wa_base: str, icon: str, base: str, msgs: list, st: dict, now
             _post_file(base + 'api/my-status/media', name, mime, payload, caption)
             seen[mid] = ts
             tries.pop(mid, None)
+            st['last_ok'] = int(now * 1000)
+            st['last_error'] = ''
             log.info('Status-Spiegel %s: WhatsApp-%s als Story gepostet', label, kind)
         except Exception as e:
             n = tries.get(mid, 0) + 1
             tries[mid] = n
+            st['last_error'] = str(e)[:200]
             if n >= MAX_TRIES:
                 seen[mid] = ts
                 tries.pop(mid, None)
@@ -216,28 +258,27 @@ def start(get_config, base_url_for) -> None:
     """get_config() liefert die Add-on-Optionen, base_url_for(m) die interne
     Basis-URL eines Messenger-Eintrags (mit Slash am Ende)."""
     def loop():
+        global _last_error
         while True:
             try:
-                cfg = get_config()
-                on = [icon for icon, spec in TARGETS.items() if cfg.get(spec['option'])]
+                settings = get_settings()
+                on = [icon for icon in TARGETS if settings[icon]]
                 # Ausgeschaltete Ziele vergessen: beim Wiedereinschalten nichts Altes nachholen
                 state = _load_state()
                 if any(icon in state for icon in TARGETS if icon not in on):
                     _save_state({k: v for k, v in state.items() if k in on})
                 if on:
                     by_icon = {str(m.get('icon', '')).lower(): m
-                               for m in cfg.get('messengers', [])
+                               for m in get_config().get('messengers', [])
                                if m.get('enabled', True) and m.get('port')}
                     targets = {icon: base_url_for(by_icon[icon]) for icon in on if icon in by_icon}
-                    missing = [TARGETS[i]['label'] for i in on if i not in by_icon]
-                    if missing:
-                        log.warning('Status-Spiegel: %s nicht als Messenger eingetragen', ', '.join(missing))
-                    if 'whatsapp' not in by_icon:
-                        log.warning('Status-Spiegel: WhatsApp nicht als Messenger eingetragen')
-                    elif targets:
+                    if 'whatsapp' in by_icon and targets:
                         mirror_once(base_url_for(by_icon['whatsapp']), targets)
+                _last_error = ''
             except Exception as e:
+                _last_error = str(e)[:200]
                 log.warning('Status-Spiegel: Abfrage fehlgeschlagen: %s', e)
-            time.sleep(INTERVAL_S)
+            _wake.wait(INTERVAL_S)
+            _wake.clear()
 
     threading.Thread(target=loop, name='status-mirror', daemon=True).start()

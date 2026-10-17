@@ -576,6 +576,18 @@ def api_mark_read():
     return jsonify({'icon': icon, 'last_opened': read_state[icon]})
 
 
+@app.route('/api/status-mirror', methods=['GET', 'POST'])
+def api_status_mirror():
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return '', 401
+    if request.method == 'POST':
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return '', 400
+        status_mirror.set_settings(data)
+    return jsonify(status_mirror.info())
+
+
 @app.route('/proxy-offline')
 def proxy_offline():
     name = request.headers.get('X-Messenger-Name', 'Messenger')
@@ -606,8 +618,11 @@ def index():
         [m for m in config.get('messengers', []) if m.get('enabled', True)]
     )
     poll_interval = max(5, int(config.get('poll_interval', 30)))
+    icons = {str(m.get('icon', '')).lower() for m in messengers}
+    mirror_targets = [i for i in status_mirror.TARGETS if i in icons] if 'whatsapp' in icons else []
     return render_template('index.html', messengers=messengers, t=t, lang=lang,
-                           poll_interval=poll_interval, ingress_mode=is_ingress())
+                           poll_interval=poll_interval, ingress_mode=is_ingress(),
+                           mirror_targets=mirror_targets)
 
 
 @app.route('/share')

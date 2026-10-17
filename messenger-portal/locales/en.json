@@ -70,5 +70,14 @@
   "share_status_media_only": "Only images and videos fit into a status.",
   "share_status_no_text": "Signal stories carry no text – clear the message or pick a chat.",
   "share_send_status": "Post to {name} status",
-  "share_sent_status": "Posted to your {name} status"
+  "share_sent_status": "Posted to your {name} status",
+  "mirror_title": "Status mirror",
+  "mirror_hint": "Also post new own WhatsApp status updates as a story. Text arrives as an image; images and videos need download_media in the WhatsApp add-on.",
+  "mirror_to": "To {name}",
+  "mirror_signal_note": "Images and videos, without caption",
+  "mirror_telegram_note": "Images with caption, no videos",
+  "mirror_last_ok": "Last mirrored: {time}",
+  "mirror_never": "Nothing mirrored yet",
+  "mirror_no_media": "Image/video without file – enable download_media in the WhatsApp add-on",
+  "mirror_err": "Error: {msg}"
 }

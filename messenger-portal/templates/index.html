@@ -390,6 +390,16 @@
       filter: none; color: var(--text); border-color: var(--text-muted);
     }
     .notif-divider { border: none; border-top: 1px solid var(--border); margin: .1rem 0; }
+    .mirror-panel { width: 270px; }
+    @media (max-width: 600px) {
+      .mirror-panel { position: fixed; top: 64px; left: 16px; right: 16px; width: auto; }
+    }
+    .mirror-row { display: flex; gap: .6rem; align-items: flex-start; cursor: pointer; }
+    .mirror-row input { margin-top: .2rem; accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
+    .mirror-row > span { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+    .mirror-note, .mirror-last { font-size: .75rem; }
+    .mirror-last.is-err, .mirror-err { color: #f85149; }
+    #mirror-btn.mirror-on { color: var(--accent); border-color: var(--accent); }
     /* ── Offline-Banner ── */
     #offline-banner { display:none; position:fixed; inset:0; z-index:800; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
     .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
@@ -433,8 +443,31 @@
 
       <a href="{{ url_for('share') }}" class="icon-btn" aria-label="{{ t.share_title }}" title="{{ t.share_title }}">
         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        <span class="btn-label">{{ t.share_title }}</span>
       </a>
+
+      {% if mirror_targets %}
+      <div class="notif-wrap" id="mirror-wrap">
+        <button class="icon-btn" id="mirror-btn" onclick="toggleMirrorPanel()" aria-label="{{ t.mirror_title }}" title="{{ t.mirror_title }}">
+          <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+        </button>
+        <div class="notif-panel mirror-panel" id="mirror-panel" hidden>
+          <div class="notif-panel-title">{{ t.mirror_title }}</div>
+          <div class="notif-hint">{{ t.mirror_hint }}</div>
+          {% for icon in mirror_targets %}
+          <hr class="notif-divider">
+          <label class="mirror-row">
+            <input type="checkbox" data-mirror="{{ icon }}" onchange="saveMirror(this)">
+            <span>
+              <span class="notif-status">{{ t.mirror_to | replace('{name}', icon | capitalize) }}</span>
+              <span class="notif-hint mirror-note">{{ t['mirror_' ~ icon ~ '_note'] }}</span>
+              <span class="notif-hint mirror-last" data-mirror-last="{{ icon }}"></span>
+            </span>
+          </label>
+          {% endfor %}
+          <div class="notif-hint mirror-err" id="mirror-err" hidden></div>
+        </div>
+      </div>
+      {% endif %}
 
       <div class="notif-wrap" id="notif-wrap" style="display:none">
         <button class="icon-btn notif-bell" id="notif-bell" onclick="toggleNotifPanel()" aria-label="{{ t.notif_panel_title }}">
@@ -745,6 +778,69 @@
         bell.classList.add('notif-on');
       }
     }
+
+    // ── Status-Spiegel ────────────────────────────────────
+    const MIRROR_URL = {{ url_for('api_status_mirror') | tojson }};
+    const T_MIRROR = {
+      lastOk:  {{ t.mirror_last_ok | tojson }},
+      never:   {{ t.mirror_never | tojson }},
+      noMedia: {{ t.mirror_no_media | tojson }},
+      err:     {{ t.mirror_err | tojson }},
+    };
+    let _mirrorOpen = false;
+
+    function renderMirror(data) {
+      if (!data || !data.targets) return;
+      let anyOn = false;
+      document.querySelectorAll('[data-mirror]').forEach(cb => {
+        const st = data.targets[cb.dataset.mirror] || {};
+        cb.checked = !!st.enabled;
+        anyOn = anyOn || cb.checked;
+        const last = document.querySelector('[data-mirror-last="' + cb.dataset.mirror + '"]');
+        if (!last) return;
+        const errText = st.last_error === 'no_media' ? T_MIRROR.noMedia
+                      : st.last_error ? T_MIRROR.err.replace('{msg}', st.last_error) : '';
+        last.classList.toggle('is-err', !!(st.enabled && errText));
+        last.textContent = !st.enabled ? ''
+          : errText || (st.last_ok
+              ? T_MIRROR.lastOk.replace('{time}', new Date(st.last_ok).toLocaleString())
+              : T_MIRROR.never);
+      });
+      const err = document.getElementById('mirror-err');
+      err.textContent = anyOn && data.error ? T_MIRROR.err.replace('{msg}', data.error) : '';
+      err.hidden = !err.textContent;
+      document.getElementById('mirror-btn').classList.toggle('mirror-on', anyOn);
+    }
+
+    function loadMirror() {
+      if (!document.getElementById('mirror-btn')) return;
+      fetch(MIRROR_URL, { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
+        .then(renderMirror).catch(() => {});
+    }
+
+    function toggleMirrorPanel() {
+      _mirrorOpen = !_mirrorOpen;
+      document.getElementById('mirror-panel').hidden = !_mirrorOpen;
+      if (_mirrorOpen) loadMirror();
+    }
+
+    function saveMirror(cb) {
+      fetch(MIRROR_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [cb.dataset.mirror]: cb.checked }),
+      }).then(r => r.ok ? r.json() : null).then(renderMirror).catch(() => loadMirror());
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!_mirrorOpen) return;
+      const wrap = document.getElementById('mirror-wrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('mirror-panel').hidden = true;
+        _mirrorOpen = false;
+      }
+    });
+    loadMirror();
 
     let _notifOpen = false;
 

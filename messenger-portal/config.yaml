@@ -1,6 +1,6 @@
 name: MessengerPortal
 description: Zentrale, passwortgeschützte Startseite für WhatsApp, Telegram und Signal Add-ons
-version: "1.3.7"
+version: "1.4.0"
 slug: messenger-portal
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/messenger-portal"
@@ -41,8 +41,6 @@ options:
   internal_host: ""
   ingress_trusted: ""
   trusted_proxies: ""
-  status_mirror_signal: false
-  status_mirror_telegram: false
   messengers:
     - name: WhatsApp
       icon: whatsapp
@@ -65,8 +63,6 @@ schema:
   internal_host: str?
   ingress_trusted: str?
   trusted_proxies: str?
-  status_mirror_signal: bool
-  status_mirror_telegram: bool
   messengers:
     - name: str
       icon: str

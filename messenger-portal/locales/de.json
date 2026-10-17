@@ -70,5 +70,14 @@
   "share_status_media_only": "In den Status passen nur Bilder und Videos.",
   "share_status_no_text": "Signal-Storys tragen keinen Text – Nachricht leeren oder einen Chat wählen.",
   "share_send_status": "In {name}-Status posten",
-  "share_sent_status": "In deinem {name}-Status gepostet"
+  "share_sent_status": "In deinem {name}-Status gepostet",
+  "mirror_title": "Status-Spiegel",
+  "mirror_hint": "Neue eigene WhatsApp-Statusmeldungen zusätzlich als Story posten. Text kommt als Bild, Bilder und Videos brauchen download_media im WhatsApp-Add-on.",
+  "mirror_to": "Nach {name}",
+  "mirror_signal_note": "Bilder und Videos, ohne Bildunterschrift",
+  "mirror_telegram_note": "Bilder mit Bildunterschrift, keine Videos",
+  "mirror_last_ok": "Zuletzt gespiegelt: {time}",
+  "mirror_never": "Noch nichts gespiegelt",
+  "mirror_no_media": "Bild/Video ohne Datei – download_media im WhatsApp-Add-on einschalten",
+  "mirror_err": "Fehler: {msg}"
 }
