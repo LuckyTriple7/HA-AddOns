@@ -18,6 +18,7 @@ Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-
 - **Meine Story**: Kreis-Knopf in der Kopfzeile — Story aus Text (wird als Bild gemalt), Bild oder Video (bis 60 s) posten, sichtbar für Kontakte, alle oder enge Freunde; Vorlagen; Profil (Name, Bio) bearbeiten; laufende Storys mit Aufrufen sehen, Text ändern, löschen; Datenschutz (Telefonnummer, Zuletzt online, Profilbild, Bio, Weiterleitungen, Anrufe, Gruppen-Einladungen)
 - **Nachrichten löschen**: Nachricht für alle entfernen (Hover → ✕)
 - **Lesebestätigungen**: ✓ gesendet (grau), ✓✓ gelesen (blau) bei eigenen Nachrichten
+- **Zuletzt online**: Im Chat-Kopf „online“ bzw. „zuletzt online …“ (bei verborgener Zeit grob „kürzlich“ usw.)
 - **Ungelesene-Badge**: Blauer Punkt in der Sidebar bei neuen Nachrichten
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
 - **Formatierung**: Codeblöcke (mit Sprache und Kopieren-Knopf), Inline-Code, fett/kursiv, Zitate, Spoiler und Textlinks wie in der Telegram-App
@@ -232,6 +233,7 @@ Telegram as a full client directly in Home Assistant — with chat UI, REST API 
 - **My story**: circle button in the top bar — post a story from text (drawn as an image), an image or a video (up to 60 s), visible to contacts, everyone or close friends; templates; edit profile (name, bio); see active stories with views, edit caption, delete; privacy (phone number, last seen, profile photo, bio, forwards, calls, group invites)
 - **Delete messages**: Remove a message for everyone (hover → ✕)
 - **Read receipts**: ✓ sent (grey), ✓✓ read (blue) on outgoing messages
+- **Last seen**: "online" or "last seen …" in the chat header (roughly "recently" etc. when hidden)
 - **Unread badge**: Blue dot in the sidebar for new messages
 - **Emoji keyboard**: 😊 button in the input field
 - **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser

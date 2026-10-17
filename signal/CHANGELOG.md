@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.2] - 2026-10-17
+- Fix: Der Story-Knopf aus 1.8.0 erschien nicht. Die Seiten-Route leitete die Anfrage nach dem Editor-Skript (`mystatus.js`) auf die Startseite um; die Route steht jetzt davor
+
 ## [1.8.1] - 2026-10-17
 - CodeQL #265/#266 behoben: Die Vorschau im Story-Editor hängte die gewählte Datei als Adresse an ein Bild-/Videoelement (CodeQL `js/xss-through-dom`). Bilder werden jetzt auf eine Zeichenfläche gemalt, Videos laufen über eine eigene Kopie mit festem Videotyp
 

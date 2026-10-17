@@ -1463,6 +1463,13 @@ app.post('/api/logout', async (req, res) => {
 
 // --- UI ---
 
+// Muss vor der Seiten-Route stehen: die leitet alles ausser / und /api um
+app.get('/mystatus.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.send(MYSTATUS_JS);
+});
+
 app.get('/{*splat}', (req, res) => {
   if (req.path !== '/' && !req.path.startsWith('/api')) {
     return res.redirect(req.baseUrl + '/');
@@ -1501,11 +1508,6 @@ const MS_CFG = {
   storyPrivacy: false, liveLocal: true, liveEdit: false, liveDelete: false, privacy: false,
   profile: { fields: ['givenName', 'familyName', 'about', 'aboutEmoji'], aboutMax: 140 },
 };
-app.get('/mystatus.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  res.send(MYSTATUS_JS);
-});
 
 function getHtml() {
   return `<!DOCTYPE html>
