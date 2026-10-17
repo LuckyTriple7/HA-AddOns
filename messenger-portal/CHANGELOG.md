@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.5.1] - 2026-10-17
+- Fix: Auf dem Handy war die Knopfleiste der Startseite breiter als der Bildschirm, beim Wischen verschob sich die ganze Seite. Die Knöpfe stehen auf schmalen Bildschirmen jetzt in einer zweiten Zeile
+- Status-Ablage: Die große Ansicht eines Bildes oder Videos schließt jetzt auch mit ESC
+
 ## [1.5.0] - 2026-10-17
 - Neu: **Status-Ablage.** Bilder, Videos und Text-Status über den Tag sammeln und später als Status bzw. Story an WhatsApp, Telegram und Signal posten – sofort oder zu einer gewählten Uhrzeit
   - Sammeln: auf „Senden an“ die neue Kachel „Ablage“ (also auch direkt aus dem Teilen-Menü des Handys), oder auf der Ablage-Seite hochladen, hineinziehen, einfügen

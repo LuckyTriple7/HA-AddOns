@@ -399,7 +399,9 @@
       v.appendChild(el);
       v.hidden = false;
     }
-    $('viewer').onclick = () => { $('viewer').hidden = true; $('viewer').textContent = ''; };
+    function closeViewer() { $('viewer').hidden = true; $('viewer').textContent = ''; }
+    $('viewer').onclick = closeViewer;
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('viewer').hidden) closeViewer(); });
 
     // ── Aktionen ────────────────────────────────────────────
     async function post(ids, onlyFailed) {

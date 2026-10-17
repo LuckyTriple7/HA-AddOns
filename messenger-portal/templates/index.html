@@ -84,6 +84,12 @@
       align-items: center;
       gap: .5rem;
     }
+    /* Schmale Bildschirme: Knoepfe in eine zweite Zeile, statt die Seite
+       seitlich zu verschieben */
+    @media (max-width: 600px) {
+      header { flex-wrap: wrap; row-gap: .5rem; }
+      .header-actions { width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
+    }
     .icon-btn {
       background: none;
       border: 1px solid var(--border);
@@ -827,7 +833,12 @@
 
     function toggleMirrorPanel() {
       _mirrorOpen = !_mirrorOpen;
-      document.getElementById('mirror-panel').hidden = !_mirrorOpen;
+      const panel = document.getElementById('mirror-panel');
+      // Auf dem Handy liegt das Fenster ueber die volle Breite unter der
+      // (dort zweizeiligen) Kopfzeile
+      panel.style.top = window.innerWidth <= 600
+        ? (document.querySelector('header').offsetHeight + 8) + 'px' : '';
+      panel.hidden = !_mirrorOpen;
       if (_mirrorOpen) loadMirror();
     }
 
