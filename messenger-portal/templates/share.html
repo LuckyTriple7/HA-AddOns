@@ -291,6 +291,7 @@
         <div class="chats" id="chats"></div>
       </div>
 
+      <div class="note warn" id="status-note" hidden></div>
       <button type="button" class="send-btn" id="send-btn" hidden disabled></button>
     </div>
   </main>
@@ -317,7 +318,22 @@
       lost:     {{ t.share_files_lost | tojson }},
       tooBig:   {{ t.share_file_too_big | tojson }},
       group:    {{ t.share_group | tojson }},
+      myStatus: {{ t.share_my_status | tojson }},
+      statusSub: {
+        whatsapp: {{ t.share_status_sub_whatsapp | tojson }},
+        telegram: {{ t.share_status_sub_telegram | tojson }},
+        signal:   {{ t.share_status_sub_signal | tojson }},
+      },
+      needMedia:  {{ t.share_status_need_media | tojson }},
+      imagesOnly: {{ t.share_status_images_only | tojson }},
+      mediaOnly:  {{ t.share_status_media_only | tojson }},
+      noText:     {{ t.share_status_no_text | tojson }},
+      sendStatus: {{ t.share_send_status | tojson }},
+      sentStatus: {{ t.share_sent_status | tojson }},
     };
+    // Pseudo-Eintrag oben in der Chatliste: postet in den eigenen Status bzw.
+    // die eigene Story statt in einen Chat
+    const STATUS_ID = '__my_status__';
     const MESSENGERS  = {{ messengers | tojson }};
     const STATUS_URL  = {{ url_for('status') | tojson }};
     const LOGIN_URL   = {{ url_for('login') | tojson }};
@@ -456,14 +472,32 @@
       try { if ('caches' in window) await caches.delete(SHARE_CACHE); } catch (e) {}
     }
 
+    // Was der jeweilige Messenger als Status/Story annimmt; Text oder null
+    function statusProblem() {
+      const kind = messenger && messenger.icon;
+      const text = msgEl.value.trim() !== '';
+      const media = files.every(f => /^(image|video)\//.test(f.type));
+      if (kind === 'whatsapp') return media ? null : T.mediaOnly;
+      if (!files.length) return text ? T.needMedia : null;
+      if (kind === 'telegram') return files.every(f => f.type.startsWith('image/')) ? null : T.imagesOnly;
+      if (!media) return T.mediaOnly;
+      return text ? T.noText : null;
+    }
+
     function updateSend() {
       const hasContent = files.length > 0 || msgEl.value.trim() !== '';
       $('empty-note').hidden = hasContent || busy;
       $('discard-btn').hidden = !hasContent || busy;
       const tooBig = files.some(f => f.size > MAX_BYTES);
+      const isStatus = !!(chat && chat.id === STATUS_ID);
+      const problem = isStatus && !busy ? statusProblem() : null;
+      $('status-note').textContent = problem || '';
+      $('status-note').hidden = !problem;
       sendBtn.hidden = !chat;
-      sendBtn.disabled = busy || !chat || !hasContent || tooBig;
-      if (chat && !busy) sendBtn.textContent = T.sendTo.replace('{name}', chat.name || chat.id);
+      sendBtn.disabled = busy || !chat || !hasContent || tooBig || !!problem;
+      if (chat && !busy) sendBtn.textContent = isStatus
+        ? T.sendStatus.replace('{name}', messenger.name)
+        : T.sendTo.replace('{name}', chat.name || chat.id);
     }
 
     function renderChats() {
@@ -472,6 +506,9 @@
       const list = chats.filter(c =>
         !needle || (c.name || '').toLowerCase().includes(needle)
                 || String(c.phone || '').includes(needle));
+      if (!needle && messenger && T.statusSub[messenger.icon]) {
+        list.unshift({ id: STATUS_ID, name: T.myStatus, sub: T.statusSub[messenger.icon] });
+      }
       if (!list.length) {
         const empty = document.createElement('div');
         empty.className = 'chats-msg';
@@ -485,14 +522,19 @@
         btn.className = 'chat' + (chat && chat.id === c.id ? ' active' : '');
         const av = document.createElement('div');
         av.className = 'avatar';
-        av.textContent = ((c.name || '?').trim()[0] || '?').toUpperCase();
+        if (c.id === STATUS_ID) {
+          av.style.boxShadow = 'inset 0 0 0 2px ' + messenger.color;
+          av.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>';
+        } else {
+          av.textContent = ((c.name || '?').trim()[0] || '?').toUpperCase();
+        }
         const main = document.createElement('div');
         main.className = 'chat-main';
         const name = document.createElement('div');
         name.className = 'chat-name';
         name.textContent = c.name || c.id;
         main.appendChild(name);
-        const subText = c.isGroup ? T.group : (c.phone && String(c.phone) !== c.name ? String(c.phone) : '');
+        const subText = c.sub || (c.isGroup ? T.group : (c.phone && String(c.phone) !== c.name ? String(c.phone) : ''));
         if (subText) {
           const sub = document.createElement('div');
           sub.className = 'chat-sub';
@@ -565,8 +607,23 @@
       warn('');
       sendBtn.disabled = true;
       sendBtn.textContent = T.sending;
+      const isStatus = chat.id === STATUS_ID;
       try {
-        if (files.length) {
+        if (isStatus && files.length) {
+          // Jede Datei wird eine eigene Statusmeldung; Text als Unterschrift an die erste
+          for (let i = 0; i < files.length; i++) {
+            const fd = new FormData();
+            if (i === 0 && text) fd.append('caption', text);
+            fd.append('file', files[i], files[i].name);
+            await postJson(await fetch(messenger.proxy + 'api/my-status/media', { method: 'POST', body: fd }));
+          }
+        } else if (isStatus) {
+          await postJson(await fetch(messenger.proxy + 'api/my-status/text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          }));
+        } else if (files.length) {
           // Text als Bildunterschrift an die erste Datei, der Rest ohne
           for (let i = 0; i < files.length; i++) {
             const fd = new FormData();
@@ -592,7 +649,9 @@
       $('pick-area').style.display = 'none';
       $('payload').hidden = true;
       $('discard-btn').hidden = true;
-      $('done-note').textContent = T.sent.replace('{name}', chat.name || chat.id);
+      $('done-note').textContent = isStatus
+        ? T.sentStatus.replace('{name}', messenger.name)
+        : T.sent.replace('{name}', chat.name || chat.id);
       $('done-note').hidden = false;
       $('done-open').textContent = T.open.replace('{name}', messenger.name);
       $('done-open').href = messenger.proxy;

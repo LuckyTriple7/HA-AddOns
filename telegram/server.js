@@ -44,6 +44,7 @@ const { TelegramClient, Api } = require('teleproto');
 const { StringSession } = require('teleproto/sessions');
 const { NewMessage, Raw } = require('teleproto/events');
 const { CustomFile } = require('teleproto/client/uploads');
+const { generateRandomLong } = require('teleproto/Helpers');
 const fs = require('fs');
 const crypto = require('crypto');
 const path = require('path');
@@ -1128,6 +1129,31 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       scheduleSave();
     }
 
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Eigene Story posten (sichtbar fuer Kontakte). Telegram-Storys brauchen immer
+// ein Foto oder Video — reine Text-Storys gibt es nicht. Videos bleiben aussen
+// vor: SendStory verlangt Laenge und Abmessungen, die hier ohne ffprobe fehlen.
+app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'file required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  const { originalname, mimetype, buffer } = req.file;
+  if (!/^image\//.test(mimetype || '')) return res.status(400).json({ error: 'Telegram-Storys gehen hier nur mit Bildern' });
+  try {
+    const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const file = await client.uploadFile({ file: new CustomFile(safeName, buffer.length, '', buffer), workers: 1 });
+    await client.invoke(new Api.stories.SendStory({
+      peer: new Api.InputPeerSelf(),
+      media: new Api.InputMediaUploadedPhoto({ file }),
+      caption: typeof req.body?.caption === 'string' ? req.body.caption : '',
+      privacyRules: [new Api.InputPrivacyValueAllowContacts()],
+      randomId: generateRandomLong(),
+    }));
+    console.log(`[INFO] Eigene Story gepostet (${mimetype}, ${Math.round(buffer.length / 1024)} KB)`);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

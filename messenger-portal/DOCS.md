@@ -37,6 +37,7 @@ Ist das Portal als App installiert, taucht es im Teilen-Menü des Geräts auf (A
 - Nach einem Update, das das Teilen-Ziel ändert, die App einmal neu installieren
 - Der geteilte Inhalt liegt bis zum Senden nur im Browser, nicht auf dem Server
 - Unter Windows erscheint das Portal im „Freigeben“-Dialog nur bei Installation über Edge, mit Chrome nicht
+- **Mein Status**: Oberster Eintrag der Chatliste postet in den eigenen Status bzw. die eigene Story statt in einen Chat. WhatsApp: Text, Bilder und Videos. Telegram: nur Bilder, sichtbar für Kontakte (braucht Telegram 1.7.31). Signal: Bilder oder Videos ohne Text, „Meine Story“ (braucht Signal 1.7.5). Mehrere Dateien werden mehrere Statusmeldungen
 - Ohne Teilen-Menü: Knopf „Senden an …“ in der Kopfzeile des Portals. Dort Text eintippen, Dateien wählen, hineinziehen oder aus der Zwischenablage einfügen
 
 ## Sicherheitshinweis

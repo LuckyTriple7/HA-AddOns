@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.5] - 2026-10-17
+- Neu: **Eigene Story posten** („Meine Story“) über `POST /api/my-status/media` (Bild oder Video). signal-cli-rest-api hat dafür keinen Endpunkt; das Add-on spricht dazu direkt den signal-cli-Daemon per JSON-RPC an (`sendStory`, seit signal-cli 0.14.6). Genutzt von „Senden an → Mein Status“ im MessengerPortal
+
 ## [1.7.4] - 2026-10-16
 - Neu: **Kontaktinfo per Klick aufs Profilbild** — in der Chatliste und im Chat-Kopf, wie bei WhatsApp. Zeigt großes Profilbild (Klick vergrößert es), Namen, abweichenden Signal-Profilnamen, Nummer, Signal-Benutzernamen, Info-Text und wie viele Nachrichten seit wann im Chat liegen. Bei Gruppen stattdessen Beschreibung und Mitglieder
 - Kontakt- und Gruppenliste übernehmen dafür Profilname, Info-Text, Benutzername und Gruppenbeschreibung; umbenannte Gruppen bekommen ihren neuen Namen

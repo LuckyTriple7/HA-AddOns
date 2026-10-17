@@ -1028,6 +1028,56 @@ app.post('/api/forward', async (req, res) => {
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
 
+// ── Eigene Story ("Meine Story") ─────────────────────────────────────────────
+// signal-cli-rest-api kennt keinen Story-Endpunkt. signal-cli selbst kann es
+// seit 0.14.6 (sendStory) — der Daemon, den die REST-API startet, nimmt
+// JSON-RPC auf 127.0.0.1:6001 an (siehe jsonrpc2-helper.go der REST-API).
+const SIGNAL_JSONRPC_PORT = parseInt(process.env.SIGNAL_JSONRPC_PORT || '6001', 10);
+
+function signalRpc(method, params, timeoutMs = 60000) {
+  return new Promise((resolve, reject) => {
+    const id = crypto.randomUUID();
+    const sock = require('net').connect(SIGNAL_JSONRPC_PORT, '127.0.0.1');
+    let buf = '';
+    const done = (err, val) => { clearTimeout(timer); sock.destroy(); err ? reject(err) : resolve(val); };
+    const timer = setTimeout(() => done(new Error(`signal-cli ${method}: Zeitüberschreitung`)), timeoutMs);
+    sock.on('connect', () => sock.write(JSON.stringify({ jsonrpc: '2.0', method, params, id }) + '\n'));
+    // Auf derselben Verbindung schickt der Daemon auch Empfangsmeldungen —
+    // nur die Antwort mit unserer id zaehlt
+    sock.on('data', chunk => {
+      buf += chunk;
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        let msg; try { msg = JSON.parse(line); } catch (e) { continue; }
+        if (msg.id !== id) continue;
+        if (msg.error) return done(new Error(msg.error.message || JSON.stringify(msg.error)));
+        return done(null, msg.result);
+      }
+    });
+    sock.on('error', e => done(new Error(`signal-cli nicht erreichbar (${e.code || e.message})`)));
+  });
+}
+
+app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'file required' });
+  const { mimetype, buffer, originalname } = req.file;
+  if (!/^(image|video)\//.test(mimetype || '')) return res.status(400).json({ error: 'only image or video allowed' });
+  // signal-cli laeuft als UID 1000 und liest die Datei selbst — daher /tmp, lesbar
+  const ext = (path.extname(originalname || '').toLowerCase().match(/^\.[a-z0-9]{1,5}$/) || [''])[0];
+  const fp = path.join('/tmp', `story-${crypto.randomUUID()}${ext}`);
+  try {
+    fs.writeFileSync(fp, buffer, { mode: 0o644 });
+    const result = await signalRpc('sendStory', { account: PHONE_NUMBER, attachment: fp });
+    _logSilent('INFO', `Eigene Story gepostet (${mimetype}, ${Math.round(buffer.length / 1024)} KB)`);
+    res.json({ success: true, timestamp: result?.timestamp || null });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  } finally {
+    fs.rm(fp, { force: true }, () => {});
+  }
+});
+
 app.post('/api/send-media', upload.single('file'), async (req, res) => {
   const { to, caption } = req.body;
   if (!to || !req.file) return res.status(400).json({ error: 'Missing to/file' });

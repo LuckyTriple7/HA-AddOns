@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.31] - 2026-10-17
+- Neu: **Eigene Story posten** über `POST /api/my-status/media` (Bild, optional mit Bildunterschrift, sichtbar für Kontakte). Genutzt von „Senden an → Mein Status“ im MessengerPortal. Videos gehen noch nicht, weil Telegram dafür Länge und Abmessungen verlangt
+
 ## [1.7.30] - 2026-10-16
 - Neu: **Inline-Code per Klick kopieren.** Ein Klick auf einen Befehl in einer Nachricht (Inline-Code) legt ihn in die Zwischenablage; er leuchtet kurz grün mit Haken. Ist im Text etwas markiert, wird nicht kopiert, damit Markieren weiter geht. Code-Blöcke hatten schon ihren Kopieren-Button
 

@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.3.5] - 2026-10-17
+- Neu: **„Senden an“ → Mein Status.** Ganz oben in der Chatliste steht jetzt „Mein Status“: postet in den eigenen WhatsApp-Status bzw. die eigene Telegram- oder Signal-Story. WhatsApp nimmt Text, Bilder und Videos; Telegram nur Bilder (Text wird Bildunterschrift); Signal Bilder oder Videos ohne Text. Passt der Inhalt nicht, erklärt ein Hinweis warum, und der Knopf bleibt gesperrt. Telegram braucht dafür 1.7.31, Signal 1.7.5
+
 ## [1.3.4] - 2026-10-11
 - CodeQL-Befund #263 (`js/xss-through-dom`) auf der Teilen-Seite behoben: Die Bildvorschau einer angehängten Datei wurde als Adresse in ein `<img>` gehängt. Sie wird jetzt auf eine Zeichenfläche gemalt, sodass der Dateiinhalt nie als Adresse oder Markup gedeutet wird. Lässt sich ein Bild nicht dekodieren, bleibt das Datei-Symbol stehen
 

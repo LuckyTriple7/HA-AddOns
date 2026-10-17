@@ -60,5 +60,15 @@
   "share_files_lost": "Die geteilten Dateien konnten nicht übernommen werden. Öffne das Portal einmal und teile sie dann erneut.",
   "share_file_too_big": "{name} ist größer als 64 MB und kann nicht gesendet werden.",
   "share_group": "Gruppe",
-  "share_add_files": "Dateien hinzufügen"
+  "share_add_files": "Dateien hinzufügen",
+  "share_my_status": "Mein Status",
+  "share_status_sub_whatsapp": "Status für 24 Stunden – Text, Bild oder Video",
+  "share_status_sub_telegram": "Story für 24 Stunden – nur Bilder, für Kontakte",
+  "share_status_sub_signal": "Story für 24 Stunden – Bild oder Video ohne Text",
+  "share_status_need_media": "Für eine Story braucht es ein Bild oder Video.",
+  "share_status_images_only": "Telegram-Storys gehen hier nur mit Bildern.",
+  "share_status_media_only": "In den Status passen nur Bilder und Videos.",
+  "share_status_no_text": "Signal-Storys tragen keinen Text – Nachricht leeren oder einen Chat wählen.",
+  "share_send_status": "In {name}-Status posten",
+  "share_sent_status": "In deinem {name}-Status gepostet"
 }
