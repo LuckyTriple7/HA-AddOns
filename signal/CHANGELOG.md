@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.3] - 2026-10-17
+- „Meine laufenden Storys“ zeigt jetzt auch Storys, die du **am Handy** postest: Das Handy meldet sie verknüpften Geräten, das Add-on hat diese Meldung bisher verworfen. Bilder mit Vorschau, Text-Storys mit ihrem Text. Gruppen-Storys bleiben außen vor. Storys von vor dem Update oder aus Zeiten, in denen das Add-on nicht lief, kennt es nicht
+
 ## [1.8.2] - 2026-10-17
 - Fix: Der Story-Knopf aus 1.8.0 erschien nicht. Die Seiten-Route leitete die Anfrage nach dem Editor-Skript (`mystatus.js`) auf die Startseite um; die Route steht jetzt davor
 
