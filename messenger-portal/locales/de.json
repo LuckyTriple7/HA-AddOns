@@ -85,7 +85,7 @@
   "sq_no_targets": "Kein WhatsApp-, Telegram- oder Signal-Add-on eingetragen – es gibt kein Ziel zum Posten.",
   "sq_add_files": "Bilder / Videos",
   "sq_add_text": "Text-Status",
-  "sq_drop": "Bilder und Videos hierher ziehen oder einfügen. Vom Handy aus: teilen → MessengerPortal → Status-Ablage. Große Fotos und Videos werden automatisch verkleinert.",
+  "sq_drop": "Bilder und Videos hierher ziehen oder einfügen. Vom Handy aus: teilen → MessengerPortal → Status-Ablage. Große Fotos und Videos werden automatisch verkleinert. Mit ↑ ↓ sortieren – in dieser Reihenfolge wird auch gepostet.",
   "sq_text_ph": "Text für den Status",
   "sq_text_save": "Ablegen",
   "sq_cancel": "Abbrechen",
@@ -128,5 +128,7 @@
   "share_queue_done": "In der Status-Ablage abgelegt",
   "share_queue_open": "Status-Ablage öffnen",
   "share_queue_hint": "Wird für später gesammelt und dort gepostet – sofort oder zu einer Uhrzeit. Große Dateien werden verkleinert.",
-  "share_queue_tile": "Ablage"
+  "share_queue_tile": "Ablage",
+  "sq_up": "Nach oben",
+  "sq_down": "Nach unten"
 }

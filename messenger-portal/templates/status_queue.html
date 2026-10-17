@@ -43,6 +43,7 @@
     .btn.danger { color: var(--danger); }
     .btn:disabled { opacity: .5; cursor: default; }
     .btn.small { font-size: .8rem; padding: .35rem .6rem; }
+    .btn.mv { min-width: 34px; font-size: .95rem; padding: .2rem .5rem; line-height: 1.2; }
     .drop {
       border: 2px dashed var(--border); border-radius: var(--radius); padding: 1rem;
       text-align: center; color: var(--text-muted); font-size: .9rem;
@@ -178,6 +179,7 @@
       needTarget: {{ t.sq_need_target | tojson }}, needTime: {{ t.sq_need_time | tojson }}, pastTime: {{ t.sq_past_time | tojson }},
       uploadFailed: {{ t.sq_upload_failed | tojson }}, unsupported: {{ t.sq_unsupported | tojson }}, tooMany: {{ t.sq_too_many | tojson }},
       text: {{ t.sq_kind_text | tojson }}, shrunk: {{ t.sq_shrunk | tojson }},
+      up: {{ t.sq_up | tojson }}, down: {{ t.sq_down | tojson }},
     };
     const MESSENGERS = {{ messengers | tojson }};
     const API = {{ url_for('api_status_queue') | tojson }};
@@ -242,15 +244,29 @@
         e.className = 'empty'; e.textContent = T.empty;
         list.appendChild(e);
       }
-      // Neueste geplante/offene oben, gepostete unten
-      const order = { scheduled: 0, ready: 1, processing: 1, posting: 1, failed: 0, error: 2, posted: 3 };
-      const sorted = [...items].sort((a, b) => (order[a.state] - order[b.state])
-        || ((a.scheduledAt || a.created) - (b.scheduledAt || b.created)));
-      for (const it of sorted) list.appendChild(card(it));
+      // Deine Reihenfolge; Gepostetes rutscht nach unten
+      const sorted = ordered();
+      sorted.forEach((it, i) => list.appendChild(card(it, sorted[i - 1], sorted[i + 1])));
       renderBulk();
     }
 
-    function card(it) {
+    const group = it => (it.state === 'posted' ? 1 : 0);
+    function ordered() {
+      return [...items].sort((a, b) => (group(a) - group(b)) || ((a.order || 0) - (b.order || 0)) || (a.created - b.created));
+    }
+
+    // Mit dem Nachbarn tauschen und die ganze sichtbare Folge speichern
+    async function move(it, other) {
+      if (!other || group(other) !== group(it)) return;
+      const ids = ordered().map(x => x.id);
+      const a = ids.indexOf(it.id), b = ids.indexOf(other.id);
+      [ids[a], ids[b]] = [ids[b], ids[a]];
+      ids.forEach((id, n) => { const x = items.find(i => i.id === id); if (x) x.order = n; });
+      render();
+      try { await api('/reorder', { ids }); } catch (e) { warn(T.uploadFailed); load(); }
+    }
+
+    function card(it, prev, next) {
       const el = document.createElement('div');
       el.className = 'item' + (selected.has(it.id) ? ' selected' : '');
       const busy = it.state === 'processing' || it.state === 'posting';
@@ -297,7 +313,13 @@
       if (it.size) parts.push(fmtSize(it.size) + (it.origSize && it.origSize > it.size * 1.2 ? ' ' + T.shrunk.replace('{size}', fmtSize(it.origSize)) : ''));
       if (it.trimmed) parts.push(T.trimmed);
       meta.textContent = parts.join(' · ');
+      meta.style.flex = '1';
       head.appendChild(meta);
+      // ︎: als Text zeichnen, nicht als farbiges Emoji
+      const up = button('↑︎', 'mv', () => move(it, prev), !prev || group(prev) !== group(it));
+      const down = button('↓︎', 'mv', () => move(it, next), !next || group(next) !== group(it));
+      up.title = T.up; down.title = T.down;
+      head.append(up, down);
       body.appendChild(head);
 
       const ta = document.createElement('textarea');
@@ -458,9 +480,10 @@
       if (selected.size < selectable.length) selectable.forEach(i => selected.add(i.id)); else selected.clear();
       render();
     };
-    $('bulk-post').onclick = () => post([...selected]);
-    $('bulk-plan').onclick = () => plan([...selected], $('bulk-at').value);
-    $('bulk-del').onclick = () => del([...selected]);
+    const selectedInOrder = () => ordered().map(i => i.id).filter(id => selected.has(id));
+    $('bulk-post').onclick = () => post(selectedInOrder());
+    $('bulk-plan').onclick = () => plan(selectedInOrder(), $('bulk-at').value);
+    $('bulk-del').onclick = () => del(selectedInOrder());
 
     // ── Hochladen ───────────────────────────────────────────
     function upload(file) {

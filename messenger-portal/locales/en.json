@@ -85,7 +85,7 @@
   "sq_no_targets": "No WhatsApp, Telegram or Signal add-on configured – there is nothing to post to.",
   "sq_add_files": "Images / videos",
   "sq_add_text": "Text status",
-  "sq_drop": "Drag or paste images and videos here. From the phone: share → MessengerPortal → Status queue. Large photos and videos are shrunk automatically.",
+  "sq_drop": "Drag or paste images and videos here. From the phone: share → MessengerPortal → Status queue. Large photos and videos are shrunk automatically. Sort with ↑ ↓ – posting follows this order.",
   "sq_text_ph": "Text for the status",
   "sq_text_save": "Add",
   "sq_cancel": "Cancel",
@@ -128,5 +128,7 @@
   "share_queue_done": "Added to the status queue",
   "share_queue_open": "Open status queue",
   "share_queue_hint": "Collected for later and posted from there – now or at a set time. Large files are shrunk.",
-  "share_queue_tile": "Queue"
+  "share_queue_tile": "Queue",
+  "sq_up": "Move up",
+  "sq_down": "Move down"
 }

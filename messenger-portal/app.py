@@ -645,6 +645,18 @@ def api_status_queue_text():
     return jsonify({'item': item})
 
 
+@app.route('/api/status-queue/reorder', methods=['POST'])
+def api_status_queue_reorder():
+    if not _authed():
+        return '', 401
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids')
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        return '', 400
+    status_queue.reorder(ids[:status_queue.MAX_ITEMS])
+    return jsonify({'ok': True})
+
+
 @app.route('/api/status-queue/<item_id>', methods=['POST'])
 def api_status_queue_update(item_id: str):
     if not _authed():

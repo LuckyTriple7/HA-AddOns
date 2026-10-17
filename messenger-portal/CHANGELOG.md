@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.5.2] - 2026-10-17
+- Neu: **Reihenfolge in der Status-Ablage.** Jeder Eintrag hat ↑/↓ zum Umsortieren; Gepostetes steht unten
+- Gepostet wird jetzt nacheinander in dieser Reihenfolge – beim gemeinsamen „Jetzt posten“ ebenso wie bei Einträgen, die zur selben Uhrzeit geplant sind. Bisher liefen mehrere Einträge gleichzeitig los, und die Reihenfolge im Status war Zufall
+
 ## [1.5.1] - 2026-10-17
 - Fix: Auf dem Handy war die Knopfleiste der Startseite breiter als der Bildschirm, beim Wischen verschob sich die ganze Seite. Die Knöpfe stehen auf schmalen Bildschirmen jetzt in einer zweiten Zeile
 - Status-Ablage: Die große Ansicht eines Bildes oder Videos schließt jetzt auch mit ESC

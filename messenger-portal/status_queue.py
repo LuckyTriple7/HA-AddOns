@@ -12,6 +12,7 @@ Bescheid, damit der denselben Status nicht ein zweites Mal weiterreicht.
 import json
 import logging
 import os
+import queue
 import re
 import secrets
 import shutil
@@ -41,6 +42,9 @@ COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 _lock = threading.Lock()
 _wake = threading.Event()
+# Gepostet wird nacheinander in der Reihenfolge der Auftraege — so erscheinen
+# mehrere Statusmeldungen in der Reihenfolge, in der sie in der Ablage stehen
+_jobs: queue.Queue = queue.Queue()
 _base_url_for = None
 _get_config = None
 
@@ -95,14 +99,31 @@ def file_path(item_id: str, which: str) -> str | None:
 
 def public(it: dict) -> dict:
     keys = ('id', 'kind', 'caption', 'text', 'color', 'state', 'targets', 'scheduledAt', 'results',
-            'created', 'postedAt', 'width', 'height', 'duration', 'size', 'trimmed', 'origSize')
+            'created', 'postedAt', 'width', 'height', 'duration', 'size', 'trimmed', 'origSize', 'order')
     out = {k: it.get(k) for k in keys}
     out['hasThumb'] = bool(it.get('thumb'))
     return out
 
 
+def _order_key(it: dict):
+    return (it.get('order', 0), it.get('created', 0))
+
+
 def list_items() -> list:
-    return [public(it) for it in sorted(_load(), key=lambda x: x.get('created', 0))]
+    return [public(it) for it in sorted(_load(), key=_order_key)]
+
+
+def reorder(ids: list) -> None:
+    """Neue Reihenfolge: die genannten Eintraege in dieser Folge vorn, der Rest
+    dahinter in seiner bisherigen Folge."""
+    with _lock:
+        items = sorted(_load(), key=_order_key)
+        by_id = {it['id']: it for it in items}
+        head = [by_id[i] for i in dict.fromkeys(ids) if i in by_id]
+        rest = [it for it in items if it not in head]
+        for n, it in enumerate(head + rest):
+            it['order'] = n
+        _save(head + rest)
 
 
 def _default_targets() -> list:
@@ -123,6 +144,7 @@ def _insert(item: dict) -> None:
         items = _load()
         if len(items) >= MAX_ITEMS:
             raise ValueError('too_many')
+        item['order'] = max((it.get('order', 0) for it in items), default=-1) + 1
         items.append(item)
         _save(items)
 
@@ -283,7 +305,7 @@ def post_now(item_id: str, only_failed: bool = False) -> dict | None:
     it = _update(item_id, state='posting', scheduledAt=None, postedAt=int(time.time() * 1000))
     if not it:
         return None
-    threading.Thread(target=_post, args=(item_id, targets), daemon=True).start()
+    _jobs.put((item_id, targets))
     return public(it)
 
 
@@ -399,10 +421,12 @@ def _post(item_id: str, targets: list) -> None:
 def _tick() -> None:
     now_ms = int(time.time() * 1000)
     items = _load()
+    due = [it for it in items if it['state'] == 'scheduled' and it.get('scheduledAt') and it['scheduledAt'] <= now_ms]
+    # Gleichzeitig faellige in der Reihenfolge der Ablage
+    for it in sorted(due, key=lambda x: (x['scheduledAt'], _order_key(x))):
+        post_now(it['id'])
     for it in items:
-        if it['state'] == 'scheduled' and it.get('scheduledAt') and it['scheduledAt'] <= now_ms:
-            post_now(it['id'])
-        elif it['state'] == 'posting' and now_ms - (it.get('postedAt') or it['created']) > 3600 * 1000:
+        if it['state'] == 'posting' and now_ms - (it.get('postedAt') or it['created']) > 3600 * 1000:
             # Nach einem Neustart mitten im Posten haengengeblieben
             _update(it['id'], state='failed')
     # Gepostete Eintraege nach einer Woche aufraeumen
@@ -424,7 +448,20 @@ def start(get_config, base_url_for) -> None:
                 it['state'] = 'error'
             elif it['state'] == 'posting':
                 it['state'] = 'failed'
+        # Eintraege aus 1.5.x ohne Reihenfolge: nach Eingang durchnummerieren
+        if any('order' not in it for it in items):
+            for n, it in enumerate(sorted(items, key=lambda x: x.get('created', 0))):
+                it['order'] = n
         _save(items)
+
+    def worker():
+        while True:
+            item_id, targets = _jobs.get()
+            try:
+                _post(item_id, targets)
+            except Exception as e:
+                log.warning('Status-Ablage: Posten abgebrochen: %s', e)
+                _update(item_id, state='failed')
 
     def loop():
         while True:
@@ -436,5 +473,6 @@ def start(get_config, base_url_for) -> None:
             _wake.clear()
 
     threading.Thread(target=loop, name='status-queue', daemon=True).start()
+    threading.Thread(target=worker, name='status-queue-post', daemon=True).start()
     if shutil.which('ffmpeg') is None:
         log.warning('Status-Ablage: ffmpeg fehlt – Videos lassen sich nicht aufbereiten')
