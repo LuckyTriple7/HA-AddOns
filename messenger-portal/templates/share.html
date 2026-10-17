@@ -284,7 +284,14 @@
         {% else %}
         <div class="note">{{ t.no_messengers }}</div>
         {% endfor %}
+        {% if messengers %}
+        <button type="button" class="messenger" id="queue-tile" style="--brand: var(--accent)" title="{{ t.share_queue_hint }}">
+          <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
+          <span>{{ t.share_queue_tile }}</span>
+        </button>
+        {% endif %}
       </div>
+      <div class="note" id="queue-note" hidden>{{ t.share_queue_hint }}</div>
 
       <div class="chat-box" id="chat-box" hidden>
         <input type="search" id="search" placeholder="{{ t.share_search }}" autocomplete="off">
@@ -330,7 +337,14 @@
       noText:     {{ t.share_status_no_text | tojson }},
       sendStatus: {{ t.share_send_status | tojson }},
       sentStatus: {{ t.share_sent_status | tojson }},
+      queueSend:  {{ t.share_queue_send | tojson }},
+      queueDone:  {{ t.share_queue_done | tojson }},
+      queueOpen:  {{ t.share_queue_open | tojson }},
+      queueBad:   {{ t.sq_unsupported | tojson }},
     };
+    const QUEUE_API  = {{ url_for('api_status_queue') | tojson }};
+    const QUEUE_PAGE = {{ url_for('status_queue_page') | tojson }};
+    let queueMode = false;   // Kachel "Status-Ablage" gewaehlt statt eines Messengers
     // Pseudo-Eintrag oben in der Chatliste: postet in den eigenen Status bzw.
     // die eigene Story statt in einen Chat
     const STATUS_ID = '__my_status__';
@@ -462,7 +476,7 @@
         box.appendChild(del);
         filesEl.appendChild(box);
       });
-      const big = files.find(f => f.size > MAX_BYTES);
+      const big = queueMode ? null : files.find(f => f.size > MAX_BYTES);
       if (big) { warn(T.tooBig.replace('{name}', big.name)); sizeWarn = true; }
       else if (sizeWarn) { warn(''); sizeWarn = false; }
       updateSend();
@@ -488,7 +502,16 @@
       const hasContent = files.length > 0 || msgEl.value.trim() !== '';
       $('empty-note').hidden = hasContent || busy;
       $('discard-btn').hidden = !hasContent || busy;
-      const tooBig = files.some(f => f.size > MAX_BYTES);
+      const tooBig = !queueMode && files.some(f => f.size > MAX_BYTES);
+      if (queueMode) {
+        const bad = files.some(f => !/^(image|video)\//.test(f.type));
+        $('status-note').textContent = bad ? T.queueBad : '';
+        $('status-note').hidden = !bad;
+        sendBtn.hidden = false;
+        sendBtn.disabled = busy || !hasContent || bad;
+        if (!busy) sendBtn.textContent = T.queueSend;
+        return;
+      }
       const isStatus = !!(chat && chat.id === STATUS_ID);
       const problem = isStatus && !busy ? statusProblem() : null;
       $('status-note').textContent = problem || '';
@@ -559,8 +582,58 @@
       chatsEl.appendChild(el);
     }
 
+    function pickQueue() {
+      if (busy) return;
+      queueMode = true;
+      messenger = null; chat = null; chats = [];
+      document.querySelectorAll('.messenger').forEach(b => b.classList.toggle('active', b.id === 'queue-tile'));
+      $('chat-box').hidden = true;
+      $('queue-note').hidden = false;
+      renderFiles();
+    }
+
+    async function sendToQueue() {
+      const text = msgEl.value.trim();
+      busy = true;
+      warn('');
+      sendBtn.disabled = true;
+      sendBtn.textContent = T.sending;
+      try {
+        if (files.length) {
+          for (let i = 0; i < files.length; i++) {
+            const fd = new FormData();
+            if (i === 0 && text) fd.append('caption', text);
+            fd.append('file', files[i], files[i].name);
+            const res = await fetch(QUEUE_API + '/upload', { method: 'POST', body: fd });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+          }
+        } else {
+          const res = await fetch(QUEUE_API + '/text', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+        }
+      } catch (e) {
+        busy = false;
+        warn(T.errSend + ': ' + e.message);
+        updateSend();
+        return;
+      }
+      await clearPayload();
+      $('pick-area').style.display = 'none';
+      $('payload').hidden = true;
+      $('discard-btn').hidden = true;
+      $('done-note').textContent = T.queueDone;
+      $('done-note').hidden = false;
+      $('done-open').textContent = T.queueOpen;
+      $('done-open').href = QUEUE_PAGE;
+      $('done-actions').hidden = false;
+    }
+
     async function pickMessenger(m) {
       if (busy) return;
+      queueMode = false;
+      $('queue-note').hidden = true;
       messenger = m;
       chat = null;
       chats = [];
@@ -664,7 +737,8 @@
     });
     searchEl.addEventListener('input', renderChats);
     msgEl.addEventListener('input', updateSend);
-    sendBtn.addEventListener('click', send);
+    sendBtn.addEventListener('click', () => (queueMode ? sendToQueue() : send()));
+    if ($('queue-tile')) $('queue-tile').addEventListener('click', pickQueue);
     $('add-btn').addEventListener('click', () => $('file-input').click());
     $('file-input').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
     document.addEventListener('paste', e => {

@@ -88,7 +88,7 @@ def _post_file(url: str, filename: str, mime: str, data: bytes, caption: str = '
         raise RuntimeError(f'HTTP {e.code} {detail}'.strip()) from None
 
 
-def render_text(text: str) -> bytes:
+def render_text(text: str, bg: str | None = None) -> bytes:
     """Text-Status als Hochkant-Bild (1080x1920), Text zentriert."""
     from PIL import Image, ImageDraw, ImageFont
     w, h = 1080, 1920
@@ -109,7 +109,8 @@ def render_text(text: str) -> bytes:
                          for line in text.splitlines()).strip() or text
     except OSError:
         pass
-    img = Image.new('RGB', (w, h), TEXT_BG)
+    color = tuple(int(bg[i:i + 2], 16) for i in (1, 3, 5)) if bg and len(bg) == 7 and bg[0] == "#" else TEXT_BG
+    img = Image.new("RGB", (w, h), color)
     draw = ImageDraw.Draw(img)
     # Lange Texte kleiner setzen, damit sie aufs Bild passen
     for size in (84, 72, 60, 50, 42, 36):
@@ -140,6 +141,31 @@ TARGETS = {
 }
 
 _wake = threading.Event()
+
+# Die Status-Ablage postet selbst an mehrere Ziele. Ein so entstandener
+# WhatsApp-Status darf nicht noch einmal an dieselben Ziele gespiegelt werden:
+# {ziel: [(art, zeitpunkt_ms), ...]}, nach 30 Minuten verfallen
+_suppressed: dict = {}
+_sup_lock = threading.Lock()
+SUPPRESS_WINDOW_MS = 30 * 60 * 1000
+
+
+def suppress(target: str, kind: str, ts_ms: int) -> None:
+    with _sup_lock:
+        _suppressed.setdefault(target, []).append((kind, ts_ms))
+
+
+def _take_suppressed(target: str, kind: str, ts_ms: int) -> bool:
+    now = time.time() * 1000
+    with _sup_lock:
+        lst = [e for e in _suppressed.get(target, []) if now - e[1] < SUPPRESS_WINDOW_MS]
+        for e in lst:
+            if e[0] == kind and abs(ts_ms - e[1]) < SUPPRESS_WINDOW_MS:
+                lst.remove(e)
+                _suppressed[target] = lst
+                return True
+        _suppressed[target] = lst
+    return False
 _last_error = ''   # Fehlercode beim Abfragen von WhatsApp; Details nur im Log
 ERROR_CODES = {'no_media', 'send_failed', 'wa_unreachable'}
 
@@ -219,6 +245,10 @@ def _mirror_target(wa_base: str, icon: str, base: str, msgs: list, st: dict, now
         kind = m.get('type')
         ts = m.get('timestamp') or 0
         age = now - ts / 1000
+        if _take_suppressed(icon, kind, ts):
+            seen[mid] = ts
+            log.info('Status-Spiegel %s: %s kam aus der Status-Ablage, dort schon gepostet', label, kind)
+            continue
         caption = (m.get('body') or '').strip() if spec['caption'] else ''
         try:
             if kind == 'text':
