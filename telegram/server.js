@@ -1135,28 +1135,240 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
   }
 });
 
-// Eigene Story posten (sichtbar fuer Kontakte). Telegram-Storys brauchen immer
-// ein Foto oder Video — reine Text-Storys gibt es nicht. Videos bleiben aussen
-// vor: SendStory verlangt Laenge und Abmessungen, die hier ohne ffprobe fehlen.
+// ── Eigene Storys, Profil, Datenschutz (Oberflaeche: mystatus.js) ────────────
+// Telegram-Storys brauchen immer ein Foto oder Video; Text-Storys malt die
+// Oberflaeche vorher als Bild. Videos brauchen Laenge und Abmessungen — die
+// liest der Browser aus dem Video und schickt sie mit (duration, w, h).
+const statusTemplates = require('./status_templates').register(app, {
+  upload, deleteRateLimit, file: '/config/status_templates.json', dir: '/config/status_templates',
+});
+
+const STORY_PRIVACY = {
+  contacts: () => [new Api.InputPrivacyValueAllowContacts()],
+  all:      () => [new Api.InputPrivacyValueAllowAll()],
+  close:    () => [new Api.InputPrivacyValueAllowCloseFriends()],
+};
+
+// Telegram-Fehlercodes (z. B. STORIES_TOO_MUCH) sind selbst sprechend und
+// enthalten keine Interna — alles andere bleibt im Log
+function tgErr(res, e, what) {
+  const code = e && typeof e.errorMessage === 'string' && /^[A-Z0-9_]+$/.test(e.errorMessage) ? e.errorMessage : null;
+  console.warn(`[WARN] ${what}: ${e && e.message}`);
+  res.status(500).json({ error: code || `${what} fehlgeschlagen` });
+}
+
 app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'file required' });
   if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
-  const { originalname, mimetype, buffer } = req.file;
-  if (!/^image\//.test(mimetype || '')) return res.status(400).json({ error: 'Telegram-Storys gehen hier nur mit Bildern' });
+  let f = req.file;
+  if (!f && req.body?.templateFile) f = statusTemplates.readMedia(String(req.body.templateFile));
+  if (!f) return res.status(400).json({ error: 'file required' });
+  const { originalname, mimetype, buffer } = f;
+  const isVideo = /^video\//.test(mimetype || '');
+  if (!isVideo && !/^image\//.test(mimetype || '')) return res.status(400).json({ error: 'only image or video allowed' });
+  const privacy = STORY_PRIVACY[req.body?.privacy] || STORY_PRIVACY.contacts;
   try {
-    const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const safeName = String(originalname || 'story').replace(/[^a-zA-Z0-9._-]/g, '_');
     const file = await client.uploadFile({ file: new CustomFile(safeName, buffer.length, '', buffer), workers: 1 });
+    let media;
+    if (isVideo) {
+      const duration = Number(req.body?.duration);
+      const w = parseInt(req.body?.w, 10), h = parseInt(req.body?.h, 10);
+      if (!(duration > 0) || !(w > 0) || !(h > 0)) return res.status(400).json({ error: 'video metadata missing' });
+      media = new Api.InputMediaUploadedDocument({
+        file, mimeType: mimetype,
+        attributes: [new Api.DocumentAttributeVideo({ supportsStreaming: true, duration, w, h })],
+      });
+    } else {
+      media = new Api.InputMediaUploadedPhoto({ file });
+    }
     await client.invoke(new Api.stories.SendStory({
       peer: new Api.InputPeerSelf(),
-      media: new Api.InputMediaUploadedPhoto({ file }),
+      media,
       caption: typeof req.body?.caption === 'string' ? req.body.caption : '',
-      privacyRules: [new Api.InputPrivacyValueAllowContacts()],
+      privacyRules: privacy(),
       randomId: generateRandomLong(),
     }));
     console.log(`[INFO] Eigene Story gepostet (${mimetype}, ${Math.round(buffer.length / 1024)} KB)`);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    tgErr(res, e, 'Story posten');
+  }
+});
+
+async function myStories() {
+  const r = await client.invoke(new Api.stories.GetPeerStories({ peer: new Api.InputPeerSelf() }));
+  return (r.stories?.stories || []).filter(s => s.className === 'StoryItem');
+}
+
+app.get('/api/my-status', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const stories = (await myStories()).map(s => ({
+      id: s.id,
+      date: s.date * 1000,
+      expires: s.expireDate * 1000,
+      caption: s.caption || '',
+      type: s.media?.className === 'MessageMediaDocument' ? 'video' : 'photo',
+      views: s.views ? s.views.viewsCount : undefined,
+      thumb: true,
+    })).sort((a, b) => b.date - a.date);
+    res.json({ stories });
+  } catch (e) {
+    tgErr(res, e, 'Storys laden');
+  }
+});
+
+// Vorschaubilder der eigenen Storys, kurz im Speicher gehalten
+const _storyThumbs = new Map();
+app.get('/api/my-status/thumb/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id || status !== 'connected') return res.status(404).end();
+  try {
+    let buf = _storyThumbs.get(id);
+    if (!buf) {
+      const s = (await myStories()).find(x => x.id === id);
+      if (!s) return res.status(404).end();
+      const doc = s.media?.document;
+      buf = await client.downloadMedia(s.media, doc ? { thumb: Math.max(0, (doc.thumbs?.length || 1) - 1) } : {});
+      if (!buf || !buf.length) return res.status(404).end();
+      _storyThumbs.set(id, buf);
+      if (_storyThumbs.size > 30) _storyThumbs.delete(_storyThumbs.keys().next().value);
+    }
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.end(buf);
+  } catch (e) {
+    dbg(`Story-Vorschau ${id}: ${e.message}`);
+    res.status(404).end();
+  }
+});
+
+app.post('/api/my-status/edit', async (req, res) => {
+  const id = parseInt(req.body?.id, 10);
+  if (!id || typeof req.body?.caption !== 'string') return res.status(400).json({ error: 'id and caption required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    await client.invoke(new Api.stories.EditStory({ peer: new Api.InputPeerSelf(), id, caption: req.body.caption }));
+    res.json({ success: true });
+  } catch (e) {
+    tgErr(res, e, 'Story bearbeiten');
+  }
+});
+
+app.post('/api/my-status/delete', deleteRateLimit, async (req, res) => {
+  const id = parseInt(req.body?.id, 10);
+  if (!id) return res.status(400).json({ error: 'id required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    await client.invoke(new Api.stories.DeleteStories({ peer: new Api.InputPeerSelf(), id: [id] }));
+    _storyThumbs.delete(id);
+    console.log(`[INFO] Eigene Story ${id} gelöscht`);
+    res.json({ success: true });
+  } catch (e) {
+    tgErr(res, e, 'Story löschen');
+  }
+});
+
+app.get('/api/me', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const me = await client.getMe();
+    const full = await client.invoke(new Api.users.GetFullUser({ id: new Api.InputUserSelf() }));
+    res.json({
+      id: String(me.id), firstName: me.firstName || '', lastName: me.lastName || '',
+      username: me.username || '', phone: me.phone || '', premium: !!me.premium,
+      about: full.fullUser?.about || '',
+    });
+  } catch (e) {
+    tgErr(res, e, 'Profil laden');
+  }
+});
+
+app.post('/api/me/profile', async (req, res) => {
+  const firstName = String(req.body?.firstName || '').trim().slice(0, 64);
+  if (!firstName) return res.status(400).json({ error: 'FIRSTNAME_INVALID' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const me = await client.invoke(new Api.account.UpdateProfile({
+      firstName,
+      lastName: String(req.body?.lastName || '').trim().slice(0, 64),
+      about: String(req.body?.about || '').slice(0, 140),
+    }));
+    myName = getEntityName(me) || myName;
+    console.log('[INFO] Eigenes Profil geändert');
+    res.json({ success: true });
+  } catch (e) {
+    tgErr(res, e, 'Profil speichern');
+  }
+});
+
+// Datenschutz: je Bereich Alle / Kontakte / Niemand. Ausnahmen (einzelne
+// Personen oder Gruppen) bleiben beim Umstellen erhalten.
+const PRIVACY_KEYS = {
+  phone:    () => new Api.InputPrivacyKeyPhoneNumber(),
+  lastSeen: () => new Api.InputPrivacyKeyStatusTimestamp(),
+  photo:    () => new Api.InputPrivacyKeyProfilePhoto(),
+  about:    () => new Api.InputPrivacyKeyAbout(),
+  forwards: () => new Api.InputPrivacyKeyForwards(),
+  calls:    () => new Api.InputPrivacyKeyPhoneCall(),
+  invites:  () => new Api.InputPrivacyKeyChatInvite(),
+};
+const EXCEPTION_RULES = ['PrivacyValueAllowUsers', 'PrivacyValueDisallowUsers', 'PrivacyValueAllowChatParticipants',
+  'PrivacyValueDisallowChatParticipants', 'PrivacyValueAllowCloseFriends', 'PrivacyValueAllowPremium',
+  'PrivacyValueAllowBots', 'PrivacyValueDisallowBots'];
+
+function privacyLevel(rules) {
+  const names = rules.map(r => r.className);
+  return names.includes('PrivacyValueAllowAll') ? 'all' : names.includes('PrivacyValueAllowContacts') ? 'contacts' : 'nobody';
+}
+
+async function getPrivacyRules(key) {
+  return (await client.invoke(new Api.account.GetPrivacy({ key: PRIVACY_KEYS[key]() }))).rules || [];
+}
+
+app.get('/api/privacy', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const items = [];
+    for (const key of Object.keys(PRIVACY_KEYS)) {
+      const rules = await getPrivacyRules(key);
+      items.push({ key, value: privacyLevel(rules), exceptions: rules.filter(r => EXCEPTION_RULES.includes(r.className)).length });
+    }
+    res.json({ items });
+  } catch (e) {
+    tgErr(res, e, 'Datenschutz laden');
+  }
+});
+
+app.post('/api/privacy', async (req, res) => {
+  const { key, value } = req.body || {};
+  if (!PRIVACY_KEYS[key] || !['all', 'contacts', 'nobody'].includes(value)) return res.status(400).json({ error: 'key/value invalid' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const old = await getPrivacyRules(key);
+    const rules = [];
+    const users = async (ids) => Promise.all(ids.map(id => client.getInputEntity(id)));
+    for (const r of old) {
+      switch (r.className) {
+        case 'PrivacyValueAllowUsers': rules.push(new Api.InputPrivacyValueAllowUsers({ users: await users(r.users) })); break;
+        case 'PrivacyValueDisallowUsers': rules.push(new Api.InputPrivacyValueDisallowUsers({ users: await users(r.users) })); break;
+        case 'PrivacyValueAllowChatParticipants': rules.push(new Api.InputPrivacyValueAllowChatParticipants({ chats: r.chats })); break;
+        case 'PrivacyValueDisallowChatParticipants': rules.push(new Api.InputPrivacyValueDisallowChatParticipants({ chats: r.chats })); break;
+        case 'PrivacyValueAllowCloseFriends': rules.push(new Api.InputPrivacyValueAllowCloseFriends()); break;
+        case 'PrivacyValueAllowPremium': rules.push(new Api.InputPrivacyValueAllowPremium()); break;
+        case 'PrivacyValueAllowBots': rules.push(new Api.InputPrivacyValueAllowBots()); break;
+        case 'PrivacyValueDisallowBots': rules.push(new Api.InputPrivacyValueDisallowBots()); break;
+        default: break;   // Grundregel wird unten neu gesetzt
+      }
+    }
+    rules.push(value === 'all' ? new Api.InputPrivacyValueAllowAll()
+      : value === 'contacts' ? new Api.InputPrivacyValueAllowContacts()
+      : new Api.InputPrivacyValueDisallowAll());
+    await client.invoke(new Api.account.SetPrivacy({ key: PRIVACY_KEYS[key](), rules }));
+    console.log(`[INFO] Datenschutz ${key} → ${value}`);
+    res.json({ success: true });
+  } catch (e) {
+    tgErr(res, e, 'Datenschutz speichern');
   }
 });
 
@@ -1763,6 +1975,20 @@ const _SVG = {
   fwd:       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>',
   reply:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
 };
+
+// Status-Editor der Oberflaeche (mystatus.js, identisch im Signal-Add-on)
+const MYSTATUS_JS = fs.readFileSync(path.join(__dirname, 'mystatus.js'), 'utf8');
+const MYSTATUS_V = crypto.createHash('sha1').update(MYSTATUS_JS).digest('hex').slice(0, 10);
+const MS_CFG = {
+  name: 'Telegram', accent: '#2AABEE', caption: true, captionMax: 200, video: true, videoMaxSec: 60,
+  storyPrivacy: true, liveEdit: true, liveDelete: true, privacy: true,
+  profile: { fields: ['firstName', 'lastName', 'about'], aboutMax: 140 },
+};
+app.get('/mystatus.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.send(MYSTATUS_JS);
+});
 
 function getHtml() {
   return `<!DOCTYPE html>
@@ -4374,6 +4600,8 @@ applyLang();
       }
     })();
   </script>
+<script>window.MS_CFG=${JSON.stringify(MS_CFG)};</script>
+<script src="mystatus.js?v=${MYSTATUS_V}"></script>
 </body>
 </html>`;
 }

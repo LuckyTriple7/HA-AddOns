@@ -12,7 +12,7 @@ RUN apt-get update && \
 WORKDIR /ui
 COPY package.json .
 RUN npm install --production
-COPY server.js .
+COPY server.js mystatus.js status_templates.js ./
 
 COPY run.sh /run.sh
 RUN chmod +x /run.sh

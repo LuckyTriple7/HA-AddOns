@@ -1059,9 +1059,38 @@ function signalRpc(method, params, timeoutMs = 60000) {
   });
 }
 
+const statusTemplates = require('./status_templates').register(app, {
+  upload, deleteRateLimit, file: '/config/status_templates.json', dir: '/config/status_templates',
+});
+
+// Selbst gepostete Storys merken: signal-cli fuehrt keine Liste der eigenen
+// Storys. Bilder bleiben als Vorschau liegen, alles verfaellt nach 24 Stunden.
+const MY_STORIES_FILE = '/config/my_stories.json';
+const MY_STORIES_DIR = '/config/my_stories';
+const STORY_TTL_MS = 24 * 60 * 60 * 1000;
+
+function loadMyStories() {
+  let list = [];
+  try { list = JSON.parse(fs.readFileSync(MY_STORIES_FILE, 'utf8')); } catch (e) {}
+  if (!Array.isArray(list)) list = [];
+  const now = Date.now();
+  const keep = list.filter(s => now - s.date < STORY_TTL_MS);
+  if (keep.length !== list.length) {
+    for (const s of list) if (!keep.includes(s) && s.file) fs.rm(path.join(MY_STORIES_DIR, s.file), { force: true }, () => {});
+    saveMyStories(keep);
+  }
+  return keep;
+}
+function saveMyStories(list) {
+  try { fs.writeFileSync(MY_STORIES_FILE, JSON.stringify(list)); }
+  catch (e) { console.error('[ERROR] my_stories speichern:', e.message); }
+}
+
 app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'file required' });
-  const { mimetype, buffer, originalname } = req.file;
+  let f = req.file;
+  if (!f && req.body?.templateFile) f = statusTemplates.readMedia(String(req.body.templateFile));
+  if (!f) return res.status(400).json({ error: 'file required' });
+  const { mimetype, buffer, originalname } = f;
   if (!/^(image|video)\//.test(mimetype || '')) return res.status(400).json({ error: 'only image or video allowed' });
   // signal-cli laeuft als UID 1000 und liest die Datei selbst — daher /tmp, lesbar
   const ext = (path.extname(originalname || '').toLowerCase().match(/^\.[a-z0-9]{1,5}$/) || [''])[0];
@@ -1069,12 +1098,75 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   try {
     fs.writeFileSync(fp, buffer, { mode: 0o644 });
     const result = await signalRpc('sendStory', { account: PHONE_NUMBER, attachment: fp });
+    const ts = Number(result?.timestamp) || Date.now();
+    const isImage = /^image\//.test(mimetype);
+    const entry = { id: String(ts), date: ts, type: isImage ? 'photo' : 'video', file: null };
+    if (isImage) {
+      try {
+        fs.mkdirSync(MY_STORIES_DIR, { recursive: true });
+        entry.file = `${ts}${ext || '.jpg'}`;
+        fs.writeFileSync(path.join(MY_STORIES_DIR, entry.file), buffer);
+      } catch (e) { entry.file = null; }
+    }
+    saveMyStories([...loadMyStories(), entry]);
     _logSilent('INFO', `Eigene Story gepostet (${mimetype}, ${Math.round(buffer.length / 1024)} KB)`);
-    res.json({ success: true, timestamp: result?.timestamp || null });
+    res.json({ success: true, timestamp: ts });
   } catch (e) {
-    res.status(500).json({ error: String(e.message || e) });
+    console.warn(`[WARN] Story posten: ${e.message}`);
+    res.status(500).json({ error: 'Story posten fehlgeschlagen' });
   } finally {
     fs.rm(fp, { force: true }, () => {});
+  }
+});
+
+app.get('/api/my-status', (req, res) => {
+  const stories = loadMyStories()
+    .map(s => ({ id: s.id, date: s.date, expires: s.date + STORY_TTL_MS, caption: '', type: s.type, thumb: !!s.file }))
+    .sort((a, b) => b.date - a.date);
+  res.json({ stories });
+});
+
+app.get('/api/my-status/thumb/:id', (req, res) => {
+  const s = loadMyStories().find(x => x.id === req.params.id);
+  if (!s || !s.file || !/^[\w.-]+$/.test(s.file)) return res.status(404).end();
+  const fp = path.resolve(MY_STORIES_DIR, s.file);
+  if (!fp.startsWith(path.resolve(MY_STORIES_DIR) + path.sep) || !fs.existsSync(fp)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.sendFile(fp);
+});
+
+// Eigenes Profil: Name, Info-Text, Info-Emoji. signal-cli hat keinen Befehl
+// "eigenes Profil lesen" — listContacts mit der eigenen Nummer liefert es,
+// sonst greift die zuletzt hier gespeicherte Fassung.
+const MY_PROFILE_FILE = '/config/my_profile.json';
+const PROFILE_FIELDS = ['givenName', 'familyName', 'about', 'aboutEmoji'];
+
+app.get('/api/me', async (req, res) => {
+  let local = {};
+  try { local = JSON.parse(fs.readFileSync(MY_PROFILE_FILE, 'utf8')) || {}; } catch (e) {}
+  let remote = null;
+  try {
+    const list = await signalRpc('listContacts', { account: PHONE_NUMBER, recipient: [PHONE_NUMBER], allRecipients: true }, 15000);
+    const self = (Array.isArray(list) ? list : []).find(c => c && c.number === PHONE_NUMBER);
+    if (self && self.profile) remote = self.profile;
+  } catch (e) { dbg('listContacts (self):', e.message); }
+  const out = { number: PHONE_NUMBER };
+  for (const f of PROFILE_FIELDS) out[f] = (remote && remote[f]) || local[f] || '';
+  res.json(out);
+});
+
+app.post('/api/me/profile', async (req, res) => {
+  const p = {};
+  for (const f of PROFILE_FIELDS) p[f] = String(req.body?.[f] || '').trim().slice(0, f === 'about' ? 140 : f === 'aboutEmoji' ? 8 : 64);
+  if (!p.givenName) return res.status(400).json({ error: 'Vorname fehlt' });
+  try {
+    await signalRpc('updateProfile', { account: PHONE_NUMBER, ...p }, 30000);
+    try { fs.writeFileSync(MY_PROFILE_FILE, JSON.stringify(p)); } catch (e) {}
+    _logSilent('INFO', 'Eigenes Profil geändert');
+    res.json({ success: true });
+  } catch (e) {
+    console.warn(`[WARN] Profil speichern: ${e.message}`);
+    res.status(500).json({ error: 'Profil speichern fehlgeschlagen' });
   }
 });
 
@@ -1399,6 +1491,21 @@ const _SVG = {
   react:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
   reply:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
 };
+
+// Status-Editor der Oberflaeche (mystatus.js, identisch im Telegram-Add-on).
+// Signal-Storys nehmen keinen Text zum Bild; Videos laut Signal bis 30 s.
+const MYSTATUS_JS = fs.readFileSync(path.join(__dirname, 'mystatus.js'), 'utf8');
+const MYSTATUS_V = crypto.createHash('sha1').update(MYSTATUS_JS).digest('hex').slice(0, 10);
+const MS_CFG = {
+  name: 'Signal', accent: '#3a76f0', caption: false, video: true, videoMaxSec: 30,
+  storyPrivacy: false, liveLocal: true, liveEdit: false, liveDelete: false, privacy: false,
+  profile: { fields: ['givenName', 'familyName', 'about', 'aboutEmoji'], aboutMax: 140 },
+};
+app.get('/mystatus.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.send(MYSTATUS_JS);
+});
 
 function getHtml() {
   return `<!DOCTYPE html>
@@ -3249,6 +3356,8 @@ applyLang();
       }
     })();
   </script>
+<script>window.MS_CFG=${JSON.stringify(MS_CFG)};</script>
+<script src="mystatus.js?v=${MYSTATUS_V}"></script>
 </body>
 </html>`;
 }
