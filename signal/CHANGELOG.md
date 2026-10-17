@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.1] - 2026-10-17
+- CodeQL #265/#266 behoben: Die Vorschau im Story-Editor hängte die gewählte Datei als Adresse an ein Bild-/Videoelement (CodeQL `js/xss-through-dom`). Bilder werden jetzt auf eine Zeichenfläche gemalt, Videos laufen über eine eigene Kopie mit festem Videotyp
+
 ## [1.8.0] - 2026-10-17
 - Neu: **Meine Story** – Knopf mit dem Kreis in der Kopfzeile öffnet einen Editor wie beim WhatsApp-Add-on:
   - **Text**: Text mit Hintergrundfarbe und Schrift; wird im Browser als Bild gemalt (signal-cli postet nur Bilder und Videos)

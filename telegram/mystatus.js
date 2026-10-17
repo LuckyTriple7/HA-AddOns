@@ -234,7 +234,7 @@ html.dark #mys-modal{--bg:#17212b;--fg:#e6edf3;--mut:#8b98a5;--bd:#2b3a4a;--in:#
     </div>
     <div class="mys-pane" data-pane="media">
       <input type="file" id="mys-file" accept="image/*${CFG.video ? ',video/*' : ''}" class="mys-in">
-      <img id="mys-img" class="mys-media" alt=""><video id="mys-vid" class="mys-media" muted playsinline controls></video>
+      <canvas id="mys-cv" class="mys-media"></canvas><img id="mys-img" class="mys-media" alt=""><video id="mys-vid" class="mys-media" muted playsinline controls></video>
       <div class="mys-hint" id="mys-media-note"></div>
       <button class="mys-btn ghost" id="mys-clear" style="display:none" data-mys="clearMedia"></button>
       ${CFG.caption ? `<div class="mys-label" data-mys="caption"></div><textarea id="mys-caption" class="mys-area" maxlength="${CFG.captionMax || 700}" data-mys-pl="captionPh"></textarea>`
@@ -361,19 +361,26 @@ html.dark #mys-modal{--bg:#17212b;--fg:#e6edf3;--mut:#8b98a5;--bd:#2b3a4a;--in:#
     S.file = null; S.tplFile = null; S.videoMeta = null;
     $('mys-file').value = '';
     $('mys-img').classList.remove('show'); $('mys-img').removeAttribute('src');
+    $('mys-cv').classList.remove('show');
     const v = $('mys-vid'); v.classList.remove('show'); v.removeAttribute('src');
     $('mys-media-note').textContent = '';
     $('mys-clear').style.display = 'none';
   }
 
-  function filePicked() {
+  // Vorschau ohne die gewaehlte Datei als Adresse ins DOM zu haengen: Bilder
+  // werden auf eine Zeichenflaeche gemalt, Videos laufen ueber eine eigene
+  // Kopie mit festem Videotyp (Laenge und Format braucht Telegram)
+  const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+  async function filePicked() {
     const f = $('mys-file').files[0];
     clearMedia();
     if (!f) return;
     S.file = f;
     $('mys-clear').style.display = '';
-    const url = URL.createObjectURL(f);
     if (f.type.startsWith('video/')) {
+      const type = VIDEO_TYPES.includes(f.type) ? f.type : 'video/mp4';
+      const copy = new Blob([await f.arrayBuffer()], { type });
+      if (S.file !== f) return;
       const v = $('mys-vid');
       v.onloadedmetadata = () => {
         S.videoMeta = { duration: v.duration, w: v.videoWidth, h: v.videoHeight };
@@ -381,9 +388,19 @@ html.dark #mys-modal{--bg:#17212b;--fg:#e6edf3;--mut:#8b98a5;--bd:#2b3a4a;--in:#
           $('mys-media-note').textContent = tf('videoTooLong', Math.round(v.duration), NAME, CFG.videoMaxSec);
         }
       };
-      v.src = url; v.classList.add('show');
-    } else {
-      $('mys-img').src = url; $('mys-img').classList.add('show');
+      v.src = URL.createObjectURL(copy);
+      v.classList.add('show');
+    } else if (window.createImageBitmap) {
+      try {
+        const bmp = await createImageBitmap(f);
+        if (S.file !== f) { bmp.close(); return; }
+        const cv = $('mys-cv');
+        const scale = Math.min(1, 520 / Math.max(bmp.width, bmp.height));
+        cv.width = Math.round(bmp.width * scale); cv.height = Math.round(bmp.height * scale);
+        cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+        bmp.close();
+        cv.classList.add('show');
+      } catch (e) { /* nicht dekodierbar: ohne Vorschau senden */ }
     }
   }
 

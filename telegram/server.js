@@ -1143,11 +1143,13 @@ const statusTemplates = require('./status_templates').register(app, {
   upload, deleteRateLimit, file: '/config/status_templates.json', dir: '/config/status_templates',
 });
 
-const STORY_PRIVACY = {
-  contacts: () => [new Api.InputPrivacyValueAllowContacts()],
-  all:      () => [new Api.InputPrivacyValueAllowAll()],
-  close:    () => [new Api.InputPrivacyValueAllowCloseFriends()],
-};
+// Map statt Objekt: Schluessel kommen aus der Anfrage, ein Objekt liesse auch
+// geerbte Namen wie "constructor" durch
+const STORY_PRIVACY = new Map([
+  ['contacts', () => [new Api.InputPrivacyValueAllowContacts()]],
+  ['all',      () => [new Api.InputPrivacyValueAllowAll()]],
+  ['close',    () => [new Api.InputPrivacyValueAllowCloseFriends()]],
+]);
 
 // Telegram-Fehlercodes (z. B. STORIES_TOO_MUCH) sind selbst sprechend und
 // enthalten keine Interna — alles andere bleibt im Log
@@ -1165,7 +1167,7 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer } = f;
   const isVideo = /^video\//.test(mimetype || '');
   if (!isVideo && !/^image\//.test(mimetype || '')) return res.status(400).json({ error: 'only image or video allowed' });
-  const privacy = STORY_PRIVACY[req.body?.privacy] || STORY_PRIVACY.contacts;
+  const privacy = STORY_PRIVACY.get(String(req.body?.privacy || '')) || STORY_PRIVACY.get('contacts');
   try {
     const safeName = String(originalname || 'story').replace(/[^a-zA-Z0-9._-]/g, '_');
     const file = await client.uploadFile({ file: new CustomFile(safeName, buffer.length, '', buffer), workers: 1 });
@@ -1304,15 +1306,15 @@ app.post('/api/me/profile', async (req, res) => {
 
 // Datenschutz: je Bereich Alle / Kontakte / Niemand. Ausnahmen (einzelne
 // Personen oder Gruppen) bleiben beim Umstellen erhalten.
-const PRIVACY_KEYS = {
-  phone:    () => new Api.InputPrivacyKeyPhoneNumber(),
-  lastSeen: () => new Api.InputPrivacyKeyStatusTimestamp(),
-  photo:    () => new Api.InputPrivacyKeyProfilePhoto(),
-  about:    () => new Api.InputPrivacyKeyAbout(),
-  forwards: () => new Api.InputPrivacyKeyForwards(),
-  calls:    () => new Api.InputPrivacyKeyPhoneCall(),
-  invites:  () => new Api.InputPrivacyKeyChatInvite(),
-};
+const PRIVACY_KEYS = new Map([
+  ['phone',    () => new Api.InputPrivacyKeyPhoneNumber()],
+  ['lastSeen', () => new Api.InputPrivacyKeyStatusTimestamp()],
+  ['photo',    () => new Api.InputPrivacyKeyProfilePhoto()],
+  ['about',    () => new Api.InputPrivacyKeyAbout()],
+  ['forwards', () => new Api.InputPrivacyKeyForwards()],
+  ['calls',    () => new Api.InputPrivacyKeyPhoneCall()],
+  ['invites',  () => new Api.InputPrivacyKeyChatInvite()],
+]);
 const EXCEPTION_RULES = ['PrivacyValueAllowUsers', 'PrivacyValueDisallowUsers', 'PrivacyValueAllowChatParticipants',
   'PrivacyValueDisallowChatParticipants', 'PrivacyValueAllowCloseFriends', 'PrivacyValueAllowPremium',
   'PrivacyValueAllowBots', 'PrivacyValueDisallowBots'];
@@ -1323,14 +1325,14 @@ function privacyLevel(rules) {
 }
 
 async function getPrivacyRules(key) {
-  return (await client.invoke(new Api.account.GetPrivacy({ key: PRIVACY_KEYS[key]() }))).rules || [];
+  return (await client.invoke(new Api.account.GetPrivacy({ key: PRIVACY_KEYS.get(key)() }))).rules || [];
 }
 
 app.get('/api/privacy', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
   try {
     const items = [];
-    for (const key of Object.keys(PRIVACY_KEYS)) {
+    for (const key of PRIVACY_KEYS.keys()) {
       const rules = await getPrivacyRules(key);
       items.push({ key, value: privacyLevel(rules), exceptions: rules.filter(r => EXCEPTION_RULES.includes(r.className)).length });
     }
@@ -1341,8 +1343,8 @@ app.get('/api/privacy', async (req, res) => {
 });
 
 app.post('/api/privacy', async (req, res) => {
-  const { key, value } = req.body || {};
-  if (!PRIVACY_KEYS[key] || !['all', 'contacts', 'nobody'].includes(value)) return res.status(400).json({ error: 'key/value invalid' });
+  const key = String(req.body?.key || ''), value = req.body?.value;
+  if (!PRIVACY_KEYS.has(key) || !['all', 'contacts', 'nobody'].includes(value)) return res.status(400).json({ error: 'key/value invalid' });
   if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
   try {
     const old = await getPrivacyRules(key);
@@ -1364,7 +1366,7 @@ app.post('/api/privacy', async (req, res) => {
     rules.push(value === 'all' ? new Api.InputPrivacyValueAllowAll()
       : value === 'contacts' ? new Api.InputPrivacyValueAllowContacts()
       : new Api.InputPrivacyValueDisallowAll());
-    await client.invoke(new Api.account.SetPrivacy({ key: PRIVACY_KEYS[key](), rules }));
+    await client.invoke(new Api.account.SetPrivacy({ key: PRIVACY_KEYS.get(key)(), rules }));
     console.log(`[INFO] Datenschutz ${key} → ${value}`);
     res.json({ success: true });
   } catch (e) {
