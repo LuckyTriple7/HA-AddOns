@@ -2658,7 +2658,7 @@ const LANG = {
     clearChatConfirm: (name) => 'Alle Nachrichten in „' + name + '" außer der letzten dauerhaft löschen?\\n\\nDas löscht sie auch in Telegram (soweit möglich für beide Seiten) und lässt sich nicht rückgängig machen.',
     clearChatDone: (n, own) => n + (n===1?' Nachricht':' Nachrichten') + ' gelöscht.' + (own ? '\\nOhne Adminrechte nur eigene Nachrichten.' : ''),
     clearChatError: 'Chat leeren fehlgeschlagen: ',
-    deleteMode: 'Nachrichten löschen (einzeln: Strg+Rechtsklick)', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
+    deleteMode: 'Nachrichten löschen (einzeln: Strg+Shift+Rechtsklick)', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
@@ -2700,7 +2700,7 @@ const LANG = {
     clearChatConfirm: (name) => 'Permanently delete all messages in "' + name + '" except the last one?\\n\\nThis also deletes them in Telegram (for both sides where possible) and cannot be undone.',
     clearChatDone: (n, own) => n + ' message' + (n===1?'':'s') + ' deleted.' + (own ? '\\nWithout admin rights only your own messages.' : ''),
     clearChatError: 'Clearing chat failed: ',
-    deleteMode: 'Delete messages (single: Ctrl+right-click)', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
+    deleteMode: 'Delete messages (single: Ctrl+Shift+right-click)', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
@@ -4193,10 +4193,15 @@ function _vanishRow(row) {
   return bubble.animate([{ clipPath: 'inset(0 0 0 0)' }, { clipPath: 'inset(0 0 0 100%)' }], { duration: SWEEP, easing: 'linear', fill: 'forwards' })
     .finished.then(collapse, collapse);
 }
-// Strg+Rechtsklick auf eine Nachricht löscht sie sofort (ohne Rückfrage);
+// Strg+Shift+Rechtsklick auf eine Nachricht löscht sie sofort (ohne Rückfrage);
 // ein normaler Rechtsklick behält das Browsermenü
+const _isQuickDelete = e => (e.ctrlKey || e.metaKey) && e.shiftKey;
+// Shift+Maustaste würde sonst Text markieren
+document.getElementById('messages').addEventListener('mousedown', e => {
+  if (e.button === 2 && _isQuickDelete(e) && !isDeleteMode) e.preventDefault();
+});
 document.getElementById('messages').addEventListener('contextmenu', e => {
-  if (!(e.ctrlKey || e.metaKey) || isDeleteMode) return;
+  if (!_isQuickDelete(e) || isDeleteMode) return;
   const row = e.target.closest('.bubble-row');
   if (!row || !row.dataset.msgid || row.classList.contains('deleting')) return;
   e.preventDefault();
