@@ -1,3 +1,9 @@
+## [1.8.106] - 2026-10-18
+
+### Aktualisiert
+
+- Claude Desktop: 3.3.10+claude2.42304.0 → 3.3.11+claude2.42304.0
+
 ## [1.8.105] - 2026-10-17
 
 ### Aktualisiert
