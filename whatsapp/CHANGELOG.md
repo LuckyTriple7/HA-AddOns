@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.54] - 2026-10-18
+- Neu: Knopf „Mein Status“ in der Kopfzeile (wie bei Telegram und Signal). Der Eintrag oben im Kontakte-Reiter bleibt
+
 ## [1.8.53.2] - 2026-10-13
 - Abhängigkeit aktualisiert: express 5.2.1 → 5.3.0
 

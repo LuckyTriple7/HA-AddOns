@@ -5225,6 +5225,7 @@ app.get('/', (req, res) => {
     <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
     ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
+    <button class="scroll-btn" onclick="openMyStatus()" data-i18n-title="msTitle" title="Mein Status"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"/></svg></button>
     <button class="scroll-btn" onclick="openArchiveOverview()" data-i18n-title="archiveOverviewBtn" title="Status-Archiv-Übersicht">${_SVG.archive}</button>
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
