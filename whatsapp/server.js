@@ -4012,7 +4012,12 @@ async function ensureStatusShims() {
         } else {
           const wrapped = function (a, b) {
             if (a && typeof a === 'object' && a.mediaMsgData) return fn.call(this, a);
-            const data = (a && a.attributes) || a;
+            // Neuere WhatsApp-Web-Versionen fuehren die id nicht mehr in
+            // attributes, sondern nur noch als Getter am Modell; ohne sie
+            // stirbt die Aktion mit "Data passed to getter must include an id
+            // property (it's how we memoize)"
+            let data = (a && a.attributes) || a;
+            if (data && !data.id && a && a.id) data = Object.assign({}, data, { id: a.id });
             return fn.call(this, {
               mediaMsgData: data,
               beforeSend: (msgModel) => (typeof b === 'function' ? b(msgModel) : undefined),

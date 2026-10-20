@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.5.3] - 2026-10-20
+- Neu: **„Alle posten“ und „Alle planen“ in der Status-Ablage.** Die Sammelleiste steht jetzt immer über der Liste, nicht erst nach dem Anhaken eines Eintrags. Ohne Auswahl wirkt sie auf alle offenen Einträge (bereit, geplant, fehlgeschlagen) in der eingestellten Reihenfolge; mit Auswahl wie bisher nur auf die angehakten
+- Fehlgeschlagene Einträge gehen beim Sammelposten nur an die Ziele, die noch fehlen – kein doppelter Status
+
 ## [1.5.2] - 2026-10-17
 - Neu: **Reihenfolge in der Status-Ablage.** Jeder Eintrag hat ↑/↓ zum Umsortieren; Gepostetes steht unten
 - Gepostet wird jetzt nacheinander in dieser Reihenfolge – beim gemeinsamen „Jetzt posten“ ebenso wie bei Einträgen, die zur selben Uhrzeit geplant sind. Bisher liefen mehrere Einträge gleichzeitig los, und die Reihenfolge im Status war Zufall

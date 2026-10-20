@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.55] - 2026-10-20
+- Fix: **Bild- und Video-Status scheiterte mit „Data passed to getter must include an id property (it's how we memoize)".** Neuere WhatsApp-Web-Versionen führen die Nachrichten-id nicht mehr in `attributes`, sondern nur noch am Modell. Die Hülle um `sendStatusMediaMsgAction` übergibt die id jetzt mit. Betraf auch das Posten aus der Status-Ablage des MessengerPortals
+
 ## [1.8.54] - 2026-10-18
 - Neu: Knopf „Mein Status“ in der Kopfzeile (wie bei Telegram und Signal). Der Eintrag oben im Kontakte-Reiter bleibt
 

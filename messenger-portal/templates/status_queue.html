@@ -175,7 +175,8 @@
       unschedule: {{ t.sq_unschedule | tojson }}, del: {{ t.sq_delete | tojson }}, delConfirm: {{ t.sq_delete_confirm | tojson }},
       delManyConfirm: {{ t.sq_delete_many_confirm | tojson }}, at: {{ t.sq_at | tojson }}, postedAt: {{ t.sq_posted_at | tojson }},
       trimmed: {{ t.sq_trimmed | tojson }}, signalCut: {{ t.sq_signal_cut | tojson }}, empty: {{ t.sq_empty | tojson }},
-      selected: {{ t.sq_selected | tojson }}, selectAll: {{ t.sq_select_all | tojson }}, selectNone: {{ t.sq_select_none | tojson }},
+      selected: {{ t.sq_selected | tojson }}, allOpen: {{ t.sq_all_open | tojson }},
+      postAll: {{ t.sq_post_all | tojson }}, scheduleAll: {{ t.sq_schedule_all | tojson }}, selectAll: {{ t.sq_select_all | tojson }}, selectNone: {{ t.sq_select_none | tojson }},
       needTarget: {{ t.sq_need_target | tojson }}, needTime: {{ t.sq_need_time | tojson }}, pastTime: {{ t.sq_past_time | tojson }},
       uploadFailed: {{ t.sq_upload_failed | tojson }}, unsupported: {{ t.sq_unsupported | tojson }}, tooMany: {{ t.sq_too_many | tojson }},
       text: {{ t.sq_kind_text | tojson }}, shrunk: {{ t.sq_shrunk | tojson }},
@@ -431,7 +432,8 @@
       for (const id of ids) {
         const it = items.find(i => i.id === id);
         if (it && !it.targets.length) { warn(T.needTarget); continue; }
-        try { await api('/' + id + '/post', { onlyFailed: !!onlyFailed }); } catch (e) { warn(T.uploadFailed); }
+        const only = onlyFailed === 'auto' ? !!(it && it.state === 'failed') : !!onlyFailed;
+        try { await api('/' + id + '/post', { onlyFailed: only }); } catch (e) { warn(T.uploadFailed); }
       }
       await load();
     }
@@ -467,12 +469,19 @@
       if (on) selected.add(id); else selected.delete(id);
       render();
     }
+    // Ohne Auswahl wirkt die Leiste auf alle offenen Eintraege
+    const isOpen = i => ['ready', 'scheduled', 'failed'].includes(i.state);
     function renderBulk() {
       const n = selected.size;
-      $('bulk').hidden = n === 0;
-      $('bulk-count').textContent = T.selected.replace('{n}', n);
+      const open = items.filter(isOpen).length;
+      $('bulk').hidden = n === 0 && open === 0;
+      $('bulk-count').textContent = n ? T.selected.replace('{n}', n) : T.allOpen.replace('{n}', open);
       const selectable = items.filter(i => i.state !== 'processing' && i.state !== 'posting');
+      $('bulk-all').hidden = n === 0;
       $('bulk-all').textContent = n < selectable.length ? T.selectAll : T.selectNone;
+      $('bulk-post').textContent = n ? T.postNow : T.postAll;
+      $('bulk-plan').textContent = n ? T.schedule : T.scheduleAll;
+      $('bulk-del').hidden = n === 0;
       if (!$('bulk-at').value) $('bulk-at').value = defaultTime();
     }
     $('bulk-all').onclick = () => {
@@ -481,8 +490,10 @@
       render();
     };
     const selectedInOrder = () => ordered().map(i => i.id).filter(id => selected.has(id));
-    $('bulk-post').onclick = () => post(selectedInOrder());
-    $('bulk-plan').onclick = () => plan(selectedInOrder(), $('bulk-at').value);
+    const bulkTargets = () => selected.size ? selectedInOrder() : ordered().filter(isOpen).map(i => i.id);
+    // Fehlgeschlagene nur an die noch offenen Ziele, sonst doppelte Status
+    $('bulk-post').onclick = () => post(bulkTargets(), 'auto');
+    $('bulk-plan').onclick = () => plan(bulkTargets(), $('bulk-at').value);
     $('bulk-del').onclick = () => del(selectedInOrder());
 
     // ── Hochladen ───────────────────────────────────────────
