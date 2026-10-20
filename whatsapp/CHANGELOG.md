@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.59] - 2026-10-20
+- Fix: **Bild- und Video-Status scheiterte mit „Data passed to getter must include an id property (it's how we memoize)“.** Die Aufrufkette aus 1.8.58 zeigte die Stelle: WhatsApps Getter `getAsMms` scheitert an dem Nachrichtenobjekt, das whatsapp-web.js für Status-Medien selbst baut. Medien-Status laufen jetzt über WhatsApps eigenen Versandweg (`MediaPrep.sendToChat`), denselben wie in der Web-Oberfläche. Der Bibliotheksweg bleibt nur als Ersatz, falls WhatsApps Funktionen fehlen. Ist der Versand schon losgelaufen, wird nicht noch einmal geschickt, damit kein doppelter Status entsteht
+
 ## [1.8.58] - 2026-10-20
 - Diagnose: Scheitert ein Bild- oder Video-Status, steht der vollständige Fehler samt Aufrufkette als `[ERROR] Medien-Status fehlgeschlagen` im Log. Bisher ging er nur gekürzt an den Aufrufer zurück. Nötig für „Data passed to getter must include an id property (it's how we memoize)“, das trotz 1.8.55 weiter auftritt
 

@@ -4161,6 +4161,39 @@ app.post('/api/my-status/text', async (req, res) => {
   }
 });
 
+// Bild-/Video-Status ueber WhatsApps eigenen Versandweg posten, so wie die
+// Web-Oberflaeche: MediaPrep.sendToChat() baut die Nachrichtendaten selbst und
+// ruft sendStatusMediaMsgAction in der passenden Form auf. whatsapp-web.js baut
+// dagegen ein eigenes Msg-Modell, an dem WhatsApps Getter seit Oktober 2026 mit
+// "Data passed to getter must include an id property" scheitern (getAsMms).
+// stage sagt, wie weit es kam: nur vor 'send' darf der Bibliotheksweg folgen.
+async function sendStatusMediaDirect(b64, mime, filename, caption) {
+  if (!client.pupPage) return { ok: false, stage: 'page', error: 'keine Browser-Seite' };
+  return await client.pupPage.evaluate(async (b64, mime, filename, caption) => {
+    let stage = 'prep';
+    try {
+      const file = window.WWebJS.mediaInfoToFile({ data: b64, mimetype: mime, filename });
+      const OpaqueData = window.require('WAWebMediaOpaqueData');
+      const opaque = await OpaqueData.createFromData(file, file.type);
+      const prep = window.require('WAWebPrepRawMedia').prepRawMedia(opaque, {});
+      if (!prep || typeof prep.sendToChat !== 'function') return { ok: false, stage, error: 'MediaPrep.sendToChat fehlt' };
+      await prep.waitForPrep();
+      stage = 'chat';
+      const chat = await window.WWebJS.getChat('status@broadcast', { getAsModel: false });
+      if (!chat) return { ok: false, stage, error: 'Status-Chat nicht gefunden' };
+      stage = 'send';
+      const res = await prep.sendToChat({ chat, options: caption ? { caption } : {} });
+      const OK = window.require('WAWebSendMsgResultAction').SendMsgResult.OK;
+      const result = res && res.messageSendResult;
+      if (result !== OK) return { ok: false, stage, error: 'messageSendResult ' + String(result) };
+      const id = res.msg && res.msg.id ? String(res.msg.id._serialized || res.msg.id) : null;
+      return { ok: true, stage, id };
+    } catch (e) {
+      return { ok: false, stage, error: String((e && (e.stack || e.message)) || e).slice(0, 2000) };
+    }
+  }, b64, mime, filename || 'status', caption || '');
+}
+
 // Bild-/Video-Status posten (optional mit Bildunterschrift)
 app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
@@ -4179,6 +4212,17 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   if (!/^(image|video)\//.test(mime || '')) return res.status(400).json({ error: 'only image or video allowed' });
   try {
     await ensureStatusShims();
+    const direct = await sendStatusMediaDirect(buffer.toString('base64'), mime, origName, caption);
+    dbg(`Medien-Status: Direktweg meldet ${JSON.stringify(direct)}`);
+    if (direct.ok) {
+      console.log(`[INFO] Eigener Medien-Status gepostet (${mime}, ${Math.round(buffer.length / 1024)} KB)`);
+      return res.json({ success: true, id: direct.id || null });
+    }
+    // Ist der Versand schon losgelaufen, nicht noch einmal ueber die Bibliothek
+    // schicken — sonst steht der Status womoeglich doppelt da
+    if (direct.stage === 'send') throw new Error(direct.error || 'Status-Versand abgelehnt');
+    console.warn('[WARN] Medien-Status direkt nicht moeglich (%s: %s) — versuche whatsapp-web.js',
+      direct.stage || '?', direct.error || 'unbekannt');
     const media = new MessageMedia(mime, buffer.toString('base64'), origName);
     const result = await client.sendMessage(STATUS_BROADCAST_JID, media, {
       sendSeen: false,
