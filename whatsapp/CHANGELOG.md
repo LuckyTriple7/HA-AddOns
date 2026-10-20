@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.60] - 2026-10-20
+- Abhängigkeit: `lindionez/whatsapp-web.js` von `3733802` (27.07.) auf `88d8460` (28.09.) gehoben. Enthält den Fix „drop __x_id before spreading mediaOptions into outgoing Msg“ (upstream #201923) gegen „Data passed to getter must include an id property“ beim Senden von Bildern, Videos und Audios – betraf auch normale Chats, nicht nur den Status. Dazu Fixes für Gruppen-Einladungslinks. Die 13 neuen Commits wurden auf unerwünschten Code geprüft. Beim Fork statt beim offiziellen Repo geblieben, weil das offizielle 131 Fork-Fixes nicht hat (u.a. zum Hänger vor „ready“)
+
 ## [1.8.59] - 2026-10-20
 - Fix: **Bild- und Video-Status scheiterte mit „Data passed to getter must include an id property (it's how we memoize)“.** Die Aufrufkette aus 1.8.58 zeigte die Stelle: WhatsApps Getter `getAsMms` scheitert an dem Nachrichtenobjekt, das whatsapp-web.js für Status-Medien selbst baut. Medien-Status laufen jetzt über WhatsApps eigenen Versandweg (`MediaPrep.sendToChat`), denselben wie in der Web-Oberfläche. Der Bibliotheksweg bleibt nur als Ersatz, falls WhatsApps Funktionen fehlen. Ist der Versand schon losgelaufen, wird nicht noch einmal geschickt, damit kein doppelter Status entsteht
 
