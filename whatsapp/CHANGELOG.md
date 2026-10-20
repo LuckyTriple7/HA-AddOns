@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.56] - 2026-10-20
+- Fix: **Verbindung blieb nach „authenticated“ hängen** („Hilfscode ist geladen, ready kam trotzdem nicht“). whatsapp-web.js scheitert dabei nach dem Laden seines Hilfscodes und verschluckt den Fehler. Nach 90 s holt das Add-on die restlichen Schritte bis „ready“ jetzt selbst nach und verbindet sich. Klappt das nicht, steht im Log, welcher Schritt mit welchem Fehler scheitert
+
 ## [1.8.55] - 2026-10-20
 - Fix: **Bild- und Video-Status scheiterte mit „Data passed to getter must include an id property (it's how we memoize)".** Neuere WhatsApp-Web-Versionen führen die Nachrichten-id nicht mehr in `attributes`, sondern nur noch am Modell. Die Hülle um `sendStatusMediaMsgAction` übergibt die id jetzt mit. Betraf auch das Posten aus der Status-Ablage des MessengerPortals
 

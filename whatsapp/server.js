@@ -544,7 +544,34 @@ client.on('authenticated', () => {
     try {
       const injected = await client.pupPage.evaluate(() => typeof window.WWebJS !== 'undefined');
       if (injected) {
-        msg = 'Haengt nach authenticated: Hilfscode ist geladen, ready kam trotzdem nicht';
+        // Die Bibliothek hat window.WWebJS angelegt, ist danach aber gescheitert
+        // und hat den Fehler verschluckt. Die restlichen Schritte bis 'ready'
+        // hier einzeln nachholen: klappt es, laeuft das Add-on weiter, sonst
+        // steht der Schritt samt Fehler im Log.
+        let step = 'LoadUtils';
+        try {
+          const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
+          await client.pupPage.evaluate(LoadUtils);
+          step = 'ClientInfo';
+          const ClientInfo = require('whatsapp-web.js/src/structures/ClientInfo');
+          const InterfaceController = require('whatsapp-web.js/src/util/InterfaceController');
+          client.info = new ClientInfo(client, await client.pupPage.evaluate(() => ({
+            ...window.require('WAWebConnModel').Conn.serialize(),
+            wid: window.require('WAWebUserPrefsMeUser').getMaybeMePnUser()
+              || window.require('WAWebUserPrefsMeUser').getMaybeMeLidUser(),
+          })));
+          client.interface = new InterfaceController(client);
+          step = 'attachEventListeners';
+          await client.attachEventListeners();
+          if (status !== 'authenticated') return;   // ready kam inzwischen doch
+          console.warn('[WARN] Haengt nach authenticated: Schritte bis ready nachgeholt, ready wird selbst ausgeloest');
+          client.emit('ready');
+          try { client.authStrategy.afterAuthReady(); } catch (e) {}
+          return;
+        } catch (e) {
+          msg = `Haengt nach authenticated: Hilfscode geladen, Schritt ${step} scheitert: `
+            + String(e?.stack || e?.message || e).slice(0, 800);
+        }
       } else {
         // Hilfscode selbst laden, um den Fehler zu sehen, den die Bibliothek verschluckt
         const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
