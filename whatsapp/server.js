@@ -4188,6 +4188,8 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
     console.log(`[INFO] Eigener Medien-Status gepostet (${mime}, ${Math.round(buffer.length / 1024)} KB)`);
     res.json({ success: true, id: result.id?._serialized || null });
   } catch (e) {
+    // Voller Stack: die Bundle-Zeilen darin zeigen, welche WhatsApp-Funktion scheitert
+    console.error('[ERROR] Medien-Status fehlgeschlagen: %s', String(e?.stack || e?.message || e).slice(0, 4000));
     res.status(500).json({ error: e.message });
   }
 });

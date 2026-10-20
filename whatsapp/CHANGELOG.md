@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.58] - 2026-10-20
+- Diagnose: Scheitert ein Bild- oder Video-Status, steht der vollständige Fehler samt Aufrufkette als `[ERROR] Medien-Status fehlgeschlagen` im Log. Bisher ging er nur gekürzt an den Aufrufer zurück. Nötig für „Data passed to getter must include an id property (it's how we memoize)“, das trotz 1.8.55 weiter auftritt
+
 ## [1.8.57] - 2026-10-20
 - Log: Die harmlose Meldung der WhatsApp-Seite „The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy“ erscheint nicht mehr als `[WARN]`
 
