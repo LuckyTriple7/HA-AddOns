@@ -118,6 +118,8 @@
   "sq_all_open": "Alle offenen ({n})",
   "sq_post_all": "Alle posten",
   "sq_schedule_all": "Alle planen",
+  "sq_tg_all_on": "Bei allen hinzufügen",
+  "sq_tg_all_off": "Bei allen entfernen",
   "sq_select_all": "Alle",
   "sq_select_none": "Keine",
   "sq_need_target": "Bitte mindestens einen Messenger anhaken.",

@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.4] - 2026-10-20
+- Neu: **Messenger für alle Einträge auf einmal wählen.** Die Sammelleiste der Status-Ablage hat jetzt Knöpfe für WhatsApp, Telegram und Signal. Ein Klick nimmt den Messenger bei allen betroffenen Einträgen hinzu oder heraus – ohne Auswahl bei allen offenen, mit Auswahl bei den angehakten. Ein Knopf leuchtet, wenn der Messenger bei allen gesetzt ist
+
 ## [1.5.3] - 2026-10-20
 - Neu: **„Alle posten“ und „Alle planen“ in der Status-Ablage.** Die Sammelleiste steht jetzt immer über der Liste, nicht erst nach dem Anhaken eines Eintrags. Ohne Auswahl wirkt sie auf alle offenen Einträge (bereit, geplant, fehlgeschlagen) in der eingestellten Reihenfolge; mit Auswahl wie bisher nur auf die angehakten
 - Fehlgeschlagene Einträge gehen beim Sammelposten nur an die Ziele, die noch fehlen – kein doppelter Status
