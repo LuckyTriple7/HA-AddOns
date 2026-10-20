@@ -527,6 +527,8 @@ function attachPageDiagnostics() {
   });
   page.on('console', (msg) => {
     if (msg.type() !== 'error' || _pageErrLogged >= 50) return;
+    // Harmloses Rauschen der WhatsApp-Seite selbst
+    if (/Content Security Policy directive .* is ignored when delivered in a report-only policy/.test(msg.text())) return;
     _pageErrLogged++;
     console.warn('[PAGE] console.error: %s', String(msg.text()).slice(0, 500));
   });

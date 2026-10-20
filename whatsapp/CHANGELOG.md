@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.57] - 2026-10-20
+- Log: Die harmlose Meldung der WhatsApp-Seite „The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy“ erscheint nicht mehr als `[WARN]`
+
 ## [1.8.56] - 2026-10-20
 - Fix: **Verbindung blieb nach „authenticated“ hängen** („Hilfscode ist geladen, ready kam trotzdem nicht“). whatsapp-web.js scheitert dabei nach dem Laden seines Hilfscodes und verschluckt den Fehler. Nach 90 s holt das Add-on die restlichen Schritte bis „ready“ jetzt selbst nach und verbindet sich. Klappt das nicht, steht im Log, welcher Schritt mit welchem Fehler scheitert
 
