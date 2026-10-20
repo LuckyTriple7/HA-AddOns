@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.5] - 2026-10-20
+- Neu: **„Gepostete löschen“ in der Status-Ablage.** Ein Knopf in der Sammelleiste entfernt alle bereits geposteten Einträge auf einmal, samt Bild- und Videodateien. Vorher kommt eine Rückfrage
+
 ## [1.5.4] - 2026-10-20
 - Neu: **Messenger für alle Einträge auf einmal wählen.** Die Sammelleiste der Status-Ablage hat jetzt Knöpfe für WhatsApp, Telegram und Signal. Ein Klick nimmt den Messenger bei allen betroffenen Einträgen hinzu oder heraus – ohne Auswahl bei allen offenen, mit Auswahl bei den angehakten. Ein Knopf leuchtet, wenn der Messenger bei allen gesetzt ist
 

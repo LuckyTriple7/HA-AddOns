@@ -145,6 +145,7 @@
       <input type="datetime-local" id="bulk-at">
       <button class="btn small" id="bulk-plan">{{ t.sq_schedule }}</button>
       <button class="btn small danger" id="bulk-del">{{ t.sq_delete }}</button>
+      <button class="btn small danger" id="bulk-del-posted"></button>
       <div class="row" id="bulk-tg"></div>
     </div>
 
@@ -177,7 +178,7 @@
       unschedule: {{ t.sq_unschedule | tojson }}, del: {{ t.sq_delete | tojson }}, delConfirm: {{ t.sq_delete_confirm | tojson }},
       delManyConfirm: {{ t.sq_delete_many_confirm | tojson }}, at: {{ t.sq_at | tojson }}, postedAt: {{ t.sq_posted_at | tojson }},
       trimmed: {{ t.sq_trimmed | tojson }}, signalCut: {{ t.sq_signal_cut | tojson }}, empty: {{ t.sq_empty | tojson }},
-      selected: {{ t.sq_selected | tojson }}, allOpen: {{ t.sq_all_open | tojson }},
+      selected: {{ t.sq_selected | tojson }}, allOpen: {{ t.sq_all_open | tojson }}, delPosted: {{ t.sq_del_posted | tojson }},
       tgAllOn: {{ t.sq_tg_all_on | tojson }}, tgAllOff: {{ t.sq_tg_all_off | tojson }},
       postAll: {{ t.sq_post_all | tojson }}, scheduleAll: {{ t.sq_schedule_all | tojson }}, selectAll: {{ t.sq_select_all | tojson }}, selectNone: {{ t.sq_select_none | tojson }},
       needTarget: {{ t.sq_need_target | tojson }}, needTime: {{ t.sq_need_time | tojson }}, pastTime: {{ t.sq_past_time | tojson }},
@@ -477,7 +478,10 @@
     function renderBulk() {
       const n = selected.size;
       const open = items.filter(isOpen).length;
-      $('bulk').hidden = n === 0 && open === 0;
+      const posted = items.filter(i => i.state === 'posted').length;
+      $('bulk').hidden = n === 0 && open === 0 && posted === 0;
+      $('bulk-del-posted').hidden = n > 0 || posted === 0;
+      $('bulk-del-posted').textContent = T.delPosted.replace('{n}', posted);
       $('bulk-count').textContent = n ? T.selected.replace('{n}', n) : T.allOpen.replace('{n}', open);
       const selectable = items.filter(i => i.state !== 'processing' && i.state !== 'posting');
       $('bulk-all').hidden = n === 0;
@@ -525,6 +529,7 @@
     $('bulk-post').onclick = () => post(bulkTargets(), 'auto');
     $('bulk-plan').onclick = () => plan(bulkTargets(), $('bulk-at').value);
     $('bulk-del').onclick = () => del(selectedInOrder());
+    $('bulk-del-posted').onclick = () => del(items.filter(i => i.state === 'posted').map(i => i.id));
 
     // ── Hochladen ───────────────────────────────────────────
     function upload(file) {

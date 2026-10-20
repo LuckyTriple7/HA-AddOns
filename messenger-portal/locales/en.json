@@ -120,6 +120,7 @@
   "sq_schedule_all": "Schedule all",
   "sq_tg_all_on": "Add to all",
   "sq_tg_all_off": "Remove from all",
+  "sq_del_posted": "Delete posted ({n})",
   "sq_select_all": "All",
   "sq_select_none": "None",
   "sq_need_target": "Please tick at least one messenger.",

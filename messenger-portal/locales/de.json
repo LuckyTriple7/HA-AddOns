@@ -120,6 +120,7 @@
   "sq_schedule_all": "Alle planen",
   "sq_tg_all_on": "Bei allen hinzufügen",
   "sq_tg_all_off": "Bei allen entfernen",
+  "sq_del_posted": "Gepostete löschen ({n})",
   "sq_select_all": "Alle",
   "sq_select_none": "Keine",
   "sq_need_target": "Bitte mindestens einen Messenger anhaken.",
