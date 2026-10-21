@@ -1,3 +1,14 @@
+## [1.8.108] - 2026-10-21
+
+### Aktualisiert
+
+- GitHub CLI: 2.102.0 → 2.102.1
+- Firefox: 158.0 → 158.0.1
+- Thunderbird: 158.0 → 158.0.1
+- Claude Desktop: 3.3.12+claude2.42304.2 → 3.3.12+claude3.1623.0
+- OpenCode: 2.0.32 → 2.1.2
+- Tailscale: 1.104.1 → 1.104.2
+
 ## [1.8.107] - 2026-10-20
 
 ### Aktualisiert
