@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.41] - 2026-10-22
+
+- NPMplus auf Upstream-Version 2026-10-21-r1 aktualisiert
+
 ## [0.1.40] - 2026-10-21
 
 - NPMplus auf Upstream-Version 2026-10-20-r1 aktualisiert
