@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.12.3] - 2026-10-19
+- Abhängigkeit aktualisiert: fastapi 0.143.0 → 0.143.2
+
 ## [1.0.12.2] - 2026-10-13
 - Abhängigkeit aktualisiert: fastapi 0.142.2 → 0.143.0
 

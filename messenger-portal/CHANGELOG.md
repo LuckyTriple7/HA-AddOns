@@ -1,5 +1,15 @@
 # Changelog – MessengerPortal
 
+## [1.5.5] - 2026-10-20
+- Neu: **„Gepostete löschen“ in der Status-Ablage.** Ein Knopf in der Sammelleiste entfernt alle bereits geposteten Einträge auf einmal, samt Bild- und Videodateien. Vorher kommt eine Rückfrage
+
+## [1.5.4] - 2026-10-20
+- Neu: **Messenger für alle Einträge auf einmal wählen.** Die Sammelleiste der Status-Ablage hat jetzt Knöpfe für WhatsApp, Telegram und Signal. Ein Klick nimmt den Messenger bei allen betroffenen Einträgen hinzu oder heraus – ohne Auswahl bei allen offenen, mit Auswahl bei den angehakten. Ein Knopf leuchtet, wenn der Messenger bei allen gesetzt ist
+
+## [1.5.3] - 2026-10-20
+- Neu: **„Alle posten“ und „Alle planen“ in der Status-Ablage.** Die Sammelleiste steht jetzt immer über der Liste, nicht erst nach dem Anhaken eines Eintrags. Ohne Auswahl wirkt sie auf alle offenen Einträge (bereit, geplant, fehlgeschlagen) in der eingestellten Reihenfolge; mit Auswahl wie bisher nur auf die angehakten
+- Fehlgeschlagene Einträge gehen beim Sammelposten nur an die Ziele, die noch fehlen – kein doppelter Status
+
 ## [1.5.2] - 2026-10-17
 - Neu: **Reihenfolge in der Status-Ablage.** Jeder Eintrag hat ↑/↓ zum Umsortieren; Gepostetes steht unten
 - Gepostet wird jetzt nacheinander in dieser Reihenfolge – beim gemeinsamen „Jetzt posten“ ebenso wie bei Einträgen, die zur selben Uhrzeit geplant sind. Bisher liefen mehrere Einträge gleichzeitig los, und die Reihenfolge im Status war Zufall

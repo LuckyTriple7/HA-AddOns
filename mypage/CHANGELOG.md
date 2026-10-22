@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.69.4] - 2026-10-19
+- Abhängigkeiten aktualisiert: markdown 3.11 → 3.11.1, google-genai 2.29.0 → 2.31.0
+
 ## [0.11.69.3] - 2026-10-13
 - Abhängigkeit aktualisiert: google-genai 2.28.0 → 2.29.0
 

@@ -72,6 +72,7 @@
             border-radius: var(--radius); padding: .6rem .8rem; background: var(--surface); }
     .bulk span { font-size: .85rem; font-weight: 600; flex: 1; min-width: 7rem; }
     .bulk input[type="datetime-local"] { width: auto; }
+    .bulk #bulk-tg { flex-basis: 100%; }
 
     .item { display: flex; gap: .8rem; border: 1px solid var(--border); border-radius: var(--radius);
             background: var(--surface); padding: .7rem; }
@@ -144,6 +145,8 @@
       <input type="datetime-local" id="bulk-at">
       <button class="btn small" id="bulk-plan">{{ t.sq_schedule }}</button>
       <button class="btn small danger" id="bulk-del">{{ t.sq_delete }}</button>
+      <button class="btn small danger" id="bulk-del-posted"></button>
+      <div class="row" id="bulk-tg"></div>
     </div>
 
     <div id="list"></div>
@@ -175,7 +178,9 @@
       unschedule: {{ t.sq_unschedule | tojson }}, del: {{ t.sq_delete | tojson }}, delConfirm: {{ t.sq_delete_confirm | tojson }},
       delManyConfirm: {{ t.sq_delete_many_confirm | tojson }}, at: {{ t.sq_at | tojson }}, postedAt: {{ t.sq_posted_at | tojson }},
       trimmed: {{ t.sq_trimmed | tojson }}, signalCut: {{ t.sq_signal_cut | tojson }}, empty: {{ t.sq_empty | tojson }},
-      selected: {{ t.sq_selected | tojson }}, selectAll: {{ t.sq_select_all | tojson }}, selectNone: {{ t.sq_select_none | tojson }},
+      selected: {{ t.sq_selected | tojson }}, allOpen: {{ t.sq_all_open | tojson }}, delPosted: {{ t.sq_del_posted | tojson }},
+      tgAllOn: {{ t.sq_tg_all_on | tojson }}, tgAllOff: {{ t.sq_tg_all_off | tojson }},
+      postAll: {{ t.sq_post_all | tojson }}, scheduleAll: {{ t.sq_schedule_all | tojson }}, selectAll: {{ t.sq_select_all | tojson }}, selectNone: {{ t.sq_select_none | tojson }},
       needTarget: {{ t.sq_need_target | tojson }}, needTime: {{ t.sq_need_time | tojson }}, pastTime: {{ t.sq_past_time | tojson }},
       uploadFailed: {{ t.sq_upload_failed | tojson }}, unsupported: {{ t.sq_unsupported | tojson }}, tooMany: {{ t.sq_too_many | tojson }},
       text: {{ t.sq_kind_text | tojson }}, shrunk: {{ t.sq_shrunk | tojson }},
@@ -431,7 +436,8 @@
       for (const id of ids) {
         const it = items.find(i => i.id === id);
         if (it && !it.targets.length) { warn(T.needTarget); continue; }
-        try { await api('/' + id + '/post', { onlyFailed: !!onlyFailed }); } catch (e) { warn(T.uploadFailed); }
+        const only = onlyFailed === 'auto' ? !!(it && it.state === 'failed') : !!onlyFailed;
+        try { await api('/' + id + '/post', { onlyFailed: only }); } catch (e) { warn(T.uploadFailed); }
       }
       await load();
     }
@@ -467,13 +473,50 @@
       if (on) selected.add(id); else selected.delete(id);
       render();
     }
+    // Ohne Auswahl wirkt die Leiste auf alle offenen Eintraege
+    const isOpen = i => ['ready', 'scheduled', 'failed'].includes(i.state);
     function renderBulk() {
       const n = selected.size;
-      $('bulk').hidden = n === 0;
-      $('bulk-count').textContent = T.selected.replace('{n}', n);
+      const open = items.filter(isOpen).length;
+      const posted = items.filter(i => i.state === 'posted').length;
+      $('bulk').hidden = n === 0 && open === 0 && posted === 0;
+      $('bulk-del-posted').hidden = n > 0 || posted === 0;
+      $('bulk-del-posted').textContent = T.delPosted.replace('{n}', posted);
+      $('bulk-count').textContent = n ? T.selected.replace('{n}', n) : T.allOpen.replace('{n}', open);
       const selectable = items.filter(i => i.state !== 'processing' && i.state !== 'posting');
+      $('bulk-all').hidden = n === 0;
       $('bulk-all').textContent = n < selectable.length ? T.selectAll : T.selectNone;
+      $('bulk-post').textContent = n ? T.postNow : T.postAll;
+      $('bulk-plan').textContent = n ? T.schedule : T.scheduleAll;
+      $('bulk-del').hidden = n === 0;
       if (!$('bulk-at').value) $('bulk-at').value = defaultTime();
+      // Messenger fuer alle betroffenen Eintraege auf einmal an- oder abwaehlen
+      const tg = $('bulk-tg');
+      tg.textContent = '';
+      const affected = bulkTargets().map(id => items.find(i => i.id === id))
+        .filter(i => i && !['processing', 'posting'].includes(i.state));
+      for (const m of MESSENGERS) {
+        const all = affected.length > 0 && affected.every(i => i.targets.includes(m.icon));
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tg' + (all ? ' on' : '');
+        b.style.setProperty('--brand', m.color);
+        b.disabled = !affected.length;
+        b.title = all ? T.tgAllOff : T.tgAllOn;
+        b.appendChild(brandSvg(m));
+        b.appendChild(document.createTextNode(m.name));
+        b.onclick = async () => {
+          warn('');
+          for (const it of affected) {
+            const has = it.targets.includes(m.icon);
+            if (has !== all) continue;
+            const targets = all ? it.targets.filter(x => x !== m.icon) : [...it.targets, m.icon];
+            try { const d = await api('/' + it.id, { targets }); Object.assign(it, d.item); } catch (e) { warn(T.uploadFailed); }
+          }
+          render();
+        };
+        tg.appendChild(b);
+      }
     }
     $('bulk-all').onclick = () => {
       const selectable = items.filter(i => i.state !== 'processing' && i.state !== 'posting' && i.state !== 'posted');
@@ -481,9 +524,12 @@
       render();
     };
     const selectedInOrder = () => ordered().map(i => i.id).filter(id => selected.has(id));
-    $('bulk-post').onclick = () => post(selectedInOrder());
-    $('bulk-plan').onclick = () => plan(selectedInOrder(), $('bulk-at').value);
+    const bulkTargets = () => selected.size ? selectedInOrder() : ordered().filter(isOpen).map(i => i.id);
+    // Fehlgeschlagene nur an die noch offenen Ziele, sonst doppelte Status
+    $('bulk-post').onclick = () => post(bulkTargets(), 'auto');
+    $('bulk-plan').onclick = () => plan(bulkTargets(), $('bulk-at').value);
     $('bulk-del').onclick = () => del(selectedInOrder());
+    $('bulk-del-posted').onclick = () => del(items.filter(i => i.state === 'posted').map(i => i.id));
 
     // ── Hochladen ───────────────────────────────────────────
     function upload(file) {

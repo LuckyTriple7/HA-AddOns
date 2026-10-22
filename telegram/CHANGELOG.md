@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.4] - 2026-10-18
+- Geändert: **Schnelles Löschen jetzt mit Strg+Shift+Rechtsklick statt Strg+Rechtsklick**, damit es nicht versehentlich passiert. Auf dem Mac Cmd+Shift+Rechtsklick
+
 ## [1.8.3] - 2026-10-17
 - Story-Editor: gemeinsame Datei mit dem Signal-Add-on aktualisiert (Text-Storys in der Liste laufender Storys mit „Aa“ statt Kamera); für Telegram ohne sichtbare Änderung
 

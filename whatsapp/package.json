@@ -9,7 +9,7 @@
     "express-rate-limit": "^8.7.1",
     "multer": "^2.4.0",
     "qrcode": "^1.5.3",
-    "whatsapp-web.js": "github:lindionez/whatsapp-web.js#3733802a49221ee01e9e0c68012b733968d152bd"
+    "whatsapp-web.js": "github:lindionez/whatsapp-web.js#88d84601f75c479cf62b658cc3080cda5731b0ec"
   },
   "overrides": {
     "minimatch": "^10.2.2",

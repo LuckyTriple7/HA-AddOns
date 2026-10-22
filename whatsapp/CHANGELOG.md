@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.8.60] - 2026-10-20
+- Abhängigkeit: `lindionez/whatsapp-web.js` von `3733802` (27.07.) auf `88d8460` (28.09.) gehoben. Enthält den Fix „drop __x_id before spreading mediaOptions into outgoing Msg“ (upstream #201923) gegen „Data passed to getter must include an id property“ beim Senden von Bildern, Videos und Audios – betraf auch normale Chats, nicht nur den Status. Dazu Fixes für Gruppen-Einladungslinks. Die 13 neuen Commits wurden auf unerwünschten Code geprüft. Beim Fork statt beim offiziellen Repo geblieben, weil das offizielle 131 Fork-Fixes nicht hat (u.a. zum Hänger vor „ready“)
+
+## [1.8.59] - 2026-10-20
+- Fix: **Bild- und Video-Status scheiterte mit „Data passed to getter must include an id property (it's how we memoize)“.** Die Aufrufkette aus 1.8.58 zeigte die Stelle: WhatsApps Getter `getAsMms` scheitert an dem Nachrichtenobjekt, das whatsapp-web.js für Status-Medien selbst baut. Medien-Status laufen jetzt über WhatsApps eigenen Versandweg (`MediaPrep.sendToChat`), denselben wie in der Web-Oberfläche. Der Bibliotheksweg bleibt nur als Ersatz, falls WhatsApps Funktionen fehlen. Ist der Versand schon losgelaufen, wird nicht noch einmal geschickt, damit kein doppelter Status entsteht
+
+## [1.8.58] - 2026-10-20
+- Diagnose: Scheitert ein Bild- oder Video-Status, steht der vollständige Fehler samt Aufrufkette als `[ERROR] Medien-Status fehlgeschlagen` im Log. Bisher ging er nur gekürzt an den Aufrufer zurück. Nötig für „Data passed to getter must include an id property (it's how we memoize)“, das trotz 1.8.55 weiter auftritt
+
+## [1.8.57] - 2026-10-20
+- Log: Die harmlose Meldung der WhatsApp-Seite „The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy“ erscheint nicht mehr als `[WARN]`
+
+## [1.8.56] - 2026-10-20
+- Fix: **Verbindung blieb nach „authenticated“ hängen** („Hilfscode ist geladen, ready kam trotzdem nicht“). whatsapp-web.js scheitert dabei nach dem Laden seines Hilfscodes und verschluckt den Fehler. Nach 90 s holt das Add-on die restlichen Schritte bis „ready“ jetzt selbst nach und verbindet sich. Klappt das nicht, steht im Log, welcher Schritt mit welchem Fehler scheitert
+
+## [1.8.55] - 2026-10-20
+- Fix: **Bild- und Video-Status scheiterte mit „Data passed to getter must include an id property (it's how we memoize)".** Neuere WhatsApp-Web-Versionen führen die Nachrichten-id nicht mehr in `attributes`, sondern nur noch am Modell. Die Hülle um `sendStatusMediaMsgAction` übergibt die id jetzt mit. Betraf auch das Posten aus der Status-Ablage des MessengerPortals
+
+## [1.8.54] - 2026-10-18
+- Neu: Knopf „Mein Status“ in der Kopfzeile (wie bei Telegram und Signal). Der Eintrag oben im Kontakte-Reiter bleibt
+
 ## [1.8.53.2] - 2026-10-13
 - Abhängigkeit aktualisiert: express 5.2.1 → 5.3.0
 

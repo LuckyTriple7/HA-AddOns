@@ -527,6 +527,8 @@ function attachPageDiagnostics() {
   });
   page.on('console', (msg) => {
     if (msg.type() !== 'error' || _pageErrLogged >= 50) return;
+    // Harmloses Rauschen der WhatsApp-Seite selbst
+    if (/Content Security Policy directive .* is ignored when delivered in a report-only policy/.test(msg.text())) return;
     _pageErrLogged++;
     console.warn('[PAGE] console.error: %s', String(msg.text()).slice(0, 500));
   });
@@ -544,7 +546,34 @@ client.on('authenticated', () => {
     try {
       const injected = await client.pupPage.evaluate(() => typeof window.WWebJS !== 'undefined');
       if (injected) {
-        msg = 'Haengt nach authenticated: Hilfscode ist geladen, ready kam trotzdem nicht';
+        // Die Bibliothek hat window.WWebJS angelegt, ist danach aber gescheitert
+        // und hat den Fehler verschluckt. Die restlichen Schritte bis 'ready'
+        // hier einzeln nachholen: klappt es, laeuft das Add-on weiter, sonst
+        // steht der Schritt samt Fehler im Log.
+        let step = 'LoadUtils';
+        try {
+          const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
+          await client.pupPage.evaluate(LoadUtils);
+          step = 'ClientInfo';
+          const ClientInfo = require('whatsapp-web.js/src/structures/ClientInfo');
+          const InterfaceController = require('whatsapp-web.js/src/util/InterfaceController');
+          client.info = new ClientInfo(client, await client.pupPage.evaluate(() => ({
+            ...window.require('WAWebConnModel').Conn.serialize(),
+            wid: window.require('WAWebUserPrefsMeUser').getMaybeMePnUser()
+              || window.require('WAWebUserPrefsMeUser').getMaybeMeLidUser(),
+          })));
+          client.interface = new InterfaceController(client);
+          step = 'attachEventListeners';
+          await client.attachEventListeners();
+          if (status !== 'authenticated') return;   // ready kam inzwischen doch
+          console.warn('[WARN] Haengt nach authenticated: Schritte bis ready nachgeholt, ready wird selbst ausgeloest');
+          client.emit('ready');
+          try { client.authStrategy.afterAuthReady(); } catch (e) {}
+          return;
+        } catch (e) {
+          msg = `Haengt nach authenticated: Hilfscode geladen, Schritt ${step} scheitert: `
+            + String(e?.stack || e?.message || e).slice(0, 800);
+        }
       } else {
         // Hilfscode selbst laden, um den Fehler zu sehen, den die Bibliothek verschluckt
         const { LoadUtils } = require('whatsapp-web.js/src/util/Injected/Utils');
@@ -4012,7 +4041,12 @@ async function ensureStatusShims() {
         } else {
           const wrapped = function (a, b) {
             if (a && typeof a === 'object' && a.mediaMsgData) return fn.call(this, a);
-            const data = (a && a.attributes) || a;
+            // Neuere WhatsApp-Web-Versionen fuehren die id nicht mehr in
+            // attributes, sondern nur noch als Getter am Modell; ohne sie
+            // stirbt die Aktion mit "Data passed to getter must include an id
+            // property (it's how we memoize)"
+            let data = (a && a.attributes) || a;
+            if (data && !data.id && a && a.id) data = Object.assign({}, data, { id: a.id });
             return fn.call(this, {
               mediaMsgData: data,
               beforeSend: (msgModel) => (typeof b === 'function' ? b(msgModel) : undefined),
@@ -4127,6 +4161,39 @@ app.post('/api/my-status/text', async (req, res) => {
   }
 });
 
+// Bild-/Video-Status ueber WhatsApps eigenen Versandweg posten, so wie die
+// Web-Oberflaeche: MediaPrep.sendToChat() baut die Nachrichtendaten selbst und
+// ruft sendStatusMediaMsgAction in der passenden Form auf. whatsapp-web.js baut
+// dagegen ein eigenes Msg-Modell, an dem WhatsApps Getter seit Oktober 2026 mit
+// "Data passed to getter must include an id property" scheitern (getAsMms).
+// stage sagt, wie weit es kam: nur vor 'send' darf der Bibliotheksweg folgen.
+async function sendStatusMediaDirect(b64, mime, filename, caption) {
+  if (!client.pupPage) return { ok: false, stage: 'page', error: 'keine Browser-Seite' };
+  return await client.pupPage.evaluate(async (b64, mime, filename, caption) => {
+    let stage = 'prep';
+    try {
+      const file = window.WWebJS.mediaInfoToFile({ data: b64, mimetype: mime, filename });
+      const OpaqueData = window.require('WAWebMediaOpaqueData');
+      const opaque = await OpaqueData.createFromData(file, file.type);
+      const prep = window.require('WAWebPrepRawMedia').prepRawMedia(opaque, {});
+      if (!prep || typeof prep.sendToChat !== 'function') return { ok: false, stage, error: 'MediaPrep.sendToChat fehlt' };
+      await prep.waitForPrep();
+      stage = 'chat';
+      const chat = await window.WWebJS.getChat('status@broadcast', { getAsModel: false });
+      if (!chat) return { ok: false, stage, error: 'Status-Chat nicht gefunden' };
+      stage = 'send';
+      const res = await prep.sendToChat({ chat, options: caption ? { caption } : {} });
+      const OK = window.require('WAWebSendMsgResultAction').SendMsgResult.OK;
+      const result = res && res.messageSendResult;
+      if (result !== OK) return { ok: false, stage, error: 'messageSendResult ' + String(result) };
+      const id = res.msg && res.msg.id ? String(res.msg.id._serialized || res.msg.id) : null;
+      return { ok: true, stage, id };
+    } catch (e) {
+      return { ok: false, stage, error: String((e && (e.stack || e.message)) || e).slice(0, 2000) };
+    }
+  }, b64, mime, filename || 'status', caption || '');
+}
+
 // Bild-/Video-Status posten (optional mit Bildunterschrift)
 app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
@@ -4145,6 +4212,17 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
   if (!/^(image|video)\//.test(mime || '')) return res.status(400).json({ error: 'only image or video allowed' });
   try {
     await ensureStatusShims();
+    const direct = await sendStatusMediaDirect(buffer.toString('base64'), mime, origName, caption);
+    dbg(`Medien-Status: Direktweg meldet ${JSON.stringify(direct)}`);
+    if (direct.ok) {
+      console.log(`[INFO] Eigener Medien-Status gepostet (${mime}, ${Math.round(buffer.length / 1024)} KB)`);
+      return res.json({ success: true, id: direct.id || null });
+    }
+    // Ist der Versand schon losgelaufen, nicht noch einmal ueber die Bibliothek
+    // schicken — sonst steht der Status womoeglich doppelt da
+    if (direct.stage === 'send') throw new Error(direct.error || 'Status-Versand abgelehnt');
+    console.warn('[WARN] Medien-Status direkt nicht moeglich (%s: %s) — versuche whatsapp-web.js',
+      direct.stage || '?', direct.error || 'unbekannt');
     const media = new MessageMedia(mime, buffer.toString('base64'), origName);
     const result = await client.sendMessage(STATUS_BROADCAST_JID, media, {
       sendSeen: false,
@@ -4154,6 +4232,8 @@ app.post('/api/my-status/media', upload.single('file'), async (req, res) => {
     console.log(`[INFO] Eigener Medien-Status gepostet (${mime}, ${Math.round(buffer.length / 1024)} KB)`);
     res.json({ success: true, id: result.id?._serialized || null });
   } catch (e) {
+    // Voller Stack: die Bundle-Zeilen darin zeigen, welche WhatsApp-Funktion scheitert
+    console.error('[ERROR] Medien-Status fehlgeschlagen: %s', String(e?.stack || e?.message || e).slice(0, 4000));
     res.status(500).json({ error: e.message });
   }
 });
@@ -5225,6 +5305,7 @@ app.get('/', (req, res) => {
     <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
     ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
+    <button class="scroll-btn" onclick="openMyStatus()" data-i18n-title="msTitle" title="Mein Status"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"/></svg></button>
     <button class="scroll-btn" onclick="openArchiveOverview()" data-i18n-title="archiveOverviewBtn" title="Status-Archiv-Übersicht">${_SVG.archive}</button>
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>

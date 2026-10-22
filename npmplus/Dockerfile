@@ -10,7 +10,7 @@
 # Bewusst ohne RUN-Layer: dadurch ist der Build reines Metadaten-Kopieren und
 # läuft für amd64 und aarch64 ohne QEMU-Emulation.
 ###############################################################################
-ARG NPMPLUS_VERSION=2026-10-14-r1
+ARG NPMPLUS_VERSION=2026-10-21-r1
 FROM docker.io/zoeyvid/npmplus:${NPMPLUS_VERSION}
 
 LABEL org.opencontainers.image.title="NPMplus for Home Assistant"
