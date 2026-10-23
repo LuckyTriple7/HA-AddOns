@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.4.1] - 2026-10-23
+- Abhängigkeit aktualisiert: teleproto 1.230.0 → 1.230.1
+
 ## [1.8.4] - 2026-10-18
 - Geändert: **Schnelles Löschen jetzt mit Strg+Shift+Rechtsklick statt Strg+Rechtsklick**, damit es nicht versehentlich passiert. Auf dem Mac Cmd+Shift+Rechtsklick
 
