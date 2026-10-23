@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.35
+- Sicherheit: Base-Image auf linuxserver/nextcloud 35.0.2-ls459 aktualisiert. Es bringt PHP 8.5.12 und schließt damit die PHP2Shell-Lücke (CVE-2026-109618/-109619, Codeausführung ohne Anmeldung). ls457 enthielt PHP 8.5.11.
+
 ## 1.0.34
 - Neue Option `ai_workers` (0–8, Standard 0): startet `occ taskprocessing:worker`-Prozesse, damit KI-Aufträge des Assistenten sofort statt erst nach bis zu 5 Minuten per Cron laufen. Nextcloud empfiehlt 4.
 
