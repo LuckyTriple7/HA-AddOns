@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:19.0.0
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.9
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
@@ -9,20 +9,20 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3003
 RUN \
     apk add --no-cache \
-        mariadb-client \
-        nginx \
-        php82-curl \
-        php82-fpm \
-        php82-gd \
-        php82-iconv \
-        php82-mbstring \
-        php82-mysqli \
-        php82-opcache \
-        php82-openssl \
-        php82-session \
-        php82-xml \
-        php82-zip \
-        php82 \
+        mariadb-client=11.8.9-r0 \
+        nginx=1.30.6-r0 \
+        php84-curl=8.4.27-r0 \
+        php84-fpm=8.4.27-r0 \
+        php84-gd=8.4.27-r0 \
+        php84-iconv=8.4.27-r0 \
+        php84-mbstring=8.4.27-r0 \
+        php84-mysqli=8.4.27-r0 \
+        php84-opcache=8.4.27-r0 \
+        php84-openssl=8.4.27-r0 \
+        php84-session=8.4.27-r0 \
+        php84-xml=8.4.27-r0 \
+        php84-zip=8.4.27-r0 \
+        php84=8.4.27-r0 \
     \
     && mkdir /var/www/phpmyadmin \
     && curl -L -s \

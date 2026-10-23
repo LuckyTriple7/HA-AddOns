@@ -71,6 +71,30 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
 
+  - package-ecosystem: "pip"
+    directory: "/logpulse"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "pip"
+    directory: "/nettoolbox"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "pip"
+    directory: "/tuiwatch"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
   # ── Node (npm) ────────────────────────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/telegram"
@@ -207,8 +231,27 @@ updates:
       day: "monday"
     open-pull-requests-limit: 3
 
+  # phpmyadmin-mariadb2: Base-Image (ARG BUILD_FROM) und gepinnte Alpine-Pakete
+  # pflegt Renovate (renovate.json), Dependabot erkennt beides nicht.
+
   - package-ecosystem: "docker"
-    directory: "/phpmyadmin-mariadb2"
+    directory: "/logpulse"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "docker"
+    directory: "/nettoolbox"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "docker"
+    directory: "/tuiwatch"
     target-branch: "dev"
     schedule:
       interval: "weekly"
