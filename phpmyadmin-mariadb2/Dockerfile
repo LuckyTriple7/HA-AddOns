@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:19.0.0
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.9
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
@@ -11,18 +11,18 @@ RUN \
     apk add --no-cache \
         mariadb-client \
         nginx \
-        php82-curl \
-        php82-fpm \
-        php82-gd \
-        php82-iconv \
-        php82-mbstring \
-        php82-mysqli \
-        php82-opcache \
-        php82-openssl \
-        php82-session \
-        php82-xml \
-        php82-zip \
-        php82 \
+        php84-curl \
+        php84-fpm \
+        php84-gd \
+        php84-iconv \
+        php84-mbstring \
+        php84-mysqli \
+        php84-opcache \
+        php84-openssl \
+        php84-session \
+        php84-xml \
+        php84-zip \
+        php84 \
     \
     && mkdir /var/www/phpmyadmin \
     && curl -L -s \

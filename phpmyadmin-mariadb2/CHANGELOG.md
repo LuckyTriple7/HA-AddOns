@@ -1,5 +1,11 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.7] - 2026-10-23
+
+- Update: PHP 8.2 → 8.4 und Base-Image 19.0.0 → 21.0.9 (Alpine 3.24, nachgezogen vom offiziellen phpMyAdmin-Add-on 0.14.1)
+- Start wartet bis zu 5 Minuten, bis MariaDB 2 erreichbar ist, statt dass der erste Login fehlschlägt. Bleibt MariaDB weg, startet das Add-on trotzdem und schreibt eine Warnung ins Log
+- s6-Startskripte an die aktuelle Upstream-Fassung angeglichen
+
 ## [1.0.6] - 2026-08-17
 
 - Doku: `org.opencontainers.image.licenses` im Dockerfile stand auf MIT, obwohl das Image phpMyAdmin unter der GPL-2.0 enthält — auf `GPL-2.0-only AND MIT` korrigiert

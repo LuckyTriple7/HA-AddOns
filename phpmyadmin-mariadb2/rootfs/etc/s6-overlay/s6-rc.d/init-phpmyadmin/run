@@ -12,3 +12,68 @@ if ! bashio::fs.file_exists "/data/config.secret.inc.php"; then
 EOT
 fi
 chmod 644 /data/config.secret.inc.php
+
+# ==============================================================================
+# Wait for MariaDB (adapted from hassio-addons/app-phpmyadmin #278)
+#
+# MariaDB 2 often finishes starting after this add-on. Wait for it so the
+# first login does not fail. Unlike upstream, a timeout is only a warning:
+# phpMyAdmin then shows its own connection error, and the add-on stays up.
+# ==============================================================================
+declare host
+declare port
+declare username
+declare password
+declare deadline
+declare probe_error
+
+readonly WAIT_TIMEOUT=300
+readonly WAIT_INTERVAL=5
+readonly PROBE_CONNECT_TIMEOUT=10
+readonly PROBE_DEADLINE=15
+
+host=$(bashio::config "mysql_host")
+port=$(bashio::config "mysql_port")
+username=$(bashio::config "mysql_user")
+password=$(bashio::config "mysql_password")
+
+# Keeps the client error in ${probe_error}, so a rejected password stays
+# visible instead of being reported as a plain timeout.
+mariadb_reachable() {
+    local status=0
+
+    probe_error=$(
+        timeout "${PROBE_DEADLINE}" \
+            mariadb \
+                -u "${username}" -p"${password}" \
+                -h "${host}" -P "${port}" \
+                --connect-timeout="${PROBE_CONNECT_TIMEOUT}" \
+                --skip-ssl \
+                -e "SELECT 1;" 2>&1 > /dev/null
+    ) || status=$?
+
+    # 124 comes from GNU timeout, 143 is the SIGTERM the BusyBox one sends.
+    if [[ "${status}" -eq 124 ]] || [[ "${status}" -eq 143 ]]; then
+        probe_error="No response from the server within ${PROBE_DEADLINE} seconds"
+    fi
+
+    return "${status}"
+}
+
+if ! bashio::var.has_value "${username}"; then
+    bashio::log.warning "No mysql_user configured, skipping the MariaDB check."
+elif ! mariadb_reachable; then
+    bashio::log.notice "MariaDB is not reachable yet: ${probe_error}"
+    bashio::log.notice "Waiting for MariaDB at ${host}:${port}..."
+    deadline=$((SECONDS + WAIT_TIMEOUT))
+    until mariadb_reachable; do
+        if [[ "${SECONDS}" -ge "${deadline}" ]]; then
+            bashio::log.warning "${probe_error}"
+            bashio::log.warning \
+                "MariaDB at ${host}:${port} is still not reachable." \
+                "Starting anyway, please check the MariaDB 2 add-on."
+            break
+        fi
+        sleep "${WAIT_INTERVAL}"
+    done
+fi
