@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.6] - 2026-10-23
+- Sicherheitsupdate: pillow 12.3.0 → 13.0.0 (behebt u. a. einen Heap-Überlauf im JPEG-Decoder und mehrere Out-of-Bounds-Lesezugriffe im TIFF-Decoder)
+
 ## [1.5.5] - 2026-10-20
 - Neu: **„Gepostete löschen“ in der Status-Ablage.** Ein Knopf in der Sammelleiste entfernt alle bereits geposteten Einträge auf einmal, samt Bild- und Videodateien. Vorher kommt eine Rückfrage
 
