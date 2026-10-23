@@ -1,0 +1,108 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Renovate pflegt Base-Images (ARG BUILD_FROM, build.yaml) und gepinnte Alpine-Pakete.",
+    "pip, npm, GitHub Actions und einfache FROM-Zeilen bleiben bei Dependabot.",
+    "Neues Add-on: in includePaths aufnehmen und seinen docker-Eintrag aus .github/dependabot.yml entfernen."
+  ],
+  "baseBranchPatterns": [
+    "dev"
+  ],
+  "includePaths": [
+    "phpmyadmin-mariadb2/**"
+  ],
+  "enabledManagers": [
+    "custom.regex"
+  ],
+  "dependencyDashboard": true,
+  "rebaseWhen": "behind-base-branch",
+  "labels": [
+    "dependencies"
+  ],
+  "additionalBranchPrefix": "{{parentDir}}-",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "commitMessageAction": "bump",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "from {{currentVersion}} to {{newVersion}}",
+  "commitMessageSuffix": "in /{{parentDir}}",
+  "customDatasources": {
+    "alpine": {
+      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/",
+      "format": "html"
+    }
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Base-Image in ARG BUILD_FROM und build.yaml",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/",
+        "/(^|/)build\\.yaml$/"
+      ],
+      "matchStringsStrategy": "any",
+      "matchStrings": [
+        "ARG BUILD_FROM=(?<depName>.*?):(?<currentValue>.*?)\\s+",
+        "(aarch64|amd64):\\s[\"']?(?<depName>.*?):(?<currentValue>.*?)[\"']?\\s"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Gepinnte Alpine-Pakete (paket=version) in Dockerfiles",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
+      "matchStringsStrategy": "any",
+      "matchStrings": [
+        "\\s\\s(?<package>[a-z0-9][a-z0-9-_]+)=(?<currentValue>[a-z0-9-_.]+)\\s+"
+      ],
+      "versioningTemplate": "loose",
+      "datasourceTemplate": "custom.alpine",
+      "depNameTemplate": "alpine_3_24/{{package}}",
+      "extractVersionTemplate": "^{{{package}}}-(?<version>\\d.*)\\.apk$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Pakete aus dem community-Repo von Alpine",
+      "matchDatasources": [
+        "custom.alpine"
+      ],
+      "matchDepNames": [
+        "/^alpine_3_24/php84/"
+      ],
+      "registryUrls": [
+        "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/"
+      ]
+    },
+    {
+      "description": "PHP-Pakete eines Add-ons in einem PR",
+      "matchDatasources": [
+        "custom.alpine"
+      ],
+      "matchDepNames": [
+        "/^alpine_3_24/php/"
+      ],
+      "groupName": "PHP"
+    },
+    {
+      "description": "Base-Image in Dockerfile und build.yaml in einem PR",
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "Base-Image"
+    },
+    {
+      "description": "Major-Sprung des Base-Images nur nach Freigabe im Dependency Dashboard",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}

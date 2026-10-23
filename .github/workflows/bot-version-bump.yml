@@ -1,0 +1,94 @@
+name: Bot-Update → Version anheben
+
+# Dependabot und Renovate ändern nur requirements.txt, package.json oder das
+# Dockerfile. Ohne neue Version in config.yaml baut kein Image und HA bietet
+# kein Update an. Nach dem Merge eines Bot-PRs hebt dieser Workflow deshalb die
+# Version der betroffenen Add-ons an (1.0.25 -> 1.0.25.1 -> 1.0.25.2), schreibt
+# eine CHANGELOG-Zeile und startet den Image-Build.
+#
+# Sicherheits-PRs von Dependabot zielen immer auf main (target-branch gilt für
+# sie nicht). Dann wird main zuerst nach dev geholt, wie in dependabot-sync-dev.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev, main]
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: read
+
+jobs:
+  bump:
+    if: >-
+      github.event.pull_request.merged == true &&
+      (github.event.pull_request.user.login == 'dependabot[bot]' ||
+       github.event.pull_request.user.login == 'renovate[bot]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git einrichten
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: main nach dev holen (nur bei PRs auf main)
+        if: github.event.pull_request.base.ref == 'main'
+        run: |
+          git merge origin/main --no-edit -m "chore(deps): Dependabot-Fix von main nach dev übernommen"
+
+      - name: Version anheben
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          gh pr view "$PR_NUMBER" --json files --jq '.files[].path' > "$RUNNER_TEMP/files.txt"
+          python3 .github/scripts/bot-version-bump.py < "$RUNNER_TEMP/files.txt" > "$RUNNER_TEMP/bumped.txt"
+          cat "$RUNNER_TEMP/bumped.txt"
+          {
+            echo "addons<<EOF"
+            cut -d' ' -f1 "$RUNNER_TEMP/bumped.txt"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Committen und pushen
+        if: steps.bump.outputs.addons != ''
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git add -- $(echo "${{ steps.bump.outputs.addons }}")
+          msg="chore(release): Version nach Bot-Update anheben (#${PR_NUMBER})"
+          while read -r slug old new; do
+            msg="${msg}"$'\n'"- ${slug} ${old} -> ${new}"
+          done < "$RUNNER_TEMP/bumped.txt"
+          git commit -m "$msg"
+          # dependabot-sync-dev und weitere Bump-Läufe können parallel pushen.
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:dev && exit 0
+            sleep $((i * 5))
+            git pull --no-rebase --no-edit origin dev
+          done
+          exit 1
+
+      - name: Image-Builds starten
+        if: steps.bump.outputs.addons != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Ein Push mit GITHUB_TOKEN startet keine anderen Workflows,
+        # workflow_dispatch schon.
+        run: |
+          for slug in ${{ steps.bump.outputs.addons }}; do
+            wf=".github/workflows/build-${slug}.yml"
+            if [ -f "$wf" ]; then
+              gh workflow run "build-${slug}.yml" --ref dev
+              echo "Build gestartet: ${slug}"
+            fi
+          done

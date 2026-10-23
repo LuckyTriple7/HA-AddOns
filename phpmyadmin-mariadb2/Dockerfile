@@ -9,20 +9,20 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3003
 RUN \
     apk add --no-cache \
-        mariadb-client \
-        nginx \
-        php84-curl \
-        php84-fpm \
-        php84-gd \
-        php84-iconv \
-        php84-mbstring \
-        php84-mysqli \
-        php84-opcache \
-        php84-openssl \
-        php84-session \
-        php84-xml \
-        php84-zip \
-        php84 \
+        mariadb-client=11.8.9-r0 \
+        nginx=1.30.6-r0 \
+        php84-curl=8.4.27-r0 \
+        php84-fpm=8.4.27-r0 \
+        php84-gd=8.4.27-r0 \
+        php84-iconv=8.4.27-r0 \
+        php84-mbstring=8.4.27-r0 \
+        php84-mysqli=8.4.27-r0 \
+        php84-opcache=8.4.27-r0 \
+        php84-openssl=8.4.27-r0 \
+        php84-session=8.4.27-r0 \
+        php84-xml=8.4.27-r0 \
+        php84-zip=8.4.27-r0 \
+        php84=8.4.27-r0 \
     \
     && mkdir /var/www/phpmyadmin \
     && curl -L -s \
