@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.69.5] - 2026-10-23
+- Sicherheitsupdate: pillow 12.3.0 → 13.0.0 (behebt u. a. einen Heap-Überlauf im JPEG-Decoder und mehrere Out-of-Bounds-Lesezugriffe im TIFF-Decoder)
+
 ## [0.11.69.4] - 2026-10-19
 - Abhängigkeiten aktualisiert: markdown 3.11 → 3.11.1, google-genai 2.29.0 → 2.31.0
 
