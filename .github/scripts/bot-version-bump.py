@@ -115,6 +115,9 @@ def main() -> int:
     touched: dict[str, set[str]] = {}
     for f in files:
         parts = f.split("/")
+        # Reine Test-Abhängigkeiten landen nicht im Image, also kein Bump.
+        if "tests" in parts[1:-1]:
+            continue
         if len(parts) > 1 and (ROOT / parts[0] / "config.yaml").exists():
             touched.setdefault(parts[0], set()).add("/".join(parts[1:]))
 
