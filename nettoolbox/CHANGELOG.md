@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.10.1] - 2026-10-23
+
+- Abhängigkeiten aktualisiert: aioquic 1.3.0 → 1.7.0, dnspython 2.8.0 → 2.9.0, cryptography 50.0.1 → 50.0.2
+
 ## [0.10.0] - 2026-09-07
 
 ### Added
