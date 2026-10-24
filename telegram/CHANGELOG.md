@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.4.2] - 2026-10-24
+- Abhängigkeit aktualisiert: ip-address 10.7.2 → 10.7.4
+
 ## [1.8.4.1] - 2026-10-23
 - Abhängigkeit aktualisiert: teleproto 1.230.0 → 1.230.1
 
