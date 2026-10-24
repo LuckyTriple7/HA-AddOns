@@ -13,7 +13,7 @@ RUN npm ci --omit=dev --no-audit --no-fund
 FROM debian:bookworm-slim
 
 LABEL \
-    io.hass.version="1.0.17.1" \
+    io.hass.version="1.0.18" \
     io.hass.type="addon" \
     io.hass.arch="amd64|aarch64"
 

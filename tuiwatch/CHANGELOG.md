@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.9
+
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## 0.120.8
 
 - Abhängigkeiten aktualisiert: anthropic 0.116.0 → 1.15.0, google-genai 2.10.0 → 2.31.0, playwright 1.60.0 → 1.64.0, cryptography 50.0.0 → 50.0.2

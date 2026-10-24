@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.18] - 2026-10-24
+- Build: `@playwright/mcp` kommt jetzt über `mcp/package.json` mit Lockfile (`npm ci`) statt über eine Versionsvariable im Dockerfile. Unterpakete sind damit fest gepinnt, und Dependabot hält die Version aktuell
+
 ## [1.0.17.1] - 2026-10-06
 - Node.js für Playwright MCP von 22 auf 24 LTS angehoben (Build-Stage `node:24-bookworm-slim`)
 

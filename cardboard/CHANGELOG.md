@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.14] - 2026-10-24
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## [1.0.13] - 2026-10-23
 - Abhängigkeit aktualisiert: fastapi 0.143.2 → 0.153.0
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.6.6] - 2026-10-24
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## [0.6.5] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

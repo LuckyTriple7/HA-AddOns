@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.7] - 2026-10-24
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## [1.5.6] - 2026-10-23
 - Sicherheitsupdate: pillow 12.3.0 → 13.0.0 (behebt u. a. einen Heap-Überlauf im JPEG-Decoder und mehrere Out-of-Bounds-Lesezugriffe im TIFF-Decoder)
 

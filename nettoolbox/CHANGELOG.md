@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.10.2] - 2026-10-24
+
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## [0.10.1] - 2026-10-23
 
 - Abhängigkeiten aktualisiert: aioquic 1.3.0 → 1.7.0, dnspython 2.8.0 → 2.9.0, cryptography 50.0.1 → 50.0.2

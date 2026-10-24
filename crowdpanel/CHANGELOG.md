@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.7.1] - 2026-10-24
+
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## [0.7.0] - 2026-09-03
 
 ### Changed
