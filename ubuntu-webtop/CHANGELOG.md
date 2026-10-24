@@ -1,3 +1,11 @@
+## [1.8.111] - 2026-10-24
+
+### Aktualisiert
+
+- GitHub CLI: 2.103.0 → 2.103.2
+- Claude Desktop: 3.3.13+claude3.6556.1 → 3.3.13+claude3.6556.2
+- OpenCode: 2.1.3 → 2.1.4
+
 ## [1.8.110] - 2026-10-23
 
 ### Aktualisiert
