@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.70] - 2026-10-23
+- Abhängigkeit aktualisiert: markdown 3.11.1 → 3.11.2
+
 ## [0.11.69.5] - 2026-10-23
 - Sicherheitsupdate: pillow 12.3.0 → 13.0.0 (behebt u. a. einen Heap-Überlauf im JPEG-Decoder und mehrere Out-of-Bounds-Lesezugriffe im TIFF-Decoder)
 

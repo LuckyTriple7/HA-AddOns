@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.8
+
+- Abhängigkeiten aktualisiert: anthropic 0.116.0 → 1.15.0, google-genai 2.10.0 → 2.31.0, playwright 1.60.0 → 1.64.0, cryptography 50.0.0 → 50.0.2
+
 ## 0.120.7
 
 - 🧳 **Packlisten-Vorlage wirkt jetzt auch auf bestehende Reisen.** Beim Speichern der Vorlage werden die Packlisten aller kommenden Reisen abgeglichen: neue Vorlagen-Einträge kommen dazu, aus der Vorlage entfernte fallen weg. Abgehakte und selbst ergänzte Einträge bleiben stehen, vergangene Reisen bleiben unverändert. Die Meldung nach dem Speichern nennt, wie viele Reisen aktualisiert wurden.
