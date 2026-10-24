@@ -14,7 +14,7 @@
   "enabledManagers": [
     "custom.regex"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": false,
   "rebaseWhen": "behind-base-branch",
   "labels": [
     "dependencies"
@@ -93,16 +93,6 @@
         "docker"
       ],
       "groupName": "Base-Image"
-    },
-    {
-      "description": "Major-Sprung des Base-Images nur nach Freigabe im Dependency Dashboard",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "dependencyDashboardApproval": true
     }
   ]
 }

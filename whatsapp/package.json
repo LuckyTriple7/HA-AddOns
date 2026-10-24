@@ -7,7 +7,7 @@
     "archiver": "^8.0.0",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.1",
-    "multer": "^2.4.0",
+    "multer": "^2.5.0",
     "qrcode": "^1.5.3",
     "whatsapp-web.js": "github:lindionez/whatsapp-web.js#88d84601f75c479cf62b658cc3080cda5731b0ec"
   },
