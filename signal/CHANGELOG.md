@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.5] - 2026-10-24
+- Build: Abhängigkeiten kommen jetzt fest aus `package-lock.json` (`npm ci`) statt bei jedem Build frisch aufgelöst zu werden. Dadurch sieht Dependabot auch indirekte Pakete und meldet deren Sicherheitslücken
+
 ## [1.8.4] - 2026-10-24
 - Sicherheitsupdate: Mindestversionen multer 2.5.0 und express 5.3.0, damit der Neubau auch body-parser 2.4.0 bekommt (je ein DoS über präparierte Anfragen). Das bisherige Image vom 17.10. enthielt noch die alten Versionen
 
