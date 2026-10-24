@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.61] - 2026-10-24
+- Sicherheitsupdate: multer 2.4.0 → 2.5.0, body-parser 2.3.0 → 2.4.0 und ip-address 10.7.2 → 10.7.4 (je ein DoS über präparierte Anfragen)
+
 ## [1.8.60] - 2026-10-20
 - Abhängigkeit: `lindionez/whatsapp-web.js` von `3733802` (27.07.) auf `88d8460` (28.09.) gehoben. Enthält den Fix „drop __x_id before spreading mediaOptions into outgoing Msg“ (upstream #201923) gegen „Data passed to getter must include an id property“ beim Senden von Bildern, Videos und Audios – betraf auch normale Chats, nicht nur den Status. Dazu Fixes für Gruppen-Einladungslinks. Die 13 neuen Commits wurden auf unerwünschten Code geprüft. Beim Fork statt beim offiziellen Repo geblieben, weil das offizielle 131 Fork-Fixes nicht hat (u.a. zum Hänger vor „ready“)
 
