@@ -1,0 +1,5 @@
+# Python-Pakete fuer die MCP-Server im Add-on (hass-mcp) und Modbus/Seriell.
+# requirements.txt wird daraus mit pip-compile erzeugt (lock-python-deps.yml).
+hass-mcp
+pymodbus
+pyserial
