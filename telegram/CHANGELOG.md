@@ -1,6 +1,11 @@
 # Changelog
 
 ## [1.8.4.2] - 2026-10-24
+
+chore(deps): bump ip-address from 10.7.2 to 10.7.4 in /telegram
+
+
+## [1.8.4.2] - 2026-10-24
 - Abhängigkeit aktualisiert: ip-address 10.7.2 → 10.7.4
 
 ## [1.8.4.1] - 2026-10-23
