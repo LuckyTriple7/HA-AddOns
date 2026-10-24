@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.4.3] - 2026-10-24
+
+- Abhängigkeit aktualisiert: body-parser 2.3.0 → 2.4.0
+
 ## [1.8.4.2] - 2026-10-24
 
 chore(deps): bump ip-address from 10.7.2 to 10.7.4 in /telegram
