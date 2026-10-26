@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.7] - 2026-10-26
+
+### Changed
+- Rebuild für Claude Code 2.1.308
+
+
 ## [1.4.6] - 2026-10-24
 
 - Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
