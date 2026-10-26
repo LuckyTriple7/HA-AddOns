@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.9.3
+
+- Abhängigkeit aktualisiert: google-genai 2.31.0 → 2.33.0
+
 ## 0.120.9.2
 
 - Abhängigkeit aktualisiert: playwright 1.64.0 → 1.64.1
