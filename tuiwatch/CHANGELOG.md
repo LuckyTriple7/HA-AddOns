@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.9.1
+
+- Abhängigkeit aktualisiert: pdfplumber 0.11.7 → 0.11.10
+
 ## 0.120.9
 
 - Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
