@@ -6,7 +6,7 @@
 #
 annotated-types==0.8.0
     # via pydantic
-anthropic==1.15.0
+anthropic==2.1.0
     # via -r requirements.in
 anyio==4.15.1
     # via
