@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.120.9.4
+
+- Abhängigkeit aktualisiert: anthropic 1.15.0 → 2.1.0
+
+## 0.120.9.3
+
+- Abhängigkeit aktualisiert: google-genai 2.31.0 → 2.33.0
+
+## 0.120.9.2
+
+- Abhängigkeit aktualisiert: playwright 1.64.0 → 1.64.1
+
+## 0.120.9.1
+
+- Abhängigkeit aktualisiert: pdfplumber 0.11.7 → 0.11.10
+
+## 0.120.9
+
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## 0.120.8
 
 - Abhängigkeiten aktualisiert: anthropic 0.116.0 → 1.15.0, google-genai 2.10.0 → 2.31.0, playwright 1.60.0 → 1.64.0, cryptography 50.0.0 → 50.0.2

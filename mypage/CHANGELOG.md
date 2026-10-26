@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.71.1] - 2026-10-26
+- Abhängigkeit aktualisiert: google-genai 2.31.0 → 2.33.0
+
+## [0.11.71] - 2026-10-24
+- Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
+
 ## [0.11.70] - 2026-10-23
 - Abhängigkeit aktualisiert: markdown 3.11.1 → 3.11.2
 

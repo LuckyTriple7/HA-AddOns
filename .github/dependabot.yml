@@ -95,7 +95,24 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
 
+  - package-ecosystem: "pip"
+    directory: "/claudecode"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
   # ── Node (npm) ────────────────────────────────────────────────────────────────
+
+  - package-ecosystem: "npm"
+    directory: "/playwright-browser/mcp"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
   - package-ecosystem: "npm"
     directory: "/telegram"
     target-branch: "dev"

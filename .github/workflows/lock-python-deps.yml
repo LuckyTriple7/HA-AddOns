@@ -1,0 +1,50 @@
+name: Python-Abhängigkeiten sperren (pip-compile)
+
+# requirements.in enthält die direkt genutzten Pakete, requirements.txt wird
+# daraus mit pip-compile erzeugt und pinnt auch alle indirekten Pakete. So
+# installiert jeder Build exakt dasselbe, und Dependabot sieht alle Pakete.
+# Dependabot erkennt das Paar selbst und pflegt beide Dateien.
+#
+# Von Hand starten (Actions -> Run workflow), wenn requirements.in geändert
+# wurde. Schreibt das Ergebnis auf den gewählten Branch zurück.
+
+on:
+  workflow_dispatch:
+    inputs:
+      addons:
+        description: 'Add-ons, mit Leerzeichen getrennt (leer = alle)'
+        required: false
+        default: ''
+  push:
+    branches: ['lock/**']
+    paths:
+      - '**/requirements.in'
+      - '.github/scripts/lock-python-deps.sh'
+      - '.github/workflows/lock-python-deps.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: requirements.txt neu erzeugen
+        env:
+          ADDONS: ${{ inputs.addons }}
+        run: bash .github/scripts/lock-python-deps.sh $ADDONS
+
+      - name: Zurückschreiben
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -- '*requirements.txt'
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen."
+            exit 0
+          fi
+          git diff --cached --stat
+          git commit -m "build(deps): requirements.txt mit pip-compile neu erzeugt"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

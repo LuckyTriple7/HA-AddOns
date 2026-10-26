@@ -10,8 +10,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /ui
-COPY package.json .
-RUN npm install --production
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-fund --no-audit
 COPY server.js mystatus.js status_templates.js ./
 
 COPY run.sh /run.sh

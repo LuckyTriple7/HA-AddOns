@@ -1,4 +1,4 @@
-FROM python:3.14-alpine
+FROM python:3.15-alpine
 
 LABEL org.opencontainers.image.title="CrowdPanel"
 LABEL org.opencontainers.image.description="CrowdSec control panel for Home Assistant"

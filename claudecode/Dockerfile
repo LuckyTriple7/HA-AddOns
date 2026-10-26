@@ -72,7 +72,9 @@ RUN echo "Building add-on ${BUILD_VERSION} - installing stable Claude Code..." &
     echo "[INFO] Installed $(claude --version 2>/dev/null)"
 
 # Install hass-mcp for Home Assistant integration and pymodbus for Modbus operations
-RUN pip3 install --no-cache-dir --break-system-packages hass-mcp pymodbus pyserial
+# Versionen inkl. Unterpaketen fest aus requirements.txt (pip-compile aus requirements.in)
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Install mbpoll (Modbus command line tool) from source
 RUN apk add --no-cache --virtual .build-deps \

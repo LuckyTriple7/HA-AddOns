@@ -2,16 +2,18 @@
 # Install it in the official Node image and copy node + the package over.
 FROM node:24-bookworm-slim AS mcp
 
-ARG PLAYWRIGHT_MCP_VERSION=0.0.83
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
+# Version von @playwright/mcp steht in mcp/package.json (pflegt Dependabot),
+# das Lockfile pinnt auch alle Unterpakete.
 WORKDIR /opt/playwright-mcp
-RUN npm install --omit=dev --no-audit --no-fund "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}"
+COPY mcp/package.json mcp/package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
 
 FROM debian:bookworm-slim
 
 LABEL \
-    io.hass.version="1.0.17.1" \
+    io.hass.version="1.0.18" \
     io.hass.type="addon" \
     io.hass.arch="amd64|aarch64"
 

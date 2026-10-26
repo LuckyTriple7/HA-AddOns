@@ -68,7 +68,9 @@ jobs:
           DATE=$(date +%Y-%m-%d)
 
           sed -i "s/version: \"${OLD_ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" mediagrab/config.yaml
-          sed -i "s/yt-dlp==.*/yt-dlp==${YTDLP_VER}/" mediagrab/requirements.txt
+          # yt-dlp hat keine Pflicht-Abhängigkeiten, daher reicht es, beide
+          # Dateien gleich zu setzen (requirements.txt erzeugt sonst pip-compile)
+          sed -i "s/^yt-dlp==.*/yt-dlp==${YTDLP_VER}/" mediagrab/requirements.in mediagrab/requirements.txt
           echo "${YTDLP_VER}" > .ytdlp-version
 
           ENTRY="## [${NEW_ADDON_VER}] — ${DATE}\n\n### Geändert\n- Rebuild für yt-dlp ${YTDLP_VER}\n"

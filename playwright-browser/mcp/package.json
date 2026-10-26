@@ -1,0 +1,8 @@
+{
+  "name": "playwright-browser-mcp",
+  "private": true,
+  "description": "Playwright MCP fuer das Add-on playwright-browser. Version pflegt Dependabot, das Lockfile pinnt auch alle Unterpakete.",
+  "dependencies": {
+    "@playwright/mcp": "0.0.83"
+  }
+}

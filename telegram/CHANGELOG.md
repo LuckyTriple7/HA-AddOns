@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.5.1] - 2026-10-26
+- Abhängigkeit aktualisiert: teleproto 1.230.1 → 1.232.0
+
+## [1.8.5] - 2026-10-24
+- Build: Das Image installiert die Abhängigkeiten jetzt exakt aus `package-lock.json` (`npm ci`). Bisher wurde nur `package.json` ins Image kopiert und das Lockfile beim Build ignoriert
+
 ## [1.8.4.5] - 2026-10-24
 
 chore(deps): bump body-parser from 2.3.0 to 2.4.0 in /telegram

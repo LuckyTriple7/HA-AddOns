@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.5] - 2026-10-24
+- Build: Abhängigkeiten kommen jetzt fest aus `package-lock.json` (`npm ci`) statt bei jedem Build frisch aufgelöst zu werden. Dadurch sieht Dependabot auch indirekte Pakete und meldet deren Sicherheitslücken
+
+## [1.8.4] - 2026-10-24
+- Sicherheitsupdate: Mindestversionen multer 2.5.0 und express 5.3.0, damit der Neubau auch body-parser 2.4.0 bekommt (je ein DoS über präparierte Anfragen). Das bisherige Image vom 17.10. enthielt noch die alten Versionen
+
 ## [1.8.3] - 2026-10-17
 - „Meine laufenden Storys“ zeigt jetzt auch Storys, die du **am Handy** postest: Das Handy meldet sie verknüpften Geräten, das Add-on hat diese Meldung bisher verworfen. Bilder mit Vorschau, Text-Storys mit ihrem Text. Gruppen-Storys bleiben außen vor. Storys von vor dem Update oder aus Zeiten, in denen das Add-on nicht lief, kennt es nicht
 

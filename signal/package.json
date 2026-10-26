@@ -4,9 +4,9 @@
   "description": "Signal Messenger UI for Home Assistant",
   "main": "server.js",
   "dependencies": {
-    "express": "^5.2.1",
+    "express": "^5.3.0",
     "express-rate-limit": "^8.7.0",
-    "multer": "^2.1.1",
+    "multer": "^2.5.0",
     "qrcode": "^1.5.3"
   }
 }
