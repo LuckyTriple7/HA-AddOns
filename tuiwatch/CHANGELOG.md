@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.9.2
+
+- Abhängigkeit aktualisiert: playwright 1.64.0 → 1.64.1
+
 ## 0.120.9.1
 
 - Abhängigkeit aktualisiert: pdfplumber 0.11.7 → 0.11.10
