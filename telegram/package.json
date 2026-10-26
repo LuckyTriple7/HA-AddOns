@@ -6,7 +6,7 @@
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.1",
     "multer": "^2.5.0",
-    "teleproto": "^1.230.1"
+    "teleproto": "^1.232.0"
   },
   "overrides": {
     "qs": "^6.16.0"
