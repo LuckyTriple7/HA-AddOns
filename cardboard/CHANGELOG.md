@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.14.2] - 2026-10-26
+- Abhängigkeit aktualisiert: python 3.14-alpine → 3.15-alpine
+
 ## [1.0.14.1] - 2026-10-26
 - Abhängigkeit aktualisiert: fastapi 0.153.0 → 0.161.1
 
