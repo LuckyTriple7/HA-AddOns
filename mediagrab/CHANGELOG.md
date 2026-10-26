@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [1.1.11.1] — 2026-10-26
+
+- Abhängigkeit aktualisiert: python 3.14-alpine → 3.15-alpine
+
 ## [1.1.11] — 2026-10-24
 
 - Build: Alle Python-Pakete sind jetzt samt ihren Unterpaketen fest gepinnt (`requirements.txt` per pip-compile aus `requirements.in`). Jeder Build installiert exakt dieselben Versionen, und Dependabot meldet auch Lücken in Unterpaketen
