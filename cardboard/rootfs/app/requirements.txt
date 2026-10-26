@@ -19,7 +19,7 @@ certifi==2026.10.23
     #   httpx
 click==8.5.0
     # via uvicorn
-fastapi==0.153.0
+fastapi==0.161.1
     # via -r requirements.in
 h11==0.16.0
     # via
