@@ -77,9 +77,9 @@ markupsafe==3.0.4
     #   werkzeug
 opentelemetry-api==1.45.1
     # via anthropic
-pdfminer-six==20250506
+pdfminer-six==20260107
     # via pdfplumber
-pdfplumber==0.11.7
+pdfplumber==0.11.10
     # via -r requirements.in
 pillow==13.0.0
     # via pdfplumber
