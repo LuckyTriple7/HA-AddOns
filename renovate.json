@@ -1,17 +1,32 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": [
-    "Renovate pflegt Base-Images (ARG BUILD_FROM, build.yaml) und gepinnte Alpine-Pakete.",
-    "pip, npm, GitHub Actions und einfache FROM-Zeilen bleiben bei Dependabot.",
-    "Neues Add-on: in includePaths aufnehmen und seinen docker-Eintrag aus .github/dependabot.yml entfernen."
+    "Renovate pflegt für die Alpine-Add-ons Base-Images (FROM, ARG BUILD_FROM, build.yaml) und die gepinnten Alpine-Pakete.",
+    "pip, npm, GitHub Actions und die Docker-Images der übrigen Add-ons bleiben bei Dependabot.",
+    "Neues Add-on: in includePaths aufnehmen, FROM-Tag mit -alpine3.XX festziehen, apk-Pakete pinnen und seinen docker-Eintrag aus .github/dependabot.yml entfernen.",
+    "Alpine-Sprung (z. B. 3.24 -> 3.25) von Hand: alle -alpine3.XX-Tags, alle Pins und die Repo-URLs unten in einem Zug umstellen."
   ],
   "baseBranchPatterns": [
     "dev"
   ],
   "includePaths": [
-    "phpmyadmin-mariadb2/**"
+    "anubis/**",
+    "cardboard/**",
+    "claudecode/**",
+    "crowdpanel/**",
+    "gitpulse/**",
+    "mariadb2/**",
+    "mediagrab/**",
+    "messenger-portal/**",
+    "mypage/**",
+    "nettoolbox/**",
+    "phpmyadmin-mariadb2/**",
+    "syswatch/**",
+    "telegram/**",
+    "whatsapp/**"
   ],
   "enabledManagers": [
+    "dockerfile",
     "custom.regex"
   ],
   "dependencyDashboard": false,
@@ -50,6 +65,17 @@
     },
     {
       "customType": "regex",
+      "description": "ARG-Versionen mit Kommentar '# renovate: datasource=... depName=...' in der Zeile davor",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+ARG\\s+[A-Z0-9_]+=(?<currentValue>\\S+)"
+      ],
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
       "description": "Gepinnte Alpine-Pakete (paket=version) in Dockerfiles",
       "managerFilePatterns": [
         "/(^|/)Dockerfile$/"
@@ -66,33 +92,72 @@
   ],
   "packageRules": [
     {
-      "description": "Pakete aus dem community-Repo von Alpine",
+      "description": "Pakete aus dem community-Repo von Alpine (Liste beim Pinnen neuer Pakete ergänzen)",
       "matchDatasources": [
         "custom.alpine"
       ],
       "matchDepNames": [
-        "/^alpine_3_24/php84/"
+        "/^alpine_3_24/php84/",
+        "/^alpine_3_24/(chromium|chromium-chromedriver|docker-cli|ffmpeg|font-noto|font-noto-emoji|github-cli|libmodbus|libmodbus-dev|npm|ripgrep|traceroute|vim)$/"
       ],
       "registryUrls": [
         "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/"
       ]
     },
     {
-      "description": "PHP-Pakete eines Add-ons in einem PR",
+      "description": "Alle Alpine-Pakete eines Add-ons in einem PR (chromium und chromium-chromedriver müssen zusammen steigen)",
       "matchDatasources": [
         "custom.alpine"
       ],
-      "matchDepNames": [
-        "/^alpine_3_24/php/"
-      ],
-      "groupName": "PHP"
+      "groupName": "Alpine-Pakete"
     },
     {
-      "description": "Base-Image in Dockerfile und build.yaml in einem PR",
+      "description": "Base-Images eines Add-ons in einem PR",
       "matchDatasources": [
         "docker"
       ],
       "groupName": "Base-Image"
+    },
+    {
+      "description": "Alpine-Sprünge nur von Hand, sonst passen die Paket-Pins nicht mehr",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchDepNames": [
+        "alpine"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Neue Hauptversion des hassio-addons-Base-Images bringt ein neues Alpine, deshalb nur von Hand",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchDepNames": [
+        "ghcr.io/hassio-addons/base"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "mypage hatte nie automatische Python-Updates; Sprung auf eine neue Python-Version von Hand testen",
+      "matchFileNames": [
+        "mypage/Dockerfile"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "enabled": false
     }
   ]
 }

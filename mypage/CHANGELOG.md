@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.72] - 2026-10-27
+- Build: Basis-Image fest auf Alpine 3.24 (`python:3.14-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
+- Build: Schrift-Paket `ttf-dejavu` unter seinem echten Namen `font-dejavu` installiert (dieselbe Schrift)
+
 ## [0.11.71.1] - 2026-10-26
 - Abhängigkeit aktualisiert: google-genai 2.31.0 → 2.33.0
 

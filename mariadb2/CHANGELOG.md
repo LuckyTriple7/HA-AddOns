@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [1.0.7] - 2026-10-27
+- Build: Basis-Image fest auf Alpine 3.24 (`alpine:3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
+
 ## [1.0.6] - 2026-10-17
 - Neue Option `innodb_buffer_pool_size` (Standard 512M, vorher fest 128M). Auf 2G gesetzt behebt sie die Warnung der Nextcloud-App Memories „innodb_buffer_pool_size … empfohlenes Minimum: 2.0 GiB“.
 

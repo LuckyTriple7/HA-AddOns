@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:24-alpine3.24
 
 LABEL org.opencontainers.image.title="WhatsApp for Home Assistant"
 LABEL org.opencontainers.image.description="WhatsApp Web with REST API and webhook support"
@@ -7,13 +7,13 @@ LABEL org.opencontainers.image.licenses="MIT"
 
 # Install Chromium and dependencies
 RUN apk add --no-cache \
-    chromium \
-    chromium-chromedriver \
-    curl \
-    jq \
-    ca-certificates \
-    font-noto \
-    font-noto-emoji \
+    chromium=155.0.8059.84-r0 \
+    chromium-chromedriver=155.0.8059.84-r0 \
+    curl=8.23.0-r0 \
+    jq=1.8.2-r0 \
+    ca-certificates=20261020-r0 \
+    font-noto=2026.06.01-r0 \
+    font-noto-emoji=2.051-r0 \
     && update-ca-certificates
 
 # Prevent Puppeteer from downloading its own Chromium

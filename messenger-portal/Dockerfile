@@ -1,11 +1,16 @@
-FROM python:3.15-alpine
+FROM python:3.15-alpine3.24
 
 LABEL org.opencontainers.image.title="MessengerPortal for Home Assistant"
 LABEL org.opencontainers.image.description="Central launcher for Messenger add-ons with login protection"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache curl jq nginx font-dejavu ffmpeg
+RUN apk add --no-cache \
+    curl=8.23.0-r0 \
+    jq=1.8.2-r0 \
+    nginx=1.30.6-r0 \
+    font-dejavu=2.37-r6 \
+    ffmpeg=8.1.3-r0
 
 # Remove default nginx config
 RUN rm -f /etc/nginx/http.d/default.conf

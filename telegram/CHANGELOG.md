@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.6] - 2026-10-27
+- Build: Basis-Image fest auf Alpine 3.24 (`node:lts-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
+
 ## [1.8.5.1] - 2026-10-26
 - Abhängigkeit aktualisiert: teleproto 1.230.1 → 1.232.0
 

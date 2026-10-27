@@ -1,4 +1,4 @@
-FROM node:lts-alpine
+FROM node:lts-alpine3.24
 
 LABEL org.opencontainers.image.title="Telegram for Home Assistant"
 LABEL org.opencontainers.image.description="Telegram client with chat UI, REST API and webhook support"
@@ -6,10 +6,10 @@ LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns
 LABEL org.opencontainers.image.licenses="MIT"
 
 RUN apk add --no-cache \
-    jq \
-    ca-certificates \
-    python3 \
-    make \
+    jq=1.8.2-r0 \
+    ca-certificates=20261020-r0 \
+    python3=3.14.8-r0 \
+    make=4.4.1-r4 \
     g++ \
     && update-ca-certificates
 

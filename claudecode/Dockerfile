@@ -1,4 +1,4 @@
-FROM python:3.14-alpine3.21
+FROM python:3.14-alpine3.24
 
 # Labels
 LABEL maintainer="LuckyTriple7"
@@ -16,31 +16,31 @@ ENV \
 
 # Install system dependencies (ttyd installed separately as static binary)
 RUN apk add --no-cache \
-    bash \
-    curl \
-    git \
-    github-cli \
-    jq \
-    nodejs \
-    npm \
-    openssh-client \
+    bash=5.3.9-r1 \
+    curl=8.23.0-r0 \
+    git=2.54.0-r0 \
+    github-cli=2.97.0-r2 \
+    jq=1.8.2-r0 \
+    nodejs=24.22.1-r0 \
+    npm=11.12.1-r0 \
+    openssh-client-default=10.3_p1-r1 \
     libstdc++ \
-    ncurses \
-    vim \
-    nano \
-    tmux \
-    coreutils \
-    findutils \
-    grep \
-    sed \
-    gawk \
-    ca-certificates \
-    openssl \
-    ripgrep \
-    p7zip \
-    socat \
-    docker-cli \
-    gcompat \
+    ncurses=6.6_p20260516-r0 \
+    vim=9.2.1202-r0 \
+    nano=9.3-r0 \
+    tmux=3.7c-r0 \
+    coreutils=9.11-r0 \
+    findutils=4.10.0-r1 \
+    grep=3.12-r0 \
+    sed=4.9-r2 \
+    gawk=5.3.2-r2 \
+    ca-certificates=20261020-r0 \
+    openssl=3.5.9-r0 \
+    ripgrep=15.1.0-r0 \
+    7zip=26.01-r0 \
+    socat=1.8.1.3-r0 \
+    docker-cli=29.9.2-r0 \
+    gcompat=1.1.0-r4 \
     && update-ca-certificates
 
 # Install ttyd static binary (avoids libwebsockets issues).
@@ -78,9 +78,9 @@ RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
 
 # Install mbpoll (Modbus command line tool) from source
 RUN apk add --no-cache --virtual .build-deps \
-    build-base \
-    cmake \
-    libmodbus-dev \
+    build-base=0.5-r4 \
+    cmake=4.2.3-r0 \
+    libmodbus-dev=3.1.10-r0 \
     && git clone https://github.com/epsilonrt/mbpoll.git /tmp/mbpoll \
     && cd /tmp/mbpoll \
     && mkdir build && cd build \
@@ -90,7 +90,8 @@ RUN apk add --no-cache --virtual .build-deps \
     && cd / \
     && rm -rf /tmp/mbpoll \
     && apk del .build-deps \
-    && apk add --no-cache libmodbus
+    && apk add --no-cache \
+        libmodbus=3.1.10-r0
 
 # Pre-cache Playwright MCP server (npx cache avoids /usr/local/bin/mcp conflict with hass-mcp)
 ENV NPM_CONFIG_CACHE=/root/.npm

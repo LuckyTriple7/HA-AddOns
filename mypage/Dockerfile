@@ -1,4 +1,4 @@
-FROM python:3.14-alpine
+FROM python:3.14-alpine3.24
 
 LABEL org.opencontainers.image.title="MyPage"
 LABEL org.opencontainers.image.description="Homepage builder for Home Assistant"
@@ -6,8 +6,14 @@ LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns
 LABEL org.opencontainers.image.licenses="MIT"
 
 # pango + libffi: Laufzeit-Bibliotheken für WeasyPrint (PDF-Erzeugung der Bibliothek).
-# ttf-dejavu liefert die Schrift, die das erzeugte PDF verwendet.
-RUN apk add --no-cache curl cifs-utils jq ttf-dejavu pango libffi
+# font-dejavu (früher ttf-dejavu) liefert die Schrift, die das erzeugte PDF verwendet.
+RUN apk add --no-cache \
+    curl=8.23.0-r0 \
+    cifs-utils=7.5-r1 \
+    jq=1.8.2-r0 \
+    font-dejavu=2.37-r6 \
+    pango=1.57.1-r0 \
+    libffi=3.5.2-r1
 
 WORKDIR /app
 

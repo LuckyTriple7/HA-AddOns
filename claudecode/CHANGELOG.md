@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.8] - 2026-10-27
+
+### Changed
+- Build: Basis-Image fest auf Alpine 3.24 (`python:3.14-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
+- Build: Basis-Image von Alpine 3.21 auf 3.24 angehoben (Alpine 3.21 bekommt ab November 2026 keine Updates mehr). Dadurch u. a. Node.js 24 statt 22
+- Build: `p7zip` heißt in Alpine 3.24 `7zip`, `openssh-client` heißt `openssh-client-default`; Befehle `7z` und `ssh` bleiben gleich
+
 ## [1.4.7] - 2026-10-26
 
 ### Changed
