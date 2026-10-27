@@ -1,5 +1,9 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.7.1] - 2026-10-27
+
+- Abhängigkeit aktualisiert: ghcr.io/hassio-addons/base docker tag to v21.0.10
+
 ## [1.0.7] - 2026-10-23
 
 - Update: PHP 8.2 → 8.4 und Base-Image 19.0.0 → 21.0.9 (Alpine 3.24, nachgezogen vom offiziellen phpMyAdmin-Add-on 0.14.1)
