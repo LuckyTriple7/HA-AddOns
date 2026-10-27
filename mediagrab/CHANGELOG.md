@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.1.13] — 2026-10-27
+
+### Geändert
+- Rebuild für yt-dlp 2026.10.26
+
+
 ## [1.1.12] — 2026-10-27
 
 - Build: Basis-Image fest auf Alpine 3.24 (`python:3.15-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
