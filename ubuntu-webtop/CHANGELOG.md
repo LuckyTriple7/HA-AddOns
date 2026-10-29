@@ -1,3 +1,13 @@
+## [1.8.113] - 2026-10-29
+
+### Aktualisiert
+
+- VS Code: 1.143.1 → 1.144.0
+- Firefox: 158.0.1 → 159.0
+- Thunderbird: 158.0.1 → 159.0
+- OpenCode: 2.1.4 → 2.2.1
+- Tailscale: 1.104.2 → 1.104.4
+
 ## [1.8.112] - 2026-10-27
 
 ### Aktualisiert
