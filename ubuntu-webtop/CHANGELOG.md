@@ -1,3 +1,11 @@
+## [1.8.114] - 2026-10-30
+
+### Aktualisiert
+
+- Bitwarden: 2026.10.1 → 2026.10.2
+- Claude Desktop: 3.3.13+claude3.6556.2 → 3.3.14+claude4.29.0
+- OpenCode: 2.2.1 → 2.2.2
+
 ## [1.8.113] - 2026-10-29
 
 ### Aktualisiert
