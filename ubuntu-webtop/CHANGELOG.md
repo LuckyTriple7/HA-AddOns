@@ -1,3 +1,11 @@
+## [1.8.115] - 2026-10-31
+
+### Aktualisiert
+
+- Angry IP Scanner: 3.10.0 → 3.12.0
+- Claude Desktop: 3.3.14+claude4.29.0 → 3.3.14+claude4.4212.0
+- OpenCode: 2.2.2 → 2.2.5
+
 ## [1.8.114] - 2026-10-30
 
 ### Aktualisiert
