@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.6.1] - 2026-11-02
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.1 → 8.7.2
+
 ## [1.8.6] - 2026-10-27
 - Build: Basis-Image fest auf Alpine 3.24 (`node:lts-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
 
