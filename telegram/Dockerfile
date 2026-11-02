@@ -8,7 +8,7 @@ LABEL org.opencontainers.image.licenses="MIT"
 RUN apk add --no-cache \
     jq=1.8.2-r0 \
     ca-certificates=20261020-r0 \
-    python3=3.14.8-r0 \
+    python3=3.14.10-r1 \
     make=4.4.1-r4 \
     g++ \
     && update-ca-certificates

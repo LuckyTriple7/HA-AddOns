@@ -7,8 +7,8 @@ LABEL org.opencontainers.image.licenses="MIT"
 
 # Install Chromium and dependencies
 RUN apk add --no-cache \
-    chromium=156.0.8078.79-r0 \
-    chromium-chromedriver=156.0.8078.79-r0 \
+    "chromium>=155.0.8059.84-r0" \
+    "chromium-chromedriver>=155.0.8059.84-r0" \
     curl=8.23.0-r0 \
     jq=1.8.2-r0 \
     ca-certificates=20261020-r0 \

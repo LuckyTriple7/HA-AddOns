@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.9] - 2026-11-02
+
+- Build: nodejs-Pin auf 24.22.1-r1 angehoben. Alpine 3.24 hat 24.22.1-r0 entfernt, der Image-Build brach bei `apk add` ab
+
 ## [1.4.8.1] - 2026-11-02
 
 - Abhängigkeit aktualisiert: hass-mcp 0.6.0 → 0.6.1

@@ -21,7 +21,7 @@ RUN apk add --no-cache \
     git=2.54.0-r0 \
     github-cli=2.97.0-r2 \
     jq=1.8.2-r0 \
-    nodejs=24.22.1-r0 \
+    nodejs=24.22.1-r1 \
     npm=11.12.1-r0 \
     openssh-client-default=10.3_p1-r1 \
     libstdc++ \

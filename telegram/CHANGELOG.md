@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.7] - 2026-11-02
+- Build: python3-Pin auf 3.14.10-r1 angehoben. Alpine 3.24 hat 3.14.8-r0 entfernt, der Image-Build brach bei `apk add` ab
+
 ## [1.8.6.1] - 2026-11-02
 - Abhängigkeit aktualisiert: express-rate-limit 8.7.1 → 8.7.2
 
