@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.8.1] - 2026-11-02
+
+- Abhängigkeit aktualisiert: hass-mcp 0.6.0 → 0.6.1
+
 ## [1.4.8] - 2026-10-27
 
 ### Changed
