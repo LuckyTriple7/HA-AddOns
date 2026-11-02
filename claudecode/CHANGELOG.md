@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.10.1] - 2026-11-02
+
+- Abhängigkeit aktualisiert: python 3.14-alpine3.24 → 3.15-alpine3.24
+
 ## [1.4.10] - 2026-11-02
 
 ### Changed
