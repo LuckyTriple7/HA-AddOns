@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.63] - 2026-11-02
+- Build: Chromium-Pin auf 156.0.8078.79-r0 angehoben. Alpine 3.24 hat 155.0.8059.84-r0 aus dem Repo entfernt, der Image-Build brach dadurch bei `apk add` ab
+
 ## [1.8.62.1] - 2026-11-02
 - Abhängigkeit aktualisiert: express-rate-limit 8.7.1 → 8.7.2
 
