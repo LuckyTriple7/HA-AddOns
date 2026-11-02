@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.10] - 2026-11-02
+
+### Changed
+- Rebuild für Claude Code 2.1.309
+
+
 ## [1.4.9] - 2026-11-02
 
 - Build: nodejs-Pin auf 24.22.1-r1 angehoben. Alpine 3.24 hat 24.22.1-r0 entfernt, der Image-Build brach bei `apk add` ab
