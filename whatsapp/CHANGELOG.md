@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.63.1] - 2026-11-02
+- Abhängigkeit aktualisiert: node 24-alpine3.24 → 26-alpine3.24
+
 ## [1.8.63] - 2026-11-02
 - Build: Chromium nicht mehr exakt gepinnt, sondern als Mindestversion (`>=155.0.8059.84-r0`). Alpine 3.24 hat 155.0.8059.84-r0 für arm64 schon durch 156 ersetzt, für amd64 noch nicht; ein exakter Pin bricht damit den Build auf einer der beiden Architekturen
 
