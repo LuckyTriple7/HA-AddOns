@@ -32,7 +32,7 @@ h11==0.16.0
     # via
     #   httpcore
     #   uvicorn
-hass-mcp==0.6.0
+hass-mcp==0.6.1
     # via -r requirements.in
 httpcore==1.0.9
     # via httpx
