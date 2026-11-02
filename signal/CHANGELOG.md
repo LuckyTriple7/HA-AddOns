@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.5.1] - 2026-11-02
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.1 → 8.7.2
+
 ## [1.8.5] - 2026-10-24
 - Build: Abhängigkeiten kommen jetzt fest aus `package-lock.json` (`npm ci`) statt bei jedem Build frisch aufgelöst zu werden. Dadurch sieht Dependabot auch indirekte Pakete und meldet deren Sicherheitslücken
 
