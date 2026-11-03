@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.4.1] - 2026-11-03
+
+- Abhängigkeit aktualisiert: ghcr.io/techarohq/anubis docker tag to v1.28.2
+
 ## [0.1.4] - 2026-10-27
 
 ### Geändert
