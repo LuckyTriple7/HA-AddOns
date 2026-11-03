@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.64] - 2026-11-03
+- Sicherheit: qs 6.16.0 → 6.17.1 (GHSA-6pq8-jhm2-2vcw), minimatch 10.2.6 → 11.0.3 (GHSA-g3hv-75wg-m249) und glob 10.5.0 → 14.0.3 (GHSA-3g3m-2fjr-6pw4) per overrides angehoben
+
 ## [1.8.63.1] - 2026-11-02
 - Abhängigkeit aktualisiert: node 24-alpine3.24 → 26-alpine3.24
 
