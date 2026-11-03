@@ -1,11 +1,12 @@
-FROM python:3.15-alpine
+FROM python:3.15-alpine3.24
 
 LABEL org.opencontainers.image.title="HA SysWatch"
 LABEL org.opencontainers.image.description="Docker container resource monitor for Home Assistant"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache curl
+RUN apk add --no-cache \
+    curl=8.23.0-r0
 
 WORKDIR /app
 

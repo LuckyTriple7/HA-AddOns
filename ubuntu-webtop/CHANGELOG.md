@@ -1,3 +1,43 @@
+## [1.8.116] - 2026-11-03
+
+### Aktualisiert
+
+- Bitwarden: 2026.10.2 → 2026.10.3
+- Angry IP Scanner: 3.12.0 → 3.12.1
+- Tailscale: 1.104.4 → 1.104.5
+
+## [1.8.115] - 2026-10-31
+
+### Aktualisiert
+
+- Angry IP Scanner: 3.10.0 → 3.12.0
+- Claude Desktop: 3.3.14+claude4.29.0 → 3.3.14+claude4.4212.0
+- OpenCode: 2.2.2 → 2.2.5
+
+## [1.8.114] - 2026-10-30
+
+### Aktualisiert
+
+- Bitwarden: 2026.10.1 → 2026.10.2
+- Claude Desktop: 3.3.13+claude3.6556.2 → 3.3.14+claude4.29.0
+- OpenCode: 2.2.1 → 2.2.2
+
+## [1.8.113] - 2026-10-29
+
+### Aktualisiert
+
+- VS Code: 1.143.1 → 1.144.0
+- Firefox: 158.0.1 → 159.0
+- Thunderbird: 158.0.1 → 159.0
+- OpenCode: 2.1.4 → 2.2.1
+- Tailscale: 1.104.2 → 1.104.4
+
+## [1.8.112] - 2026-10-27
+
+### Aktualisiert
+
+- GitHub CLI: 2.103.2 → 2.103.3
+
 ## [1.8.111] - 2026-10-24
 
 ### Aktualisiert

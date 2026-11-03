@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.63.1] - 2026-11-02
+- Abhängigkeit aktualisiert: node 24-alpine3.24 → 26-alpine3.24
+
+## [1.8.63] - 2026-11-02
+- Build: Chromium nicht mehr exakt gepinnt, sondern als Mindestversion (`>=155.0.8059.84-r0`). Alpine 3.24 hat 155.0.8059.84-r0 für arm64 schon durch 156 ersetzt, für amd64 noch nicht; ein exakter Pin bricht damit den Build auf einer der beiden Architekturen
+
+## [1.8.62.1] - 2026-11-02
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.1 → 8.7.2
+
+## [1.8.62] - 2026-10-27
+- Build: Basis-Image fest auf Alpine 3.24 (`node:24-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
+
 ## [1.8.61] - 2026-10-24
 - Sicherheitsupdate: multer 2.4.0 → 2.5.0, body-parser 2.3.0 → 2.4.0 und ip-address 10.7.2 → 10.7.4 (je ein DoS über präparierte Anfragen)
 

@@ -138,64 +138,9 @@ updates:
     open-pull-requests-limit: 5
 
   # ── Docker (Base Images) ──────────────────────────────────────────────────────
-  - package-ecosystem: "docker"
-    directory: "/mediagrab"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/gitpulse"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/syswatch"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/messenger-portal"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/cardboard"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
 
   - package-ecosystem: "docker"
     directory: "/signal"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/telegram"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/whatsapp"
     target-branch: "dev"
     schedule:
       interval: "weekly"
@@ -240,16 +185,10 @@ updates:
       day: "monday"
     open-pull-requests-limit: 3
 
-  - package-ecosystem: "docker"
-    directory: "/mariadb2"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  # phpmyadmin-mariadb2: Base-Image (ARG BUILD_FROM) und gepinnte Alpine-Pakete
-  # pflegt Renovate (renovate.json), Dependabot erkennt beides nicht.
+  # Die Alpine-Add-ons (anubis, cardboard, claudecode, crowdpanel, gitpulse,
+  # mariadb2, mediagrab, messenger-portal, mypage, nettoolbox,
+  # phpmyadmin-mariadb2, syswatch, telegram, whatsapp): Base-Image und gepinnte
+  # Alpine-Pakete pflegt Renovate (renovate.json), Dependabot erkennt die Pins nicht.
 
   - package-ecosystem: "docker"
     directory: "/logpulse"
@@ -260,23 +199,7 @@ updates:
     open-pull-requests-limit: 3
 
   - package-ecosystem: "docker"
-    directory: "/nettoolbox"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
     directory: "/tuiwatch"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/claudecode"
     target-branch: "dev"
     schedule:
       interval: "weekly"
@@ -298,22 +221,6 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/ubuntu-webtop"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/crowdpanel"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/anubis"
     target-branch: "dev"
     schedule:
       interval: "weekly"

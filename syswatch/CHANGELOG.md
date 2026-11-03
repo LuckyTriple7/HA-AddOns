@@ -1,5 +1,9 @@
 # Changelog — HA SysWatch
 
+## [1.5.2] - 2026-10-27
+
+- Build: Basis-Image fest auf Alpine 3.24 (`python:3.15-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
+
 ## [1.5.1.1] - 2026-10-26
 
 - Abhängigkeit aktualisiert: python 3.14-alpine → 3.15-alpine

@@ -1,11 +1,14 @@
-FROM python:3.15-alpine
+FROM python:3.15-alpine3.24
 
 LABEL org.opencontainers.image.title="NetToolbox"
 LABEL org.opencontainers.image.description="Network and mail diagnostics for Home Assistant"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache curl iputils traceroute
+RUN apk add --no-cache \
+    curl=8.23.0-r0 \
+    iputils=20250605-r2 \
+    traceroute=2.1.6-r0
 
 WORKDIR /app
 
