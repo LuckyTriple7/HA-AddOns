@@ -85,7 +85,7 @@ pillow==13.0.0
     # via pdfplumber
 playwright==1.64.1
     # via -r requirements.in
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth

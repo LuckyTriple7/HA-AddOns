@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.73] - 2026-11-03
+- Sicherheit: pyasn1 0.6.4 → 0.6.5 (4 Dependabot-Warnungen, hoch)
+
 ## [0.11.72.1] - 2026-11-02
 - Abhängigkeit aktualisiert: google-genai 2.33.0 → 2.34.0
 

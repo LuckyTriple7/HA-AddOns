@@ -12,8 +12,9 @@
     "whatsapp-web.js": "github:lindionez/whatsapp-web.js#88d84601f75c479cf62b658cc3080cda5731b0ec"
   },
   "overrides": {
-    "minimatch": "^10.2.2",
-    "qs": "^6.16.0",
-    "basic-ftp": "^6.2.1"
+    "minimatch": "^11.0.1",
+    "qs": "^6.16.1",
+    "basic-ftp": "^6.2.1",
+    "glob": "^14.0.2"
   }
 }
