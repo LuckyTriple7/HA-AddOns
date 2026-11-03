@@ -9,7 +9,7 @@
 # schlankes Alpine gesetzt, das run.sh als eigenen Entrypoint ausführt.
 ###############################################################################
 # renovate: datasource=docker depName=ghcr.io/techarohq/anubis
-ARG ANUBIS_VERSION=v1.28.1
+ARG ANUBIS_VERSION=v1.28.2
 FROM ghcr.io/techarohq/anubis:${ANUBIS_VERSION} AS anubis-bin
 
 FROM alpine:3.24
