@@ -1,3 +1,11 @@
+## [1.8.116] - 2026-11-03
+
+### Aktualisiert
+
+- Bitwarden: 2026.10.2 → 2026.10.3
+- Angry IP Scanner: 3.12.0 → 3.12.1
+- Tailscale: 1.104.4 → 1.104.5
+
 ## [1.8.115] - 2026-10-31
 
 ### Aktualisiert
