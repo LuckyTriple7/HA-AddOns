@@ -1,3 +1,10 @@
+## [1.8.117] - 2026-11-04
+
+### Aktualisiert
+
+- Firefox: 159.0 → 159.0.1
+- Claude Desktop: 3.3.14+claude4.4212.0 → 3.3.15+claude4.16336.0
+
 ## [1.8.116] - 2026-11-03
 
 ### Aktualisiert
