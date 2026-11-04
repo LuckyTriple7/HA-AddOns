@@ -1,3 +1,11 @@
+## [1.8.117] - 2026-11-04
+
+### Behoben
+
+- OpenCode Desktop startete nicht mehr: Ab Version 2.2.5 heißt die Programmdatei
+  `ai.opencode` statt `ai.opencode.desktop`. Der Starter sucht jetzt beide Namen,
+  der Build bricht ab, wenn keiner gefunden wird.
+
 ## [1.8.116] - 2026-11-03
 
 ### Aktualisiert
