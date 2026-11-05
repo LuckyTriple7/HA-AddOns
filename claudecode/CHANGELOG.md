@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.10.2] - 2026-11-05
+
+- Abhängigkeit aktualisiert: alpine_3_24/openssh-client-default 10.3_p1-r1 → 10.3_p1-r2
+
 ## [1.4.10.1] - 2026-11-02
 
 - Abhängigkeit aktualisiert: python 3.14-alpine3.24 → 3.15-alpine3.24
