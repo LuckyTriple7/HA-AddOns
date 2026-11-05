@@ -23,7 +23,7 @@ RUN apk add --no-cache \
     jq=1.8.2-r0 \
     nodejs=24.22.1-r1 \
     npm=11.12.1-r0 \
-    openssh-client-default=10.3_p1-r1 \
+    openssh-client-default=10.3_p1-r2 \
     libstdc++ \
     ncurses=6.6_p20260516-r0 \
     vim=9.2.1202-r0 \
