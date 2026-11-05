@@ -303,6 +303,7 @@ RUN curl -fsSL https://pkg.claude-desktop-debian.dev/KEY.gpg \
 # Wrapper: --no-sandbox wie bei den anderen Electron-Apps, TMPDIR wie beim CLI-Wrapper (/tmp ist noexec).
 # Das Paket bringt zwei .desktop-Dateien mit, beide zeigen danach auf den Wrapper.
 # Binary hieß bis 2.2.4 ai.opencode.desktop, ab 2.2.5 ai.opencode; der Build bricht ab, wenn keiner da ist.
+# Kein ls für die Suche: mit pipefail scheitert ls an der fehlenden Variante, auch wenn die andere da ist.
 RUN ARCH=$(dpkg --print-architecture) \
     && curl -fsSL \
         "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-desktop-linux-${ARCH}.deb" \
@@ -312,9 +313,12 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm -f /tmp/opencode-desktop.deb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && OC_BIN=$(ls /opt/OpenCode/ai.opencode /opt/OpenCode/ai.opencode.desktop 2>/dev/null | head -n1) \
-    && [ -n "$OC_BIN" ] || { echo "OpenCode Desktop: Binary in /opt/OpenCode nicht gefunden"; exit 1; }; \
-    printf '#!/bin/sh\nexport TMPDIR=/config/.cache/opencode-tmp\nmkdir -p "$TMPDIR"\nexec %s --no-sandbox --disable-gpu "$@"\n' "$OC_BIN" \
+    && OC_BIN="" \
+    && for f in /opt/OpenCode/ai.opencode /opt/OpenCode/ai.opencode.desktop; do \
+        if [ -f "$f" ]; then OC_BIN="$f"; break; fi; \
+    done \
+    && if [ -z "$OC_BIN" ]; then echo "OpenCode Desktop: Binary in /opt/OpenCode nicht gefunden"; exit 1; fi \
+    && printf '#!/bin/sh\nexport TMPDIR=/config/.cache/opencode-tmp\nmkdir -p "$TMPDIR"\nexec %s --no-sandbox --disable-gpu "$@"\n' "$OC_BIN" \
         > /usr/bin/opencode-desktop \
     && chmod +x /usr/bin/opencode-desktop \
     && sed -i 's|^Exec=.*|Exec=/usr/bin/opencode-desktop %U|' \

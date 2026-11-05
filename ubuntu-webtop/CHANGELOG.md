@@ -1,3 +1,12 @@
+## [1.8.118] - 2026-11-05
+
+### Behoben
+
+- Build brach in 1.8.117 ab ("OpenCode Desktop: Binary in /opt/OpenCode nicht gefunden"),
+  obwohl das Programm installiert war: Die Suche per `ls` lieferte wegen der jeweils
+  fehlenden zweiten Namensvariante einen Fehlercode. Die Suche läuft jetzt über eine
+  Schleife.
+
 ## [1.8.117] - 2026-11-04
 
 ### Behoben
