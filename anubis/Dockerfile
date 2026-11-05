@@ -22,7 +22,7 @@ LABEL org.opencontainers.image.licenses="MIT"
 RUN apk add --no-cache \
     bash=5.3.9-r1 \
     jq=1.8.2-r0 \
-    tzdata=2026e-r0
+    tzdata=2026f-r0
 
 # ko-build legt das fertige Binary unter /ko-app/<binary-name> ab.
 COPY --from=anubis-bin /ko-app/anubis /usr/local/bin/anubis
