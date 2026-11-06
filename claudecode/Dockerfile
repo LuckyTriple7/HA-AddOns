@@ -39,7 +39,7 @@ RUN apk add --no-cache \
     ripgrep=15.1.0-r0 \
     7zip=26.01-r0 \
     socat=1.8.1.3-r0 \
-    docker-cli=29.9.2-r0 \
+    docker-cli=29.9.3-r0 \
     gcompat=1.1.0-r4 \
     && update-ca-certificates
 
