@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.10.3] - 2026-11-06
+
+- Abhängigkeit aktualisiert: alpine_3_24/docker-cli 29.9.2-r0 → 29.9.3-r0
+
 ## [1.4.10.2] - 2026-11-05
 
 - Abhängigkeit aktualisiert: alpine_3_24/openssh-client-default 10.3_p1-r1 → 10.3_p1-r2
