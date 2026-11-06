@@ -12,7 +12,7 @@ RUN apk add --no-cache \
     curl=8.23.0-r0 \
     jq=1.8.2-r0 \
     ca-certificates=20261020-r0 \
-    font-noto=2026.06.01-r0 \
+    font-noto=2026.11.01-r0 \
     font-noto-emoji=2.051-r0 \
     && update-ca-certificates
 
