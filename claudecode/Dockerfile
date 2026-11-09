@@ -26,7 +26,7 @@ RUN apk add --no-cache \
     openssh-client-default=10.3_p1-r2 \
     libstdc++ \
     ncurses=6.6_p20260516-r0 \
-    vim=9.2.1202-r0 \
+    vim=9.2.1310-r0 \
     nano=9.3-r0 \
     tmux=3.7c-r0 \
     coreutils=9.11-r0 \
