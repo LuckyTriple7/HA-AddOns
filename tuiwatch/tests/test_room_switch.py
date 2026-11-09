@@ -8,8 +8,12 @@ aus dem Markttrend (`price_moves`) heraus.
 """
 import importlib
 import time
+from datetime import date, timedelta
 
 import pytest
+
+# Rückreise immer in der Zukunft, sonst zählt die Reise nicht mehr zum Markttrend
+RETURN_DATE = (date.today() + timedelta(days=60)).isoformat()
 
 pytest.importorskip("flask")
 
@@ -102,11 +106,11 @@ def test_room_switch_keeps_price_jump_out_of_market_trend(m, monkeypatch):
     oid = _add_offer(m)
     monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
         "ok": True, "price": 1759, "room": "Doppelzimmer",
-        "region": "Griechenland", "country": "Griechenland", "return_date": "2026-10-28"})
+        "region": "Griechenland", "country": "Griechenland", "return_date": RETURN_DATE})
     m.check_offer(oid)
     monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
         "ok": True, "price": 2221, "room": "Executive Double room side sea view",
-        "region": "Griechenland", "country": "Griechenland", "return_date": "2026-10-28"})
+        "region": "Griechenland", "country": "Griechenland", "return_date": RETURN_DATE})
     m.check_offer(oid)
     with m.db() as con:
         moves = con.execute("SELECT COUNT(*) AS n FROM price_moves").fetchone()["n"]
@@ -115,7 +119,7 @@ def test_room_switch_keeps_price_jump_out_of_market_trend(m, monkeypatch):
     # Der nächste Check im selben Zimmer zählt wieder normal mit
     monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
         "ok": True, "price": 2300, "room": "Executive Double room side sea view",
-        "region": "Griechenland", "country": "Griechenland", "return_date": "2026-10-28"})
+        "region": "Griechenland", "country": "Griechenland", "return_date": RETURN_DATE})
     m.check_offer(oid)
     with m.db() as con:
         moves = con.execute("SELECT COUNT(*) AS n FROM price_moves").fetchone()["n"]
