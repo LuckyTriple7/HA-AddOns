@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.10.5] - 2026-11-09
+
+- Abhängigkeit aktualisiert: pymodbus 3.16.1 → 3.16.2
+
 ## [1.4.10.4] - 2026-11-09
 
 - Abhängigkeit aktualisiert: alpine_3_24/vim 9.2.1202-r0 → 9.2.1310-r0
