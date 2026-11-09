@@ -9,16 +9,13 @@ annotated-types==0.8.0
 anyio==4.15.1
     # via
     #   google-genai
-    #   httpx
+    #   httpx2
 blinker==1.9.0
     # via flask
 brotli==1.2.1
     # via fonttools
 certifi==2026.10.23
-    # via
-    #   httpcore
-    #   httpx
-    #   requests
+    # via requests
 cffi==2.1.1
     # via
     #   cryptography
@@ -44,18 +41,18 @@ fonttools==4.67.0
     # via weasyprint
 google-auth==2.62.0
     # via google-genai
-google-genai==2.34.0
+google-genai==3.0.0
     # via -r requirements.in
 h11==0.16.0
-    # via httpcore
-httpcore==1.0.9
-    # via httpx
-httpx==0.28.1
+    # via httpcore2
+httpcore2==2.16.0
+    # via httpx2
+httpx2==2.16.0
     # via google-genai
 idna==3.20
     # via
     #   anyio
-    #   httpx
+    #   httpx2
     #   requests
 itsdangerous==2.2.0
     # via flask
@@ -112,6 +109,10 @@ tinycss2==1.5.1
     #   weasyprint
 tinyhtml5==2.1.0
     # via weasyprint
+truststore==0.10.5
+    # via
+    #   httpcore2
+    #   httpx2
 typing-extensions==4.16.0
     # via
     #   anyio
