@@ -12,15 +12,11 @@ anyio==4.15.1
     # via
     #   anthropic
     #   google-genai
-    #   httpx
     #   httpx2
 blinker==1.9.0
     # via flask
 certifi==2026.10.23
-    # via
-    #   httpcore
-    #   httpx
-    #   requests
+    # via requests
 cffi==2.1.1
     # via cryptography
 charset-normalizer==3.5.2
@@ -42,26 +38,21 @@ flask==3.1.3
     # via -r requirements.in
 google-auth==2.62.0
     # via google-genai
-google-genai==2.34.0
+google-genai==3.0.0
     # via -r requirements.in
 greenlet==3.5.6
     # via playwright
 h11==0.16.0
-    # via
-    #   httpcore
-    #   httpcore2
-httpcore==1.0.9
-    # via httpx
+    # via httpcore2
 httpcore2==2.16.0
     # via httpx2
-httpx==0.28.1
-    # via google-genai
 httpx2==2.16.0
-    # via anthropic
+    # via
+    #   anthropic
+    #   google-genai
 idna==3.20
     # via
     #   anyio
-    #   httpx
     #   httpx2
     #   requests
 itsdangerous==2.2.0
