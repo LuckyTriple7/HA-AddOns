@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.10.4] - 2026-11-09
+
+- Abhängigkeit aktualisiert: alpine_3_24/vim 9.2.1202-r0 → 9.2.1310-r0
+
 ## [1.4.10.3] - 2026-11-06
 
 - Abhängigkeit aktualisiert: alpine_3_24/docker-cli 29.9.2-r0 → 29.9.3-r0
