@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.11.2
+
+- Abhängigkeit aktualisiert: google-genai 2.34.0 → 3.0.0
+
 ## 0.120.11.1
 
 - Abhängigkeit aktualisiert: anthropic 2.3.0 → 2.6.0
