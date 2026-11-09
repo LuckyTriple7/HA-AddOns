@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.11.1
+
+- Abhängigkeit aktualisiert: anthropic 2.3.0 → 2.6.0
+
 ## 0.120.11
 
 - Gemini: API-Version fest auf v1beta gesetzt (Vorbereitung auf google-genai 3.0, das standardmäßig v1 nutzt; Preview-Modelle gibt es teils nur unter v1beta)
