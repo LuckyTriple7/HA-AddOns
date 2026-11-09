@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.74] - 2026-11-09
+- Gemini: API-Version fest auf v1beta gesetzt (Vorbereitung auf google-genai 3.0, das standardmäßig v1 nutzt; Preview- und Bildmodelle gibt es teils nur unter v1beta)
+
 ## [0.11.73] - 2026-11-03
 - Sicherheit: pyasn1 0.6.4 → 0.6.5 (4 Dependabot-Warnungen, hoch)
 

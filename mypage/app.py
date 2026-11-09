@@ -7693,7 +7693,10 @@ def _gemini_client():
     with _gemini_client_lock:
         if _gemini_client_cache is not None and _gemini_client_cache[0] == key:
             return _gemini_client_cache[1]
-        client = genai.Client(api_key=key)
+        # google-genai 3.x nutzt standardmäßig API v1; Preview- und Bildmodelle
+        # gibt es teils nur unter v1beta, daher fest auf v1beta bleiben.
+        client = genai.Client(api_key=key,
+                              http_options=genai_types.HttpOptions(api_version='v1beta'))
         _gemini_client_cache = (key, client)
         return client
 

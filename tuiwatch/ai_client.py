@@ -638,7 +638,10 @@ def _ai_request_gemini_messages(api_key: str, model: str, messages: list[dict], 
                                     parts=[genai_types.Part(text=m['content'])])
                for m in messages]
     try:
-        client = genai.Client(api_key=api_key)
+        # google-genai 3.x nutzt standardmäßig API v1; Preview-Modelle und
+        # Google-Suche-Tool laufen sicher nur unter v1beta, daher fest dort bleiben.
+        client = genai.Client(api_key=api_key,
+                              http_options=genai_types.HttpOptions(api_version='v1beta'))
         resp = client.models.generate_content(
             model=model, contents=contents,
             config=genai_types.GenerateContentConfig(**cfg_kwargs),
