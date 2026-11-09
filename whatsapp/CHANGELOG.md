@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.64.2] - 2026-11-09
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.2 → 8.7.3
+
 ## [1.8.64.1] - 2026-11-06
 - Abhängigkeit aktualisiert: alpine_3_24/font-noto 2026.06.01-r0 → 2026.11.01-r0
 
