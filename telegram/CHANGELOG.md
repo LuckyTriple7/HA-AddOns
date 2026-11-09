@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.8.1] - 2026-11-09
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.2 → 8.7.3
+
 ## [1.8.8] - 2026-11-03
 - Sicherheit: qs 6.16.0 → 6.17.1 (GHSA-6pq8-jhm2-2vcw) per override angehoben
 
