@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.15.2] - 2026-11-09
+- Abhängigkeit aktualisiert: python-multipart 0.0.32 → 0.0.33
+
 ## [1.0.15.1] - 2026-11-02
 - Abhängigkeit aktualisiert: fastapi 0.161.1 → 0.162.0
 
