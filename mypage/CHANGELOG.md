@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.74.1] - 2026-11-09
+- Abhängigkeit aktualisiert: markdown 3.11.2 → 3.11.3
+
 ## [0.11.74] - 2026-11-09
 - Gemini: API-Version fest auf v1beta gesetzt (Vorbereitung auf google-genai 3.0, das standardmäßig v1 nutzt; Preview- und Bildmodelle gibt es teils nur unter v1beta)
 
