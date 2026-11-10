@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.64.2] - 2026-11-09
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.2 → 8.7.3
+
+## [1.8.64.1] - 2026-11-06
+- Abhängigkeit aktualisiert: alpine_3_24/font-noto 2026.06.01-r0 → 2026.11.01-r0
+
 ## [1.8.64] - 2026-11-03
 - Sicherheit: qs 6.16.0 → 6.17.1 (GHSA-6pq8-jhm2-2vcw), minimatch 10.2.6 → 11.0.3 (GHSA-g3hv-75wg-m249) und glob 10.5.0 → 14.0.3 (GHSA-3g3m-2fjr-6pw4) per overrides angehoben
 

@@ -1,0 +1,67 @@
+configuration:
+  api_enabled:
+    name: API REST en un puerto propio
+    description: Inicia la API REST también en el puerto 17788. En este puerto se
+      requiere un token y no hay interfaz web, a diferencia del puerto 17778,
+      que ofrece ambas cosas sin necesidad de iniciar sesión. El puerto no se
+      inicia si no se ha configurado un token de API. Para acceder desde la red
+      local, también hay que habilitarlo en la sección «Red». Desactivado de
+      forma predeterminada.
+  api_token:
+    name: Token de API
+    description: Secreto para la API REST del puerto 17788. El cliente debe enviarlo
+      en la cabecera Authorization con el valor Bearer seguido del token. Elige
+      uno largo y aleatorio, por ejemplo, con openssl rand -hex 32.
+  api_id:
+    name: ID de API
+    description: ID numérico de API disponible en my.telegram.org → API development
+      tools. Es necesario para conectarse a Telegram.
+  api_hash:
+    name: Hash de API
+    description: Hash de API disponible en my.telegram.org → API development tools.
+      Es necesario para conectarse a Telegram.
+  phone_number:
+    name: Número de teléfono
+    description: Tu número de teléfono de Telegram con el prefijo internacional (p.
+      ej., +4917612345678).
+  dark_mode:
+    name: Tema oscuro
+    description: Activar el tema oscuro en la interfaz web.
+  download_media:
+    name: Descargar archivos multimedia
+    description: Descarga y muestra automáticamente las fotos y los vídeos
+      recibidos. Solo funciona de forma fiable con los mensajes nuevos, no con
+      los mensajes antiguos.
+  media_max_mb:
+    name: Límite de almacenamiento multimedia (MB)
+    description: "Tamaño máximo de la carpeta de archivos multimedia, en MB. Si se
+      supera el límite, se eliminarán automáticamente los archivos más antiguos
+      (fotos, vídeos y mensajes de voz) hasta que la carpeta vuelva a ocupar el
+      80 % del límite. Valor predeterminado: 500 MB."
+  video_max_mb:
+    name: Tamaño máximo de vídeo (MB)
+    description: "Tamaño máximo de archivo para los vídeos que se pueden descargar,
+      en MB. Los vídeos que superen este tamaño mostrarán un marcador de
+      posición sin opción de descarga. Valor predeterminado: 50 MB."
+  fetch_messages_limit:
+    name: Mensajes por chat
+    description: "Número de mensajes que se cargan la primera vez que se abre un
+      chat. Recomendado: 50. Máximo: 300."
+  webhook_incoming:
+    name: URL del webhook
+    description: URL para mensajes entrantes (p. ej.,
+      http://homeassistant:8123/api/webhook/telegram).
+  debug_mode:
+    name: Modo de depuración
+    description: Activar el registro detallado. Útil para solucionar problemas.
+  ha_notifications:
+    name: Notificaciones de HA
+    description: Notificación persistente de HA para los mensajes nuevos (una por
+      chat; se sustituye por los mensajes más recientes).
+  ha_notifications_privacy:
+    name: Modo de privacidad de las notificaciones de HA
+    description: "Solo muestra «Telegram / Nuevo mensaje»: sin nombre del remitente
+      ni contenido del mensaje."
+  ha_notifications_skip_bots:
+    name: Omitir notificaciones de bots
+    description: No mostrar notificaciones de HA para mensajes enviados por bots.

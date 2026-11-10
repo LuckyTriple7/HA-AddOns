@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.6] - 2026-11-10
+- Intern: gemeinsamer Story-Editor (`mystatus.js`, identisch mit Telegram) kennt jetzt auch Spanisch; an der Signal-Oberfläche ändert sich nichts
+
+## [1.8.5.2] - 2026-11-09
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.2 → 8.7.3
+
 ## [1.8.5.1] - 2026-11-02
 - Abhängigkeit aktualisiert: express-rate-limit 8.7.1 → 8.7.2
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.120.11.2
+
+- Abhängigkeit aktualisiert: google-genai 2.34.0 → 3.0.0
+
+## 0.120.11.1
+
+- Abhängigkeit aktualisiert: anthropic 2.3.0 → 2.6.0
+
+## 0.120.11
+
+- Gemini: API-Version fest auf v1beta gesetzt (Vorbereitung auf google-genai 3.0, das standardmäßig v1 nutzt; Preview-Modelle gibt es teils nur unter v1beta)
+
 ## 0.120.10
 
 - Sicherheit: pyasn1 0.6.4 → 0.6.5 (4 Dependabot-Warnungen, hoch)

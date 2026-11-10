@@ -1,3 +1,50 @@
+## [1.8.122] - 2026-11-10
+
+### Aktualisiert
+
+- Claude Desktop: 3.3.15+claude4.23118.0 → 3.3.15+claude4.23118.1
+
+## [1.8.121] - 2026-11-08
+
+### Aktualisiert
+
+- VS Code: 1.145.1 → 1.145.2
+- rclone: 1.75.2 → 1.76.0
+- OpenCode: 2.2.5 → 2.2.6
+
+## [1.8.120] - 2026-11-06
+
+### Aktualisiert
+
+- Bitwarden: 2026.10.3 → 2026.10.4
+- VS Code: 1.145.0 → 1.145.1
+- Claude Desktop: 3.3.15+claude4.16336.0 → 3.3.15+claude4.23118.0
+
+## [1.8.119] - 2026-11-05
+
+### Aktualisiert
+
+- VS Code: 1.144.0 → 1.145.0
+- Firefox: 159.0 → 159.0.1
+- Claude Desktop: 3.3.14+claude4.4212.0 → 3.3.15+claude4.16336.0
+
+## [1.8.118] - 2026-11-05
+
+### Behoben
+
+- Build brach in 1.8.117 ab ("OpenCode Desktop: Binary in /opt/OpenCode nicht gefunden"),
+  obwohl das Programm installiert war: Die Suche per `ls` lieferte wegen der jeweils
+  fehlenden zweiten Namensvariante einen Fehlercode. Die Suche läuft jetzt über eine
+  Schleife.
+
+## [1.8.117] - 2026-11-04
+
+### Behoben
+
+- OpenCode Desktop startete nicht mehr: Ab Version 2.2.5 heißt die Programmdatei
+  `ai.opencode` statt `ai.opencode.desktop`. Der Starter sucht jetzt beide Namen,
+  der Build bricht ab, wenn keiner gefunden wird.
+
 ## [1.8.116] - 2026-11-03
 
 ### Aktualisiert

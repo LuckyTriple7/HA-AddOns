@@ -380,6 +380,39 @@ async function downloadMedia(rawMsg, msgId) {
   }
 }
 
+// Sprache der HA-Benachrichtigung folgt der in Home Assistant eingestellten
+// Sprache (GET /api/config → language). Bis zur ersten Antwort oder wenn die
+// Abfrage scheitert, bleibt es beim bisherigen Deutsch.
+const HA_NOTIFY_TEXT = {
+  de: { newMsg: 'Neue Nachricht', photo: '📷 Foto' },
+  en: { newMsg: 'New message', photo: '📷 Photo' },
+  es: { newMsg: 'Nuevo mensaje', photo: '📷 Foto' },
+};
+let _haLang = 'de';
+function refreshHALanguage() {
+  if (!HA_NOTIFY || !SUPERVISOR_TOKEN) return;
+  const req = http.get('http://supervisor/core/api/config', {
+    headers: { 'Authorization': `Bearer ${SUPERVISOR_TOKEN}` }, timeout: 10000,
+  }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', c => { if (data.length < 65536) data += c; });
+    res.on('end', () => {
+      if (res.statusCode !== 200) { dbg(`HA language: HTTP ${res.statusCode}`); return; }
+      try {
+        const code = String(JSON.parse(data).language || '').toLowerCase().slice(0, 2);
+        const next = HA_NOTIFY_TEXT[code] ? code : 'en';
+        if (next !== _haLang) console.log(`[INFO] HA notification language: ${next}`);
+        _haLang = next;
+      } catch (e) { dbg('HA language: invalid response'); }
+    });
+  });
+  req.on('timeout', () => req.destroy());
+  req.on('error', e => dbg('HA language request error: ' + e.message));
+}
+refreshHALanguage();
+setInterval(refreshHALanguage, 6 * 60 * 60 * 1000).unref();
+
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
   if (!SUPERVISOR_TOKEN) {
@@ -390,11 +423,11 @@ function sendHANotification(chatId, senderName, body) {
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
   const payload = JSON.stringify(HA_PRIVACY ? {
     title: 'Telegram',
-    message: 'Neue Nachricht',
+    message: HA_NOTIFY_TEXT[_haLang].newMsg,
     notification_id: 'telegram_new_message',
   } : {
     title: `Telegram: ${senderName}`,
-    message: preview || '📷 Foto',
+    message: preview || HA_NOTIFY_TEXT[_haLang].photo,
     notification_id: `telegram_${safeId}`,
   });
   console.log(`[INFO] HA notification: Telegram${HA_PRIVACY ? '' : `: ${senderName}`}`);
@@ -979,16 +1012,17 @@ app.get('/api/search/:chatId', (req, res) => {
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
-  const isEn = (req.query.lang || 'de') === 'en';
-  const loc = isEn ? 'en-GB' : 'de-DE';
+  const xl = ['de', 'en', 'es'].includes(req.query.lang) ? req.query.lang : 'de';
+  const isEn = xl === 'en', isEs = xl === 'es';
+  const loc = isEs ? 'es-ES' : isEn ? 'en-GB' : 'de-DE';
   const chat = chatMap.get(chatId);
   const msgs = messagesByChatId.get(chatId) || [];
   const chatName = chat ? (chat.name || chatId) : chatId;
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const meLabel = isEn ? 'Me' : 'Du';
-  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
-  const messagesLabel = isEn ? 'messages' : 'Nachrichten';
+  const meLabel = isEs ? 'Yo' : isEn ? 'Me' : 'Du';
+  const exportedLabel = isEs ? 'Exportado el' : isEn ? 'Exported on' : 'Exportiert am';
+  const messagesLabel = isEs ? 'mensajes' : isEn ? 'messages' : 'Nachrichten';
   let lastDate = '';
   const msgsHtml = msgs.map(m => {
     const d = new Date(m.timestamp);
@@ -998,9 +1032,9 @@ app.get('/api/export/:chatId', (req, res) => {
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
     if (m.type === 'voice') {
-      content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
+      content = `<span style="opacity:0.6">🎵 ${isEs ? 'Mensaje de voz' : isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
     } else if (m.type === 'video') {
-      content = `<span style="opacity:0.6">📹 ${isEn ? 'Video' : 'Video'}</span>`;
+      content = `<span style="opacity:0.6">📹 ${isEs ? 'Vídeo' : 'Video'}</span>`;
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'photo' && m.mediaFile) {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
@@ -1008,7 +1042,7 @@ app.get('/api/export/:chatId', (req, res) => {
         const ext = m.mediaFile.split('.').pop().toLowerCase();
         const mime = ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
         content = `<img src="data:${mime};base64,${fs.readFileSync(fp).toString('base64')}" style="max-width:280px;max-height:280px;border-radius:6px;display:block;">`;
-      } else { content = isEn ? '📷 Photo' : '📷 Foto'; }
+      } else { content = isEs ? '📷 Foto' : isEn ? '📷 Photo' : '📷 Foto'; }
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
@@ -1019,7 +1053,7 @@ app.get('/api/export/:chatId', (req, res) => {
     const sender = m.fromMe ? meLabel : escH(chatName);
     return `${sep}<div class="msg ${m.fromMe?'out':'in'}"><div class="bubble"><div class="meta"><span class="sender">${sender}</span><span class="time">${time}</span></div><div class="content">${content}</div></div></div>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a2633;min-height:100vh;padding:16px;color:#e0e0e0}h1{text-align:center;font-size:18px;color:#fff;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#8696a0;background:rgba(255,255,255,.06);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#232e3c;border-bottom-left-radius:2px}.msg.out .bubble{background:#2b5278;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#2AABEE}.msg.out .sender{color:#6ec6f5}.time{color:#8696a0;flex-shrink:0}@media print{body{background:#fff;color:#000}.msg.in .bubble{background:#f0f0f0}.msg.out .bubble{background:#d6eaf8}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
+  const html = `<!DOCTYPE html><html lang="${xl}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a2633;min-height:100vh;padding:16px;color:#e0e0e0}h1{text-align:center;font-size:18px;color:#fff;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#8696a0;background:rgba(255,255,255,.06);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#232e3c;border-bottom-left-radius:2px}.msg.out .bubble{background:#2b5278;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#2AABEE}.msg.out .sender{color:#6ec6f5}.time{color:#8696a0;flex-shrink:0}@media print{body{background:#fff;color:#000}.msg.in .bubble{background:#f0f0f0}.msg.out .bubble{background:#d6eaf8}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
   const fname = `telegram_${chatName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.html`;
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="${fname}"`);
@@ -2518,7 +2552,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   <h2 data-i18n="pwTitle">2-Faktor-Passwort</h2>
   <p data-i18n="pwInstr">Dein Konto ist durch ein Cloud-Passwort geschützt.</p>
   <div class="auth-box">
-    <input class="auth-input text" id="pw-input" type="password" placeholder="Passwort">
+    <input class="auth-input text" id="pw-input" type="password" placeholder="Passwort" data-i18n-pl="pwPlaceholder">
     <div class="auth-error" id="pw-error"></div>
     <button class="auth-btn" onclick="submitPassword()" data-i18n="btnConfirm">Bestätigen</button>
   </div>
@@ -2532,18 +2566,18 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 </div>
 
 <div id="topbar">
-  <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-  <h1 ondblclick="tgConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">Telegram</h1>
+  <button id="topbar-back" onclick="closeChat()" title="Zurück" data-i18n-title="btnBack"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
+  <h1 ondblclick="tgConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console" data-i18n-title="consoleHint">Telegram</h1>
   <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;padding:4px 2px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;opacity:0.75;color:inherit;"></button>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
   ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
-  <button id="refresh-btn" onclick="refreshChat()" oncontextmenu="toggleAutoReload(event)" title="Chat neu laden">${_SVG.refresh}</button>
+  <button id="refresh-btn" onclick="refreshChat()" oncontextmenu="toggleAutoReload(event)" title="Chat neu laden" data-i18n-title="btnReload">${_SVG.refresh}</button>
   <button id="refresh-all-btn" class="scroll-btn" onclick="refreshAllChats()" data-i18n-title="btnReloadAll" title="Alle Chats nachladen">${_SVG.refresh}<span style="font-size:11px;font-weight:600;margin-left:3px">*</span></button>
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
-  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="gap:4px;padding:0 8px;">${_SVG.globe} DE</button>
+  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language / Idioma" style="gap:4px;padding:0 8px;">${_SVG.globe} DE</button>
   <button id="logout-btn" onclick="confirmLogout()" data-i18n-title="btnLogout" title="Abmelden"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 </div>
 
@@ -2575,13 +2609,13 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
       <button id="clear-chat-btn" onclick="clearChat()" data-i18n-title="clearChat" title="Chat leeren">${_SVG.trash}</button>
-      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">${_SVG.x}</button>
+      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen" data-i18n-title="deleteMode">${_SVG.x}</button>
     </div>
     <div id="msg-search-bar">
-      <input id="msg-search-input" type="text" placeholder="Nachrichten durchsuchen…" oninput="onMsgSearchInput()" onkeydown="if(event.key==='Enter'){stepMsgSearch(event.shiftKey?-1:1);}if(event.key==='Escape'){closeMsgSearch();}">
+      <input id="msg-search-input" type="text" placeholder="Nachrichten durchsuchen…" data-i18n-pl="msgSearchPlaceholder" oninput="onMsgSearchInput()" onkeydown="if(event.key==='Enter'){stepMsgSearch(event.shiftKey?-1:1);}if(event.key==='Escape'){closeMsgSearch();}">
       <span id="msg-search-count"></span>
-      <button class="msg-search-nav-btn" onclick="stepMsgSearch(-1)" title="Vorheriger Treffer">${_SVG.chevUp}</button>
-      <button class="msg-search-nav-btn" onclick="stepMsgSearch(1)" title="Nächster Treffer">${_SVG.chevDown}</button>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(-1)" title="Vorheriger Treffer" data-i18n-title="searchPrev">${_SVG.chevUp}</button>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(1)" title="Nächster Treffer" data-i18n-title="searchNext">${_SVG.chevDown}</button>
       <button id="msg-search-close" onclick="closeMsgSearch()">${_SVG.x}</button>
     </div>
     <div id="messages"></div>
@@ -2595,7 +2629,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
     <div id="attach-bar">
       ${_SVG.paperclip}
       <span class="attach-name" id="attach-name"></span>
-      <button class="attach-clear" onclick="clearAttach()" title="Entfernen">${_SVG.x}</button>
+      <button class="attach-clear" onclick="clearAttach()" title="Entfernen" data-i18n-title="attachRemove">${_SVG.x}</button>
     </div>
     <div id="input-bar">
       <div id="emoji-picker">
@@ -2669,6 +2703,10 @@ const LANG = {
     presLastWeek: 'zuletzt innerhalb einer Woche online', presLastMonth: 'zuletzt innerhalb eines Monats online', presLongAgo: 'zuletzt vor langer Zeit online',
     offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
     msgSearchTitle: 'In Nachrichten suchen', msgSearchPlaceholder: 'Nachrichten durchsuchen…',
+    btnClose: 'Schließen', fwdTitle: '↪ Weiterleiten an…', fwdSearch: '🔍 Chat suchen…', pwPlaceholder: 'Passwort', btnBack: 'Zurück', consoleHint: 'Doppelklick: Console',
+    searchPrev: 'Vorheriger Treffer', searchNext: 'Nächster Treffer', attachRemove: 'Entfernen', cmdPlaceholder: '/befehl parameter', videoDeleteDisk: 'Video von Disk löschen', consoleFilter: 'Text filtern…',
+    voiceMsg: '🎵 Sprachnachricht', photoMsg: '📷 Foto', videoMsg: '📹 Video', btnForward: 'Weiterleiten', btnReplyMsg: 'Antworten', errShort: 'Fehler',
+    storageTitle: (mb, mediaMb, at, pct, to) => 'Gesamt /config: ' + mb + ' MB\\nMedienordner: ' + mediaMb + ' MB von ' + at + ' MB (' + pct + '%)\\nAuto-Delete startet bei ' + at + ' MB → löscht auf ' + to + ' MB',
   },
   en: {
     spinnerConnect: 'Connecting to Telegram…', spinnerLogout: 'Logging out…',
@@ -2711,10 +2749,61 @@ const LANG = {
     presLastWeek: 'last seen within a week', presLastMonth: 'last seen within a month', presLongAgo: 'last seen a long time ago',
     offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
     msgSearchTitle: 'Search in messages', msgSearchPlaceholder: 'Search messages…',
+    btnClose: 'Close', fwdTitle: '↪ Forward to…', fwdSearch: '🔍 Search chat…', pwPlaceholder: 'Password', btnBack: 'Back', consoleHint: 'Double-click: console',
+    searchPrev: 'Previous match', searchNext: 'Next match', attachRemove: 'Remove', cmdPlaceholder: '/command parameter', videoDeleteDisk: 'Delete video from disk', consoleFilter: 'Filter text…',
+    voiceMsg: '🎵 Voice message', photoMsg: '📷 Photo', videoMsg: '📹 Video', btnForward: 'Forward', btnReplyMsg: 'Reply', errShort: 'Error',
+    storageTitle: (mb, mediaMb, at, pct, to) => 'Total /config: ' + mb + ' MB\\nMedia folder: ' + mediaMb + ' MB of ' + at + ' MB (' + pct + '%)\\nAuto-delete starts at ' + at + ' MB → cleans to ' + to + ' MB',
+  },
+  es: {
+    spinnerConnect: 'Conectando con Telegram…', spinnerLogout: 'Cerrando sesión…',
+    codeTitle: 'Introducir código',
+    codeInstr: 'Telegram ha enviado un código a tu aplicación o por SMS.',
+    pwTitle: 'Contraseña en dos pasos', pwInstr: 'Tu cuenta está protegida con una contraseña en la nube.',
+    btnConfirm: 'Confirmar', overlayErrorTitle: 'Error', btnReconnect: 'Volver a conectar',
+    unknownError: 'Error desconocido',
+    photosOn: 'Multimedia ACTIVADO', photosOff: 'Multimedia DESACTIVADO',
+    copyCode: 'Copiar código', copied: 'Copiado ✓',
+    videoDownload: '⬇ Descargar vídeo', videoTooBig: '📹 Vídeo — demasiado grande (máx. ${VIDEO_MAX_MB} MB)',
+    cleanupTitle: 'Eliminar archivos multimedia huérfanos',
+    btnReload: 'Recargar chat', btnReloadAutoOn: 'Recarga automática ACTIVADA (cada 10 s)', btnReloadAutoHint: 'Clic derecho: activar/desactivar la recarga automática', btnReloadAll: 'Recargar todos los chats',
+    reloadAllDone: (n, c) => n + ' mensaje(s) nuevo(s) cargado(s) de ' + c + ' chats.',
+    reloadAllError: (e) => 'Error al recargar: ' + e,
+    btnScrollUp: 'Ir arriba', btnScrollDown: 'Ir abajo', ttExport: 'Exportar chat como HTML',
+    filterAll: 'Todos', filterPrivate: 'Privados', filterGroups: 'Grupos', filterChannels: 'Canales', filterBots: 'Bots',
+    btnLogout: 'Cerrar sesión', logoutConfirmMsg: '¿Seguro que quieres cerrar sesión?', btnYes: 'Sí', btnNo: 'No',
+    searchPlaceholder: 'Buscar…',
+    noChatSelected: 'Selecciona un chat de la lista', noMessages: 'Aún no hay mensajes',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Mensaje…', attachTitle: 'Adjuntar archivo', cmdTitle: 'Comandos',
+    cmdAdd: 'Crear comando propio…', cmdEdit: 'Editar', cmdPin: 'Guardar como comando propio', cmdForget: 'Quitar del historial',
+    cmdAddTitle: '★ Comando propio', cmdEditTitle: '★ Editar comando', cmdFieldText: 'Comando (se permiten parámetros)', cmdFieldDesc: 'Descripción',
+    cmdFieldInsert: 'Solo insertar en el campo de texto, sin enviar de inmediato', cmdSave: 'Guardar', cmdCancel: 'Cancelar',
+    cmdErrSlash: 'El comando debe empezar por /', cmdErrDup: 'Este comando ya existe', cmdErrSave: 'Error al guardar',
+    emojiSearch:'Buscar…', emojiNone:'Sin resultados', emojiRecent:'Recientes', emojiCatSmileys:'Emoticonos y personas', emojiCatAnimals:'Animales y naturaleza', emojiCatFood:'Comida y bebida', emojiCatActivity:'Actividades', emojiCatTravel:'Viajes y lugares', emojiCatObjects:'Objetos', emojiCatSymbols:'Símbolos', emojiCatFlags:'Banderas',
+    btnDelete: 'Eliminar', btnReact: 'Reaccionar', kbError: 'Error en el botón: ', kbUnsupported: 'Este tipo de botón no es compatible aquí', reactionRemove: 'Haz clic para quitarla',
+    clearChat: 'Vaciar chat (todo excepto el último mensaje)',
+    clearChatConfirm: (name) => '¿Eliminar de forma permanente todos los mensajes de «' + name + '» excepto el último?\\n\\nTambién se eliminarán en Telegram (para ambas partes, si es posible) y no se puede deshacer.',
+    clearChatDone: (n, own) => n + (n===1?' mensaje eliminado.':' mensajes eliminados.') + (own ? '\\nSin permisos de administrador, solo los mensajes propios.' : ''),
+    clearChatError: 'Error al vaciar el chat: ',
+    deleteMode: 'Eliminar mensajes (uno solo: Ctrl+Mayús+clic derecho)', deleteModeCancel: 'Cancelar', deleteConfirm: (n) => '¿Seguro que quieres eliminar ' + n + (n===1?' mensaje':' mensajes') + '?',
+    cleanupConfirm: '¿Eliminar archivos multimedia huérfanos (fotos que ya no se usan)?',
+    cleanupSuccess: (c, mb) => c + ' archivo(s) eliminado(s), ' + mb + ' MB liberados.',
+    cleanupError: (e) => 'Error en la limpieza: ' + e,
+    statsMsg: 'mensajes', statsSince: 'desde',
+    typing: 'escribiendo', typingOne: 'está escribiendo', typingMany: 'están escribiendo', typingAnd: 'y',
+    presOnline: 'en línea', presToday: x => 'últ. vez hoy a las ' + x, presYesterday: x => 'últ. vez ayer a las ' + x,
+    presDate: (d, x) => 'últ. vez el ' + d + ' a las ' + x, presRecently: 'últ. vez recientemente',
+    presLastWeek: 'últ. vez hace unos días', presLastMonth: 'últ. vez hace unas semanas', presLongAgo: 'últ. vez hace mucho tiempo',
+    offlineTitle: 'Conexión perdida', offlineSub: 'Reconectando…', offlineReload: 'Recargar',
+    msgSearchTitle: 'Buscar en los mensajes', msgSearchPlaceholder: 'Buscar mensajes…',
+    btnClose: 'Cerrar', fwdTitle: '↪ Reenviar a…', fwdSearch: '🔍 Buscar chat…', pwPlaceholder: 'Contraseña', btnBack: 'Atrás', consoleHint: 'Doble clic: consola',
+    searchPrev: 'Resultado anterior', searchNext: 'Resultado siguiente', attachRemove: 'Quitar', cmdPlaceholder: '/comando parámetro', videoDeleteDisk: 'Eliminar vídeo del disco', consoleFilter: 'Filtrar texto…',
+    voiceMsg: '🎵 Mensaje de voz', photoMsg: '📷 Foto', videoMsg: '📹 Vídeo', btnForward: 'Reenviar', btnReplyMsg: 'Responder', errShort: 'Error',
+    storageTitle: (mb, mediaMb, at, pct, to) => 'Total /config: ' + mb + ' MB\\nCarpeta multimedia: ' + mediaMb + ' MB de ' + at + ' MB (' + pct + '%)\\nEl borrado automático empieza en ' + at + ' MB → reduce a ' + to + ' MB',
   },
 };
-const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+const _browserLang = (() => { const l = (navigator.language || '').toLowerCase(); return l.startsWith('de') ? 'de' : l.startsWith('es') ? 'es' : 'en'; })();
 let lang = localStorage.getItem('tg_lang') || _browserLang;
+if (!LANG[lang]) lang = 'en';
 let isDeleteMode = false;
 const selectedMsgs = new Set();
 // Laufende Löschvorgänge: Auto-Neuladen pausiert, und ein Neuladen, das schon
@@ -2881,19 +2970,20 @@ function stepMsgSearch(dir) {
 
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
-function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
+function locale() { return lang === 'de' ? 'de-DE' : lang === 'es' ? 'es-ES' : 'en-GB'; }
 function applyLang() {
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
   const lb = document.getElementById('lang-btn');
-  if (lb) lb.innerHTML = '${_SVG.globe} ' + (lang === 'de' ? 'DE' : 'EN');
+  if (lb) lb.innerHTML = '${_SVG.globe} ' + lang.toUpperCase();
+  document.documentElement.lang = lang;
   const ptb = document.getElementById('photo-toggle');
   if (ptb) ptb.title = ptb.classList.contains('active') ? t('photosOn') : t('photosOff');
   try { updateAutoReloadBtn(); } catch(e) {} // läuft beim Start vor der Initialisierung
 }
 function switchLang() {
-  lang = lang === 'de' ? 'en' : 'de';
+  lang = lang === 'de' ? 'en' : lang === 'en' ? 'es' : 'de';
   localStorage.setItem('tg_lang', lang);
   applyLang();
 }
@@ -3069,9 +3159,7 @@ async function loadStorage() {
     el.innerHTML = '${_SVG.disk} ' + d.mb + ' MB';
     if (d.mediaMb !== undefined) {
       const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
-      el.title = lang === 'de'
-        ? \`Gesamt /config: \${d.mb} MB\nMedienordner: \${d.mediaMb} MB von \${autoAt} MB (\${d.mediaPct}%)\nAuto-Delete startet bei \${autoAt} MB → löscht auf \${autoTo} MB\`
-        : \`Total /config: \${d.mb} MB\nMedia folder: \${d.mediaMb} MB of \${autoAt} MB (\${d.mediaPct}%)\nAuto-delete starts at \${autoAt} MB → cleans to \${autoTo} MB\`;
+      el.title = tf('storageTitle', d.mb, d.mediaMb, autoAt, d.mediaPct, autoTo);
     }
   } catch(e) {}
 }
@@ -3661,10 +3749,10 @@ function renderMessages(msgs, opts) {
     } else if(isVoice){
       content = m.mediaFile
         ? \`<audio controls style="width:260px;max-width:calc(80vw - 80px);display:block" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
-        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+        : '<span style="opacity:0.6">' + t('voiceMsg') + '</span>';
     } else if(isVideo){
       content = m.mediaFile
-        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;opacity:0.55;padding:4px;flex-shrink:0;color:currentColor" title="Video von Disk löschen">${_SVG.trash}</button></div>\`
+        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;opacity:0.55;padding:4px;flex-shrink:0;color:currentColor" title="\${t('videoDeleteDisk')}">${_SVG.trash}</button></div>\`
         : (() => {
             const sz = m.videoSize || 0;
             const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
@@ -3675,7 +3763,7 @@ function renderMessages(msgs, opts) {
           })()
       if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body,m.ents)}</div>\`;
     } else if(isPhoto){
-      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
+      content=\`<span class="photo-placeholder">\${t('photoMsg')}</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body,m.ents)}</div>\`;
     } else if(isDoc){
       content=\`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
@@ -3707,13 +3795,13 @@ function renderMessages(msgs, opts) {
     }).join('') + '</div>' : '';
     const chatForReply = allChats.find(c=>c.id===selectedChatId);
     const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name||selectedChatId||'');
-    const replyPreview = escHtml((m.body||(m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':m.type==='video'?'📹 Video':'')).slice(0,60));
+    const replyPreview = escHtml((m.body||(m.type==='voice'?t('voiceMsg'):m.type==='photo'?t('photoMsg'):m.type==='video'?t('videoMsg'):'')).slice(0,60));
     const tgMsgRawId = m.id.split('_').pop();
     const innerDiv = isVoice
       ? \`<div class="voice-wrap \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`
       : \`<div class="bubble \${m.fromMe?'out':'in'}\${(isPhoto&&!item.isAlbum)?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`;
     var _albumAttr = item.isAlbum ? ' data-albumids="'+item.albumMsgs.map(function(am){return escHtml(am.id);}).join(',')+'"' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${kbHtml}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">${_SVG.smile}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">${_SVG.reply}</button></div></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${kbHtml}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">${_SVG.smile}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('btnForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="\${t('btnReplyMsg')}">${_SVG.reply}</button></div></div>\`;
   }).join('');
   // Noch nicht bestätigte eigene Nachrichten ganz unten anhängen (ausgegraut)
   let _pendHtml = '';
@@ -3764,12 +3852,12 @@ async function fetchVideo(el) {
       await loadMessages(selectedChatId);
       loadStorage();
     } else {
-      el.textContent = '❌ ' + (r.error || 'Fehler');
+      el.textContent = '❌ ' + (r.error || t('errShort'));
       el.style.cursor = 'default';
-      el.title = r.error || 'Fehler';
+      el.title = r.error || t('errShort');
     }
   } catch(e) {
-    el.textContent = '❌ Fehler';
+    el.textContent = '❌ ' + t('errShort');
   }
 }
 
@@ -4539,13 +4627,13 @@ applyLang();
     <div class="contact-modal-sub" id="contact-modal-sub"></div>
     <div class="contact-modal-number" id="contact-modal-number"></div>
     <div class="contact-modal-about" id="contact-modal-about"></div>
-    <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+    <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
   </div>
 </div>
 <div id="cmd-modal">
   <div class="fwd-modal-box">
     <h3 id="cmd-modal-title"></h3>
-    <label class="cmd-field"><span data-i18n="cmdFieldText">Befehl (Parameter erlaubt)</span><input type="text" id="cmd-f-text" maxlength="300" placeholder="/befehl parameter" onkeydown="cmdDialogKey(event)"></label>
+    <label class="cmd-field"><span data-i18n="cmdFieldText">Befehl (Parameter erlaubt)</span><input type="text" id="cmd-f-text" maxlength="300" placeholder="/befehl parameter" data-i18n-pl="cmdPlaceholder" onkeydown="cmdDialogKey(event)"></label>
     <label class="cmd-field"><span data-i18n="cmdFieldDesc">Beschreibung</span><input type="text" id="cmd-f-desc" maxlength="100" onkeydown="cmdDialogKey(event)"></label>
     <label class="cmd-check"><input type="checkbox" id="cmd-f-insert"><span data-i18n="cmdFieldInsert">Nur ins Eingabefeld einfügen, nicht sofort senden</span></label>
     <div class="cmd-error" id="cmd-f-error"></div>
@@ -4558,10 +4646,10 @@ applyLang();
 </div>
 <div id="fwd-modal">
   <div class="fwd-modal-box">
-    <h3>↪ Weiterleiten an…</h3>
-    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+    <h3 data-i18n="fwdTitle">↪ Weiterleiten an…</h3>
+    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" data-i18n-pl="fwdSearch" oninput="filterFwdChats()">
     <div id="fwd-chat-list"></div>
-    <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+    <button class="fwd-modal-cancel" onclick="closeFwdModal()" data-i18n="cmdCancel">Abbrechen</button>
   </div>
 </div>
 <div id="logout-modal">
@@ -4611,7 +4699,7 @@ applyLang();
       <button data-lvl="WARN" class="on">WARN</button>
       <button data-lvl="INFO" class="on">INFO</button>
       <button data-lvl="DEBUG" class="on">DEBUG</button>
-      <input id="tg-console-search" type="text" placeholder="Text filtern…">
+      <input id="tg-console-search" type="text" placeholder="Text filtern…" data-i18n-pl="consoleFilter">
       <span id="tg-console-count"></span>
     </div>
     <div id="tg-console-body"></div>

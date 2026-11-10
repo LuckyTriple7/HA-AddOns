@@ -24,7 +24,7 @@ Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-
 - **Formatierung**: Codeblöcke (mit Sprache und Kopieren-Knopf), Inline-Code, fett/kursiv, Zitate, Spoiler und Textlinks wie in der Telegram-App
 - **Nachricht schnell löschen**: Strg+Shift+Rechtsklick auf eine Nachricht löscht sie sofort mit Zerfall-Effekt wie in der Telegram-App (mehrere auf einmal weiterhin über den Löschmodus)
 - **Befehlsmenü pro Chat**: `/`-Knopf oder `/` tippen zeigt eigene Befehle (★, auch mit Parametern, sofort senden oder nur einfügen), die zuletzt gesendeten Befehle (↺, automatisch) und die vom Bot gemeldeten Befehle. Gespeichert auf dem Server (`/config/custom_commands.json`), also auf jedem Gerät gleich
-- **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
+- **Sprachauswahl**: 🌐 DE / EN / ES Button in der Topbar (schaltet reihum, Startsprache nach Browser) — Sprache wird im Browser gespeichert
 - **Persistente Session**: Kein erneutes Anmelden nach Neustart
 - **REST-API**: Nachrichten aus Automatisierungen heraus senden
 - **Webhook**: Eingehende Nachrichten an eine URL weiterleiten
@@ -236,7 +236,7 @@ Telegram as a full client directly in Home Assistant — with chat UI, REST API 
 - **Last seen**: "online" or "last seen …" in the chat header (roughly "recently" etc. when hidden)
 - **Unread badge**: Blue dot in the sidebar for new messages
 - **Emoji keyboard**: 😊 button in the input field
-- **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser
+- **Language switcher**: 🌐 DE / EN / ES button in the topbar (cycles through, initial language from the browser) — language is saved in the browser
 - **Persistent session**: No re-login after restart
 - **REST API**: Send messages from automations
 - **Webhook**: Forward incoming messages to a URL

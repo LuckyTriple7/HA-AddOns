@@ -23,10 +23,10 @@ RUN apk add --no-cache \
     jq=1.8.2-r0 \
     nodejs=24.22.1-r1 \
     npm=11.12.1-r0 \
-    openssh-client-default=10.3_p1-r1 \
+    openssh-client-default=10.3_p1-r2 \
     libstdc++ \
     ncurses=6.6_p20260516-r0 \
-    vim=9.2.1202-r0 \
+    vim=9.2.1310-r0 \
     nano=9.3-r0 \
     tmux=3.7c-r0 \
     coreutils=9.11-r0 \
@@ -39,7 +39,7 @@ RUN apk add --no-cache \
     ripgrep=15.1.0-r0 \
     7zip=26.01-r0 \
     socat=1.8.1.3-r0 \
-    docker-cli=29.9.2-r0 \
+    docker-cli=29.9.3-r0 \
     gcompat=1.1.0-r4 \
     && update-ca-certificates
 

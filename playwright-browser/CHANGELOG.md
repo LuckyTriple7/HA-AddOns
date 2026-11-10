@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.18.1] - 2026-11-09
+- Abhängigkeit aktualisiert: @playwright/mcp 0.0.83 → 0.0.84
+
 ## [1.0.18] - 2026-10-24
 - Build: `@playwright/mcp` kommt jetzt über `mcp/package.json` mit Lockfile (`npm ci`) statt über eine Versionsvariable im Dockerfile. Unterpakete sind damit fest gepinnt, und Dependabot hält die Version aktuell
 

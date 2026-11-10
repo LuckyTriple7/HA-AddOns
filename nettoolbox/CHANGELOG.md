@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.3.3] - 2026-11-09
+
+- Abhängigkeit aktualisiert: dnspython 2.9.1 → 2.9.2
+
+## [0.10.3.2] - 2026-11-09
+
+- Abhängigkeit aktualisiert: aioquic 1.7.0 → 1.7.2
+
 ## [0.10.3.1] - 2026-11-02
 
 - Abhängigkeit aktualisiert: dnspython 2.9.0 → 2.9.1

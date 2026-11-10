@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.4.2] - 2026-11-05
+
+- Abhängigkeit aktualisiert: alpine_3_24/tzdata 2026e-r0 → 2026f-r0
+
 ## [0.1.4.1] - 2026-11-03
 
 - Abhängigkeit aktualisiert: ghcr.io/techarohq/anubis docker tag to v1.28.2

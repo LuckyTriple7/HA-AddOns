@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.8.13] - 2026-11-10
+- Neu: HA-Benachrichtigungen folgen der in Home Assistant eingestellten Sprache (Deutsch, Englisch, Spanisch; andere Sprachen erhalten Englisch). Betrifft „Neue Nachricht“ im Datenschutzmodus und den Foto-Platzhalter. Kann die Sprache nicht abgefragt werden, bleibt es bei Deutsch (#510)
+
+## [1.8.12] - 2026-11-10
+- Fix: restliche fest deutsche Texte der Oberfläche übersetzt (DE/EN/ES): Weiterleiten-Dialog, Schließen im Kontakt-Dialog, Passwortfeld beim Login, Tooltips (Zurück, Treffer vor/zurück, Anhang entfernen, Video von Disk löschen, Chat neu laden, Nachrichten löschen), Platzhalter der Nachrichtensuche, des Befehlsdialogs und der Konsole (#510)
+
+## [1.8.11] - 2026-11-10
+- Fix: „Mein Status“ blieb auf Deutsch, wenn die Oberfläche auf Spanisch stand. Der Story-Editor ist jetzt ebenfalls auf Spanisch (#510)
+
+## [1.8.10] - 2026-11-10
+- Neu: Weboberfläche auf Spanisch (#510). Der Sprachknopf schaltet jetzt DE → EN → ES, spanische Browser starten direkt auf Spanisch; Datumsformate und HTML-Export ebenfalls auf Spanisch
+- Fix: einige Texte waren fest auf Deutsch und erschienen auch in der englischen Oberfläche (Sprachnachricht/Foto-Platzhalter, Weiterleiten/Antworten-Tooltips, Fehlermeldung beim Video-Download, Speicher-Tooltip)
+
+## [1.8.9] - 2026-11-10
+- Neu: spanische Übersetzung der Add-on-Optionen (`translations/es.yaml`), beigesteuert von @DIAZGZA (#508)
+
+## [1.8.8.2] - 2026-11-09
+- Abhängigkeit aktualisiert: teleproto 1.232.0 → 1.232.1
+
+## [1.8.8.1] - 2026-11-09
+- Abhängigkeit aktualisiert: express-rate-limit 8.7.2 → 8.7.3
+
 ## [1.8.8] - 2026-11-03
 - Sicherheit: qs 6.16.0 → 6.17.1 (GHSA-6pq8-jhm2-2vcw) per override angehoben
 

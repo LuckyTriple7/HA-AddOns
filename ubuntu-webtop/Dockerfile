@@ -26,13 +26,13 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
 # BUILD_VERSION kommt aus config.yaml und wird von HA bei jedem Update übergeben.
 ARG BUILD_VERSION
 ARG IPSCAN_VERSION=3.12.1
-ARG BITWARDEN_VERSION=2026.10.3
-ARG VSCODE_VERSION=1.144.0
+ARG BITWARDEN_VERSION=2026.10.4
+ARG VSCODE_VERSION=1.145.2
 ARG GH_CLI_VERSION=2.103.3
-ARG FIREFOX_VERSION=159.0
+ARG FIREFOX_VERSION=159.0.1
 ARG THUNDERBIRD_VERSION=159.0
-ARG RCLONE_VERSION=1.75.2
-ARG OPENCODE_VERSION=2.2.5
+ARG RCLONE_VERSION=1.76.0
+ARG OPENCODE_VERSION=2.2.6
 ARG TAILSCALE_VERSION=1.104.5
 
 # XFCE Desktop-Umgebung + Anwendungen installieren
@@ -302,6 +302,8 @@ RUN curl -fsSL https://pkg.claude-desktop-debian.dev/KEY.gpg \
 # OpenCode Desktop (Electron), gleiche Version wie die OpenCode CLI.
 # Wrapper: --no-sandbox wie bei den anderen Electron-Apps, TMPDIR wie beim CLI-Wrapper (/tmp ist noexec).
 # Das Paket bringt zwei .desktop-Dateien mit, beide zeigen danach auf den Wrapper.
+# Binary hieß bis 2.2.4 ai.opencode.desktop, ab 2.2.5 ai.opencode; der Build bricht ab, wenn keiner da ist.
+# Kein ls für die Suche: mit pipefail scheitert ls an der fehlenden Variante, auch wenn die andere da ist.
 RUN ARCH=$(dpkg --print-architecture) \
     && curl -fsSL \
         "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-desktop-linux-${ARCH}.deb" \
@@ -311,7 +313,12 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm -f /tmp/opencode-desktop.deb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && printf '#!/bin/sh\nexport TMPDIR=/config/.cache/opencode-tmp\nmkdir -p "$TMPDIR"\nexec /opt/OpenCode/ai.opencode.desktop --no-sandbox --disable-gpu "$@"\n' \
+    && OC_BIN="" \
+    && for f in /opt/OpenCode/ai.opencode /opt/OpenCode/ai.opencode.desktop; do \
+        if [ -f "$f" ]; then OC_BIN="$f"; break; fi; \
+    done \
+    && if [ -z "$OC_BIN" ]; then echo "OpenCode Desktop: Binary in /opt/OpenCode nicht gefunden"; exit 1; fi \
+    && printf '#!/bin/sh\nexport TMPDIR=/config/.cache/opencode-tmp\nmkdir -p "$TMPDIR"\nexec %s --no-sandbox --disable-gpu "$@"\n' "$OC_BIN" \
         > /usr/bin/opencode-desktop \
     && chmod +x /usr/bin/opencode-desktop \
     && sed -i 's|^Exec=.*|Exec=/usr/bin/opencode-desktop %U|' \
