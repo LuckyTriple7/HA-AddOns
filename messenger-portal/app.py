@@ -229,12 +229,14 @@ def load_config() -> dict:
 
 
 SUPPORTED_LANGS = ('de', 'en', 'es')
+# Feste Dateipfade je Sprache: der Pfad stammt so nie aus dem Request-Wert.
+_LOCALE_FILES = {code: f'{LOCALES_PATH}/{code}.json' for code in SUPPORTED_LANGS}
 
 
 def load_translations(lang: str) -> dict:
-    lang = lang if lang in SUPPORTED_LANGS else 'en'
+    path = _LOCALE_FILES.get(lang, _LOCALE_FILES['en'])
     try:
-        with open(f'{LOCALES_PATH}/{lang}.json', 'r', encoding='utf-8') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception:
         return {}

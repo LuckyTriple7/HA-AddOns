@@ -1,7 +1,7 @@
 {
   "name": "MessengerPortal",
   "short_name": "MsgPortal",
-  "description": "Zentrale Startseite für Messenger-Add-ons",
+  "description": "Central start page for messenger add-ons",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
@@ -24,7 +24,6 @@
   "categories": [
     "utilities"
   ],
-  "lang": "de",
   "share_target": {
     "action": "/share-target",
     "method": "POST",

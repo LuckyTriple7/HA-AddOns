@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.5.10] - 2026-11-10
+- Sicherheit: Sprachdateien werden über feste Pfade je Sprache geladen, der Pfad stammt nie aus dem Cookie (CodeQL `py/path-injection`, Alert #270)
+- Geändert: Beschreibung der installierbaren Web-App (`manifest.json`) auf Englisch und ohne feste Sprachangabe, da das Portal jetzt drei Sprachen hat
+
 ## [1.5.9] - 2026-11-10
 - Neu: Spanisch als dritte Sprache (#510). Add-on-Optionen (`translations/es.yaml`), Oberfläche (`locales/es.json`) mit ES-Knopf auf Startseite und Login; spanische Browser starten auf Spanisch; Uhrzeiten und Datumsangaben im spanischen Format
 
