@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.10] - 2026-11-10
+- Neu: Weboberfläche auf Spanisch (#510). Der Sprachknopf schaltet jetzt DE → EN → ES, spanische Browser starten direkt auf Spanisch; Datumsformate und HTML-Export ebenfalls auf Spanisch
+- Fix: einige Texte waren fest auf Deutsch und erschienen auch in der englischen Oberfläche (Sprachnachricht/Foto-Platzhalter, Weiterleiten/Antworten-Tooltips, Fehlermeldung beim Video-Download, Speicher-Tooltip)
+
 ## [1.8.9] - 2026-11-10
 - Neu: spanische Übersetzung der Add-on-Optionen (`translations/es.yaml`), beigesteuert von @DIAZGZA (#508)
 
