@@ -1,0 +1,40 @@
+configuration:
+  api_enabled:
+    name: API REST en un puerto propio
+    description: "Inicia la API REST también en el puerto 17787. En este puerto se requiere un token y no hay interfaz web, a diferencia del puerto 17777, que ofrece ambas cosas sin necesidad de iniciar sesión. El puerto no se inicia si no se ha configurado un token de API. Para acceder desde la red local, también hay que habilitarlo en la sección «Red». Desactivado de forma predeterminada."
+  api_token:
+    name: Token de API
+    description: "Secreto para la API REST del puerto 17787. El cliente debe enviarlo en la cabecera Authorization con el valor Bearer seguido del token. Elige uno largo y aleatorio, por ejemplo, con openssl rand -hex 32."
+  dark_mode:
+    name: Tema oscuro
+    description: Activar el tema oscuro en la interfaz web.
+  native_mode:
+    name: Modo nativo
+    description: "Usa el binario nativo de signal-cli (poca memoria, inicio rápido). Desactívalo para usar Java (JVM); solo es necesario si el binario nativo da problemas. En ambos casos, signal-cli se ejecuta de forma permanente como servicio. Recomendado: activado."
+  download_media:
+    name: Descargar archivos multimedia
+    description: Descarga y muestra automáticamente las fotos recibidas. Solo funciona de forma fiable con los mensajes nuevos, no con los mensajes antiguos.
+  media_max_mb:
+    name: Límite de almacenamiento multimedia (MB)
+    description: "Tamaño máximo de la carpeta de archivos multimedia, en MB. Si se supera el límite, se eliminarán automáticamente los archivos más antiguos (fotos y mensajes de voz) hasta que la carpeta vuelva a ocupar el 80 % del límite. Valor predeterminado: 500 MB."
+  phone_number:
+    name: Número de teléfono
+    description: Tu número de teléfono de Signal con el prefijo internacional (p. ej., +4917612345678). Opcional; se detecta automáticamente después de vincular el dispositivo.
+  webhook_incoming:
+    name: URL del webhook
+    description: URL a la que se reenvían los mensajes entrantes (p. ej., http://homeassistant:8123/api/webhook/signal).
+  debug_mode:
+    name: Modo de depuración
+    description: Activar el registro detallado, incluidos los registros de acceso de GIN. Útil para solucionar problemas.
+  ha_notifications:
+    name: Notificaciones de HA
+    description: Notificación persistente de HA para cada mensaje nuevo (una por chat; se sustituye por los mensajes más recientes).
+  ha_notifications_privacy:
+    name: Modo de privacidad de las notificaciones de HA
+    description: "Si está activado, las notificaciones solo muestran «Signal / Nuevo mensaje»: sin nombre del remitente ni contenido del mensaje."
+  send_read_receipts:
+    name: Enviar confirmaciones de lectura
+    description: "Indica al remitente que has leído su mensaje en cuanto el chat está abierto en la interfaz web, igual que en el móvil. Desactivado: solo el móvil envía confirmaciones de lectura. Valor predeterminado: activado."
+  keep_deleted:
+    name: Conservar mensajes eliminados
+    description: "Si el remitente elimina un mensaje para todos, su contenido sigue visible aquí con la marca 🚫. Desactivado: un aviso sustituye al mensaje, como en Signal. Valor predeterminado: desactivado."

@@ -24,7 +24,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 - **Gruppen**: Gruppennachrichten stehen im Gruppenchat, mit Absendername über jeder Nachricht; 👥-Button im Chat-Kopf zeigt die Mitglieder
 - **Erwähnungen**: In Gruppen schlägt `@` Mitglieder vor; empfangene Erwähnungen erscheinen als `@Name`
 - **Bearbeiten und Löschen durch den Absender**: Bearbeitete Nachrichten werden aktualisiert und als „bearbeitet" markiert, für alle gelöschte durch einen Hinweis ersetzt (oder mit `keep_deleted` behalten)
-- **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
+- **Sprachauswahl**: 🌐 DE / EN / ES Button in der Topbar (schaltet reihum, Startsprache nach Browser) — Sprache wird im Browser gespeichert
 - **Persistente Session**: Kein erneutes Verknüpfen nach Neustart
 - **REST-API**: Nachrichten aus Automatisierungen heraus senden
 - **Webhook**: Eingehende Nachrichten an eine URL weiterleiten
@@ -229,7 +229,7 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 - **Mentions**: In groups, `@` suggests members; received mentions show up as `@Name`
 - **Edits and deletes by the sender**: Edited messages are updated and marked "edited", messages deleted for everyone are replaced by a notice (or kept with `keep_deleted`)
 - **Emoji keyboard**: 😊 button in the input field
-- **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser
+- **Language switcher**: 🌐 DE / EN / ES button in the topbar (cycles through, initial language from the browser) — language is saved in the browser
 - **Persistent session**: No re-linking after restart
 - **REST API**: Send messages from automations
 - **Webhook**: Forward incoming messages to a URL
