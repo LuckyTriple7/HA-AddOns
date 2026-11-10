@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.13] - 2026-11-10
+- Neu: HA-Benachrichtigungen folgen der in Home Assistant eingestellten Sprache (Deutsch, Englisch, Spanisch; andere Sprachen erhalten Englisch). Betrifft „Neue Nachricht“ im Datenschutzmodus und den Foto-Platzhalter. Kann die Sprache nicht abgefragt werden, bleibt es bei Deutsch (#510)
+
 ## [1.8.12] - 2026-11-10
 - Fix: restliche fest deutsche Texte der Oberfläche übersetzt (DE/EN/ES): Weiterleiten-Dialog, Schließen im Kontakt-Dialog, Passwortfeld beim Login, Tooltips (Zurück, Treffer vor/zurück, Anhang entfernen, Video von Disk löschen, Chat neu laden, Nachrichten löschen), Platzhalter der Nachrichtensuche, des Befehlsdialogs und der Konsole (#510)
 

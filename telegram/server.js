@@ -380,6 +380,39 @@ async function downloadMedia(rawMsg, msgId) {
   }
 }
 
+// Sprache der HA-Benachrichtigung folgt der in Home Assistant eingestellten
+// Sprache (GET /api/config → language). Bis zur ersten Antwort oder wenn die
+// Abfrage scheitert, bleibt es beim bisherigen Deutsch.
+const HA_NOTIFY_TEXT = {
+  de: { newMsg: 'Neue Nachricht', photo: '📷 Foto' },
+  en: { newMsg: 'New message', photo: '📷 Photo' },
+  es: { newMsg: 'Nuevo mensaje', photo: '📷 Foto' },
+};
+let _haLang = 'de';
+function refreshHALanguage() {
+  if (!HA_NOTIFY || !SUPERVISOR_TOKEN) return;
+  const req = http.get('http://supervisor/core/api/config', {
+    headers: { 'Authorization': `Bearer ${SUPERVISOR_TOKEN}` }, timeout: 10000,
+  }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', c => { if (data.length < 65536) data += c; });
+    res.on('end', () => {
+      if (res.statusCode !== 200) { dbg(`HA language: HTTP ${res.statusCode}`); return; }
+      try {
+        const code = String(JSON.parse(data).language || '').toLowerCase().slice(0, 2);
+        const next = HA_NOTIFY_TEXT[code] ? code : 'en';
+        if (next !== _haLang) console.log(`[INFO] HA notification language: ${next}`);
+        _haLang = next;
+      } catch (e) { dbg('HA language: invalid response'); }
+    });
+  });
+  req.on('timeout', () => req.destroy());
+  req.on('error', e => dbg('HA language request error: ' + e.message));
+}
+refreshHALanguage();
+setInterval(refreshHALanguage, 6 * 60 * 60 * 1000).unref();
+
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
   if (!SUPERVISOR_TOKEN) {
@@ -390,11 +423,11 @@ function sendHANotification(chatId, senderName, body) {
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
   const payload = JSON.stringify(HA_PRIVACY ? {
     title: 'Telegram',
-    message: 'Neue Nachricht',
+    message: HA_NOTIFY_TEXT[_haLang].newMsg,
     notification_id: 'telegram_new_message',
   } : {
     title: `Telegram: ${senderName}`,
-    message: preview || '📷 Foto',
+    message: preview || HA_NOTIFY_TEXT[_haLang].photo,
     notification_id: `telegram_${safeId}`,
   });
   console.log(`[INFO] HA notification: Telegram${HA_PRIVACY ? '' : `: ${senderName}`}`);
