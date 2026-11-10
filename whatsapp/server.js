@@ -1100,6 +1100,39 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Sprache der HA-Benachrichtigung folgt der in Home Assistant eingestellten
+// Sprache (GET /api/config → language). Bis zur ersten Antwort oder wenn die
+// Abfrage scheitert, bleibt es beim bisherigen Deutsch.
+const HA_NOTIFY_TEXT = {
+  de: { newMsg: 'Neue Nachricht', photo: '📷 Foto' },
+  en: { newMsg: 'New message', photo: '📷 Photo' },
+  es: { newMsg: 'Nuevo mensaje', photo: '📷 Foto' },
+};
+let _haLang = 'de';
+function refreshHALanguage() {
+  if (!HA_NOTIFY || !SUPERVISOR_TOKEN) return;
+  const req = http.get('http://supervisor/core/api/config', {
+    headers: { 'Authorization': `Bearer ${SUPERVISOR_TOKEN}` }, timeout: 10000,
+  }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', c => { if (data.length < 65536) data += c; });
+    res.on('end', () => {
+      if (res.statusCode !== 200) { dbg(`HA language: HTTP ${res.statusCode}`); return; }
+      try {
+        const code = String(JSON.parse(data).language || '').toLowerCase().slice(0, 2);
+        const next = HA_NOTIFY_TEXT[code] ? code : 'en';
+        if (next !== _haLang) console.log(`[INFO] HA notification language: ${next}`);
+        _haLang = next;
+      } catch (e) { dbg('HA language: invalid response'); }
+    });
+  });
+  req.on('timeout', () => req.destroy());
+  req.on('error', e => dbg('HA language request error: ' + e.message));
+}
+refreshHALanguage();
+setInterval(refreshHALanguage, 6 * 60 * 60 * 1000).unref();
+
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
   if (!SUPERVISOR_TOKEN) {
@@ -1110,11 +1143,11 @@ function sendHANotification(chatId, senderName, body) {
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
   const payload = JSON.stringify(HA_PRIVACY ? {
     title: 'WhatsApp',
-    message: 'Neue Nachricht',
+    message: HA_NOTIFY_TEXT[_haLang].newMsg,
     notification_id: 'whatsapp_new_message',
   } : {
     title: `WhatsApp: ${senderName}`,
-    message: preview || '📷 Foto',
+    message: preview || HA_NOTIFY_TEXT[_haLang].photo,
     notification_id: `whatsapp_${safeId}`,
   });
   console.log(`[INFO] HA notification: WhatsApp${HA_PRIVACY ? '' : `: ${senderName}`}`);
@@ -1740,16 +1773,17 @@ app.get('/api/last-received', (req, res) => {
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
-  const isEn = (req.query.lang || 'de') === 'en';
-  const loc = isEn ? 'en-GB' : 'de-DE';
+  const xl = ['de', 'en', 'es'].includes(req.query.lang) ? req.query.lang : 'de';
+  const isEn = xl === 'en', isEs = xl === 'es';
+  const loc = isEs ? 'es-ES' : isEn ? 'en-GB' : 'de-DE';
   const chat = chatMap.get(chatId);
   const msgs = messagesByChatId.get(chatId) || [];
   const chatName = chat ? (chat.name || chatId) : chatId;
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const meLabel = isEn ? 'Me' : 'Du';
-  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
-  const messagesLabel = isEn ? 'messages' : 'Nachrichten';
+  const meLabel = isEs ? 'Yo' : isEn ? 'Me' : 'Du';
+  const exportedLabel = isEs ? 'Exportado el' : isEn ? 'Exported on' : 'Exportiert am';
+  const messagesLabel = isEs ? 'mensajes' : isEn ? 'messages' : 'Nachrichten';
   let lastDate = '';
   const msgsHtml = msgs.map(m => {
     const tsMs = Number(m.timestamp) > 1e12 ? Number(m.timestamp) : Number(m.timestamp) * 1000;
@@ -1760,14 +1794,14 @@ app.get('/api/export/:chatId', (req, res) => {
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
     if (m.type === 'video') {
-      content = `<span style="opacity:0.6">📹 ${isEn ? 'Video' : 'Video'}</span>`;
+      content = `<span style="opacity:0.6">📹 ${isEs ? 'Vídeo' : 'Video'}</span>`;
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'location' && m.locLat != null) {
       const mapsUrl = `https://maps.google.com/?q=${m.locLat},${m.locLng}`;
       const label = m.locName || `${parseFloat(m.locLat).toFixed(4)}, ${parseFloat(m.locLng).toFixed(4)}`;
       content = `<a href="${mapsUrl}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit"><span>📍</span><span style="text-decoration:underline">${escH(label)}</span></a>`;
     } else if (m.type === 'voice') {
-      content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
+      content = `<span style="opacity:0.6">🎵 ${isEs ? 'Mensaje de voz' : isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
     } else if (m.mediaFile && m.type === 'photo') {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
       if (fs.existsSync(fp)) {
@@ -1785,7 +1819,7 @@ app.get('/api/export/:chatId', (req, res) => {
     const sender = m.fromMe ? meLabel : escH(chatName);
     return `${sep}<div class="msg ${m.fromMe?'out':'in'}"><div class="bubble"><div class="meta"><span class="sender">${sender}</span><span class="time">${time}</span></div><div class="content">${content}</div></div></div>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d9fdd3;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#25D366}.msg.out .sender{color:#128c7e}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#e8f5e9}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
+  const html = `<!DOCTYPE html><html lang="${xl}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d9fdd3;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#25D366}.msg.out .sender{color:#128c7e}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#e8f5e9}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
   const fname = `whatsapp_${chatName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.html`;
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="${fname}"`);
@@ -4336,14 +4370,15 @@ app.get('/api/status-archive/:chatId', (req, res) => {
 
 app.get('/api/status-archive/:chatId/export', async (req, res) => {
   const chatId = req.params.chatId;
-  const isEn = (req.query.lang || 'de') === 'en';
-  const loc = isEn ? 'en-GB' : 'de-DE';
+  const xl = ['de', 'en', 'es'].includes(req.query.lang) ? req.query.lang : 'de';
+  const isEn = xl === 'en', isEs = xl === 'es';
+  const loc = isEs ? 'es-ES' : isEn ? 'en-GB' : 'de-DE';
   const contactName = await resolveArchiveName(chatId);
   const entries = [...(statusArchiveByChatId.get(chatId) || [])].sort((a, b) => a.timestamp - b.timestamp);
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
-  const countLabel = isEn ? 'status update(s)' : 'Statusmeldung(en)';
+  const exportedLabel = isEs ? 'Exportado el' : isEn ? 'Exported on' : 'Exportiert am';
+  const countLabel = isEs ? 'estado(s)' : isEn ? 'status update(s)' : 'Statusmeldung(en)';
   const safeContactName = contactName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40);
   const fname = `status_archiv_${safeContactName}_${new Date().toISOString().slice(0,10)}.zip`;
 
@@ -4369,14 +4404,14 @@ app.get('/api/status-archive/:chatId/export', async (req, res) => {
           ? `<img src="${outName}" style="max-width:280px;max-height:360px;border-radius:8px;display:block;">`
           : `<video controls style="max-width:280px;max-height:360px;border-radius:8px;display:block;" src="${outName}"></video>`;
       } else {
-        content = `<span style="opacity:0.6">${m.type === 'video' ? '📹' : '📷'} ${isEn ? '(file no longer available)' : '(Datei nicht mehr vorhanden)'}</span>`;
+        content = `<span style="opacity:0.6">${m.type === 'video' ? '📹' : '📷'} ${isEs ? '(el archivo ya no está disponible)' : isEn ? '(file no longer available)' : '(Datei nicht mehr vorhanden)'}</span>`;
       }
     }
     if (m.body) content += `<div style="margin-top:6px">${escH(m.body).replace(/\n/g,'<br>')}</div>`;
-    if (!content) content = `<span style="opacity:0.5">${isEn ? '(empty)' : '(leer)'}</span>`;
+    if (!content) content = `<span style="opacity:0.5">${isEs ? '(vacío)' : isEn ? '(empty)' : '(leer)'}</span>`;
     return `<div class="item"><div class="time">${escH(time)}</div>${content}</div>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${isEn?'Status archive':'Status-Archiv'}: ${escH(contactName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111b21;color:#e9edef;min-height:100vh;padding:20px}h1{text-align:center;font-size:18px;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:20px}.items{max-width:700px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.item{background:rgba(255,255,255,0.05);border-radius:10px;padding:10px;font-size:14px;word-break:break-word}.time{font-size:11px;color:#8696a0;margin-bottom:6px}</style></head><body><h1>${escH(contactName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${entries.length} ${countLabel}</p><div class="items">${itemsHtml}</div></body></html>`;
+  const html = `<!DOCTYPE html><html lang="${xl}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${isEn?'Status archive':'Status-Archiv'}: ${escH(contactName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111b21;color:#e9edef;min-height:100vh;padding:20px}h1{text-align:center;font-size:18px;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:20px}.items{max-width:700px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.item{background:rgba(255,255,255,0.05);border-radius:10px;padding:10px;font-size:14px;word-break:break-word}.time{font-size:11px;color:#8696a0;margin-bottom:6px}</style></head><body><h1>${escH(contactName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${entries.length} ${countLabel}</p><div class="items">${itemsHtml}</div></body></html>`;
   archive.append(html, { name: 'archiv.html' });
   archive.finalize();
 });
@@ -5292,14 +5327,14 @@ app.get('/', (req, res) => {
     <div style="font-size:48px;">💬</div>
     <h2>WhatsApp Web</h2>
     <div id="qr-img"></div>
-    <p>Öffne WhatsApp auf deinem Handy<br>
-       <strong>Verknüpfte Geräte → Gerät hinzufügen</strong><br>
-       und scanne den QR-Code</p>
+    <p><span data-i18n="qrStep1">Öffne WhatsApp auf deinem Handy</span><br>
+       <strong data-i18n="qrStep2">Verknüpfte Geräte → Gerät hinzufügen</strong><br>
+       <span data-i18n="qrStep3">und scanne den QR-Code</span></p>
   </div>
 
   <div class="topbar" id="topbar" style="display:none;">
     <button id="topbar-back" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <h1 ondblclick="waConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">WhatsApp</h1>
+    <h1 ondblclick="waConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console" data-i18n-title="consoleHint">WhatsApp</h1>
     <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;opacity:0.75;display:inline-flex;align-items:center;justify-content:center;color:#8696a0;"></button>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
@@ -5309,7 +5344,7 @@ app.get('/', (req, res) => {
     <button class="scroll-btn" onclick="openArchiveOverview()" data-i18n-title="archiveOverviewBtn" title="Status-Archiv-Übersicht">${_SVG.archive}</button>
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
-    <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:13px;padding:0 8px;font-weight:500;">DE</button>
+    <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language / Idioma" style="font-size:13px;padding:0 8px;font-weight:500;">DE</button>
     <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="confirmLogout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
 
@@ -5350,14 +5385,14 @@ app.get('/', (req, res) => {
         <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
         <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">${_SVG.trash}</button>
-        <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">${_SVG.x}</button>
+        <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen" data-i18n-title="deleteMode">${_SVG.x}</button>
       </div>
       <div id="msg-search-bar">
         <input id="msg-search-input" type="text" data-i18n-pl="msgSearchPlaceholder" placeholder="Suchen…" oninput="onMsgSearchInput(this.value)" onkeydown="if(event.key==='Escape')closeMsgSearch();">
         <div id="msg-search-nav">
-          <button class="msg-search-nav-btn" id="msg-search-prev" onclick="stepMsgSearch(-1)" title="Vorheriger">${_SVG.chevUp}</button>
+          <button class="msg-search-nav-btn" id="msg-search-prev" onclick="stepMsgSearch(-1)" title="Vorheriger" data-i18n-title="searchPrev">${_SVG.chevUp}</button>
           <span id="msg-search-count"></span>
-          <button class="msg-search-nav-btn" id="msg-search-next" onclick="stepMsgSearch(1)" title="Nächster">${_SVG.chevDown}</button>
+          <button class="msg-search-nav-btn" id="msg-search-next" onclick="stepMsgSearch(1)" title="Nächster" data-i18n-title="searchNext">${_SVG.chevDown}</button>
         </div>
         <button id="msg-search-close" onclick="closeMsgSearch()">${_SVG.x}</button>
       </div>
@@ -5792,6 +5827,9 @@ app.get('/', (req, res) => {
         msVideoBig:(size)=>'Das Video ist '+size+' groß – große Uploads können unterwegs abgewiesen werden.',
         msTplFileNote:(n)=>'Bild aus Vorlage: '+n,
         msError:(e)=>'Fehler: '+e,
+        qrStep1:'Öffne WhatsApp auf deinem Handy', qrStep2:'Verknüpfte Geräte → Gerät hinzufügen', qrStep3:'und scanne den QR-Code',
+        consoleHint:'Doppelklick: Console', searchPrev:'Vorheriger', searchNext:'Nächster', consoleFilter:'Text filtern…', videoDeleteDisk:'Video von Disk löschen',
+        storageTitle:(mb,mediaMb,at,pct,to)=>'Gesamt /config: '+mb+' MB\\nMedienordner: '+mediaMb+' MB von '+at+' MB ('+pct+'%)\\nAuto-Delete startet bei '+at+' MB, löscht auf '+to+' MB',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -5945,10 +5983,170 @@ app.get('/', (req, res) => {
         msVideoBig:(size)=>'The video is '+size+' – large uploads may be rejected on the way.',
         msTplFileNote:(n)=>'Image from template: '+n,
         msError:(e)=>'Error: '+e,
+        qrStep1:'Open WhatsApp on your phone', qrStep2:'Linked devices → Link a device', qrStep3:'and scan the QR code',
+        consoleHint:'Double-click: console', searchPrev:'Previous', searchNext:'Next', consoleFilter:'Filter text…', videoDeleteDisk:'Delete video from disk',
+        storageTitle:(mb,mediaMb,at,pct,to)=>'Total /config: '+mb+' MB\\nMedia folder: '+mediaMb+' MB of '+at+' MB ('+pct+'%)\\nAuto-delete starts at '+at+' MB, cleans to '+to+' MB',
+      },
+      es: {
+        spinnerConnecting:'Conectando con WhatsApp…', btnReset:'Restablecer sesión',
+        statusConnected:'Conectado', statusQR:'Escanear QR', statusAuth:'Autenticando…',
+        statusInit:'Iniciando…', statusDisc:'Desconectado', statusAuthFail:'Error de autenticación', statusError:'Error',
+        photosOn:'Multimedia ACTIVADO', photosOff:'Multimedia DESACTIVADO', btnCleanup:'Eliminar archivos multimedia huérfanos',
+        btnScrollUp:'Ir arriba', btnScrollDown:'Ir abajo', btnLogout:'Cerrar sesión',
+        filterAll:'Todos', filterPrivate:'Privados', filterGroups:'Grupos',
+        searchChats:'🔍  Buscar chats…', loadingChats:'Cargando chats…',
+        welcomeMsg:'Selecciona un chat de la lista', noChats:'No hay chats',
+        btnBack:'Atrás',
+        ttExport:'Exportar chat como HTML', ttSpamDelete:'Eliminar mensajes reenviados con frecuencia', btnSpamDelete:'Eliminar spam',
+        ttChatMediaOn:'Multimedia en este chat: ACTIVADO — haz clic para desactivarlo (no se elimina nada)',
+        ttChatMediaOff:'Multimedia en este chat: DESACTIVADO — los archivos existentes solo se ocultan; haz clic para volver a activarlo',
+        ttMsgSearch:'Buscar mensajes', msgSearchPlaceholder:'Buscar…', msgSearchNoResult:'Sin resultados',
+        deleteMode:'Eliminar mensajes', deleteModeCancel:'Cancelar', deleteConfirm:(n)=>'¿Seguro que quieres eliminar '+n+(n===1?' mensaje':' mensajes')+'?',
+        btnEmoji:'Emoji', btnAttach:'Adjuntar archivo', btnLocation:'Enviar ubicación', msgInput:'Mensaje…', attachCaption:'Pie de foto (opcional)…', btnSend:'Enviar',
+        emojiSearch:'Buscar…', emojiNone:'Sin resultados', emojiRecent:'Recientes', emojiCatSmileys:'Emoticonos y personas', emojiCatAnimals:'Animales y naturaleza', emojiCatFood:'Comida y bebida', emojiCatActivity:'Actividades', emojiCatTravel:'Viajes y lugares', emojiCatObjects:'Objetos', emojiCatSymbols:'Símbolos', emojiCatFlags:'Banderas',
+        locModalTitle:'📍 Enviar ubicación', locLat:'Latitud', locLng:'Longitud', locNameLbl:'Nombre (opcional)', locUseGPS:'📡 Usar la posición actual', locSend:'Enviar', locCancel:'Cancelar', locGPSErr:'GPS no disponible', locLabel:'Ubicación',
+        videoDownload:'⬇ Descargar vídeo', videoTooBig:'📹 Vídeo — demasiado grande (máx. ${VIDEO_MAX_MB} MB)',
+        fwdTitle:'↪ Reenviar a…', searchForward:'🔍 Buscar chat…',
+        btnCancel:'Cancelar', btnDeleteYes:'Sí, eliminar',
+        logoutConfirmMsg:'¿Seguro que quieres cerrar sesión?', btnYes:'Sí', btnNo:'No',
+        today:'Hoy', yesterday:'Ayer',
+        photo:'📷 Foto', voiceMsg:'🎵 Mensaje de voz', mediaGeneric:'📎', media:'[Multimedia]', me:'Yo',
+        forwarded:'↪ Reenviado', frequentForwarded:'↪↪ Reenviado muchas veces',
+        msgDeleted:'Se eliminó este mensaje',
+        msgDeletedNotice:'🚫 Mensaje eliminado',
+        ttDelete:'Eliminar', ttReact:'Reaccionar', ttForward:'Reenviar', ttReply:'Responder',
+        ttRemoveReaction:'Haz clic para quitarla', ttAddReaction:'Haz clic para reaccionar',
+        cleanupConfirm:'¿Eliminar archivos multimedia huérfanos (fotos que ya no se usan)?',
+        cleanupDone:(d,m)=>d+' archivo(s) eliminado(s), '+m+' MB liberados.',
+        cleanupError:(e)=>'Error en la limpieza: '+e,
+        spamModal:(n)=>n===1?'1 mensaje de este chat se ha reenviado muchas veces. ¿Eliminarlo ahora?':n+' mensajes de este chat se han reenviado muchas veces. ¿Eliminarlos ahora?',
+        spinnerRestart:'Reiniciando…', spinnerLogout:'Sesión cerrada — cargando código QR…',
+        spinnerReset:'Sesión eliminada — cargando código QR…', spinnerDisconnect:'Desconectado — reiniciando…',
+        spamDeleting:'⏳ Eliminando…', spamDeleted:(n)=>'✓ '+n+(n===1?' eliminado':' eliminados'),
+        spamError:'✗ Error', spamNone:'✓ Sin spam',
+        errSend:(e)=>'Error: '+e, errNetwork:'Error de red', locale:'es-ES',
+        statsMsg:'mensajes', statsSince:'desde',
+        offlineTitle:'Conexión perdida', offlineSub:'Reconectando…', offlineReload:'Recargar',
+        btnClose:'Cerrar', statusUpdates:'Estados',
+        statusArchive:'Archivo', archiveClear:'Vaciar archivo', archiveClearConfirm:'¿Seguro que quieres eliminar el archivo de este contacto?',
+        archiveOpen:(n)=>n===1?'Ver 1 estado caducado':'Ver '+n+' estados caducados', archiveExport:'Exportar como ZIP',
+        archiveMediaGone:'Archivo multimedia no disponible', archiveCleanup:'Limpiar entradas dañadas',
+        archiveCleanupDone:(r,c)=>r+c===0?'✓ Nada que hacer':'✓ '+r+' eliminado(s)'+(c?', '+c+' convertido(s) a texto':''),
+        archiveOverviewBtn:'Archivo de estados: resumen', archiveOverviewTitle:'Archivo de estados — resumen',
+        archiveOverviewLoading:'Cargando resumen…', archiveOverviewEmpty:'Aún no hay estados archivados.',
+        archiveColContact:'Contacto', archiveColCount:'Entradas', archiveColSize:'Espacio', archiveColPeriod:'Periodo', archiveColActions:'Acciones',
+        archiveRowExpired:(n)=>n+(n===1?' caducado':' caducados'), archiveRowMissing:(n)=>n+' sin multimedia',
+        archiveOpenTitle:'Abrir archivo', archiveOpenNone:'Aún no ha caducado nada — no hay nada que mostrar',
+        archiveExportTitle:'Exportar como ZIP', archiveDeleteTitle:'Eliminar el archivo de este contacto',
+        archiveRowClearConfirm:(name,size)=>'¿Seguro que quieres eliminar el archivo de '+name+'? Se liberan '+size+'.',
+        archiveClearAll:'Vaciar todos los archivos',
+        archiveClearAllConfirm:(c,size)=>'¿Seguro que quieres eliminar los archivos de los '+c+' contactos? Se liberan '+size+'. No se puede deshacer.',
+        archiveOvTotal:(c,n,size)=>c+(c===1?' contacto':' contactos')+' · '+n+(n===1?' entrada':' entradas')+' · '+size,
+        archiveOvNoFiles:'ningún archivo',
+        filterContacts:'Contactos', contactsLoading:'Cargando la libreta de direcciones…',
+        contactsEmpty:'No se han encontrado contactos.', contactsNoChat:'aún sin chat',
+        contactsError:'No se ha podido cargar la libreta de direcciones.',
+        contactsRefresh:'Recargar la libreta de direcciones',
+        searchClear:'Borrar búsqueda',
+        loadOlder:'↑ Cargar mensajes anteriores', loadOlderBusy:'cargando…',
+        loadOlderCount:(n,total)=>n+' de '+total+' cargados',
+        presLoading:'comprobando la última conexión…', presOnline:'en línea',
+        presLastSeen:(w)=>'últ. vez: '+w, presDenied:'últ. vez: no visible',
+        presUnknown:'últ. vez: sin información',
+        blkBlocked:'Has bloqueado a este contacto',
+        blkBlock:'Bloquear contacto', blkUnblock:'Desbloquear contacto',
+        blkConfirmBlock:(n)=>'¿Seguro que quieres bloquear a «'+n+'»? Ya no podrá escribirte ni verá tu foto de perfil ni tu última conexión.',
+        blkConfirmUnblock:(n)=>'¿Seguro que quieres desbloquear a «'+n+'»?',
+        blkDone:'Contacto bloqueado.', blkUndone:'Contacto desbloqueado.',
+        blkWorking:'Un momento…',
+        cgDevices:(n)=>n+' dispositivos vinculados', cgDevice:'1 dispositivo vinculado',
+        cgGroups:(n)=>n===1?'1 grupo en común':n+' grupos en común',
+        gsTitle:'Buscar en todos los mensajes', gsPlaceholder:'Buscar en todos los mensajes…',
+        gsSearchAll:(q)=>'🔍 Buscar «'+q+'» en todos los mensajes',
+        gsSearching:'Buscando…', gsNoResult:'No se ha encontrado ningún mensaje.',
+        gsTooShort:'Escribe al menos dos caracteres.',
+        gsNotStored:'no está en el historial local — solo abre el chat',
+        gsFoot:(n,local,remote)=>n+' resultados · '+local+' del historial'+(remote?' · '+remote+' adicionales de WhatsApp':''),
+        gsTruncated:(shown,total)=>'se muestran '+shown+' de '+total+' resultados',
+        gsJumpFailed:'Ese mensaje no está en el historial cargado.',
+        ncTitle:'Comprobar un número en WhatsApp', ncPlaceholder:'+34 612 345 678',
+        ncCheck:'Comprobar', ncChecking:'Comprobando…', ncOpenChat:'Abrir chat',
+        ncAsk:(n)=>'📱 Comprobar «'+n+'» en WhatsApp', ncOpen:'📱 Comprobar un número',
+        ncYes:'Este número está en WhatsApp.', ncNo:'Este número no está en WhatsApp.',
+        ncKnown:(n)=>'Guardado como '+n, ncNotSaved:'no está en tu libreta de direcciones',
+        ncTooShort:'Introduce un número de 7 a 15 dígitos.',
+        presOvTitle:'Última conexión — resumen', presOvOpen:'Última conexión — resumen',
+        presOvRefresh:'Actualizar ahora', presOvScanning:'comprobación en curso…',
+        presOvEmpty:'Aún no hay datos. «Actualizar ahora» inicia una comprobación.',
+        presOvColName:'Contacto', presOvColState:'Última conexión', presOvColChecked:'Comprobado',
+        presOvNever:'sin información', presOvDenied:'no visible', presOvOnline:'en línea',
+        presOvFoot:(n,when,iv)=>n+(n===1?' contacto':' contactos')+(when?' · comprobación '+when:'')
+          +(iv?' · automáticamente cada '+iv+' min':' · comprobación automática desactivada'),
+        contactsFoot:(n,w)=>n+(n===1?' contacto':' contactos')+' en la libreta de direcciones · '+w+' sin chat',
+        meProfile:'Mi perfil', meStatusSub:'Publicar un estado · editar info.',
+        msTitle:'Mi estado', msTabText:'Texto', msTabMedia:'Foto / vídeo', msTabTemplates:'Plantillas', msTabProfile:'Perfil',
+        msTabPrivacy:'Privacidad', privTitle:'Quién puede ver qué', privLoading:'Cargando ajustes…',
+        privUnavailable:'WhatsApp Web no ofrece los ajustes de privacidad en este momento.',
+        priv_lastSeen:'Última vez', priv_online:'En línea', priv_profilePicture:'Foto de perfil', priv_about:'Info.',
+        priv_groupAdd:'Grupos', priv_callAdd:'Llamadas', priv_readReceipts:'Confirmaciones de lectura',
+        privVal_all:'Todos', privVal_contacts:'Mis contactos', privVal_contact_blacklist:'Mis contactos, excepto…',
+        privVal_none:'Nadie', privVal_match_last_seen:'Igual que la última vez', privVal_known:'Contactos conocidos',
+        privHint:'Para «Mis contactos, excepto…» eliges las excepciones aquí mismo. Si desactivas las confirmaciones de lectura, tampoco verás las de los demás (en los grupos siguen activas).',
+        privNoBlacklist:'WhatsApp no guarda ninguna lista de excepciones para este ajuste.',
+        healthTitle:'WhatsApp Web ha cambiado.',
+        healthTitleShape:'WhatsApp responde de forma distinta a antes.',
+        healthBodyShape:(what)=>'Afectado: '+what+'. Las funciones internas siguen ahí, pero sus respuestas tienen otro formato; puede que algo se muestre o se configure mal. Detalles en /api/selfcheck.',
+        healthBody:(what)=>'Estas funciones están afectadas y no funcionan en este momento: '+what+'. Todo lo demás sigue funcionando. Detalles en /api/selfcheck.',
+        priv_statusAudience:'Estados',
+        privStatus_contacts:'Mis contactos', privStatus_deny:'Mis contactos, excepto…', privStatus_allow:'Solo compartir con…',
+        privStatusSaved:'Destinatarios del estado guardados',
+        privStatusOnlyCount:(n)=>n===1?'1 contacto':n+' contactos',
+        privListEdit:'editar', privListEmpty:'Aún no hay nadie excluido',
+        privListUnavailable:'Lista de excepciones no disponible',
+        privListCount:(n)=>n===1?'1 excepción':n+' excepciones',
+        privListSaved:(n)=>n===1?'Guardado — 1 contacto excluido':'Guardado — '+n+' contactos excluidos',
+        privUnresolved:(n)=>n===1?'No se ha podido identificar 1 contacto y se ha omitido.':'No se han podido identificar '+n+' contactos y se han omitido.',
+        privPickerTitle:(what)=>what+': ¿quién NO debe verlo?',
+        privPickerCount:(n)=>n+' seleccionados', privPickerSearch:'Buscar contacto…', privPickerSave:'Aplicar',
+        privFailed:'No se ha podido cambiar el ajuste.',
+        privSaved:(what, val)=>what + ' → ' + val,
+        privRejected:(applied)=>'WhatsApp no lo ha aceptado; sigue configurado como ' + applied + '.',
+        msTextPlaceholder:'¿Qué quieres compartir?', msBackground:'Fondo', msFont:'Fuente',
+        msCaption:'Pie de foto (opcional)', msCaptionPlaceholder:'Pie de foto…',
+        msTemplatesSaved:'Plantillas guardadas', msTemplatesEmpty:'Aún no hay plantillas guardadas.',
+        msTemplateSaveLbl:'Guardar el borrador actual como plantilla', msTemplateNamePlaceholder:'Nombre de la plantilla…',
+        msTemplateSave:'Guardar plantilla', msTemplateUpdate:'Actualizar plantilla',
+        msTemplateHint:'La plantilla guarda el texto, el color, la fuente y, si se ha elegido, la imagen del editor.',
+        msTemplateNameMissing:'Escribe un nombre para la plantilla.',
+        msTemplateSaved:'Plantilla guardada.', msTemplateDeleted:'Plantilla eliminada.',
+        msTemplateDeleteConfirm:(n)=>'¿Seguro que quieres eliminar la plantilla «'+n+'»?',
+        msTemplateLoaded:(n)=>'Plantilla «'+n+'» cargada.',
+        msTplText:'Texto', msTplImage:'Imagen', msTplVideo:'Vídeo',
+        msAboutLbl:'Texto de info. de tu perfil', msAboutPlaceholder:'¡Hola! Estoy usando WhatsApp.',
+        msAboutSave:'Guardar info.', msAboutSaved:'Info. guardada.',
+        msLiveTitle:'Mis estados activos', msLiveEmpty:'Ahora mismo no tienes ningún estado activo.',
+        msLiveLoading:'Cargando…', msLiveDelete:'Retirar',
+        msLiveDeleteConfirm:'¿Seguro que quieres retirar este estado?', msLiveDeleted:'Estado retirado.',
+        msSend:'Publicar en estados', msSending:'Enviando…',
+        msSentText:'Estado de texto publicado.', msSentMedia:'Estado multimedia publicado.',
+        msNeedText:'Escribe primero un texto.', msNeedFile:'Elige primero una foto o un vídeo.',
+        msFileTooBig:'Archivo demasiado grande (máx. 64 MB).', msVideoNoPreview:'Vídeo seleccionado – sin vista previa.',
+        msShrinking:'Reduciendo la imagen…',
+        msMediaClear:'Quitar selección',
+        attachShrunk:(from)=>'reducido desde '+from,
+        msShrunk:(from,to,w,h)=>'Imagen reducida: '+from+' → '+to+' ('+w+'×'+h+' píxeles)',
+        msShrinkFail:(size)=>'No se ha podido reducir la imagen; se queda en '+size+'. Es posible que se rechacen las subidas grandes por el camino.',
+        msVideoBig:(size)=>'El vídeo ocupa '+size+'; es posible que se rechacen las subidas grandes por el camino.',
+        msTplFileNote:(n)=>'Imagen de la plantilla: '+n,
+        msError:(e)=>'Error: '+e,
+        qrStep1:'Abre WhatsApp en tu móvil', qrStep2:'Dispositivos vinculados → Vincular un dispositivo', qrStep3:'y escanea el código QR',
+        consoleHint:'Doble clic: consola', searchPrev:'Anterior', searchNext:'Siguiente', consoleFilter:'Filtrar texto…', videoDeleteDisk:'Eliminar vídeo del disco',
+        storageTitle:(mb,mediaMb,at,pct,to)=>'Total /config: '+mb+' MB\\nCarpeta multimedia: '+mediaMb+' MB de '+at+' MB ('+pct+'%)\\nEl borrado automático empieza en '+at+' MB y reduce a '+to+' MB',
       },
     };
-    const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+    const _browserLang = (() => { const l = (navigator.language || '').toLowerCase(); return l.startsWith('de') ? 'de' : l.startsWith('es') ? 'es' : 'en'; })();
     let lang = localStorage.getItem('wa_lang') || _browserLang;
+    if (!LANG[lang]) lang = 'en';
     function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
     function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
     function applyLang() {
@@ -5956,13 +6154,14 @@ app.get('/', (req, res) => {
       document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
       document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
       const lb = document.getElementById('lang-btn');
-      if (lb) lb.textContent = lang === 'de' ? 'DE' : 'EN';
+      if (lb) lb.textContent = lang.toUpperCase();
+      document.documentElement.lang = lang;
       const ptb = document.getElementById('photo-toggle');
       if (ptb) ptb.title = document.body.classList.contains('hide-photos') ? t('photosOff') : t('photosOn');
       if (typeof applyChatMediaState === 'function') applyChatMediaState();
     }
     function switchLang() {
-      lang = lang === 'de' ? 'en' : 'de';
+      lang = lang === 'de' ? 'en' : lang === 'en' ? 'es' : 'de';
       localStorage.setItem('wa_lang', lang);
       applyLang();
     }
@@ -6285,9 +6484,7 @@ app.get('/', (req, res) => {
         el.innerHTML = '${_SVG.disk} ' + d.mb + ' MB';
         if (d.mediaMb !== undefined) {
           const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
-          el.title = lang === 'de'
-            ? 'Gesamt /config: ' + d.mb + ' MB\\nMedienordner: ' + d.mediaMb + ' MB von ' + autoAt + ' MB (' + d.mediaPct + '%)\\nAuto-Delete startet bei ' + autoAt + ' MB, l\xF6scht auf ' + autoTo + ' MB'
-            : 'Total /config: ' + d.mb + ' MB\\nMedia folder: ' + d.mediaMb + ' MB of ' + autoAt + ' MB (' + d.mediaPct + '%)\\nAuto-delete starts at ' + autoAt + ' MB, cleans to ' + autoTo + ' MB';
+          el.title = tf('storageTitle', d.mb, d.mediaMb, autoAt, d.mediaPct, autoTo);
         }
       } catch(e) {}
     }
@@ -7791,7 +7988,7 @@ app.get('/', (req, res) => {
         } else if (m.type === 'video') {
           if (m.mediaFile) {
             const vSrc = 'api/media/' + encodeURIComponent(m.mediaFile);
-            bub.innerHTML = '<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="' + vSrc + '"></video><button data-msgid="' + esc(m.id) + '" onclick="deleteWAVideo(this.dataset.msgid)" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>' + (m.body ? '<div style="margin-top:4px;font-size:13px">' + esc(m.body) + '</div>' : '') + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+            bub.innerHTML = '<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="' + vSrc + '"></video><button data-msgid="' + esc(m.id) + '" onclick="deleteWAVideo(this.dataset.msgid)" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="' + t('videoDeleteDisk') + '">🗑️</button></div>' + (m.body ? '<div style="margin-top:4px;font-size:13px">' + esc(m.body) + '</div>' : '') + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
           } else {
             const sz = m.videoSize || 0;
             const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
@@ -9284,7 +9481,7 @@ app.get('/', (req, res) => {
       <button data-lvl="WARN" class="on">WARN</button>
       <button data-lvl="INFO" class="on">INFO</button>
       <button data-lvl="DEBUG" class="on">DEBUG</button>
-      <input id="wa-console-search" type="text" placeholder="Text filtern…">
+      <input id="wa-console-search" type="text" placeholder="Text filtern…" data-i18n-pl="consoleFilter">
       <span id="wa-console-count"></span>
     </div>
     <div id="wa-console-body"></div>

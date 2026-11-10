@@ -1,0 +1,49 @@
+configuration:
+  api_enabled:
+    name: API REST en un puerto propio
+    description: "Inicia la API REST también en el puerto 17786. En este puerto se requiere un token y no hay interfaz web, a diferencia del puerto 17776, que ofrece ambas cosas sin necesidad de iniciar sesión. El puerto no se inicia si no se ha configurado un token de API. Para acceder desde la red local, también hay que habilitarlo en la sección «Red». Desactivado de forma predeterminada."
+  api_token:
+    name: Token de API
+    description: "Secreto para la API REST del puerto 17786. El cliente debe enviarlo en la cabecera Authorization con el valor Bearer seguido del token. Elige uno largo y aleatorio, por ejemplo, con openssl rand -hex 32."
+  dark_mode:
+    name: Tema oscuro
+    description: Activar el tema oscuro en la interfaz web.
+  download_media:
+    name: Descargar archivos multimedia
+    description: Descarga y muestra automáticamente las fotos recibidas. Solo funciona de forma fiable con los mensajes nuevos, no con los mensajes antiguos.
+  media_max_mb:
+    name: Límite de almacenamiento multimedia (MB)
+    description: "Tamaño máximo de la carpeta de archivos multimedia, en MB. Si se supera el límite, se eliminarán automáticamente los archivos más antiguos (fotos, vídeos y mensajes de voz) hasta que la carpeta vuelva a ocupar el 80 % del límite. Valor predeterminado: 500 MB."
+  video_max_mb:
+    name: Tamaño máximo de vídeo (MB)
+    description: "Tamaño máximo de los vídeos que se descargan automáticamente. Los vídeos más grandes se muestran como marcador de posición y se pueden cargar bajo demanda. Valor predeterminado: 50 MB."
+  webhook_incoming:
+    name: URL del webhook
+    description: URL a la que se reenvían los mensajes entrantes (p. ej., http://homeassistant:8123/api/webhook/whatsapp).
+  initial_chats:
+    name: Chats iniciales
+    description: "Número de chats con actividad más reciente que se cargan al iniciar. Los chats que no estén en esta lista se cargan dinámicamente la primera vez que se abren. Recomendado: 20–50."
+  initial_messages:
+    name: Mensajes iniciales por chat
+    description: "Mensajes por chat que se obtienen del historial de WhatsApp al iniciar. Nota: WhatsApp Web solo guarda en caché los mensajes más recientes de cada chat; en la práctica, rara vez hay más de 20–50 disponibles, sea cual sea este valor. Los valores más altos ralentizan el inicio sin ninguna ventaja."
+  keep_deleted:
+    name: Conservar mensajes eliminados
+    description: "true = el contenido original del mensaje sigue visible con una pequeña marca 🚫 debajo; se ocultan los botones de reenviar, reaccionar y responder. false = el mensaje se sustituye por un aviso 🚫 de eliminado (valor predeterminado)."
+  presence_mode:
+    name: Tu propia disponibilidad para la «última vez»
+    description: "WhatsApp solo envía la presencia de otras personas a los dispositivos que se anuncian como disponibles. temporary = anunciarse solo durante una consulta y volver a desconectarse después (valor predeterminado); always = anunciarse de forma permanente, con lo que tus contactos te verán siempre en línea; off = no anunciarse nunca; la «última vez» suele quedar vacía."
+  presence_scan_minutes:
+    name: Actualizar automáticamente el resumen de la última vez (minutos)
+    description: "Con qué frecuencia se actualiza en segundo plano el resumen de todos los contactos. 0 = desactivado (valor predeterminado); el resumen solo se puede actualizar a mano. Entre 15 y 60 minutos son valores razonables. Nota: durante cada comprobación (unos 15 segundos) te anuncias como disponible y tus contactos te ven en línea, salvo que presence_mode esté en off."
+  debug_mode:
+    name: Modo de depuración
+    description: Activar el registro detallado, incluidos los registros de solicitudes. Útil para solucionar problemas.
+  ha_notifications:
+    name: Notificaciones de HA
+    description: Notificación persistente de HA para cada mensaje nuevo (una por chat; se sustituye por los mensajes más recientes).
+  ha_notifications_privacy:
+    name: Modo de privacidad de las notificaciones de HA
+    description: "Si está activado, las notificaciones solo muestran «WhatsApp / Nuevo mensaje»: sin nombre del remitente ni contenido del mensaje."
+  ha_notifications_skip_groups:
+    name: Omitir grupos en las notificaciones de HA
+    description: Sin notificación de HA ni actualización de la API REST para los mensajes de chats de grupo.

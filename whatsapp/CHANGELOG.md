@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.65] - 2026-11-10
+- Neu: Spanisch als dritte Sprache (#510). Add-on-Optionen (`translations/es.yaml`), Weboberfläche einschließlich „Mein Status“, Statusarchiv und Datenschutz (Sprachknopf DE → EN → ES, spanische Browser starten auf Spanisch), Datumsformate, Chat- und Statusarchiv-Export
+- Neu: HA-Benachrichtigungen folgen der in Home Assistant eingestellten Sprache (Deutsch, Englisch, Spanisch; sonst Englisch, bei Fehler weiter Deutsch)
+- Fix: fest deutsche Texte erschienen auch in der englischen Oberfläche (QR-Anleitung, Tooltips, Konsolen-Filter, Speicher-Tooltip, Video-löschen-Tooltip)
+
 ## [1.8.64.2] - 2026-11-09
 - Abhängigkeit aktualisiert: express-rate-limit 8.7.2 → 8.7.3
 
