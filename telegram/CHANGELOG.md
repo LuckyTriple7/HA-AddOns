@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.9] - 2026-11-10
+- Neu: spanische Übersetzung der Add-on-Optionen (`translations/es.yaml`), beigesteuert von @DIAZGZA (#508)
+
 ## [1.8.8.2] - 2026-11-09
 - Abhängigkeit aktualisiert: teleproto 1.232.0 → 1.232.1
 
