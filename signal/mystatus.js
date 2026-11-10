@@ -72,9 +72,41 @@
       priv_forwards: 'Forwarded messages', priv_calls: 'Calls', priv_invites: 'Groups & channels', priv_voice: 'Voice messages',
       close: 'Close', cancel: 'Cancel',
     },
+    es: {
+      open: 'Mi estado', title: 'Mi historia',
+      tabText: 'Texto', tabMedia: 'Imagen / vídeo', tabTpl: 'Plantillas', tabProfile: 'Perfil', tabPriv: 'Privacidad',
+      textPh: '¿Qué quieres compartir?', background: 'Fondo', font: 'Fuente',
+      textNote: 'Se publica como imagen: {0} no admite historias solo de texto.',
+      pickFile: 'Elegir imagen o vídeo', clearMedia: 'Quitar selección', caption: 'Texto de la imagen (opcional)', captionPh: 'Pie de foto…',
+      noCaption: '{0} no admite texto en las imágenes de las historias.',
+      videoTooLong: 'El vídeo dura {0} s; {1} permite como máximo {2} s.',
+      videoNoPreview: 'Vídeo seleccionado (sin vista previa).',
+      visibility: 'Visible para', visContacts: 'Mis contactos', visAll: 'Todos', visClose: 'Amigos cercanos',
+      send: 'Publicar historia', sending: 'Publicando …', needText: 'Escribe un texto.', needFile: 'Elige una imagen o un vídeo.',
+      sentText: 'Historia de texto publicada.', sentMedia: 'Historia publicada.', error: 'Error: {0}',
+      tplSaved: 'Plantillas guardadas', tplEmpty: 'Aún no hay plantillas.', tplSaveLbl: 'Guardar el borrador actual como plantilla',
+      tplNamePh: 'Nombre de la plantilla…', tplSave: 'Guardar plantilla', tplUpdate: 'Actualizar plantilla',
+      tplHint: 'La plantilla guarda el texto, el color, la fuente y, si se ha elegido, la imagen del editor.',
+      tplText: 'Texto', tplImage: 'Imagen', tplVideo: 'Vídeo', tplNameMissing: 'Escribe un nombre para la plantilla.',
+      tplSavedOk: 'Plantilla guardada.', tplDeleted: 'Plantilla eliminada.', tplDeleteConfirm: '¿Eliminar la plantilla «{0}»?',
+      tplLoaded: 'Plantilla «{0}» cargada.', tplFileNote: 'Imagen de la plantilla «{0}»',
+      profileLbl: 'Perfil', save: 'Guardar', profileSaved: 'Perfil guardado.',
+      firstName: 'Nombre', lastName: 'Apellidos', givenName: 'Nombre', familyName: 'Apellidos',
+      about: 'Info.', aboutEmoji: 'Emoji de info.',
+      liveTitle: 'Mis historias activas', liveLoading: 'Cargando …', liveEmpty: 'Ahora mismo no hay ninguna historia activa.',
+      liveDelete: 'Eliminar historia', liveDeleteConfirm: '¿Eliminar esta historia?', liveDeleted: 'Historia eliminada.',
+      liveEdit: 'Editar texto', liveEditPrompt: 'Nuevo texto de la historia:', liveEdited: 'Texto modificado.',
+      liveViews: '{0} visualizaciones', liveUntil: 'hasta {0}',
+      liveLocalNote: 'Se muestran las historias que el complemento ha detectado: publicadas aquí o en el móvil mientras el complemento estaba en marcha. Solo se pueden eliminar en la app de Signal.',
+      privTitle: 'Quién puede ver qué', privAll: 'Todos', privContacts: 'Mis contactos', privNobody: 'Nadie',
+      privExceptions: '+ {0} excepción(es)', privSaved: 'Guardado.',
+      priv_phone: 'Número de teléfono', priv_lastSeen: 'Última vez en línea', priv_photo: 'Foto de perfil', priv_about: 'Biografía',
+      priv_forwards: 'Mensajes reenviados', priv_calls: 'Llamadas', priv_invites: 'Grupos y canales', priv_voice: 'Mensajes de voz',
+      close: 'Cerrar', cancel: 'Cancelar',
+    },
   };
   /* global lang */
-  const cur = () => ((typeof lang !== 'undefined' && lang === 'en') ? 'en' : 'de');
+  const cur = () => ((typeof lang !== 'undefined' && L[lang]) ? lang : 'de');
   const t = (k) => (L[cur()][k] !== undefined ? L[cur()][k] : (L.de[k] !== undefined ? L.de[k] : k));
   const tf = (k, ...a) => t(k).replace(/\{(\d)\}/g, (_, i) => (a[i] !== undefined ? a[i] : ''));
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -152,7 +184,7 @@
   }
   const postJson = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(apiJson);
   const $ = (id) => document.getElementById(id);
-  const fmt = (ms) => new Date(ms).toLocaleString(cur() === 'en' ? 'en-GB' : 'de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const fmt = (ms) => new Date(ms).toLocaleString(({ en: 'en-GB', es: 'es-ES' })[cur()] || 'de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   function show(kind, text) {
     const el = $('mys-msg');
