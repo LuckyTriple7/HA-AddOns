@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.11] - 2026-11-09
+
+### Changed
+- Rebuild für Claude Code 2.1.311
+
+
 ## [1.4.10.5] - 2026-11-09
 
 - Abhängigkeit aktualisiert: pymodbus 3.16.1 → 3.16.2
