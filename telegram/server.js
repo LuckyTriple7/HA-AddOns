@@ -2519,7 +2519,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   <h2 data-i18n="pwTitle">2-Faktor-Passwort</h2>
   <p data-i18n="pwInstr">Dein Konto ist durch ein Cloud-Passwort geschützt.</p>
   <div class="auth-box">
-    <input class="auth-input text" id="pw-input" type="password" placeholder="Passwort">
+    <input class="auth-input text" id="pw-input" type="password" placeholder="Passwort" data-i18n-pl="pwPlaceholder">
     <div class="auth-error" id="pw-error"></div>
     <button class="auth-btn" onclick="submitPassword()" data-i18n="btnConfirm">Bestätigen</button>
   </div>
@@ -2533,14 +2533,14 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 </div>
 
 <div id="topbar">
-  <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-  <h1 ondblclick="tgConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">Telegram</h1>
+  <button id="topbar-back" onclick="closeChat()" title="Zurück" data-i18n-title="btnBack"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
+  <h1 ondblclick="tgConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console" data-i18n-title="consoleHint">Telegram</h1>
   <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;padding:4px 2px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;opacity:0.75;color:inherit;"></button>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
   ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
-  <button id="refresh-btn" onclick="refreshChat()" oncontextmenu="toggleAutoReload(event)" title="Chat neu laden">${_SVG.refresh}</button>
+  <button id="refresh-btn" onclick="refreshChat()" oncontextmenu="toggleAutoReload(event)" title="Chat neu laden" data-i18n-title="btnReload">${_SVG.refresh}</button>
   <button id="refresh-all-btn" class="scroll-btn" onclick="refreshAllChats()" data-i18n-title="btnReloadAll" title="Alle Chats nachladen">${_SVG.refresh}<span style="font-size:11px;font-weight:600;margin-left:3px">*</span></button>
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
@@ -2576,13 +2576,13 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
       <button id="clear-chat-btn" onclick="clearChat()" data-i18n-title="clearChat" title="Chat leeren">${_SVG.trash}</button>
-      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">${_SVG.x}</button>
+      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen" data-i18n-title="deleteMode">${_SVG.x}</button>
     </div>
     <div id="msg-search-bar">
-      <input id="msg-search-input" type="text" placeholder="Nachrichten durchsuchen…" oninput="onMsgSearchInput()" onkeydown="if(event.key==='Enter'){stepMsgSearch(event.shiftKey?-1:1);}if(event.key==='Escape'){closeMsgSearch();}">
+      <input id="msg-search-input" type="text" placeholder="Nachrichten durchsuchen…" data-i18n-pl="msgSearchPlaceholder" oninput="onMsgSearchInput()" onkeydown="if(event.key==='Enter'){stepMsgSearch(event.shiftKey?-1:1);}if(event.key==='Escape'){closeMsgSearch();}">
       <span id="msg-search-count"></span>
-      <button class="msg-search-nav-btn" onclick="stepMsgSearch(-1)" title="Vorheriger Treffer">${_SVG.chevUp}</button>
-      <button class="msg-search-nav-btn" onclick="stepMsgSearch(1)" title="Nächster Treffer">${_SVG.chevDown}</button>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(-1)" title="Vorheriger Treffer" data-i18n-title="searchPrev">${_SVG.chevUp}</button>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(1)" title="Nächster Treffer" data-i18n-title="searchNext">${_SVG.chevDown}</button>
       <button id="msg-search-close" onclick="closeMsgSearch()">${_SVG.x}</button>
     </div>
     <div id="messages"></div>
@@ -2596,7 +2596,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
     <div id="attach-bar">
       ${_SVG.paperclip}
       <span class="attach-name" id="attach-name"></span>
-      <button class="attach-clear" onclick="clearAttach()" title="Entfernen">${_SVG.x}</button>
+      <button class="attach-clear" onclick="clearAttach()" title="Entfernen" data-i18n-title="attachRemove">${_SVG.x}</button>
     </div>
     <div id="input-bar">
       <div id="emoji-picker">
@@ -2670,6 +2670,8 @@ const LANG = {
     presLastWeek: 'zuletzt innerhalb einer Woche online', presLastMonth: 'zuletzt innerhalb eines Monats online', presLongAgo: 'zuletzt vor langer Zeit online',
     offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
     msgSearchTitle: 'In Nachrichten suchen', msgSearchPlaceholder: 'Nachrichten durchsuchen…',
+    btnClose: 'Schließen', fwdTitle: '↪ Weiterleiten an…', fwdSearch: '🔍 Chat suchen…', pwPlaceholder: 'Passwort', btnBack: 'Zurück', consoleHint: 'Doppelklick: Console',
+    searchPrev: 'Vorheriger Treffer', searchNext: 'Nächster Treffer', attachRemove: 'Entfernen', cmdPlaceholder: '/befehl parameter', videoDeleteDisk: 'Video von Disk löschen', consoleFilter: 'Text filtern…',
     voiceMsg: '🎵 Sprachnachricht', photoMsg: '📷 Foto', videoMsg: '📹 Video', btnForward: 'Weiterleiten', btnReplyMsg: 'Antworten', errShort: 'Fehler',
     storageTitle: (mb, mediaMb, at, pct, to) => 'Gesamt /config: ' + mb + ' MB\\nMedienordner: ' + mediaMb + ' MB von ' + at + ' MB (' + pct + '%)\\nAuto-Delete startet bei ' + at + ' MB → löscht auf ' + to + ' MB',
   },
@@ -2714,6 +2716,8 @@ const LANG = {
     presLastWeek: 'last seen within a week', presLastMonth: 'last seen within a month', presLongAgo: 'last seen a long time ago',
     offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
     msgSearchTitle: 'Search in messages', msgSearchPlaceholder: 'Search messages…',
+    btnClose: 'Close', fwdTitle: '↪ Forward to…', fwdSearch: '🔍 Search chat…', pwPlaceholder: 'Password', btnBack: 'Back', consoleHint: 'Double-click: console',
+    searchPrev: 'Previous match', searchNext: 'Next match', attachRemove: 'Remove', cmdPlaceholder: '/command parameter', videoDeleteDisk: 'Delete video from disk', consoleFilter: 'Filter text…',
     voiceMsg: '🎵 Voice message', photoMsg: '📷 Photo', videoMsg: '📹 Video', btnForward: 'Forward', btnReplyMsg: 'Reply', errShort: 'Error',
     storageTitle: (mb, mediaMb, at, pct, to) => 'Total /config: ' + mb + ' MB\\nMedia folder: ' + mediaMb + ' MB of ' + at + ' MB (' + pct + '%)\\nAuto-delete starts at ' + at + ' MB → cleans to ' + to + ' MB',
   },
@@ -2758,6 +2762,8 @@ const LANG = {
     presLastWeek: 'últ. vez hace unos días', presLastMonth: 'últ. vez hace unas semanas', presLongAgo: 'últ. vez hace mucho tiempo',
     offlineTitle: 'Conexión perdida', offlineSub: 'Reconectando…', offlineReload: 'Recargar',
     msgSearchTitle: 'Buscar en los mensajes', msgSearchPlaceholder: 'Buscar mensajes…',
+    btnClose: 'Cerrar', fwdTitle: '↪ Reenviar a…', fwdSearch: '🔍 Buscar chat…', pwPlaceholder: 'Contraseña', btnBack: 'Atrás', consoleHint: 'Doble clic: consola',
+    searchPrev: 'Resultado anterior', searchNext: 'Resultado siguiente', attachRemove: 'Quitar', cmdPlaceholder: '/comando parámetro', videoDeleteDisk: 'Eliminar vídeo del disco', consoleFilter: 'Filtrar texto…',
     voiceMsg: '🎵 Mensaje de voz', photoMsg: '📷 Foto', videoMsg: '📹 Vídeo', btnForward: 'Reenviar', btnReplyMsg: 'Responder', errShort: 'Error',
     storageTitle: (mb, mediaMb, at, pct, to) => 'Total /config: ' + mb + ' MB\\nCarpeta multimedia: ' + mediaMb + ' MB de ' + at + ' MB (' + pct + '%)\\nEl borrado automático empieza en ' + at + ' MB → reduce a ' + to + ' MB',
   },
@@ -3713,7 +3719,7 @@ function renderMessages(msgs, opts) {
         : '<span style="opacity:0.6">' + t('voiceMsg') + '</span>';
     } else if(isVideo){
       content = m.mediaFile
-        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;opacity:0.55;padding:4px;flex-shrink:0;color:currentColor" title="Video von Disk löschen">${_SVG.trash}</button></div>\`
+        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;opacity:0.55;padding:4px;flex-shrink:0;color:currentColor" title="\${t('videoDeleteDisk')}">${_SVG.trash}</button></div>\`
         : (() => {
             const sz = m.videoSize || 0;
             const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
@@ -4588,13 +4594,13 @@ applyLang();
     <div class="contact-modal-sub" id="contact-modal-sub"></div>
     <div class="contact-modal-number" id="contact-modal-number"></div>
     <div class="contact-modal-about" id="contact-modal-about"></div>
-    <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+    <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
   </div>
 </div>
 <div id="cmd-modal">
   <div class="fwd-modal-box">
     <h3 id="cmd-modal-title"></h3>
-    <label class="cmd-field"><span data-i18n="cmdFieldText">Befehl (Parameter erlaubt)</span><input type="text" id="cmd-f-text" maxlength="300" placeholder="/befehl parameter" onkeydown="cmdDialogKey(event)"></label>
+    <label class="cmd-field"><span data-i18n="cmdFieldText">Befehl (Parameter erlaubt)</span><input type="text" id="cmd-f-text" maxlength="300" placeholder="/befehl parameter" data-i18n-pl="cmdPlaceholder" onkeydown="cmdDialogKey(event)"></label>
     <label class="cmd-field"><span data-i18n="cmdFieldDesc">Beschreibung</span><input type="text" id="cmd-f-desc" maxlength="100" onkeydown="cmdDialogKey(event)"></label>
     <label class="cmd-check"><input type="checkbox" id="cmd-f-insert"><span data-i18n="cmdFieldInsert">Nur ins Eingabefeld einfügen, nicht sofort senden</span></label>
     <div class="cmd-error" id="cmd-f-error"></div>
@@ -4607,10 +4613,10 @@ applyLang();
 </div>
 <div id="fwd-modal">
   <div class="fwd-modal-box">
-    <h3>↪ Weiterleiten an…</h3>
-    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+    <h3 data-i18n="fwdTitle">↪ Weiterleiten an…</h3>
+    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" data-i18n-pl="fwdSearch" oninput="filterFwdChats()">
     <div id="fwd-chat-list"></div>
-    <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+    <button class="fwd-modal-cancel" onclick="closeFwdModal()" data-i18n="cmdCancel">Abbrechen</button>
   </div>
 </div>
 <div id="logout-modal">
@@ -4660,7 +4666,7 @@ applyLang();
       <button data-lvl="WARN" class="on">WARN</button>
       <button data-lvl="INFO" class="on">INFO</button>
       <button data-lvl="DEBUG" class="on">DEBUG</button>
-      <input id="tg-console-search" type="text" placeholder="Text filtern…">
+      <input id="tg-console-search" type="text" placeholder="Text filtern…" data-i18n-pl="consoleFilter">
       <span id="tg-console-count"></span>
     </div>
     <div id="tg-console-body"></div>

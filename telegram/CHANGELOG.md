@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.12] - 2026-11-10
+- Fix: restliche fest deutsche Texte der Oberfläche übersetzt (DE/EN/ES): Weiterleiten-Dialog, Schließen im Kontakt-Dialog, Passwortfeld beim Login, Tooltips (Zurück, Treffer vor/zurück, Anhang entfernen, Video von Disk löschen, Chat neu laden, Nachrichten löschen), Platzhalter der Nachrichtensuche, des Befehlsdialogs und der Konsole (#510)
+
 ## [1.8.11] - 2026-11-10
 - Fix: „Mein Status“ blieb auf Deutsch, wenn die Oberfläche auf Spanisch stand. Der Story-Editor ist jetzt ebenfalls auf Spanisch (#510)
 
