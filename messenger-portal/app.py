@@ -228,8 +228,11 @@ def load_config() -> dict:
     return _config_cache or {}
 
 
+SUPPORTED_LANGS = ('de', 'en', 'es')
+
+
 def load_translations(lang: str) -> dict:
-    lang = lang if lang in ('de', 'en') else 'en'
+    lang = lang if lang in SUPPORTED_LANGS else 'en'
     try:
         with open(f'{LOCALES_PATH}/{lang}.json', 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -239,11 +242,12 @@ def load_translations(lang: str) -> dict:
 
 def detect_language(req) -> str:
     lang = req.cookies.get('lang')
-    if lang in ('de', 'en'):
+    if lang in SUPPORTED_LANGS:
         return lang
-    accept = req.headers.get('Accept-Language', '')
-    if 'de' in accept[:5].lower():
-        return 'de'
+    accept = req.headers.get('Accept-Language', '')[:5].lower()
+    for code in ('de', 'es'):
+        if code in accept:
+            return code
     return 'en'
 
 
@@ -835,9 +839,9 @@ def logout():
 
 @app.route('/set-lang/<lang>')
 def set_lang(lang: str):
-    if lang not in ('de', 'en'):
+    if lang not in SUPPORTED_LANGS:
         abort(400)
-    cookie_lang = 'en' if lang == 'en' else 'de'
+    cookie_lang = 'en' if lang == 'en' else 'es' if lang == 'es' else 'de'
     ref = request.referrer or '/'
     ref = ref.replace('\\', '')
     parsed_ref = urlparse(ref)

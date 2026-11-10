@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.9] - 2026-11-10
+- Neu: Spanisch als dritte Sprache (#510). Add-on-Optionen (`translations/es.yaml`), Oberfläche (`locales/es.json`) mit ES-Knopf auf Startseite und Login; spanische Browser starten auf Spanisch; Uhrzeiten und Datumsangaben im spanischen Format
+
 ## [1.5.8] - 2026-10-27
 - Build: Basis-Image fest auf Alpine 3.24 (`python:3.15-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
 
