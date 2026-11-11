@@ -18,7 +18,7 @@ ENV \
 RUN apk add --no-cache \
     bash=5.3.9-r1 \
     curl=8.23.0-r0 \
-    git=2.54.0-r0 \
+    git=2.54.1-r0 \
     github-cli=2.97.0-r2 \
     jq=1.8.2-r0 \
     nodejs=24.22.1-r1 \
@@ -39,7 +39,7 @@ RUN apk add --no-cache \
     ripgrep=15.1.0-r0 \
     7zip=26.01-r0 \
     socat=1.8.1.3-r0 \
-    docker-cli=29.9.3-r0 \
+    docker-cli=29.9.3-r1 \
     gcompat=1.1.0-r4 \
     && update-ca-certificates
 
