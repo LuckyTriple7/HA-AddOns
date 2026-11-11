@@ -11,6 +11,7 @@ ADMIN_USER=$(jq -r '.admin_user // "admin"' /data/options.json)
 ADMIN_PASSWORD=$(jq -r '.admin_password // ""' /data/options.json)
 NEXTCLOUD_URL=$(jq -r '.nextcloud_url // ""' /data/options.json)
 ALIASGROUP1=$(jq -r '.aliasgroup1 // ""' /data/options.json)
+ALIASGROUP2=$(jq -r '.aliasgroup2 // ""' /data/options.json)
 DOMAIN1=$(jq -r '.domain1 // ""' /data/options.json)
 EXTRA_PARAMS=$(jq -r '.extra_params // ""' /data/options.json)
 TZ=$(jq -r '.TZ // "Europe/Berlin"' /data/options.json)
@@ -64,6 +65,21 @@ else
     DOMAIN=$(normalise_wopi_host "${HOST_ONLY%%:*}")
 fi
 log "aliasgroup1='${ALIASGROUP}' domain='${DOMAIN}'"
+
+# Zweite, eigenständige Nextcloud. Sie braucht eine eigene Alias-Gruppe: Hosts in
+# einer Gruppe hält coolwsd für dieselbe Nextcloud, gleiche Datei-IDs zweier
+# Instanzen landeten sonst im selben Dokument. Gleiche Normalisierung wie oben.
+ALIASGROUP2_VALUE=""
+if [ -n "$ALIASGROUP2" ]; then
+    if [[ "$ALIASGROUP2" == *[\]\[\(\)\{\}\|\*\+\?\^\$]* ]]; then
+        ALIASGROUP2_VALUE="$ALIASGROUP2"
+    else
+        RAW2="$ALIASGROUP2"
+        [[ "$RAW2" != *://* ]] && RAW2="https://${RAW2}"
+        ALIASGROUP2_VALUE="${RAW2%%://*}://$(normalise_wopi_host "$(normalise_server_name "$RAW2")")"
+    fi
+    log "aliasgroup2='${ALIASGROUP2_VALUE}'"
+fi
 
 ###############################################################################
 # coolwsd.xml nach /config persistieren
@@ -129,6 +145,7 @@ chmod -R 755 /opt/cool/systemplate
 # der aktuelle — beide setzen, damit es über Collabora-Versionen hinweg greift.
 export domain="$DOMAIN"
 export aliasgroup1="$ALIASGROUP"
+[ -n "$ALIASGROUP2_VALUE" ] && export aliasgroup2="$ALIASGROUP2_VALUE"
 export username="$ADMIN_USER"
 export password="$ADMIN_PASSWORD"
 [ -n "$DOMAIN1" ] && export server_name="$(normalise_server_name "$DOMAIN1")"

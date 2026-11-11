@@ -8,6 +8,9 @@ configuration:
   aliasgroup1:
     name: Alias Group 1
     description: Additional allowed domain as a regular expression, e.g. https://my-domain\.com:443. Leave empty if not needed.
+  aliasgroup2:
+    name: Alias Group 2
+    description: URL of a second, separate Nextcloud, e.g. https://cloud.example.com. Gets its own group so Collabora does not mix up the two instances. Leave empty if not needed.
   domain1:
     name: Domain 1
     description: Another allowed domain (regular expression). Leave empty if not needed.

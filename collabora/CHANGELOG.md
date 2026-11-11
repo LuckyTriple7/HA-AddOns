@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.12] - 2026-11-11
+- Neue Option `aliasgroup2` für eine zweite, eigenständige Nextcloud. Sie bekommt eine eigene Alias-Gruppe, damit Collabora die beiden Instanzen nicht für dieselbe hält (gleiche Datei-IDs würden sonst im selben Dokument landen)
+
 ## [1.1.11] - 2026-11-08
 - Collabora auf Upstream-Version 26.04.6.1.1 aktualisiert
 
