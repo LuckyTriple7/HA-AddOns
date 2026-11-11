@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.11.1] - 2026-11-11
+
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.4.11] - 2026-11-09
 
 ### Changed
