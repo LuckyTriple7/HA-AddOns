@@ -32,6 +32,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 | `admin_user` | `admin` | Benutzername für das Collabora-Admin-Panel |
 | `admin_password` | — | Passwort für das Collabora-Admin-Panel |
 | `aliasgroup1` | — | Erlaubte Domain als Regex — überschreibt die automatische Erkennung aus `nextcloud_url` |
+| `aliasgroup2` | — | URL einer zweiten, eigenständigen Nextcloud — eigene Alias-Gruppe |
 | `domain1` | — | Externer Hostname des Collabora-Servers — nur für Reverse-Proxy-Setups |
 | `extra_params` | — | Zusätzliche coolwsd-Parameter |
 
@@ -101,6 +102,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 | `admin_user` | `admin` | Username for the Collabora admin panel |
 | `admin_password` | — | Password for the Collabora admin panel |
 | `aliasgroup1` | — | Allowed domain as regex — overrides automatic detection from `nextcloud_url` |
+| `aliasgroup2` | — | URL of a second, separate Nextcloud — its own alias group |
 | `domain1` | — | External hostname of the Collabora server — only needed for reverse proxy setups |
 | `extra_params` | — | Additional coolwsd parameters |
 
