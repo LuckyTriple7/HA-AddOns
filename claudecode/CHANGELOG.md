@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.11.2] - 2026-11-12
+
+- Abhängigkeit aktualisiert: alpine_3_24/nodejs 24.22.1-r1 → 24.22.3-r0
+
 ## [1.4.11.1] - 2026-11-11
 
 - Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
