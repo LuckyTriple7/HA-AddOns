@@ -3181,7 +3181,12 @@ async function preloadPrivacyBundles(force = false) {
 // Vor jedem Schreibzugriff: fehlt ein Setter, die Einstellungs-Bundles nachladen.
 // Hoechstens alle 5 Minuten neu versuchen, falls es gar nicht klappt.
 let _privacyPreloadAt = 0;
+// Laeuft das Nachladen schon, warten weitere Aufrufer (z. B. der Selbsttest)
+// auf genau diesen Lauf, statt sofort weiterzumachen und das Modul faelschlich
+// als fehlend zu melden. Das Nachladen dauert rund 15 Sekunden.
+let _privacyPreloadPromise = null;
 async function ensurePrivacyBundles() {
+  if (_privacyPreloadPromise) { await _privacyPreloadPromise.catch(() => {}); return; }
   try {
     const missing = await client.pupPage.evaluate(() => {
       const req = (n) => { try { return window.require(n) || null; } catch (e) { return null; } };
@@ -3197,7 +3202,9 @@ async function ensurePrivacyBundles() {
     });
     if (!missing || Date.now() - _privacyPreloadAt < 5 * 60 * 1000) return;
     _privacyPreloadAt = Date.now();
-    const r = await preloadPrivacyBundles(true);
+    _privacyPreloadPromise = preloadPrivacyBundles(true);
+    let r;
+    try { r = await _privacyPreloadPromise; } finally { _privacyPreloadPromise = null; }
     dbg('ensurePrivacyBundles:', JSON.stringify(r && r.nowAvailable));
   } catch (e) { dbg('ensurePrivacyBundles:', e.message); }
 }

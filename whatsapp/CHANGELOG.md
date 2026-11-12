@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.67] - 2026-11-12
+- Fix: **Fehlalarm „WhatsApp Web hat umgebaut … Datenschutz aendern“ kurz nach dem Start.** Das Nachladen der Datenschutz-Module dauert rund 15 Sekunden. Lief der Selbsttest in dieser Zeit, wartete er nicht darauf, fand das Modul noch nicht und meldete es als fehlend. Das Banner zeigte diesen Stand, obwohl der nächste Test Sekunden später alles grün meldete. Wer während des Nachladens kommt, wartet jetzt auf genau diesen Lauf
+
 ## [1.8.66] - 2026-11-12
 - Abhängigkeit: zurück auf das offizielle `whatsapp-web.js` (`^1.34.8` von npm) statt des Forks `lindionez/whatsapp-web.js#88d8460`. Das offizielle Release vom 12.11.2026 enthält jetzt alle Fixes, wegen derer der Fork nötig war: Fallback für `id._serialized` → `id.$1` (1.7.41/1.7.43), Medienversand ohne „Data passed to getter must include an id property“ (1.8.60), keine doppelten `ready`-Ereignisse, Streaming-Downloads großer Dateien. Was der Fork darüber hinaus hat (Sticker-Packs, `@all`, `setStatus` mit Emoji, Einladungslink-Fallbacks, Anruf-Ablehnen), nutzt das Add-on nicht
 - Neu: Build-Patch `wwebjs-ready-listeners.js` übernimmt den einzigen dafür relevanten Fork-Fix: Jede Listener-Anmeldung nach dem Login steht einzeln in `try/catch`. Baut WhatsApp ein internes Modul um, fällt nur das eine Ereignis aus, statt dass `ready` nie kommt und das Add-on bei „authenticated“ hängen bleibt
