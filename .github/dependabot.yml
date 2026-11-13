@@ -1,5 +1,14 @@
 version: 2
 
+# Wöchentlich gesammelt: pro Ökosystem ein Eintrag mit allen Verzeichnissen und
+# einer Gruppe "*". Dependabot macht daraus montags einen Sammel-PR pro
+# Ökosystem statt einen PR pro Paket und Verzeichnis. cooldown wartet 7 Tage
+# nach einem Release, frische Versionen kommen also erst eine Woche später.
+# Sicherheits-Updates gelten weder für groups noch für cooldown und kommen
+# weiterhin sofort als einzelner PR.
+#
+# Neues Add-on: Verzeichnis in den passenden Eintrag unter directories aufnehmen.
+
 updates:
 
   # ── GitHub Actions ────────────────────────────────────────────────────────────
@@ -9,6 +18,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       github-actions:
@@ -16,213 +27,81 @@ updates:
 
   # ── Python (pip) ──────────────────────────────────────────────────────────────
   - package-ecosystem: "pip"
-    directory: "/mediagrab"
+    directories:
+      - "/cardboard/rootfs/app"
+      - "/claudecode"
+      - "/crowdpanel"
+      - "/gitpulse"
+      - "/logpulse"
+      - "/mediagrab"
+      - "/messenger-portal"
+      - "/mypage"
+      - "/nettoolbox"
+      - "/syswatch"
+      - "/tuiwatch"
     target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/gitpulse"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/crowdpanel"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/syswatch"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/messenger-portal"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/cardboard/rootfs/app"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/mypage"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/logpulse"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/nettoolbox"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/tuiwatch"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    directory: "/claudecode"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+    groups:
+      pip:
+        patterns: ["*"]
 
   # ── Node (npm) ────────────────────────────────────────────────────────────────
-
   - package-ecosystem: "npm"
-    directory: "/playwright-browser/mcp"
+    directories:
+      - "/playwright-browser/mcp"
+      - "/signal"
+      - "/telegram"
+      - "/whatsapp"
     target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
-
-  - package-ecosystem: "npm"
-    directory: "/telegram"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "npm"
-    directory: "/whatsapp"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "npm"
-    directory: "/signal"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+    groups:
+      npm:
+        patterns: ["*"]
 
   # ── Docker (Base Images) ──────────────────────────────────────────────────────
-
-  - package-ecosystem: "docker"
-    directory: "/signal"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/firefox"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/filebox"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/collabora"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-    # collabora/code seit 26.04.2.2 (Nix-Rootfs) kaputt für unser Setup (siehe
-    # collabora/CHANGELOG.md v1.0.11) -> bewusst auf altem Digest gepinnt.
-    # Ignore entfernen, sobald ein neuerer Digest manuell in einem Testcontainer
-    # verifiziert wurde (Dokument öffnen!).
-    ignore:
-      - dependency-name: "collabora/code"
-
-  - package-ecosystem: "docker"
-    directory: "/nextcloud"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
   # Die Alpine-Add-ons (anubis, cardboard, claudecode, crowdpanel, gitpulse,
   # mariadb2, mediagrab, messenger-portal, mypage, nettoolbox,
   # phpmyadmin-mariadb2, syswatch, telegram, whatsapp): Base-Image und gepinnte
   # Alpine-Pakete pflegt Renovate (renovate.json), Dependabot erkennt die Pins nicht.
-
   - package-ecosystem: "docker"
-    directory: "/logpulse"
+    directories:
+      - "/collabora"
+      - "/filebox"
+      - "/firefox"
+      - "/logpulse"
+      - "/nextcloud"
+      - "/playwright-browser"
+      - "/signal"
+      - "/tuiwatch"
+      - "/ubuntu-webtop"
     target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/tuiwatch"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-
-  - package-ecosystem: "docker"
-    directory: "/playwright-browser"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-    # Node bleibt auf der LTS-Linie; Major-Wechsel (z. B. auf ungerade/noch
-    # nicht LTS gewordene Versionen) werden von Hand gemacht.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      docker:
+        patterns: ["*"]
     ignore:
+      # collabora/code seit 26.04.2.2 (Nix-Rootfs) kaputt für unser Setup (siehe
+      # collabora/CHANGELOG.md v1.0.11) -> bewusst auf altem Digest gepinnt.
+      # Ignore entfernen, sobald ein neuerer Digest manuell in einem Testcontainer
+      # verifiziert wurde (Dokument öffnen!).
+      - dependency-name: "collabora/code"
+      # Node bleibt auf der LTS-Linie (nur playwright-browser nutzt node);
+      # Major-Wechsel (z. B. auf ungerade/noch nicht LTS gewordene Versionen)
+      # werden von Hand gemacht.
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
-
-  - package-ecosystem: "docker"
-    directory: "/ubuntu-webtop"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3

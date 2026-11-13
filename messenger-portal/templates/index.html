@@ -445,6 +445,7 @@
       <div class="lang-switch">
         <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
         <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+        <a href="{{ url_for('set_lang', lang='es') }}" class="lang-btn {% if lang == 'es' %}active{% endif %}">ES</a>
       </div>
 
       <a href="{{ url_for('share') }}" class="icon-btn" aria-label="{{ t.share_title }}" title="{{ t.share_title }}">
@@ -653,7 +654,7 @@
           if (!msgEl) return;
           if (m.last_received && m.last_received.iso) {
             const date    = new Date(m.last_received.iso);
-            const timeStr = date.toLocaleTimeString(LANG === 'de' ? 'de-DE' : 'en-US',
+            const timeStr = date.toLocaleTimeString(({ de: 'de-DE', es: 'es-ES' })[LANG] || 'en-US',
                               { hour: '2-digit', minute: '2-digit' });
             const now     = new Date();
             const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -901,7 +902,7 @@
         const isSnoozed = snoozedUntil && Date.now() < snoozedUntil;
         if (isSnoozed) {
           const timeStr = new Date(snoozedUntil).toLocaleTimeString(
-            LANG === 'de' ? 'de-DE' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+            ({ de: 'de-DE', es: 'es-ES' })[LANG] || 'en-US', { hour: '2-digit', minute: '2-digit' });
           body = `<div class="notif-status">${T_NOTIF_SNOOZED.replace('{time}', timeStr)}</div>
                   <button class="notif-action" onclick="clearSnooze()">${T_NOTIF_UNSNOOZE}</button>
                   <hr class="notif-divider">

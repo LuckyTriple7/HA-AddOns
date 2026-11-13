@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.36
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 35.0.3 (35.0.3-ls1)
+
 ## 1.0.35
 - Sicherheit: Base-Image auf linuxserver/nextcloud 35.0.2-ls459 aktualisiert. Es bringt PHP 8.5.12 und schließt damit die PHP2Shell-Lücke (CVE-2026-109618/-109619, Codeausführung ohne Anmeldung). ls457 enthielt PHP 8.5.11.
 

@@ -1,0 +1,25 @@
+configuration:
+  username:
+    name: Usuario
+    description: Nombre de usuario para iniciar sesión.
+  password:
+    name: Contraseña
+    description: Contraseña para iniciar sesión.
+  session_hours:
+    name: Duración de la sesión (horas)
+    description: Cuántas horas sigue siendo válida una sesión antes de tener que volver a iniciar sesión.
+  poll_interval:
+    name: Intervalo de consulta (segundos)
+    description: Con qué frecuencia se actualizan el estado y el último mensaje. Mínimo 5 segundos, valor predeterminado 30 segundos.
+  internal_host:
+    name: IP del host interno
+    description: Solo es necesario como alternativa. El portal accede a los complementos de mensajería por su nombre de contenedor, lo que funciona incluso sin un puerto publicado. Si se indica un valor, se fuerza el camino antiguo a través del host de HA (p. ej., 172.30.32.2) y sus asignaciones de puertos.
+  ingress_trusted:
+    name: Direcciones de Ingress de confianza
+    description: "Déjalo vacío. Las solicitudes desde estas direcciones se aceptan a través de Ingress sin la contraseña del portal; de forma predeterminada, solo el Supervisor (172.30.32.2/32). Separa varias entradas con comas; se admite CIDR. Una entrada como 0.0.0.0/0 se rechaza, ya que eliminaría el inicio de sesión para todos. Un valor incorrecto hace que el panel de Ingress no sea accesible (403); en ese caso, vuelve a vaciar este campo."
+  trusted_proxies:
+    name: Proxies de confianza
+    description: "Dirección del proxy inverso situado delante del portal (p. ej., NPMplus); varias separadas por comas, se admite CIDR. Solo desde ahí toma el portal la dirección real del cliente de X-Forwarded-For o CF-Connecting-IP; esto es importante para el bloqueo tras cinco intentos fallidos de inicio de sesión. Vacío: se cuenta la dirección que llega directamente al portal; detrás de un proxy, todos los clientes comparten entonces un mismo bloqueo. La dirección que hay que introducir aparece en el registro después de 'Login fehlgeschlagen: ip='."
+  messengers:
+    name: Mensajeros
+    description: Lista de mensajeros configurados con nombre, tipo de icono, puerto y estado de activación.

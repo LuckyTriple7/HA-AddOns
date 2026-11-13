@@ -193,7 +193,7 @@
                     '#f4772b', '#f2b705', '#6d4c41', '#263238', '#1b1b1b'];
 
     const $ = id => document.getElementById(id);
-    const loc = document.documentElement.lang === 'en' ? 'en-GB' : 'de-DE';
+    const loc = ({ en: 'en-GB', es: 'es-ES' })[document.documentElement.lang] || 'de-DE';
     let items = [];
     const selected = new Set();
     let textColor = COLORS[0];

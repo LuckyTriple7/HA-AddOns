@@ -602,6 +602,39 @@ function updateMsgMedia(msgId, filename) {
   }
 }
 
+// Sprache der HA-Benachrichtigung folgt der in Home Assistant eingestellten
+// Sprache (GET /api/config → language). Bis zur ersten Antwort oder wenn die
+// Abfrage scheitert, bleibt es beim bisherigen Deutsch.
+const HA_NOTIFY_TEXT = {
+  de: { newMsg: 'Neue Nachricht', photo: '📷 Foto' },
+  en: { newMsg: 'New message', photo: '📷 Photo' },
+  es: { newMsg: 'Nuevo mensaje', photo: '📷 Foto' },
+};
+let _haLang = 'de';
+function refreshHALanguage() {
+  if (!HA_NOTIFY || !SUPERVISOR_TOKEN) return;
+  const req = require('http').get('http://supervisor/core/api/config', {
+    headers: { 'Authorization': `Bearer ${SUPERVISOR_TOKEN}` }, timeout: 10000,
+  }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', c => { if (data.length < 65536) data += c; });
+    res.on('end', () => {
+      if (res.statusCode !== 200) { dbg(`HA language: HTTP ${res.statusCode}`); return; }
+      try {
+        const code = String(JSON.parse(data).language || '').toLowerCase().slice(0, 2);
+        const next = HA_NOTIFY_TEXT[code] ? code : 'en';
+        if (next !== _haLang) console.log(`[INFO] HA notification language: ${next}`);
+        _haLang = next;
+      } catch (e) { dbg('HA language: invalid response'); }
+    });
+  });
+  req.on('timeout', () => req.destroy());
+  req.on('error', e => dbg('HA language request error: ' + e.message));
+}
+refreshHALanguage();
+setInterval(refreshHALanguage, 6 * 60 * 60 * 1000).unref();
+
 function sendHANotification(senderName, body) {
   if (!HA_NOTIFY || !SUPERVISOR_TOKEN) {
     if (HA_NOTIFY && !SUPERVISOR_TOKEN) console.warn('[WARN] HA_NOTIFICATIONS: SUPERVISOR_TOKEN not available (homeassistant_api missing?)');
@@ -610,11 +643,11 @@ function sendHANotification(senderName, body) {
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
   const payload = JSON.stringify(HA_PRIVACY ? {
     title: 'Signal',
-    message: 'Neue Nachricht',
+    message: HA_NOTIFY_TEXT[_haLang].newMsg,
     notification_id: 'signal_new_message',
   } : {
     title: `Signal: ${senderName}`,
-    message: preview || '📷 Foto',
+    message: preview || HA_NOTIFY_TEXT[_haLang].photo,
     notification_id: 'signal_new_message',
   });
   const http = require('http');
@@ -743,16 +776,17 @@ app.get('/api/last-received', (req, res) => {
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
-  const isEn = (req.query.lang || 'de') === 'en';
-  const loc = isEn ? 'en-GB' : 'de-DE';
+  const xl = ['de', 'en', 'es'].includes(req.query.lang) ? req.query.lang : 'de';
+  const isEn = xl === 'en', isEs = xl === 'es';
+  const loc = isEs ? 'es-ES' : isEn ? 'en-GB' : 'de-DE';
   const chat = chatMap.get(chatId);
   const msgs = messagesByChatId.get(chatId) || [];
   const chatName = chat ? (chat.name || chatId) : chatId;
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const meLabel = isEn ? 'Me' : 'Du';
-  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
-  const messagesLabel = isEn ? 'messages' : 'Nachrichten';
+  const meLabel = isEs ? 'Yo' : isEn ? 'Me' : 'Du';
+  const exportedLabel = isEs ? 'Exportado el' : isEn ? 'Exported on' : 'Exportiert am';
+  const messagesLabel = isEs ? 'mensajes' : isEn ? 'messages' : 'Nachrichten';
   let lastDate = '';
   const msgsHtml = msgs.map(m => {
     const tsNum = Number(m.timestamp);
@@ -764,7 +798,7 @@ app.get('/api/export/:chatId', (req, res) => {
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
     if (m.type === 'voice') {
-      content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
+      content = `<span style="opacity:0.6">🎵 ${isEs ? 'Mensaje de voz' : isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
     } else if (m.mediaFile) {
       const fp = MEDIA_DIR + m.mediaFile;
       if (fs.existsSync(fp)) {
@@ -782,7 +816,7 @@ app.get('/api/export/:chatId', (req, res) => {
     const sender = m.fromMe ? meLabel : escH(chatName);
     return `${sep}<div class="msg ${m.fromMe?'out':'in'}"><div class="bubble"><div class="meta"><span class="sender">${sender}</span><span class="time">${time}</span></div><div class="content">${content}</div></div></div>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d1e3ff;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#3a76f0}.msg.out .sender{color:#2960d6}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#ddeeff}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
+  const html = `<!DOCTYPE html><html lang="${xl}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d1e3ff;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#3a76f0}.msg.out .sender{color:#2960d6}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#ddeeff}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
   const fname = `signal_${chatName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.html`;
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="${fname}"`);
@@ -1859,8 +1893,8 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 </div>
 
 <div id="topbar">
-  <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-  <h1 ondblclick="sigConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">Signal</h1>
+  <button id="topbar-back" onclick="closeChat()" title="Zurück" data-i18n-title="btnBack"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
+  <h1 ondblclick="sigConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console" data-i18n-title="consoleHint">Signal</h1>
   <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;padding:4px 2px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;opacity:0.75;color:inherit;"></button>
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
@@ -1868,7 +1902,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
-  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="gap:4px;padding:0 8px;">${_SVG.globe} DE</button>
+  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language / Idioma" style="gap:4px;padding:0 8px;">${_SVG.globe} DE</button>
   <button id="logout-btn" onclick="confirmLogout()" data-i18n-title="btnLogout" title="Abmelden"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 </div>
 
@@ -1899,10 +1933,10 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.disk}</button>
     </div>
     <div id="msg-search-bar">
-      <input id="msg-search-input" type="text" placeholder="Nachrichten durchsuchen…" oninput="onMsgSearchInput()" onkeydown="if(event.key==='Enter'){stepMsgSearch(event.shiftKey?-1:1);}if(event.key==='Escape'){closeMsgSearch();}">
+      <input id="msg-search-input" type="text" placeholder="Nachrichten durchsuchen…" data-i18n-pl="msgSearchPlaceholder" oninput="onMsgSearchInput()" onkeydown="if(event.key==='Enter'){stepMsgSearch(event.shiftKey?-1:1);}if(event.key==='Escape'){closeMsgSearch();}">
       <span id="msg-search-count"></span>
-      <button class="msg-search-nav-btn" onclick="stepMsgSearch(-1)" title="Vorheriger Treffer">${_SVG.chevUp}</button>
-      <button class="msg-search-nav-btn" onclick="stepMsgSearch(1)" title="Nächster Treffer">${_SVG.chevDown}</button>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(-1)" title="Vorheriger Treffer" data-i18n-title="searchPrev">${_SVG.chevUp}</button>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(1)" title="Nächster Treffer" data-i18n-title="searchNext">${_SVG.chevDown}</button>
       <button id="msg-search-close" onclick="closeMsgSearch()">${_SVG.x}</button>
     </div>
     <div id="messages"><div id="no-chat" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div></div>
@@ -1916,7 +1950,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
     <div id="attach-bar">
       ${_SVG.paperclip}
       <span class="attach-name" id="attach-name"></span>
-      <button class="attach-clear" onclick="clearAttach()" title="Entfernen">${_SVG.x}</button>
+      <button class="attach-clear" onclick="clearAttach()" title="Entfernen" data-i18n-title="attachRemove">${_SVG.x}</button>
     </div>
     <div id="input-bar">
       <div id="emoji-picker">
@@ -1973,6 +2007,10 @@ const LANG = {
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen',
     offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
     msgSearchTitle: 'In Nachrichten suchen',
+    voiceMsg: '🎵 Sprachnachricht', photoMsg: '📷 Foto', videoMsg: '📹 Video', errShort: 'Fehler',
+    fwdTitle: '↪ Weiterleiten an…', fwdSearch: '🔍 Chat suchen…', btnCancel: 'Abbrechen', btnBack: 'Zurück', consoleHint: 'Doppelklick: Console',
+    msgSearchPlaceholder: 'Nachrichten durchsuchen…', searchPrev: 'Vorheriger Treffer', searchNext: 'Nächster Treffer', attachRemove: 'Entfernen', consoleFilter: 'Text filtern…',
+    storageTitle: (mb, mediaMb, at, pct, to) => 'Gesamt /config: ' + mb + ' MB\\nMedienordner: ' + mediaMb + ' MB von ' + at + ' MB (' + pct + '%)\\nAuto-Delete startet bei ' + at + ' MB → löscht auf ' + to + ' MB',
   },
   en: {
     spinnerStart: 'Starting Signal…', spinnerConnect: 'Connecting…', spinnerLogout: 'Logging out…',
@@ -2000,10 +2038,46 @@ const LANG = {
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups',
     offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
     msgSearchTitle: 'Search in messages',
+    voiceMsg: '🎵 Voice message', photoMsg: '📷 Photo', videoMsg: '📹 Video', errShort: 'Error',
+    fwdTitle: '↪ Forward to…', fwdSearch: '🔍 Search chat…', btnCancel: 'Cancel', btnBack: 'Back', consoleHint: 'Double-click: console',
+    msgSearchPlaceholder: 'Search messages…', searchPrev: 'Previous match', searchNext: 'Next match', attachRemove: 'Remove', consoleFilter: 'Filter text…',
+    storageTitle: (mb, mediaMb, at, pct, to) => 'Total /config: ' + mb + ' MB\\nMedia folder: ' + mediaMb + ' MB of ' + at + ' MB (' + pct + '%)\\nAuto-delete starts at ' + at + ' MB → cleans to ' + to + ' MB',
+  },
+  es: {
+    spinnerStart: 'Iniciando Signal…', spinnerConnect: 'Conectando…', spinnerLogout: 'Cerrando sesión…',
+    spinnerError: (e) => 'Error: ' + e,
+    qrTitle: 'Vincular Signal',
+    qrInstr: 'Abre Signal → Ajustes → Dispositivos vinculados → Vincular nuevo dispositivo → Escanear código QR',
+    qrLoading: 'Cargando código QR…', qrLoadingLong: 'Cargando código QR… (puede tardar hasta 60 s)',
+    qrError: (e) => 'Error: ' + e, qrRefreshBtn: 'Recargar código QR',
+    photosOn: 'Multimedia ACTIVADO', photosOff: 'Multimedia DESACTIVADO',
+    cleanupTitle: 'Eliminar archivos multimedia huérfanos',
+    btnScrollUp: 'Ir arriba', btnScrollDown: 'Ir abajo', btnLogout: 'Cerrar sesión',
+    logoutConfirmMsg: '¿Seguro que quieres cerrar sesión?', btnYes: 'Sí', btnNo: 'No',
+    searchPlaceholder: 'Buscar…', noChatSelected: 'Selecciona un chat de la lista',
+    noMessages: 'Aún no hay mensajes',
+    btnFetchMedia: '📥', fetchMediaTitle: 'Descargar las fotos que faltan',
+    fetchMediaLoading: '⏳ Cargando…', fetchMediaDone: '✓ Todo cargado',
+    fetchMediaCount: (n) => '⏳ ' + n + ' fotos…',
+    msgPlaceholder: 'Mensaje…', btnDelete: 'Eliminar', btnReact: 'Reaccionar', signalName: 'Nombre en Signal', reactionRemove: 'Haz clic para quitarla', deletedMsg: 'Este mensaje se ha eliminado', deletedBadge: 'eliminado por el remitente', edited: 'editado', membersTitle: 'Miembros', admin: 'Admin', noMembers: 'No se han encontrado miembros', ttReply: 'Responder', ttForward: 'Reenviar', emojiTitle: 'Emoji', attachTitle: 'Adjuntar archivo', ttExport: 'Exportar chat como HTML',
+    emojiSearch:'Buscar…', emojiNone:'Sin resultados', emojiRecent:'Recientes', emojiCatSmileys:'Emoticonos y personas', emojiCatAnimals:'Animales y naturaleza', emojiCatFood:'Comida y bebida', emojiCatActivity:'Actividades', emojiCatTravel:'Viajes y lugares', emojiCatObjects:'Objetos', emojiCatSymbols:'Símbolos', emojiCatFlags:'Banderas',
+    errSend: (e) => 'Error: ' + e,
+    statsMsg: 'mensajes', statsSince: 'desde',
+    cleanupConfirm: '¿Eliminar archivos multimedia huérfanos (fotos que ya no se usan)?',
+    cleanupSuccess: (c, mb) => c + ' archivo(s) eliminado(s), ' + mb + ' MB liberados.',
+    cleanupError: (e) => 'Error en la limpieza: ' + e,
+    filterAll: 'Todos', filterPrivate: 'Privados', filterGroups: 'Grupos',
+    offlineTitle: 'Conexión perdida', offlineSub: 'Reconectando…', offlineReload: 'Recargar',
+    msgSearchTitle: 'Buscar en los mensajes',
+    voiceMsg: '🎵 Mensaje de voz', photoMsg: '📷 Foto', videoMsg: '📹 Vídeo', errShort: 'Error',
+    fwdTitle: '↪ Reenviar a…', fwdSearch: '🔍 Buscar chat…', btnCancel: 'Cancelar', btnBack: 'Atrás', consoleHint: 'Doble clic: consola',
+    msgSearchPlaceholder: 'Buscar mensajes…', searchPrev: 'Resultado anterior', searchNext: 'Resultado siguiente', attachRemove: 'Quitar', consoleFilter: 'Filtrar texto…',
+    storageTitle: (mb, mediaMb, at, pct, to) => 'Total /config: ' + mb + ' MB\\nCarpeta multimedia: ' + mediaMb + ' MB de ' + at + ' MB (' + pct + '%)\\nEl borrado automático empieza en ' + at + ' MB → reduce a ' + to + ' MB',
   },
 };
-const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+const _browserLang = (() => { const l = (navigator.language || '').toLowerCase(); return l.startsWith('de') ? 'de' : l.startsWith('es') ? 'es' : 'en'; })();
 let lang = localStorage.getItem('signal_lang') || _browserLang;
+if (!LANG[lang]) lang = 'en';
 // ── Nachrichtensuche ──────────────────────────────────────────────────────────
 // _msgSearchMatches: serverseitige Treffer [{id, timestamp}] (neueste zuerst)
 let _msgSearchMatches = [], _msgSearchIdx = -1, _msgSearchQuery = '', _searchTimer = null;
@@ -2131,20 +2205,21 @@ function stepMsgSearch(dir) {
 
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
-function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
+function locale() { return lang === 'de' ? 'de-DE' : lang === 'es' ? 'es-ES' : 'en-GB'; }
 function applyLang() {
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
   const lb = document.getElementById('lang-btn');
-  if (lb) lb.innerHTML = '${_SVG.globe} ' + (lang === 'de' ? 'DE' : 'EN');
+  if (lb) lb.innerHTML = '${_SVG.globe} ' + lang.toUpperCase();
+  document.documentElement.lang = lang;
   const fmb = document.getElementById('fetch-media-btn');
   if (fmb && !fmb.disabled) fmb.innerHTML = '${_SVG.download}';
   const ptb = document.getElementById('photo-toggle-btn');
   if (ptb) ptb.title = document.getElementById('photo-toggle-btn').classList.contains('active') ? t('photosOn') : t('photosOff');
 }
 function switchLang() {
-  lang = lang === 'de' ? 'en' : 'de';
+  lang = lang === 'de' ? 'en' : lang === 'en' ? 'es' : 'de';
   localStorage.setItem('signal_lang', lang);
   applyLang();
 }
@@ -2778,7 +2853,7 @@ function renderMessages(msgs, opts) {
       content = \`<audio controls style="min-width:220px;max-width:280px;width:100%" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></audio>\`;
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'voice') {
-      content = '<span class="photo-placeholder">🎵 Sprachnachricht</span>';
+      content = '<span class="photo-placeholder">' + t('voiceMsg') + '</span>';
     } else if (m.type === 'video') {
       if (m.mediaFile) {
         content = \`<video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></video>\`;
@@ -2791,10 +2866,10 @@ function renderMessages(msgs, opts) {
     } else if (m.mediaFile) {
       content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
-        : '<span class="photo-placeholder">📷 Foto</span>';
+        : '<span class="photo-placeholder">' + t('photoMsg') + '</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'photo' && (m.attIds && m.attIds.length > 0)) {
-      content = '<span class="photo-placeholder">📷 Foto</span>';
+      content = '<span class="photo-placeholder">' + t('photoMsg') + '</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'document' && m.filename) {
       content = \`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
@@ -2808,7 +2883,7 @@ function renderMessages(msgs, opts) {
     // Gruppen: Absender ueber der Bubble, sonst weiss man nicht, wer schreibt
     const authorHtml = (!m.fromMe && m.author) ? \`<div class="bubble-author">\${escHtml(m.author)}</div>\` : '';
     const reactHtml = reactionsBar(m);
-    const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='video'?'📹 Video':m.type==='photo'?'📷 Foto':'')).slice(0,60));
+    const replyPreview = escHtml((m.body || (m.type==='voice'?t('voiceMsg'):m.type==='video'?t('videoMsg'):m.type==='photo'?t('photoMsg'):'')).slice(0,60));
     const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
     // Vom Absender geloescht (mit keep_deleted bleibt der Inhalt, dazu eine Markierung)
     const delBadge = (m.deleted && (m.body || m.mediaFile)) ? '<div class="deleted-badge">🚫 ' + escHtml(t('deletedBadge')) + '</div>' : '';
@@ -2863,9 +2938,9 @@ async function fetchVideo(el) {
       _lastMsgFingerprint[selectedChatId] = '';
       await loadMessages(selectedChatId);
     } else {
-      el.textContent = '❌ ' + (r.error || 'Fehler');
+      el.textContent = '❌ ' + (r.error || t('errShort'));
     }
-  } catch(e) { el.textContent = '❌ Fehler'; }
+  } catch(e) { el.textContent = '❌ ' + t('errShort'); }
 }
 
 let _fwdMsgId = null;
@@ -3012,9 +3087,7 @@ async function loadStorage() {
     el.textContent = '💾 ' + d.mb + ' MB';
     if (d.mediaMb !== undefined) {
       const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
-      el.title = locale() === 'de'
-        ? \`Gesamt /config: \${d.mb} MB\nMedienordner: \${d.mediaMb} MB von \${autoAt} MB (\${d.mediaPct}%)\nAuto-Delete startet bei \${autoAt} MB → löscht auf \${autoTo} MB\`
-        : \`Total /config: \${d.mb} MB\nMedia folder: \${d.mediaMb} MB of \${autoAt} MB (\${d.mediaPct}%)\nAuto-delete starts at \${autoAt} MB → cleans to \${autoTo} MB\`;
+      el.title = tf('storageTitle', d.mb, d.mediaMb, autoAt, d.mediaPct, autoTo);
     }
   } catch(e) {}
 }
@@ -3253,10 +3326,10 @@ applyLang();
 </script>
 <div id="fwd-modal">
   <div class="fwd-modal-box">
-    <h3>↪ Weiterleiten an…</h3>
-    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+    <h3 data-i18n="fwdTitle">↪ Weiterleiten an…</h3>
+    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" data-i18n-pl="fwdSearch" oninput="filterFwdChats()">
     <div id="fwd-chat-list"></div>
-    <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+    <button class="fwd-modal-cancel" onclick="closeFwdModal()" data-i18n="btnCancel">Abbrechen</button>
   </div>
 </div>
 <div id="logout-modal">
@@ -3306,7 +3379,7 @@ applyLang();
       <button data-lvl="WARN" class="on">WARN</button>
       <button data-lvl="INFO" class="on">INFO</button>
       <button data-lvl="DEBUG" class="on">DEBUG</button>
-      <input id="sig-console-search" type="text" placeholder="Text filtern…">
+      <input id="sig-console-search" type="text" placeholder="Text filtern…" data-i18n-pl="consoleFilter">
       <span id="sig-console-count"></span>
     </div>
     <div id="sig-console-body"></div>

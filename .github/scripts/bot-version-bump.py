@@ -38,6 +38,11 @@ def next_version(old: str) -> str:
 def changelog_line(title: str) -> str:
     title = re.sub(r"^[a-z]+(\([^)]*\))?!?:\s*", "", title.strip())
     title = re.sub(r"^⬆️\s*", "", title)
+    # Sammel-PRs: Dependabot "bump the pip group across 3 directories with 5 updates",
+    # Renovate "bump alpine-pakete" / "bump base-images". Der Titel sagt nicht, was
+    # im einzelnen Add-on steckt, deshalb nur ein allgemeiner Eintrag.
+    if re.search(r"\bgroup\b|alpine-pakete|base-images?\b", title, re.I):
+        return "Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)"
     m = re.search(r"bump (.+?) from (\S+) to (\S+?)(?: in /\S+)?$", title, re.I)
     if m:
         return f"Abhängigkeit aktualisiert: {m.group(1)} {m.group(2)} → {m.group(3)}"

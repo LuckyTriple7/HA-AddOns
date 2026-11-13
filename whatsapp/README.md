@@ -18,7 +18,7 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 - **Nachrichten löschen**: Nachricht für alle entfernen (Hover → ✕)
 - **Ungelesene-Badge**: Grüner Punkt in der Sidebar bei neuen Nachrichten
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
-- **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
+- **Sprachauswahl**: 🌐 DE / EN / ES Button in der Topbar (schaltet reihum, Startsprache nach Browser) — Sprache wird im Browser gespeichert
 - **REST-API**: Nachrichten aus Automatisierungen heraus senden
 - **Webhook**: Eingehende Nachrichten an eine URL weiterleiten
 
@@ -213,7 +213,7 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 - **Delete messages**: Remove a message for everyone (hover → ✕)
 - **Unread badge**: Green dot in the sidebar for new messages
 - **Emoji keyboard**: 😊 button in the input field
-- **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser
+- **Language switcher**: 🌐 DE / EN / ES button in the topbar (cycles through, initial language from the browser) — language is saved in the browser
 - **REST API**: Send messages from automations
 - **Webhook**: Forward incoming messages to a URL
 

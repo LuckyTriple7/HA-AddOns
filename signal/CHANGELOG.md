@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.7] - 2026-11-10
+- Neu: Spanisch als dritte Sprache (#510). Add-on-Optionen (`translations/es.yaml`), Weboberfläche (Sprachknopf DE → EN → ES, spanische Browser starten auf Spanisch), Datumsformate und HTML-Export
+- Neu: HA-Benachrichtigungen folgen der in Home Assistant eingestellten Sprache (Deutsch, Englisch, Spanisch; sonst Englisch, bei Fehler weiter Deutsch)
+- Fix: fest deutsche Texte erschienen auch in der englischen Oberfläche (Weiterleiten-Dialog, Tooltips, Platzhalter der Nachrichtensuche und Konsole, Sprachnachricht-/Foto-Platzhalter, Fehlermeldung, Speicher-Tooltip)
+
 ## [1.8.6] - 2026-11-10
 - Intern: gemeinsamer Story-Editor (`mystatus.js`, identisch mit Telegram) kennt jetzt auch Spanisch; an der Signal-Oberfläche ändert sich nichts
 

@@ -1,3 +1,21 @@
+## [1.8.124] - 2026-11-12
+
+### Aktualisiert
+
+- VS Code: 1.145.3 → 1.146.0
+- Claude Desktop: 3.3.15+claude5.1231.0 → 3.3.16+claude5.1231.2
+
+## [1.8.123] - 2026-11-11
+
+### Aktualisiert
+
+- VS Code: 1.145.2 → 1.145.3
+- Firefox: 159.0.1 → 160.0
+- Thunderbird: 159.0 → 160.0
+- Claude Desktop: 3.3.15+claude4.23118.1 → 3.3.15+claude5.1231.0
+- OpenCode: 2.2.6 → 2.2.7
+- Tailscale: 1.104.5 → 1.104.6
+
 ## [1.8.122] - 2026-11-10
 
 ### Aktualisiert

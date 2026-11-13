@@ -3,11 +3,16 @@
   "description": [
     "Renovate pflegt für die Alpine-Add-ons Base-Images (FROM, ARG BUILD_FROM, build.yaml) und die gepinnten Alpine-Pakete.",
     "pip, npm, GitHub Actions und die Docker-Images der übrigen Add-ons bleiben bei Dependabot.",
+    "Wöchentlich gesammelt: Renovate arbeitet nur montags früh und fasst alle Add-ons in einen PR für Alpine-Pakete und einen für Base-Images zusammen. Base-Images müssen 7 Tage alt sein; Alpine-Pakete nicht, weil das Alpine-Repo nur die neueste Version behält und alte Pins den Build brechen.",
     "Neues Add-on: in includePaths aufnehmen, FROM-Tag mit -alpine3.XX festziehen, apk-Pakete pinnen und seinen docker-Eintrag aus .github/dependabot.yml entfernen.",
     "Alpine-Sprung (z. B. 3.24 -> 3.25) von Hand: alle -alpine3.XX-Tags, alle Pins und die Repo-URLs unten in einem Zug umstellen."
   ],
   "baseBranchPatterns": [
     "dev"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": [
+    "* 0-5 * * 1"
   ],
   "includePaths": [
     "anubis/**",
@@ -34,14 +39,12 @@
   "labels": [
     "dependencies"
   ],
-  "additionalBranchPrefix": "{{parentDir}}-",
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
   "commitMessageAction": "bump",
   "commitMessageTopic": "{{depName}}",
   "commitMessageExtra": "from {{currentVersion}} to {{newVersion}}",
-  "commitMessageSuffix": "in /{{parentDir}}",
   "customDatasources": {
     "alpine": {
       "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/",
@@ -105,18 +108,20 @@
       ]
     },
     {
-      "description": "Alle Alpine-Pakete eines Add-ons in einem PR (chromium und chromium-chromedriver müssen zusammen steigen)",
+      "description": "Alle Alpine-Pakete aller Add-ons in einem PR (chromium und chromium-chromedriver müssen zusammen steigen)",
       "matchDatasources": [
         "custom.alpine"
       ],
       "groupName": "Alpine-Pakete"
     },
     {
-      "description": "Base-Images eines Add-ons in einem PR",
+      "description": "Base-Images aller Add-ons in einem PR, erst 7 Tage nach Erscheinen (ghcr.io liefert kein Datum, solche Tags kommen ohne Wartezeit)",
       "matchDatasources": [
         "docker"
       ],
-      "groupName": "Base-Image"
+      "groupName": "Base-Images",
+      "minimumReleaseAge": "7 days",
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "Alpine-Sprünge nur von Hand, sonst passen die Paket-Pins nicht mehr",
