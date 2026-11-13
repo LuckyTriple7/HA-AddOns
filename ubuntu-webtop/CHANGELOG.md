@@ -1,3 +1,11 @@
+## [1.8.125] - 2026-11-13
+
+### Aktualisiert
+
+- GitHub CLI: 2.103.3 → 2.104.0
+- Claude Desktop: 3.3.16+claude5.1231.2 → 3.3.16+claude5.11492.0
+- Tailscale: 1.104.6 → 1.104.7
+
 ## [1.8.124] - 2026-11-12
 
 ### Aktualisiert
