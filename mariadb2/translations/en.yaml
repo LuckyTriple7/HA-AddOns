@@ -17,6 +17,9 @@ configuration:
   innodb_buffer_pool_size:
     name: InnoDB buffer pool
     description: Memory for the data and index cache, e.g. 512M or 2G. The Nextcloud Memories app recommends at least 2G. Only use as much as free RAM allows. Default 512M.
+  tmp_table_size:
+    name: In-memory temp tables
+    description: Size up to which temporary tables stay in memory (sets tmp_table_size and max_heap_table_size), e.g. 64M or 256M. Higher values reduce the Nextcloud warning "On-disk temp tables"; queries with TEXT/BLOB columns always go to disk anyway. Default 64M.
 
 network:
   3306/tcp: MariaDB 2 (accessible on host port 3307)

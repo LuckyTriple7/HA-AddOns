@@ -10,6 +10,7 @@ USERS=$(jq -r '.logins // [] | map(.username) | join(", ")' /data/options.json)
 DISABLE_FK=$(jq -r '.disable_foreign_key_checks // false' /data/options.json)
 SLOW_LOG=$(jq -r 'if .slow_query_log == false then "false" else "true" end' /data/options.json)
 BUFFER_POOL=$(jq -r '.innodb_buffer_pool_size // "512M"' /data/options.json)
+TMP_TABLE=$(jq -r '.tmp_table_size // "64M"' /data/options.json)
 
 # Log configuration
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Configuration:"
@@ -18,6 +19,7 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] logins                      : ${USER
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] disable_foreign_key_checks  : $DISABLE_FK"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] slow_query_log              : $SLOW_LOG"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] innodb_buffer_pool_size     : $BUFFER_POOL"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] tmp_table_size              : $TMP_TABLE"
 
 mkdir -p /run/mysqld "$DATA_DIR"
 
@@ -107,8 +109,8 @@ exec mariadbd --no-defaults --user=root \
     --collation-server=utf8mb4_unicode_ci \
     --innodb-default-row-format=dynamic \
     --transaction-isolation=READ-COMMITTED \
-    --tmp-table-size=64M \
-    --max-heap-table-size=64M \
+    --tmp-table-size="$TMP_TABLE" \
+    --max-heap-table-size="$TMP_TABLE" \
     --innodb-log-file-size=256M \
     --innodb-buffer-pool-size="$BUFFER_POOL" \
     --table-open-cache=4000 \
