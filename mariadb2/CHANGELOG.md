@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [1.0.8] - 2026-11-13
+- Neue Option `tmp_table_size` (Standard 64M wie bisher fest). Setzt `tmp_table_size` und `max_heap_table_size` gemeinsam; ein höherer Wert (z. B. 256M) senkt den Anteil der Temp-Tabellen auf der Platte, den Nextcloud 35 als „On-disk temp tables“ meldet
+
 ## [1.0.7] - 2026-10-27
 - Build: Basis-Image fest auf Alpine 3.24 (`alpine:3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
 
