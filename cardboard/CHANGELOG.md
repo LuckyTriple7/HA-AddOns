@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.15.3] - 2026-11-14
+- Abhängigkeit aktualisiert: opentelemetry-api 1.45.1 → 1.45.2
+
 ## [1.0.15.2] - 2026-11-09
 - Abhängigkeit aktualisiert: python-multipart 0.0.32 → 0.0.33
 
