@@ -63,8 +63,10 @@ jobs:
         if: steps.bump.outputs.addons != ''
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          ADDONS: ${{ steps.bump.outputs.addons }}
         run: |
-          git add -- $(echo "${{ steps.bump.outputs.addons }}")
+          # ADDONS ist mehrzeilig (ein Add-on je Zeile), daher ohne Quotes expandieren.
+          git add -- $ADDONS
           msg="chore(release): Version nach Bot-Update anheben (#${PR_NUMBER})"
           while read -r slug old new; do
             msg="${msg}"$'\n'"- ${slug} ${old} -> ${new}"
@@ -82,10 +84,14 @@ jobs:
         if: steps.bump.outputs.addons != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ADDONS: ${{ steps.bump.outputs.addons }}
         # Ein Push mit GITHUB_TOKEN startet keine anderen Workflows,
-        # workflow_dispatch schon.
+        # workflow_dispatch schon. Die Add-on-Liste kommt über env statt
+        # ${{ }}: mehrzeilig direkt im Skript ergab "for slug in a<NL>b; do",
+        # einen Syntaxfehler, und kein Build startete, sobald ein Bot-PR mehr
+        # als ein Add-on betraf.
         run: |
-          for slug in ${{ steps.bump.outputs.addons }}; do
+          for slug in $ADDONS; do
             wf=".github/workflows/build-${slug}.yml"
             if [ -f "$wf" ]; then
               gh workflow run "build-${slug}.yml" --ref dev
