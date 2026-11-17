@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.11.5] - 2026-11-17
+
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.4.11.4] - 2026-11-17
 
 - Abhängigkeit aktualisiert: alpine_3_24/vim 9.2.1342-r0 → 9.2.1352-r0
