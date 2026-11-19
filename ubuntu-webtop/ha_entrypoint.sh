@@ -14,13 +14,11 @@ if [ -f "${OPTIONS_FILE}" ]; then
     PGID=$(jq -r '.PGID // "1000"' "${OPTIONS_FILE}")
     TZ=$(jq -r '.TZ // "UTC"' "${OPTIONS_FILE}")
     PASSWORD=$(jq -r '.PASSWORD // ""' "${OPTIONS_FILE}")
-    KEYBOARD=$(jq -r '.KEYBOARD // ""' "${OPTIONS_FILE}")
     DRINODE=$(jq -r '.DRINODE // ""' "${OPTIONS_FILE}")
 
     export PUID PGID TZ
 
     [ -n "${PASSWORD}" ]  && export PASSWORD
-    [ -n "${KEYBOARD}" ]  && export KEYBOARD
     [ -n "${DRINODE}" ]   && export DRINODE
 else
     export PUID PGID TZ

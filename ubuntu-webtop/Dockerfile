@@ -2,7 +2,7 @@
 #  Ubuntu Webtop XFCE – HA Addon #
 ##################################
 
-ARG BUILD_FROM=ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm
+ARG BUILD_FROM=ghcr.io/linuxserver/baseimage-selkies:debiantrixie
 ARG BUILD_VERSION
 
 FROM ${BUILD_FROM}
@@ -193,7 +193,7 @@ RUN sed -i 's/^#user_allow_other/user_allow_other/' /etc/fuse.conf; \
 
 # Angry IP Scanner: arch-spezifisches .deb extrahieren (enthält SWT-JAR für die GUI).
 # Der _all.deb enthält kein SWT → NoClassDefFoundError bei Start.
-# dpkg-deb -x umgeht die Dependency-Prüfung (Bookworm-inkompatible Deps).
+# dpkg-deb -x umgeht die Dependency-Prüfung des Pakets (nur Java wird gebraucht).
 RUN ARCH=$(dpkg --print-architecture) \
     && curl -fsSL \
         "https://github.com/angryip/ipscan/releases/download/${IPSCAN_VERSION}/ipscan_${IPSCAN_VERSION}_${ARCH}.deb" \

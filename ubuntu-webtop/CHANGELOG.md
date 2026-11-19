@@ -1,3 +1,21 @@
+## [2.0.0] - 2026-11-19
+
+### Geändert
+
+- **Neues Basis-Image: `ghcr.io/linuxserver/baseimage-selkies:debiantrixie`** statt `baseimage-kasmvnc:debianbookworm`. Das KasmVNC-Basis-Image wird von LinuxServer.io seit Juli 2025 nicht mehr gebaut, Debian 12 gibt es dort nur noch eingefroren.
+- **Debian 13 (Trixie)** statt Debian 12 (Bookworm). Alle Programme aus den Debian-Repos kommen in den Trixie-Versionen.
+- **Streaming über Selkies** statt KasmVNC. Die Ports 3000/3001 bleiben gleich, die Oberfläche im Browser ist neu (Selkies-Seitenleiste mit Zwischenablage, Dateiübertragung und Einstellungen). Der damalige Wechsel zu KasmVNC (1.2.3) war wegen hoher CPU-Last erfolgt; die eigentliche Ursache war `hassio_audio` und ist seit 1.6.3 mit `audio: false` behoben.
+- **Audio:** PulseAudio und die Sinks kommen jetzt vollständig vom Selkies-Base-Image (Sink `output`). Die eigene Pulse-Konfiguration (`auto_null`, `/tmp/pulse-runtime`) und `PULSE_SERVER` entfallen. Eine alte `/config/.config/pulse/default.pa` bzw. `client.conf` aus 1.x wird beim Start nach `*.v1-kasmvnc.bak` umbenannt, weil PulseAudio sonst ohne Socket startet.
+
+### Entfernt
+
+- Option `KEYBOARD` (gab es nur bei KasmVNC). Selkies überträgt die Tastatureingaben direkt aus dem Browser.
+
+### Hinweise zum Update
+
+- **Python 3.11 → 3.13:** venvs unter `/config` und per `pip install` ins Home installierte Pakete (`/config/.local/lib/python3.11`) passen nicht mehr und müssen neu angelegt bzw. installiert werden.
+- Bei Problemen ist ein Zurückgehen auf 1.8.128 über ein HA-Backup des Add-ons möglich.
+
 ## [1.8.128] - 2026-11-19
 
 ### Aktualisiert

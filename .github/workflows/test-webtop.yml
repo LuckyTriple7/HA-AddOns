@@ -1,0 +1,158 @@
+name: Test Webtop Image
+
+# Baut das ubuntu-webtop-Image (amd64) ohne Push, startet es wie unter HA
+# (options.json, /config-Volume, noexec-/tmp, Capabilities) und prüft danach:
+# Betriebssystem, Dienste, Audio-Sink, Web-Oberfläche, Programmstarts, Migration
+# der alten KasmVNC-Pulse-Konfiguration. Screenshot + Logs landen als Artefakt.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'ubuntu-webtop/Dockerfile'
+      - 'ubuntu-webtop/ha_entrypoint.sh'
+      - 'ubuntu-webtop/rootfs/**'
+      - '.github/workflows/test-webtop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Platz schaffen
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af >/dev/null
+          df -h /
+
+      - name: Image bauen
+        run: |
+          docker build --pull \
+            --build-arg BUILD_VERSION=test \
+            -t webtop-test ubuntu-webtop 2>&1 | tee build.log
+          docker images webtop-test
+
+      - name: Container wie unter HA starten
+        run: |
+          mkdir -p cfg/.config/pulse data
+          echo '{"PUID":1000,"PGID":1000,"TZ":"Europe/Berlin","PASSWORD":"","show_media":false,"show_backup":false,"tailscale_enabled":false}' > data/options.json
+          # Alte 1.8.x-Pulse-Konfiguration simulieren (muss beiseitegelegt werden)
+          printf 'load-module module-null-sink sink_name=auto_null\nset-default-sink auto_null\n' > cfg/.config/pulse/default.pa
+          printf 'default-sink = auto_null\nautospawn = no\n' > cfg/.config/pulse/client.conf
+          docker run -d --name wt \
+            --cap-add SYS_ADMIN --cap-add DAC_READ_SEARCH --cap-add SYS_PTRACE \
+            --cap-add NET_ADMIN --cap-add NET_RAW \
+            --device /dev/fuse --device /dev/net/tun \
+            --security-opt apparmor=unconfined \
+            --tmpfs /tmp:rw,noexec,nosuid \
+            --shm-size 1g \
+            -e TITLE="Ubuntu Webtop" -e START_DOCKER=false \
+            -v "$PWD/cfg:/config" -v "$PWD/data:/data" \
+            -p 3000:3000 \
+            webtop-test
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://localhost:3000/; then echo "Web-UI nach ${i}x5s erreichbar"; break; fi
+            sleep 5
+          done
+          sleep 30
+
+      - name: Prüfungen
+        run: |
+          set +e
+          FAIL=0
+          ex()  { docker exec wt bash -c "$1"; }
+          abc() { docker exec -u abc -e HOME=/config -e DISPLAY=:1 -e PULSE_RUNTIME_PATH=/defaults wt bash -c "$1"; }
+          check() { # name, befehl (im Container als root)
+            if out=$(ex "$2" 2>&1); then echo "OK    $1: $(echo "$out" | head -1)"; else echo "FEHLER $1: $(echo "$out" | tail -3)"; FAIL=1; fi
+          }
+          check_abc() {
+            if out=$(abc "$2" 2>&1); then echo "OK    $1: $(echo "$out" | head -1)"; else echo "FEHLER $1: $(echo "$out" | tail -3)"; FAIL=1; fi
+          }
+
+          echo "== System"
+          check "Debian 13"         'grep -q trixie /etc/os-release && grep PRETTY_NAME /etc/os-release'
+          check "Locale de_DE"      'locale -a | grep -qi de_DE.utf8 && echo de_DE.UTF-8'
+
+          echo "== Dienste"
+          for p in Xvfb selkies pulseaudio nginx xfwm4 xfdesktop xfce4-panel gvfsd; do
+            pat="[${p:0:1}]${p:1}"   # Klammer-Trick: pgrep findet nicht die eigene bash -c-Zeile
+            check "Prozess $p" "pgrep -f '$pat' >/dev/null && echo läuft"
+          done
+          check "Web-UI :3000"      'curl -fsS -o /dev/null -w "%{http_code}" http://localhost:3000/'
+
+          echo "== Audio"
+          check_abc "Pulse-Sink output" 'pactl list short sinks | grep -w output'
+          check "Alte Pulse-Konfig verschoben" 'test ! -e /config/.config/pulse/default.pa && test -f /config/.config/pulse/default.pa.v1-kasmvnc.bak && echo ja'
+
+          echo "== Programme (Version)"
+          check_abc "Firefox"       'firefox --version'
+          check_abc "Thunderbird"   'thunderbird --version'
+          check_abc "VS Code"       'code --version | head -1'
+          check_abc "LibreOffice"   'libreoffice --version'
+          check_abc "VLC"           'vlc --version 2>/dev/null | head -1'
+          check "GitHub CLI"        'gh --version | head -1'
+          check "Java"              'java -version 2>&1 | head -1'
+          check "Python"            'python3 --version && python3 -c "import flask, requests, gi"'
+          check "pip ohne venv"     'pip3 --version'
+          check "rclone"            'rclone version | head -1'
+          check "Tailscale"         'tailscale version | head -1'
+          check_abc "OpenCode CLI"  'opencode --version'
+          check "Angry IP Scanner"  'test -f /usr/share/ipscan/ipscan.jar && echo jar da'
+          check "Bitwarden"         'test -x /opt/Bitwarden/bitwarden-app && echo da'
+          check "Claude Desktop"    'test -x /usr/bin/claude-desktop && echo da'
+          check "OpenCode Desktop"  'test -x /usr/bin/opencode-desktop && echo da'
+          check "nmap"              'nmap --version | head -1'
+          check "smbclient"         'smbclient --version'
+
+          echo "== GUI-Starts (15 s am Leben?)"
+          for app in "firefox" "code" "thunderbird" "libreoffice --writer" "geany" "thunar" "xfce4-terminal" "bitwarden" "claude-desktop" "opencode-desktop" "ipscan" "remmina" "totem"; do
+            bin=${app%% *}; pat="[${bin:0:1}]${bin:1}"
+            abc "nohup $app >/tmp/gui-$bin.log 2>&1 &" ; sleep 15
+            if abc "pgrep -u abc -f '$pat' >/dev/null"; then echo "OK    GUI $bin läuft"; else echo "FEHLER GUI $bin beendet:"; abc "tail -5 /tmp/gui-$bin.log" ; FAIL=1; fi
+          done
+          echo "FAIL=$FAIL" >> "$GITHUB_ENV"
+
+      - name: Screenshot der Web-Oberfläche
+        if: always()
+        run: |
+          pip install --quiet playwright
+          python -m playwright install --with-deps chromium >/dev/null
+          python - <<'EOF'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              b = p.chromium.launch()
+              pg = b.new_page(viewport={"width": 1600, "height": 900})
+              pg.goto("http://localhost:3000/", wait_until="networkidle")
+              pg.wait_for_timeout(15000)
+              pg.screenshot(path="webui.png")
+              b.close()
+          EOF
+
+      - name: Logs einsammeln
+        if: always()
+        run: |
+          docker logs wt > container.log 2>&1 || true
+          docker exec wt bash -c 'cat /tmp/gui-*.log' > gui.log 2>&1 || true
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: webtop-test
+          path: |
+            webui.png
+            container.log
+            gui.log
+            build.log
+
+      - name: Ergebnis
+        run: test "${FAIL}" = "0"
