@@ -32,7 +32,7 @@ Die veröffentlichten Container-Images enthalten darüber hinaus fremde Software
 | Playwright Browser | ✅ | ✅ | Debian 12 |
 | FileBox | ✅ | ❌ | Debian 12 |
 | Firefox DE | ✅ | ❌ | Debian 12 |
-| Webtop XFCE | ✅ | ✅ | Debian 12 |
+| Webtop XFCE | ✅ | ✅ | Debian 13 |
 | WhatsApp | ✅ | ✅ | Alpine |
 | Telegram | ✅ | ✅ | Alpine |
 | Signal | ✅ | ✅ | Debian 12 |
@@ -105,7 +105,7 @@ Firefox ESR direkt in der HA-Seitenleiste via noVNC — deutschsprachig, mit per
 
 Vollständiger XFCE-Desktop im Webbrowser, direkt in Home Assistant integriert.
 
-- KasmVNC-Streaming (CPU-effizient, delta-basiert)
+- Selkies-Streaming (Bild, Ton, Zwischenablage im Browser)
 - Systemsprache Deutsch (de_DE.UTF-8)
 - Firefox, Thunderbird, Geany, VLC, Thunar mit SMB-Netzwerkzugriff und mehr
 - Tailscale-VPN-Client für den Zugriff auf eigene Server im Tailnet
@@ -392,7 +392,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | Playwright Browser | ✅ | ✅ | Debian 12 |
 | FileBox | ✅ | ❌ | Debian 12 |
 | Firefox DE | ✅ | ❌ | Debian 12 |
-| Webtop XFCE | ✅ | ✅ | Debian 12 |
+| Webtop XFCE | ✅ | ✅ | Debian 13 |
 | WhatsApp | ✅ | ✅ | Alpine |
 | Telegram | ✅ | ✅ | Alpine |
 | Signal | ✅ | ✅ | Debian 12 |
@@ -465,7 +465,7 @@ Firefox ESR directly in the HA sidebar via noVNC — German language, persistent
 
 Full XFCE desktop in the browser, directly integrated into Home Assistant.
 
-- KasmVNC streaming (CPU-efficient, delta-based)
+- Selkies streaming (video, audio, clipboard in the browser)
 - System language German (de_DE.UTF-8)
 - Firefox, Thunderbird, Geany, VLC, Thunar with SMB network access and more
 - Tailscale VPN client for reaching your own servers on the tailnet
