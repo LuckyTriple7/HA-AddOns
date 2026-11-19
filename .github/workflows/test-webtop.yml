@@ -37,6 +37,7 @@ jobs:
 
       - name: Image bauen
         run: |
+          set -o pipefail
           docker build --pull \
             --build-arg BUILD_VERSION=test \
             -t webtop-test ubuntu-webtop 2>&1 | tee build.log
@@ -62,6 +63,7 @@ jobs:
             webtop-test
           for i in $(seq 1 60); do
             if curl -fsS -o /dev/null http://localhost:3000/; then echo "Web-UI nach ${i}x5s erreichbar"; break; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' wt)" != "true" ]; then echo "Container beendet"; docker logs wt | tail -50; exit 1; fi
             sleep 5
           done
           sleep 30
@@ -122,21 +124,15 @@ jobs:
           done
           echo "FAIL=$FAIL" >> "$GITHUB_ENV"
 
-      - name: Screenshot der Web-Oberfläche
+      - name: Screenshot des Desktops
         if: always()
         run: |
-          pip install --quiet playwright
-          python -m playwright install --with-deps chromium >/dev/null
-          python - <<'EOF'
-          from playwright.sync_api import sync_playwright
-          with sync_playwright() as p:
-              b = p.chromium.launch()
-              pg = b.new_page(viewport={"width": 1600, "height": 900})
-              pg.goto("http://localhost:3000/", wait_until="networkidle")
-              pg.wait_for_timeout(15000)
-              pg.screenshot(path="webui.png")
-              b.close()
-          EOF
+          # Direkt im Container per GTK (python3-gi ist im Image), kein Browser nötig
+          docker exec -u abc -e DISPLAY=:1 wt python3 -c '
+          import gi; gi.require_version("Gdk", "3.0"); from gi.repository import Gdk
+          w = Gdk.get_default_root_window()
+          Gdk.pixbuf_get_from_window(w, 0, 0, w.get_width(), w.get_height()).savev("/config/desktop.png", "png", [], [])
+          ' && cp cfg/desktop.png desktop.png || echo "Screenshot fehlgeschlagen"
 
       - name: Logs einsammeln
         if: always()
@@ -149,7 +145,7 @@ jobs:
         with:
           name: webtop-test
           path: |
-            webui.png
+            desktop.png
             container.log
             gui.log
             build.log
