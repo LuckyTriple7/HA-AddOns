@@ -7,6 +7,10 @@
 - **Streaming über Selkies** statt KasmVNC. Die Ports 3000/3001 bleiben gleich, die Oberfläche im Browser ist neu (Selkies-Seitenleiste mit Zwischenablage, Dateiübertragung und Einstellungen). Der damalige Wechsel zu KasmVNC (1.2.3) war wegen hoher CPU-Last erfolgt; die eigentliche Ursache war `hassio_audio` und ist seit 1.6.3 mit `audio: false` behoben.
 - **Audio:** PulseAudio und die Sinks kommen jetzt vollständig vom Selkies-Base-Image (Sink `output`). Die eigene Pulse-Konfiguration (`auto_null`, `/tmp/pulse-runtime`) und `PULSE_SERVER` entfallen. Eine alte `/config/.config/pulse/default.pa` bzw. `client.conf` aus 1.x wird beim Start nach `*.v1-kasmvnc.bak` umbenannt, weil PulseAudio sonst ohne Socket startet.
 
+- `PATH`: Das Selkies-Base-Image stellt sein eigenes Python-venv (`/lsiopy/bin`) an den Anfang. `python3` und `pip` im Terminal sind wieder das System-Python (`/usr/bin`), `/lsiopy/bin` steht am Ende.
+- apt wiederholt fehlgeschlagene Downloads bis zu 5-mal (`Acquire::Retries`), z. B. bei „Mirror sync in progress" auf packages.mozilla.org.
+- Neuer Workflow `test-webtop.yml`: baut das Image, startet es wie unter HA und prüft Betriebssystem, Dienste, Audio-Sink, Web-Oberfläche, alle Programme und 13 GUI-Starts.
+
 ### Entfernt
 
 - Option `KEYBOARD` (gab es nur bei KasmVNC). Selkies überträgt die Tastatureingaben direkt aus dem Browser.
