@@ -1,3 +1,9 @@
+## [2.0.1] - 2026-11-19
+
+### Behoben
+
+- Desktop und Thunar zeigten die HA-OS-Partitionen des Hosts (`hassos-overlay` und vier „Datenträger" mit 25 MB bzw. 268 MB). Ursache: Das Selkies-Base-Image startet einen System-D-Bus, darüber wurde `udisksd` aktiviert und sah wegen `udev: true` die Blockgeräte des Hosts. Die udisks2-Anbindung von gvfs ist jetzt abgeschaltet; SMB, WebDAV/rclone und Netzwerk in Thunar sind davon nicht betroffen.
+
 ## [2.0.0] - 2026-11-19
 
 ### Geändert

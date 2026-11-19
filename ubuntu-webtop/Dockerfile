@@ -344,6 +344,14 @@ RUN printf '[Default Applications]\nvideo/mp4=org.gnome.Totem.desktop\nvideo/x-m
 RUN find /usr/lib -name "libgrltracker3.so" -delete \
     && find /usr/lib -name "libgrldleyna.so" -delete
 
+# udisks2 abschalten: Das Selkies-Base-Image startet einen System-D-Bus, darüber würde
+# udisksd aktiviert und (wegen udev: true) die HA-OS-Partitionen des Hosts als
+# "Datenträger"/"hassos-overlay" auf dem Desktop und in Thunar anzeigen. Einhängen
+# scheitert ohnehin an polkit. SMB/WebDAV in Thunar laufen über gvfsd, nicht über udisks.
+RUN rm -f /usr/share/gvfs/remote-volume-monitors/udisks2.monitor \
+        /usr/share/dbus-1/services/org.gtk.vfs.UDisks2VolumeMonitor.service \
+        /usr/share/dbus-1/system-services/org.freedesktop.UDisks2.service
+
 # Deutsche Locale generieren
 RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen \
