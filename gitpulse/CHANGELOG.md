@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.9] - 2026-11-19
+
+- Fix: Workflow-Auswahl im Dispatch-Dialog zeigte nur die ersten 30 Workflows eines Repos (GitHub-Standardseitengröße). Jetzt werden bis zu 100 geladen
+
 ## [0.5.8] - 2026-10-27
 
 - Build: Basis-Image fest auf Alpine 3.24 (`python:3.15-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR
