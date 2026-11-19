@@ -78,7 +78,7 @@ python-dotenv==1.2.4
     # via
     #   mcp
     #   pydantic-settings
-python-multipart==0.0.32
+python-multipart==0.0.33
     # via mcp
 referencing==0.37.0
     # via

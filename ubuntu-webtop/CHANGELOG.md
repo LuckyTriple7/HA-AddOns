@@ -1,3 +1,20 @@
+## [1.8.127] - 2026-11-18
+
+### Aktualisiert
+
+- Angry IP Scanner: 3.12.1 → 3.12.2
+- GitHub CLI: 2.104.0 → 2.105.0
+- Firefox: 160.0 → 160.0.1
+- Claude Desktop: 3.3.17+claude5.11492.5 → 3.3.18+claude5.11492.5
+- OpenCode: 2.3.0 → 2.3.2
+
+## [1.8.126] - 2026-11-15
+
+### Aktualisiert
+
+- Claude Desktop: 3.3.16+claude5.11492.0 → 3.3.17+claude5.11492.5
+- OpenCode: 2.2.7 → 2.3.0
+
 ## [1.8.125] - 2026-11-13
 
 ### Aktualisiert

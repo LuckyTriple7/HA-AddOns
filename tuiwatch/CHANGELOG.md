@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.120.12
+
+- Sicherheit: opentelemetry-api 1.45.1 → 1.45.2 (GHSA-mf5v-w3w3-f6cg, DoS durch quadratisches traceparent-Parsing; indirekte Abhängigkeit von anthropic)
+
 ## 0.120.11.2
 
 - Abhängigkeit aktualisiert: google-genai 2.34.0 → 3.0.0

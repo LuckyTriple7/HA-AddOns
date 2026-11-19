@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.43] - 2026-11-19
+
+### Sicherheit
+- NPMplus auf Upstream `2026-11-18-r1` angehoben. Einzige Änderung gegenüber
+  `2026-10-22-r1`: nginx-Update für die am 18.11.2026 veröffentlichten CVEs.
+
 ## [0.1.42] - 2026-10-23
 
 - NPMplus auf Upstream-Version 2026-10-22-r1 aktualisiert

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.15.4] - 2026-11-17
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.0.15.3] - 2026-11-14
 - Abhängigkeit aktualisiert: opentelemetry-api 1.45.1 → 1.45.2
 
