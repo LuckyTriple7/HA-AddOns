@@ -34,6 +34,7 @@ Internet → reverse proxy (e.g. NPMplus) → Anubis challenge → application
 | `allow_monitoring_services` | `true` | Exempt UptimeRobot & updown.io from the challenge (verified via IP+user agent). Self-hosted Uptime Kuma unaffected (no fixed IP) |
 | `ai_bot_policy` | `off` | `off`/`aggressive`/`moderate`/`permissive` — how known AI/LLM clients are treated, see the docs |
 | `trusted_ip_ranges` | `[]` | Your own IPs/CIDR ranges that never see the challenge — a plain IP exemption, no user-agent check |
+| `bind_cookie_to_ip` | `true` | The Anubis cookie is only valid for the IP that solved the challenge. Turn off when dual-stack browsers (IPv4/IPv6) fail on WebSockets |
 
 Setup with NPMplus, testing the auth request, customizing the policy and troubleshooting: **[Documentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/anubis/DOCS.en.md)**
 

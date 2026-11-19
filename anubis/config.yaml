@@ -1,6 +1,6 @@
 name: Anubis
 description: Proof-of-Work-Bot-Challenge (Anubis) als Auth-Request-Backend für NPMplus & Co.
-version: "0.1.4.2"
+version: "0.1.5"
 slug: anubis
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -28,6 +28,7 @@ options:
   allow_monitoring_services: true
   ai_bot_policy: "off"
   trusted_ip_ranges: []
+  bind_cookie_to_ip: true
 
 schema:
   TZ: str
@@ -37,3 +38,4 @@ schema:
   ai_bot_policy: list(off|aggressive|moderate|permissive)
   trusted_ip_ranges:
     - str
+  bind_cookie_to_ip: bool

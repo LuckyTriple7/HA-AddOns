@@ -17,3 +17,6 @@ configuration:
   trusted_ip_ranges:
     name: Vertrauenswürdige IP-Bereiche
     description: "Eigene IP-Adressen oder CIDR-Bereiche (z.B. 203.0.113.0/24), die den Challenge nie sehen — reine IP-Freigabe ohne User-Agent-Prüfung, gedacht für eigene Infrastruktur. Leer = keine Ausnahme."
+  bind_cookie_to_ip:
+    name: Cookie an IP-Adresse binden
+    description: "An (Standard) = das Anubis-Cookie gilt nur für die IP-Adresse, die die Challenge gelöst hat; ein abgefangenes Cookie nützt von anderswo nichts. Aus = das Cookie gilt unabhängig von der Adresse. Ausschalten, wenn Browser mit IPv4 und IPv6 zwischen beiden wechseln: Dann scheitern Hintergrund-Anfragen und WebSockets (z.B. Dockge, Portainer: 'Keine Verbindung zum Socket Server'), weil sie über die andere Adresse kommen."

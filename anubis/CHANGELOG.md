@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.5] - 2026-11-19
+
+### Neu
+- Option `bind_cookie_to_ip` (Standard an = bisheriges Verhalten). Aus = das Anubis-Cookie gilt unabhängig von der Client-IP; Anubis startet dann mit `--jwt-restriction-header=`. Hilft, wenn Browser mit IPv4 und IPv6 zwischen beiden wechseln und Hintergrund-Anfragen oder WebSockets (z.B. Dockge: „Keine Verbindung zum Socket Server“) immer wieder die Challenge-Seite bekommen.
+
 ## [0.1.4.2] - 2026-11-05
 
 - Abhängigkeit aktualisiert: alpine_3_24/tzdata 2026e-r0 → 2026f-r0

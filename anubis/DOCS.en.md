@@ -90,6 +90,20 @@ trusted_ip_ranges:
 
 Empty (default) = no exemption, no rule gets written.
 
+## Binding the cookie to the IP address
+
+After a passed challenge Anubis sets a cookie. With `bind_cookie_to_ip: true` (default) it is only valid for the IP address that solved the challenge — a stolen cookie is useless from any other address.
+
+That clashes with browsers that have IPv4 **and** IPv6: they open every connection over both paths in parallel and use whichever wins ("Happy Eyeballs"). If the browser solves the challenge over IPv4 and the next request goes out over IPv6, the cookie is invalid there and Anubis serves the challenge page again. This mostly hits background requests and WebSockets. Typical symptom in Dockge or Portainer:
+
+```
+Cannot connect to the socket server. [Error: server error]
+```
+
+In the developer tools (F12 → Network) the `socket.io` requests show status 200 but type `html` at about 7 kB — that's the Anubis page.
+
+Fix: `bind_cookie_to_ip: false`. The add-on then starts Anubis with `--jwt-restriction-header=`. Setting the `JWT_RESTRICTION_HEADER` environment variable to an empty value does not work, Anubis ignores empty values.
+
 ## Setting it up with NPMplus
 
 1. Install and start the Anubis add-on.
