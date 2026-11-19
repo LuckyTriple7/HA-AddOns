@@ -155,6 +155,36 @@ Abgleich der Modellauswahl und von `_AI_PRICING` mit den Anbieter-Seiten am
   vor September 2027 (Claude) bzw. überhaupt eines (Gemini). `claude-haiku-4-5`
   kann ab 15.10.2026 abgekündigt werden, ist aber schon auf Haiku 5.5 umgeleitet.
 
+## 21. Webserver: waitress ablösen, später ggf. FastAPI/Uvicorn
+Anlass: Sorge, dass der Web-Stack nicht mehr gepflegt wird. Stand PyPI am
+19.11.2026: Flask 3.1.3 (19.02.2026) und Werkzeug 3.1.9 (27.09.2026) werden von
+Pallets weiter gepflegt. Der eigentliche Altbestand ist **waitress 3.0.2**
+(letztes Release 16.11.2024). Uvicorn 0.54.0, FastAPI 0.165.0 und Starlette
+1.10.0 bekommen laufend Releases.
+
+**Stufe 1 — nur den Server tauschen (klein, ca. ½–1 Tag).**
+- Flask-App unverändert lassen, `serve()` in `app.py` (Haupt-App, 32 Threads)
+  und den Share-Server-Thread (Port 17796) auf Uvicorn umstellen, die WSGI-App
+  per `a2wsgi.WSGIMiddleware` einhängen. Alternative: gunicorn mit `gthread`.
+- Proxy-Header neu klären: `_WAITRESS_PROXY_KW` entfällt, Uvicorn braucht
+  `proxy_headers`/`forwarded_allow_ips` passend zu `ProxyFix` und
+  `_IngressMiddleware`. Ingress-Pfad (`X-Ingress-Path`, `url_for`) live in HA prüfen.
+- Healthcheck, run.sh-Kommentare (Thread-Zahlen, malloc-Arenen) anpassen.
+
+**Stufe 2 — Umbau auf FastAPI (groß, ca. 4–7 Tage + 1–2 Tage Live-Test).**
+- Umfang Stand v0.x: 181 Routen in 20 Dateien, 19 Blueprints, 509× `jsonify`,
+  146× `request.`, 8× `send_file`, 5× `Response`, 9× `url_for`, 7 Templates,
+  1× `before_request`, 3× `after_request`, 2× `errorhandler`, 1× `g`, keine `session`.
+- 59 von 97 Testdateien nutzen `app.test_client()` (1129 Tests) → auf
+  FastAPI-`TestClient` umstellen, allein 1–2 Tage.
+- Schrittweise: Flask-App per `a2wsgi` unter FastAPI mounten, dann Blueprint für
+  Blueprint als `APIRouter` portieren, Flask am Ende entfernen.
+- Playwright läuft sync (`scraper.py`) → Routen als normale `def` im Threadpool
+  lassen. Echtes async (httpx, async Playwright, async KI-Clients) wäre ein
+  eigenes Projekt von 2–3 Wochen; ohne das bringt FastAPI kaum Leistung, nur
+  Pydantic-Validierung und OpenAPI-Doku.
+- _Besprochen am 19.11.2026, zurückgestellt. Empfehlung: erst Stufe 1._
+
 ---
 
 ## Erledigt
