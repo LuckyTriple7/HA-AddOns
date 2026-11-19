@@ -10,7 +10,7 @@
 - `PATH`: Das Selkies-Base-Image stellt sein eigenes Python-venv (`/lsiopy/bin`) an den Anfang. `python3` und `pip` im Terminal sind wieder das System-Python (`/usr/bin`), `/lsiopy/bin` steht am Ende.
 - apt wiederholt fehlgeschlagene Downloads bis zu 5-mal (`Acquire::Retries`), z. B. bei „Mirror sync in progress" auf packages.mozilla.org.
 - Alle `curl`-Downloads (OpenCode, rclone, Tailscale, Bitwarden, Angry IP Scanner, Repo-Schlüssel) wiederholen bis zu 5-mal (`--retry-all-errors`). Ein abgebrochener Download von opencode.ai hatte den Build in HA scheitern lassen; die Fehlermeldung zeigte dabei fälschlich „.desktop nicht gepatcht".
-- Neuer Workflow `test-webtop.yml`: baut das Image, startet es wie unter HA und prüft Betriebssystem, Dienste, Audio-Sink, Web-Oberfläche, alle Programme und 13 GUI-Starts.
+- Neuer Workflow `test-webtop.yml` (nur manuell startbar): baut das Image, startet es wie unter HA und prüft Betriebssystem, Dienste, Audio-Sink, Web-Oberfläche, alle Programme und 13 GUI-Starts.
 
 ### Entfernt
 

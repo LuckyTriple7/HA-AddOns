@@ -6,13 +6,8 @@ name: Test Webtop Image
 # der alten KasmVNC-Pulse-Konfiguration. Screenshot + Logs landen als Artefakt.
 
 on:
-  push:
-    branches: [dev]
-    paths:
-      - 'ubuntu-webtop/Dockerfile'
-      - 'ubuntu-webtop/ha_entrypoint.sh'
-      - 'ubuntu-webtop/rootfs/**'
-      - '.github/workflows/test-webtop.yml'
+  # Nur manuell (Actions → "Test Webtop Image" → "Run workflow"), z. B. nach Umbauten
+  # am Basis-Image oder an den Startskripten. Versions-Updates brauchen den Test nicht.
   workflow_dispatch:
 
 permissions:
