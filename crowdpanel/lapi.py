@@ -436,6 +436,7 @@ class LapiClient:
             'total': total,
             'by_type': by_type.most_common(),
             'by_origin': by_origin.most_common(10),
+            'by_origin_all': by_origin.most_common(),
             'top_countries': by_country.most_common(10),
             'top_scenarios': by_scenario.most_common(10),
         }

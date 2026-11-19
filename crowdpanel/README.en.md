@@ -11,7 +11,7 @@ it into a web interface.
 - **Overview** — active decisions, alerts from the last 24 hours, top countries and scenarios
 - **Decisions** — filter by scope, type and origin; lift them one by one or all at once
 - **New ban** — single IP, CIDR range, whole country or whole network (AS), with a free duration and reason
-- **Alerts** — groupable by address or scenario with hit counts, with events and the triggering log line; ban straight from the row
+- **Alerts** — groupable by IP (sessions as in the CrowdSec console, expandable) or scenario with hit counts, with events and the triggering log line; ban straight from the row
 - **Check IP** — active decisions, alert history and allowlist hits for an address
 - **Exemptions** — allowlists from the CrowdSec database and whitelist parsers in full, with the difference explained
 - **Attack map** — one dot per source address from the GeoIP coordinates in the alerts, zoomable, your own location as the reference point, click leads to the alert list

@@ -11,7 +11,7 @@ und macht daraus eine Weboberfläche.
 - **Übersicht** — aktive Sperren, Alarme der letzten 24 Stunden, häufigste Länder und Szenarien
 - **Sperren** — filtern nach Bereich, Art und Herkunft; einzeln oder gesammelt aufheben
 - **Neue Sperre** — einzelne IP, CIDR-Bereich, ganzes Land oder ganzes Netz (AS), mit frei wählbarer Dauer und Grund
-- **Alarme** — gruppierbar nach Adresse oder Szenario mit Trefferzahl, mit Ereignissen und auslösender Log-Zeile; Sperren direkt aus der Zeile
+- **Alarme** — gruppierbar nach IP (Sitzungen wie in der CrowdSec-Konsole, aufklappbar) oder Szenario mit Trefferzahl, mit Ereignissen und auslösender Log-Zeile; Sperren direkt aus der Zeile
 - **IP prüfen** — aktive Sperren, Alarmverlauf und Allowlist-Treffer zu einer Adresse
 - **Ausnahmen** — Allowlists aus der CrowdSec-Datenbank und Whitelist-Parser im Klartext, mit Erklärung des Unterschieds
 - **Angriffskarte** — Punkt je Quelladresse aus den GeoIP-Koordinaten der Alarme, zoombar, eigener Standort als Bezugspunkt, Klick führt zur Alarmliste

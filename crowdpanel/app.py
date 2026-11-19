@@ -682,6 +682,10 @@ def _group_arg() -> str:
     return group
 
 
+GROUP_ITEMS_MAX = 100   # einzelne Alarme je Gruppe zum Aufklappen
+GROUP_TOP_MAX = 6       # Szenarien bzw. Adressen mit Zähler in der Zeile
+
+
 def _group_alerts(rows: list, group: str) -> list:
     """Fold the alert list into one row per source or per scenario.
 
@@ -703,7 +707,7 @@ def _group_alerts(rows: list, group: str) -> list:
                 'first': row.get('created_at') or '',
                 'last': row.get('created_at') or '',
                 'events': 0, 'list_sync': bool(row.get('list_sync')),
-                '_others': set(), 'ids': [],
+                '_others': Counter(), 'ids': [], 'items': [],
             }
         bucket['count'] += 1
         bucket['events'] += int(row.get('events_count') or 0)
@@ -714,9 +718,18 @@ def _group_alerts(rows: list, group: str) -> list:
             bucket['last'] = stamp
         other = row.get(other_field)
         if other:
-            bucket['_others'].add(other)
+            bucket['_others'][other] += 1
         if len(bucket['ids']) < 5 and row.get('id') is not None:
             bucket['ids'].append(row['id'])
+        # Die einzelnen Alarme fürs Aufklappen. Gedeckelt, sonst schleppt eine
+        # Adresse mit tausend Treffern die ganze Antwort mit.
+        if len(bucket['items']) < GROUP_ITEMS_MAX:
+            bucket['items'].append({
+                'id': row.get('id'), 'scenario': row.get('scenario') or '',
+                'value': row.get('value') or '', 'created_at': stamp,
+                'events_count': int(row.get('events_count') or 0),
+                'decisions': int(row.get('decisions') or 0),
+            })
         if not bucket['country']:
             bucket['country'] = row.get('country') or ''
         if not bucket['as_name']:
@@ -724,9 +737,11 @@ def _group_alerts(rows: list, group: str) -> list:
 
     out = []
     for bucket in buckets.values():
-        others = sorted(bucket.pop('_others'))
-        bucket['others'] = others[:5]
-        bucket['others_total'] = len(others)
+        counted = sorted(bucket.pop('_others').items(), key=lambda p: (-p[1], p[0]))
+        bucket['others'] = [name for name, _ in counted[:5]]
+        bucket['top'] = [[name, n] for name, n in counted[:GROUP_TOP_MAX]]
+        bucket['others_total'] = len(counted)
+        bucket['items_total'] = bucket['count']
         out.append(bucket)
     out.sort(key=lambda b: (-b['count'], b['key']))
     return out
@@ -1531,8 +1546,14 @@ def overview():
         name = ((alert.get('source') or {}).get('as_name') or '').strip()
         if name:
             top_as[name] += 1
+    # Wie die CrowdSec-Konsole: Die Kachel zählt die eigenen Entscheidungen.
+    # Die abonnierten Listen stellen sonst 99 % der Zahl und verdecken, was
+    # diese Instanz selbst gesperrt hat.
+    local = sum(n for origin, n in stats['by_origin_all'] if origin in LOCAL_ORIGINS)
     return jsonify({
-        'decisions_total': stats['total'],
+        'decisions_total': local,
+        'decisions_all': stats['total'],
+        'decisions_lists': stats['total'] - local,
         'alerts_24h': len(detections),
         'list_updates_24h': len(alerts) - len(detections),
         'by_type': stats['by_type'],
@@ -1669,11 +1690,34 @@ def alerts():
     return _alert_answer(out, group, cap, 'lapi')
 
 
+def _attach_active(groups: list) -> None:
+    """Aktive Entscheidungen je Adresse, wie die CrowdSec-Konsole sie neben
+    der Sitzung zeigt. Ein Abruf für alle Gruppen, kein Abruf je Zeile."""
+    for g in groups:
+        g['active'] = 0
+    if not groups:
+        return
+    wanted = {g['key']: g for g in groups}
+    try:
+        rows = get_client().list_decisions(limit=ALERT_FETCH_LIMIT)
+    except (LapiError, ValidationError) as e:  # Zusatzinfo, die Liste geht auch ohne
+        log.warning('active decisions for groups failed: %s', type(e).__name__)
+        for g in groups:
+            g['active'] = None
+        return
+    for row in rows:
+        g = wanted.get(row.get('value') or '')
+        if g is not None:
+            g['active'] += 1
+
+
 def _alert_answer(out: list, group: str, cap: int, source: str):
     """Dieselbe Antwort, gleich woher die Zeilen kommen."""
     if group != 'none':
         groups = _group_alerts(out, group)
         total = len(groups)
+        if group == 'source':
+            _attach_active(groups[:cap])
         return jsonify({'group': group, 'groups': groups[:cap],
                         'count': min(total, cap), 'total': total, 'source': source,
                         'alerts_total': len(out), 'truncated': total > cap})

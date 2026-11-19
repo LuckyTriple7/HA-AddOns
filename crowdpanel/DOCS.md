@@ -157,13 +157,13 @@ signiert.
 
 ### Übersicht
 
-Zahl der aktiven Sperren, Alarme der letzten 24 Stunden, Verteilung nach Art und
-Herkunft, häufigste Länder und Szenarien.
-
-### Übersicht
-
 Zahl der aktiven Sperren, Erkennungen der letzten 24 Stunden, Blocklisten-Updates,
 Verteilung nach Art, Herkunft, Land und Szenario.
+
+Die Kachel **Aktive Sperren** zählt wie die CrowdSec-Konsole nur die eigenen
+Entscheidungen (Herkunft `crowdsec` und `cscli`). Die Einträge aus abonnierten
+Blocklisten stehen klein darunter — sie stellen sonst 99 % der Zahl und verdecken,
+was diese Instanz selbst gesperrt hat.
 
 Dazu zwei Anzeigen, die den Zustand statt einer Momentaufnahme zeigen:
 
@@ -323,9 +323,13 @@ Was CrowdSec erkannt hat, unabhängig davon, ob daraus eine Sperre wurde.
 Der Filter **Ansicht** entscheidet, wie die Liste aufgebaut wird:
 
 - **einzeln** — jeder Alarm eine Zeile, chronologisch
-- **nach Adresse** — eine Zeile je Quell-IP, mit Trefferzahl, allen dort gesehenen
-  Szenarien, Land, Netz und dem letzten Auftreten
-- **nach Szenario** — eine Zeile je Muster, mit der Zahl der beteiligten Adressen
+- **nach IP** — eine Zeile je Quell-IP wie in der CrowdSec-Konsole: Zahl der Alarme
+  und Zeitspanne der Sitzung, die Szenarien mit Trefferzahl (`42x vpatch-env-access`),
+  Land, Netz, letztes Auftreten und die aktiven Entscheidungen dieser Adresse
+  (ein Klick auf „Aktiv: n" öffnet sie im Reiter Sperren). Ein Klick auf die
+  Zeile klappt die einzelnen Alarme auf, jeder mit eigenem Knopf **Details**
+- **nach Szenario** — eine Zeile je Muster, mit den beteiligten Adressen samt
+  Trefferzahl; ebenfalls aufklappbar
 
 Die Gruppierung ist meist das, was du willst. Aus hundert Einzelzeilen wird sichtbar,
 dass achtundvierzig davon von derselben Adresse stammen und drei verschiedene
