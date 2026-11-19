@@ -105,7 +105,8 @@ jobs:
           check "GitHub CLI"        'gh --version | head -1'
           check "Java"              'java -version 2>&1 | head -1'
           check "Python"            'python3 --version && python3 -c "import flask, requests, gi"'
-          check "pip ohne venv"     'pip3 --version'
+          check "python3 = System"  'test "$(command -v python3)" = /usr/bin/python3 && command -v python3'
+          check "pip = System"      'pip3 --version | grep -q "/usr/lib/python3" && pip3 --version'
           check "rclone"            'rclone version | head -1'
           check "Tailscale"         'tailscale version | head -1'
           check_abc "OpenCode CLI"  'opencode --version'
@@ -118,7 +119,9 @@ jobs:
 
           echo "== GUI-Starts (15 s am Leben?)"
           for app in "firefox" "code" "thunderbird" "libreoffice --writer" "geany" "thunar" "xfce4-terminal" "bitwarden" "claude-desktop" "opencode-desktop" "ipscan" "remmina" "totem"; do
-            bin=${app%% *}; pat="[${bin:0:1}]${bin:1}"
+            bin=${app%% *}; pname=$bin
+            [ "$bin" = opencode-desktop ] && pname=ai.opencode   # Wrapper exec't /opt/OpenCode/ai.opencode
+            pat="[${pname:0:1}]${pname:1}"
             abc "nohup $app >/tmp/gui-$bin.log 2>&1 &" ; sleep 15
             if abc "pgrep -u abc -f '$pat' >/dev/null"; then echo "OK    GUI $bin läuft"; else echo "FEHLER GUI $bin beendet:"; abc "tail -5 /tmp/gui-$bin.log" ; FAIL=1; fi
           done

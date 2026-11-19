@@ -16,6 +16,12 @@ USER root
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Selkies-Base stellt /lsiopy/bin (Python-venv von Selkies) an den Anfang des PATH.
+# Dann wären python3/pip im Terminal das Selkies-venv: "pip install" landete dort
+# (nicht persistent, kann Selkies beschädigen). System-Python wieder nach vorn,
+# /lsiopy/bin ans Ende (Selkies wird über /lsiopy/bin/selkies trotzdem gefunden).
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/lsiopy/bin
+
 # apt: fehlgeschlagene Downloads wiederholen (z. B. "Mirror sync in progress" bei packages.mozilla.org)
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
 
