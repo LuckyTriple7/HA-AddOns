@@ -2,7 +2,7 @@
 #  Ubuntu Webtop XFCE – HA Addon #
 ##################################
 
-ARG BUILD_FROM=ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm
+ARG BUILD_FROM=ghcr.io/linuxserver/baseimage-selkies:debiantrixie
 ARG BUILD_VERSION
 
 FROM ${BUILD_FROM}
@@ -16,6 +16,16 @@ USER root
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Selkies-Base stellt /lsiopy/bin (Python-venv von Selkies) an den Anfang des PATH.
+# Dann wären python3/pip im Terminal das Selkies-venv: "pip install" landete dort
+# (nicht persistent, kann Selkies beschädigen). System-Python wieder nach vorn,
+# /lsiopy/bin ans Ende (Selkies wird über /lsiopy/bin/selkies trotzdem gefunden).
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/lsiopy/bin
+
+# Alle curl-Downloads laufen mit --retry 5 --retry-all-errors (abgebrochene Downloads, z. B. opencode.ai).
+# apt: fehlgeschlagene Downloads wiederholen (z. B. "Mirror sync in progress" bei packages.mozilla.org)
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
+
 # s6-run-Skripte auf set +e patchen, damit einzelne Fehler den Start nicht abbrechen
 RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
         sed -i "1a set +e" /etc/services.d/*/run; \
@@ -26,8 +36,8 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
 # BUILD_VERSION kommt aus config.yaml und wird von HA bei jedem Update übergeben.
 ARG BUILD_VERSION
 ARG IPSCAN_VERSION=3.12.2
-ARG BITWARDEN_VERSION=2026.10.4
-ARG VSCODE_VERSION=1.146.0
+ARG BITWARDEN_VERSION=2026.11.0
+ARG VSCODE_VERSION=1.147.0
 ARG GH_CLI_VERSION=2.105.0
 ARG FIREFOX_VERSION=160.0.1
 ARG THUNDERBIRD_VERSION=160.0
@@ -113,7 +123,7 @@ RUN ARCH=$(dpkg --print-architecture) \
         aarch64|arm64) RCLONE_ARCH="arm64" ;; \
         *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
     esac \
-    && curl -fsSL "https://downloads.rclone.org/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-${RCLONE_ARCH}.zip" -o /tmp/rclone.zip \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "https://downloads.rclone.org/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-${RCLONE_ARCH}.zip" -o /tmp/rclone.zip \
     && unzip -q /tmp/rclone.zip -d /tmp/rclone \
     && cp "/tmp/rclone/rclone-v${RCLONE_VERSION}-linux-${RCLONE_ARCH}/rclone" /usr/local/bin/rclone \
     && chmod 755 /usr/local/bin/rclone \
@@ -128,7 +138,7 @@ RUN ARCH=$(dpkg --print-architecture) \
         aarch64|arm64) TS_ARCH="arm64" ;; \
         *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
     esac \
-    && curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}.tgz" -o /tmp/tailscale.tgz \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}.tgz" -o /tmp/tailscale.tgz \
     && tar -xzf /tmp/tailscale.tgz -C /tmp \
     && install -m 755 "/tmp/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}/tailscale"  /usr/local/bin/tailscale \
     && install -m 755 "/tmp/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}/tailscaled" /usr/local/bin/tailscaled \
@@ -143,7 +153,7 @@ RUN ARCH=$(dpkg --print-architecture) \
         aarch64|arm64) OPENCODE_ARCH="linux-arm64" ;; \
         *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
     esac \
-    && curl -fsSL "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-${OPENCODE_ARCH}.tar.gz" -o /tmp/opencode.tar.gz \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-${OPENCODE_ARCH}.tar.gz" -o /tmp/opencode.tar.gz \
     && tar -xzf /tmp/opencode.tar.gz -C /tmp \
     && mv /tmp/opencode /usr/local/bin/opencode.orig \
     && chmod 755 /usr/local/bin/opencode.orig \
@@ -193,9 +203,9 @@ RUN sed -i 's/^#user_allow_other/user_allow_other/' /etc/fuse.conf; \
 
 # Angry IP Scanner: arch-spezifisches .deb extrahieren (enthält SWT-JAR für die GUI).
 # Der _all.deb enthält kein SWT → NoClassDefFoundError bei Start.
-# dpkg-deb -x umgeht die Dependency-Prüfung (Bookworm-inkompatible Deps).
+# dpkg-deb -x umgeht die Dependency-Prüfung des Pakets (nur Java wird gebraucht).
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
         "https://github.com/angryip/ipscan/releases/download/${IPSCAN_VERSION}/ipscan_${IPSCAN_VERSION}_${ARCH}.deb" \
         -o /tmp/ipscan.deb \
     && dpkg-deb -x /tmp/ipscan.deb /tmp/ipscan \
@@ -212,7 +222,7 @@ RUN ARCH=$(dpkg --print-architecture) \
 # Bitwarden Desktop: gepinnte Version, via GitHub Releases
 # --no-sandbox Wrapper: Chrome-Sandbox braucht Kernel-Namespaces (in HA nicht verfügbar)
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
         "https://github.com/bitwarden/clients/releases/download/desktop-v${BITWARDEN_VERSION}/Bitwarden-${BITWARDEN_VERSION}-${ARCH}.deb" \
         -o /tmp/bitwarden.deb \
     && apt-get update \
@@ -228,7 +238,7 @@ RUN ARCH=$(dpkg --print-architecture) \
 # VS Code aus Microsofts offiziellem Debian-Repo installieren
 RUN apt-get update \
     && install -d -m 0755 /etc/apt/keyrings \
-    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 https://packages.microsoft.com/keys/microsoft.asc \
         -o /etc/apt/keyrings/packages.microsoft.com.asc \
     && echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/packages.microsoft.com.asc] https://packages.microsoft.com/repos/code stable main" \
         > /etc/apt/sources.list.d/vscode.list \
@@ -247,7 +257,7 @@ RUN apt-get update \
         || { echo "VS Code .desktop nicht gepatcht"; exit 1; }
 
 # GitHub CLI aus offiziellem GitHub-Repo installieren
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+RUN curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -261,7 +271,7 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \
     && install -d -m 0755 /etc/apt/keyrings \
-    && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 https://packages.mozilla.org/apt/repo-signing-key.gpg \
         -o /etc/apt/keyrings/packages.mozilla.org.asc \
     && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" \
         > /etc/apt/sources.list.d/mozilla.list \
@@ -278,7 +288,7 @@ RUN apt-get update \
 
 # Claude Desktop (Electron, inoffizielles Debian-Paket von aaddrick/claude-desktop-debian)
 # --no-sandbox Wrapper: Chrome-Sandbox braucht Kernel-Namespaces (in HA nicht verfügbar)
-RUN curl -fsSL https://pkg.claude-desktop-debian.dev/KEY.gpg \
+RUN curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 https://pkg.claude-desktop-debian.dev/KEY.gpg \
         | gpg --dearmor -o /usr/share/keyrings/claude-desktop.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/claude-desktop.gpg arch=amd64,arm64] https://pkg.claude-desktop-debian.dev stable main" \
         > /etc/apt/sources.list.d/claude-desktop.list \
@@ -305,7 +315,7 @@ RUN curl -fsSL https://pkg.claude-desktop-debian.dev/KEY.gpg \
 # Binary hieß bis 2.2.4 ai.opencode.desktop, ab 2.2.5 ai.opencode; der Build bricht ab, wenn keiner da ist.
 # Kein ls für die Suche: mit pipefail scheitert ls an der fehlenden Variante, auch wenn die andere da ist.
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL \
+    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
         "https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-desktop-linux-${ARCH}.deb" \
         -o /tmp/opencode-desktop.deb \
     && apt-get update \
@@ -323,8 +333,8 @@ RUN ARCH=$(dpkg --print-architecture) \
     && chmod +x /usr/bin/opencode-desktop \
     && sed -i 's|^Exec=.*|Exec=/usr/bin/opencode-desktop %U|' \
         /usr/share/applications/opencode-desktop.desktop /usr/share/applications/ai.opencode.desktop.desktop \
-    && grep -q '^Exec=/usr/bin/opencode-desktop' /usr/share/applications/opencode-desktop.desktop \
-        || { echo "OpenCode Desktop .desktop nicht gepatcht"; exit 1; }
+    && { grep -q '^Exec=/usr/bin/opencode-desktop' /usr/share/applications/opencode-desktop.desktop \
+        || { echo "OpenCode Desktop .desktop nicht gepatcht"; exit 1; }; }
 
 # Totem als Standard-Videoplayer für alle gängigen Formate setzen
 RUN printf '[Default Applications]\nvideo/mp4=org.gnome.Totem.desktop\nvideo/x-msvideo=org.gnome.Totem.desktop\nvideo/x-matroska=org.gnome.Totem.desktop\nvideo/quicktime=org.gnome.Totem.desktop\nvideo/mpeg=org.gnome.Totem.desktop\nvideo/webm=org.gnome.Totem.desktop\nvideo/x-m4v=org.gnome.Totem.desktop\nvideo/3gpp=org.gnome.Totem.desktop\nvideo/x-flv=org.gnome.Totem.desktop\nvideo/x-ms-wmv=org.gnome.Totem.desktop\n' \
@@ -333,6 +343,14 @@ RUN printf '[Default Applications]\nvideo/mp4=org.gnome.Totem.desktop\nvideo/x-m
 # Tracker3 (Indexierungsdienst) und dleyna (DLNA) Grilo-Plugins entfernen — im Container nicht verfügbar
 RUN find /usr/lib -name "libgrltracker3.so" -delete \
     && find /usr/lib -name "libgrldleyna.so" -delete
+
+# udisks2 abschalten: Das Selkies-Base-Image startet einen System-D-Bus, darüber würde
+# udisksd aktiviert und (wegen udev: true) die HA-OS-Partitionen des Hosts als
+# "Datenträger"/"hassos-overlay" auf dem Desktop und in Thunar anzeigen. Einhängen
+# scheitert ohnehin an polkit. SMB/WebDAV in Thunar laufen über gvfsd, nicht über udisks.
+RUN rm -f /usr/share/gvfs/remote-volume-monitors/udisks2.monitor \
+        /usr/share/dbus-1/services/org.gtk.vfs.UDisks2VolumeMonitor.service \
+        /usr/share/dbus-1/system-services/org.freedesktop.UDisks2.service
 
 # Deutsche Locale generieren
 RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \

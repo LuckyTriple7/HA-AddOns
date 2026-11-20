@@ -14,6 +14,7 @@ LOG_LEVEL_OPT=$(opt log_level "info")
 ALLOW_SEARCH_ENGINES_OPT=$(opt allow_search_engines "true")
 ALLOW_MONITORING_SERVICES_OPT=$(opt allow_monitoring_services "true")
 AI_BOT_POLICY_OPT=$(opt ai_bot_policy "off")
+BIND_COOKIE_TO_IP_OPT=$(opt bind_cookie_to_ip "true")
 
 export TZ="$TZ_OPT"
 
@@ -149,6 +150,20 @@ export TARGET=" "
 export POLICY_FNAME="$POLICY_FILE"
 export SLOG_LEVEL="$LOG_LEVEL_OPT"
 
+# --- Cookie an die IP binden (Option bind_cookie_to_ip) ---------------------
+# Anubis bindet das Auth-JWT standardmäßig an X-Real-IP. Browser mit IPv4 und
+# IPv6 wechseln je Verbindung die Adressfamilie (Happy Eyeballs) und bekommen
+# dann für XHR/WebSocket wieder die Challenge. Abschalten geht NUR per
+# Startargument: JWT_RESTRICTION_HEADER="" wird von Anubis ignoriert
+# (facebookgo/flagenv übernimmt leere Werte nicht).
+ANUBIS_ARGS=()
+if [ "$BIND_COOKIE_TO_IP_OPT" = "false" ]; then
+    ANUBIS_ARGS+=("--jwt-restriction-header=")
+    log "bind_cookie_to_ip is off — the auth cookie is valid regardless of the client IP (IPv4/IPv6 switching works)"
+else
+    log "bind_cookie_to_ip is on — the auth cookie is only valid for the IP that solved the challenge"
+fi
+
 log "Anubis is starting on :8923 (policy=$POLICY_FILE, log_level=$LOG_LEVEL_OPT)"
 
-exec /usr/local/bin/anubis
+exec /usr/local/bin/anubis "${ANUBIS_ARGS[@]}"

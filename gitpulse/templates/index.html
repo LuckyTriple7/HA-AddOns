@@ -114,6 +114,33 @@
     .cmt-dot { display:inline-block; width:7px; height:7px; border-radius:50%;
                background:var(--accent); margin-left:4px; vertical-align:middle; }
 
+    /* ── Neu-Indikator Issues: gelb = neues Issue, blau = neuer Kommentar, beides abwechselnd ── */
+    @keyframes tab-pulse-issue { 0%,100%{background:transparent} 50%{background:rgba(210,153,34,.30); color:var(--yellow)} }
+    @keyframes tab-pulse-cmt   { 0%,100%{background:transparent} 50%{background:rgba(88,166,255,.30); color:var(--accent)} }
+    @keyframes tab-pulse-both  { 0%,50%,100%{background:transparent} 25%{background:rgba(210,153,34,.32); color:var(--yellow)} 75%{background:rgba(88,166,255,.32); color:var(--accent)} }
+    .tab.tab-alert-issue { animation:tab-pulse-issue 1.4s ease-in-out infinite; }
+    .tab.tab-alert-cmt   { animation:tab-pulse-cmt   1.4s ease-in-out infinite; }
+    .tab.tab-alert-both  { animation:tab-pulse-both  2.4s ease-in-out infinite; }
+    @keyframes chip-pulse-blue { 0%,100%{box-shadow:0 0 0 0 rgba(88,166,255,0); border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(88,166,255,.25); border-color:var(--accent)} }
+    @keyframes chip-pulse-both { 0%,50%,100%{box-shadow:0 0 0 0 rgba(0,0,0,0); border-color:var(--border)}
+                                 25%{box-shadow:0 0 0 4px rgba(210,153,34,.30); border-color:var(--yellow)}
+                                 75%{box-shadow:0 0 0 4px rgba(88,166,255,.30); border-color:var(--accent)} }
+    .stat-chip.chip-alert-issue { animation:chip-pulse-yellow 1.4s ease-in-out infinite; }
+    .stat-chip.chip-alert-cmt   { animation:chip-pulse-blue   1.4s ease-in-out infinite; }
+    .stat-chip.chip-alert-both  { animation:chip-pulse-both   2.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .tab.tab-alert-issue, .tab.tab-alert-cmt, .tab.tab-alert-both,
+      .stat-chip.chip-alert-issue, .stat-chip.chip-alert-cmt, .stat-chip.chip-alert-both { animation:none; }
+      .tab.tab-alert-issue, .stat-chip.chip-alert-issue { box-shadow:inset 0 -2px 0 var(--yellow); }
+      .tab.tab-alert-cmt,   .stat-chip.chip-alert-cmt   { box-shadow:inset 0 -2px 0 var(--accent); }
+      .tab.tab-alert-both,  .stat-chip.chip-alert-both  { box-shadow:inset 0 -2px 0 var(--yellow), inset 0 -4px 0 var(--accent); }
+    }
+    .new-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--yellow); margin-left:4px; vertical-align:middle; }
+    .item-row.iss-new { border-left:3px solid var(--yellow); background:var(--surf2); }
+    .iss-new-tag { background:var(--yellow); color:#000; border-radius:9px; padding:0 6px; font-size:.64rem; font-weight:700; letter-spacing:.03em; }
+    .repo-chip-src { border:1px solid var(--border); border-radius:9px; padding:0 6px; font-size:.68rem; color:var(--muted); }
+    .repo-tab .rt-count { opacity:.7; margin-left:3px; font-size:.72rem; }
+
     /* ── CI Runs ────────────────────────────────────────────── */
     .run-row { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--border); font-size:0.83rem; }
     .run-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
@@ -344,6 +371,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
       {{ t.tab_issues }}
       <span id="badge-issues" class="badge badge-yellow" style="display:none">0</span>
+      <span id="newdot-issues" class="new-dot" style="display:none"></span>
       <span id="cmtdot-issues" class="cmt-dot" style="display:none"></span>
     </div>
     <div class="tab" data-tab="security" onclick="switchTab('security')">
@@ -899,7 +927,17 @@
       document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
       document.querySelector(`[data-tab="${t}"]`).classList.toggle('active', t === name);
     });
+    // Issues-Tab verlassen: dort angezeigte neue Issues gelten jetzt als gesehen
+    if (activeTab === 'issues' && name !== 'issues') _issCommitSeen();
     activeTab = name;
+    if (ghData) {
+      if (name === 'issues' && (_issCounts(ghData, null).nw || document.querySelector('#issue-list .iss-new'))) {
+        renderIssues(ghData);
+        _restoreOpenComments();
+      } else {
+        _updateIssueAlerts(ghData);
+      }
+    }
     // Blink-Klasse entfernen wenn zugehöriger Tab geöffnet wird
     const chipId = _tabChipMap[name];
     if (chipId) {
@@ -914,6 +952,7 @@
   let ghData = null;
   let ghFavorites = [];
   let activeRepo = null;
+  let _repoAll = _loadFilter('gp_repo_all', '') === '1';   // „Alle"-Chip in PRs/Issues/Security
   let notifEnabled = false;
   // Browser-Notification-Tracking (client-seitig, reset bei Reload)
   let _bn_first    = true;
@@ -1826,6 +1865,12 @@
     no_closed_prs:   '{{ t.no_closed_prs }}',
     no_issues:       '{{ t.no_issues }}',
     no_closed_issues:'{{ t.no_closed_issues }}',
+    repo_all:        {{ t.repo_all|tojson }},
+    repos_all:       {{ t.repos_all|tojson }},
+    iss_new:         {{ t.iss_new|tojson }},
+    iss_new_hint:    {{ t.iss_new_hint|tojson }},
+    iss_new_count:   {{ t.iss_new_count|tojson }},
+    iss_cmt_count:   {{ t.iss_cmt_count|tojson }},
     no_runs:      '{{ t.no_runs }}',
     no_releases:  '{{ t.no_releases }}',
     pr_open:        '{{ t.pr_open }}',
@@ -2210,7 +2255,6 @@
     // Blinken bei Anstieg (nicht beim ersten Render)
     if (_chipCounts !== null) {
       _applyChipBlink('chip-prs',      'chip-new-prs',      totalPRs      > _chipCounts.prs);
-      _applyChipBlink('chip-issues',   'chip-new-issues',   totalIssues   > _chipCounts.issues);
       _applyChipBlink('chip-releases', 'chip-new-releases', totalReleases > _chipCounts.releases);
       _applyChipBlink('chip-security', 'chip-new-security', totalSec      > _chipCounts.security);
       _applyChipBlink('chip-activity', 'chip-new-activity', totalActivity > _chipCounts.activity);
@@ -2244,6 +2288,7 @@
       d.style.display = n ? '' : 'none';
       d.title = n ? `${n} ${T.comments_unread_all}` : '';
     });
+    _updateIssueAlerts(data);
   }
 
   // ── Render: Token alert ───────────────────────────────────────────
@@ -2351,27 +2396,67 @@
   }
 
   // ── Render: Repo selector ─────────────────────────────────────────
-  function renderRepoSelector(repos) {
-    const chips = (!repos || repos.length <= 1) ? '' : repos.map((r,i) =>
-      `<button class="repo-tab${(!activeRepo && i===0)||activeRepo===r.repo?' active':''}" onclick="selectRepo('${r.repo}')">${r.name}</button>`
+  const _REPO_SELECTORS = ['repo-selector','issue-repo-selector','ci-repo-selector','security-repo-selector'];
+
+  // „Alle" gilt nur, wenn es mehr als ein Repo gibt
+  function _isAllRepos(repos) { return _repoAll && (repos || []).length > 1; }
+
+  // Marker im Issues-Repo-Chip: Anzahl offener Issues, gelber Punkt = neues Issue,
+  // blauer Punkt = ungelesener Kommentar. repoFull null = über alle Repos.
+  function _issRepoMarks(repoFull) {
+    if (!ghData) return '';
+    const c = _issCounts(ghData, repoFull);
+    return (c.open ? `<span class="rt-count">${c.open}</span>` : '')
+         + (c.nw ? `<span class="new-dot" title="${escHtml(c.nw + ' ' + T.iss_new_count)}"></span>` : '')
+         + (c.cm ? `<span class="cmt-dot" title="${escHtml(c.cm + ' ' + T.iss_cmt_count)}"></span>` : '');
+  }
+
+  function _fillRepoSelector(id, repos) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!repos || repos.length <= 1) { el.innerHTML = ''; return; }
+    const withAll = id !== 'ci-repo-selector';   // CI blättert pro Repo, dort kein „Alle"
+    const isIss   = id === 'issue-repo-selector';
+    const all     = withAll && _isAllRepos(repos);
+    let html = withAll
+      ? `<button class="repo-tab${all ? ' active' : ''}" onclick="selectAllRepos()">${escHtml(T.repo_all)}${isIss ? _issRepoMarks(null) : ''}</button>`
+      : '';
+    html += repos.map(r =>
+      `<button class="repo-tab${!all && activeRepo === r.repo ? ' active' : ''}" onclick="selectRepo(${safeJsArg(r.repo)})">${escHtml(r.name)}${isIss ? _issRepoMarks(r.repo) : ''}</button>`
     ).join('');
-    ['repo-selector','issue-repo-selector','ci-repo-selector','security-repo-selector'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = chips;
-    });
+    el.innerHTML = html;
+  }
+
+  function renderRepoSelector(repos) {
     if (!activeRepo && repos && repos.length) activeRepo = repos[0].repo;
+    _REPO_SELECTORS.forEach(id => _fillRepoSelector(id, repos));
   }
 
   function selectRepo(repo) {
     activeRepo = repo;
+    _repoAll = false;
+    _saveFilter('gp_repo_all', '0');
     _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all'; _ciFilter = '';
     const ciInput = document.getElementById('ci-filter'); if (ciInput) ciInput.value = '';
-    document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
     try { localStorage.setItem('gp_active_repo', repo); } catch {}
+    if (!ghData) return;
+    renderRepoSelector(ghData.my_repos || []);
     renderPRs(ghData);
     renderIssues(ghData);
     renderCI(ghData);
     renderSecurity(ghData);
+    _restoreOpenComments();
+  }
+
+  function selectAllRepos() {
+    _repoAll = true;
+    _saveFilter('gp_repo_all', '1');
+    if (!ghData) return;
+    renderRepoSelector(ghData.my_repos || []);
+    renderPRs(ghData);
+    renderIssues(ghData);
+    renderSecurity(ghData);
+    _restoreOpenComments();
   }
 
   function _saveFilter(key, val) { try { localStorage.setItem(key, val); } catch {} }
@@ -2380,23 +2465,27 @@
   // ── Render: PRs ───────────────────────────────────────────────────
   function renderPRs(data) {
     const repos   = data.my_repos || [];
+    const all     = _isAllRepos(repos);
     const repo    = repos.find(r => r.repo === activeRepo) || repos[0];
+    const scope   = all ? repos : (repo ? [repo] : []);
     const el      = document.getElementById('pr-list');
     const countEl = document.getElementById('pr-filter-count');
     const closed  = _prStateFilter === 'closed';
-    const allPRs  = closed ? (repo?.closed_pulls || []) : (repo?.pulls || []);
+    const allPRs  = scope.flatMap(r => (closed ? (r.closed_pulls || []) : (r.pulls || [])).map(pr => ({ pr, r })));
+    if (all) allPRs.sort((a, b) => String(b.pr.updated || '').localeCompare(String(a.pr.updated || '')));
     const emptyMsg = closed ? T.no_closed_prs : T.no_prs;
-    if (!repo || !allPRs.length) {
+    if (!scope.length || !allPRs.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${emptyMsg}</div></div>`;
       if (countEl) countEl.textContent = '';
       return;
     }
     const f = _prFilter.trim();
     const filtered = f
-      ? allPRs.filter(pr =>
+      ? allPRs.filter(({ pr, r }) =>
           pr.title.toLowerCase().includes(f) ||
           pr.user.toLowerCase().includes(f) ||
           String(pr.number).includes(f) ||
+          (all && r.name.toLowerCase().includes(f)) ||
           pr.labels.some(l => l.toLowerCase().includes(f)))
       : allPRs;
     if (countEl) countEl.textContent = f ? `${filtered.length} / ${allPRs.length}` : '';
@@ -2406,9 +2495,9 @@
     }
     el.innerHTML = `<div class="card"><div class="card-header">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--green)"><path d="M6 3c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 14c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12-9.78c-.22-.02-.45-.03-.67-.03C13.9 7.19 11 9.83 11 13.15v.67L8.93 11.7A3.996 3.996 0 0 0 6 10.5C3.79 10.5 2 12.29 2 14.5s1.79 4 4 4c1.44 0 2.7-.76 3.4-1.9l2.13 2.13A3.995 3.995 0 0 0 14 22c2.21 0 4-1.79 4-4 0-1.91-1.34-3.5-3.12-3.9-.07-.62-.11-1.25-.11-1.88 0-1.94 1.43-3.56 3.33-3.9v-.1c0-.58-.1-1.14-.1-1.72zm0 10.28c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
-      Pull Requests — ${repo.name} (${filtered.length}${f && filtered.length !== allPRs.length ? ' / ' + allPRs.length : ''})
+      Pull Requests — ${escHtml(all ? T.repos_all : repo.name)} (${filtered.length}${f && filtered.length !== allPRs.length ? ' / ' + allPRs.length : ''})
     </div><div class="card-body">` +
-    filtered.map(pr => {
+    filtered.map(({ pr, r: repo }) => {
       const isMerged = !!pr.merged_at;
       const stateSpan = closed
         ? (isMerged
@@ -2429,6 +2518,7 @@
           <div class="item-main">
             <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a>${cmtNew ? `<span class="cmt-dot" title="${escHtml(T.comments_new_hint)}"></span>` : ''}</div>
             <div class="item-meta">
+              ${all ? `<span class="repo-chip-src">${escHtml(repo.name)}</span>` : ''}
               ${stateSpan}
               ${conflict ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}
               <span>@${escHtml(pr.user)}</span>
@@ -2454,26 +2544,42 @@
 
   // ── Render: Issues ────────────────────────────────────────────────
   function renderIssues(data) {
+    _renderIssueList(data);
+    _fillRepoSelector('issue-repo-selector', data.my_repos || []);
+    _updateIssueAlerts(data);
+  }
+
+  function _renderIssueList(data) {
     const repos    = data.my_repos || [];
+    const all      = _isAllRepos(repos);
     const repo     = repos.find(r => r.repo === activeRepo) || repos[0];
+    const scope    = all ? repos : (repo ? [repo] : []);
     const el       = document.getElementById('issue-list');
     const countEl  = document.getElementById('issue-filter-count');
     const closed   = _issStateFilter === 'closed';
-    const allIssues = closed ? (repo?.closed_issues || []) : (repo?.issues || []);
+    const _when    = iss => String((closed && iss.closed_at) || iss.updated || '');
+    const allIssues = scope.flatMap(r => (closed ? (r.closed_issues || []) : (r.issues || []))
+      .map(iss => ({ iss, r, isNew: !closed && _issIsNew(r.repo, iss) })));
+    // Neue Issues nach oben, in „Alle" sonst nach letzter Änderung
+    allIssues.sort((a, b) => (b.isNew - a.isNew) || (all ? _when(b.iss).localeCompare(_when(a.iss)) : 0));
     const emptyMsg  = closed ? T.no_closed_issues : T.no_issues;
-    if (!repo || !allIssues.length) {
+    if (!scope.length || !allIssues.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${emptyMsg}</div></div>`;
       if (countEl) countEl.textContent = '';
       return;
     }
     const f = _issueFilter.trim();
     const filtered = f
-      ? allIssues.filter(iss =>
+      ? allIssues.filter(({ iss, r }) =>
           iss.title.toLowerCase().includes(f) ||
           iss.user.toLowerCase().includes(f) ||
           String(iss.number).includes(f) ||
+          (all && r.name.toLowerCase().includes(f)) ||
           iss.labels.some(l => l.toLowerCase().includes(f)))
       : allIssues;
+    // Was im offenen Issues-Tab angezeigt wird, gilt als gesehen (übernommen beim Verlassen)
+    if (activeTab === 'issues' && !document.hidden)
+      filtered.forEach(({ iss, r, isNew }) => { if (isNew) _issSeenPending.add(r.repo + '#' + iss.number); });
     if (countEl) countEl.textContent = f ? `${filtered.length} / ${allIssues.length}` : '';
     if (!filtered.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${emptyMsg}</div></div>`;
@@ -2481,21 +2587,23 @@
     }
     el.innerHTML = `<div class="card"><div class="card-header">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-      Issues — ${repo.name} (${filtered.length}${f && filtered.length !== allIssues.length ? ' / ' + allIssues.length : ''})
+      Issues — ${escHtml(all ? T.repos_all : repo.name)} (${filtered.length}${f && filtered.length !== allIssues.length ? ' / ' + allIssues.length : ''})
     </div><div class="card-body">` +
-    filtered.map(iss => {
+    filtered.map(({ iss, r: repo, isNew }) => {
       const bkey   = repo.repo + '#' + iss.number;
       const bdomId = mkId(bkey);
       const hasBody = (iss.body || '').trim().length > 0;
       const bodyOpen = _actBodyVisible.has(bkey);
       const cmtNew = cmtUnread(iss, repo.repo);
       return `
-      <div class="item-row${cmtNew ? ' cmt-unread' : ''}" style="flex-direction:column;align-items:stretch;gap:0">
+      <div class="item-row${isNew ? ' iss-new' : cmtNew ? ' cmt-unread' : ''}" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
           <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
           <div class="item-main">
             <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a>${cmtNew ? `<span class="cmt-dot" title="${escHtml(T.comments_new_hint)}"></span>` : ''}</div>
             <div class="item-meta">
+              ${isNew ? `<span class="iss-new-tag" title="${escHtml(T.iss_new_hint)}">${escHtml(T.iss_new)}</span>` : ''}
+              ${all ? `<span class="repo-chip-src">${escHtml(repo.name)}</span>` : ''}
               ${closed
                 ? `<span style="color:var(--muted)">✓ ${T.filter_closed}</span>`
                 : `<span class="pr-state-open">● ${T.iss_open}</span>`}
@@ -2815,6 +2923,106 @@
   }
 
   // ── Render: My Activity ──────────────────────────────────────────
+  // ── Neue Issues (pro Browser in localStorage) ─────────────────────
+  // Gemerkt werden bekannte Issues als "repo#nummer". Beim ersten Besuch und für
+  // neu hinzugekommene Repos gilt der aktuelle Stand still als bekannt, eigene
+  // Issues ebenso. Gesehen = im offenen Issues-Tab angezeigt; übernommen wird das
+  // erst beim Verlassen des Tabs, damit die NEU-Markierung bis dahin stehen bleibt.
+  const _ISS_SEEN_KEY = 'gp_iss_seen';
+  const _ISS_SEEN_MAX = 3000;
+  let _issSeen = null;               // {repos:Set, keys:Set}
+  const _issSeenPending = new Set();
+
+  function _issSeenLoad() {
+    if (_issSeen) return _issSeen;
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(_ISS_SEEN_KEY) || 'null'); } catch {}
+    _issSeen = { repos: new Set((raw && raw.repos) || []), keys: new Set((raw && raw.keys) || []) };
+    return _issSeen;
+  }
+
+  function _issSeenSave() {
+    if (!_issSeen) return;
+    let keys = [..._issSeen.keys];
+    if (keys.length > _ISS_SEEN_MAX) { keys = keys.slice(-_ISS_SEEN_MAX); _issSeen.keys = new Set(keys); }
+    try { localStorage.setItem(_ISS_SEEN_KEY, JSON.stringify({ repos: [..._issSeen.repos], keys })); } catch {}
+  }
+
+  // Nur mit echten Daten: ein leerer Start-Cache würde Repos sonst als „bekannt, ohne Issues" merken
+  function _issSeenSync(data) {
+    if (!data || !data.last_poll) return;
+    const seen = _issSeenLoad();
+    const me = String(data.gh_login || '').toLowerCase();
+    let changed = false;
+    (data.my_repos || []).forEach(r => {
+      const firstTime = !seen.repos.has(r.repo);
+      (r.issues || []).forEach(iss => {
+        const key = r.repo + '#' + iss.number;
+        if (!seen.keys.has(key) && (firstTime || (me && String(iss.user || '').toLowerCase() === me))) {
+          seen.keys.add(key); changed = true;
+        }
+      });
+      if (firstTime) { seen.repos.add(r.repo); changed = true; }
+    });
+    if (changed) _issSeenSave();
+  }
+
+  function _issIsNew(repoFull, iss) {
+    return !!_issSeen && _issSeen.repos.has(repoFull) && !_issSeen.keys.has(repoFull + '#' + iss.number);
+  }
+
+  function _issCommitSeen() {
+    if (!_issSeenPending.size) return;
+    const seen = _issSeenLoad();
+    _issSeenPending.forEach(k => seen.keys.add(k));
+    _issSeenPending.clear();
+    _issSeenSave();
+  }
+
+  // nw = neue Issues (ohne die gerade angezeigten), cm = ungelesene Kommentare, open = offene Issues
+  function _issCounts(data, repoFull) {
+    let nw = 0, cm = 0, open = 0;
+    (data.my_repos || []).forEach(r => {
+      if (repoFull && r.repo !== repoFull) return;
+      (r.issues || []).forEach(iss => {
+        open++;
+        if (_issIsNew(r.repo, iss) && !_issSeenPending.has(r.repo + '#' + iss.number)) nw++;
+      });
+      (r.issues || []).concat(r.closed_issues || []).forEach(it => { cm += cmtUnread(it, r.repo); });
+    });
+    return { nw, cm, open };
+  }
+
+  // Issues-Tab und Stat-Chip: gelb blinkend = neues Issue, blau = neuer Kommentar,
+  // abwechselnd gelb/blau = beides. Im geöffneten Tab blinkt nichts, dort sind die Zeilen markiert.
+  function _updateIssueAlerts(data) {
+    if (!data) return;
+    const { nw, cm } = _issCounts(data, null);
+    const mode  = nw && cm ? 'both' : nw ? 'issue' : cm ? 'cmt' : '';
+    const blink = mode && activeTab !== 'issues';
+    const parts = [];
+    if (nw) parts.push(`${nw} ${T.iss_new_count}`);
+    if (cm) parts.push(`${cm} ${T.iss_cmt_count}`);
+    const tip = parts.join(' · ');
+    const tab = document.querySelector('[data-tab="issues"]');
+    if (tab) {
+      tab.classList.remove('tab-alert-issue', 'tab-alert-cmt', 'tab-alert-both');
+      if (blink) tab.classList.add('tab-alert-' + mode);
+      tab.title = tip;
+    }
+    const chip = document.getElementById('chip-issues');
+    if (chip) {
+      chip.classList.remove('chip-alert-issue', 'chip-alert-cmt', 'chip-alert-both');
+      if (blink) chip.classList.add('chip-alert-' + mode);
+      chip.title = tip;
+    }
+    const dot = document.getElementById('newdot-issues');
+    if (dot) { dot.style.display = nw ? '' : 'none'; dot.title = nw ? `${nw} ${T.iss_new_count}` : ''; }
+  }
+
+  document.addEventListener('visibilitychange', () => { if (document.hidden) _issCommitSeen(); });
+  window.addEventListener('pagehide', _issCommitSeen);
+
   let _actBodyVisible = new Set();  // "repo#number" — aufgeklappte Bodies in Activity
   let _commentsCache  = {};          // "repo#number" → {total, comments}
   let _commentsOpenKeys = new Set(); // "repo#number" — aufgeklappte Kommentar-Panels (Re-Render-Restore)
@@ -3081,7 +3289,7 @@
     const _sevLabel = { critical:'CRITICAL', high:'HIGH', medium:'MEDIUM', low:'LOW', unknown:'?' };
 
     const allRepos = (data.my_repos || []).filter(r => {
-      if (r.repo !== activeRepo) return false;
+      if (!_isAllRepos(data.my_repos) && r.repo !== activeRepo) return false;
       const sec = r.security || {};
       return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length
           || sec.dependabot_access === false;
@@ -3246,6 +3454,7 @@
       if (prEl  && !prEl.value  && _prFilter)    prEl.value  = _prFilter;
       if (issEl && !issEl.value && _issueFilter) issEl.value = _issueFilter;
     }
+    _issSeenSync(data);
     renderSummary(data);
     renderTokenAlert(data);
     renderRateLimit(data);

@@ -19,7 +19,6 @@ Bei gesetztem Passwort: Benutzername `abc`, Passwort wie in der Konfiguration.
 | `PGID` | `1000` | Gruppen-ID des Desktop-Users |
 | `TZ` | `Europe/Berlin` | Zeitzone (z.B. `Europe/Vienna`) |
 | `PASSWORD` | — | Passwortschutz für den Web-Zugang (Benutzername: `abc`) |
-| `KEYBOARD` | — | Tastaturlayout (z.B. `de-de-qwertz`) |
 | `DRINODE` | — | GPU-Gerät für Hardwarebeschleunigung (z.B. `/dev/dri/renderD128`) |
 | `show_media` | `false` | HA-Media-Share als Thunar-Lesezeichen |
 | `show_backup` | `false` | HA-Backup-Share als Thunar-Lesezeichen |
@@ -138,7 +137,6 @@ If a password is set: username `abc`, password as configured.
 | `PGID` | `1000` | Group ID of the desktop user |
 | `TZ` | `Europe/Berlin` | Timezone (e.g. `Europe/Vienna`) |
 | `PASSWORD` | — | Password protection for web access (username: `abc`) |
-| `KEYBOARD` | — | Keyboard layout (e.g. `de-de-qwertz`) |
 | `DRINODE` | — | GPU device for hardware acceleration (e.g. `/dev/dri/renderD128`) |
 | `show_media` | `false` | HA media share as Thunar bookmark |
 | `show_backup` | `false` | HA backup share as Thunar bookmark |

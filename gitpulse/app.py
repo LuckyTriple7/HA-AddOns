@@ -1111,7 +1111,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     runs = _filter_deleted_runs(repo, runs)
 
     # Alle Workflows außer gelöschten für Verwaltung + Dispatch
-    wf_raw = _gh_get(f'/repos/{repo}/actions/workflows', token) or {}
+    wf_raw = _gh_get(f'/repos/{repo}/actions/workflows', token, {'per_page': 100}) or {}
     workflows = []
     for wf in (wf_raw.get('workflows') or []):
         state = wf.get('state', 'active')

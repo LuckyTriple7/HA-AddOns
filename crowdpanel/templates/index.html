@@ -130,6 +130,22 @@
     td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
     .tag { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 0.72rem; color: var(--muted); }
     .tag.ban { color: var(--red); border-color: var(--red); }
+    .hits { display: flex; flex-direction: column; gap: 3px; }
+    .hit { display: flex; align-items: baseline; gap: 6px; }
+    .hit-n { flex: none; min-width: 34px; text-align: center; font-size: 0.72rem; border-radius: 10px;
+             padding: 1px 6px; background: var(--surf2); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .hit-more { font-size: 0.75rem; }
+    .small { font-size: 0.75rem; }
+    tr.expandable { cursor: pointer; }
+    .grp-session { white-space: nowrap; }
+    .chev { display: inline-block; width: 14px; margin-right: 4px; color: var(--muted); transition: transform .15s; }
+    .chev.open { transform: rotate(90deg); }
+    tr.grp-sub > td { background: var(--surf2); padding: 6px 10px 10px 34px; }
+    .subtable { width: 100%; font-size: 0.82rem; }
+    .subtable th, .subtable td { padding: 4px 8px; }
+    .badge-active { border: 1px solid var(--accent); color: var(--accent); background: rgba(88,166,255,.1);
+                    border-radius: 12px; padding: 2px 10px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .badge-active:hover { background: rgba(88,166,255,.2); }
     .tag.captcha { color: var(--amber); border-color: var(--amber); }
     .muted { color: var(--muted); }
     .note { font-size: 0.78rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
@@ -334,7 +350,8 @@
         </div>
         <div class="card kpi">
           <span class="kpi-icon blue"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.9 0 3.6.7 5 1.8L5.8 17A8 8 0 0 1 12 4zm0 16c-1.9 0-3.6-.7-5-1.8L18.2 7A8 8 0 0 1 12 20z"/></svg></span>
-          <div><div class="stat-label">{{ t.ov_decisions_total }}</div><div class="stat" id="ovDecisions">–</div></div>
+          <div><div class="stat-label">{{ t.ov_decisions_total }}</div><div class="stat" id="ovDecisions">–</div>
+               <div class="sub" id="ovDecisionsSub"></div></div>
         </div>
         <div class="card kpi">
           <span class="kpi-icon amber"><svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h12v2H3v-2z"/></svg></span>
@@ -851,6 +868,8 @@
     function renderOverview(d) {
       fillOrigins((d.by_origin || []).map(p => p[0]));
       setStat($('ovDecisions'), d.decisions_total);
+      $('ovDecisionsSub').textContent = d.decisions_lists
+        ? fmt('ov_decisions_lists', { n: num(d.decisions_lists) }) : '';
       setStat($('ovAlerts'), d.alerts_24h);
       setStat($('ovLists'), d.list_updates_24h);
       bars($('ovByType'), d.by_type);
@@ -1734,42 +1753,151 @@
       });
     }
 
+    // Aufgeklappte Gruppen bleiben beim Neuladen und Umsortieren offen.
+    const openGroups = new Set();
+
+    function spanText(ms) {
+      const min = Math.round(ms / 60000);
+      if (min < 1) return T.span_lt1m;
+      if (min < 60) return fmt('span_m', { n: min });
+      const h = Math.round(min / 60);
+      if (h < 48) return fmt('span_h', { n: h });
+      return fmt('span_d', { n: Math.round(h / 24) });
+    }
+
+    function hitList(g, bySource) {
+      const box = el('div', 'hits');
+      (g.top || []).forEach(p => {
+        const line = el('div', 'hit');
+        line.appendChild(el('span', 'hit-n', p[1] + 'x'));
+        line.appendChild(el('span', bySource ? null : 'mono', p[0]));
+        box.appendChild(line);
+      });
+      const shown = (g.top || []).length;
+      if (g.others_total > shown) {
+        box.appendChild(el('div', 'muted hit-more', fmt('more_n', { n: g.others_total - shown })));
+      }
+      return box;
+    }
+
+    function activeBadge(g) {
+      if (g.active === undefined) return el('span', 'muted', T.none);
+      if (g.active === null) return el('span', 'muted', '?');
+      if (!g.active) return el('span', 'muted', T.grp_active_none);
+      const b = el('button', 'badge-active', fmt('grp_active', { n: g.active }));
+      b.type = 'button';
+      b.title = T.grp_active_hint;
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
+        $('dQ').value = g.key;
+        $('dKind').value = 'all';
+        delete cache.decisions;
+        showTab('decisions');
+      });
+      return b;
+    }
+
+    function groupItemsRow(g, bySource, colspan) {
+      const tr = el('tr', 'grp-sub');
+      const td = el('td');
+      td.colSpan = colspan;
+      const tbl = el('table', 'subtable');
+      const head = el('tr');
+      [T.col_created, bySource ? T.col_scenario : T.col_value, T.col_events, T.col_decisions, '']
+        .forEach(h => head.appendChild(el('th', null, h)));
+      const th = el('thead'); th.appendChild(head); tbl.appendChild(th);
+      const tb = el('tbody');
+      (g.items || []).forEach(it => {
+        const r = el('tr');
+        r.appendChild(el('td', 'mono', relTime(it.created_at)));
+        r.appendChild(el('td', bySource ? null : 'mono', (bySource ? it.scenario : it.value) || T.none));
+        r.appendChild(el('td', 'mono', it.events_count));
+        r.appendChild(el('td', 'mono', it.decisions));
+        const ta = el('td');
+        if (it.id !== null && it.id !== undefined) ta.appendChild(detailButton(it.id));
+        r.appendChild(ta);
+        tb.appendChild(r);
+      });
+      tbl.appendChild(tb);
+      td.appendChild(tbl);
+      if (g.items_total > (g.items || []).length) {
+        td.appendChild(el('div', 'muted note', fmt('grp_items_capped',
+          { n: (g.items || []).length, total: g.items_total })));
+      }
+      tr.appendChild(td);
+      return tr;
+    }
+
     function renderAlertsGrouped(d) {
       const bySource = d.group === 'source';
-      buildHead('aHead', 'groups', [
-        { label: bySource ? T.col_value : T.col_scenario, key: 'key' },
-        { label: T.col_hits, key: 'count' },
-        { label: bySource ? T.col_scenarios : T.col_sources, narrow: true },
+      const cols = [
+        { label: T.col_session, key: 'count' },
+        { label: T.col_last, key: 'last' },
+        { label: bySource ? T.col_scenarios : T.col_sources },
         { label: T.col_country, key: 'country' },
         { label: T.col_as, key: 'as_name', narrow: true },
-        { label: T.col_last, key: 'last' },
-        { label: T.col_actions },
-      ], () => renderAlertsGrouped(d));
+        { label: bySource ? T.col_value : T.col_scenario, key: 'key' },
+      ];
+      if (bySource) cols.push({ label: T.col_decisions, key: 'active' });
+      cols.push({ label: T.col_actions });
+      buildHead('aHead', 'groups', cols, () => renderAlertsGrouped(d));
       d = Object.assign({}, d, { groups: sortRows('groups', d.groups || []) });
       const body = $('aBody');
       body.textContent = '';
-      if (!d.groups.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
+      if (!d.groups.length) { body.appendChild(rowMessage(cols.length, T.al_none)); return; }
       d.groups.forEach(g => {
-        const tr = el('tr');
-        tr.appendChild(el('td', bySource ? 'mono' : null, g.key));
-        tr.appendChild(el('td', 'mono', g.count));
-        const tdOther = el('td', 'hide-narrow');
-        tdOther.appendChild(document.createTextNode(g.others.join(', ')));
-        if (g.others_total > g.others.length) {
-          tdOther.appendChild(el('div', 'muted',
-            fmt('more_n', { n: g.others_total - g.others.length })));
+        const gid = d.group + '|' + g.key;
+        const tr = el('tr', 'grp-row');
+        const tdSes = el('td', 'grp-session');
+        const many = g.count > 1;
+        if (many) {
+          const chev = el('span', 'chev' + (openGroups.has(gid) ? ' open' : ''), '›');
+          tdSes.appendChild(chev);
+          tdSes.appendChild(el('strong', null, fmt('grp_alerts', { n: g.count })));
+          const t1 = Date.parse(g.first), t2 = Date.parse(g.last);
+          if (!isNaN(t1) && !isNaN(t2)) tdSes.appendChild(el('div', 'muted', fmt('grp_within', { s: spanText(t2 - t1) })));
+          tdSes.appendChild(el('div', 'muted small', T.grp_started));
+          tdSes.appendChild(el('div', 'mono small', relTime(g.first)));
+        } else {
+          tdSes.appendChild(el('span', 'muted', fmt('grp_alerts', { n: 1 })));
         }
-        tr.appendChild(tdOther);
-        tr.appendChild(countryCell(g.country));
-        tr.appendChild(el('td', 'hide-narrow', g.as_name || T.none));
+        tr.appendChild(tdSes);
         tr.appendChild(el('td', 'mono', relTime(g.last)));
+        const tdHits = el('td');
+        tdHits.appendChild(hitList(g, bySource));
+        if (g.list_sync) tdHits.appendChild(el('span', 'tag', T.tag_list_sync));
+        tr.appendChild(tdHits);
+        const tdC = countryCell(g.country);
+        const cname = countryName(g.country);
+        if (cname) tdC.textContent = cname + ' (' + g.country + ')';
+        tr.appendChild(tdC);
+        tr.appendChild(el('td', 'hide-narrow', g.as_name || T.none));
+        tr.appendChild(el('td', bySource ? 'mono' : null, g.key));
+        if (bySource) { const tdA = el('td'); tdA.appendChild(activeBadge(g)); tr.appendChild(tdA); }
         const td = el('td');
         const acts = el('div', 'actions');
-        if (g.ids.length) acts.appendChild(detailButton(g.ids[0]));
+        if (!many && g.ids.length) acts.appendChild(detailButton(g.ids[0]));
         if (bySource && g.key && !g.list_sync) acts.appendChild(banButton(g.key));
         td.appendChild(acts);
         tr.appendChild(td);
         body.appendChild(tr);
+        if (many) {
+          tr.classList.add('expandable');
+          let sub = openGroups.has(gid) ? groupItemsRow(g, bySource, cols.length) : null;
+          if (sub) body.appendChild(sub);
+          tr.addEventListener('click', ev => {
+            if (ev.target.closest('button, a')) return;
+            const chev = tdSes.querySelector('.chev');
+            if (sub) {
+              sub.remove(); sub = null; openGroups.delete(gid);
+              chev.classList.remove('open');
+            } else {
+              sub = groupItemsRow(g, bySource, cols.length);
+              tr.after(sub); openGroups.add(gid);
+              chev.classList.add('open');
+            }
+          });
+        }
       });
     }
 

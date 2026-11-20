@@ -1,3 +1,44 @@
+## [2.0.2] - 2026-11-20
+
+### Aktualisiert
+
+- Bitwarden: 2026.10.4 → 2026.11.0
+
+## [2.0.1] - 2026-11-19
+
+### Behoben
+
+- Desktop und Thunar zeigten die HA-OS-Partitionen des Hosts (`hassos-overlay` und vier „Datenträger" mit 25 MB bzw. 268 MB). Ursache: Das Selkies-Base-Image startet einen System-D-Bus, darüber wurde `udisksd` aktiviert und sah wegen `udev: true` die Blockgeräte des Hosts. Die udisks2-Anbindung von gvfs ist jetzt abgeschaltet; SMB, WebDAV/rclone und Netzwerk in Thunar sind davon nicht betroffen.
+
+## [2.0.0] - 2026-11-19
+
+### Geändert
+
+- **Neues Basis-Image: `ghcr.io/linuxserver/baseimage-selkies:debiantrixie`** statt `baseimage-kasmvnc:debianbookworm`. Das KasmVNC-Basis-Image wird von LinuxServer.io seit Juli 2025 nicht mehr gebaut, Debian 12 gibt es dort nur noch eingefroren.
+- **Debian 13 (Trixie)** statt Debian 12 (Bookworm). Alle Programme aus den Debian-Repos kommen in den Trixie-Versionen.
+- **Streaming über Selkies** statt KasmVNC. Die Ports 3000/3001 bleiben gleich, die Oberfläche im Browser ist neu (Selkies-Seitenleiste mit Zwischenablage, Dateiübertragung und Einstellungen). Der damalige Wechsel zu KasmVNC (1.2.3) war wegen hoher CPU-Last erfolgt; die eigentliche Ursache war `hassio_audio` und ist seit 1.6.3 mit `audio: false` behoben.
+- **Audio:** PulseAudio und die Sinks kommen jetzt vollständig vom Selkies-Base-Image (Sink `output`). Die eigene Pulse-Konfiguration (`auto_null`, `/tmp/pulse-runtime`) und `PULSE_SERVER` entfallen. Eine alte `/config/.config/pulse/default.pa` bzw. `client.conf` aus 1.x wird beim Start nach `*.v1-kasmvnc.bak` umbenannt, weil PulseAudio sonst ohne Socket startet.
+
+- `PATH`: Das Selkies-Base-Image stellt sein eigenes Python-venv (`/lsiopy/bin`) an den Anfang. `python3` und `pip` im Terminal sind wieder das System-Python (`/usr/bin`), `/lsiopy/bin` steht am Ende.
+- apt wiederholt fehlgeschlagene Downloads bis zu 5-mal (`Acquire::Retries`), z. B. bei „Mirror sync in progress" auf packages.mozilla.org.
+- Alle `curl`-Downloads (OpenCode, rclone, Tailscale, Bitwarden, Angry IP Scanner, Repo-Schlüssel) wiederholen bis zu 5-mal (`--retry-all-errors`). Ein abgebrochener Download von opencode.ai hatte den Build in HA scheitern lassen; die Fehlermeldung zeigte dabei fälschlich „.desktop nicht gepatcht".
+- Neuer Workflow `test-webtop.yml` (nur manuell startbar): baut das Image, startet es wie unter HA und prüft Betriebssystem, Dienste, Audio-Sink, Web-Oberfläche, alle Programme und 13 GUI-Starts.
+
+### Entfernt
+
+- Option `KEYBOARD` (gab es nur bei KasmVNC). Selkies überträgt die Tastatureingaben direkt aus dem Browser.
+
+### Hinweise zum Update
+
+- **Python 3.11 → 3.13:** venvs unter `/config` und per `pip install` ins Home installierte Pakete (`/config/.local/lib/python3.11`) passen nicht mehr und müssen neu angelegt bzw. installiert werden.
+- Bei Problemen ist ein Zurückgehen auf 1.8.128 über ein HA-Backup des Add-ons möglich.
+
+## [1.8.128] - 2026-11-19
+
+### Aktualisiert
+
+- VS Code: 1.146.0 → 1.147.0
+
 ## [1.8.127] - 2026-11-18
 
 ### Aktualisiert

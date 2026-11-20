@@ -157,13 +157,13 @@ Through Ingress the second factor has no effect — there Home Assistant signs y
 
 ### Overview
 
-Number of active decisions, alerts from the last 24 hours, the split by type and
-origin, the most frequent countries and scenarios.
-
-### Overview
-
 Number of active decisions, detections of the last 24 hours, blocklist updates,
 the split by type, origin, country and scenario.
+
+Like the CrowdSec console, the **Active decisions** tile counts only this
+instance's own decisions (origin `crowdsec` and `cscli`). Entries from subscribed
+blocklists are shown in small print below — otherwise they make up 99 % of the
+number and hide what this instance blocked itself.
 
 Plus two displays that show a trend instead of a snapshot:
 
@@ -314,9 +314,13 @@ What CrowdSec detected, whether or not it turned into a decision.
 The **view** filter decides how the list is built:
 
 - **single** — one row per alert, in chronological order
-- **by address** — one row per source IP, with a hit count, every scenario seen
-  there, country, network and the last occurrence
-- **by scenario** — one row per pattern, with the number of addresses involved
+- **by IP** — one row per source IP as in the CrowdSec console: number of alerts
+  and time span of the session, the scenarios with hit counts (`42x vpatch-env-access`),
+  country, network, last occurrence and the active decisions of that address
+  (clicking "Active: n" opens them in the Decisions tab). Clicking the row expands
+  the single alerts, each with its own **Details** button
+- **by scenario** — one row per pattern, with the addresses involved and their hit
+  counts; expandable as well
 
 Grouping is usually what you want. Out of a hundred single rows it becomes visible
 that forty-eight of them come from the same address and trigger three different

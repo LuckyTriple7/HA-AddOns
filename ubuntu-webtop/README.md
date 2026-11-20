@@ -5,28 +5,28 @@
 ![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?path=ubuntu-webtop&style=flat-square)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 
-Vollständiger XFCE-Desktop, zugänglich über jeden modernen Webbrowser – direkt in Home Assistant integriert. Basiert auf dem KasmVNC-Streaming-Stack von [LinuxServer.io](https://www.linuxserver.io).
+Vollständiger XFCE-Desktop, zugänglich über jeden modernen Webbrowser – direkt in Home Assistant integriert. Basiert auf dem Selkies-Streaming-Stack von [LinuxServer.io](https://www.linuxserver.io).
 
 ## Basis-Image
 
 Dieses Add-on basiert auf:
 
-**`ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm`**
+**`ghcr.io/linuxserver/baseimage-selkies:debiantrixie`**
 
 | | |
 |---|---|
 | **Anbieter** | [LinuxServer.io](https://www.linuxserver.io) |
-| **Betriebssystem** | Debian 12 (Bookworm) |
-| **Streaming** | KasmVNC 1.3.x – delta-basiert, CPU-effizient |
+| **Betriebssystem** | Debian 13 (Trixie) |
+| **Streaming** | Selkies 2.x (pixelflux, WebSocket/WebRTC) |
 | **Init-System** | s6-overlay v3 |
 | **Desktop-User** | `abc` (UID 1000) |
 
-Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox, Thunderbird, VS Code und GitHub CLI werden aus den offiziellen Repositories der jeweiligen Hersteller installiert. Bitwarden und Angry IP Scanner werden als gepinnte Versionen via GitHub Releases bezogen — ein GitHub Actions Workflow prüft täglich auf neue Versionen.
+Debian Trixie wird bis ca. 2030 mit Sicherheits-Updates versorgt (LTS). Das Selkies-Basis-Image wird von LinuxServer.io laufend neu gebaut; das frühere KasmVNC-Basis-Image (bis Add-on-Version 1.8.x) erhielt seit Juli 2025 keine Updates mehr. Firefox, Thunderbird, VS Code und GitHub CLI werden aus den offiziellen Repositories der jeweiligen Hersteller installiert. Bitwarden und Angry IP Scanner werden als gepinnte Versionen via GitHub Releases bezogen — ein GitHub Actions Workflow prüft täglich auf neue Versionen.
 
 ## Features
 
 - **XFCE Desktop** im Browser – kein VNC-Client oder RDP nötig
-- **KasmVNC-Streaming** – CPU-effizient durch delta-basiertes Bildschirm-Streaming
+- **Selkies-Streaming** – Bild und Ton direkt im Browser, Zwischenablage und Dateiübertragung über die Seitenleiste
 - **Systemsprache Deutsch** – Locale, Datum, Firefox-UI und Thunderbird auf Deutsch eingestellt
 - **Firefox** (aktuell, aus Mozillas offiziellem Repository)
 - **Thunderbird** E-Mail-Client (deutsch)
@@ -85,7 +85,6 @@ Ist ein Passwort gesetzt, erscheint ein Login-Dialog:
 | `PGID` | `1000` | Gruppen-ID des Desktop-Users |
 | `TZ` | `Europe/Berlin` | Zeitzone (z. B. `Europe/Vienna`) |
 | `PASSWORD` | leer | Passwortschutz für den Web-Zugang — Benutzername ist immer `abc` |
-| `KEYBOARD` | leer | Tastaturlayout (z. B. `de-de-qwertz`) |
 | `DRINODE` | leer | GPU-Gerät für Hardwarebeschleunigung (z. B. `/dev/dri/renderD128`) |
 | `show_media` | `false` | HA-Media-Share (`/media`) als Thunar-Lesezeichen einblenden |
 | `show_backup` | `false` | HA-Backup-Share (`/backup`) als Thunar-Lesezeichen einblenden |
@@ -102,7 +101,7 @@ Für Intel NUC, Intel Core i3/i5/i7/i9 mit Intel Integrated Graphics empfiehlt s
 DRINODE: /dev/dri/renderD128
 ```
 
-KasmVNC nutzt dann **Intel Quick Sync** für hardware-beschleunigtes Video-Encoding, was die CPU-Last beim Streaming spürbar reduziert.
+Selkies nutzt dann **Intel Quick Sync** für hardware-beschleunigtes Video-Encoding, was die CPU-Last beim Streaming spürbar reduziert.
 
 ## Netzwerk-Shares (SMB/CIFS)
 
@@ -270,7 +269,7 @@ Die Ersteinrichtung (`rclone config`) erfordert kurz einen Browser für die OAut
 
 ## Audio
 
-Audio wird über den integrierten PulseAudio-Dienst des Base-Images bereitgestellt und direkt im Browser wiedergegeben — ohne externe Abhängigkeiten oder hassio_audio.
+Audio wird über den integrierten PulseAudio-Dienst des Selkies-Base-Images bereitgestellt (virtueller Sink `output`) und direkt im Browser wiedergegeben — ohne externe Abhängigkeiten oder hassio_audio.
 
 - **Browser-Audio**: YouTube, Mediaplayer und andere Web-Apps spielen Ton direkt im Browser-Tab ab
 - **VLC**: Nutzt PulseAudio automatisch

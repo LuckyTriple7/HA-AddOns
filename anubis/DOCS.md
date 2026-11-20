@@ -90,6 +90,20 @@ trusted_ip_ranges:
 
 Leer (Standard) = keine Ausnahme, keine Regel wird geschrieben.
 
+## Cookie an die IP-Adresse binden
+
+Nach bestandener Challenge setzt Anubis ein Cookie. Mit `bind_cookie_to_ip: true` (Standard) gilt es nur für die IP-Adresse, die die Challenge gelöst hat — ein abgefangenes Cookie nützt von einer anderen Adresse aus nichts.
+
+Das verträgt sich nicht mit Browsern, die IPv4 **und** IPv6 haben: Sie bauen jede Verbindung über beide Wege parallel auf und nehmen die schnellere („Happy Eyeballs“). Löst der Browser die Challenge über IPv4 und kommt die nächste Anfrage über IPv6, ist das Cookie dort ungültig und Anubis liefert wieder die Challenge-Seite. Das trifft vor allem Hintergrund-Anfragen und WebSockets. Typisches Bild bei Dockge oder Portainer:
+
+```
+Keine Verbindung zum Socket Server. [Error: server error]
+```
+
+In den Entwicklerwerkzeugen (F12 → Netzwerk) haben die `socket.io`-Anfragen dann Status 200, aber den Typ `html` mit ca. 7 kB — das ist die Anubis-Seite.
+
+Abhilfe: `bind_cookie_to_ip: false`. Das Add-on startet Anubis dann mit `--jwt-restriction-header=`. Die Umgebungsvariable `JWT_RESTRICTION_HEADER` leer zu setzen wirkt übrigens nicht, Anubis ignoriert leere Werte.
+
 ## Einrichtung mit NPMplus
 
 1. Anubis-Add-on installieren und starten.

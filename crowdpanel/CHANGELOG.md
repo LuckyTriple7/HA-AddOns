@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.3] - 2026-11-19
+
+- Übersicht: Die Kachel „Aktive Sperren" zählt wie die CrowdSec-Konsole nur noch die eigenen Entscheidungen (crowdsec/cscli); die Blocklisten-Einträge stehen klein darunter
+- Alarme: Ansicht „nach IP" überarbeitet nach Vorbild der CrowdSec-Konsole — Sitzung mit Alarmzahl und Zeitspanne, Szenarien mit Trefferzahl (`42x …`), aktive Entscheidungen je Adresse als Badge (Klick öffnet sie), Zeile aufklappbar mit den einzelnen Alarmen und Details-Knopf
+
 ## [0.7.2] - 2026-10-27
 
 - Build: Basis-Image fest auf Alpine 3.24 (`python:3.15-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR

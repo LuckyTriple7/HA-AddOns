@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.10] - 2026-11-20
+
+- Neu: Chip **Alle** im Repo-Wechsler von Pull Requests, Issues und Security zeigt die Einträge aller Repos in einer Liste (mit Repo-Kennzeichnung je Zeile, sortiert nach letzter Änderung). Die Auswahl wird gespeichert
+- Neu: Indikator für neue Issues und neue Kommentare. Issues-Tab und Kachel „Offene Issues" blinken **gelb** bei einem neuen Issue, **blau** bei ungelesenen Kommentaren und **abwechselnd gelb/blau** bei beidem. Neue Issues stehen oben mit NEU-Marke, die Repo-Chips zeigen Anzahl, gelben und blauen Punkt. Als gesehen gilt ein Issue, sobald es im Issues-Tab angezeigt wurde und der Tab verlassen wird; der Stand wird pro Browser gespeichert, eigene Issues zählen nicht
+
+## [0.5.9] - 2026-11-19
+
+- Fix: Workflow-Auswahl im Dispatch-Dialog zeigte nur die ersten 30 Workflows eines Repos (GitHub-Standardseitengröße). Jetzt werden bis zu 100 geladen
+
 ## [0.5.8] - 2026-10-27
 
 - Build: Basis-Image fest auf Alpine 3.24 (`python:3.15-alpine3.24`) und alle Alpine-Pakete auf feste Versionen gepinnt. Jeder Build installiert damit exakt dieselben Pakete; neue Versionen kommen künftig als Renovate-PR

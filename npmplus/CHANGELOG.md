@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.44] - 2026-11-19
+
+- NPMplus auf Upstream-Version 2026-11-18-r1 aktualisiert
+
 ## [0.1.43] - 2026-11-19
 
 ### Sicherheit
