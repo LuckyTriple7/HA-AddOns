@@ -98,7 +98,7 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 ### Pull Requests
 
 - Liste aller offenen PRs über alle eigenen Repos
-- **Repo-Wechsler** oben im Tab: zwischen Repos umschalten; Zähler zeigt PRs je Repo
+- **Repo-Wechsler** oben im Tab: zwischen Repos umschalten; Zähler zeigt PRs je Repo; **Alle** zeigt die PRs aller Repos in einer Liste
 - **Review-Status** je PR: ✓ Approved / ✗ Changes requested / ○ Ausstehend
 - **Kommentaranzahl** (PR-Kommentare + Review-Kommentare)
 - **▼ Beschreibung**: PR-Body aufklappbar direkt in der Liste — Markdown wird gerendert (Überschriften, fett, Links, `- [x]` Checkboxen)
@@ -109,7 +109,12 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 ### Issues
 
 - Liste aller offenen Issues über alle eigenen Repos
-- **Repo-Wechsler** oben im Tab (synchron mit PRs, CI und Security)
+- **Repo-Wechsler** oben im Tab (synchron mit PRs, CI und Security); **Alle** zeigt die Issues aller Repos in einer Liste, jede Zeile mit Repo-Kennzeichnung
+- **Neu-Indikator**: Issues-Tab und Kachel „Offene Issues" blinken
+  - **gelb** — neues Issue seit deinem letzten Blick in den Tab
+  - **blau** — ungelesene Kommentare an einem Issue
+  - **abwechselnd gelb/blau** — beides
+  Neue Issues stehen oben mit gelber **NEU**-Marke; die Repo-Chips zeigen Anzahl offener Issues sowie gelben (neu) und blauen Punkt (Kommentar). Ein Issue gilt als gesehen, sobald es im Issues-Tab angezeigt wurde und du den Tab verlässt. Der Stand wird pro Browser gespeichert; eigene Issues und Repos, die neu hinzukommen, lösen nichts aus. Kommentare gelten wie bisher als gelesen, sobald du die Kommentarvorschau öffnest
 - **▼ Beschreibung**: Issue-Body aufklappbar — Markdown wird gerendert
 - **💬 Kommentarvorschau**: letzte 3 Kommentare on-demand ladbar
 - Aktionen: Issue öffnen · **✕ Schließen** · **💬 Kommentieren**
@@ -164,7 +169,7 @@ angelegt, ohne den Branch anzufassen.
 
 Alle offenen Security-Alerts aller eigenen Repos auf einen Blick:
 
-- **Repo-Wechsler** oben im Tab (synchron mit PRs, Issues und CI)
+- **Repo-Wechsler** oben im Tab (synchron mit PRs, Issues und CI); **Alle** zeigt die Alerts aller Repos
 - **🤖 Dependabot** — veraltete Dependencies mit Schwachstellen (Paket, Ecosystem, Summary, Fix-Version)
 - **🔍 Code Scanning** — CodeQL-Findings (Tool, Regel, Beschreibung, Datei + Zeile)
 - **🔑 Secret Scanning** — versehentlich eingecheckte Secrets

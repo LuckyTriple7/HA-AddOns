@@ -8,7 +8,7 @@ GitHub-Übersicht direkt im HA-Dashboard: Pull Requests, Issues, CI-Läufe, Secu
 
 - **Repos** — Übersicht aller Repos: offene PRs/Issues, letzter CI-Lauf, Stars/Forks/Watchers · Repo-Insights (Lizenz, CI, Security-Alerts)
 - **Pull Requests** — Öffnen, mergen (merge / squash / rebase), kommentieren · Suche/Filter · Review-Status · Repo-Wechsler · aufklappbare Beschreibung (Markdown gerendert) · inline Kommentar-Vorschau
-- **Issues** — Schließen, kommentieren · Suche/Filter · Repo-Wechsler · aufklappbare Beschreibung · inline Kommentar-Vorschau
+- **Issues** — Schließen, kommentieren · Suche/Filter · Repo-Wechsler mit **Alle** · Blink-Indikator für neue Issues (gelb) und neue Kommentare (blau) · aufklappbare Beschreibung · inline Kommentar-Vorschau
 - **CI / Actions** — Workflow-Läufe mit Schnellfiltern, Job+Step-Details, Dispatch, Stoppen, Neu starten, Löschen · **Workflow-Favoriten** · Repo-Wechsler
 - **Releases** — Release-Tracker für beliebig viele Repos (eigene + beobachtete) inkl. HA Beta/RC · als gelesen markieren · **Releases anlegen**: Version in `custom_components/<domain>/manifest.json` bumpen, CHANGELOG-Eintrag schreiben und Release mit Tag erstellen (für Custom Integrations)
 - **Security** — Dependabot · Code Scanning · Secret Scanning Alerts mit Schweregrad-Icons · **CodeQL Autofix**: Fix per Knopfdruck in neuen Branch committen
@@ -53,7 +53,7 @@ Monitor pull requests, issues, CI runs, security alerts, releases and your own a
 
 - **Repos** — Overview of all your repos: open PRs/issues, last CI run, stars/forks/watchers · repo insights badge (licence, CI, security alerts)
 - **Pull Requests** — Open, merge (merge / squash / rebase), comment · search/filter · review status · repo switcher · expandable description (Markdown rendered) · inline comment preview
-- **Issues** — Close, comment · search/filter · repo switcher · expandable description (Markdown rendered) · inline comment preview
+- **Issues** — Close, comment · search/filter · repo switcher with **All** · blinking indicator for new issues (yellow) and new comments (blue) · expandable description (Markdown rendered) · inline comment preview
 - **CI / Actions** — Workflow runs with quick-filters, job+step details, dispatch, stop, re-run, delete · **Workflow Favorites** · repo switcher
 - **Releases** — Release tracker for any number of repos (own + watched) incl. HA beta/RC · mark as read · **create releases**: bump the version in `custom_components/<domain>/manifest.json`, write a CHANGELOG entry and publish a tagged release (for custom integrations)
 - **Security** — Dependabot · Code Scanning · Secret Scanning alerts with severity icons · **CodeQL Autofix**: commit a fix to a new branch with one click
