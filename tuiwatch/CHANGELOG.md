@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.120.13] - 2026-11-20
+
+Dep Update
+
+
 ## 0.120.12
 
 - Sicherheit: opentelemetry-api 1.45.1 → 1.45.2 (GHSA-mf5v-w3w3-f6cg, DoS durch quadratisches traceparent-Parsing; indirekte Abhängigkeit von anthropic)
