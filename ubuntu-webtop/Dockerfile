@@ -36,7 +36,7 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
 # BUILD_VERSION kommt aus config.yaml und wird von HA bei jedem Update übergeben.
 ARG BUILD_VERSION
 ARG IPSCAN_VERSION=3.12.2
-ARG BITWARDEN_VERSION=2026.10.4
+ARG BITWARDEN_VERSION=2026.11.0
 ARG VSCODE_VERSION=1.147.0
 ARG GH_CLI_VERSION=2.105.0
 ARG FIREFOX_VERSION=160.0.1
