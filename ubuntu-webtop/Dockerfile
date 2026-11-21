@@ -221,10 +221,14 @@ RUN ARCH=$(dpkg --print-architecture) \
 
 # Bitwarden Desktop: gepinnte Version, via GitHub Releases
 # --no-sandbox Wrapper: Chrome-Sandbox braucht Kernel-Namespaces (in HA nicht verfügbar)
+# Ab 2026.11.0 heißt die .deb "oss-Bitwarden-…", davor "Bitwarden-…": beide Namen probieren
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
-        "https://github.com/bitwarden/clients/releases/download/desktop-v${BITWARDEN_VERSION}/Bitwarden-${BITWARDEN_VERSION}-${ARCH}.deb" \
-        -o /tmp/bitwarden.deb \
+    && BW_BASE="https://github.com/bitwarden/clients/releases/download/desktop-v${BITWARDEN_VERSION}" \
+    && for BW_FILE in "oss-Bitwarden-${BITWARDEN_VERSION}-${ARCH}.deb" "Bitwarden-${BITWARDEN_VERSION}-${ARCH}.deb"; do \
+        curl -fsSL --retry 5 --retry-delay 5 "${BW_BASE}/${BW_FILE}" -o /tmp/bitwarden.deb && break; \
+        rm -f /tmp/bitwarden.deb; \
+    done \
+    && test -s /tmp/bitwarden.deb \
     && apt-get update \
     && apt-get install -y /tmp/bitwarden.deb \
     && rm -f /tmp/bitwarden.deb \
