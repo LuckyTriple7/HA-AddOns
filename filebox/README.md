@@ -6,7 +6,9 @@
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 ![Docker](https://img.shields.io/badge/docker-ghcr.io-blue?style=flat-square&logo=docker)
 
-Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant — basierend auf [FileBrowser](https://filebrowser.xyz).
+Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant — basierend auf [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser).
+
+> **Ab Version 2.0.0 nutzt FileBox FileBrowser Quantum.** Das ursprüngliche Projekt [filebrowser/filebrowser](https://github.com/filebrowser/filebrowser) ist seit Juli 2026 archiviert und wird nicht mehr gepflegt. FileBrowser Quantum ist der aktiv weiterentwickelte Fork mit der größten Verbreitung. Beim Umstieg wird eine neue Datenbank angelegt — siehe [Umstieg auf 2.0](#umstieg-auf-20).
 
 ## Funktionen
 
@@ -45,11 +47,22 @@ SMB-Shares (NAS, Windows-Freigaben, Samba) werden beim Start automatisch gemount
 
 > **Hinweis:** Das Add-on benötigt `SYS_ADMIN`-Rechte für Kernel-CIFS-Mounts. Diese werden automatisch gesetzt.
 
+## Umstieg auf 2.0
+
+FileBrowser Quantum verwendet ein eigenes Datenbankformat. Die alte Datenbank (`/data/filebrowser.db`) wird nicht übernommen, bleibt aber unangetastet liegen.
+
+- Das **Admin-Konto** wird automatisch aus den Add-on-Optionen angelegt — hier ist nichts zu tun.
+- **Weitere Benutzer** und **Freigabe-Links** aus 1.x müssen in der Oberfläche neu angelegt werden.
+- **Dateien** sind nicht betroffen; sie liegen weiterhin in `/share/filebox` bzw. den eingebundenen Ordnern.
+- Die Oberfläche sieht anders aus (neues Design, Seitenleiste, Suche über einen Index).
+
 ## Passwort-Verwaltung
 
-**Wichtig:** Benutzername und Passwort des ersten Admin-Kontos werden bei **jedem Start** aus der Add-on-Konfiguration übernommen. Änderungen direkt in der FileBrowser-Oberfläche werden beim nächsten Neustart überschrieben.
+**Wichtig:** Benutzername und Passwort des Admin-Kontos werden bei **jedem Start** aus der Add-on-Konfiguration übernommen. Änderungen direkt in der FileBrowser-Oberfläche werden beim nächsten Neustart überschrieben.
 
 → Passwort immer in den **Add-on-Optionen** (HA-Einstellungen) ändern, nicht in FileBrowser selbst.
+
+Das Passwort `admin` übernimmt FileBrowser Quantum nicht; bitte ein anderes wählen (mindestens 5 Zeichen). Wird der Benutzername in den Optionen geändert, legt das Add-on beim nächsten Start ein neues Admin-Konto mit diesem Namen an; das alte bleibt bestehen und kann in der Oberfläche gelöscht werden.
 
 Weitere Benutzer, die du in der Oberfläche anlegst, sind davon **nicht betroffen** — sie bleiben dauerhaft erhalten.
 
@@ -59,7 +72,7 @@ Dateien landen standardmäßig unter `/share/filebox` — im selben Bereich, in 
 
 ## Automatische Updates
 
-Ein GitHub-Actions-Workflow prüft täglich, ob eine neue FileBrowser-Version verfügbar ist. Bei einem Update wird automatisch ein Pull Request mit neuem Image und aktualisiertem Changelog erstellt.
+Ein GitHub-Actions-Workflow prüft täglich, ob eine neue Stable-Version von FileBrowser Quantum verfügbar ist (Beta-Versionen werden ausgelassen). Bei einem Update wird automatisch ein Pull Request mit neuem Image und aktualisiertem Changelog erstellt.
 
 ## Changelog
 
@@ -67,4 +80,4 @@ Siehe [CHANGELOG.md](CHANGELOG.md).
 
 ## Lizenz
 
-File Browser steht unter der Apache-2.0, die mitgelieferten Samba-Werkzeuge unter der GPL-3.0, die eigenen Dateien des Add-ons unter der MIT-Lizenz. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).
+FileBrowser Quantum steht unter der Apache-2.0, die mitgelieferten Samba-Werkzeuge unter der GPL-3.0, die eigenen Dateien des Add-ons unter der MIT-Lizenz. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

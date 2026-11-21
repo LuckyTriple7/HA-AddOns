@@ -1,6 +1,8 @@
 # FileBox
 
-Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant — basierend auf [FileBrowser](https://filebrowser.xyz).
+Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant — basierend auf [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser).
+
+> Ab Version 2.0.0 nutzt FileBox FileBrowser Quantum, weil das ursprüngliche FileBrowser-Projekt archiviert ist. Beim Umstieg wird eine neue Datenbank angelegt: Das Admin-Konto entsteht automatisch aus den Optionen, weitere Benutzer und Freigabe-Links müssen neu angelegt werden. Dateien sind nicht betroffen.
 
 ## Einrichtung
 
@@ -36,7 +38,7 @@ SMB-Shares (NAS, Windows-Freigaben, Samba) werden beim Start automatisch gemount
 
 Benutzername und Passwort werden bei **jedem Start** aus der Add-on-Konfiguration übernommen. Änderungen direkt in der FileBrowser-Oberfläche werden beim nächsten Neustart überschrieben.
 
-→ Passwort immer in den **Add-on-Optionen** ändern, nicht in FileBrowser selbst.
+→ Passwort immer in den **Add-on-Optionen** ändern, nicht in FileBrowser selbst. Das Passwort `admin` wird nicht übernommen.
 
 Weitere Benutzer, die in der Oberfläche angelegt werden, bleiben dauerhaft erhalten.
 
@@ -48,7 +50,9 @@ Dateien landen standardmäßig unter `/share/filebox`.
 
 # FileBox (English)
 
-Web UI for uploading and downloading files directly in Home Assistant — based on [FileBrowser](https://filebrowser.xyz).
+Web UI for uploading and downloading files directly in Home Assistant — based on [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser).
+
+> Since version 2.0.0 FileBox uses FileBrowser Quantum, because the original FileBrowser project has been archived. Upgrading creates a new database: the admin account is created automatically from the options, additional users and share links must be recreated. Files are not affected.
 
 ## Setup
 
@@ -84,7 +88,7 @@ SMB shares (NAS, Windows shares, Samba) are automatically mounted on startup and
 
 Username and password are applied from the add-on configuration on **every startup**. Changes made directly in the FileBrowser UI will be overwritten on the next restart.
 
-→ Always change the password in the **add-on options**, not in FileBrowser itself.
+→ Always change the password in the **add-on options**, not in FileBrowser itself. The password `admin` is not accepted.
 
 Additional users created in the UI are not affected — they persist permanently.
 

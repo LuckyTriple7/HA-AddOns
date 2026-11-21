@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.0] - 2026-11-21
+
+### Geändert
+- **Umstieg auf [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser) 2.0.2-stable.** Das bisherige Projekt `filebrowser/filebrowser` ist seit Juli 2026 archiviert; Quantum ist der aktiv gepflegte Fork
+- Neue Datenbank unter `/data/quantum/`. Die alte `/data/filebrowser.db` wird nicht übernommen und nicht gelöscht. Das Admin-Konto entsteht bei jedem Start aus den Optionen; **weitere Benutzer und Freigabe-Links aus 1.x müssen neu angelegt werden**
+- Konfiguration wird bei jedem Start als `config.yaml` erzeugt; das Admin-Passwort geht per Umgebungsvariable bzw. stdin an FileBrowser und steht nicht in der Datei
+- Geänderter Benutzername in den Optionen legt ein neues Admin-Konto an. Das Passwort `admin` übernimmt Quantum nicht (Warnung im Log)
+- Update-Workflow verfolgt nur Stable-Releases von Quantum (keine `-beta`)
+
 ## [1.2.23] - 2026-08-20
 
 - map: `config` → `homeassistant_config` (der Home-Assistant-Supervisor meldet `config` seit 2026.08 als veraltet). Der Bind-Mount für den eingeblendeten Ordner „Config" zeigt jetzt auf `/homeassistant` statt `/config`; für die Option `show_config` und den angezeigten Inhalt ändert sich nichts
