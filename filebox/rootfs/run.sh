@@ -1,7 +1,9 @@
 #!/bin/sh
 set -e
 
-DB=/data/filebrowser.db
+QDIR=/data/quantum
+QCONFIG=$QDIR/config.yaml
+QDB=$QDIR/filebox.sqlite
 ROOT=/data/filebox-root
 
 echo "=== options.json ==="
@@ -20,7 +22,7 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] PORT=$PORT SHOW_MEDIA=$SHOW_MEDIA SH
 
 mkdir -p "$ROOT"
 
-# HA-Shares als Bind-Mounts — FileBrowser 2.63.12+ folgt Symlinks außerhalb von ROOT nicht mehr
+# HA-Shares als Bind-Mounts — FileBrowser folgt Symlinks außerhalb von ROOT nicht
 # Alte Symlinks aus früheren Versionen entfernen, dann als echtes Verzeichnis anlegen
 mkdir -p /share/filebox
 [ -L "$ROOT/FileBox" ] && rm -f "$ROOT/FileBox"
@@ -163,27 +165,57 @@ mount_server 3
 mount_server 4
 mount_server 5
 echo "------------------"
+# FileBrowser Quantum: Konfiguration bei jedem Start neu schreiben.
+# Das Admin-Passwort kommt per Umgebungsvariable, nicht in die Datei.
+# Quantum übernimmt es bei jedem Start, außer es lautet "admin" oder ist leer.
+mkdir -p "$QDIR"
+cat > "$QCONFIG" <<CFG
+server:
+  disableUpdateCheck: true
+  cacheDir: "/tmp/filebox-cache"
+  database:
+    path: "${QDB}"
+  sources:
+    - path: "${ROOT}"
+      name: "FileBox"
+      config:
+        defaultEnabled: true
+auth:
+  adminUsername: $(jq -n --arg v "$USERNAME" '$v')
+  methods:
+    password:
+      enabled: true
+frontend:
+  name: "FileBox"
+userDefaults:
+  ui:
+    locale: "de"
+  account:
+    disableUpdateNotifications: true
+http:
+  port: ${PORT}
+  listen: "0.0.0.0"
+  baseURL: "/"
+CFG
 
-if [ ! -f "$DB" ]; then
-    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Erste Initialisierung der FileBrowser-Datenbank ..."
-    filebrowser --database "$DB" --address 127.0.0.1 --port 19999 --root "$ROOT" &
-    FB_PID=$!
-    sleep 3
-    kill "$FB_PID" 2>/dev/null
-    wait "$FB_PID" 2>/dev/null || true
+if [ "$PASSWORD" = "admin" ]; then
+    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] Passwort 'admin' wird von FileBrowser Quantum nicht übernommen — bitte ein anderes Passwort setzen"
 fi
 
-filebrowser config set --defaults.locale de --database "$DB" 2>/dev/null || true
-filebrowser users update 1 \
-    --username "$USERNAME" \
-    --password "$PASSWORD" \
-    --locale de \
-    --database "$DB" 2>/dev/null || true
+export FILEBROWSER_ADMIN_PASSWORD="$PASSWORD"
+export FILEBROWSER_DISABLE_AUTOMATIC_BACKUP=true
 
-echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starte FileBrowser auf Port ${PORT} ..."
-exec filebrowser \
-    --database "$DB" \
-    --address 0.0.0.0 \
-    --port "$PORT" \
-    --root "$ROOT" \
-    --baseURL "/"
+cd "$QDIR"
+
+# Admin-Konto anlegen oder aktualisieren (greift auch nach Umbenennung in den Optionen).
+# Passwort über stdin, damit es nicht in der Prozessliste steht.
+if printf '%s' "$PASSWORD" | filebrowser -c "$QCONFIG" user set "$USERNAME" --password --admin >/tmp/userset.log 2>&1; then
+    echo "[OK] [$(date '+%Y-%m-%d %H:%M:%S')] Admin-Konto '${USERNAME}' übernommen"
+else
+    echo "[FAIL] [$(date '+%Y-%m-%d %H:%M:%S')] Admin-Konto konnte nicht gesetzt werden:"
+    cat /tmp/userset.log
+fi
+rm -f /tmp/userset.log
+
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starte FileBrowser Quantum auf Port ${PORT} ..."
+exec filebrowser -c "$QCONFIG"

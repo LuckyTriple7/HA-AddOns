@@ -78,7 +78,7 @@ Headless-Chromium-Browser mit CDP-Endpoint für Browser-Automatisierung. Wird vo
 
 ### [FileBox](filebox/)
 
-Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant.
+Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant — ab 2.0.0 auf Basis von [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser), da das ursprüngliche FileBrowser-Projekt archiviert ist.
 
 - Dateien hochladen, herunterladen und verwalten
 - Standardmäßig Zugriff auf `/share/filebox`
@@ -438,7 +438,7 @@ Headless Chromium browser with CDP endpoint for browser automation. Used by the 
 
 ### [FileBox](filebox/)
 
-Web UI for uploading and downloading files directly in Home Assistant.
+Web UI for uploading and downloading files directly in Home Assistant — since 2.0.0 based on [FileBrowser Quantum](https://github.com/gtsteffaniak/filebrowser), as the original FileBrowser project has been archived.
 
 - Upload, download and manage files
 - Default access to `/share/filebox`

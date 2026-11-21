@@ -1,6 +1,7 @@
 FROM debian:bookworm-slim
 
-ARG FILEBROWSER_VERSION=2.63.12
+# FileBrowser Quantum (gtsteffaniak/filebrowser), Stable-Kanal
+ARG FILEBROWSER_VERSION=2.0.2-stable
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -9,10 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     smbclient \
     netcat-openbsd \
     && curl -fsSL \
-    "https://github.com/filebrowser/filebrowser/releases/download/v${FILEBROWSER_VERSION}/linux-amd64-filebrowser.tar.gz" \
-    -o /tmp/filebrowser.tar.gz \
-    && tar -xz -C /usr/local/bin -f /tmp/filebrowser.tar.gz filebrowser \
-    && rm /tmp/filebrowser.tar.gz \
+    "https://github.com/gtsteffaniak/filebrowser/releases/download/v${FILEBROWSER_VERSION}/linux-amd64-filebrowser" \
+    -o /usr/local/bin/filebrowser \
+    && chmod +x /usr/local/bin/filebrowser \
     && rm -rf /var/lib/apt/lists/*
 
 COPY rootfs/ /

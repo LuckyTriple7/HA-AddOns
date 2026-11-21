@@ -1,4 +1,4 @@
-name: Check FileBrowser Update
+name: Check FileBrowser Quantum Update
 
 on:
   schedule:
@@ -20,12 +20,13 @@ jobs:
         with:
           ref: dev
 
-      - name: Get latest FileBrowser version (GitHub API)
+      - name: Get latest FileBrowser Quantum stable version (GitHub API)
         id: upstream
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/filebrowser/filebrowser/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
+          # FileBrowser Quantum: nur Stable-Releases (Tags vX.Y.Z-stable), keine -beta
+          VERSION=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/gtsteffaniak/filebrowser/releases?per_page=30" | jq -r '[.[] | select(.draft == false and (.tag_name | endswith("-stable")))][0].tag_name' | sed 's/^v//')
           if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
             echo "Konnte FileBrowser-Version nicht ermitteln — API-Fehler?"
             exit 1
@@ -70,7 +71,7 @@ jobs:
           sed -i "s/version: \"${OLD_ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" filebox/config.yaml
           echo "$FB_VER" > .filebox-version
 
-          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Geändert\n- Rebuild für FileBrowser ${FB_VER}\n"
+          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Geändert\n- Rebuild für FileBrowser Quantum ${FB_VER}\n"
           sed -i "0,/^## \[/{s/^## \[/ENTRY_PLACEHOLDER\n\n## [/}" filebox/CHANGELOG.md
           sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" filebox/CHANGELOG.md
 
