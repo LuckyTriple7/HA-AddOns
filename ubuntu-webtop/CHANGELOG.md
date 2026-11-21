@@ -1,3 +1,9 @@
+## [2.0.3] - 2026-11-21
+
+### Behoben
+
+- Build brach mit 404 beim Bitwarden-Download ab: Bitwarden hat die .deb ab 2026.11.0 in `oss-Bitwarden-…` umbenannt. Der Download probiert jetzt den neuen und den alten Namen.
+
 ## [2.0.2] - 2026-11-20
 
 ### Aktualisiert
