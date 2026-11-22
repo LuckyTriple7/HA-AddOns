@@ -6,6 +6,8 @@
 
 ## [0.1.43] - 2026-11-19
 
+> **Hinweis:** Das Image 0.1.43 wurde versehentlich noch aus Upstream `2026-10-22-r1` gebaut (`.npmplus-version` war nicht angehoben). Die nginx-CVE-Fixes sind erst in **0.1.44** enthalten.
+
 ### Sicherheit
 - NPMplus auf Upstream `2026-11-18-r1` angehoben. Einzige Änderung gegenüber
   `2026-10-22-r1`: nginx-Update für die am 18.11.2026 veröffentlichten CVEs.
