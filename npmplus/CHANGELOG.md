@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.45] - 2026-11-22
+
+- Neuer Build auf Upstream `2026-11-18-r1`, damit HA das Update anbietet (0.1.43 lief noch mit `2026-10-22-r1`)
+
 ## [0.1.44] - 2026-11-19
 
 - NPMplus auf Upstream-Version 2026-11-18-r1 aktualisiert
