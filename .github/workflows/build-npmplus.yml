@@ -38,6 +38,13 @@ jobs:
         id: upstream
         run: |
           UPSTREAM=$(cat .npmplus-version)
+          # Build-Arg überschreibt das ARG im Dockerfile; beide müssen übereinstimmen,
+          # sonst entsteht still ein Image aus dem falschen Upstream (passiert bei 0.1.43)
+          DOCKERFILE_TAG=$(sed -n 's/^ARG NPMPLUS_VERSION=//p' npmplus/Dockerfile)
+          if [ "$UPSTREAM" != "$DOCKERFILE_TAG" ]; then
+            echo "::error::.npmplus-version (${UPSTREAM}) passt nicht zu ARG NPMPLUS_VERSION im Dockerfile (${DOCKERFILE_TAG})"
+            exit 1
+          fi
           echo "tag=${UPSTREAM}" >> $GITHUB_OUTPUT
           echo "NPMplus Upstream-Tag: ${UPSTREAM}"
 

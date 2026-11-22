@@ -1,10 +1,16 @@
 # Changelog
 
+## [0.1.45] - 2026-11-22
+
+- Neuer Build auf Upstream `2026-11-18-r1`, damit HA das Update anbietet (0.1.43 lief noch mit `2026-10-22-r1`)
+
 ## [0.1.44] - 2026-11-19
 
 - NPMplus auf Upstream-Version 2026-11-18-r1 aktualisiert
 
 ## [0.1.43] - 2026-11-19
+
+> **Hinweis:** Das Image 0.1.43 wurde versehentlich noch aus Upstream `2026-10-22-r1` gebaut (`.npmplus-version` war nicht angehoben). Die nginx-CVE-Fixes sind erst in **0.1.44** enthalten.
 
 ### Sicherheit
 - NPMplus auf Upstream `2026-11-18-r1` angehoben. Einzige Änderung gegenüber
