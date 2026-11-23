@@ -1,5 +1,9 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.7.3] - 2026-11-23
+
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.0.7.2] - 2026-11-11
 
 - Abhängigkeit aktualisiert: ghcr.io/hassio-addons/base docker tag to v21.0.11

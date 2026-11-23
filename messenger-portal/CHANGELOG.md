@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.10.1] - 2026-11-23
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.5.10] - 2026-11-10
 - Sicherheit: Sprachdateien werden über feste Pfade je Sprache geladen, der Pfad stammt nie aus dem Cookie (CodeQL `py/path-injection`, Alert #270)
 - Geändert: Beschreibung der installierbaren Web-App (`manifest.json`) auf Englisch und ohne feste Sprachangabe, da das Portal jetzt drei Sprachen hat
