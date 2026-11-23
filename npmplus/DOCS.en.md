@@ -743,7 +743,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `crowdsec_fallback_remediation` | `default` | Remediation used when a decision cannot be applied (unknown type, captcha configured but unusable): `bypass`, `captcha`, `ban`; `default` = image default (currently `ban`). Does **not** apply when the LAPI fails |
 | `crowdsec_appsec_failure_action` | `passthrough` | What happens when the AppSec request fails (timeout, AppSec unreachable): `passthrough` lets it through unchecked, `deny` blocks it. The image default is `deny`, which blocks **everything** for the duration of any CrowdSec restart. The add-on therefore sets `passthrough` |
 | `crowdsec_retry_minutes` | `15` | If the LAPI does not answer at start, keep asking every 30 s for this many minutes and enable the bouncer afterwards via an nginx reload. `0` = no retry |
-| `crowdsec_retry_restart` | `true` | How the bouncer gets armed afterwards: an add-on restart via the Supervisor API as soon as CrowdSec answers. An `nginx -s reload` is **not** enough — measured: the bouncer fetches no decisions afterwards. Loop guard: at most every 10 min |
+| `crowdsec_retry_restart` | `true` | How the bouncer gets armed afterwards: an add-on restart via the Supervisor API as soon as CrowdSec answers. An `nginx -s reload` is **not** enough — measured: the bouncer fetches no decisions afterwards. Loop guard: at most every 10 min. Also switches the CrowdSec watcher: when CrowdSec restarts during operation, the add-on restarts itself afterwards (at most every 5 min, a second restart is postponed) |
 | `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` or `recaptcha`; `off` = disabled |
 | `crowdsec_captcha_site_key` | – | Public key of the provider |
 | `crowdsec_captcha_secret_key` | – | Secret key of the provider |
@@ -835,6 +835,8 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 **Certificate cannot be issued** — port 80 must be reachable from the internet and the domain must resolve to your public IP. Behind CGNAT or with port 80 blocked, only the DNS challenge works.
 
 **Every site serves the CrowdSec block page** — the bouncer cannot reach CrowdSec or the key is rejected. Version 0.1.4 and later prevent this at startup; on older versions turn `crowdsec_enabled` off and restart.
+
+**After a CrowdSec restart the bouncer is stuck, only restarting NPMplus helps** — since 0.1.46 the CrowdSec watcher does that by itself: the log first says "CrowdSec stopped answering", after the return "CrowdSec is back after … s — restarting the add-on". If the line "CrowdSec watcher active" is missing at start, `crowdsec_retry_restart` is off or the bouncer was not armed at start.
 
 **CrowdSec used to work, after a restart the bouncer reaches nothing** — `crowdsec_lapi_url` holds a container IP (`172.30.33.x`) that Docker reassigned on start. Switch both URLs to the container hostname, e.g. `http://424ccef4-crowdsec:8080`.
 
