@@ -8,7 +8,7 @@ LABEL org.opencontainers.image.licenses="MIT"
 RUN apk add --no-cache \
     curl=8.23.0-r0 \
     jq=1.8.2-r0 \
-    nginx=1.30.6-r0 \
+    nginx=1.30.7-r0 \
     font-dejavu=2.37-r6 \
     ffmpeg=8.1.3-r0
 

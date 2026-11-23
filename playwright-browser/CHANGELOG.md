@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.18.2] - 2026-11-23
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.0.18.1] - 2026-11-09
 - Abhängigkeit aktualisiert: @playwright/mcp 0.0.83 → 0.0.84
 

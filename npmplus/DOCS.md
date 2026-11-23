@@ -748,7 +748,7 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `crowdsec_fallback_remediation` | `default` | Ersatz-Maßnahme, wenn eine Entscheidung nicht anwendbar ist (unbekannter Typ, Captcha eingestellt aber nicht nutzbar): `bypass`, `captcha`, `ban`; `default` = Vorgabe des Images (derzeit `ban`). Gilt **nicht** bei Ausfall der LAPI |
 | `crowdsec_appsec_failure_action` | `passthrough` | Was geschieht, wenn die AppSec-Anfrage scheitert (Zeitüberschreitung, AppSec nicht erreichbar): `passthrough` lässt ungeprüft durch, `deny` sperrt. Vorgabe des Images ist `deny` — damit sperrt der Proxy während jedes CrowdSec-Neustarts **alles**. Das Add-on setzt deshalb `passthrough` |
 | `crowdsec_retry_minutes` | `15` | Antwortet die LAPI beim Start nicht, wird so viele Minuten lang alle 30 s nachgefragt und der Bouncer danach per nginx-Reload scharfgeschaltet. `0` = kein Nachfragen |
-| `crowdsec_retry_restart` | `true` | Wie der Bouncer nachträglich scharfgeschaltet wird: Add-on-Neustart über die Supervisor-API, sobald CrowdSec antwortet. Ein `nginx -s reload` genügt **nicht** — gemessen: der Bouncer holt danach keine Entscheidungen ab. Schleifenbremse: höchstens alle 10 min |
+| `crowdsec_retry_restart` | `true` | Wie der Bouncer nachträglich scharfgeschaltet wird: Add-on-Neustart über die Supervisor-API, sobald CrowdSec antwortet. Ein `nginx -s reload` genügt **nicht** — gemessen: der Bouncer holt danach keine Entscheidungen ab. Schleifenbremse: höchstens alle 10 min. Schaltet außerdem den CrowdSec-Wächter: startet CrowdSec im Betrieb neu, startet sich das Add-on danach selbst neu (höchstens alle 5 min, ein zweiter Neustart wird aufgeschoben) |
 | `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` oder `recaptcha`; `off` = aus |
 | `crowdsec_captcha_site_key` | – | Öffentlicher Schlüssel des Anbieters |
 | `crowdsec_captcha_secret_key` | – | Geheimer Schlüssel des Anbieters |
@@ -840,6 +840,8 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 **Zertifikat lässt sich nicht ausstellen** — Port 80 muss aus dem Internet erreichbar sein und die Domain per DNS auf deine öffentliche IP zeigen. Bei CGNAT oder blockiertem Port 80 hilft nur die DNS-Challenge.
 
 **Alle Seiten liefern die CrowdSec-Sperrseite** — der Bouncer erreicht CrowdSec nicht oder der Schlüssel wird abgelehnt. Ab Version 0.1.4 verhindert die Startprüfung das; bei älteren Ständen `crowdsec_enabled` ausschalten und neu starten.
+
+**Nach einem Neustart von CrowdSec hängt der Bouncer, erst ein Neustart von NPMplus hilft** — ab 0.1.46 erledigt das der CrowdSec-Wächter selbst: Im Protokoll steht zuerst „CrowdSec stopped answering“, nach der Rückkehr „CrowdSec is back after … s — restarting the add-on“. Fehlt die Zeile „CrowdSec watcher active“ beim Start, ist `crowdsec_retry_restart` aus oder der Bouncer war beim Start nicht scharf.
 
 **CrowdSec lief, nach einem Neustart erreicht der Bouncer nichts mehr** — in `crowdsec_lapi_url` steht eine Container-IP (`172.30.33.x`), die Docker beim Start neu vergeben hat. Beide URLs auf den Container-Hostnamen umstellen, z.B. `http://424ccef4-crowdsec:8080`.
 

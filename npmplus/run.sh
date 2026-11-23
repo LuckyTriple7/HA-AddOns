@@ -412,6 +412,10 @@ cs_apply_conf() {
 # Wird auf true gesetzt, wenn der Bouncer nur deshalb aus bleibt, weil die LAPI
 # beim Start nicht antwortete — dann lohnt es sich, später noch einmal zu fragen.
 CS_RETRY_WANTED=false
+# Wird auf true gesetzt, wenn der Bouncer beim Start scharfgeschaltet wurde —
+# dann überwacht der CrowdSec-Wächter weiter unten, ob CrowdSec im Betrieb neu
+# startet.
+CS_ACTIVE=false
 
 if [ "$CS_ENABLED_OPT" = "true" ]; then
     warn_if_container_ip "crowdsec_lapi_url" "$CS_LAPI_OPT"
@@ -431,6 +435,7 @@ if [ "$CS_ENABLED_OPT" = "true" ]; then
         case "$CS_CODE" in
             200|404)
                 cs_apply_conf
+                CS_ACTIVE=true
                 log "CrowdSec bouncer active against ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-off})"
                 ;;
             403|401)
@@ -1027,12 +1032,108 @@ if [ "$CS_RETRY_WANTED" = "true" ] && [ "${CS_RETRY_OPT:-0}" -gt 0 ] 2>/dev/null
     log "CrowdSec was not reachable at start — retrying every 30 s for up to ${CS_RETRY_OPT} min"
 fi
 
+###############################################################################
+# CrowdSec-Wächter
+#
+# Startet CrowdSec neu, während NPMplus läuft (Update, Neustart des Add-ons,
+# Neustart von Home Assistant ohne Neustart von NPMplus), fängt sich der
+# Bouncer danach nicht wieder — bis NPMplus von Hand neu gestartet wird. Das
+# ist dieselbe Lage wie beim Nachzügler oben, nur mitten im Betrieb.
+#
+# Deshalb hier dauerhaft im Hintergrund nachsehen, ob CrowdSec lebt. Bemerkt
+# der Wächter einen Ausfall und danach die Rückkehr, startet er das Add-on neu,
+# sobald LAPI und AppSec wieder antworten.
+#
+# Abgefragt wird /health: das braucht keinen Bouncer-Schlüssel. Mit Schlüssel
+# zählte jede Abfrage in CrowdSec als Abruf des Bouncers, und der User-Agent
+# des Wächters stünde dort statt dem des nginx-Bouncers. Ältere CrowdSec-
+# Versionen ohne /health antworten mit 404 — auch das beweist, dass die LAPI
+# lebt. Nur "000" (keine Verbindung) und 5xx gelten als Ausfall.
+#
+# Bremse: höchstens ein Neustart alle 5 Minuten (Stempel wie beim
+# Nachzügler). Anders als dort wird ein Neustart nicht verworfen, sondern
+# aufgeschoben — startet CrowdSec zweimal kurz hintereinander neu, hinge der
+# Bouncer nach dem zweiten Mal sonst wieder bis zum Handgriff.
+###############################################################################
+CS_WATCH_INTERVAL=10
+CS_WATCH_MIN_GAP=300
+
+cs_alive() {
+    local code
+    code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+        -A "npmplus-addon/1.0" "${1%/}${2:-}" 2>/dev/null || true)
+    case "${code:-000}" in
+        000|5??) return 1 ;;
+    esac
+    return 0
+}
+
+if [ "$CS_ACTIVE" = "true" ] && [ "$CS_RETRY_RESTART_OPT" = "true" ]; then
+    (
+        set +e
+        CS_DOWN_SINCE=0
+        CS_UP_STREAK=0
+        CS_STAMP=/data/crowdsec/.retry_restart
+        while true; do
+            sleep "$CS_WATCH_INTERVAL"
+            CS_UP=true
+            cs_alive "$CS_LAPI_OPT" "/health" || CS_UP=false
+            if [ "$CS_UP" = "true" ] && [ -n "$CS_APPSEC_OPT" ]; then
+                cs_alive "$CS_APPSEC_OPT" "/" || CS_UP=false
+            fi
+
+            if [ "$CS_UP" = "false" ]; then
+                CS_UP_STREAK=0
+                if [ "$CS_DOWN_SINCE" -eq 0 ]; then
+                    CS_DOWN_SINCE=$(date +%s)
+                    warn "CrowdSec stopped answering — the add-on restarts itself once it is back,"
+                    warn "otherwise the bouncer would stay stuck until a manual restart."
+                fi
+                continue
+            fi
+
+            [ "$CS_DOWN_SINCE" -eq 0 ] && continue
+
+            # Zwei gute Antworten in Folge: CrowdSec meldet LAPI und AppSec
+            # einzeln bereit, und kurz nach dem Start kann noch eines davon
+            # wieder wegkippen.
+            CS_UP_STREAK=$(( CS_UP_STREAK + 1 ))
+            [ "$CS_UP_STREAK" -lt 2 ] && continue
+
+            CS_NOW=$(date +%s)
+            CS_LAST=$(cat "$CS_STAMP" 2>/dev/null || echo 0)
+            case "$CS_LAST" in *[!0-9]*|"") CS_LAST=0 ;; esac
+            if [ "$(( CS_NOW - CS_LAST ))" -lt "$CS_WATCH_MIN_GAP" ]; then
+                # Nur einmal je Wartezeit melden, nicht alle 10 Sekunden.
+                if [ "$CS_UP_STREAK" -eq 2 ]; then
+                    log "CrowdSec is back, but the add-on restarted less than $(( CS_WATCH_MIN_GAP / 60 )) min ago —"
+                    log "restart postponed until $(date -d "@$(( CS_LAST + CS_WATCH_MIN_GAP ))" '+%H:%M:%S' 2>/dev/null || echo later)."
+                fi
+                continue
+            fi
+
+            echo "$CS_NOW" > "$CS_STAMP" 2>/dev/null
+            log "CrowdSec is back after $(( CS_NOW - CS_DOWN_SINCE )) s — restarting the add-on so the bouncer reconnects"
+            if cs_restart_addon; then
+                exit 0
+            fi
+            warn "Restart via the Supervisor failed. Restart the add-on by hand — otherwise"
+            warn "the bouncer may stay stuck."
+            CS_DOWN_SINCE=0
+            CS_UP_STREAK=0
+        done
+    ) &
+    CS_WATCH_PID=$!
+    log "CrowdSec watcher active — the add-on restarts itself after a CrowdSec restart"
+fi
+
 _term() {
     log "SIGTERM received, stopping NPMplus..."
     kill -TERM "$APP_PID" 2>/dev/null || true
     [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
     [ -n "${GEO_PID:-}" ] && kill -TERM "$GEO_PID" 2>/dev/null || true
     [ -n "${CS_RETRY_PID:-}" ] && kill -TERM "$CS_RETRY_PID" 2>/dev/null || true
+    [ -n "${CS_WATCH_PID:-}" ] && kill -TERM "$CS_WATCH_PID" 2>/dev/null || true
     # nginx braucht einen Moment, um offene Verbindungen zu schließen.
     wait "$APP_PID" 2>/dev/null || true
     log "NPMplus stopped"
@@ -1053,4 +1154,5 @@ warn "NPMplus exited without a stop request (exit code ${APP_EXIT})"
 [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
 [ -n "${GEO_PID:-}" ] && kill -TERM "$GEO_PID" 2>/dev/null || true
 [ -n "${CS_RETRY_PID:-}" ] && kill -TERM "$CS_RETRY_PID" 2>/dev/null || true
+[ -n "${CS_WATCH_PID:-}" ] && kill -TERM "$CS_WATCH_PID" 2>/dev/null || true
 exit "$APP_EXIT"

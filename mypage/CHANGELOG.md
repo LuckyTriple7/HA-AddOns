@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.74.3] - 2026-11-23
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [0.11.74.2] - 2026-11-09
 - Abhängigkeit aktualisiert: google-genai 2.34.0 → 3.0.0
 

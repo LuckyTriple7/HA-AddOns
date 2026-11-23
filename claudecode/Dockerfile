@@ -35,7 +35,7 @@ RUN apk add --no-cache \
     sed=4.9-r2 \
     gawk=5.3.2-r2 \
     ca-certificates=20261020-r0 \
-    openssl=3.5.9-r0 \
+    openssl=3.5.9-r1 \
     ripgrep=15.1.0-r0 \
     7zip=26.01-r0 \
     socat=1.8.1.3-r0 \

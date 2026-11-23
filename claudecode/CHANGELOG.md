@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.12] - 2026-11-23
+
+### Changed
+- Rebuild für Claude Code 2.1.323
+
+
+## [1.4.11.6] - 2026-11-23
+
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.4.11.5] - 2026-11-17
 
 - Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)

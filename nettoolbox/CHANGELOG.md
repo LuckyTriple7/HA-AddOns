@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.10.3.4] - 2026-11-23
+
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [0.10.3.3] - 2026-11-09
 
 - Abhängigkeit aktualisiert: dnspython 2.9.1 → 2.9.2

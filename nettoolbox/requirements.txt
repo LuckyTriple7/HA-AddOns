@@ -4,7 +4,7 @@
 #
 #    pip-compile --no-emit-index-url --output-file=requirements.txt --strip-extras requirements.in
 #
-aioquic==1.7.2
+aioquic==1.8.0
     # via -r requirements.in
 attrs==26.1.0
     # via service-identity
@@ -45,7 +45,7 @@ markupsafe==3.0.4
     #   werkzeug
 pycparser==3.12
     # via cffi
-pylsqpack==1.0.0
+pylsqpack==1.1.2
     # via aioquic
 pyopenssl==26.4.0
     # via aioquic

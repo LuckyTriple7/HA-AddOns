@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.7.1] - 2026-11-23
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.8.7] - 2026-11-10
 - Neu: Spanisch als dritte Sprache (#510). Add-on-Optionen (`translations/es.yaml`), Weboberfläche (Sprachknopf DE → EN → ES, spanische Browser starten auf Spanisch), Datumsformate und HTML-Export
 - Neu: HA-Benachrichtigungen folgen der in Home Assistant eingestellten Sprache (Deutsch, Englisch, Spanisch; sonst Englisch, bei Fehler weiter Deutsch)
