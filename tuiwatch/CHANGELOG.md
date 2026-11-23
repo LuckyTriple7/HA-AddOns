@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.120.13.1] - 2026-11-23
+
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [0.120.13] - 2026-11-20
 
 Dep Update
