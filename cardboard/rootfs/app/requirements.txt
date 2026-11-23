@@ -10,6 +10,7 @@ annotated-types==0.8.0
     # via pydantic
 anyio==4.15.1
     # via
+    #   fastapi
     #   httpx
     #   starlette
     #   watchfiles
@@ -19,7 +20,7 @@ certifi==2026.10.23
     #   httpx
 click==8.5.0
     # via uvicorn
-fastapi==0.162.2
+fastapi==0.163.1
     # via -r requirements.in
 h11==0.16.0
     # via

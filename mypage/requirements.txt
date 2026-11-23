@@ -41,7 +41,7 @@ fonttools==4.67.0
     # via weasyprint
 google-auth==2.62.0
     # via google-genai
-google-genai==3.0.0
+google-genai==3.3.0
     # via -r requirements.in
 h11==0.16.0
     # via httpcore2
