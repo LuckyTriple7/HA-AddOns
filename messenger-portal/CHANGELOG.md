@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.5.11] - 2026-11-23
+- Behoben: Der schwebende „Portal"-Knopf in den Messengern war auf kleinen Bildschirmen nicht zu sehen. Bis 600 px Breite wurde er bisher ganz ausgeblendet; jetzt erscheint dort ein kleiner runder Knopf nur mit Pfeil, ohne gespeicherte Position mittig am rechten Rand statt über dem Senden-Knopf
+- Behoben: Eine auf einem großen Bildschirm gespeicherte Knopf-Position konnte in kleineren Fenstern außerhalb des sichtbaren Bereichs liegen. Die Position wird jetzt beim Laden, bei jeder Größenänderung und beim Ziehen ins Fenster geholt
+
 ## [1.5.10.1] - 2026-11-23
 - Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
 
