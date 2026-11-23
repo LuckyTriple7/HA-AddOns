@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.68.1] - 2026-11-23
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.8.68] - 2026-11-13
 - Sicherheit: `basic-ftp` per Override von 6.2.1 auf 6.2.6 angehoben (Dependabot #86 und #87: Absturz beim MLSD-Parser über den Faktnamen `__proto__`, Absturz bei CR/LF im Passwort). Das Add-on nutzt kein FTP, das Paket kommt nur als indirekte Abhängigkeit mit
 

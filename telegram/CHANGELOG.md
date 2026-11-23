@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.13.1] - 2026-11-23
+- Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
+
 ## [1.8.13] - 2026-11-10
 - Neu: HA-Benachrichtigungen folgen der in Home Assistant eingestellten Sprache (Deutsch, Englisch, Spanisch; andere Sprachen erhalten Englisch). Betrifft „Neue Nachricht“ im Datenschutzmodus und den Foto-Platzhalter. Kann die Sprache nicht abgefragt werden, bleibt es bei Deutsch (#510)
 
