@@ -274,9 +274,12 @@ POST /api/logout                  → Log out
   "chatId": "+4915123456789",
   "chatName": "Max Mustermann",
   "contact": "Max Mustermann",
-  "preview": "Hello!"
+  "preview": "Hello!",
+  "seq": 42
 }
 ```
+
+`seq` (only without `?chat=`) is a running number of received messages. It is stored in `/config/received_seq.json` and survives restarts. The Messenger Portal remembers the number when you read and shows the difference as the unread count.
 
 **`configuration.yaml`:**
 ```yaml
