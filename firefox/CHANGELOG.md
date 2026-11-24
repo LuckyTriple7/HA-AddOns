@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.17] - 2026-11-24
+
+### Behoben
+- Emojis werden jetzt durchgehend farbig angezeigt (z. B. im Emoji-Picker von WhatsApp, Telegram und Signal). Bisher erschienen ältere Gesichter wie 😀😍😎 nur als schwarz-weiße Umrisse, weil DejaVu Sans die Standardschrift war; neu sind Noto Sans und Noto Color Emoji installiert.
+
+
 ## [1.0.16] - 2026-11-11
 
 ### Geändert

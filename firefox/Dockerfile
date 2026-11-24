@@ -4,8 +4,14 @@
 FROM debian:bookworm-slim AS deps
 # firefox-esr installieren damit apt alle transitiven Abhängigkeiten auflöst
 # (GTK3, ALSA, dbus, fontconfig, etc.) — Binary wird nicht gebraucht.
+# fonts-noto-core macht Noto Sans zur sans-serif-Schrift: Ohne sie greift
+# DejaVu Sans, deren schwarz-weiße Glyphen für U+1F600–1F640 die Farb-Emojis
+# verdrängen (😀😍😎 nur als Umriss). fonts-noto-color-emoji liefert die
+# Farbschrift für alle Emojis.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     firefox-esr \
+    fonts-noto-core \
+    fonts-noto-color-emoji \
     locales \
     && locale-gen de_DE.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
