@@ -57,6 +57,26 @@ BACK_BTN = (
     'function save(){try{localStorage.setItem("mp-bp",'
     'JSON.stringify({r:b.style.right,b:b.style.bottom}));}catch(e){}}'
     'function refit(){fit(gs("right"),gs("bottom"));}'
+    # Gelesen-Stand ans Portal melden, sobald der Messenger verlassen wird -
+    # was im Chat gelesen wurde, soll im Portal (auf allen Geraeten) nicht
+    # mehr als neu leuchten. __MP_SLUG__ setzt proxy_block je Messenger ein.
+    'function mrUrl(){var p=location.pathname,i=p.indexOf("/proxy/__MP_SLUG__/");'
+    'return i<0?null:p.slice(0,i)+"/api/mark-read";}'
+    'function mr(){try{var u=mrUrl();if(!u)return;'
+    'var d=new URLSearchParams({icon:"__MP_SLUG__"});'
+    'if(!(navigator.sendBeacon&&navigator.sendBeacon(u,d)))'
+    'fetch(u,{method:"POST",body:d,keepalive:true}).catch(function(){});}catch(e){}}'
+    # Zurueck-Knopf: Meldung abwarten (max. 1,5 s), sonst fragt das Portal
+    # seinen Status ab, bevor der Gelesen-Stand angekommen ist.
+    'var going=false;'
+    'function home(){if(going)return;going=true;var done=false;'
+    'function go(){if(done)return;done=true;window.location.href="../../";}'
+    'try{var u=mrUrl();if(!u)return go();'
+    'fetch(u,{method:"POST",body:new URLSearchParams({icon:"__MP_SLUG__"}),keepalive:true})'
+    '.then(go,go);setTimeout(go,1500);}catch(e){go();}}'
+    'window.addEventListener("pagehide",mr);'
+    'document.addEventListener("visibilitychange",function(){'
+    'if(document.visibilityState==="hidden")mr();});'
     'var p=null;try{p=JSON.parse(localStorage.getItem("mp-bp")||"null");}catch(e){}'
     'if(p){fit(parseInt(p.r,10)||0,parseInt(p.b,10)||0);}'
     # Ohne gespeicherte Position auf dem Handy nicht ueber den Senden-Knopf legen
@@ -75,7 +95,7 @@ BACK_BTN = (
     'if(sx===undefined)return;b.style.cursor="grab";'
     'if(dragged)save();sx=undefined;});'
     'b.addEventListener("click",function(e){'
-    'if(dragged){e.preventDefault();}else{window.location.href="../../";}});'
+    'if(dragged){e.preventDefault();}else{home();}});'
     'b.addEventListener("touchstart",function(e){'
     'var t=e.touches[0];dragged=false;sx=t.clientX;sy=t.clientY;'
     'sr=gs("right");sb=gs("bottom");},{passive:true});'
@@ -86,10 +106,10 @@ BACK_BTN = (
     ',{passive:false});'
     'document.addEventListener("touchend",function(){'
     'if(sx===undefined)return;'
-    'if(dragged)save();else window.location.href="../../";sx=undefined;});'
+    'if(dragged)save();else home();sx=undefined;});'
     'document.addEventListener("keydown",function(e){'
     'if(e.altKey&&e.shiftKey&&(e.key==="h"||e.key==="H")){'
-    'e.preventDefault();window.location.href="../../";}});'
+    'e.preventDefault();home();}});'
     '})();</script></body>'
 )
 
@@ -148,6 +168,7 @@ def var_name(slug: str) -> str:
 def proxy_block(slug: str, name: str, host: str, port: int) -> str:
     prefix = f'/proxy/{slug}/'
     var = var_name(slug)
+    back_btn = BACK_BTN.replace('__MP_SLUG__', slug)
     return f"""
     # ── {slug} ──────────────────────────────────────────
     location {prefix} {{
@@ -192,7 +213,7 @@ def proxy_block(slug: str, name: str, host: str, port: int) -> str:
         sub_filter "url: '/"   "url: '{prefix}";
 
         # Inject back-to-portal button
-        sub_filter '</body>' '{BACK_BTN}';
+        sub_filter '</body>' '{back_btn}';
     }}
 
     location @offline_{slug} {{

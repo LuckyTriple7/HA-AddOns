@@ -111,7 +111,12 @@ load_sessions()
 # ── Geräteübergreifender Gelesen-Stand ────────────────────────────────────────
 # Ohne das lag der Stand nur im localStorage des jeweiligen Browsers: eine auf
 # dem Handy gelesene Nachricht blieb am Desktop weiter als "neu" markiert.
-read_state: dict[str, int] = {}
+# Gespeichert wird die Kennung der zuletzt gesehenen Nachricht (Zeitstempel +
+# Chat, so wie das Add-on sie meldet) - nicht die Uhrzeit des Klicks. Die
+# Zeitstempel kommen bei Signal von der Uhr des Absenders; gegen die Portal-
+# Uhr verglichen blieb der Punkt stehen, sobald dessen Handy vorging.
+# Alte Eintraege (int = Klickzeit in ms) werden weiter verstanden.
+read_state: dict[str, int | str] = {}
 
 
 def load_read_state() -> None:
@@ -119,12 +124,32 @@ def load_read_state() -> None:
     try:
         with open(READSTATE_PATH) as f:
             data = json.load(f)
-        read_state = {str(k).lower(): int(v) for k, v in data.items()
-                      if isinstance(v, (int, float))}
+        read_state = {str(k).lower(): (v if isinstance(v, str) else int(v))
+                      for k, v in data.items()
+                      if isinstance(v, (int, float, str))}
     except FileNotFoundError:
         pass
     except Exception as e:
         log.warning("Gelesen-Stand konnte nicht geladen werden: %s", e)
+
+
+def msg_key(last: dict | None) -> str:
+    """Kennung einer Nachricht aus /api/last-received, '' wenn keine da ist."""
+    if not last or not last.get('timestamp'):
+        return ''
+    return f"{last.get('timestamp')}|{last.get('chatId') or ''}"
+
+
+def has_unread(last: dict | None, seen) -> bool:
+    key = msg_key(last)
+    if not key:
+        return False
+    if isinstance(seen, str):
+        return key != seen
+    try:
+        return int(last['timestamp']) > int(seen or 0)
+    except (TypeError, ValueError):
+        return True
 
 
 def save_read_state() -> None:
@@ -564,7 +589,8 @@ def status():
         result = list(ex.map(lambda m: fetch_messenger_status(messenger_host(m), m),
                              messengers))
     for r in result:
-        r['last_opened'] = read_state.get(r['icon'], 0)
+        r['msg_key']  = msg_key(r.get('last_received'))
+        r['has_new']  = has_unread(r.get('last_received'), read_state.get(r['icon']))
     return jsonify(result)
 
 
@@ -573,15 +599,17 @@ def api_mark_read():
     if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
         return '', 401
     icon = (request.form.get('icon') or '').strip().lower()
-    known = {str(m.get('icon', '')).lower()
-             for m in load_config().get('messengers', [])}
-    if not icon or icon not in known:
+    messenger = next((m for m in load_config().get('messengers', [])
+                      if str(m.get('icon', '')).lower() == icon and m.get('port')), None)
+    if not icon or messenger is None:
         return '', 400
-    ts = int(time.time() * 1000)
-    if ts > read_state.get(icon, 0):
-        read_state[icon] = ts
+    # Gelesen ist, was das Add-on gerade als letzte Nachricht meldet - so zaehlt
+    # auch, was waehrend des Lesens im Messenger noch hereinkam.
+    key = msg_key(fetch_last_received(messenger_host(messenger), messenger['port']))
+    if key and read_state.get(icon) != key:
+        read_state[icon] = key
         save_read_state()
-    return jsonify({'icon': icon, 'last_opened': read_state[icon]})
+    return jsonify({'icon': icon, 'seen': key})
 
 
 def _authed() -> bool:
