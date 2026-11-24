@@ -21,6 +21,7 @@
   "last_opened_yesterday": "Ayer",
   "last_opened_days": "hace {n} días",
   "last_msg_prefix": "Último mensaje:",
+  "unread_badge": "{n} sin leer",
   "notif_panel_title": "Notificaciones",
   "notif_request_hint": "Recibe notificaciones del navegador cuando lleguen mensajes nuevos.",
   "notif_enable": "Activar",

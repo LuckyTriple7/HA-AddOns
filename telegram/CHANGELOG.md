@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.14] - 2026-11-24
+- Neu: `/api/last-received` liefert zusätzlich `seq`, eine laufende Nummer der eingegangenen Nachrichten (gespeichert in `/config/received_seq.json`). Damit zeigt das Messenger Portal ab 1.5.13 die Zahl ungelesener Nachrichten an
+
 ## [1.8.13.1] - 2026-11-23
 - Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
 

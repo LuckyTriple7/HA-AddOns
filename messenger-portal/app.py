@@ -115,8 +115,10 @@ load_sessions()
 # Chat, so wie das Add-on sie meldet) - nicht die Uhrzeit des Klicks. Die
 # Zeitstempel kommen bei Signal von der Uhr des Absenders; gegen die Portal-
 # Uhr verglichen blieb der Punkt stehen, sobald dessen Handy vorging.
-# Alte Eintraege (int = Klickzeit in ms) werden weiter verstanden.
-read_state: dict[str, int | str] = {}
+# Dazu die laufende Nummer (seq) des Add-ons: die Differenz zur aktuellen ist
+# die Zahl ungelesener Nachrichten. Frueheres Format (str = nur Kennung,
+# int = Klickzeit in ms) wird weiter verstanden.
+read_state: dict[str, dict | int | str] = {}
 
 
 def load_read_state() -> None:
@@ -124,9 +126,9 @@ def load_read_state() -> None:
     try:
         with open(READSTATE_PATH) as f:
             data = json.load(f)
-        read_state = {str(k).lower(): (v if isinstance(v, str) else int(v))
+        read_state = {str(k).lower(): (v if isinstance(v, (str, dict)) else int(v))
                       for k, v in data.items()
-                      if isinstance(v, (int, float, str))}
+                      if isinstance(v, (int, float, str, dict))}
     except FileNotFoundError:
         pass
     except Exception as e:
@@ -140,16 +142,38 @@ def msg_key(last: dict | None) -> str:
     return f"{last.get('timestamp')}|{last.get('chatId') or ''}"
 
 
+def _seq(value) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
 def has_unread(last: dict | None, seen) -> bool:
     key = msg_key(last)
     if not key:
         return False
+    if isinstance(seen, dict):
+        seen = seen.get('key') or ''
     if isinstance(seen, str):
         return key != seen
     try:
         return int(last['timestamp']) > int(seen or 0)
     except (TypeError, ValueError):
         return True
+
+
+def unread_count(last: dict | None, seen) -> int | None:
+    """Zahl ungelesener Nachrichten; None, wenn das Add-on nicht mitzaehlt
+    (aeltere Version) - dann zeigt die Seite wie frueher nur den Punkt."""
+    if not has_unread(last, seen):
+        return 0
+    now = _seq((last or {}).get('seq'))
+    if now is None:
+        return None
+    before = _seq(seen.get('seq')) if isinstance(seen, dict) else None
+    # Ohne gemerkten Stand oder nach zurueckgesetztem Zaehler ist sicher nur
+    # die letzte Nachricht neu.
+    if before is None or now <= before:
+        return 1
+    return now - before
 
 
 def save_read_state() -> None:
@@ -591,6 +615,7 @@ def status():
     for r in result:
         r['msg_key']  = msg_key(r.get('last_received'))
         r['has_new']  = has_unread(r.get('last_received'), read_state.get(r['icon']))
+        r['unread']   = unread_count(r.get('last_received'), read_state.get(r['icon']))
     return jsonify(result)
 
 
@@ -605,10 +630,13 @@ def api_mark_read():
         return '', 400
     # Gelesen ist, was das Add-on gerade als letzte Nachricht meldet - so zaehlt
     # auch, was waehrend des Lesens im Messenger noch hereinkam.
-    key = msg_key(fetch_last_received(messenger_host(messenger), messenger['port']))
-    if key and read_state.get(icon) != key:
-        read_state[icon] = key
-        save_read_state()
+    last = fetch_last_received(messenger_host(messenger), messenger['port'])
+    key = msg_key(last)
+    if key:
+        entry = {'key': key, 'seq': _seq(last.get('seq'))}
+        if read_state.get(icon) != entry:
+            read_state[icon] = entry
+            save_read_state()
     return jsonify({'icon': icon, 'seen': key})
 
 

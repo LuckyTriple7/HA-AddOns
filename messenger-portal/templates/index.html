@@ -209,6 +209,19 @@
       border: 2px solid var(--surface);
       animation: badge-pulse 1.5s ease-in-out infinite;
     }
+    /* Mit Zahl: Badge statt Punkt. Ohne Zahl (Add-on zaehlt nicht mit)
+       bleibt es beim Punkt. */
+    .card.has-new .card-icon[data-unread]:not([data-unread=""])::after {
+      content: attr(data-unread);
+      top: -8px; right: -8px;
+      width: auto; height: 22px; min-width: 22px;
+      padding: 0 6px;
+      box-sizing: border-box;
+      border-radius: 11px;
+      color: #fff;
+      font: 700 12px/18px system-ui, -apple-system, sans-serif;
+      text-align: center;
+    }
     @keyframes badge-pulse {
       0%, 100% { transform: scale(1); }
       50%       { transform: scale(1.25); }
@@ -567,6 +580,7 @@
     const T_YESTERDAY   = {{ t.last_opened_yesterday | tojson }};
     const T_DAYS        = {{ t.last_opened_days | tojson }};
     const T_LAST_MSG    = {{ t.last_msg_prefix | tojson }};
+    const T_UNREAD      = {{ t.unread_badge | tojson }};
     const TYPE_ICONS    = { text: '💬', photo: '🖼️', document: '📄', voice: '🎙️', video: '📹', location: '📍' };
     const T_ONLINE      = {{ t.status_online | tojson }};
     const T_OFFLINE  = {{ t.status_offline | tojson }};
@@ -607,6 +621,16 @@
     let _offlineFails = 0;
     function showOfflineBanner() { document.getElementById('offline-banner').style.display = 'flex'; }
     function hideOfflineBanner() { document.getElementById('offline-banner').style.display = 'none'; }
+
+    // Zahl im Badge: null = Add-on zaehlt nicht mit, dann nur der Punkt
+    function setUnreadBadge(card, n) {
+      const icon = card.querySelector('.card-icon');
+      if (!icon) return;
+      const txt = typeof n === 'number' && n > 0 ? (n > 99 ? '99+' : String(n)) : '';
+      icon.dataset.unread = txt;
+      if (txt) icon.setAttribute('aria-label', T_UNREAD.replace('{n}', txt));
+      else icon.removeAttribute('aria-label');
+    }
 
     async function updateStatus() {
       try {
@@ -704,11 +728,12 @@
               } else {
                 card.classList.remove('has-new');
               }
+              setUnreadBadge(card, isNew ? m.unread : 0);
             }
           } else {
             msgEl.textContent = '';
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
-            if (card) card.classList.remove('has-new');
+            if (card) { card.classList.remove('has-new'); setUnreadBadge(card, 0); }
           }
         });
         prevLastReceived = currentLastReceived;
@@ -754,6 +779,7 @@
         if (card.classList.contains('is-offline')) { e.preventDefault(); return; }
         markRead(card.dataset.icon);
         card.classList.remove('has-new');
+        setUnreadBadge(card, 0);
       });
     });
 

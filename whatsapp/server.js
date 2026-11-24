@@ -113,6 +113,21 @@ let connectedPhone = null;
 let waWebVersion = null; // Fassung von WhatsApp Web selbst, nicht der Bibliothek
 let lastError = null;
 let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
+// Laufende Nummer eingehender Nachrichten (genau die, die lastReceivedMsg
+// setzen). Das Messenger Portal merkt sich die Nummer beim Lesen und zeigt die
+// Differenz als Zahl ungelesener Nachrichten - ohne Uhren zu vergleichen.
+const RECEIVED_SEQ_FILE = '/config/received_seq.json';
+let receivedSeq = 0;
+try { receivedSeq = Number(JSON.parse(fs.readFileSync(RECEIVED_SEQ_FILE, 'utf8')).seq) || 0; } catch (e) {}
+let _receivedSeqTimer = null;
+function bumpReceivedSeq() {
+  receivedSeq++;
+  if (_receivedSeqTimer) return;
+  _receivedSeqTimer = setTimeout(() => {
+    _receivedSeqTimer = null;
+    try { fs.writeFileSync(RECEIVED_SEQ_FILE, JSON.stringify({ seq: receivedSeq })); } catch (e) {}
+  }, 2000);
+}
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
@@ -834,6 +849,7 @@ client.on('message', async (msg) => {
     const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
     const skipGroup = HA_NOTIFY_SKIP_GROUPS && isGroup;
     if (!skipGroup) {
+      bumpReceivedSeq();
       lastReceivedMsg = {
         timestamp: msg.timestamp * 1000,
         iso: new Date(msg.timestamp * 1000).toISOString(),
@@ -1768,7 +1784,7 @@ app.get('/api/last-received', (req, res) => {
       preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'document' ? `📄 ${last.filename || 'Dokument'}` : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
-  res.json(lastReceivedMsg);
+  res.json(lastReceivedMsg ? { ...lastReceivedMsg, seq: receivedSeq } : null);
 });
 
 app.get('/api/export/:chatId', (req, res) => {

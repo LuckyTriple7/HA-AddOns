@@ -93,9 +93,12 @@ POST /api/logout                  → Abmelden
   "chatId": "123456789",
   "chatName": "Max Mustermann",
   "contact": "Max Mustermann",
-  "preview": "Hallo!"
+  "preview": "Hallo!",
+  "seq": 42
 }
 ```
+
+`seq` (nur ohne `?chat=`) ist eine laufende Nummer der eingegangenen Nachrichten. Sie wird in `/config/received_seq.json` gespeichert und übersteht Neustarts. Das Messenger Portal merkt sich die Nummer beim Lesen und zeigt die Differenz als Zahl ungelesener Nachrichten.
 
 **`configuration.yaml`:**
 ```yaml
