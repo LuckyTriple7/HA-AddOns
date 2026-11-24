@@ -1,7 +1,9 @@
 # Stage 1: Firefox-Laufzeit-Abhängigkeiten aus sauberem Debian holen.
 # jlesage's Debian-Base hat keine GUI-Pakete in seinen Repos — deswegen
 # schlägt apt-get install libgtk-3-0 etc. dort fehl.
-FROM debian:bookworm-slim AS deps
+# Debian-Version muss zur jlesage-Basis in Stage 2 passen (debian-13 = Trixie),
+# weil unten das komplette /usr/lib/x86_64-linux-gnu hinüberkopiert wird.
+FROM debian:trixie-slim AS deps
 # firefox-esr installieren damit apt alle transitiven Abhängigkeiten auflöst
 # (GTK3, ALSA, dbus, fontconfig, etc.) — Binary wird nicht gebraucht.
 # fonts-noto-core macht Noto Sans zur sans-serif-Schrift: Ohne sie greift
@@ -17,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Hauptimage auf jlesage-Basis (v4.12.1 behebt noVNC isAndroid-Bug)
-FROM jlesage/baseimage-gui:debian-12-v4.14.0
+FROM jlesage/baseimage-gui:debian-13-v4.14.0
 
 ENV APP_NAME="Firefox DE" \
     LANG=C.UTF-8 \

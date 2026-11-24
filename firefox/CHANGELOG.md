@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.0] - 2026-11-24
+
+### Geändert
+- Unterbau von Debian 12 (Bookworm) auf Debian 13 (Trixie) umgestellt: Basis-Image `jlesage/baseimage-gui:debian-13-v4.14.0`, Laufzeit-Bibliotheken und Schriften aus `debian:trixie-slim`. Bookworm bekommt seit Juni 2026 nur noch LTS-Updates. Firefox selbst (Mozilla-Build) und das Profil bleiben unverändert.
+
+
 ## [1.0.18] - 2026-11-24
 
 ### Behoben
