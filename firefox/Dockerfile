@@ -44,6 +44,13 @@ COPY --from=deps /usr/lib/locale /usr/lib/locale
 COPY --from=deps /usr/share/locale /usr/share/locale
 RUN ldconfig
 
+# DejaVu Sans entfernen: Firefox ESR lässt sich sans-serif von fontconfig als
+# Liste geben (Noto Sans, DejaVu Sans, ...) und nimmt für 😀😍😎 (U+1F600–1F640)
+# die monochromen DejaVu-Glyphen, bevor es auf Noto Color Emoji zurückfällt.
+# Ohne DejaVu Sans hat nur noch die Farbschrift diese Zeichen. DejaVu Sans Mono
+# und DejaVu Serif enthalten sie nicht und bleiben (monospace = DejaVu Sans Mono).
+RUN find /usr/share/fonts \( -name DejaVuSans.ttf -o -name DejaVuSans-Bold.ttf \) -delete
+
 # Kleine Utilities aus jlesage's konfigurierten Repos
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \

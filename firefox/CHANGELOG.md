@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.18] - 2026-11-24
+
+### Behoben
+- Ältere Gesichter-Emojis (😀😍😎 usw.) sind jetzt auch wirklich farbig. In 1.0.17 nahm Firefox ESR dafür weiterhin die schwarz-weißen Glyphen von DejaVu Sans; diese Schrift wird nun entfernt (DejaVu Sans Mono und DejaVu Serif bleiben).
+
+
 ## [1.0.17] - 2026-11-24
 
 ### Behoben
