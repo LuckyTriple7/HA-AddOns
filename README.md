@@ -31,7 +31,7 @@ Die veröffentlichten Container-Images enthalten darüber hinaus fremde Software
 | Claude Code | ✅ | ✅ | Alpine |
 | Playwright Browser | ✅ | ✅ | Debian 12 |
 | FileBox | ✅ | ❌ | Debian 12 |
-| Firefox DE | ✅ | ❌ | Debian 12 |
+| Firefox DE | ✅ | ❌ | Debian 13 |
 | Webtop XFCE | ✅ | ✅ | Debian 13 |
 | WhatsApp | ✅ | ✅ | Alpine |
 | Telegram | ✅ | ✅ | Alpine |
@@ -391,7 +391,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | Claude Code | ✅ | ✅ | Alpine |
 | Playwright Browser | ✅ | ✅ | Debian 12 |
 | FileBox | ✅ | ❌ | Debian 12 |
-| Firefox DE | ✅ | ❌ | Debian 12 |
+| Firefox DE | ✅ | ❌ | Debian 13 |
 | Webtop XFCE | ✅ | ✅ | Debian 13 |
 | WhatsApp | ✅ | ✅ | Alpine |
 | Telegram | ✅ | ✅ | Alpine |

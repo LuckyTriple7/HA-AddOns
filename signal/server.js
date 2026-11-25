@@ -111,6 +111,21 @@ console.log('[INFO] ────────────────────
 let status = 'starting'; // starting | not-linked | linked | error
 let lastError = '';
 let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
+// Laufende Nummer eingehender Nachrichten (genau die, die lastReceivedMsg
+// setzen). Das Messenger Portal merkt sich die Nummer beim Lesen und zeigt die
+// Differenz als Zahl ungelesener Nachrichten - ohne Uhren zu vergleichen.
+const RECEIVED_SEQ_FILE = '/config/received_seq.json';
+let receivedSeq = 0;
+try { receivedSeq = Number(JSON.parse(fs.readFileSync(RECEIVED_SEQ_FILE, 'utf8')).seq) || 0; } catch (e) {}
+let _receivedSeqTimer = null;
+function bumpReceivedSeq() {
+  receivedSeq++;
+  if (_receivedSeqTimer) return;
+  _receivedSeqTimer = setTimeout(() => {
+    _receivedSeqTimer = null;
+    try { fs.writeFileSync(RECEIVED_SEQ_FILE, JSON.stringify({ seq: receivedSeq })); } catch (e) {}
+  }, 2000);
+}
 let qrSvg = null;      // inline SVG if API returns text URI
 let qrUri = null;      // raw sgnl:// URI (if API returns text)
 let qrDataUrl = null;  // data URL if API returns image directly
@@ -515,6 +530,7 @@ function processEnvelope(envelope) {
   dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn}`);
 
   if (!isOwn) {
+    bumpReceivedSeq();
     lastReceivedMsg = {
       timestamp: dm.timestamp,
       iso: new Date(dm.timestamp).toISOString(),
@@ -771,7 +787,7 @@ app.get('/api/last-received', (req, res) => {
       preview: last.body || (last.type === 'video' ? '📹 Video' : last.type === 'photo' ? '📷 Foto' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
-  res.json(lastReceivedMsg);
+  res.json(lastReceivedMsg ? { ...lastReceivedMsg, seq: receivedSeq } : null);
 });
 
 app.get('/api/export/:chatId', (req, res) => {

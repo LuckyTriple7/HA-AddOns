@@ -209,6 +209,19 @@
       border: 2px solid var(--surface);
       animation: badge-pulse 1.5s ease-in-out infinite;
     }
+    /* Mit Zahl: Badge statt Punkt. Ohne Zahl (Add-on zaehlt nicht mit)
+       bleibt es beim Punkt. */
+    .card.has-new .card-icon[data-unread]:not([data-unread=""])::after {
+      content: attr(data-unread);
+      top: -8px; right: -8px;
+      width: auto; height: 22px; min-width: 22px;
+      padding: 0 6px;
+      box-sizing: border-box;
+      border-radius: 11px;
+      color: #fff;
+      font: 700 12px/18px system-ui, -apple-system, sans-serif;
+      text-align: center;
+    }
     @keyframes badge-pulse {
       0%, 100% { transform: scale(1); }
       50%       { transform: scale(1.25); }
@@ -567,6 +580,7 @@
     const T_YESTERDAY   = {{ t.last_opened_yesterday | tojson }};
     const T_DAYS        = {{ t.last_opened_days | tojson }};
     const T_LAST_MSG    = {{ t.last_msg_prefix | tojson }};
+    const T_UNREAD      = {{ t.unread_badge | tojson }};
     const TYPE_ICONS    = { text: '💬', photo: '🖼️', document: '📄', voice: '🎙️', video: '📹', location: '📍' };
     const T_ONLINE      = {{ t.status_online | tojson }};
     const T_OFFLINE  = {{ t.status_offline | tojson }};
@@ -602,10 +616,21 @@
 
     const PAGE_LOAD_TIME  = Date.now();
     let prevLastReceived  = null; // null = erster Poll, danach Map icon→timestamp
+    let lastMsgKey        = {};   // icon → Kennung der zuletzt gemeldeten Nachricht
 
     let _offlineFails = 0;
     function showOfflineBanner() { document.getElementById('offline-banner').style.display = 'flex'; }
     function hideOfflineBanner() { document.getElementById('offline-banner').style.display = 'none'; }
+
+    // Zahl im Badge: null = Add-on zaehlt nicht mit, dann nur der Punkt
+    function setUnreadBadge(card, n) {
+      const icon = card.querySelector('.card-icon');
+      if (!icon) return;
+      const txt = typeof n === 'number' && n > 0 ? (n > 99 ? '99+' : String(n)) : '';
+      icon.dataset.unread = txt;
+      if (txt) icon.setAttribute('aria-label', T_UNREAD.replace('{n}', txt));
+      else icon.removeAttribute('aria-label');
+    }
 
     async function updateStatus() {
       try {
@@ -684,16 +709,16 @@
 
             const lastReceived = date.getTime();
             currentLastReceived[m.icon] = lastReceived;
+            lastMsgKey[m.icon] = m.msg_key || '';
 
             // Benachrichtigung: wenn Timestamp gestiegen und Nachricht ungelesen
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
             if (card) {
-              // Serverstand ist geraeteuebergreifend, localStorage nur Fallback
-              // fuer den Klick, dessen POST noch nicht durch ist.
-              const localOpened  = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
-              const serverOpened = parseInt(m.last_opened || 0);
-              const lastOpened   = Math.max(localOpened, serverOpened);
-              const isNew = lastReceived > lastOpened;
+              // Ob ungelesen, entscheidet der Server (geraeteuebergreifend).
+              // localStorage blendet nur die eben angeklickte Nachricht aus,
+              // solange deren POST noch unterwegs ist.
+              const isNew = !!m.has_new
+                && localStorage.getItem('mp-seen-' + m.icon) !== m.msg_key;
               if (isNew) {
                 const shouldNotify = prevLastReceived !== null
                   ? lastReceived > (prevLastReceived[m.icon] || 0)
@@ -703,11 +728,12 @@
               } else {
                 card.classList.remove('has-new');
               }
+              setUnreadBadge(card, isNew ? m.unread : 0);
             }
           } else {
             msgEl.textContent = '';
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
-            if (card) card.classList.remove('has-new');
+            if (card) { card.classList.remove('has-new'); setUnreadBadge(card, 0); }
           }
         });
         prevLastReceived = currentLastReceived;
@@ -720,6 +746,10 @@
     if (!navigator.onLine) showOfflineBanner();
     updateStatus();
     setInterval(updateStatus, {{ poll_interval * 1000 }});
+    // Kommt man per Browser-Zurueck aus dem Messenger, kann dessen Gelesen-
+    // Meldung noch unterwegs sein - kurz danach ein zweites Mal nachsehen.
+    setTimeout(updateStatus, 1500);
+    window.addEventListener('pageshow', (e) => { if (e.persisted) setTimeout(updateStatus, 1500); });
 
     // Sofort aktualisieren wenn Seite wieder in den Vordergrund kommt
     document.addEventListener('visibilitychange', () => {
@@ -732,7 +762,10 @@
     // sendBeacon ueberlebt den Seitenwechsel beim Oeffnen des Messengers.
     function markRead(icon) {
       if (!icon) return;
-      localStorage.setItem('mp-last-' + icon, Date.now());
+      try {
+        localStorage.removeItem('mp-last-' + icon);
+        if (lastMsgKey[icon]) localStorage.setItem('mp-seen-' + icon, lastMsgKey[icon]);
+      } catch (e) {}
       const body = new URLSearchParams({ icon: icon });
       try {
         if (navigator.sendBeacon && navigator.sendBeacon(MARK_READ_URL, body)) return;
@@ -746,6 +779,7 @@
         if (card.classList.contains('is-offline')) { e.preventDefault(); return; }
         markRead(card.dataset.icon);
         card.classList.remove('has-new');
+        setUnreadBadge(card, 0);
       });
     });
 

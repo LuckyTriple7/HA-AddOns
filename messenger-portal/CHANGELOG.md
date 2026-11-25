@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [1.5.13] - 2026-11-24
+- Neu: Statt des roten Punkts zeigt jede Kachel die Zahl ungelesener Nachrichten (ab 99 als „99+“). Gezählt wird geräteübergreifend ab der zuletzt gesehenen Nachricht. Voraussetzung sind WhatsApp ab 1.8.69, Telegram ab 1.8.14 und Signal ab 1.8.8, ältere Versionen zeigen weiter den Punkt
+
+## [1.5.12] - 2026-11-24
+- Behoben: Der rote Punkt für neue Nachrichten blieb bei Signal auf anderen Geräten stehen, obwohl die Nachricht gelesen war. Signal liefert die Uhrzeit vom Handy des Absenders, das Portal verglich sie mit seiner eigenen Uhr. Gespeichert wird jetzt, welche Nachricht zuletzt gesehen wurde, und das Portal entscheidet für alle Geräte gleich
+- Behoben: Nach dem Lesen im Messenger leuchtete der Punkt beim Zurückwechseln ins Portal wieder auf. Beim Verlassen eines Messengers (Portal-Knopf, Alt+Shift+H, Tab-Wechsel, Browser-Zurück) zählt jetzt alles bis dahin Eingegangene als gelesen
+
 ## [1.5.11] - 2026-11-23
 - Behoben: Der schwebende „Portal"-Knopf in den Messengern war auf kleinen Bildschirmen nicht zu sehen. Bis 600 px Breite wurde er bisher ganz ausgeblendet; jetzt erscheint dort ein kleiner runder Knopf nur mit Pfeil, ohne gespeicherte Position mittig am rechten Rand statt über dem Senden-Knopf
 - Behoben: Eine auf einem großen Bildschirm gespeicherte Knopf-Position konnte in kleineren Fenstern außerhalb des sichtbaren Bereichs liegen. Die Position wird jetzt beim Laden, bei jeder Größenänderung und beim Ziehen ins Fenster geholt

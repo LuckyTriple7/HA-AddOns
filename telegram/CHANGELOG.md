@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.15] - 2026-11-24
+- Behoben: Build schlug fehl, weil Alpine `python3` auf 3.14.10-r2 angehoben hat und die fest eingetragene Fassung r1 nicht mehr ausliefert
+
+## [1.8.14] - 2026-11-24
+- Neu: `/api/last-received` liefert zusätzlich `seq`, eine laufende Nummer der eingegangenen Nachrichten (gespeichert in `/config/received_seq.json`). Damit zeigt das Messenger Portal ab 1.5.13 die Zahl ungelesener Nachrichten an
+
 ## [1.8.13.1] - 2026-11-23
 - Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
 

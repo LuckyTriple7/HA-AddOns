@@ -171,9 +171,12 @@ action:
   "chatId": "4915123456789@c.us",
   "chatName": "Max Mustermann",
   "contact": "Max Mustermann",
-  "preview": "Hallo!"
+  "preview": "Hallo!",
+  "seq": 42
 }
 ```
+
+`seq` (nur ohne `?chat=`) ist eine laufende Nummer der eingegangenen Nachrichten. Sie wird in `/config/received_seq.json` gespeichert und übersteht Neustarts. Das Messenger Portal merkt sich die Nummer beim Lesen und zeigt die Differenz als Zahl ungelesener Nachrichten.
 
 `null` wenn noch keine Nachricht empfangen wurde.
 
@@ -418,9 +421,12 @@ action:
   "chatId": "4915123456789@c.us",
   "chatName": "Max Mustermann",
   "contact": "Max Mustermann",
-  "preview": "Hello!"
+  "preview": "Hello!",
+  "seq": 42
 }
 ```
+
+`seq` (only without `?chat=`) is a running number of received messages. It is stored in `/config/received_seq.json` and survives restarts. The Messenger Portal remembers the number when you read and shows the difference as the unread count.
 
 Returns `null` if no message has been received yet.
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.0] - 2026-11-24
+
+### Geändert
+- Unterbau von Debian 12 (Bookworm) auf Debian 13 (Trixie) umgestellt: Basis-Image `jlesage/baseimage-gui:debian-13-v4.14.0`, Laufzeit-Bibliotheken und Schriften aus `debian:trixie-slim`. Bookworm bekommt seit Juni 2026 nur noch LTS-Updates. Firefox selbst (Mozilla-Build) und das Profil bleiben unverändert.
+
+
+## [1.0.18] - 2026-11-24
+
+### Behoben
+- Ältere Gesichter-Emojis (😀😍😎 usw.) sind jetzt auch wirklich farbig. In 1.0.17 nahm Firefox ESR dafür weiterhin die schwarz-weißen Glyphen von DejaVu Sans; diese Schrift wird nun entfernt (DejaVu Sans Mono und DejaVu Serif bleiben).
+
+
+## [1.0.17] - 2026-11-24
+
+### Behoben
+- Emojis werden jetzt durchgehend farbig angezeigt (z. B. im Emoji-Picker von WhatsApp, Telegram und Signal). Bisher erschienen ältere Gesichter wie 😀😍😎 nur als schwarz-weiße Umrisse, weil DejaVu Sans die Standardschrift war; neu sind Noto Sans und Noto Color Emoji installiert.
+
+
 ## [1.0.16] - 2026-11-11
 
 ### Geändert

@@ -129,6 +129,21 @@ const CUSTOM_CMD_FILE = '/config/custom_commands.json';
 let status = 'starting'; // starting | awaiting_code | awaiting_password | connected | error
 let lastError = '';
 let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
+// Laufende Nummer eingehender Nachrichten (genau die, die lastReceivedMsg
+// setzen). Das Messenger Portal merkt sich die Nummer beim Lesen und zeigt die
+// Differenz als Zahl ungelesener Nachrichten - ohne Uhren zu vergleichen.
+const RECEIVED_SEQ_FILE = '/config/received_seq.json';
+let receivedSeq = 0;
+try { receivedSeq = Number(JSON.parse(fs.readFileSync(RECEIVED_SEQ_FILE, 'utf8')).seq) || 0; } catch (e) {}
+let _receivedSeqTimer = null;
+function bumpReceivedSeq() {
+  receivedSeq++;
+  if (_receivedSeqTimer) return;
+  _receivedSeqTimer = setTimeout(() => {
+    _receivedSeqTimer = null;
+    try { fs.writeFileSync(RECEIVED_SEQ_FILE, JSON.stringify({ seq: receivedSeq })); } catch (e) {}
+  }, 2000);
+}
 let myId = '';
 let myName = '';
 let codeResolver = null;
@@ -620,6 +635,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
     const skipBot = HA_NOTIFY_SKIP_BOTS && isBot;
     dbg(`HA-Notification check [${source}]: msgId=${msgId} isBot=${isBot} skipBot=${skipBot} body="${(body||'').slice(0,60)}"`);
     if (!skipBot) {
+      bumpReceivedSeq();
       lastReceivedMsg = {
         timestamp: ts,
         iso: new Date(ts).toISOString(),
@@ -1744,7 +1760,7 @@ app.get('/api/last-received', (req, res) => {
       preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'video' ? '📹 Video' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
-  res.json(lastReceivedMsg);
+  res.json(lastReceivedMsg ? { ...lastReceivedMsg, seq: receivedSeq } : null);
 });
 
 app.post('/api/logout', async (req, res) => {

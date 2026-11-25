@@ -1,17 +1,25 @@
 # Stage 1: Firefox-Laufzeit-Abhängigkeiten aus sauberem Debian holen.
 # jlesage's Debian-Base hat keine GUI-Pakete in seinen Repos — deswegen
 # schlägt apt-get install libgtk-3-0 etc. dort fehl.
-FROM debian:bookworm-slim AS deps
+# Debian-Version muss zur jlesage-Basis in Stage 2 passen (debian-13 = Trixie),
+# weil unten das komplette /usr/lib/x86_64-linux-gnu hinüberkopiert wird.
+FROM debian:trixie-slim AS deps
 # firefox-esr installieren damit apt alle transitiven Abhängigkeiten auflöst
 # (GTK3, ALSA, dbus, fontconfig, etc.) — Binary wird nicht gebraucht.
+# fonts-noto-core macht Noto Sans zur sans-serif-Schrift: Ohne sie greift
+# DejaVu Sans, deren schwarz-weiße Glyphen für U+1F600–1F640 die Farb-Emojis
+# verdrängen (😀😍😎 nur als Umriss). fonts-noto-color-emoji liefert die
+# Farbschrift für alle Emojis.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     firefox-esr \
+    fonts-noto-core \
+    fonts-noto-color-emoji \
     locales \
     && locale-gen de_DE.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Hauptimage auf jlesage-Basis (v4.12.1 behebt noVNC isAndroid-Bug)
-FROM jlesage/baseimage-gui:debian-12-v4.14.0
+FROM jlesage/baseimage-gui:debian-13-v4.14.0
 
 ENV APP_NAME="Firefox DE" \
     LANG=C.UTF-8 \
@@ -37,6 +45,13 @@ COPY --from=deps /usr/share/fontconfig /usr/share/fontconfig
 COPY --from=deps /usr/lib/locale /usr/lib/locale
 COPY --from=deps /usr/share/locale /usr/share/locale
 RUN ldconfig
+
+# DejaVu Sans entfernen: Firefox ESR lässt sich sans-serif von fontconfig als
+# Liste geben (Noto Sans, DejaVu Sans, ...) und nimmt für 😀😍😎 (U+1F600–1F640)
+# die monochromen DejaVu-Glyphen, bevor es auf Noto Color Emoji zurückfällt.
+# Ohne DejaVu Sans hat nur noch die Farbschrift diese Zeichen. DejaVu Sans Mono
+# und DejaVu Serif enthalten sie nicht und bleiben (monospace = DejaVu Sans Mono).
+RUN find /usr/share/fonts \( -name DejaVuSans.ttf -o -name DejaVuSans-Bold.ttf \) -delete
 
 # Kleine Utilities aus jlesage's konfigurierten Repos
 RUN apt-get update && apt-get install -y --no-install-recommends \
