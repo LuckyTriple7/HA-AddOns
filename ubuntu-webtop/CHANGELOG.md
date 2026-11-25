@@ -1,3 +1,10 @@
+## [2.0.5] - 2026-11-25
+
+### Aktualisiert
+
+- Firefox: 160.0.1 → 161.0
+- Thunderbird: 160.0 → 161.0
+
 ## [2.0.4] - 2026-11-24
 
 ### Aktualisiert
