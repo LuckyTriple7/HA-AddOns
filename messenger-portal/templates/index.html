@@ -283,6 +283,14 @@
       font-size: .8em;
       line-height: 1;
     }
+    .card-online {
+      font-size: .72rem;
+      color: #22c55e;
+      text-align: center;
+      word-break: break-word;
+      line-height: 1.35;
+    }
+    .card-online:empty { display: none; }
     .card-last-msg {
       font-size: .72rem;
       color: var(--text-muted);
@@ -540,6 +548,7 @@
             <span class="status-text">{{ t.status_checking }}</span>
           </div>
           <div class="card-last-msg" id="last-msg-{{ m.icon.lower() }}"></div>
+          <div class="card-online" id="online-{{ m.icon.lower() }}"></div>
           <span class="card-open">
             <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             {{ t.open }}
@@ -609,6 +618,43 @@
     const T_NOTIF_UNSNOOZE = {{ t.notif_unsnooze | tojson }};
     const T_NOTIF_TITLE  = {{ t.notif_new_msg_title | tojson }};
     const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
+    const T_ONLINE_NOW   = {{ t.online_now | tojson }};
+    const T_NOTIF_ONLINE = {{ t.notif_online | tojson }};
+    const ONLINE_SHOW_MS = 10 * 60 * 1000;
+
+    // Online-Glocke (WhatsApp): neueste Meldung auf der Kachel zeigen, neue
+    // zusaetzlich als Browser-Meldung. Gemeldet wird nur, was nach dem letzten
+    // gesehenen Zeitpunkt kam - beim ersten Aufruf nichts Aelteres.
+    function handleOnlineEvents(m) {
+      const el = document.getElementById('online-' + m.icon);
+      const evs = (m.online_events || []).slice().sort((a, b) => a.ts - b.ts);
+      const key = 'mp-online-ts-' + m.icon;
+      let seen = 0;
+      try { seen = parseInt(localStorage.getItem(key) || '0', 10) || 0; } catch (e) {}
+      if (!seen) seen = PAGE_LOAD_TIME;
+      let newest = seen;
+      for (const ev of evs) {
+        if (ev.ts <= seen) continue;
+        newest = Math.max(newest, ev.ts);
+        if (notifAllowed()) {
+          try {
+            new Notification(m.name, { body: T_NOTIF_ONLINE.replace('{name}', ev.name),
+                                       icon: ICON_URL, tag: 'mp-online-' + ev.id });
+          } catch (e) {}
+        }
+      }
+      if (newest > seen) { try { localStorage.setItem(key, String(newest)); } catch (e) {} }
+      if (!el) return;
+      const last = evs.length ? evs[evs.length - 1] : null;
+      if (last && Date.now() - last.ts < ONLINE_SHOW_MS) {
+        const time = new Date(last.ts).toLocaleTimeString(({ de: 'de-DE', es: 'es-ES' })[LANG] || 'en-US',
+                       { hour: '2-digit', minute: '2-digit' });
+        // Name kommt von aussen - als Text einsetzen, nie als HTML
+        el.textContent = T_ONLINE_NOW.replace('{name}', last.name).replace('{time}', time);
+      } else {
+        el.textContent = '';
+      }
+    }
     const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
     const LOGS_URL       = {{ url_for('api_logs') | tojson }};
     const MARK_READ_URL  = {{ url_for('api_mark_read') | tojson }};
@@ -675,6 +721,7 @@
           // Nutzer die Oberfläche, um neu zu verbinden.
           if (cardEl) cardEl.classList.toggle('is-offline', state === 'offline');
 
+          handleOnlineEvents(m);
           const msgEl = document.getElementById('last-msg-' + m.icon);
           if (!msgEl) return;
           if (m.last_received && m.last_received.iso) {

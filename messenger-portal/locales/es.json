@@ -137,5 +137,7 @@
   "share_queue_hint": "Se guarda para más tarde y se publica desde allí, ahora o a una hora fijada. Los archivos grandes se reducen.",
   "share_queue_tile": "Cola",
   "sq_up": "Subir",
-  "sq_down": "Bajar"
+  "sq_down": "Bajar",
+  "online_now": "🟢 {name} está en línea · {time}",
+  "notif_online": "{name} está en línea ahora"
 }

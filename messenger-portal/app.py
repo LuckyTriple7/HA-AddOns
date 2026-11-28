@@ -470,6 +470,26 @@ def fetch_addon_status(host: str, port: int, timeout: float = 2.0) -> dict | Non
         return None
 
 
+ONLINE_EVENT_WINDOW_S = 15 * 60
+
+
+def fetch_online_events(host: str, port: int, timeout: float = 2.0) -> list:
+    """Online-Meldungen der WhatsApp-Glocke aus den letzten 15 Minuten.
+    Leer, wenn das Add-on die Route nicht kennt (aeltere Version)."""
+    since = int((time.time() - ONLINE_EVENT_WINDOW_S) * 1000)
+    try:
+        url = f'http://{host}:{port}/api/presence-watch?since={since}'
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+    except Exception:
+        return []
+    out = []
+    for e in (data.get('events') if isinstance(data, dict) else None) or []:
+        if isinstance(e, dict) and isinstance(e.get('ts'), (int, float)):
+            out.append({'id': str(e.get('id') or ''), 'name': str(e.get('name') or ''), 'ts': int(e['ts'])})
+    return out
+
+
 def fetch_messenger_status(host: str, m: dict) -> dict:
     port      = m['port']
     reachable = check_port(host, port)
@@ -521,6 +541,8 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
         'addon_status':  addon_status,
         'detail':        detail,
         'last_received': last,
+        'online_events': fetch_online_events(host, port)
+                         if state in ('online', 'warn') and m['icon'].lower() == 'whatsapp' else [],
         'health':        None if health is None else {
             'ok': bool(health.get('ok')),
             'checked': health.get('checked'),

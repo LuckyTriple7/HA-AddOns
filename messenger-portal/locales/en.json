@@ -137,5 +137,7 @@
   "share_queue_hint": "Collected for later and posted from there – now or at a set time. Large files are shrunk.",
   "share_queue_tile": "Queue",
   "sq_up": "Move up",
-  "sq_down": "Move down"
+  "sq_down": "Move down",
+  "online_now": "🟢 {name} is online · {time}",
+  "notif_online": "{name} is online now"
 }

@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.16] - 2026-11-28
+- Neu: Meldungen der WhatsApp-Online-Glocke erscheinen im Portal: grüne Zeile „<Name> ist online · Uhrzeit“ auf der WhatsApp-Kachel (10 Minuten lang) und eine Browser-Meldung, wenn Benachrichtigungen im Portal an sind. Voraussetzung ist WhatsApp ab 1.8.72
+
 ## [1.5.15] - 2026-11-28
 - Behoben: Build schlug fehl bzw. wäre fehlgeschlagen, weil Alpine nginx auf 1.30.8-r0 angehoben hat und die fest eingetragene Fassung nicht mehr ausliefert
 
