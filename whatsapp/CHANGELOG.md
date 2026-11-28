@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.74] - 2026-11-28
+- Neu: `/api/presence-watch` liefert zusätzlich `watching` (beobachtete Kontakte mit Namen) für die Glocke im Messenger Portal
+
 ## [1.8.73] - 2026-11-28
 - Neu: Die Online-Glocke geht nach der ersten Meldung von selbst aus
 - Neu: Option `presence_watch_minutes` (Standard 5): Die Glocke prüft nur noch alle N Minuten und meldet dich dafür nur ein paar Sekunden als online statt dauerhaft. War der Kontakt zwischendurch kurz online, kommt über „zuletzt online“ die Meldung „<Name> war um HH:MM online“. 0 = wie bisher durchgehend alle 15 Sekunden

@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.19] - 2026-11-28
+- Neu: Schwingende Glocke oben rechts auf der WhatsApp-Kachel, solange für mindestens einen Kontakt die Online-Glocke an ist; beim Drüberfahren stehen die Namen. Namen ab WhatsApp 1.8.74, bei älteren Versionen nur die Nummern
+
 ## [1.5.18] - 2026-11-28
 - Geändert: Alle Kacheln sind gleich hoch (Platz für die Online-Zeile ist immer reserviert), und der Knopf „Öffnen“ sitzt bei allen auf einer Linie unten
 

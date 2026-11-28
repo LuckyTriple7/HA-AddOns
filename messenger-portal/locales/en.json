@@ -141,5 +141,6 @@
   "online_now": "🟢 {name} is online · {time}",
   "notif_online": "{name} is online now",
   "online_was": "🟢 {name} was online · {time}",
-  "notif_online_was": "{name} was online at {time}"
+  "notif_online_was": "{name} was online at {time}",
+  "watching_bell": "Online bell on for: {names}"
 }

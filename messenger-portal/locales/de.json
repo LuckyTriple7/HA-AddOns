@@ -141,5 +141,6 @@
   "online_now": "🟢 {name} ist online · {time}",
   "notif_online": "{name} ist jetzt online",
   "online_was": "🟢 {name} war online · {time}",
-  "notif_online_was": "{name} war um {time} online"
+  "notif_online_was": "{name} war um {time} online",
+  "watching_bell": "Online-Glocke an für: {names}"
 }

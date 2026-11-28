@@ -237,6 +237,37 @@
       position: relative;
     }
     .card:hover .card-icon { transform: scale(1.06); }
+
+    /* Online-Glocke aktiv: schwingende Glocke oben rechts auf der Kachel */
+    .card-watch {
+      position: absolute;
+      top: 14px; right: 14px;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: color-mix(in srgb, var(--brand-color, #22c55e) 15%, transparent);
+      color: var(--brand-color, #22c55e);
+    }
+    .card-watch[hidden] { display: none; }
+    .card-watch svg {
+      width: 17px; height: 17px;
+      fill: currentColor; stroke: currentColor;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      transform-origin: 50% 2px;
+      animation: bell-swing 2.4s ease-in-out infinite;
+    }
+    @keyframes bell-swing {
+      0%, 45%, 100% { transform: rotate(0); }
+      5%  { transform: rotate(16deg); }
+      12% { transform: rotate(-14deg); }
+      19% { transform: rotate(10deg); }
+      26% { transform: rotate(-7deg); }
+      33% { transform: rotate(4deg); }
+      40% { transform: rotate(-2deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card-watch svg { animation: none; }
+    }
     .card-icon svg { width: 38px; height: 38px; fill: #fff; }
 
     .card-name {
@@ -543,6 +574,7 @@
         <div class="card-icon">
           <svg viewBox="0 0 24 24">{{ m.svg | safe }}</svg>
         </div>
+        <span class="card-watch" id="watch-{{ m.icon.lower() }}" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0" fill="none"/></svg></span>
         <div class="card-body">
           <div class="card-name">{{ m.name }}</div>
           <div class="card-status" id="status-{{ m.icon.lower() }}">
@@ -623,6 +655,7 @@
     const T_ONLINE_NOW   = {{ t.online_now | tojson }};
     const T_NOTIF_ONLINE = {{ t.notif_online | tojson }};
     const T_ONLINE_WAS   = {{ t.online_was | tojson }};
+    const T_WATCHING     = {{ t.watching_bell | tojson }};
     const T_NOTIF_ONLINE_WAS = {{ t.notif_online_was | tojson }};
     function fmtClock(ts) {
       return new Date(ts).toLocaleTimeString(({ de: 'de-DE', es: 'es-ES' })[LANG] || 'en-US',
@@ -634,6 +667,16 @@
     // zusaetzlich als Browser-Meldung. Gemeldet wird nur, was nach dem letzten
     // gesehenen Zeitpunkt kam - beim ersten Aufruf nichts Aelteres.
     function handleOnlineEvents(m) {
+      const bell = document.getElementById('watch-' + m.icon);
+      if (bell) {
+        const names = (m.watching || []).filter(Boolean);
+        bell.hidden = !names.length;
+        if (names.length) {
+          const txt = T_WATCHING.replace('{names}', names.join(', '));
+          bell.title = txt;
+          bell.setAttribute('aria-label', txt);
+        }
+      }
       const el = document.getElementById('online-' + m.icon);
       const evs = (m.online_events || []).slice().sort((a, b) => a.ts - b.ts);
       const key = 'mp-online-ts-' + m.icon;

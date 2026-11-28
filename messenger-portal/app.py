@@ -473,23 +473,30 @@ def fetch_addon_status(host: str, port: int, timeout: float = 2.0) -> dict | Non
 ONLINE_EVENT_WINDOW_S = 15 * 60
 
 
-def fetch_online_events(host: str, port: int, timeout: float = 2.0) -> list:
-    """Online-Meldungen der WhatsApp-Glocke aus den letzten 15 Minuten.
-    Leer, wenn das Add-on die Route nicht kennt (aeltere Version)."""
+def fetch_online_events(host: str, port: int, timeout: float = 2.0) -> tuple:
+    """Online-Meldungen der WhatsApp-Glocke aus den letzten 15 Minuten und die
+    Kontakte, deren Glocke gerade an ist. Leer, wenn das Add-on die Route nicht
+    kennt (aeltere Version)."""
     since = int((time.time() - ONLINE_EVENT_WINDOW_S) * 1000)
     try:
         url = f'http://{host}:{port}/api/presence-watch?since={since}'
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             data = json.loads(resp.read())
     except Exception:
-        return []
+        return [], []
+    if not isinstance(data, dict):
+        return [], []
+    watching = [str(w.get('name') or w.get('id') or '') for w in (data.get('watching') or [])
+                if isinstance(w, dict)]
+    if not watching and isinstance(data.get('ids'), list):
+        watching = [str(i).split('@')[0] for i in data['ids']]
     out = []
-    for e in (data.get('events') if isinstance(data, dict) else None) or []:
+    for e in data.get('events') or []:
         if isinstance(e, dict) and isinstance(e.get('ts'), (int, float)):
             at = e.get('at')
             out.append({'id': str(e.get('id') or ''), 'name': str(e.get('name') or ''), 'ts': int(e['ts']),
                         'at': int(at) if isinstance(at, (int, float)) else None})
-    return out
+    return out, watching
 
 
 def fetch_messenger_status(host: str, m: dict) -> dict:
@@ -526,6 +533,9 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
         log.warning('Selbsttest %s:%s meldet Aenderungen beim Anbieter: %s',
                     name, port, ', '.join(betroffen) or '?')
 
+    watch = (fetch_online_events(host, port)
+             if state in ('online', 'warn') and m['icon'].lower() == 'whatsapp' else ([], []))
+
     if state == 'online':
         preview = (last or {}).get('preview', '')
         log.debug('Poll %s %s:%s — online last="%s"', name, host, port, preview[:60] if preview else '—')
@@ -543,8 +553,8 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
         'addon_status':  addon_status,
         'detail':        detail,
         'last_received': last,
-        'online_events': fetch_online_events(host, port)
-                         if state in ('online', 'warn') and m['icon'].lower() == 'whatsapp' else [],
+        'online_events': watch[0],
+        'watching':      watch[1],
         'health':        None if health is None else {
             'ok': bool(health.get('ok')),
             'checked': health.get('checked'),

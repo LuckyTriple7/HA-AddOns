@@ -2809,6 +2809,7 @@ app.get('/api/presence-watch', (req, res) => {
   for (const [id, w] of presenceWatch) if (w.denied || presenceCache.get(id)?.denied) denied[id] = true;
   res.json({
     ids: [...presenceWatch.keys()],
+    watching: [...presenceWatch.keys()].map(id => ({ id, name: contactDisplayName(id) })),
     denied,
     events: presenceWatchEvents.filter(e => e.ts > since),
     now: Date.now(),
