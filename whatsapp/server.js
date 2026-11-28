@@ -138,6 +138,11 @@ const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 // temporary — nur waehrend einer Abfrage kurz verfuegbar, danach wieder abmelden
 // always    — dauerhaft verfuegbar (man erscheint durchgehend online)
 const PRESENCE_SCAN_MINUTES = Math.max(0, parseInt(process.env.PRESENCE_SCAN_MINUTES || '0', 10) || 0);
+// Online-Glocke: alle N Minuten kurz pruefen; 0 = durchgehend (man ist dann dauernd online)
+const PRESENCE_WATCH_MINUTES = (() => {
+  const n = parseInt(process.env.PRESENCE_WATCH_MINUTES ?? '5', 10);
+  return Number.isFinite(n) ? Math.min(60, Math.max(0, n)) : 5;
+})();
 const PRESENCE_MODE = (() => {
   const m = String(process.env.PRESENCE_MODE || '').toLowerCase();
   if (m === 'off' || m === 'temporary' || m === 'always') return m;
@@ -166,6 +171,7 @@ console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
 console.log(`[INFO]   presence_mode          = ${PRESENCE_MODE}`);
 console.log(`[INFO]   presence_scan_minutes  = ${PRESENCE_SCAN_MINUTES || 'aus'}`);
+console.log(`[INFO]   presence_watch_minutes = ${PRESENCE_WATCH_MINUTES || 'durchgehend'}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
@@ -2657,9 +2663,12 @@ function savePresenceWatch() {
 }
 
 const WATCH_TEXT = {
-  de: { online: (n) => `${n} ist jetzt online`, generic: 'Ein Kontakt ist jetzt online' },
-  en: { online: (n) => `${n} is online now`, generic: 'A contact is online now' },
-  es: { online: (n) => `${n} está en línea ahora`, generic: 'Un contacto está en línea ahora' },
+  de: { online: (n) => `${n} ist jetzt online`, was: (n, t) => `${n} war um ${t} online`,
+        generic: 'Ein Kontakt ist jetzt online', genericWas: 'Ein Kontakt war online', locale: 'de-DE' },
+  en: { online: (n) => `${n} is online now`, was: (n, t) => `${n} was online at ${t}`,
+        generic: 'A contact is online now', genericWas: 'A contact was online', locale: 'en-GB' },
+  es: { online: (n) => `${n} está en línea ahora`, was: (n, t) => `${n} estuvo en línea a las ${t}`,
+        generic: 'Un contacto está en línea ahora', genericWas: 'Un contacto estuvo en línea', locale: 'es-ES' },
 };
 
 function contactDisplayName(id) {
@@ -2682,25 +2691,37 @@ function haPost(path, body) {
   req.end();
 }
 
-function notifyContactOnline(id) {
+// at = Zeitpunkt aus "zuletzt online", wenn der Kontakt zwischen zwei Checks
+// online war und beim Check schon wieder weg ist; sonst ist er gerade online.
+// Danach geht die Glocke fuer diesen Kontakt von selbst aus.
+function notifyContactOnline(id, at) {
   const name = contactDisplayName(id);
   const ts = Date.now();
-  presenceWatchEvents.push({ id, name, ts });
+  presenceWatchEvents.push({ id, name, ts, at: at || null });
   if (presenceWatchEvents.length > 50) presenceWatchEvents = presenceWatchEvents.slice(-50);
-  console.log(`[INFO] Online-Glocke: ${HA_PRIVACY ? 'Kontakt' : name} ist online`);
   const tx = WATCH_TEXT[_haLang] || WATCH_TEXT.de;
+  const time = at ? new Date(at).toLocaleTimeString(tx.locale, { hour: '2-digit', minute: '2-digit' }) : '';
+  console.log(`[INFO] Online-Glocke: ${HA_PRIVACY ? 'Kontakt' : name} ${at ? 'war um ' + time : 'ist'} online — Glocke aus`);
   const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
   haPost('services/persistent_notification/create', {
     title: 'WhatsApp',
-    message: HA_PRIVACY ? tx.generic : tx.online(name),
+    message: HA_PRIVACY ? (at ? tx.genericWas : tx.generic) : (at ? tx.was(name, time) : tx.online(name)),
     notification_id: `whatsapp_online_${safeId}`,
   });
-  haPost('events/whatsapp_contact_online', HA_PRIVACY ? { chat_id: id } : { chat_id: id, name });
+  const ev = { chat_id: id, online_now: !at, last_seen: at ? new Date(at).toISOString() : null };
+  if (!HA_PRIVACY) ev.name = name;
+  haPost('events/whatsapp_contact_online', ev);
+  presenceWatch.delete(id);
+  savePresenceWatch();
 }
 
+// presence_watch_minutes > 0: nur alle N Minuten kurz verfuegbar melden und
+// nachsehen. 0 oder presence_mode always: durchgehend verfuegbar, alle 15 s.
+const WATCH_LIVE = PRESENCE_MODE === 'always' || PRESENCE_WATCH_MINUTES === 0;
 let _watchHeld = false;
 let _watchBusy = false;
 let _watchLastSub = 0;
+let _watchLastRun = 0;
 
 function releaseWatchPresence() {
   if (!_watchHeld) return;
@@ -2709,17 +2730,31 @@ function releaseWatchPresence() {
   if (PRESENCE_MODE === 'temporary') releaseOwnPresence();
 }
 
-async function presenceWatchTick() {
+function lastSeenMs(t) {
+  if (typeof t !== 'number') return null;
+  if (t > 1000000000 && t < 1e12) return t * 1000;
+  if (t >= 1e12) return t;
+  return null;
+}
+
+async function presenceWatchTick(force) {
   if (_watchBusy) return;
   if (!presenceWatch.size || PRESENCE_MODE === 'off') { releaseWatchPresence(); return; }
   if (status !== 'connected' || !client.pupPage) { _watchLastSub = 0; return; }
+  if (!WATCH_LIVE && force !== true && Date.now() - _watchLastRun < PRESENCE_WATCH_MINUTES * 60000) return;
   _watchBusy = true;
+  let heldNow = false;
   try {
-    const resub = Date.now() - _watchLastSub > WATCH_RESUB_MS;
-    if (!_watchHeld) { await holdOwnPresence(); _watchHeld = true; }
-    else if (resub) await setOwnPresence(true); // nach Neuverbindung erneut melden
+    const resub = !WATCH_LIVE || Date.now() - _watchLastSub > WATCH_RESUB_MS;
+    if (WATCH_LIVE) {
+      if (!_watchHeld) { await holdOwnPresence(); _watchHeld = true; }
+      else if (resub) await setOwnPresence(true); // nach Neuverbindung erneut melden
+    } else {
+      await holdOwnPresence();
+      heldNow = true;
+    }
     const ids = [...presenceWatch.keys()];
-    const raw = await client.pupPage.evaluate(async (ids, resub) => {
+    const raw = await client.pupPage.evaluate(async (ids, resub, waitMs) => {
       const WF = window.require('WAWebWidFactory');
       const PC = window.require('WAWebPresenceCollection').PresenceCollection;
       const JOB = window.require('WAWebSendPresenceSubscriptionJob');
@@ -2734,28 +2769,35 @@ async function presenceWatchTick() {
           if (resub) { try { await JOB.sendUserPresenceSubscription(wid); } catch (e) {} }
         } catch (e) {}
       }
-      if (resub) await new Promise(r => setTimeout(r, 4000));
+      if (resub) await new Promise(r => setTimeout(r, waitMs));
       const out = {};
       for (const [id, m] of models) {
         const cs = m.chatstate || {};
         out[id] = { online: cs.type === 'available' || m.isOnline === true,
-                    deny: cs.deny === true, hasData: !!m.hasData || cs.t != null };
+                    deny: cs.deny === true, hasData: !!m.hasData || cs.t != null,
+                    t: cs.t != null ? cs.t : null };
       }
       return out;
-    }, ids, resub);
+    }, ids, resub, WATCH_LIVE ? 4000 : 6000);
     if (resub) _watchLastSub = Date.now();
     for (const [id, r] of Object.entries(raw || {})) {
       const w = presenceWatch.get(id);
       if (!w) continue;
       w.denied = r.deny;
-      // Erst ein bekannter Offline-Stand macht den Wechsel zu online zur Meldung -
-      // wer beim Einschalten schon online ist, loest nichts aus
+      const seen = lastSeenMs(r.t);
+      // Erst ein bekannter Stand macht eine Aenderung zur Meldung - wer beim
+      // Einschalten schon online ist, loest nichts aus
       if (r.online && w.online === false) notifyContactOnline(id);
+      else if (!r.online && w.online === false && seen && w.lastSeen && seen > w.lastSeen) notifyContactOnline(id, seen);
+      if (!presenceWatch.has(id)) continue;
       if (r.online || r.hasData || r.deny) w.online = r.online;
+      if (seen) w.lastSeen = Math.max(w.lastSeen || 0, seen);
     }
   } catch (e) {
     dbg('presenceWatchTick: ' + e.message);
   } finally {
+    if (heldNow && PRESENCE_MODE === 'temporary') releaseOwnPresence();
+    _watchLastRun = Date.now();
     _watchBusy = false;
   }
 }
@@ -2771,6 +2813,8 @@ app.get('/api/presence-watch', (req, res) => {
     events: presenceWatchEvents.filter(e => e.ts > since),
     now: Date.now(),
     mode: PRESENCE_MODE,
+    live: WATCH_LIVE,
+    minutes: WATCH_LIVE ? 0 : PRESENCE_WATCH_MINUTES,
   });
 });
 
@@ -2783,12 +2827,14 @@ app.post('/api/presence-watch', (req, res) => {
     if (!presenceWatch.has(chatId) && presenceWatch.size >= PRESENCE_WATCH_MAX) return res.status(409).json({ error: 'too_many' });
     if (!presenceWatch.has(chatId)) presenceWatch.set(chatId, { online: null, denied: false });
     _watchLastSub = 0; // neuen Kontakt sofort abonnieren
+    setTimeout(() => presenceWatchTick(true), 100); // Ausgangsstand sofort holen
   } else {
     presenceWatch.delete(chatId);
+    setTimeout(presenceWatchTick, 100);
   }
   savePresenceWatch();
-  setTimeout(presenceWatchTick, 100);
-  res.json({ ok: true, ids: [...presenceWatch.keys()], denied: !!presenceCache.get(chatId)?.denied });
+  res.json({ ok: true, ids: [...presenceWatch.keys()], denied: !!presenceCache.get(chatId)?.denied,
+             live: WATCH_LIVE, minutes: WATCH_LIVE ? 0 : PRESENCE_WATCH_MINUTES });
 });
 
 app.get('/api/presence-overview', async (req, res) => {
@@ -5911,7 +5957,9 @@ app.get('/', (req, res) => {
         ttWatchOff:'Benachrichtigen, wenn dieser Kontakt online geht', ttWatchOn:'Online-Benachrichtigung: AN — Klick schaltet sie aus',
         watchOnline:(n)=>n+' ist jetzt online', watchPresenceOff:'Nicht möglich: In den Add-on-Optionen steht presence_mode auf off.',
         watchTooMany:'Höchstens 20 Kontakte gleichzeitig.', watchHidden:'Hinweis: Dieser Kontakt verbirgt seinen Online-Status. Dann meldet WhatsApp nichts und die Glocke bleibt stumm.',
-        watchVisible:'Solange eine Glocke an ist, erscheinst du für deine Kontakte online.',
+        watchVisible:'Solange eine Glocke an ist, erscheinst du für deine Kontakte online. Nach der ersten Meldung geht die Glocke von selbst aus.',
+        watchVisibleInterval:(n)=>'Alle '+n+' Minuten erscheinst du für ein paar Sekunden online, solange eine Glocke an ist. Nach der ersten Meldung geht die Glocke von selbst aus.',
+        watchWasOnline:(n,t)=>n+' war um '+t+' online',
         ttChatMediaOff:'Medien in diesem Chat: AUS — vorhandene sind nur ausgeblendet, Klick schaltet sie wieder an',
         ttMsgSearch:'Nachrichten durchsuchen', msgSearchPlaceholder:'Suchen…', msgSearchNoResult:'Keine Treffer',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
@@ -6071,7 +6119,9 @@ app.get('/', (req, res) => {
         ttWatchOff:'Notify me when this contact comes online', ttWatchOn:'Online notification: ON — click to turn off',
         watchOnline:(n)=>n+' is online now', watchPresenceOff:'Not possible: presence_mode is set to off in the add-on options.',
         watchTooMany:'At most 20 contacts at a time.', watchHidden:'Note: this contact hides their online status. WhatsApp then reports nothing and the bell stays silent.',
-        watchVisible:'While a bell is on, you appear online to your contacts.',
+        watchVisible:'While a bell is on, you appear online to your contacts. The bell turns itself off after the first notification.',
+        watchVisibleInterval:(n)=>'Every '+n+' minutes you appear online for a few seconds while a bell is on. The bell turns itself off after the first notification.',
+        watchWasOnline:(n,t)=>n+' was online at '+t,
         ttChatMediaOff:'Media in this chat: OFF — existing files are only hidden, click to turn back on',
         ttMsgSearch:'Search messages', msgSearchPlaceholder:'Search…', msgSearchNoResult:'No results',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
@@ -6231,7 +6281,9 @@ app.get('/', (req, res) => {
         ttWatchOff:'Avisarme cuando este contacto se conecte', ttWatchOn:'Aviso de conexión: ACTIVADO — haz clic para desactivarlo',
         watchOnline:(n)=>n+' está en línea ahora', watchPresenceOff:'No es posible: presence_mode está en off en las opciones del complemento.',
         watchTooMany:'Como máximo 20 contactos a la vez.', watchHidden:'Aviso: este contacto oculta su estado en línea. WhatsApp no informa nada y la campana no sonará.',
-        watchVisible:'Mientras haya una campana activa, apareces en línea para tus contactos.',
+        watchVisible:'Mientras haya una campana activa, apareces en línea para tus contactos. La campana se apaga sola tras el primer aviso.',
+        watchVisibleInterval:(n)=>'Cada '+n+' minutos apareces en línea unos segundos mientras haya una campana activa. La campana se apaga sola tras el primer aviso.',
+        watchWasOnline:(n,t)=>n+' estuvo en línea a las '+t,
         ttChatMediaOff:'Multimedia en este chat: DESACTIVADO — los archivos existentes solo se ocultan; haz clic para volver a activarlo',
         ttMsgSearch:'Buscar mensajes', msgSearchPlaceholder:'Buscar…', msgSearchNoResult:'Sin resultados',
         deleteMode:'Eliminar mensajes', deleteModeCancel:'Cancelar', deleteConfirm:(n)=>'¿Seguro que quieres eliminar '+n+(n===1?' mensaje':' mensajes')+'?',
@@ -6709,7 +6761,7 @@ app.get('/', (req, res) => {
         _watchIds = new Set(d.ids || []);
         applyOnlineWatchState();
         if (on && d.denied) alert(t('watchHidden'));
-        else if (first) alert(t('watchVisible'));
+        else if (first) alert(d.live === false && d.minutes ? tf('watchVisibleInterval', d.minutes) : t('watchVisible'));
       } catch (e) { alert(tf('msError', e.message || String(e))); }
     }
     async function pollOnlineWatch() {
@@ -6720,7 +6772,8 @@ app.get('/', (req, res) => {
         for (const ev of (d.events || [])) {
           _watchSince = Math.max(_watchSince, ev.ts);
           if (window.Notification && Notification.permission === 'granted') {
-            try { new Notification('WhatsApp', { body: tf('watchOnline', ev.name), tag: 'wa-online-' + ev.id }); } catch (e) {}
+            const body = ev.at ? tf('watchWasOnline', ev.name, fmtTime(ev.at)) : tf('watchOnline', ev.name);
+            try { new Notification('WhatsApp', { body, tag: 'wa-online-' + ev.id }); } catch (e) {}
           }
         }
       } catch (e) {}

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.73] - 2026-11-28
+- Neu: Die Online-Glocke geht nach der ersten Meldung von selbst aus
+- Neu: Option `presence_watch_minutes` (Standard 5): Die Glocke prüft nur noch alle N Minuten und meldet dich dafür nur ein paar Sekunden als online statt dauerhaft. War der Kontakt zwischendurch kurz online, kommt über „zuletzt online“ die Meldung „<Name> war um HH:MM online“. 0 = wie bisher durchgehend alle 15 Sekunden
+- Neu: Das HA-Ereignis `whatsapp_contact_online` enthält zusätzlich `online_now` und `last_seen`
+
 ## [1.8.72] - 2026-11-28
 - Neu: Glocke in der Chat-Kopfzeile. Ist sie an, meldet das Add-on, wenn der Kontakt online geht: als HA-Benachrichtigung, als HA-Ereignis `whatsapp_contact_online` (für Push-Automationen) und als Browser-Meldung. Solange eine Glocke an ist, erscheint man selbst online; mit `presence_mode: off` ist sie gesperrt
 

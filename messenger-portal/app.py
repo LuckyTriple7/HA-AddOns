@@ -486,7 +486,9 @@ def fetch_online_events(host: str, port: int, timeout: float = 2.0) -> list:
     out = []
     for e in (data.get('events') if isinstance(data, dict) else None) or []:
         if isinstance(e, dict) and isinstance(e.get('ts'), (int, float)):
-            out.append({'id': str(e.get('id') or ''), 'name': str(e.get('name') or ''), 'ts': int(e['ts'])})
+            at = e.get('at')
+            out.append({'id': str(e.get('id') or ''), 'name': str(e.get('name') or ''), 'ts': int(e['ts']),
+                        'at': int(at) if isinstance(at, (int, float)) else None})
     return out
 
 

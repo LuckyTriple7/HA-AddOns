@@ -139,5 +139,7 @@
   "sq_up": "Nach oben",
   "sq_down": "Nach unten",
   "online_now": "🟢 {name} ist online · {time}",
-  "notif_online": "{name} ist jetzt online"
+  "notif_online": "{name} ist jetzt online",
+  "online_was": "🟢 {name} war online · {time}",
+  "notif_online_was": "{name} war um {time} online"
 }

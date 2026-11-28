@@ -46,14 +46,17 @@ curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <Toke
 In der Kopfzeile eines Einzelchats auf die Glocke klicken. Ist sie gefüllt, meldet das Add-on, sobald der Kontakt online geht:
 
 - als Home-Assistant-Benachrichtigung („<Name> ist jetzt online“; bei `ha_notifications_privacy` ohne Namen)
-- als HA-Ereignis `whatsapp_contact_online` mit `chat_id` und `name`, z. B. als Auslöser für eine Push-Nachricht aufs Handy
+- als HA-Ereignis `whatsapp_contact_online` mit `chat_id`, `name`, `online_now` (true = gerade online, false = war online) und `last_seen`, z. B. als Auslöser für eine Push-Nachricht aufs Handy
 - als Browser-Meldung, solange die Add-on-Seite offen ist und Meldungen erlaubt sind
 
 Gut zu wissen:
 
-- WhatsApp schickt den Online-Status anderer nur an Geräte, die selbst online sind. **Solange mindestens eine Glocke an ist, erscheinst du für deine Kontakte online.** Mit `presence_mode: off` ist die Glocke deshalb gesperrt
-- Verbirgt der Kontakt seinen Online-Status, meldet WhatsApp nichts und die Glocke bleibt stumm
-- Geprüft wird alle 15 Sekunden; wer schon online ist, wenn du die Glocke einschaltest, löst erst beim nächsten Online-Gehen eine Meldung aus
+- **Nach der ersten Meldung geht die Glocke von selbst aus**
+- WhatsApp schickt den Online-Status anderer nur an Geräte, die selbst online sind. Deshalb erscheinst du bei jeder Prüfung für ein paar Sekunden selbst online. Mit `presence_mode: off` ist die Glocke gesperrt
+- Geprüft wird alle `presence_watch_minutes` Minuten (Standard 5). War der Kontakt zwischendurch kurz online, erkennt das Add-on das über „zuletzt online“ und meldet „<Name> war um 14:32 online“
+- `presence_watch_minutes: 0` (oder `presence_mode: always`) prüft durchgehend alle 15 Sekunden; dann erscheinst du aber dauerhaft online
+- Verbirgt der Kontakt seinen Online-Status bzw. „zuletzt online“, meldet WhatsApp nichts und die Glocke bleibt stumm
+- Wer schon online ist, wenn du die Glocke einschaltest, löst erst beim nächsten Online-Gehen eine Meldung aus
 - Höchstens 20 Kontakte; die Liste steht in `/config/presence_watch.json` und übersteht Neustarts
 
 ```yaml
@@ -65,7 +68,9 @@ automation:
     action:
       - service: notify.mobile_app_<handy>
         data:
-          message: "{{ trigger.event.data.name }} ist jetzt online"
+          message: >-
+            {{ trigger.event.data.name }}
+            {{ 'ist jetzt online' if trigger.event.data.online_now else 'war online' }}
 ```
 
 ## REST-API
@@ -327,14 +332,17 @@ curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <toke
 Click the bell in the header of a one-to-one chat. While it is filled, the add-on reports when the contact comes online:
 
 - as a Home Assistant notification ("<name> is online now"; without the name if `ha_notifications_privacy` is on)
-- as the HA event `whatsapp_contact_online` with `chat_id` and `name`, e.g. to trigger a push message to your phone
+- as the HA event `whatsapp_contact_online` with `chat_id`, `name`, `online_now` (true = online now, false = was online) and `last_seen`, e.g. to trigger a push message to your phone
 - as a browser notification while the add-on page is open and notifications are allowed
 
 Good to know:
 
-- WhatsApp only sends other people's online status to devices that are online themselves. **While at least one bell is on, you appear online to your contacts.** The bell is therefore disabled with `presence_mode: off`
-- If the contact hides their online status, WhatsApp reports nothing and the bell stays silent
-- Checked every 15 seconds; a contact who is already online when you turn the bell on only triggers on their next time coming online
+- **The bell turns itself off after the first notification**
+- WhatsApp only sends other people's online status to devices that are online themselves, so you appear online yourself for a few seconds during each check. The bell is disabled with `presence_mode: off`
+- Checked every `presence_watch_minutes` minutes (default 5). If the contact was online briefly in between, the add-on detects it via "last seen" and reports "<name> was online at 14:32"
+- `presence_watch_minutes: 0` (or `presence_mode: always`) checks continuously every 15 seconds, but then you appear online permanently
+- If the contact hides their online status or "last seen", WhatsApp reports nothing and the bell stays silent
+- A contact who is already online when you turn the bell on only triggers on their next time coming online
 - At most 20 contacts; the list is stored in `/config/presence_watch.json` and survives restarts
 
 ## REST API

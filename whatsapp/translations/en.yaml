@@ -35,6 +35,9 @@ configuration:
   presence_scan_minutes:
     name: Refresh the last-seen overview automatically (minutes)
     description: "How often the overview of all contacts is refreshed in the background. 0 = off (default), the overview can then only be refreshed by hand. 15 to 60 minutes are sensible values. Note: for the duration of a sweep (about 15 seconds) you announce yourself as available and appear online to your contacts — unless presence_mode is set to off."
+  presence_watch_minutes:
+    name: "Online bell: check interval (minutes)"
+    description: "How often the bell in the chat header checks whether the contact is online. During each check you appear online yourself for a few seconds. Someone who was online briefly between two checks is detected via \"last seen\" (\"was online at 14:32\") if the contact shares it. 0 = continuously every 15 seconds, but then you appear online permanently. Default: 5."
   debug_mode:
     name: Debug Mode
     description: Enable verbose logging including detailed request logs. Useful for troubleshooting.

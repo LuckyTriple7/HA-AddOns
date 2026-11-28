@@ -35,6 +35,9 @@ configuration:
   presence_scan_minutes:
     name: Zuletzt-online-Übersicht automatisch aktualisieren (Minuten)
     description: "Wie oft die Übersicht aller Kontakte im Hintergrund aktualisiert wird. 0 = aus (Standard), die Übersicht lässt sich dann nur von Hand aktualisieren. Sinnvoll sind 15 bis 60 Minuten. Achtung: für die Dauer eines Rundlaufs (rund 15 Sekunden) meldest du dich als verfügbar und erscheinst so lange für deine Kontakte online — es sei denn, presence_mode steht auf off."
+  presence_watch_minutes:
+    name: "Online-Glocke: Prüfabstand (Minuten)"
+    description: "Wie oft die Glocke im Chat-Kopf nachsieht, ob der Kontakt online ist. Bei jeder Prüfung erscheinst du für ein paar Sekunden selbst online. Wer zwischen zwei Prüfungen kurz online war, wird über \"zuletzt online\" erkannt (\"war um 14:32 online\"), sofern der Kontakt das freigibt. 0 = durchgehend alle 15 Sekunden, dann erscheinst du aber dauerhaft online. Standard: 5."
   debug_mode:
     name: Debug-Modus
     description: Ausführliches Logging aktivieren. Nützlich für die Fehlersuche.

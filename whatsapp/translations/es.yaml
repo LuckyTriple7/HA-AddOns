@@ -35,6 +35,9 @@ configuration:
   presence_scan_minutes:
     name: Actualizar automáticamente el resumen de la última vez (minutos)
     description: "Con qué frecuencia se actualiza en segundo plano el resumen de todos los contactos. 0 = desactivado (valor predeterminado); el resumen solo se puede actualizar a mano. Entre 15 y 60 minutos son valores razonables. Nota: durante cada comprobación (unos 15 segundos) te anuncias como disponible y tus contactos te ven en línea, salvo que presence_mode esté en off."
+  presence_watch_minutes:
+    name: "Campana de conexión: intervalo (minutos)"
+    description: "Con qué frecuencia la campana del encabezado del chat comprueba si el contacto está en línea. Durante cada comprobación apareces en línea unos segundos. Quien estuvo en línea brevemente entre dos comprobaciones se detecta mediante \"últ. vez\" (\"estuvo en línea a las 14:32\") si el contacto lo comparte. 0 = continuamente cada 15 segundos, pero entonces apareces en línea todo el tiempo. Predeterminado: 5."
   debug_mode:
     name: Modo de depuración
     description: Activar el registro detallado, incluidos los registros de solicitudes. Útil para solucionar problemas.

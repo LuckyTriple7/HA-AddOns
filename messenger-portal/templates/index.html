@@ -620,6 +620,12 @@
     const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
     const T_ONLINE_NOW   = {{ t.online_now | tojson }};
     const T_NOTIF_ONLINE = {{ t.notif_online | tojson }};
+    const T_ONLINE_WAS   = {{ t.online_was | tojson }};
+    const T_NOTIF_ONLINE_WAS = {{ t.notif_online_was | tojson }};
+    function fmtClock(ts) {
+      return new Date(ts).toLocaleTimeString(({ de: 'de-DE', es: 'es-ES' })[LANG] || 'en-US',
+               { hour: '2-digit', minute: '2-digit' });
+    }
     const ONLINE_SHOW_MS = 10 * 60 * 1000;
 
     // Online-Glocke (WhatsApp): neueste Meldung auf der Kachel zeigen, neue
@@ -638,7 +644,9 @@
         newest = Math.max(newest, ev.ts);
         if (notifAllowed()) {
           try {
-            new Notification(m.name, { body: T_NOTIF_ONLINE.replace('{name}', ev.name),
+            const body = ev.at ? T_NOTIF_ONLINE_WAS.replace('{name}', ev.name).replace('{time}', fmtClock(ev.at))
+                               : T_NOTIF_ONLINE.replace('{name}', ev.name);
+            new Notification(m.name, { body,
                                        icon: ICON_URL, tag: 'mp-online-' + ev.id });
           } catch (e) {}
         }
@@ -647,10 +655,9 @@
       if (!el) return;
       const last = evs.length ? evs[evs.length - 1] : null;
       if (last && Date.now() - last.ts < ONLINE_SHOW_MS) {
-        const time = new Date(last.ts).toLocaleTimeString(({ de: 'de-DE', es: 'es-ES' })[LANG] || 'en-US',
-                       { hour: '2-digit', minute: '2-digit' });
         // Name kommt von aussen - als Text einsetzen, nie als HTML
-        el.textContent = T_ONLINE_NOW.replace('{name}', last.name).replace('{time}', time);
+        el.textContent = (last.at ? T_ONLINE_WAS : T_ONLINE_NOW)
+          .replace('{name}', last.name).replace('{time}', fmtClock(last.at || last.ts));
       } else {
         el.textContent = '';
       }

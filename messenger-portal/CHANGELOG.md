@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.17] - 2026-11-28
+- Neu: Meldungen „<Name> war um HH:MM online“ der WhatsApp-Glocke (ab WhatsApp 1.8.73) erscheinen auf der Kachel und als Browser-Meldung
+
 ## [1.5.16] - 2026-11-28
 - Neu: Meldungen der WhatsApp-Online-Glocke erscheinen im Portal: grüne Zeile „<Name> ist online · Uhrzeit“ auf der WhatsApp-Kachel (10 Minuten lang) und eine Browser-Meldung, wenn Benachrichtigungen im Portal an sind. Voraussetzung ist WhatsApp ab 1.8.72
 
