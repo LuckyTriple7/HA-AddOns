@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.18] - 2026-11-28
+- Geändert: Alle Kacheln sind gleich hoch (Platz für die Online-Zeile ist immer reserviert), und der Knopf „Öffnen“ sitzt bei allen auf einer Linie unten
+
 ## [1.5.17] - 2026-11-28
 - Neu: Meldungen „<Name> war um HH:MM online“ der WhatsApp-Glocke (ab WhatsApp 1.8.73) erscheinen auf der Kachel und als Browser-Meldung
 

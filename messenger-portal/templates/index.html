@@ -276,7 +276,9 @@
       align-items: center;
       width: 100%;
       gap: .6rem;
+      flex: 1;            /* fuellt die Kachel, damit "Oeffnen" unten sitzt */
     }
+    .card-body .card-open { margin-top: auto; }
 
     /* ── Last received ───────────────────────────────────────*/
     .msg-type-icon {
@@ -289,8 +291,8 @@
       text-align: center;
       word-break: break-word;
       line-height: 1.35;
+      min-height: calc(.72rem * 1.35);  /* Platz immer frei halten: alle Kacheln gleich hoch */
     }
-    .card-online:empty { display: none; }
     .card-last-msg {
       font-size: .72rem;
       color: var(--text-muted);
