@@ -254,7 +254,15 @@
       fill: currentColor; stroke: currentColor;
       stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
       transform-origin: 50% 2px;
-      animation: bell-swing 2.4s ease-in-out infinite;
+    }
+    /* Kontakt ist online gegangen: erst ein paar Sekunden aufblitzen, dann wackeln */
+    .card-watch.alert { animation: bell-flash .6s ease-in-out 5; }
+    .card-watch.alert svg { animation: bell-swing 2.4s ease-in-out 3s infinite; }
+    @keyframes bell-flash {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+      50% { transform: scale(1.25);
+            background: var(--brand-color, #22c55e); color: #fff;
+            box-shadow: 0 0 14px 4px color-mix(in srgb, var(--brand-color, #22c55e) 60%, transparent); }
     }
     @keyframes bell-swing {
       0%, 45%, 100% { transform: rotate(0); }
@@ -266,7 +274,7 @@
       40% { transform: rotate(-2deg); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .card-watch svg { animation: none; }
+      .card-watch.alert, .card-watch.alert svg { animation: none; }
     }
     .card-icon svg { width: 38px; height: 38px; fill: #fff; }
 
@@ -668,15 +676,6 @@
     // gesehenen Zeitpunkt kam - beim ersten Aufruf nichts Aelteres.
     function handleOnlineEvents(m) {
       const bell = document.getElementById('watch-' + m.icon);
-      if (bell) {
-        const names = (m.watching || []).filter(Boolean);
-        bell.hidden = !names.length;
-        if (names.length) {
-          const txt = T_WATCHING.replace('{names}', names.join(', '));
-          bell.title = txt;
-          bell.setAttribute('aria-label', txt);
-        }
-      }
       const el = document.getElementById('online-' + m.icon);
       const evs = (m.online_events || []).slice().sort((a, b) => a.ts - b.ts);
       const key = 'mp-online-ts-' + m.icon;
@@ -697,9 +696,25 @@
         }
       }
       if (newest > seen) { try { localStorage.setItem(key, String(newest)); } catch (e) {} }
-      if (!el) return;
       const last = evs.length ? evs[evs.length - 1] : null;
-      if (last && Date.now() - last.ts < ONLINE_SHOW_MS) {
+      const recent = !!last && Date.now() - last.ts < ONLINE_SHOW_MS;
+      // Glocke: ruhig, solange eine Online-Glocke an ist; nach einer Meldung
+      // blinkt und wackelt sie, bis die Kachel geklickt wurde (max. 10 Minuten)
+      if (bell) {
+        let ack = 0;
+        try { ack = parseInt(localStorage.getItem('mp-online-ack-' + m.icon) || '0', 10) || 0; } catch (e) {}
+        const alerting = recent && last.ts > ack;
+        const names = (m.watching || []).filter(Boolean);
+        bell.hidden = !names.length && !alerting;
+        bell.classList.toggle('alert', alerting);
+        const txt = alerting
+          ? (last.at ? T_ONLINE_WAS : T_ONLINE_NOW).replace('{name}', last.name).replace('{time}', fmtClock(last.at || last.ts)).replace(/^\S+\s/, '')
+          : T_WATCHING.replace('{names}', names.join(', '));
+        bell.title = txt;
+        bell.setAttribute('aria-label', txt);
+      }
+      if (!el) return;
+      if (recent) {
         // Name kommt von aussen - als Text einsetzen, nie als HTML
         el.textContent = (last.at ? T_ONLINE_WAS : T_ONLINE_NOW)
           .replace('{name}', last.name).replace('{time}', fmtClock(last.at || last.ts));
@@ -878,6 +893,7 @@
       card.addEventListener('click', (e) => {
         if (card.classList.contains('is-offline')) { e.preventDefault(); return; }
         markRead(card.dataset.icon);
+        try { localStorage.setItem('mp-online-ack-' + card.dataset.icon, String(Date.now())); } catch (e) {}
         card.classList.remove('has-new');
         setUnreadBadge(card, 0);
       });

@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.20] - 2026-11-28
+- Geändert: Die Glocke auf der WhatsApp-Kachel steht still, solange nur eine Online-Glocke an ist. Geht der Kontakt online, blitzt sie 3 Sekunden auf und wackelt danach, bis die Kachel angeklickt wird (höchstens 10 Minuten). Sie bleibt dabei sichtbar, auch wenn sich die Online-Glocke im Chat schon abgeschaltet hat
+
 ## [1.5.19] - 2026-11-28
 - Neu: Schwingende Glocke oben rechts auf der WhatsApp-Kachel, solange für mindestens einen Kontakt die Online-Glocke an ist; beim Drüberfahren stehen die Namen. Namen ab WhatsApp 1.8.74, bei älteren Versionen nur die Nummern
 
