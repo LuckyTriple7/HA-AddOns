@@ -41,6 +41,33 @@ curl http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <Token>"
 curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <Token>"   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
 ```
 
+### Benachrichtigen, wenn ein Kontakt online geht
+
+In der Kopfzeile eines Einzelchats auf die Glocke klicken. Ist sie gefüllt, meldet das Add-on, sobald der Kontakt online geht:
+
+- als Home-Assistant-Benachrichtigung („<Name> ist jetzt online“; bei `ha_notifications_privacy` ohne Namen)
+- als HA-Ereignis `whatsapp_contact_online` mit `chat_id` und `name`, z. B. als Auslöser für eine Push-Nachricht aufs Handy
+- als Browser-Meldung, solange die Add-on-Seite offen ist und Meldungen erlaubt sind
+
+Gut zu wissen:
+
+- WhatsApp schickt den Online-Status anderer nur an Geräte, die selbst online sind. **Solange mindestens eine Glocke an ist, erscheinst du für deine Kontakte online.** Mit `presence_mode: off` ist die Glocke deshalb gesperrt
+- Verbirgt der Kontakt seinen Online-Status, meldet WhatsApp nichts und die Glocke bleibt stumm
+- Geprüft wird alle 15 Sekunden; wer schon online ist, wenn du die Glocke einschaltest, löst erst beim nächsten Online-Gehen eine Meldung aus
+- Höchstens 20 Kontakte; die Liste steht in `/config/presence_watch.json` und übersteht Neustarts
+
+```yaml
+automation:
+  - alias: WhatsApp-Kontakt online
+    trigger:
+      - platform: event
+        event_type: whatsapp_contact_online
+    action:
+      - service: notify.mobile_app_<handy>
+        data:
+          message: "{{ trigger.event.data.name }} ist jetzt online"
+```
+
 ## REST-API
 
 ### Zwei Ports, zwei Sicherheitsstufen
@@ -88,6 +115,8 @@ GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines besti
 POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
 GET  /api/presence-overview          → Zuletzt online aller Kontakte; ?refresh=1 startet einen Rundlauf
+GET  /api/presence-watch             → Kontakte mit Online-Glocke und letzte Online-Meldungen (?since=<ms>)
+POST /api/presence-watch             → Glocke schalten: {"chatId":"…@c.us","on":true}
 GET  /api/search?q=<text>            → Suche über alle Chats (eigener Verlauf + WhatsApp-Suche)
 GET  /api/check-number?number=<nr>   → Ist die Rufnummer bei WhatsApp? (max. 20 Abfragen/Minute)
 GET  /api/contact/:chatId/extra      → Gemeinsame Gruppen und Anzahl verknüpfter Geräte
@@ -293,6 +322,21 @@ curl http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <token>"
 curl -X POST http://<HA-IP>:17786/api/chat-media -H "Authorization: Bearer <token>"   -H 'Content-Type: application/json'   -d '{"chatId":"4915112345678@c.us","enabled":false}'
 ```
 
+### Notify when a contact comes online
+
+Click the bell in the header of a one-to-one chat. While it is filled, the add-on reports when the contact comes online:
+
+- as a Home Assistant notification ("<name> is online now"; without the name if `ha_notifications_privacy` is on)
+- as the HA event `whatsapp_contact_online` with `chat_id` and `name`, e.g. to trigger a push message to your phone
+- as a browser notification while the add-on page is open and notifications are allowed
+
+Good to know:
+
+- WhatsApp only sends other people's online status to devices that are online themselves. **While at least one bell is on, you appear online to your contacts.** The bell is therefore disabled with `presence_mode: off`
+- If the contact hides their online status, WhatsApp reports nothing and the bell stays silent
+- Checked every 15 seconds; a contact who is already online when you turn the bell on only triggers on their next time coming online
+- At most 20 contacts; the list is stored in `/config/presence_watch.json` and survives restarts
+
 ## REST API
 
 ### Two ports, two security levels
@@ -338,6 +382,8 @@ GET  /api/last-received?chat=<id>    → Last received message of a specific cha
 POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
 GET  /api/presence-overview          → Last seen of all contacts; ?refresh=1 starts a sweep
+GET  /api/presence-watch             → Contacts with an online bell and recent online events (?since=<ms>)
+POST /api/presence-watch             → Toggle a bell: {"chatId":"…@c.us","on":true}
 GET  /api/search?q=<text>            → Search across all chats (local history + WhatsApp search)
 GET  /api/check-number?number=<nr>   → Is this number on WhatsApp? (max. 20 requests/minute)
 GET  /api/contact/:chatId/extra      → Groups in common and number of linked devices

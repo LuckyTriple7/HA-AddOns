@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.72] - 2026-11-28
+- Neu: Glocke in der Chat-Kopfzeile. Ist sie an, meldet das Add-on, wenn der Kontakt online geht: als HA-Benachrichtigung, als HA-Ereignis `whatsapp_contact_online` (für Push-Automationen) und als Browser-Meldung. Solange eine Glocke an ist, erscheint man selbst online; mit `presence_mode: off` ist sie gesperrt
+
 ## [1.8.71] - 2026-11-28
 - Neu: `/api/last-received` liefert zusätzlich `unread`, die Summe der Ungelesen-Zähler aller Chats. Das Messenger Portal ab 1.5.14 zeigt damit den echten Stand an
 

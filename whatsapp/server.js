@@ -2631,6 +2631,166 @@ async function scanPresence() {
   }
 }
 
+// ── Online-Glocke ─────────────────────────────────────────────────────────────
+// Pro Kontakt im Chat-Kopf einschaltbar: geht der Kontakt online, gibt es eine
+// HA-Benachrichtigung, ein HA-Ereignis (fuer Automationen, z. B. Push aufs Handy)
+// und eine Browser-Meldung. WhatsApp schickt fremde Praesenz nur an Geraete, die
+// selbst als verfuegbar gelten: solange eine Glocke an ist, erscheint man daher
+// fuer die eigenen Kontakte online (ausser presence_mode = off, dann geht es nicht).
+const PRESENCE_WATCH_FILE = '/config/presence_watch.json';
+const PRESENCE_WATCH_MAX = 20;
+const WATCH_POLL_MS = 15000;
+const WATCH_RESUB_MS = 5 * 60 * 1000;
+const presenceWatch = new Map(); // chatId -> { online: true|false|null, denied }
+let presenceWatchEvents = [];    // { id, name, ts } — die letzten Online-Meldungen
+try {
+  if (existsSync(PRESENCE_WATCH_FILE)) {
+    for (const id of JSON.parse(fs.readFileSync(PRESENCE_WATCH_FILE, 'utf8'))) {
+      if (typeof id === 'string') presenceWatch.set(id, { online: null, denied: false });
+    }
+  }
+} catch (e) { console.error('[ERROR] loadPresenceWatch:', e.message); }
+
+function savePresenceWatch() {
+  try { fs.writeFileSync(PRESENCE_WATCH_FILE, JSON.stringify([...presenceWatch.keys()])); }
+  catch (e) { console.error('[ERROR] savePresenceWatch:', e.message); }
+}
+
+const WATCH_TEXT = {
+  de: { online: (n) => `${n} ist jetzt online`, generic: 'Ein Kontakt ist jetzt online' },
+  en: { online: (n) => `${n} is online now`, generic: 'A contact is online now' },
+  es: { online: (n) => `${n} está en línea ahora`, generic: 'Un contacto está en línea ahora' },
+};
+
+function contactDisplayName(id) {
+  const chat = chatMap.get(id);
+  if (chat && chat.name) return chat.name;
+  const c = _contactsCache && _contactsCache.contacts.find(x => x.id === id || x.chatId === id);
+  return (c && (c.name || c.pushname)) || id.replace(/@.*$/, '');
+}
+
+function haPost(path, body) {
+  if (!SUPERVISOR_TOKEN) return;
+  const payload = JSON.stringify(body);
+  const req = http.request('http://supervisor/core/api/' + path, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${SUPERVISOR_TOKEN}`, 'Content-Type': 'application/json',
+               'Content-Length': Buffer.byteLength(payload) },
+  }, (res) => { res.resume(); if (res.statusCode !== 200) console.warn(`[WARN] HA ${path}: HTTP ${res.statusCode}`); });
+  req.on('error', e => console.warn(`[WARN] HA ${path}:`, e.message));
+  req.write(payload);
+  req.end();
+}
+
+function notifyContactOnline(id) {
+  const name = contactDisplayName(id);
+  const ts = Date.now();
+  presenceWatchEvents.push({ id, name, ts });
+  if (presenceWatchEvents.length > 50) presenceWatchEvents = presenceWatchEvents.slice(-50);
+  console.log(`[INFO] Online-Glocke: ${HA_PRIVACY ? 'Kontakt' : name} ist online`);
+  const tx = WATCH_TEXT[_haLang] || WATCH_TEXT.de;
+  const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
+  haPost('services/persistent_notification/create', {
+    title: 'WhatsApp',
+    message: HA_PRIVACY ? tx.generic : tx.online(name),
+    notification_id: `whatsapp_online_${safeId}`,
+  });
+  haPost('events/whatsapp_contact_online', HA_PRIVACY ? { chat_id: id } : { chat_id: id, name });
+}
+
+let _watchHeld = false;
+let _watchBusy = false;
+let _watchLastSub = 0;
+
+function releaseWatchPresence() {
+  if (!_watchHeld) return;
+  _watchHeld = false;
+  _watchLastSub = 0;
+  if (PRESENCE_MODE === 'temporary') releaseOwnPresence();
+}
+
+async function presenceWatchTick() {
+  if (_watchBusy) return;
+  if (!presenceWatch.size || PRESENCE_MODE === 'off') { releaseWatchPresence(); return; }
+  if (status !== 'connected' || !client.pupPage) { _watchLastSub = 0; return; }
+  _watchBusy = true;
+  try {
+    const resub = Date.now() - _watchLastSub > WATCH_RESUB_MS;
+    if (!_watchHeld) { await holdOwnPresence(); _watchHeld = true; }
+    else if (resub) await setOwnPresence(true); // nach Neuverbindung erneut melden
+    const ids = [...presenceWatch.keys()];
+    const raw = await client.pupPage.evaluate(async (ids, resub) => {
+      const WF = window.require('WAWebWidFactory');
+      const PC = window.require('WAWebPresenceCollection').PresenceCollection;
+      const JOB = window.require('WAWebSendPresenceSubscriptionJob');
+      const models = [];
+      for (const id of ids) {
+        try {
+          const wid = WF.createWid(id);
+          let m = PC.get(wid);
+          if (!m) { try { m = await PC.find(wid); } catch (e) {} }
+          if (!m) continue;
+          models.push([id, m]);
+          if (resub) { try { await JOB.sendUserPresenceSubscription(wid); } catch (e) {} }
+        } catch (e) {}
+      }
+      if (resub) await new Promise(r => setTimeout(r, 4000));
+      const out = {};
+      for (const [id, m] of models) {
+        const cs = m.chatstate || {};
+        out[id] = { online: cs.type === 'available' || m.isOnline === true,
+                    deny: cs.deny === true, hasData: !!m.hasData || cs.t != null };
+      }
+      return out;
+    }, ids, resub);
+    if (resub) _watchLastSub = Date.now();
+    for (const [id, r] of Object.entries(raw || {})) {
+      const w = presenceWatch.get(id);
+      if (!w) continue;
+      w.denied = r.deny;
+      // Erst ein bekannter Offline-Stand macht den Wechsel zu online zur Meldung -
+      // wer beim Einschalten schon online ist, loest nichts aus
+      if (r.online && w.online === false) notifyContactOnline(id);
+      if (r.online || r.hasData || r.deny) w.online = r.online;
+    }
+  } catch (e) {
+    dbg('presenceWatchTick: ' + e.message);
+  } finally {
+    _watchBusy = false;
+  }
+}
+setInterval(presenceWatchTick, WATCH_POLL_MS);
+
+app.get('/api/presence-watch', (req, res) => {
+  const since = Number(req.query.since) || 0;
+  const denied = {};
+  for (const [id, w] of presenceWatch) if (w.denied || presenceCache.get(id)?.denied) denied[id] = true;
+  res.json({
+    ids: [...presenceWatch.keys()],
+    denied,
+    events: presenceWatchEvents.filter(e => e.ts > since),
+    now: Date.now(),
+    mode: PRESENCE_MODE,
+  });
+});
+
+app.post('/api/presence-watch', (req, res) => {
+  const chatId = typeof req.body?.chatId === 'string' ? req.body.chatId : '';
+  const on = req.body?.on === true;
+  if (!chatId || chatId.endsWith('@g.us') || isFilteredChat(chatId)) return res.status(400).json({ error: 'invalid_chat' });
+  if (on) {
+    if (PRESENCE_MODE === 'off') return res.status(409).json({ error: 'presence_off' });
+    if (!presenceWatch.has(chatId) && presenceWatch.size >= PRESENCE_WATCH_MAX) return res.status(409).json({ error: 'too_many' });
+    if (!presenceWatch.has(chatId)) presenceWatch.set(chatId, { online: null, denied: false });
+    _watchLastSub = 0; // neuen Kontakt sofort abonnieren
+  } else {
+    presenceWatch.delete(chatId);
+  }
+  savePresenceWatch();
+  setTimeout(presenceWatchTick, 100);
+  res.json({ ok: true, ids: [...presenceWatch.keys()], denied: !!presenceCache.get(chatId)?.denied });
+});
+
 app.get('/api/presence-overview', async (req, res) => {
   if (req.query.refresh === '1') await scanPresence();
   const index = status === 'connected' ? buildChatIndex() : new Map();
@@ -4630,6 +4790,8 @@ const _SVG = {
   imageOff:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
   archive:    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
   trash:      '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  bell:       '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+  bellOn:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0" fill="none"/></svg>',
   imageSlash: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="4.5" y1="19.5" x2="19.5" y2="4.5"/></svg>',
   chevUp:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
   chevDown:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
@@ -4697,6 +4859,9 @@ app.get('/', (req, res) => {
     #chat-media-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s, border-color 0.15s; }
     #chat-media-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #chat-media-btn.off, #chat-media-btn.off:hover { border-color: #f0a500; color: #f0a500; }
+    #online-watch-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: none; align-items: center; justify-content: center; transition: color 0.15s, border-color 0.15s; }
+    #online-watch-btn:hover, #online-watch-btn.on { border-color: #3cdb7c; color: #3cdb7c; }
+    html.light #online-watch-btn:hover, html.light #online-watch-btn.on { border-color: #25d366; color: #25d366; }
     html.light #chat-media-btn:hover { border-color: #25d366; color: #25d366; }
 
     /* Main two-panel layout */
@@ -5437,6 +5602,7 @@ app.get('/', (req, res) => {
           <div id="ch-phone"></div>
         </div>
         ${DOWNLOAD_MEDIA ? `<button id="chat-media-btn" onclick="toggleChatMedia()" title="Medien in diesem Chat: AN">${_SVG.imageOn}</button>` : ''}
+        <button id="online-watch-btn" onclick="toggleOnlineWatch()" title="">${_SVG.bell}</button>
         <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
         <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">${_SVG.trash}</button>
@@ -5742,6 +5908,10 @@ app.get('/', (req, res) => {
         btnBack:'Zurück',
         ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'Spam löschen',
         ttChatMediaOn:'Medien in diesem Chat: AN — Klick schaltet sie aus (nichts wird gelöscht)',
+        ttWatchOff:'Benachrichtigen, wenn dieser Kontakt online geht', ttWatchOn:'Online-Benachrichtigung: AN — Klick schaltet sie aus',
+        watchOnline:(n)=>n+' ist jetzt online', watchPresenceOff:'Nicht möglich: In den Add-on-Optionen steht presence_mode auf off.',
+        watchTooMany:'Höchstens 20 Kontakte gleichzeitig.', watchHidden:'Hinweis: Dieser Kontakt verbirgt seinen Online-Status. Dann meldet WhatsApp nichts und die Glocke bleibt stumm.',
+        watchVisible:'Solange eine Glocke an ist, erscheinst du für deine Kontakte online.',
         ttChatMediaOff:'Medien in diesem Chat: AUS — vorhandene sind nur ausgeblendet, Klick schaltet sie wieder an',
         ttMsgSearch:'Nachrichten durchsuchen', msgSearchPlaceholder:'Suchen…', msgSearchNoResult:'Keine Treffer',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
@@ -5898,6 +6068,10 @@ app.get('/', (req, res) => {
         btnBack:'Back',
         ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'Delete Spam',
         ttChatMediaOn:'Media in this chat: ON — click to turn off (nothing gets deleted)',
+        ttWatchOff:'Notify me when this contact comes online', ttWatchOn:'Online notification: ON — click to turn off',
+        watchOnline:(n)=>n+' is online now', watchPresenceOff:'Not possible: presence_mode is set to off in the add-on options.',
+        watchTooMany:'At most 20 contacts at a time.', watchHidden:'Note: this contact hides their online status. WhatsApp then reports nothing and the bell stays silent.',
+        watchVisible:'While a bell is on, you appear online to your contacts.',
         ttChatMediaOff:'Media in this chat: OFF — existing files are only hidden, click to turn back on',
         ttMsgSearch:'Search messages', msgSearchPlaceholder:'Search…', msgSearchNoResult:'No results',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
@@ -6054,6 +6228,10 @@ app.get('/', (req, res) => {
         btnBack:'Atrás',
         ttExport:'Exportar chat como HTML', ttSpamDelete:'Eliminar mensajes reenviados con frecuencia', btnSpamDelete:'Eliminar spam',
         ttChatMediaOn:'Multimedia en este chat: ACTIVADO — haz clic para desactivarlo (no se elimina nada)',
+        ttWatchOff:'Avisarme cuando este contacto se conecte', ttWatchOn:'Aviso de conexión: ACTIVADO — haz clic para desactivarlo',
+        watchOnline:(n)=>n+' está en línea ahora', watchPresenceOff:'No es posible: presence_mode está en off en las opciones del complemento.',
+        watchTooMany:'Como máximo 20 contactos a la vez.', watchHidden:'Aviso: este contacto oculta su estado en línea. WhatsApp no informa nada y la campana no sonará.',
+        watchVisible:'Mientras haya una campana activa, apareces en línea para tus contactos.',
         ttChatMediaOff:'Multimedia en este chat: DESACTIVADO — los archivos existentes solo se ocultan; haz clic para volver a activarlo',
         ttMsgSearch:'Buscar mensajes', msgSearchPlaceholder:'Buscar…', msgSearchNoResult:'Sin resultados',
         deleteMode:'Eliminar mensajes', deleteModeCancel:'Cancelar', deleteConfirm:(n)=>'¿Seguro que quieres eliminar '+n+(n===1?' mensaje':' mensajes')+'?',
@@ -6497,7 +6675,61 @@ app.get('/', (req, res) => {
       applyChatMediaState();
     }
 
+    // ── Online-Glocke ──
+    let _watchIds = new Set();
+    let _watchSince = Date.now();
+    function applyOnlineWatchState() {
+      const btn = document.getElementById('online-watch-btn');
+      if (!btn) return;
+      const show = !!selectedChatId && !selectedChatId.endsWith('@g.us');
+      btn.style.display = show ? 'inline-flex' : 'none';
+      const on = show && _watchIds.has(selectedChatId);
+      btn.classList.toggle('on', on);
+      btn.innerHTML = on ? '${_SVG.bellOn}' : '${_SVG.bell}';
+      btn.title = on ? t('ttWatchOn') : t('ttWatchOff');
+    }
+    async function toggleOnlineWatch() {
+      if (!selectedChatId) return;
+      const chatId = selectedChatId;
+      const on = !_watchIds.has(chatId);
+      if (on && window.Notification && Notification.permission === 'default') {
+        try { await Notification.requestPermission(); } catch (e) {}
+      }
+      try {
+        const r = await fetch('api/presence-watch', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, on }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          alert(d.error === 'presence_off' ? t('watchPresenceOff') : d.error === 'too_many' ? t('watchTooMany') : tf('msError', d.error || r.status));
+          return;
+        }
+        const first = on && _watchIds.size === 0;
+        _watchIds = new Set(d.ids || []);
+        applyOnlineWatchState();
+        if (on && d.denied) alert(t('watchHidden'));
+        else if (first) alert(t('watchVisible'));
+      } catch (e) { alert(tf('msError', e.message || String(e))); }
+    }
+    async function pollOnlineWatch() {
+      try {
+        const d = await fetch('api/presence-watch?since=' + _watchSince).then(r => r.json());
+        _watchIds = new Set(d.ids || []);
+        applyOnlineWatchState();
+        for (const ev of (d.events || [])) {
+          _watchSince = Math.max(_watchSince, ev.ts);
+          if (window.Notification && Notification.permission === 'granted') {
+            try { new Notification('WhatsApp', { body: tf('watchOnline', ev.name), tag: 'wa-online-' + ev.id }); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    }
+    pollOnlineWatch();
+    setInterval(pollOnlineWatch, 15000);
+
     function applyChatMediaState() {
+      applyOnlineWatchState();
       const btn = document.getElementById('chat-media-btn');
       const off = !!selectedChatId && _mediaOffChats.has(selectedChatId);
       document.body.classList.toggle('chat-media-off', off);
