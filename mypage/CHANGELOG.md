@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.11.75] - 2026-11-28
+- Behoben: Build schlug fehl bzw. wäre fehlgeschlagen, weil Alpine libffi auf 3.8.2-r0 angehoben hat und die fest eingetragene Fassung nicht mehr ausliefert
+
 ## [0.11.74.3] - 2026-11-23
 - Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
 

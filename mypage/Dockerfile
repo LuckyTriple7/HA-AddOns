@@ -13,7 +13,7 @@ RUN apk add --no-cache \
     jq=1.8.2-r0 \
     font-dejavu=2.37-r6 \
     pango=1.57.1-r0 \
-    libffi=3.5.2-r1
+    libffi=3.8.2-r0
 
 WORKDIR /app
 

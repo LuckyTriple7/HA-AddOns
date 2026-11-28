@@ -10,10 +10,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN \
     apk add --no-cache \
         mariadb-client=11.8.10-r0 \
-        nginx=1.30.7-r0 \
+        nginx=1.30.8-r0 \
         php84-curl=8.4.28-r0 \
         php84-fpm=8.4.28-r0 \
-        php84-gd=8.4.27-r0 \
+        php84-gd=8.4.28-r0 \
         php84-iconv=8.4.28-r0 \
         php84-mbstring=8.4.28-r0 \
         php84-mysqli=8.4.28-r0 \

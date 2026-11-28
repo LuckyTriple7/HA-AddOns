@@ -1,5 +1,8 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.8] - 2026-11-28
+- Behoben: Build schlug fehl bzw. wäre fehlgeschlagen, weil Alpine nginx auf 1.30.8-r0 und php84-gd auf 8.4.28-r0 angehoben hat und die fest eingetragene Fassung nicht mehr ausliefert
+
 ## [1.0.7.3] - 2026-11-23
 
 - Abhängigkeiten aktualisiert (wöchentliches Sammel-Update)
