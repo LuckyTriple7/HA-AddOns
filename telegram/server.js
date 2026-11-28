@@ -628,6 +628,8 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
     const chat = chatMap.get(chatId);
     if (ts >= (chat.lastTime || 0)) { chat.lastMsg = preview; chat.lastTime = ts; }
   }
+  // Zaehler fuer die Bubble in der Chatliste; Oeffnen des Chats setzt ihn zurueck
+  if (!fromMe && source === 'NewMessage') { const c = chatMap.get(chatId); c.unread = (c.unread || 0) + 1; }
   scheduleSave();
 
   if (!fromMe && source === 'NewMessage') {
@@ -682,6 +684,7 @@ async function loadDialogs() {
           lastMsg: dialog.message?.message || '',
           lastTime: (dialog.message?.date || 0) * 1000,
           isBot, chatType,
+          unread: dialog.unreadCount || 0,
         });
         changed = true;
       } else {
@@ -690,6 +693,10 @@ async function loadDialogs() {
         // sonst bleibt der gespeicherte alte Name dauerhaft stehen.
         if (name && c.name !== name) { c.name = name; changed = true; }
         if (c.isBot !== isBot || c.chatType !== chatType) { c.isBot = isBot; c.chatType = chatType; changed = true; }
+        // Ungelesen-Zaehler: anfangs von Telegram uebernehmen, danach nur
+        // senken (z. B. waehrend eines Neustarts am Handy gelesen)
+        const nativeUnread = dialog.unreadCount || 0;
+        if (c.unread === undefined || nativeUnread < c.unread) { c.unread = nativeUnread; changed = true; }
       }
       // Nachrichten, die während eines Ausfalls oder Neustarts ankamen, liefert kein
       // Update-Event nach. Liegt die letzte Nachricht des Dialogs hinter dem Cache,
@@ -818,6 +825,15 @@ async function startClient() {
         if (update.message) applyMessageEdit(update.message);
         return;
       }
+      // Auf einem anderen Geraet gelesen: Zaehler fuer die Chatliste angleichen
+      if (update.className === 'UpdateReadHistoryInbox' || update.className === 'UpdateReadChannelInbox') {
+        const p = update.peer;
+        const readId = String(update.channelId || p?.userId || p?.chatId || p?.channelId || '');
+        const rc = readId && chatMap.get(readId);
+        const left = update.stillUnreadCount;
+        if (rc && typeof left === 'number' && rc.unread !== left) { rc.unread = left; scheduleSave(); }
+        return;
+      }
       const peer = update.peer;
       const chatId = String(peer?.userId || peer?.chatId || peer?.channelId || '');
       if (!chatId) return;
@@ -925,6 +941,14 @@ app.post('/api/refresh-all', mutatingRateLimit, async (req, res) => {
 app.get('/api/chats', (req, res) => {
   const chats = Array.from(chatMap.values()).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(chats);
+});
+
+// Chat in der Oberflaeche geoeffnet: Ungelesen-Zaehler zuruecksetzen (nur lokal,
+// Telegram bekommt keine Lesebestaetigung)
+app.post('/api/seen/:chatId', (req, res) => {
+  const c = chatMap.get(String(req.params.chatId));
+  if (c && c.unread) { c.unread = 0; scheduleSave(); }
+  res.json({ ok: true });
 });
 
 app.get('/api/typing/:chatId', (req, res) => {
@@ -2239,7 +2263,7 @@ html.light .chat-preview { color: #999; }
 .chat-time { font-size: 12px; white-space: nowrap; }
 html.dark .chat-time { color: #6B7B8D; }
 html.light .chat-time { color: #999; }
-.unread-dot { width: 10px; height: 10px; border-radius: 50%; background: #2AABEE; }
+.unread-badge { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #2AABEE; color: #fff; font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
 
 /* ── Chat panel ── */
 #chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -3323,6 +3347,7 @@ async function loadChats() {
     chats.forEach(c => {
       if (!(c.id in lastSeenTime)) lastSeenTime[c.id] = c.lastTime || 0;
       else if (c.id === selectedChatId) lastSeenTime[c.id] = c.lastTime || lastSeenTime[c.id];
+      if (c.id === selectedChatId && c.unread && !document.hidden) { markSeen(c.id); c.unread = 0; }
     });
     allChats = chats;
     renderChats(chats);
@@ -3366,7 +3391,7 @@ function renderChats(chats) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
         <div class="chat-time">\${formatTime(c.lastTime)}</div>
-        \${c.id!==selectedChatId&&c.lastTime>(lastSeenTime[c.id]||0)?'<div class="unread-dot"></div>':''}
+        \${c.id!==selectedChatId&&c.unread>0?'<div class="unread-badge">'+(c.unread>99?'99+':c.unread)+'</div>':''}
       </div>
     </div>
   \`).join('');
@@ -3382,6 +3407,8 @@ function filterChats() { renderChats(allChats); }
 
 function openChatById(id) { const c = allChats.find(c=>c.id===id); if(c) openChat(c); }
 
+function markSeen(id) { fetch(api('/api/seen/' + encodeURIComponent(id)), { method: 'POST' }).catch(()=>{}); }
+
 function openChat(chat) {
   exitDeleteMode();
   closeMsgSearch();
@@ -3389,6 +3416,7 @@ function openChat(chat) {
   _lastMsgFingerprint[chat.id] = ''; // Chat-Wechsel → immer neu rendern
   _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; _historyMode[chat.id] = false; // Pagination/Verlauf zurücksetzen
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
+  if (chat.unread) { markSeen(chat.id); chat.unread = 0; }
   lastMsgCount[chat.id] = 0;
   document.body.classList.add('chat-open');
   document.getElementById('no-chat-wrap').style.display = 'none';

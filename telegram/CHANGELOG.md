@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.16] - 2026-11-28
+- Neu: Die Chatliste zeigt pro Chat eine Bubble mit der Zahl ungelesener Nachrichten statt nur eines Punkts. Der Zähler liegt auf dem Server, bleibt also nach Neuladen und auf anderen Geräten erhalten, und wird beim Öffnen des Chats sowie beim Lesen am Handy zurückgesetzt
+
 ## [1.8.15] - 2026-11-24
 - Behoben: Build schlug fehl, weil Alpine `python3` auf 3.14.10-r2 angehoben hat und die fest eingetragene Fassung r1 nicht mehr ausliefert
 

@@ -645,6 +645,10 @@ client.on('ready', async () => {
         }
       }
       upsertChat(chatId, { name: chatName, phone: chatPhone, isGroup: chat.isGroup });
+      // Ungelesen-Zaehler: anfangs von WhatsApp uebernehmen, danach nur senken
+      const _uc = chatMap.get(chatId);
+      const _native = chat.unreadCount > 0 ? chat.unreadCount : 0;
+      if (_uc && (_uc.unread === undefined || _native < _uc.unread)) _uc.unread = _native;
 
       const msgs = await chat.fetchMessages({ limit: INITIAL_MESSAGES }).catch(() => []);
       for (const msg of msgs) {
@@ -846,6 +850,8 @@ client.on('message', async (msg) => {
   }
   if (added) {
     const _ci = chatMap.get(chatId);
+    // Zaehler fuer die Bubble in der Chatliste; Oeffnen des Chats setzt ihn zurueck
+    if (_ci) _ci.unread = (_ci.unread || 0) + 1;
     const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
     const skipGroup = HA_NOTIFY_SKIP_GROUPS && isGroup;
     if (!skipGroup) {
@@ -982,6 +988,13 @@ client.on('message_revoke_me', (msg) => {
   console.log(`[INFO] message_revoke_me: msg=${msgId}`);
   const found = markDeleted(msgId);
   if (!found) console.log(`[WARN] message_revoke_me: no stored message matched`);
+});
+
+// Am Handy gelesen: WhatsApp meldet den gesunkenen Zaehler, die Bubble folgt
+client.on('unread_count', (chat) => {
+  const c = chat?.id?._serialized && chatMap.get(chat.id._serialized);
+  const left = chat?.unreadCount > 0 ? chat.unreadCount : 0;
+  if (c && c.unread && left < c.unread) { c.unread = left; saveMsgs(); }
 });
 
 client.on('message_ack', (msg, ack) => {
@@ -1227,6 +1240,14 @@ app.get('/api/chats', (req, res) => {
   if (status === 'connected') resolveChatNumbers().catch(() => {});
   const list = [...chatMap.values()].sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(list);
+});
+
+// Chat in der Oberflaeche geoeffnet: Ungelesen-Zaehler zuruecksetzen (nur lokal,
+// WhatsApp bekommt keine Lesebestaetigung)
+app.post('/api/seen/:chatId', (req, res) => {
+  const c = chatMap.get(String(req.params.chatId));
+  if (c && c.unread) { c.unread = 0; saveMsgs(); }
+  res.json({ ok: true });
 });
 
 app.get('/api/stats', (req, res) => {
@@ -4904,8 +4925,8 @@ app.get('/', (req, res) => {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .chat-time { font-size: 11px; color: #8696a0; white-space: nowrap; }
-    .unread-dot { width: 10px; height: 10px; background: #3cdb7c; border-radius: 50%; }
-    html.light .unread-dot { background: #128c7e; }
+    .unread-badge { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #3cdb7c; color: #0b141a; font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
+    html.light .unread-badge { background: #25d366; color: #fff; }
     .no-chats { color: #8696a0; text-align: center; padding: 32px 16px; font-size: 14px; }
 
     /* ── Right panel ── */
@@ -7648,10 +7669,11 @@ app.get('/', (req, res) => {
         time.className = 'chat-time';
         time.textContent = chat.lastTime ? fmtChatTime(chat.lastTime) : '';
         meta.appendChild(time);
-        if (chat.id !== selectedChatId && !chat.lastFromMe && chat.lastTime > (lastSeenTime[chat.id] || 0)) {
-          const dot = document.createElement('div');
-          dot.className = 'unread-dot';
-          meta.appendChild(dot);
+        if (chat.id !== selectedChatId && chat.unread > 0) {
+          const badge = document.createElement('div');
+          badge.className = 'unread-badge';
+          badge.textContent = chat.unread > 99 ? '99+' : String(chat.unread);
+          meta.appendChild(badge);
         }
 
         item.appendChild(av); item.appendChild(info); item.appendChild(meta);
@@ -7715,6 +7737,7 @@ app.get('/', (req, res) => {
 
       applyChatMediaState();
       lastSeenTime[chat.id] = chat.lastTime || Date.now();
+      if (chat.unread) { markSeen(chat.id); chat.unread = 0; }
       renderChatList(allChats);
       msgList.innerHTML = '';
       lastMsgTime[chat.id] = 0;
@@ -8928,6 +8951,8 @@ app.get('/', (req, res) => {
       await loadMessages(selectedChatId);
     }
 
+    function markSeen(id) { fetch('api/seen/' + encodeURIComponent(id), { method: 'POST' }).catch(() => {}); }
+
     async function pollChats() {
       if (document.hidden || currentStatus !== 'connected') return;
       try {
@@ -8935,6 +8960,7 @@ app.get('/', (req, res) => {
         chats.forEach(c => {
           if (!(c.id in lastSeenTime)) lastSeenTime[c.id] = c.lastTime || 0;
           else if (c.id === selectedChatId) lastSeenTime[c.id] = c.lastTime || lastSeenTime[c.id];
+          if (c.id === selectedChatId && c.unread) { markSeen(c.id); c.unread = 0; }
         });
         allChats = chats;
         renderChatList(chats);           // 1. Kontakte sofort anzeigen (Initialen)

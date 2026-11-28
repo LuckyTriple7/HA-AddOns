@@ -397,9 +397,17 @@ function markReadOnPhone(list) {
   let changed = false;
   for (const r of list) {
     const author = normPhone(r.senderNumber || r.sender || '');
-    for (const msgs of messagesByChatId.values()) {
+    for (const [chatId, msgs] of messagesByChatId) {
       const m = msgs.find(x => !x.fromMe && Number(x.timestamp) === Number(r.timestamp) && (!author || normPhone(x.from) === author));
-      if (m && !m.readSent) { m.readSent = true; changed = true; break; }
+      if (!m) continue;
+      if (!m.readSent) { m.readSent = true; changed = true; }
+      // Ungelesen-Zaehler: nur was nach der gelesenen Nachricht kam, bleibt offen
+      const c = chatMap.get(chatId);
+      if (c && c.unread) {
+        const left = msgs.filter(x => !x.fromMe && Number(x.timestamp) > Number(r.timestamp)).length;
+        if (left < c.unread) { c.unread = left; changed = true; }
+      }
+      break;
     }
   }
   if (changed) scheduleSave();
@@ -524,6 +532,8 @@ function processEnvelope(envelope) {
     else if (senderName && senderName !== chatId) chat.name = senderName;
   }
   const chatName = chatMap.get(chatId)?.name || senderName;
+  // Zaehler fuer die Bubble in der Chatliste; Oeffnen des Chats setzt ihn zurueck
+  if (!isOwn) { const c = chatMap.get(chatId); c.unread = (c.unread || 0) + 1; }
 
   scheduleSave();
 
@@ -1454,6 +1464,8 @@ app.post('/api/react', async (req, res) => {
 const READ_RECEIPT_BATCH = 20;
 app.post('/api/read/:chatId', async (req, res) => {
   res.json({ success: true });
+  const rc = chatMap.get(req.params.chatId);
+  if (rc && rc.unread) { rc.unread = 0; scheduleSave(); }
   if (!SEND_READ_RECEIPTS || status !== 'linked') return;
   const msgs = messagesByChatId.get(req.params.chatId) || [];
   const pending = msgs.filter(m => !m.fromMe && !m.readSent);
@@ -1656,8 +1668,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 .chat-preview { font-size: 13px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .chat-time { font-size: 12px; color: #999; white-space: nowrap; }
 .chat-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.unread-dot { width: 10px; height: 10px; background: #3a76f8; border-radius: 50%; }
-html.dark .unread-dot { background: #3cdb7c; }
+.unread-badge { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: #3a76f8; color: #fff; font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
 
 #chat-panel { flex: 1; display: flex; flex-direction: column; background: #e5ddd5; }
 #chat-header { background: #1b1b21; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -2673,7 +2684,7 @@ function renderChats(chats) {
   const el = document.getElementById('chat-list');
   el.innerHTML = filtered.map(c => {
     if (c.id === selectedChatId) lastSeenTime[c.id] = Math.max(lastSeenTime[c.id] || 0, c.lastTime || 0);
-    const hasUnread = c.id !== selectedChatId && !c.lastFromMe && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
+    const unread = c.id !== selectedChatId && c.unread > 0 ? (c.unread > 99 ? '99+' : String(c.unread)) : '';
     return \`
     <div class="chat-item\${c.id === selectedChatId ? ' active' : ''}" data-chatid="\${escHtml(c.id)}" onclick="openChatById(this.dataset.chatid)">
       \${chatAvatar(c)}
@@ -2683,7 +2694,7 @@ function renderChats(chats) {
       </div>
       <div class="chat-meta">
         <div class="chat-time">\${formatTime(c.lastTime)}</div>
-        \${hasUnread ? '<div class="unread-dot"></div>' : ''}
+        \${unread ? '<div class="unread-badge">' + unread + '</div>' : ''}
       </div>
     </div>\`;
   }).join('');
@@ -2708,6 +2719,8 @@ function openChat(chat) {
   selectedChatId = chat.id;
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
   localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
+  chat.unread = 0;
+  markChatRead(chat.id);
   document.body.classList.add('chat-open');
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;

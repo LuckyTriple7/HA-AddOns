@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.9] - 2026-11-28
+- Neu: Die Chatliste zeigt pro Chat eine Bubble mit der Zahl ungelesener Nachrichten statt nur eines Punkts. Der Zähler liegt auf dem Server, bleibt also nach Neuladen und auf anderen Geräten erhalten, und wird beim Öffnen des Chats sowie beim Lesen am Handy zurückgesetzt
+
 ## [1.8.8] - 2026-11-24
 - Neu: `/api/last-received` liefert zusätzlich `seq`, eine laufende Nummer der eingegangenen Nachrichten (gespeichert in `/config/received_seq.json`). Damit zeigt das Messenger Portal ab 1.5.13 die Zahl ungelesener Nachrichten an
 
