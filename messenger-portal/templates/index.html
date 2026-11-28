@@ -717,8 +717,9 @@
               // Ob ungelesen, entscheidet der Server (geraeteuebergreifend).
               // localStorage blendet nur die eben angeklickte Nachricht aus,
               // solange deren POST noch unterwegs ist.
+              // Echter Stand vom Add-on: ohne Ausblenden, er sinkt von selbst
               const isNew = !!m.has_new
-                && localStorage.getItem('mp-seen-' + m.icon) !== m.msg_key;
+                && (m.unread_live || localStorage.getItem('mp-seen-' + m.icon) !== m.msg_key);
               if (isNew) {
                 const shouldNotify = prevLastReceived !== null
                   ? lastReceived > (prevLastReceived[m.icon] || 0)

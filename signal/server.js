@@ -780,6 +780,13 @@ app.get('/api/search/:chatId', (req, res) => {
   res.json(out);
 });
 
+// Summe der Ungelesen-Zaehler fuers Messenger Portal
+function totalUnread() {
+  let n = 0;
+  for (const c of chatMap.values()) if (c.unread > 0) n += c.unread;
+  return n;
+}
+
 app.get('/api/last-received', (req, res) => {
   const { chat: chatId } = req.query;
   if (chatId) {
@@ -797,7 +804,7 @@ app.get('/api/last-received', (req, res) => {
       preview: last.body || (last.type === 'video' ? '📹 Video' : last.type === 'photo' ? '📷 Foto' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
-  res.json(lastReceivedMsg ? { ...lastReceivedMsg, seq: receivedSeq } : null);
+  res.json(lastReceivedMsg ? { ...lastReceivedMsg, seq: receivedSeq, unread: totalUnread() } : null);
 });
 
 app.get('/api/export/:chatId', (req, res) => {

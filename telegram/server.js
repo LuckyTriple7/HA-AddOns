@@ -1767,6 +1767,14 @@ app.get('/api/reactions/:chatId', (req, res) => {
   res.json(result);
 });
 
+// Summe der Ungelesen-Zaehler fuers Messenger Portal; Bots zaehlen nicht mit,
+// wenn sie auch keine Benachrichtigung ausloesen
+function totalUnread() {
+  let n = 0;
+  for (const c of chatMap.values()) if (c.unread > 0 && !(HA_NOTIFY_SKIP_BOTS && c.isBot)) n += c.unread;
+  return n;
+}
+
 app.get('/api/last-received', (req, res) => {
   const { chat: chatId } = req.query;
   if (chatId) {
@@ -1784,7 +1792,7 @@ app.get('/api/last-received', (req, res) => {
       preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'video' ? '📹 Video' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
-  res.json(lastReceivedMsg ? { ...lastReceivedMsg, seq: receivedSeq } : null);
+  res.json(lastReceivedMsg ? { ...lastReceivedMsg, seq: receivedSeq, unread: totalUnread() } : null);
 });
 
 app.post('/api/logout', async (req, res) => {

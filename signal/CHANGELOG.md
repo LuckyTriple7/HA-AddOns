@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.10] - 2026-11-28
+- Neu: `/api/last-received` liefert zusätzlich `unread`, die Summe der Ungelesen-Zähler aller Chats. Das Messenger Portal ab 1.5.14 zeigt damit den echten Stand an
+
 ## [1.8.9] - 2026-11-28
 - Neu: Die Chatliste zeigt pro Chat eine Bubble mit der Zahl ungelesener Nachrichten statt nur eines Punkts. Der Zähler liegt auf dem Server, bleibt also nach Neuladen und auf anderen Geräten erhalten, und wird beim Öffnen des Chats sowie beim Lesen am Handy zurückgesetzt
 

@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.5.14] - 2026-11-28
+- Neu: Die Zahl auf der Kachel ist der echte Ungelesen-Stand des Messengers und sinkt auch, wenn am Handy oder direkt im Messenger gelesen wird. Voraussetzung sind WhatsApp ab 1.8.71, Telegram ab 1.8.17 und Signal ab 1.8.10; ältere Versionen zählen wie bisher ab dem letzten Klick auf die Kachel
+
 ## [1.5.13] - 2026-11-24
 - Neu: Statt des roten Punkts zeigt jede Kachel die Zahl ungelesener Nachrichten (ab 99 als „99+“). Gezählt wird geräteübergreifend ab der zuletzt gesehenen Nachricht. Voraussetzung sind WhatsApp ab 1.8.69, Telegram ab 1.8.14 und Signal ab 1.8.8, ältere Versionen zeigen weiter den Punkt
 

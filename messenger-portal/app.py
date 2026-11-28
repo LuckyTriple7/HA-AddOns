@@ -616,6 +616,13 @@ def status():
         r['msg_key']  = msg_key(r.get('last_received'))
         r['has_new']  = has_unread(r.get('last_received'), read_state.get(r['icon']))
         r['unread']   = unread_count(r.get('last_received'), read_state.get(r['icon']))
+        # Neuere Add-ons melden ihren echten Ungelesen-Stand (sinkt auch beim
+        # Lesen am Handy oder im Messenger) - der hat Vorrang vor der Zaehlung
+        live = _seq((r.get('last_received') or {}).get('unread'))
+        if live is not None:
+            r['has_new'] = live > 0
+            r['unread']  = live
+            r['unread_live'] = True
     return jsonify(result)
 
 
